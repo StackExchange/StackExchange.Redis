@@ -1,0 +1,13 @@
+.hg
+bin
+obj
+*.suo
+*.user
+*.nupkg
+packages/NuGet.CommandLine.*
+*.sln.docstates
+_ReSharper.*
+Mono/
+*.sln.ide
+*.rdb
+*.orig

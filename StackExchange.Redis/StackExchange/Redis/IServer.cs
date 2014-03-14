@@ -1,0 +1,336 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Threading.Tasks;
+
+namespace StackExchange.Redis
+{
+    /// <summary>
+    /// Provides configuration controls of a redis server
+    /// </summary>
+    public interface IServer : IRedis
+    {
+        /// <summary>
+        /// Gets the cluster configuration associated with this server, if known
+        /// </summary>
+        ClusterConfiguration ClusterConfiguration { get; }
+
+        /// <summary>
+        /// Gets the address of the connected server
+        /// </summary>
+        EndPoint EndPoint { get; }
+
+        /// <summary>
+        /// Gets the features available to the connected server
+        /// </summary>
+        RedisFeatures Features { get; }
+
+        /// <summary>
+        /// Gets whether the connection to the server is active and usable
+        /// </summary>
+        bool IsConnected { get; }
+
+        /// <summary>
+        /// Gets whether the connected server is a replica / slave
+        /// </summary>
+        bool IsSlave { get; }
+
+        /// <summary>
+        /// Gets the operating mode of the connected server
+        /// </summary>
+        ServerType ServerType { get; }
+
+        /// <summary>
+        /// Gets the version of the connected server
+        /// </summary>
+        Version Version { get; }
+
+        /// <summary>
+        /// The CLIENT KILL command closes a given client connection identified by ip:port.
+        /// The ip:port should match a line returned by the CLIENT LIST command.
+        /// Due to the single-treaded nature of Redis, it is not possible to kill a client connection while it is executing a command.From the client point of view, the connection can never be closed in the middle of the execution of a command.However, the client will notice the connection has been closed only when the next command is sent (and results in network error).
+        /// </summary>
+        /// <remarks>http://redis.io/commands/client-kill</remarks>
+        void ClientKill(EndPoint endpoint, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// The CLIENT KILL command closes a given client connection identified by ip:port.
+        /// The ip:port should match a line returned by the CLIENT LIST command.
+        /// Due to the single-treaded nature of Redis, it is not possible to kill a client connection while it is executing a command.From the client point of view, the connection can never be closed in the middle of the execution of a command.However, the client will notice the connection has been closed only when the next command is sent (and results in network error).
+        /// </summary>
+        /// <remarks>http://redis.io/commands/client-kill</remarks>
+        Task ClientKillAsync(EndPoint endpoint, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// The CLIENT LIST command returns information and statistics about the client connections server in a mostly human readable format.
+        /// </summary>
+        /// <remarks>http://redis.io/commands/client-list</remarks>
+        ClientInfo[] ClientList(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// The CLIENT LIST command returns information and statistics about the client connections server in a mostly human readable format.
+        /// </summary>
+        /// <remarks>http://redis.io/commands/client-list</remarks>
+        Task<ClientInfo[]> ClientListAsync(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Obtains the current CLUSTER NODES output from a cluster server
+        /// </summary>
+        ClusterConfiguration ClusterNodes(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Obtains the current CLUSTER NODES output from a cluster server
+        /// </summary>
+        Task<ClusterConfiguration> ClusterNodesAsync(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Obtains the current raw CLUSTER NODES output from a cluster server
+        /// </summary>
+        string ClusterNodesRaw(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Obtains the current raw CLUSTER NODES output from a cluster server
+        /// </summary>
+        Task<string> ClusterNodesRawAsync(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Get all configuration parameters matching the specified pattern.
+        /// </summary>
+        /// <returns>All matching configuration parameters.</returns>
+        /// <remarks>http://redis.io/commands/config-get</remarks>
+        KeyValuePair<string, string>[] ConfigGet(RedisValue pattern = default(RedisValue), CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Get all configuration parameters matching the specified pattern.
+        /// </summary>
+        /// <returns>All matching configuration parameters.</returns>
+        /// <remarks>http://redis.io/commands/config-get</remarks>
+        Task<KeyValuePair<string, string>[]> ConfigGetAsync(RedisValue pattern = default(RedisValue), CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Resets the statistics reported by Redis using the INFO command.
+        /// </summary>
+        /// <remarks>http://redis.io/commands/config-resetstat</remarks>
+        void ConfigResetStatistics(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Resets the statistics reported by Redis using the INFO command.
+        /// </summary>
+        /// <remarks>http://redis.io/commands/config-resetstat</remarks>
+        Task ConfigResetStatisticsAsync(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// The CONFIG REWRITE command rewrites the redis.conf file the server was started with, applying the minimal changes needed to make it reflecting the configuration currently used by the server, that may be different compared to the original one because of the use of the CONFIG SET command.
+        /// </summary>
+        /// <remarks>http://redis.io/commands/config-rewrite</remarks>
+        void ConfigRewrite(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// The CONFIG REWRITE command rewrites the redis.conf file the server was started with, applying the minimal changes needed to make it reflecting the configuration currently used by the server, that may be different compared to the original one because of the use of the CONFIG SET command.
+        /// </summary>
+        /// <remarks>http://redis.io/commands/config-rewrite</remarks>
+        Task ConfigRewriteAsync(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// The CONFIG SET command is used in order to reconfigure the server at runtime without the need to restart Redis. You can change both trivial parameters or switch from one to another persistence option using this command.
+        /// </summary>
+        /// <remarks>http://redis.io/commands/config-set</remarks>
+        void ConfigSet(RedisValue setting, RedisValue value, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// The CONFIG SET command is used in order to reconfigure the server at runtime without the need to restart Redis. You can change both trivial parameters or switch from one to another persistence option using this command.
+        /// </summary>
+        /// <remarks>http://redis.io/commands/config-set</remarks>
+        Task ConfigSetAsync(RedisValue setting, RedisValue value, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Return the number of keys in the database.
+        /// </summary>
+        /// <remarks>http://redis.io/commands/dbsize</remarks>
+        long DatabaseSize(int database = 0, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Return the number of keys in the database.
+        /// </summary>
+        /// <remarks>http://redis.io/commands/dbsize</remarks>
+        Task<long> DatabaseSizeAsync(int database = 0, CommandFlags flags = CommandFlags.None);
+
+
+        /// <summary>
+        /// Delete all the keys of all databases on the server.
+        /// </summary>
+        /// <remarks>http://redis.io/commands/flushall</remarks>
+        void FlushAllDatabases(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Delete all the keys of all databases on the server.
+        /// </summary>
+        /// <remarks>http://redis.io/commands/flushall</remarks>
+        Task FlushAllDatabasesAsync(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Delete all the keys of the database.
+        /// </summary>
+        /// <remarks>http://redis.io/commands/flushdb</remarks>
+        void FlushDatabase(int database = 0, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Delete all the keys of the database.
+        /// </summary>
+        /// <remarks>http://redis.io/commands/flushdb</remarks>
+        Task FlushDatabaseAsync(int database = 0, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Get summary statistics associates with this server
+        /// </summary>
+        ServerCounters GetCounters();
+        /// <summary>
+        /// The INFO command returns information and statistics about the server in a format that is simple to parse by computers and easy to read by humans.
+        /// </summary>
+        /// <remarks>http://redis.io/commands/info</remarks>
+        IGrouping<string, KeyValuePair<string, string>>[] Info(RedisValue section = default(RedisValue), CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// The INFO command returns information and statistics about the server in a format that is simple to parse by computers and easy to read by humans.
+        /// </summary>
+        /// <remarks>http://redis.io/commands/info</remarks>
+        Task<IGrouping<string, KeyValuePair<string, string>>[]> InfoAsync(RedisValue section = default(RedisValue), CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// The INFO command returns information and statistics about the server in a format that is simple to parse by computers and easy to read by humans.
+        /// </summary>
+        /// <remarks>http://redis.io/commands/info</remarks>
+        string InfoRaw(RedisValue section = default(RedisValue), CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// The INFO command returns information and statistics about the server in a format that is simple to parse by computers and easy to read by humans.
+        /// </summary>
+        /// <remarks>http://redis.io/commands/info</remarks>
+        Task<string> InfoRawAsync(RedisValue section = default(RedisValue), CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns all keys matching pattern; the KEYS or SCAN commands will be used based on the server capabilities.
+        /// </summary>
+        /// <remarks>Warning: consider KEYS as a command that should only be used in production environments with extreme care.</remarks>
+        /// <remarks>http://redis.io/commands/keys</remarks>
+        /// <remarks>http://redis.io/commands/scan</remarks>
+        IEnumerable<RedisKey> Keys(int database = 0, RedisValue pattern = default(RedisValue), int pageSize = 10, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Return the time of the last DB save executed with success. A client may check if a BGSAVE command succeeded reading the LASTSAVE value, then issuing a BGSAVE command and checking at regular intervals every N seconds if LASTSAVE changed.
+        /// </summary>
+        /// <remarks>http://redis.io/commands/lastsave</remarks>
+        DateTime LastSave(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Return the time of the last DB save executed with success. A client may check if a BGSAVE command succeeded reading the LASTSAVE value, then issuing a BGSAVE command and checking at regular intervals every N seconds if LASTSAVE changed.
+        /// </summary>
+        /// <remarks>http://redis.io/commands/lastsave</remarks>
+        Task<DateTime> LastSaveAsync(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Promote the selected node to be master
+        /// </summary>
+        void MakeMaster(ReplicationChangeOptions options, TextWriter log = null);
+
+        /// <summary>
+        /// Explicitly request the database to persist the current state to disk
+        /// </summary>
+        /// <remarks>http://redis.io/commands/bgrewriteaof</remarks>
+        /// <remarks>http://redis.io/commands/bgsave</remarks>
+        /// <remarks>http://redis.io/commands/save</remarks>
+        /// <remarks>http://redis.io/topics/persistence</remarks>
+        void Save(SaveType type, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Explicitly request the database to persist the current state to disk
+        /// </summary>
+        /// <remarks>http://redis.io/commands/bgrewriteaof</remarks>
+        /// <remarks>http://redis.io/commands/bgsave</remarks>
+        /// <remarks>http://redis.io/commands/save</remarks>
+        /// <remarks>http://redis.io/topics/persistence</remarks>
+        Task SaveAsync(SaveType type, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>Asks the redis server to shutdown, killing all connections. Please FULLY read the notes on the SHUTDOWN command.</summary>
+        /// <remarks>http://redis.io/commands/shutdown</remarks>
+        void Shutdown(ShutdownMode shutdownMode = ShutdownMode.Default, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// To read the slow log the SLOWLOG GET command is used, that returns every entry in the slow log. It is possible to return only the N most recent entries passing an additional argument to the command (for instance SLOWLOG GET 10).
+        /// </summary>
+        /// <remarks>http://redis.io/commands/slowlog</remarks>
+        CommandTrace[] SlowlogGet(int count = 0, CommandFlags flags = CommandFlags.None);
+        /// <summary>
+        /// To read the slow log the SLOWLOG GET command is used, that returns every entry in the slow log. It is possible to return only the N most recent entries passing an additional argument to the command (for instance SLOWLOG GET 10).
+        /// </summary>
+        /// <remarks>http://redis.io/commands/slowlog</remarks>
+        Task<CommandTrace[]> SlowlogGetAsync(int count = 0, CommandFlags flags = CommandFlags.None);
+        /// <summary>
+        /// You can reset the slow log using the SLOWLOG RESET command. Once deleted the information is lost forever.
+        /// </summary>
+        /// <remarks>http://redis.io/commands/slowlog</remarks>
+        void SlowlogReset(CommandFlags flags = CommandFlags.None);
+        /// <summary>
+        /// You can reset the slow log using the SLOWLOG RESET command. Once deleted the information is lost forever.
+        /// </summary>
+        /// <remarks>http://redis.io/commands/slowlog</remarks>
+        Task SlowlogResetAsync(CommandFlags flags = CommandFlags.None);
+        /// <summary>
+        /// Lists the currently active channels. An active channel is a Pub/Sub channel with one ore more subscribers (not including clients subscribed to patterns).
+        /// </summary>
+        /// <returns> a list of active channels, optionally matching the specified pattern.</returns>
+        /// <remarks>http://redis.io/commands/pubsub</remarks>
+        RedisChannel[] SubscriptionChannels(RedisChannel pattern = default(RedisChannel), CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Lists the currently active channels. An active channel is a Pub/Sub channel with one ore more subscribers (not including clients subscribed to patterns).
+        /// </summary>
+        /// <returns> a list of active channels, optionally matching the specified pattern.</returns>
+        /// <remarks>http://redis.io/commands/pubsub</remarks>
+        Task<RedisChannel[]> SubscriptionChannelsAsync(RedisChannel pattern = default(RedisChannel), CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns the number of subscriptions to patterns (that are performed using the PSUBSCRIBE command). Note that this is not just the count of clients subscribed to patterns but the total number of patterns all the clients are subscribed to.
+        /// </summary>
+        /// <returns>the number of patterns all the clients are subscribed to.</returns>
+        /// <remarks>http://redis.io/commands/pubsub</remarks>
+        long SubscriptionPatternCount(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns the number of subscriptions to patterns (that are performed using the PSUBSCRIBE command). Note that this is not just the count of clients subscribed to patterns but the total number of patterns all the clients are subscribed to.
+        /// </summary>
+        /// <returns>the number of patterns all the clients are subscribed to.</returns>
+        /// <remarks>http://redis.io/commands/pubsub</remarks>
+        Task<long> SubscriptionPatternCountAsync(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns the number of subscribers (not counting clients subscribed to patterns) for the specified channel.
+        /// </summary>
+        /// <remarks>http://redis.io/commands/pubsub</remarks>
+        long SubscriptionSubscriberCount(RedisChannel channel, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns the number of subscribers (not counting clients subscribed to patterns) for the specified channel.
+        /// </summary>
+        /// <remarks>http://redis.io/commands/pubsub</remarks>
+        Task<long> SubscriptionSubscriberCountAsync(RedisChannel channel, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// The TIME command returns the current server time.
+        /// </summary>
+        /// <returns>The server's current time.</returns>
+        /// <remarks>http://redis.io/commands/time</remarks>
+        DateTime Time(CommandFlags flags = CommandFlags.None);
+        /// <summary>
+        /// The TIME command returns the current server time.
+        /// </summary>
+        /// <returns>The server's current time.</returns>
+        /// <remarks>http://redis.io/commands/time</remarks>
+        Task<DateTime> TimeAsync(CommandFlags flags = CommandFlags.None);
+    }
+
+
+
+}

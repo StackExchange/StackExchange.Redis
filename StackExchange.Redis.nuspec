@@ -1,0 +1,18 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package>
+  <metadata>
+    <id>StackExchange.Redis</id>
+    <version>1.0.0.0</version>
+    <authors>SE inc</authors>
+    <owners>SE inc</owners>
+    <summary>Redis client library</summary>
+    <description>Redis client library</description>
+    <tags>Events</tags>
+    <language>en-US</language>    
+    <dependencies>
+    </dependencies>
+  </metadata>
+  <files>
+    <file src="StackExchange.Redis\bin\Release\StackExchange.Redis.*" target="lib" />
+  </files>
+</package>

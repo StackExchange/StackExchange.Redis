@@ -1,0 +1,77 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2013
+VisualStudioVersion = 12.0.30129.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StackExchange.Redis", "StackExchange.Redis\StackExchange.Redis.csproj", "{7CEC07F2-8C03-4C42-B048-738B215824C1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StackExchange.Redis.Tests", "StackExchange.Redis.Tests\StackExchange.Redis.Tests.csproj", "{19C00111-1328-4089-8565-94920B5B47F2}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".nuget", ".nuget", "{D3090DF1-8760-4FE2-A595-4C8AC12854ED}"
+	ProjectSection(SolutionItems) = preProject
+		.nuget\packages.config = .nuget\packages.config
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Redis", "Redis", "{29A8EF11-C420-41F5-B8DC-BB586EF4D827}"
+	ProjectSection(SolutionItems) = preProject
+		master.conf = master.conf
+		redis-cli 7000.cmd = redis-cli 7000.cmd
+		redis-cli 7001.cmd = redis-cli 7001.cmd
+		redis-cli 7002.cmd = redis-cli 7002.cmd
+		redis-cli 7003.cmd = redis-cli 7003.cmd
+		redis-cli 7004.cmd = redis-cli 7004.cmd
+		redis-cli 7005.cmd = redis-cli 7005.cmd
+		redis-cli master.cmd = redis-cli master.cmd
+		redis-cli secure.cmd = redis-cli secure.cmd
+		redis-cli slave.cmd = redis-cli slave.cmd
+		redis-server master.cmd = redis-server master.cmd
+		redis-server secure.cmd = redis-server secure.cmd
+		redis-server slave.cmd = redis-server slave.cmd
+		secure.conf = secure.conf
+		slave.conf = slave.conf
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{709E0CE4-F0BA-4933-A4FD-4A8B6668A5D4}"
+	ProjectSection(SolutionItems) = preProject
+		StackExchange.Redis.nuspec = StackExchange.Redis.nuspec
+	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ConnectionWatcher", "ConnectionWatcher\ConnectionWatcher.csproj", "{6756F911-BD09-4226-B597-67871DEB8ED5}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Log Output|Any CPU = Log Output|Any CPU
+		Release|Any CPU = Release|Any CPU
+		Verbose|Any CPU = Verbose|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{7CEC07F2-8C03-4C42-B048-738B215824C1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7CEC07F2-8C03-4C42-B048-738B215824C1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7CEC07F2-8C03-4C42-B048-738B215824C1}.Log Output|Any CPU.ActiveCfg = Log Output|Any CPU
+		{7CEC07F2-8C03-4C42-B048-738B215824C1}.Log Output|Any CPU.Build.0 = Log Output|Any CPU
+		{7CEC07F2-8C03-4C42-B048-738B215824C1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7CEC07F2-8C03-4C42-B048-738B215824C1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7CEC07F2-8C03-4C42-B048-738B215824C1}.Verbose|Any CPU.ActiveCfg = Verbose|Any CPU
+		{7CEC07F2-8C03-4C42-B048-738B215824C1}.Verbose|Any CPU.Build.0 = Verbose|Any CPU
+		{19C00111-1328-4089-8565-94920B5B47F2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{19C00111-1328-4089-8565-94920B5B47F2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{19C00111-1328-4089-8565-94920B5B47F2}.Log Output|Any CPU.ActiveCfg = Log Output|Any CPU
+		{19C00111-1328-4089-8565-94920B5B47F2}.Log Output|Any CPU.Build.0 = Log Output|Any CPU
+		{19C00111-1328-4089-8565-94920B5B47F2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{19C00111-1328-4089-8565-94920B5B47F2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{19C00111-1328-4089-8565-94920B5B47F2}.Verbose|Any CPU.ActiveCfg = Verbose|Any CPU
+		{19C00111-1328-4089-8565-94920B5B47F2}.Verbose|Any CPU.Build.0 = Verbose|Any CPU
+		{6756F911-BD09-4226-B597-67871DEB8ED5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6756F911-BD09-4226-B597-67871DEB8ED5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6756F911-BD09-4226-B597-67871DEB8ED5}.Log Output|Any CPU.ActiveCfg = Log Output|Any CPU
+		{6756F911-BD09-4226-B597-67871DEB8ED5}.Log Output|Any CPU.Build.0 = Log Output|Any CPU
+		{6756F911-BD09-4226-B597-67871DEB8ED5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6756F911-BD09-4226-B597-67871DEB8ED5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6756F911-BD09-4226-B597-67871DEB8ED5}.Verbose|Any CPU.ActiveCfg = Verbose|Any CPU
+		{6756F911-BD09-4226-B597-67871DEB8ED5}.Verbose|Any CPU.Build.0 = Verbose|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
