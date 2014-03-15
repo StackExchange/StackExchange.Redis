@@ -129,10 +129,11 @@ namespace StackExchange.Redis
             }
             OnCloseEcho();
         }
-
+        long lastWriteTickCount, lastReadTickCount;
         public void Flush()
         {
             outStream.Flush();
+            Interlocked.Exchange(ref lastWriteTickCount, Environment.TickCount);
         }
         int failureReported;
         public void RecordConnectionFailed(ConnectionFailureType failureType, Exception innerException = null)
@@ -146,7 +147,11 @@ namespace StackExchange.Redis
             {
                 try
                 {
-                    string message = failureType + " on " + Format.ToString(bridge.ServerEndPoint.EndPoint) + "/" + connectionType;
+                    long now = Environment.TickCount, lastRead = Interlocked.Read(ref lastReadTickCount), lastWrite = Interlocked.Read(ref lastWriteTickCount);
+                    string message = failureType + " on " + Format.ToString(bridge.ServerEndPoint.EndPoint) + "/" + connectionType
+                        + ", input-butter: " + ioBufferBytes + ", outstanding: " + GetOutstandingCount()
+                        + ", last-read: " + (now - lastRead) / 1000 + "s ago, last-write" + (now - lastWrite) / 1000 + "s ago";
+                    
                     var ex = innerException == null
                         ? new RedisConnectionException(failureType, message)
                         : new RedisConnectionException(failureType, message, innerException);
@@ -623,6 +628,7 @@ namespace StackExchange.Redis
                     }
                     else
                     {
+                        Interlocked.Exchange(ref lastReadTickCount, Environment.TickCount);
                         ioBufferBytes += bytesRead;
                         multiplexer.Trace("More bytes available: " + bytesRead + " (" + ioBufferBytes + ")", physicalName);
                         int offset = 0, count = ioBufferBytes;

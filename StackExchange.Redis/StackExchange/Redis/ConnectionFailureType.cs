@@ -36,6 +36,6 @@
         /// <summary>
         /// The socket was closed
         /// </summary>
-        ConnectionDisposed
+        ConnectionDisposed,
     }
 }
