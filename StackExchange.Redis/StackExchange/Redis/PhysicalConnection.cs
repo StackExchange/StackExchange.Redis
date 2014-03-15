@@ -149,8 +149,8 @@ namespace StackExchange.Redis
                 {
                     long now = Environment.TickCount, lastRead = Interlocked.Read(ref lastReadTickCount), lastWrite = Interlocked.Read(ref lastWriteTickCount);
                     string message = failureType + " on " + Format.ToString(bridge.ServerEndPoint.EndPoint) + "/" + connectionType
-                        + ", input-butter: " + ioBufferBytes + ", outstanding: " + GetOutstandingCount()
-                        + ", last-read: " + (now - lastRead) / 1000 + "s ago, last-write" + (now - lastWrite) / 1000 + "s ago";
+                        + ", input-buffer: " + ioBufferBytes + ", outstanding: " + GetOutstandingCount()
+                        + ", last-read: " + (now - lastRead) / 1000 + "s ago, last-write: " + (now - lastWrite) / 1000 + "s ago";
                     
                     var ex = innerException == null
                         ? new RedisConnectionException(failureType, message)
