@@ -63,8 +63,8 @@ namespace StackExchange.Redis
 
         protected RedisCommand command;
 
-        private const CommandFlags AskingFlag = (CommandFlags)32,
-                                   InternalCallFlag = (CommandFlags)128;
+        private const CommandFlags AskingFlag = (CommandFlags)32;
+        internal const CommandFlags InternalCallFlag = (CommandFlags)128;
 
         
         public virtual void AppendStormLog(StringBuilder sb)
@@ -349,12 +349,13 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// This does two important things:
+        /// This does a few important things:
         /// 1: it suppresses error events for commands that the user isn't interested in
         ///    (i.e. "why does my standalone server keep saying ERR unknown command 'cluster' ?")
         /// 2: it allows the initial PING and GET (during connect) to get queued rather
         ///    than be rejected as no-server-available (note that this doesn't apply to
         ///    handshake messages, as they bypass the queue completely)
+        /// 3: it disables non-pref logging, as it is usually server-targeted
         /// </summary>
         public void SetInternalCall()
         {
@@ -363,7 +364,7 @@ namespace StackExchange.Redis
 
         public override string ToString()
         {
-            return string.Format("[{0}]:{1} ({2})", Db, Command,
+            return string.Format("[{0}]:{1} ({2})", Db, CommandAndKey,
                 resultProcessor == null ? "(n/a)" : resultProcessor.GetType().Name);
         }
 

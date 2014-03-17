@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using NUnit.Framework;
@@ -229,52 +230,98 @@ namespace StackExchange.Redis.Tests
         }
 
         [Test]
-        public void SubscriptionsSurviceMasterSwitch()
+        [TestCase(false)]
+        [TestCase(true)]
+        public void SubscriptionsSurviveMasterSwitch(bool useSharedSocketManager)
         {
-            using (var a = Create(allowAdmin: true))
-            using (var b = Create(allowAdmin: true))
+            using (var a = Create(allowAdmin: true, useSharedSocketManager: useSharedSocketManager))
+            using (var b = Create(allowAdmin: true, useSharedSocketManager: useSharedSocketManager))
             {
                 RedisChannel channel = Me();
                 var subA = a.GetSubscriber();
                 var subB = b.GetSubscriber();
                 
                 long masterChanged = 0, aCount = 0, bCount = 0;
-                a.MasterChanged += delegate { Interlocked.Increment(ref masterChanged); };
-                subA.Subscribe(channel, delegate { Interlocked.Increment(ref aCount); });
-                subB.Subscribe(channel, delegate { Interlocked.Increment(ref bCount); });
+                a.ConfigurationChangedBroadcast += delegate {
+                    Console.WriteLine("a noticed config broadcast: " + Interlocked.Increment(ref masterChanged)); 
+                };
+                b.ConfigurationChangedBroadcast += delegate {
+                    Console.WriteLine("b noticed config broadcast: " + Interlocked.Increment(ref masterChanged));
+                };
+                subA.Subscribe(channel, (ch, message) => {
+                    Console.WriteLine("a got message: " + message);
+                    Interlocked.Increment(ref aCount);
+                });
+                subB.Subscribe(channel, (ch, message) => {
+                    Console.WriteLine("b got message: " + message);
+                    Interlocked.Increment(ref bCount);
+                });
 
-                //var epA = subA.IdentifyEndpoint(channel);
-                //var epB = subB.IdentifyEndpoint(channel);
-                //Console.WriteLine(epA);
-                //Console.WriteLine(epB);
-                subA.Publish(channel, "a");
-                subB.Publish(channel, "b");
+
+                Assert.IsFalse(a.GetServer(PrimaryServer, PrimaryPort).IsSlave, PrimaryPortString + " is master via a");
+                Assert.IsTrue(a.GetServer(PrimaryServer, SlavePort).IsSlave, SlavePortString + " is slave via a");
+                Assert.IsFalse(b.GetServer(PrimaryServer, PrimaryPort).IsSlave, PrimaryPortString + " is master via b");
+                Assert.IsTrue(b.GetServer(PrimaryServer, SlavePort).IsSlave, SlavePortString + " is slave via b");
+
+
+                var epA = subA.SubscribedEndpoint(channel);
+                var epB = subB.SubscribedEndpoint(channel);
+                Console.WriteLine("a: " + EndPointCollection.ToString(epA));
+                Console.WriteLine("b: " + EndPointCollection.ToString(epB));
+                subA.Publish(channel, "a1");
+                subB.Publish(channel, "b1");
                 subA.Ping();
                 subB.Ping();
-
-                Assert.AreEqual(0, Interlocked.Read(ref masterChanged), "master");
+                
                 Assert.AreEqual(2, Interlocked.Read(ref aCount), "a");
                 Assert.AreEqual(2, Interlocked.Read(ref bCount), "b");
+                Assert.AreEqual(0, Interlocked.Read(ref masterChanged), "master");
 
                 try
                 {
-                    b.GetServer(PrimaryServer, SlavePort).MakeMaster(ReplicationChangeOptions.All);
-                    Thread.Sleep(100);
-                    //epA = subA.IdentifyEndpoint(channel);
-                    //epB = subB.IdentifyEndpoint(channel);
-                    //Console.WriteLine(epA);
-                    //Console.WriteLine(epB);
-                    subA.Publish(channel, "a");
-                    subB.Publish(channel, "b");
-                    subA.Ping();
+                    Interlocked.Exchange(ref masterChanged, 0);
+                    Interlocked.Exchange(ref aCount, 0);
+                    Interlocked.Exchange(ref bCount, 0);
+                    Console.WriteLine("Changing master...");
+                    using (var sw = new StringWriter())
+                    {
+                        a.GetServer(PrimaryServer, SlavePort).MakeMaster(ReplicationChangeOptions.All, sw);
+                        Console.WriteLine(sw);
+                    }
                     subA.Ping();
                     subB.Ping();
-                    Assert.AreEqual(2, Interlocked.Read(ref masterChanged), "master");
-                    Assert.AreEqual(4, Interlocked.Read(ref aCount), "a");
-                    Assert.AreEqual(4, Interlocked.Read(ref bCount), "b");
+                    Console.WriteLine("Pausing...");
+                    Thread.Sleep(2000);
+
+                    Assert.IsTrue(a.GetServer(PrimaryServer, PrimaryPort).IsSlave, PrimaryPortString + " is slave via a");
+                    Assert.IsFalse(a.GetServer(PrimaryServer, SlavePort).IsSlave, SlavePortString + " is master via a");
+                    Assert.IsTrue(b.GetServer(PrimaryServer, PrimaryPort).IsSlave, PrimaryPortString + " is slave via b");
+                    Assert.IsFalse(b.GetServer(PrimaryServer, SlavePort).IsSlave, SlavePortString + " is master via b");
+
+                    Console.WriteLine("Pause complete");
+                    var counters = a.GetCounters();
+                    Console.WriteLine("a outstanding: " + counters.TotalOutstanding);
+                    counters = b.GetCounters();
+                    Console.WriteLine("b outstanding: " + counters.TotalOutstanding);
+                    subA.Ping();
+                    subB.Ping();
+                    epA = subA.SubscribedEndpoint(channel);
+                    epB = subB.SubscribedEndpoint(channel);
+                    Console.WriteLine("a: " + EndPointCollection.ToString(epA));
+                    Console.WriteLine("b: " + EndPointCollection.ToString(epB));
+                    Console.WriteLine("a2 sent to: " + subA.Publish(channel, "a2"));
+                    Console.WriteLine("b2 sent to: " + subB.Publish(channel, "b2"));
+                    subA.Ping();
+                    subB.Ping();
+                    Console.WriteLine("Checking...");
+                    
+                    Assert.AreEqual(2, Interlocked.Read(ref aCount), "a");
+                    Assert.AreEqual(2, Interlocked.Read(ref bCount), "b");
+                    Assert.AreEqual(4, Interlocked.CompareExchange(ref masterChanged, 0, 0), "master");
                 }
                 finally
                 {
+                    Console.WriteLine("Restoring configuration...");
                     try
                     {
                         a.GetServer(PrimaryServer, PrimaryPort).MakeMaster(ReplicationChangeOptions.All);

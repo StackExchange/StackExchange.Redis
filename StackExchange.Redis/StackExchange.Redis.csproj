@@ -63,7 +63,7 @@
     <Reference Include="System.IO.Compression" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="StackExchange\RedisChannel.cs" />
+    <Compile Include="StackExchange\Redis\RedisChannel.cs" />
     <Compile Include="StackExchange\Redis\Bitwise.cs" />
     <Compile Include="StackExchange\Redis\ClientFlags.cs" />
     <Compile Include="StackExchange\Redis\ClientInfo.cs" />
@@ -133,6 +133,7 @@
     <Compile Include="StackExchange\Redis\ServerSelectionStrategy.cs" />
     <Compile Include="StackExchange\Redis\ServerType.cs" />
     <Compile Include="StackExchange\Redis\SetOperation.cs" />
+    <Compile Include="StackExchange\Redis\SocketManager.cs" />
     <Compile Include="StackExchange\Redis\StringSplits.cs" />
     <Compile Include="StackExchange\Redis\TaskContinuationCheck.cs" />
     <Compile Include="StackExchange\Redis\When.cs" />

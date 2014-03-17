@@ -67,7 +67,7 @@ namespace StackExchange.Redis.Tests
         [Test]
         public void TestManaulHeartbeat()
         {
-            using (var muxer = Create(keepAlive: 2000))
+            using (var muxer = Create(keepAlive: 2))
             {
                 var conn = muxer.GetDatabase();
                 conn.Ping();
@@ -79,7 +79,7 @@ namespace StackExchange.Redis.Tests
 
                 var after = muxer.OperationCount;
 
-                Assert.AreEqual(before + 2, after);
+                Assert.IsTrue(after >= before + 4);
 
             }
         }
@@ -296,7 +296,7 @@ namespace StackExchange.Redis.Tests
                         Thread.Sleep(TimeSpan.FromSeconds(8));
 
                         var after = innerMuxer.OperationCount;
-                        Assert.AreEqual(before + 2, after);
+                        Assert.IsTrue(after >= before + 4);
 
                     }
                 }

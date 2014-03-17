@@ -106,6 +106,7 @@ namespace StackExchange.Redis.Tests
                 case "CreateTransaction":
                 case "IsConnected":
                 case "SetScan":
+                case "SubscribedEndpoint":
                     return true;
             }
             return false;

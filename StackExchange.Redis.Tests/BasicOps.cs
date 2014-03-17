@@ -8,7 +8,7 @@ using NUnit.Framework;
 namespace StackExchange.Redis.Tests
 {
     [TestFixture]
-    public class ConnectTests : TestBase
+    public class BasicOpsTests : TestBase
     {
         [Test]
         [TestCase(true)]

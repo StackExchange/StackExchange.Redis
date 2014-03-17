@@ -86,5 +86,13 @@ namespace StackExchange.Redis
         /// </summary>
         [IgnoreNamePrefix]
         Task<EndPoint> IdentifyEndpointAsync(RedisChannel channel, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Inidicate to which redis server we are actively subscribed for a given channel; returns null if
+        /// the channel is not actively subscribed
+        /// </summary>
+        [IgnoreNamePrefix]
+        EndPoint SubscribedEndpoint(RedisChannel channel);
+
     }
 }

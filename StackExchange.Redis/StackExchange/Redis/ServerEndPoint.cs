@@ -31,7 +31,7 @@ namespace StackExchange.Redis
 
         private readonly ConnectionMultiplexer multiplexer;
 
-        private int databases, maxMissedHeartbeats;
+        private int databases, writeEverySeconds;
 
         private PhysicalBridge interactive, subscription;
 
@@ -54,7 +54,7 @@ namespace StackExchange.Redis
             slaveReadOnly = true;
             isSlave = false;
             databases = 0;
-            maxMissedHeartbeats = ComputeBeatsFromMilliseconds(config.KeepAlive);
+            writeEverySeconds = config.KeepAlive;
             interactive = CreateBridge(ConnectionType.Interactive);
             serverType = ServerType.Standalone;
         }
@@ -78,7 +78,7 @@ namespace StackExchange.Redis
 
         public bool IsSlave { get { return isSlave; } set { SetConfig(ref isSlave, value); } }
 
-        public int MaxMissedHeartbeats { get { return maxMissedHeartbeats; } set { SetConfig(ref maxMissedHeartbeats, value); } }
+        public int WriteEverySeconds { get { return writeEverySeconds; } set { SetConfig(ref writeEverySeconds, value); } }
 
         public long OperationCount
         {
@@ -357,11 +357,6 @@ namespace StackExchange.Redis
             if (tmp != null) tmp.ReportNextFailure();
         }
 
-        internal void SetHeartbeatMilliseconds(int value)
-        {
-            MaxMissedHeartbeats = ComputeBeatsFromMilliseconds(value);
-        }
-
         internal string Summary()
         {
             var sb = new StringBuilder(Format.ToString(endpoint))
@@ -369,9 +364,8 @@ namespace StackExchange.Redis
             
 
             if (databases > 0) sb.Append("; ").Append(databases).Append(" databases");
-            if (maxMissedHeartbeats > 0)
-                sb.Append("; keep-alive: ").Append(
-                    TimeSpan.FromMilliseconds(maxMissedHeartbeats * ConnectionMultiplexer.MillisecondsPerHeartbeat));
+            if (writeEverySeconds > 0)
+                sb.Append("; keep-alive: ").Append(TimeSpan.FromSeconds(writeEverySeconds));
             var tmp = interactive;
             sb.Append("; int: ").Append(tmp == null ? "n/a" : tmp.ConnectionState.ToString());
             tmp = subscription;
@@ -418,19 +412,6 @@ namespace StackExchange.Redis
             }
         }
 
-        private static int ComputeBeatsFromMilliseconds(int value)
-        {
-            if (value > 0)
-            {
-                int beats = value / ConnectionMultiplexer.MillisecondsPerHeartbeat;
-                if (beats == 0) beats = 1;
-                return beats;
-            }
-            else
-            {
-                return -1;
-            }
-        }
         private PhysicalBridge CreateBridge(ConnectionType type)
         {
             multiplexer.Trace(type.ToString());
@@ -491,7 +472,7 @@ namespace StackExchange.Redis
                 var configChannel = multiplexer.ConfigurationChangedChannel;
                 if(configChannel != null)
                 {
-                    msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.SUBSCRIBE, (RedisValue)configChannel);
+                    msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.SUBSCRIBE, (RedisChannel)configChannel);
                     WriteDirectOrQueueFireAndForget(connection, msg, ResultProcessor.TrackSubscriptions);
                 }
             }
@@ -505,7 +486,7 @@ namespace StackExchange.Redis
             {
                 multiplexer.Trace(caller + " changed from " + field + " to " + value, "Configuration");
                 field = value;
-                multiplexer.ReconfigureIfNeeded(endpoint, false);
+                multiplexer.ReconfigureIfNeeded(endpoint, false, caller);
             }
         }
 

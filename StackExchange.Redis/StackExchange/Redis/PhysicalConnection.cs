@@ -20,15 +20,19 @@ namespace StackExchange.Redis
         HasWork
     }
 
-    internal sealed partial class PhysicalConnection : IDisposable
+    internal sealed partial class PhysicalConnection : IDisposable, ISocketCallback
     {
+
+        void ISocketCallback.Error()
+        {
+            RecordConnectionFailed(ConnectionFailureType.SocketFailure);
+        }
+
         private const int DefaultRedisDatabaseCount = 16;
 
         public long SubscriptionCount { get;set; }
 
         private static readonly byte[] Crlf = Encoding.ASCII.GetBytes("\r\n");
-
-        private static readonly AsyncCallback endReadShared = EndReadShared;
 
         private static readonly byte[] message = Encoding.UTF8.GetBytes("message"), pmessage = Encoding.UTF8.GetBytes("pmessage");
 
@@ -62,10 +66,11 @@ namespace StackExchange.Redis
         // things sent to this physical, but not yet received
         Queue<Message> outstanding = new Queue<Message>();
 
-        private Socket socket;
+        private SocketToken socketToken;
 
         public PhysicalConnection(PhysicalBridge bridge)
         {
+            lastWriteTickCount = lastReadTickCount = Environment.TickCount;
             this.connectionType = bridge.ConnectionType;
             this.multiplexer = bridge.Multiplexer;
             this.ChannelPrefix = multiplexer.RawConfig.ChannelPrefix;
@@ -74,11 +79,17 @@ namespace StackExchange.Redis
             physicalName = connectionType + "#" + Interlocked.Increment(ref totalCount) + "@" + endpoint.ToString();
             this.bridge = bridge;
             multiplexer.Trace("Connecting...", physicalName);
-            socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-            socket.NoDelay = true;
+
+            this.socketToken = multiplexer.SocketManager.BeginConnect(endpoint, this);
             //socket.SendTimeout = socket.ReceiveTimeout = multiplexer.TimeoutMilliseconds;
             OnCreateEcho();
-            socket.BeginConnect(endpoint, ConnectCallback, socket);            
+        }
+        public long LastWriteSecondsAgo
+        {
+            get
+            {
+                return unchecked(Environment.TickCount - Interlocked.Read(ref lastWriteTickCount)) / 1000;
+            }
         }
 
         private enum ReadMode : byte
@@ -94,36 +105,27 @@ namespace StackExchange.Redis
 
         public bool TransactionActive { get; internal set; }
 
-        public void BeginRead()
-        {
-            multiplexer.Trace("BeginRead", physicalName);
-            try
-            {
-                int space = EnsureSpaceAndComputeBytesToRead();
-                netStream.BeginRead(ioBuffer, ioBufferBytes, space, endReadShared, this);
-            }
-            catch (Exception ex)
-            {
-                RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
-            }
-        }
 
         public void Dispose()
         {
-            if (socket != null)
+            if (outStream != null)
             {
                 multiplexer.Trace("Disconnecting...", physicalName);
                 try { outStream.Close(); } catch { }
                 try { outStream.Dispose(); } catch { }
                 outStream = null;
+            }
+            if (netStream != null)
+            {
                 try { netStream.Close(); } catch { }
                 try { netStream.Dispose(); } catch { }
                 netStream = null;
-                try { socket.Shutdown(SocketShutdown.Both); } catch { }
-                try { socket.Close(); } catch { }
-                try { socket.Dispose(); } catch { }
-                socket = null;
-
+            }
+            if (socketToken.HasValue)
+            {
+                var socketManager = multiplexer.SocketManager;
+                if(socketManager !=null) socketManager.Shutdown(socketToken);
+                socketToken = default(SocketToken);
                 multiplexer.Trace("Disconnected", physicalName);
                 RecordConnectionFailed(ConnectionFailureType.ConnectionDisposed);
             }
@@ -148,10 +150,12 @@ namespace StackExchange.Redis
                 try
                 {
                     long now = Environment.TickCount, lastRead = Interlocked.Read(ref lastReadTickCount), lastWrite = Interlocked.Read(ref lastWriteTickCount);
+
                     string message = failureType + " on " + Format.ToString(bridge.ServerEndPoint.EndPoint) + "/" + connectionType
                         + ", input-buffer: " + ioBufferBytes + ", outstanding: " + GetOutstandingCount()
-                        + ", last-read: " + (now - lastRead) / 1000 + "s ago, last-write: " + (now - lastWrite) / 1000 + "s ago";
-                    
+                        + ", last-read: " + unchecked(now - lastRead) / 1000 + "s ago, last-write: " + unchecked(now - lastWrite) / 1000 + "s ago, keep-alive: " + bridge.ServerEndPoint.WriteEverySeconds + "s, pending: "
+                        + bridge.GetPendingCount();
+
                     var ex = innerException == null
                         ? new RedisConnectionException(failureType, message)
                         : new RedisConnectionException(failureType, message, innerException);
@@ -159,7 +163,7 @@ namespace StackExchange.Redis
                 }
                 catch(Exception caught)
                 {
-                    bridge.OnConnectionFailed(bridge.ServerEndPoint.EndPoint, failureType, caught);
+                    bridge.OnConnectionFailed(this, failureType, caught);
                 }
                 
             }
@@ -178,12 +182,7 @@ namespace StackExchange.Redis
             }
 
             // burn the socket
-            var tmp = socket;
-            if (tmp != null)
-            {
-                try { tmp.Shutdown(SocketShutdown.Both); } catch { }
-                try { tmp.Close(); } catch { }
-            }
+            multiplexer.SocketManager.Shutdown(socketToken);
         }
 
         public override string ToString()
@@ -339,11 +338,7 @@ namespace StackExchange.Redis
             WriteUnified(outStream, commandBytes);
         }
 
-        private static void EndReadShared(IAsyncResult ar)
-        {
-            ((PhysicalConnection)ar.AsyncState).EndRead(ar);
-        }
-
+        
         static void WriteRaw(Stream stream, long value, bool withLengthPrefix = false)
         {
             if (value >= 0 && value <= 9)
@@ -458,58 +453,36 @@ namespace StackExchange.Redis
             WriteRaw(stream, value, withLengthPrefix: true);
         }
 
-        private void ConnectCallback(IAsyncResult ar)
+        void ISocketCallback.Connected(Stream stream)
         {
             try
             {
-                var sock = (Socket)ar.AsyncState;
-                (sock).EndConnect(ar);
-
                 // disallow connection in some cases
                 OnDebugAbort();
 
                 // the order is important here:
                 // [network]<==[ssl]<==[logging]<==[buffered]
-                netStream = new NetworkStream(sock);
-
                 var config = multiplexer.RawConfig;
 
                 if (!string.IsNullOrWhiteSpace(config.SslHost))
                 {
                     var ssl = new SslStream(netStream, false, config.CertificateValidationCallback, config.CertificateSelectionCallback, EncryptionPolicy.RequireEncryption);
                     ssl.AuthenticateAsClient(config.SslHost);
-                    netStream = ssl;
+                    stream = ssl;
                 }
-                OnWrapForLogging(ref netStream, physicalName);
+                OnWrapForLogging(ref stream, physicalName);
+                this.netStream = stream;
 
                 int bufferSize = config.WriteBuffer;
-                outStream = bufferSize <= 0 ? netStream : new BufferedStream(netStream, bufferSize);
+                outStream = bufferSize <= 0 ? netStream : new BufferedStream(stream, bufferSize);
                 multiplexer.Trace("Connected", physicalName);
 
-                BeginRead();
                 bridge.OnConnected(this);
             }
             catch (Exception ex)
             {
                 RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex); // includes a bridge.OnDisconnected
                 multiplexer.Trace("Could not connect: " + ex.Message, physicalName);
-            }
-        }
-
-        private void EndRead(IAsyncResult ar)
-        {
-            bridge.Seen();
-            try
-            {
-                var tmp = netStream;
-                int read = tmp == null ? 0 : tmp.EndRead(ar);
-                multiplexer.Trace("EndRead:" + read, physicalName);
-                ProcessBytes(read);
-            }
-            catch (Exception ex)
-            {
-                multiplexer.Trace("EndRead:" + ex.Message, physicalName);
-                RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
             }
         }
 
@@ -526,7 +499,6 @@ namespace StackExchange.Redis
         internal readonly byte[] ChannelPrefix;
         void MatchResult(RawResult result)
         {
-            multiplexer.Trace("Matching result...", physicalName);
             // check to see if it could be an out-of-band pubsub message
             if (connectionType == ConnectionType.Subscription && result.Type == ResultType.Array)
             {   // out of band message does not match to a queued message
@@ -546,11 +518,13 @@ namespace StackExchange.Redis
                             }
                         }
                         catch { }
-                        multiplexer.ReconfigureIfNeeded(blame, true);
+                        multiplexer.Trace("Configuration changed: " + Format.ToString(blame), physicalName);
+                        multiplexer.ReconfigureIfNeeded(blame, true, "broadcast");
                     }
 
                     // invoke the handlers
                     var channel = items[1].AsRedisChannel(ChannelPrefix);
+                    multiplexer.Trace("MESSAGE: " + channel, physicalName);
                     if (!channel.IsNull)
                     {
                         multiplexer.OnMessage(channel, channel, items[2].AsRedisValue());
@@ -560,6 +534,7 @@ namespace StackExchange.Redis
                 else if (items.Length >= 4 && items[0].Assert(pmessage))
                 {
                     var channel = items[2].AsRedisChannel(ChannelPrefix);
+                    multiplexer.Trace("PMESSAGE: " + channel, physicalName);
                     if (!channel.IsNull)
                     {
                         var sub = items[1].AsRedisChannel(ChannelPrefix);
@@ -570,7 +545,7 @@ namespace StackExchange.Redis
 
                 // if it didn't look like "[p]message", then we still need to process the pending queue
             }
-
+            multiplexer.Trace("Matching result...", physicalName);
             Message msg;
             lock (outstanding)
             {
@@ -613,58 +588,42 @@ namespace StackExchange.Redis
             return messageCount;
         }
 
-        private void ProcessBytes(int bytesRead)
+        void ISocketCallback.Read()
         {
             try
             {
-                bool keepGoing;
                 do
                 {
+                    int space = EnsureSpaceAndComputeBytesToRead();
+                    int bytesRead = netStream.Read(ioBuffer, ioBufferBytes, space);
+
                     if (bytesRead <= 0)
                     {
                         multiplexer.Trace("EOF", physicalName);
                         RecordConnectionFailed(ConnectionFailureType.SocketClosed);
-                        keepGoing = false;
+                        return;
                     }
-                    else
-                    {
-                        Interlocked.Exchange(ref lastReadTickCount, Environment.TickCount);
-                        ioBufferBytes += bytesRead;
-                        multiplexer.Trace("More bytes available: " + bytesRead + " (" + ioBufferBytes + ")", physicalName);
-                        int offset = 0, count = ioBufferBytes;
-                        int handled = ProcessBuffer(ioBuffer, ref offset, ref count);
-                        multiplexer.Trace("Processed: " + handled, physicalName);
-                        if (handled != 0)
-                        {
-                            // read stuff
-                            if (count != 0)
-                            {
-                                multiplexer.Trace("Copying remaining bytes: " + count, physicalName);
-                                //  if anything was left over, we need to copy it to
-                                // the start of the buffer so it can be used next time
-                                Buffer.BlockCopy(ioBuffer, offset, ioBuffer, 0, count);
-                            }
-                            ioBufferBytes = count;
-                        }
 
-                        if (socket.Available == 0)
+                    Interlocked.Exchange(ref lastReadTickCount, Environment.TickCount);
+                    ioBufferBytes += bytesRead;
+                    multiplexer.Trace("More bytes available: " + bytesRead + " (" + ioBufferBytes + ")", physicalName);
+                    int offset = 0, count = ioBufferBytes;
+                    int handled = ProcessBuffer(ioBuffer, ref offset, ref count);
+                    multiplexer.Trace("Processed: " + handled, physicalName);
+                    if (handled != 0)
+                    {
+                        // read stuff
+                        if (count != 0)
                         {
-                            BeginRead();
-                            keepGoing = false;
+                            multiplexer.Trace("Copying remaining bytes: " + count, physicalName);
+                            //  if anything was left over, we need to copy it to
+                            // the start of the buffer so it can be used next time
+                            Buffer.BlockCopy(ioBuffer, offset, ioBuffer, 0, count);
                         }
-                        else
-                        {
-                            // there is more available on the socket; read it SYNC
-                            // and keep processing
-                            multiplexer.Trace("Socket has data; reading synchronously", physicalName);
-                            int space = EnsureSpaceAndComputeBytesToRead();
-                            bridge.Seen();
-                            bytesRead = netStream.Read(ioBuffer, ioBufferBytes, space);
-                            bridge.Seen();
-                            keepGoing = true;
-                        }
+                        ioBufferBytes = count;
                     }
-                } while (keepGoing);
+                } while (socketToken.Available != 0);
+                // ^^^ note that the socket manager will call us again when there is something to do
             }
             catch (Exception ex)
             {

@@ -87,7 +87,7 @@ namespace StackExchange.Redis
             }
             if (reconfigure)
             {
-                ReconfigureIfNeeded(endpoint, false);
+                ReconfigureIfNeeded(endpoint, false, "connection failed");
             }
         }
         internal void OnConnectionRestored(EndPoint endpoint)
@@ -100,7 +100,7 @@ namespace StackExchange.Redis
                     new EndPointEventArgs(handler, this, endpoint)
                 );
             }
-            ReconfigureIfNeeded(endpoint, false);
+            ReconfigureIfNeeded(endpoint, false, "connection restored");
         }
 
 
@@ -118,9 +118,9 @@ namespace StackExchange.Redis
         {
             OnEndpointChanged(endpoint, ConfigurationChanged);
         }
-        internal void OnMasterChanged(EndPoint endpoint)
+        internal void OnConfigurationChangedBroadcast(EndPoint endpoint)
         {
-            OnEndpointChanged(endpoint, MasterChanged);
+            OnEndpointChanged(endpoint, ConfigurationChangedBroadcast);
         }
 
         /// <summary>
@@ -335,7 +335,7 @@ namespace StackExchange.Redis
 
             // and reconfigure the muxer
             LogLocked(log, "Reconfiguring all endpoints...");
-            if (!ReconfigureAsync(false, true, log, srv.EndPoint).ObserveErrors().Wait(5000))
+            if (!ReconfigureAsync(false, true, log, srv.EndPoint, "make master").ObserveErrors().Wait(5000))
             {
                 LogLocked(log, "Verifying the configuration was incomplete; please verify");
             }
@@ -400,9 +400,10 @@ namespace StackExchange.Redis
         public event EventHandler<EndPointEventArgs> ConfigurationChanged;
 
         /// <summary>
-        /// Raised when configuration changes involving a new master are announces
+        /// Raised when nodes are explicitly requested to reconfigure via broadcast;
+        /// this usually means master/slave changes
         /// </summary>
-        public event EventHandler<EndPointEventArgs> MasterChanged;
+        public event EventHandler<EndPointEventArgs> ConfigurationChangedBroadcast;
 
         /// <summary>
         /// Gets the timeout associated with the connections
@@ -612,7 +613,7 @@ namespace StackExchange.Redis
             {
                 var muxer = CreateMultiplexer(configuration);
                 killMe = muxer;
-                bool configured = await muxer.ReconfigureAsync(true, false, log, null).ObserveErrors().ForAwait();
+                bool configured = await muxer.ReconfigureAsync(true, false, log, null, "connect").ObserveErrors().ForAwait();
                 if (!configured)
                 {
                     throw new InvalidOperationException("Unable to configure servers");
@@ -635,7 +636,7 @@ namespace StackExchange.Redis
             {
                 var muxer = CreateMultiplexer(configuration);
                 killMe = muxer;
-                bool configured = await muxer.ReconfigureAsync(true, false, log, null).ObserveErrors().ForAwait();
+                bool configured = await muxer.ReconfigureAsync(true, false, log, null, "connect").ObserveErrors().ForAwait();
                 if (!configured)
                 {
                     throw new InvalidOperationException("Unable to configure servers");
@@ -676,7 +677,7 @@ namespace StackExchange.Redis
                 var muxer = CreateMultiplexer(configuration);
                 killMe = muxer;
                 // note that task has timeouts internally, so it might take *just over* the reegular timeout
-                var task = muxer.ReconfigureAsync(true, false, log, null);
+                var task = muxer.ReconfigureAsync(true, false, log, null, "connect");
                 if (!task.Wait(muxer.SyncConnectTimeout))
                 {
                     task.ObserveErrors();
@@ -704,7 +705,7 @@ namespace StackExchange.Redis
                 var muxer = CreateMultiplexer(configuration);
                 killMe = muxer;
                 // note that task has timeouts internally, so it might take *just over* the reegular timeout
-                var task = muxer.ReconfigureAsync(true, false, log, null);
+                var task = muxer.ReconfigureAsync(true, false, log, null, "connect");
                 if (!task.Wait(muxer.SyncConnectTimeout))
                 {
                     task.ObserveErrors();
@@ -759,6 +760,7 @@ namespace StackExchange.Redis
         {
             if (configuration == null) throw new ArgumentNullException("configuration");
             ShowKeysInTimeout = true;
+            
             this.configuration = configuration;
             this.CommandMap = configuration.CommandMap;
             this.CommandMap.AssertAvailable(RedisCommand.PING);
@@ -768,6 +770,7 @@ namespace StackExchange.Redis
             PreserveAsyncOrder = true; // safest default
             this.timeoutMilliseconds = configuration.SyncTimeout;
 
+            OnCreateReaderWriter(configuration);
             unprocessableCompletionManager = new CompletionManager(this, "multiplexer");
             serverSelectionStrategy = new ServerSelectionStrategy(this);
 
@@ -776,11 +779,9 @@ namespace StackExchange.Redis
             {
                 ConfigurationChangedChannel = Encoding.UTF8.GetBytes(configChannel);
             }
-
-            OnCreateReaderWriter();
         }
 
-        partial void OnCreateReaderWriter();
+        partial void OnCreateReaderWriter(ConfigurationOptions configuration);
 
         internal const int MillisecondsPerHeartbeat = 1000;
 
@@ -871,6 +872,11 @@ namespace StackExchange.Redis
         {
             OnTraceWithoutContext(message, category);
         }
+        [Conditional("VERBOSE")]
+        internal static void TraceWithoutContext(bool condition, string message, [CallerMemberName] string category = null)
+        {
+            if(condition) OnTraceWithoutContext(message, category);
+        }
 
         private readonly CompletionManager unprocessableCompletionManager;
 
@@ -887,15 +893,23 @@ namespace StackExchange.Redis
             }
         }
 
-        int activeReconfigs = 1;
+        string activeConfigCause;
 
-        internal void ReconfigureIfNeeded(EndPoint blame, bool masterChanged)
+        internal void ReconfigureIfNeeded(EndPoint blame, bool fromBroadcast, string cause)
         {
-            if (Interlocked.CompareExchange(ref activeReconfigs, 0, 0) == 0)
+            if (fromBroadcast)
             {
+                OnConfigurationChangedBroadcast(blame);
+            }
+            string activeCause = Interlocked.CompareExchange(ref activeConfigCause, null, null);
+            if (activeCause == null)
+            {
+                bool reconfigureAll = fromBroadcast;
                 Trace("Configuration change detected; checking nodes", "Configuration");
-                if (masterChanged) OnMasterChanged(blame);
-                ReconfigureAsync(false, false, null, blame).ObserveErrors();
+                ReconfigureAsync(false, reconfigureAll, null, blame, cause).ObserveErrors();
+            } else
+            {
+                Trace("Configuration change skipped; already in progress via " + activeCause, "Configuration");
             }
         }
 
@@ -904,7 +918,7 @@ namespace StackExchange.Redis
         /// </summary>
         public Task<bool> ConfigureAsync(TextWriter log = null)
         {
-            return ReconfigureAsync(false, true, log, null).ObserveErrors();
+            return ReconfigureAsync(false, true, log, null, "configure").ObserveErrors();
         }
         /// <summary>
         /// Reconfigure the current connections based on the existing configuration
@@ -913,7 +927,7 @@ namespace StackExchange.Redis
         {
             // note we expect ReconfigureAsync to internally allow [n] duration,
             // so to avoid near misses, here we wait 2*[n]
-            var task = ReconfigureAsync(false, true, log, null);
+            var task = ReconfigureAsync(false, true, log, null, "configure");
             if (!task.Wait(SyncConnectTimeout))
             {
                 task.ObserveErrors();
@@ -935,7 +949,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal async Task<bool> ReconfigureAsync(bool first, bool reconfigureAll, TextWriter log, EndPoint blame)
+        internal async Task<bool> ReconfigureAsync(bool first, bool reconfigureAll, TextWriter log, EndPoint blame, string cause)
         {
             if (isDisposed) throw new ObjectDisposedException(ToString());
 
@@ -948,7 +962,7 @@ namespace StackExchange.Redis
             bool ranThisCall = false;
             try
             {   // note that "activeReconfigs" starts at one; we don't need to set it the first time
-                ranThisCall = first || Interlocked.CompareExchange(ref activeReconfigs, 1, 0) == 0;
+                ranThisCall = first || Interlocked.CompareExchange(ref activeConfigCause, cause, null) == null;
 
                 if (!ranThisCall)
                 {
@@ -1179,7 +1193,7 @@ namespace StackExchange.Redis
             {
                 Trace("Exiting reconfiguration...");
                 OnTraceLog(log);
-                if (ranThisCall) Interlocked.Exchange(ref activeReconfigs, 0);
+                if (ranThisCall) Interlocked.Exchange(ref activeConfigCause, null);
                 if (!first) OnConfigurationChanged(blame);
                 Trace("Reconfiguration exited");
             }
@@ -1437,8 +1451,8 @@ namespace StackExchange.Redis
                 var quits = QuitAllServers();
                 WaitAllIgnoreErrors(quits);
             }
-            OnCloseReaderWriter();
             DisposeAndClearServers();
+            OnCloseReaderWriter();
         }
         partial void OnCloseReaderWriter();
 

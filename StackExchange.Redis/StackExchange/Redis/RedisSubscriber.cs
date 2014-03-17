@@ -96,28 +96,42 @@ namespace StackExchange.Redis
             msg.SetInternalCall();
             return ExecuteAsync(msg, ResultProcessor.ConnectionIdentity);
         }
+
+        public EndPoint SubscribedEndpoint(RedisChannel channel)
+        {
+            var server = multiplexer.GetSubscribedServer(channel);
+            return server == null ? null : server.EndPoint;
+        }
     }
     partial class ConnectionMultiplexer
     {
 
-        internal bool SubscriberConnected(RedisChannel channel = default(RedisChannel))
+        internal ServerEndPoint GetSubscribedServer(RedisChannel channel)
         {
-            ServerEndPoint server;
             if (!channel.IsNullOrEmpty)
             {
-                lock(subscriptions)
+                lock (subscriptions)
                 {
                     Subscription sub;
-                    if(subscriptions.TryGetValue(channel, out sub))
+                    if (subscriptions.TryGetValue(channel, out sub))
                     {
-                        server = sub.GetOwner();
+                        return sub.GetOwner();
                     }
                 }
             }
+            return null;
+        }
+
+        internal bool SubscriberConnected(RedisChannel channel = default(RedisChannel))
+        {
+            var server = GetSubscribedServer(channel);
+            if (server != null) return server.IsConnected;
 
             server = SelectServer(-1, RedisCommand.SUBSCRIBE, CommandFlags.DemandMaster, default(RedisKey));
             return server != null && server.IsConnected;
         }
+
+
 
         private sealed class Subscription
         {
@@ -326,6 +340,5 @@ namespace StackExchange.Redis
             }
             return false;
         }
-
     }
 }

@@ -6,12 +6,19 @@ namespace StackExchange.Redis
 {
     partial class ConnectionMultiplexer
     {
-        partial void OnCreateReaderWriter()
+        internal SocketManager SocketManager {  get {  return socketManager; } }
+        private SocketManager socketManager;
+        private bool ownsSocketManager;
+
+        partial void OnCreateReaderWriter(ConfigurationOptions configuration)
         {
+            this.ownsSocketManager = configuration.SocketManager == null;
+            this.socketManager = configuration.SocketManager ?? new SocketManager(configuration.ClientName);
+
             // we need a dedicated writer, because when under heavy ambient load
             // (a busy asp.net site, for example), workers are not reliable enough
             Thread dedicatedWriter = new Thread(writeAllQueues);
-            dedicatedWriter.Name = "SE.Redis.Writer";
+            dedicatedWriter.Name = socketManager.Name + ":Write";
             dedicatedWriter.IsBackground = true; // should not keep process alive
             dedicatedWriter.Start(this); // will self-exit when disposed
         }
@@ -22,6 +29,8 @@ namespace StackExchange.Redis
             { // make sure writer threads know to exit
                 Monitor.PulseAll(writeQueue);
             }
+            if (ownsSocketManager) socketManager.Dispose();
+            socketManager = null;
         }
 
         private readonly Queue<PhysicalBridge> writeQueue = new Queue<PhysicalBridge>();

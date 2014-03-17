@@ -60,6 +60,12 @@ namespace StackExchange.Redis
         public event RemoteCertificateValidationCallback CertificateValidation;
 
         /// <summary>
+        /// Gets or sets the SocketManager instance to be used with these options; if this is null a per-multiplexer
+        /// SocketManager is created automatically.
+        /// </summary>
+        public SocketManager SocketManager {  get;set; }
+
+        /// <summary>
         /// Indicates whether admin operations should be allowed
         /// </summary>
         public bool AllowAdmin { get { return allowAdmin.GetValueOrDefault(); } set { allowAdmin = value; } }
@@ -100,7 +106,7 @@ namespace StackExchange.Redis
         public EndPointCollection EndPoints { get { return endpoints; } }
 
         /// <summary>
-        /// Specifies the time in milliseconds at which connections should be pinged to ensure validity
+        /// Specifies the time in seconds at which connections should be pinged to ensure validity
         /// </summary>
         public int KeepAlive { get { return keepAlive.GetValueOrDefault(-1); } set { keepAlive = value; } }
 
@@ -178,7 +184,8 @@ namespace StackExchange.Redis
                 CommandMap = CommandMap,
                 CertificateValidation = CertificateValidation,
                 CertificateSelection = CertificateSelection,
-                ChannelPrefix = ChannelPrefix.Clone()
+                ChannelPrefix = ChannelPrefix.Clone(),
+                SocketManager = SocketManager,
             };
             foreach (var item in endpoints)
                 options.endpoints.Add(item);
@@ -298,6 +305,7 @@ namespace StackExchange.Redis
             CertificateValidation = null;
             CommandMap = CommandMap.Default;
             ChannelPrefix = default(RedisChannel);
+            SocketManager = null;
         }
 
         object ICloneable.Clone() { return Clone(); }

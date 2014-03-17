@@ -13,8 +13,19 @@ using NUnit.Framework;
 namespace StackExchange.Redis.Tests
 {
 
-    public abstract class TestBase
+    public abstract class TestBase : IDisposable
     {
+
+        private readonly SocketManager socketManager;
+
+        protected TestBase()
+        {
+            socketManager = new SocketManager(GetType().Name);
+        }
+        public void Dispose()
+        {
+            socketManager.Dispose();
+        }
 #if VERBOSE
         protected const int AsyncOpsQty = 100, SyncOpsQty = 10;
 #else
@@ -85,7 +96,7 @@ namespace StackExchange.Redis.Tests
         }
 
         protected const int PrimaryPort = 6379, SlavePort = 6380, SecurePort = 6381;
-        protected const string PrimaryServer = "127.0.0.1", SecurePassword = "changeme", PrimaryPortString = "6379", SecurePortString = "6381";
+        protected const string PrimaryServer = "127.0.0.1", SecurePassword = "changeme", PrimaryPortString = "6379", SlavePortString = "6380", SecurePortString = "6381";
         internal static Task Swallow(Task task)
         {
             if (task != null) task.ContinueWith(swallowErrors, TaskContinuationOptions.OnlyOnFaulted);
@@ -115,7 +126,7 @@ namespace StackExchange.Redis.Tests
             string clientName = null, int? syncTimeout = null, bool? allowAdmin = null, int? keepAlive = null,
             int? connectTimeout = null, string password = null, string tieBreaker = null, TextWriter log = null,
             bool fail = true, string[] disabledCommands = null, bool checkConnect = true, bool pause = true, string failMessage = null,
-            string channelPrefix = null)
+            string channelPrefix = null, bool useSharedSocketManager = true)
         {
             if(pause) Thread.Sleep(500); // get a lot of glitches when hammering new socket creations etc; pace it out a bit
             string configuration = GetConfiguration();
@@ -127,6 +138,7 @@ namespace StackExchange.Redis.Tests
                     map[cmd] = null;
                 config.CommandMap = CommandMap.Create(map);
             }
+            if (useSharedSocketManager) config.SocketManager = socketManager;
             if (channelPrefix != null) config.ChannelPrefix = channelPrefix;
             if (tieBreaker != null) config.TieBreaker = tieBreaker;
             if (password != null) config.Password = string.IsNullOrEmpty(password) ? null : password;

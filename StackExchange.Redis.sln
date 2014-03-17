@@ -12,23 +12,23 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".nuget", ".nuget", "{D3090D
 		.nuget\packages.config = .nuget\packages.config
 	EndProjectSection
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Redis", "Redis", "{29A8EF11-C420-41F5-B8DC-BB586EF4D827}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Redis Configs", "Redis Configs", "{29A8EF11-C420-41F5-B8DC-BB586EF4D827}"
 	ProjectSection(SolutionItems) = preProject
-		master.conf = master.conf
-		redis-cli 7000.cmd = redis-cli 7000.cmd
-		redis-cli 7001.cmd = redis-cli 7001.cmd
-		redis-cli 7002.cmd = redis-cli 7002.cmd
-		redis-cli 7003.cmd = redis-cli 7003.cmd
-		redis-cli 7004.cmd = redis-cli 7004.cmd
-		redis-cli 7005.cmd = redis-cli 7005.cmd
-		redis-cli master.cmd = redis-cli master.cmd
-		redis-cli secure.cmd = redis-cli secure.cmd
-		redis-cli slave.cmd = redis-cli slave.cmd
-		redis-server master.cmd = redis-server master.cmd
-		redis-server secure.cmd = redis-server secure.cmd
-		redis-server slave.cmd = redis-server slave.cmd
-		secure.conf = secure.conf
-		slave.conf = slave.conf
+		Redis Configs\master.conf = Redis Configs\master.conf
+		Redis Configs\redis-cli 7000.cmd = Redis Configs\redis-cli 7000.cmd
+		Redis Configs\redis-cli 7001.cmd = Redis Configs\redis-cli 7001.cmd
+		Redis Configs\redis-cli 7002.cmd = Redis Configs\redis-cli 7002.cmd
+		Redis Configs\redis-cli 7003.cmd = Redis Configs\redis-cli 7003.cmd
+		Redis Configs\redis-cli 7004.cmd = Redis Configs\redis-cli 7004.cmd
+		Redis Configs\redis-cli 7005.cmd = Redis Configs\redis-cli 7005.cmd
+		Redis Configs\redis-cli master.cmd = Redis Configs\redis-cli master.cmd
+		Redis Configs\redis-cli secure.cmd = Redis Configs\redis-cli secure.cmd
+		Redis Configs\redis-cli slave.cmd = Redis Configs\redis-cli slave.cmd
+		Redis Configs\redis-server master.cmd = Redis Configs\redis-server master.cmd
+		Redis Configs\redis-server secure.cmd = Redis Configs\redis-server secure.cmd
+		Redis Configs\redis-server slave.cmd = Redis Configs\redis-server slave.cmd
+		Redis Configs\secure.conf = Redis Configs\secure.conf
+		Redis Configs\slave.conf = Redis Configs\slave.conf
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{709E0CE4-F0BA-4933-A4FD-4A8B6668A5D4}"

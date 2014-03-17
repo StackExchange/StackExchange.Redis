@@ -376,20 +376,19 @@ namespace StackExchange.Redis
                                 if (key.Assert(timeout) && arr[(i * 2) + 1].TryGetInt64(out i64))
                                 {
                                     // note the configuration is in seconds
-                                    int timeoutMilliseconds = checked((int)i64) * 1000,
-                                        targetMilliseconds;
-                                    if (timeoutMilliseconds > 0)
+                                    int timeoutSeconds = checked((int)i64), targetSeconds;
+                                    if (timeoutSeconds > 0)
                                     {
-                                        if (timeoutMilliseconds >= 60000)
+                                        if (timeoutSeconds >= 60)
                                         {
-                                            targetMilliseconds = timeoutMilliseconds - 15000; // time to spare...
+                                            targetSeconds = timeoutSeconds - 20; // time to spare...
                                         }
                                         else
                                         {
-                                            targetMilliseconds = (timeoutMilliseconds * 3) / 4;
+                                            targetSeconds = (timeoutSeconds * 3) / 4;
                                         }
-                                        server.Multiplexer.Trace("Auto-configured timeout: " + targetMilliseconds + "ms");
-                                        server.SetHeartbeatMilliseconds(targetMilliseconds);
+                                        server.Multiplexer.Trace("Auto-configured timeout: " + targetSeconds + "s");
+                                        server.WriteEverySeconds = targetSeconds;
                                     }
                                 }
                                 else if (key.Assert(databases) && arr[(i * 2) + 1].TryGetInt64(out i64))
@@ -800,7 +799,7 @@ namespace StackExchange.Redis
                     case ResultType.BulkString:
                         string s = result.GetString();
                         RedisType value;
-                        if (!Enum.TryParse<RedisType>(s, true, out value)) value = StackExchange.Redis.RedisType.Unknown;
+                        if (!Enum.TryParse<RedisType>(s, true, out value)) value = global::StackExchange.Redis.RedisType.Unknown;
                         SetResult(message, value);
                         return true;
                 }

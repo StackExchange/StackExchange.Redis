@@ -23,7 +23,7 @@ namespace StackExchange.Redis
         private int beating;
         int failConnectCount = 0;
         volatile bool isDisposed;
-        private volatile int missedHeartbeats;
+        //private volatile int missedHeartbeats;
         private long operationCount, socketCount;
         private int pendingCount;
         private volatile PhysicalConnection physical;
@@ -116,7 +116,6 @@ namespace StackExchange.Redis
                     // you can go in the queue, but we won't be starting
                     // a worker, because the handshake has not completed
                     queue.Push(message);
-                    LogNonPreferred(message.Flags, isSlave);
                     Interlocked.Increment(ref pendingCount);
                     return true;
                 }
@@ -140,15 +139,18 @@ namespace StackExchange.Redis
         }
         private void LogNonPreferred(CommandFlags flags, bool isSlave)
         {
-            if (isSlave)
+            if ((flags & Message.InternalCallFlag) == 0) // don't log internal-call
             {
-                if (Message.GetMasterSlaveFlags(flags) == CommandFlags.PreferMaster)
-                    Interlocked.Increment(ref nonPreferredEndpointCount);
-            }
-            else
-            {
-                if (Message.GetMasterSlaveFlags(flags) == CommandFlags.PreferSlave)
-                    Interlocked.Increment(ref nonPreferredEndpointCount);
+                if (isSlave)
+                {
+                    if (Message.GetMasterSlaveFlags(flags) == CommandFlags.PreferMaster)
+                        Interlocked.Increment(ref nonPreferredEndpointCount);
+                }
+                else
+                {
+                    if (Message.GetMasterSlaveFlags(flags) == CommandFlags.PreferSlave)
+                        Interlocked.Increment(ref nonPreferredEndpointCount);
+                }
             }
         }
         long nonPreferredEndpointCount;
@@ -231,26 +233,30 @@ namespace StackExchange.Redis
         internal void KeepAlive()
         {
             var commandMap = multiplexer.CommandMap;
-            Message msg;
+            Message msg = null;
             switch (connectionType)
             {
                 case ConnectionType.Interactive:
                     if (commandMap.IsAvailable(RedisCommand.PING))
                     {
                         msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.PING);
-                        msg.SetInternalCall();
-                        serverEndPoint.QueueDirectFireAndForget(msg, ResultProcessor.DemandPONG);
+                        msg.SetSource(ResultProcessor.DemandPONG, null);
                     }
                     break;
                 case ConnectionType.Subscription:
                     if (commandMap.IsAvailable(RedisCommand.UNSUBSCRIBE))
                     {
-                        RedisKey channel = Guid.NewGuid().ToByteArray();
-                        msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.UNSUBSCRIBE, channel);
-                        msg.SetInternalCall();
-                        serverEndPoint.QueueDirectFireAndForget(msg, ResultProcessor.TrackSubscriptions);
+                        msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.UNSUBSCRIBE,
+                            (RedisChannel)Guid.NewGuid().ToByteArray());
+                        msg.SetSource(ResultProcessor.TrackSubscriptions, null);
                     }
                     break;
+            }
+            if(msg != null)
+            {
+                msg.SetInternalCall();
+                multiplexer.Trace("Enqueue: " + msg);
+                TryEnqueue(msg, serverEndPoint.IsSlave);
             }
         }
 
@@ -267,12 +273,13 @@ namespace StackExchange.Redis
             }
         }
 
-        internal void OnConnectionFailed(EndPoint endPoint, ConnectionFailureType failureType, Exception innerException)
+        internal void OnConnectionFailed(PhysicalConnection connection, ConnectionFailureType failureType, Exception innerException)
         {
-            if (reportNextFailure)
+            if (connection == physical && reportNextFailure)
             {
                 reportNextFailure = false; // until it is restored
-                multiplexer.OnConnectionFailed(endPoint, failureType, innerException, reconfigureNextFailure);
+                var endpoint = serverEndPoint.EndPoint;
+                multiplexer.OnConnectionFailed(endpoint, failureType, innerException, reconfigureNextFailure);
             }
         }
 
@@ -327,7 +334,10 @@ namespace StackExchange.Redis
                 try { connection.Dispose(); } catch { }
             }
         }
-
+        internal int GetPendingCount()
+        {
+            return Thread.VolatileRead(ref pendingCount);
+        }
         internal void OnHeartbeat()
         {
             bool runThisTime = false;
@@ -348,11 +358,10 @@ namespace StackExchange.Redis
                         var tmp = physical;
                         if (tmp != null)
                         {
-                            int maxMissed = serverEndPoint.MaxMissedHeartbeats;
-                            if (maxMissed > 0 && ++missedHeartbeats >= maxMissed && Thread.VolatileRead(ref pendingCount) == 0)
+                            int writeEvery = serverEndPoint.WriteEverySeconds;
+                            if (writeEvery > 0 && tmp.LastWriteSecondsAgo >= writeEvery && Thread.VolatileRead(ref pendingCount) == 0)
                             {
                                 Trace("OnHeartbeat - overdue");
-                                missedHeartbeats = 0;
                                 if (state == (int)State.ConnectedEstablished)
                                 {
                                     KeepAlive();
@@ -383,11 +392,6 @@ namespace StackExchange.Redis
         internal void RemovePhysical(PhysicalConnection connection)
         {
             Interlocked.CompareExchange(ref physical, null, connection);
-        }
-
-        internal void Seen()
-        {
-            missedHeartbeats = 0;
         }
 
         [Conditional("VERBOSE")]
@@ -662,23 +666,26 @@ namespace StackExchange.Redis
                 }
 
                 int count = 0;
+                Message last = null;
                 while (true)
                 {
                     var next = queue.Dequeue();
                     if (next == null)
                     {
                         Trace("Nothing to write; exiting");
-                        {
-                            conn.Flush();
-                            return WriteResult.QueueEmpty;
-                        }
+                        Trace(last != null, "Flushed up to: " + last);
+                        conn.Flush();
+                        return WriteResult.QueueEmpty;
                     }
+                    last = next;
                     var newPendingCount = Interlocked.Decrement(ref pendingCount);
                     Trace("Now pending: " + newPendingCount);
                     WriteMessageDirect(conn, next);
                     count++;
                     if (maxWork > 0 && count >= maxWork)
                     {
+                        Trace("Work limit; exiting");
+                        Trace(last != null, "Flushed up to: " + last);
                         conn.Flush();
                         break;
                     }
