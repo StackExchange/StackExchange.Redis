@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using System.Threading;
 
 namespace StackExchange.Redis
@@ -32,8 +33,18 @@ namespace StackExchange.Redis
         public string Name { get { return name; } }
 
         bool isDisposed;
-        private readonly Dictionary<Socket, ISocketCallback> socketLookup = new Dictionary<Socket, ISocketCallback>();
-        private readonly List<Socket> readQueue = new List<Socket>(), errorQueue = new List<Socket>();
+        private readonly Dictionary<IntPtr, SocketPair> socketLookup = new Dictionary<IntPtr, SocketPair>();
+        
+        struct SocketPair
+        {
+            public readonly Socket Socket;
+            public readonly ISocketCallback Callback;
+            public SocketPair(Socket socket, ISocketCallback callback)
+            {
+                this.Socket = socket;
+                this.Callback = callback;
+            }
+        }
 
         /// <summary>
         /// Adds a new socket and callback to the manager
@@ -46,7 +57,10 @@ namespace StackExchange.Redis
             lock (socketLookup)
             {
                 if (isDisposed) throw new ObjectDisposedException(name);
-                socketLookup.Add(socket, callback);
+
+                var handle = socket.Handle;
+                if(handle == IntPtr.Zero) throw new ObjectDisposedException("socket");
+                socketLookup.Add(handle, new SocketPair(socket, callback));
                 if (socketLookup.Count == 1)
                 {
                     Monitor.PulseAll(socketLookup);
@@ -86,13 +100,17 @@ namespace StackExchange.Redis
             }
         }
 
+        readonly Queue<IntPtr> readQueue = new Queue<IntPtr>(), errorQueue = new Queue<IntPtr>();
+
+        static readonly IntPtr[] EmptyPointers = new IntPtr[0];
         private void ReadImpl()
         {
-            List<Socket> dead = null;
+            List<IntPtr> dead = null, active = new List<IntPtr>();
+            IntPtr[] readSockets = EmptyPointers, errorSockets = EmptyPointers;
             while (true)
             {
-                readQueue.Clear();
-                errorQueue.Clear();
+                active.Clear();
+                if (dead != null) dead.Clear();
                 lock (socketLookup)
                 {
                     if (isDisposed) return;
@@ -103,17 +121,17 @@ namespace StackExchange.Redis
                         Monitor.Wait(socketLookup, TimeSpan.FromSeconds(20));
                         if (socketLookup.Count == 0) return; // nothing new came in, so exit
                     }
-                    if (dead != null) dead.Clear();
                     foreach (var pair in socketLookup)
                     {
-                        if (pair.Key.Connected)
+                        var socket = pair.Value.Socket;
+                        if(socket.Handle == pair.Key && socket.Connected)
+                        if (pair.Value.Socket.Connected)
                         {
-                            readQueue.Add(pair.Key);
-                            errorQueue.Add(pair.Key);
+                            active.Add(pair.Key);
                         }
                         else
                         {
-                            (dead ?? (dead = new List<Socket>())).Add(pair.Key);
+                            (dead ?? (dead = new List<IntPtr>())).Add(pair.Key);
                         }
                     }
                     if (dead != null && dead.Count != 0)
@@ -121,31 +139,61 @@ namespace StackExchange.Redis
                         foreach (var socket in dead) socketLookup.Remove(socket);
                     }
                 }
-
-                int pollingSockets = readQueue.Count;
+                int pollingSockets = active.Count;
                 if (pollingSockets == 0)
                 {
                     // nobody had actual sockets; just sleep
                     Thread.Sleep(10);
                     continue;
                 }
-                
+
+                if (readSockets.Length < active.Count + 1)
+                {
+                    ConnectionMultiplexer.TraceWithoutContext("Resizing socket array for " + active.Count + " sockets");
+                    readSockets = new IntPtr[active.Count + 6]; // leave so space for growth
+                    errorSockets = new IntPtr[active.Count + 6];
+                }
+                readSockets[0] = errorSockets[0] = (IntPtr)active.Count;
+                active.CopyTo(readSockets, 1);
+                active.CopyTo(errorSockets, 1);
+                int ready;
                 try
                 {
-                    Socket.Select(readQueue, null, errorQueue, 100);
-                    ConnectionMultiplexer.TraceWithoutContext(readQueue.Count != 0, "Read sockets: " + readQueue.Count);
-                    ConnectionMultiplexer.TraceWithoutContext(errorQueue.Count != 0, "Error sockets: " + errorQueue.Count);
+                    var timeout = new TimeValue(100);
+                    ready = select(0, readSockets, null, errorSockets, ref timeout);
+                    if (ready <= 0)
+                    {
+                        continue; // -ve typically means a socket was disposed just before; just retry
+                    }
+
+                    ConnectionMultiplexer.TraceWithoutContext((int)readSockets[0] != 0, "Read sockets: " + (int)readSockets[0]);
+                    ConnectionMultiplexer.TraceWithoutContext((int)errorSockets[0] != 0, "Error sockets: " + (int)errorSockets[0]);
                 }
                 catch (Exception ex)
-                { // this typically means a socket was disposed just before
+                { // this typically means a socket was disposed just before; just retry
                     Trace.WriteLine(ex.Message);
                     continue;
                 }
 
-                int totalWork = readQueue.Count + errorQueue.Count;
-                if (totalWork == 0) continue;
+                int queueCount = (int)readSockets[0];
+                lock(readQueue)
+                {
+                    for (int i = 1; i <= queueCount; i++)
+                    {
+                        readQueue.Enqueue(readSockets[i]);
+                    }
+                }
+                queueCount = (int)errorSockets[0];
+                lock (errorQueue)
+                {
+                    for (int i = 1; i <= queueCount; i++)
+                    {
+                        errorQueue.Enqueue(errorSockets[i]);
+                    }
+                }
 
-                if (totalWork >= 10) // number of sockets we should attempt to process by ourself before asking for help
+
+                if (ready >= 5) // number of sockets we should attempt to process by ourself before asking for help
                 {
                     // seek help, work in parallel, then synchronize
                     lock (QueueDrainSyncLock)
@@ -163,6 +211,21 @@ namespace StackExchange.Redis
             }
         }
 
+        [DllImport("ws2_32.dll", SetLastError = true)]
+        internal static extern int select([In] int ignoredParameter, [In, Out] IntPtr[] readfds, [In, Out] IntPtr[] writefds, [In, Out] IntPtr[] exceptfds, [In] ref TimeValue timeout);
+
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct TimeValue
+        {
+            public int Seconds;
+            public int Microseconds;
+            public TimeValue(int microSeconds)
+            {
+                Seconds = (int)(microSeconds / 1000000L);
+                Microseconds = (int)(microSeconds % 1000000L);
+            }
+        }
+
         internal void Shutdown(SocketToken token)
         {
             var socket = token.Socket;
@@ -170,7 +233,7 @@ namespace StackExchange.Redis
             {
                 lock (socketLookup)
                 {
-                    socketLookup.Remove(socket);
+                    socketLookup.Remove(socket.Handle);
                 }
                 try { socket.Shutdown(SocketShutdown.Both); } catch { }
                 try { socket.Close(); } catch { }
@@ -195,26 +258,25 @@ namespace StackExchange.Redis
             ProcessItems(socketLookup, errorQueue, CallbackOperation.Error);
         }
 
-        private static void ProcessItems(Dictionary<Socket, ISocketCallback> socketLookup, List<Socket> list, CallbackOperation operation)
+        private static void ProcessItems(Dictionary<IntPtr, SocketPair> socketLookup, Queue<IntPtr> queue, CallbackOperation operation)
 
         {
-            if (list == null) return;
+            if (queue == null) return;
             while (true)
             {
                 // get the next item (note we could be competing with a worker here, hence lock)
-                Socket socket;
-                lock (list)
+                IntPtr handle;
+                lock (queue)
                 {
-                    int index = list.Count - 1;
-                    if (index < 0) break;
-                    socket = list[index];
-                    list.RemoveAt(index); // note: removing from end to avoid moving everything
+                    if (queue.Count == 0) break;
+                    handle = queue.Dequeue();
                 }
-                ISocketCallback callback;
+                SocketPair pair;
                 lock (socketLookup)
                 {
-                    if (!socketLookup.TryGetValue(socket, out callback)) callback = null;
+                    if (!socketLookup.TryGetValue(handle, out pair)) continue;
                 }
+                var callback = pair.Callback;
                 if (callback != null)
                 {
 #if VERBOSE

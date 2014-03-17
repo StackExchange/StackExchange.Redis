@@ -19,7 +19,7 @@ namespace StackExchange.Redis.Tests
             using (var receiver = Create())
             {
                 int total = 0;
-                receiver.ConfigurationChanged += (s, a) =>
+                receiver.ConfigurationChangedBroadcast += (s, a) =>
                 {
                     Console.WriteLine("Config changed: " + (a.EndPoint == null ? "(none)" : a.EndPoint.ToString()));
                     Interlocked.Increment(ref total);
@@ -29,7 +29,7 @@ namespace StackExchange.Redis.Tests
                 long count = sender.PublishReconfigure();
                 GetServer(receiver).Ping();
                 GetServer(receiver).Ping();
-                Assert.IsTrue(count >= 2);
+                Assert.IsTrue(count >= 2, "subscribers");
                 Assert.IsTrue(Interlocked.CompareExchange(ref total, 0, 0) >= 1, "total (1st)");
 
                 Interlocked.Exchange(ref total, 0);
