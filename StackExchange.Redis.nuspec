@@ -11,7 +11,7 @@
     <language>en-US</language>    
     <dependencies></dependencies>
     <projectUrl>https://github.com/StackExchange/StackExchange.Redis</projectUrl>
-    <licenceUrl>https://raw.github.com/StackExchange/StackExchange.Redis/master/LICENSE</licenceUrl>
+    <licenseUrl>https://raw.github.com/StackExchange/StackExchange.Redis/master/LICENSE</licenseUrl>
     <copyright>Stack Exchange inc. 2014</copyright>
   </metadata>
   <files>
