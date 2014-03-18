@@ -32,3 +32,15 @@ This tool makes use of the "redis doc" library from http://redis.io/documentatio
 in the intellisense comments; the license for this library is under discussion
 at time of writing; if this concludes such that this usage is inappropriate,
 the intellisense comments will be rewriteen.
+
+The development solution uses the Redis-64 package from nuget
+(https://www.nuget.org/packages/Redis-64) by Microsoft Open Technologies, inc.
+This is licensed under the BSD license; full details are available here:
+https://github.com/MSOpenTech/redis/blob/2.6/license.txt
+This tool is not used in the release binaries.
+
+The development solution uses the BookSleeve package from nuget
+(https://code.google.com/p/booksleeve/) by Marc Gravell. This is licensed
+under the Apache 2.0 license; full details are available here:
+http://www.apache.org/licenses/LICENSE-2.0
+This tool is not used in the release binaries.

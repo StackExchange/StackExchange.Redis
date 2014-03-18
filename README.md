@@ -33,6 +33,12 @@ The central object in StackExchange.Redis is the `ConnectionMultiplexer` class i
 
 Note that `ConnectionMultiplexer` implements `IDisposable` and can be disposed when no longer required, but I am deliberately not showing `using` statement usage, because it is exceptionally rare that you would want to use a `ConnectionMultiplexer` briefly, as the idea is to re-use this object.
 
+A more complicated scenario might involve a master/slave setup; for this usage, simply specify all the desired nodes that make up that logical redis tier (it will automatically identify the master):
+
+    ConnectionMultiplexer redis = ConnectionMultiplexer.Connect("server1:6379,server2:6379");
+
+If it finds both nodes are masters, a tie-breaker key can optionally be specified that can be used to resolve the issue, however such a condition is fortunately very rare.
+
 Once you have a `ConnectionMultiplexer`, there are 3 main things you might want to do:
 
 - access a redis database (note that in the case of a cluster, a single logical database may be spread over multiple nodes)
@@ -74,7 +80,7 @@ The entire range of [redis database commands](http://redis.io/commands) covering
 Using redis pub/sub
 ----
 
-Another common use of redis is as a pub/sub message distribution node; this too is simple, and in the event of connection failure, the `ConnectionMultiplexer` will handle all the details of re-subscribing to the requested channels.
+Another common use of redis is as a [pub/sub message](http://redis.io/topics/pubsub) distribution tool; this too is simple, and in the event of connection failure, the `ConnectionMultiplexer` will handle all the details of re-subscribing to the requested channels.
 
     ISubscriber sub = redis.GetSubscriber();
 
@@ -113,7 +119,7 @@ There are 3 primary usage mechanisms with StackExchange.Redis:
 
 - Synchronous - where the operation completes before the methods returns to the caller (note that while this may block the caller, it absolutely **does not** block other threads: the key idea in StackExchange.Redis is that it aggressively shares the connection between concurrent callers)
 - Asynchronous - where the operation completes some time in the future, and a `Task` or `Task<T>` is returned immediately, which can later:
- - be *waited* (blocking the current thread until the response is available)
+ - be `.Wait()`ed (blocking the current thread until the response is available)
  - have a continuation callback added ([`ContinueWith`](http://msdn.microsoft.com/en-us/library/system.threading.tasks.task.continuewith(v=vs.110).aspx) in the TPL)
  - be *awaited* (which is a language-level feature that simplfies the latter, while also continuing immediately if the reply is already known)
 - Fire-and-Forget - where you really aren't interested in the reply, and are happy to continue irrespective of the response
