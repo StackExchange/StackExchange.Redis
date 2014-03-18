@@ -69,6 +69,7 @@
     <Compile Include="FloatingPoint.cs" />
     <Compile Include="Keys.cs" />
     <Compile Include="KeysAndValues.cs" />
+    <Compile Include="Lists.cs" />
     <Compile Include="Locking.cs" />
     <Compile Include="MultiMaster.cs" />
     <Compile Include="Naming.cs" />

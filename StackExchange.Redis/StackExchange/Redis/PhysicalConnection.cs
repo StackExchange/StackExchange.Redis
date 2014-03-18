@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -64,7 +65,7 @@ namespace StackExchange.Redis
         private Stream netStream, outStream;
 
         // things sent to this physical, but not yet received
-        Queue<Message> outstanding = new Queue<Message>();
+        private readonly Queue<Message> outstanding = new Queue<Message>();
 
         private SocketToken socketToken;
 
@@ -145,7 +146,7 @@ namespace StackExchange.Redis
             // stop anything new coming in...
             bridge.Trace("Failed: " + failureType);
             bridge.OnDisconnected(failureType, this);
-            if(Interlocked.CompareExchange(ref failureReported, 1, 0) == 0)
+            if (Interlocked.CompareExchange(ref failureReported, 1, 0) == 0)
             {
                 try
                 {
@@ -161,11 +162,11 @@ namespace StackExchange.Redis
                         : new RedisConnectionException(failureType, message, innerException);
                     throw ex;
                 }
-                catch(Exception caught)
+                catch (Exception caught)
                 {
                     bridge.OnConnectionFailed(this, failureType, caught);
                 }
-                
+
             }
 
             // cleanup
@@ -182,7 +183,8 @@ namespace StackExchange.Redis
             }
 
             // burn the socket
-            multiplexer.SocketManager.Shutdown(socketToken);
+            var socketManager = multiplexer.SocketManager;
+            if(socketManager != null) socketManager.Shutdown(socketToken);
         }
 
         public override string ToString()

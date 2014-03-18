@@ -282,10 +282,17 @@ namespace StackExchange.Redis
 #if VERBOSE
                     var watch = Stopwatch.StartNew();
 #endif
-                    switch (operation)
+                    try
                     {
-                        case CallbackOperation.Read: callback.Read(); break;
-                        case CallbackOperation.Error: callback.Error(); break;
+                        switch (operation)
+                        {
+                            case CallbackOperation.Read: callback.Read(); break;
+                            case CallbackOperation.Error: callback.Error(); break;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Trace.WriteLine(ex);
                     }
 #if VERBOSE
                     watch.Stop();
@@ -340,7 +347,11 @@ namespace StackExchange.Redis
             {
                 if (tuple != null)
                 {
-                    tuple.Item2.Error();
+                    try { tuple.Item2.Error(); }
+                    catch (Exception ex)
+                    {
+                        Trace.WriteLine(ex);
+                    }
                 }
             }
         }
