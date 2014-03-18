@@ -3,14 +3,16 @@
   <metadata>
     <id>StackExchange.Redis</id>
     <version>1.0.0.0</version>
-    <authors>SE inc</authors>
-    <owners>SE inc</owners>
+    <authors>Stack Exchange inc., marc.gravell</authors>
+    <owners>Stack Exchange inc., marc.gravell</owners>
     <summary>Redis client library</summary>
-    <description>Redis client library</description>
-    <tags>Events</tags>
+    <description>High performance Redis client, incorporating both synchronous and asynchronous usage; the notional successor to BookSleeve</description>
+    <tags>Async Redis NoSQL Client Distributed Cache PubSub Messaging</tags>
     <language>en-US</language>    
-    <dependencies>
-    </dependencies>
+    <dependencies></dependencies>
+    <projectUrl>https://github.com/StackExchange/StackExchange.Redis</projectUrl>
+    <licenceUrl>https://raw.github.com/StackExchange/StackExchange.Redis/master/LICENSE</licenceUrl>
+    <copyright>Stack Exchange inc. 2014</copyright>
   </metadata>
   <files>
     <file src="StackExchange.Redis\bin\Release\StackExchange.Redis.*" target="lib" />
