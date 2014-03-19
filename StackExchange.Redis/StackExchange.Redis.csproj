@@ -63,6 +63,7 @@
     <Reference Include="System.IO.Compression" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="StackExchange\Redis\Aggregate.cs" />
     <Compile Include="StackExchange\Redis\RedisChannel.cs" />
     <Compile Include="StackExchange\Redis\Bitwise.cs" />
     <Compile Include="StackExchange\Redis\ClientFlags.cs" />

@@ -854,6 +854,48 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
+        public IEnumerable<RedisValue> SetScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = RedisDatabase.SetScanIterator.DefaultPageSize, CommandFlags flags = CommandFlags.None)
+        {
+            if (pageSize <= 0) throw new ArgumentOutOfRangeException("pageSize");
+            if (SetScanIterator.IsNil(pattern)) pattern = (byte[])null;
+
+            multiplexer.CommandMap.AssertAvailable(RedisCommand.SCAN);
+            ServerEndPoint server;
+            var features = GetFeatures(Db, key, flags, out server);
+            if (!features.Scan)
+            {
+                if (pattern.IsNull)
+                {
+                    return SetMembers(key, flags);
+                }
+            }
+            return new SetScanIterator(this, server, key, pattern, pageSize, flags).Read();
+        }
+
+        public RedisValue[] Sort(RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default(RedisValue), RedisValue[] get = null, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetSortedSetAddMessage(default(RedisKey), key, skip, take, order, sortType, by, get, flags);
+            return ExecuteSync(msg, ResultProcessor.RedisValueArray);
+        }
+
+        public long SortAndStore(RedisKey destination, RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default(RedisValue), RedisValue[] get = null, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetSortedSetAddMessage(destination, key, skip, take, order, sortType, by, get, flags);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+
+        public Task<long> SortAndStoreAsync(RedisKey destination, RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default(RedisValue), RedisValue[] get = null, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetSortedSetAddMessage(destination, key, skip, take, order, sortType, by, get, flags);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
+
+        public Task<RedisValue[]> SortAsync(RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default(RedisValue), RedisValue[] get = null, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetSortedSetAddMessage(default(RedisKey), key, skip, take, order, sortType, by, get, flags);
+            return ExecuteAsync(msg, ResultProcessor.RedisValueArray);
+        }
+
         public bool SortedSetAdd(RedisKey key, RedisValue member, double score, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Db, flags, RedisCommand.ZADD, key, score, member);
@@ -875,6 +917,30 @@ namespace StackExchange.Redis
         public Task<long> SortedSetAddAsync(RedisKey key, KeyValuePair<RedisValue, double>[] values, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetSortedSetAddMessage(key, values, flags);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
+
+        public long SortedSetCombineAndStore(SetOperation operation, RedisKey destination, RedisKey first, RedisKey second, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetSortedSetCombineAndStoreCommandMessage(operation, destination, new[] { first, second }, null, aggregate, flags);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+
+        public long SortedSetCombineAndStore(SetOperation operation, RedisKey destination, RedisKey[] keys, double[] weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetSortedSetCombineAndStoreCommandMessage(operation, destination, keys, weights, aggregate, flags);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+
+        public Task<long> SortedSetCombineAndStoreAsync(SetOperation operation, RedisKey destination, RedisKey first, RedisKey second, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetSortedSetCombineAndStoreCommandMessage(operation, destination, new[] { first, second }, null, aggregate, flags);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
+
+        public Task<long> SortedSetCombineAndStoreAsync(SetOperation operation, RedisKey destination, RedisKey[] keys, double[] weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetSortedSetCombineAndStoreCommandMessage(operation, destination, keys, weights, aggregate, flags);
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
@@ -1171,6 +1237,22 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.RedisValue);
         }
 
+        public RedisValueWithExpiry StringGetWithExpiry(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            ServerEndPoint server;
+            ResultProcessor<RedisValueWithExpiry> processor;
+            var msg = GetStringGetWithExpiryMessage(key, flags, out processor, out server);
+            return ExecuteSync(msg, processor, server);
+        }
+
+        public Task<RedisValueWithExpiry> StringGetWithExpiryAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            ServerEndPoint server;
+            ResultProcessor<RedisValueWithExpiry> processor;
+            var msg = GetStringGetWithExpiryMessage(key, flags, out processor, out server);
+            return ExecuteAsync(msg, processor, server);
+        }
+
         public long StringIncrement(RedisKey key, long value = 1, CommandFlags flags = CommandFlags.None)
         {
             var msg = IncrMessage(key, value, flags);
@@ -1389,6 +1471,119 @@ namespace StackExchange.Redis
             }
         }
 
+        private Message GetSortedSetAddMessage(RedisKey destination, RedisKey key, long skip, long take, Order order, SortType sortType, RedisValue by, RedisValue[] get, CommandFlags flags)
+        {
+            // most common cases; no "get", no "by", no "destination", no "skip", no "take"
+            if (destination.IsNull && skip == 0 && take == -1 && by.IsNull && (get == null || get.Length == 0))
+            {
+                switch (order)
+                {
+                    case Order.Ascending:
+                        switch (sortType)
+                        {
+                            case SortType.Numeric: return Message.Create(Db, flags, RedisCommand.SORT, key);
+                            case SortType.Alphabetic: return Message.Create(Db, flags, RedisCommand.SORT, key, RedisLiterals.ALPHA);
+                        }
+                        break;
+                    case Order.Descending:
+                        switch (sortType)
+                        {
+                            case SortType.Numeric: return Message.Create(Db, flags, RedisCommand.SORT, key, RedisLiterals.DESC);
+                            case SortType.Alphabetic: return Message.Create(Db, flags, RedisCommand.SORT, key, RedisLiterals.DESC, RedisLiterals.ALPHA);
+                        }
+                        break;
+                }
+            }
+
+            // and now: more complicated scenarios...
+            List<RedisValue> values = new List<RedisValue>();
+            if (!by.IsNull)
+            {
+                values.Add(RedisLiterals.BY);
+                values.Add(by);
+            }
+            if (skip != 0 || take != -1)// these are our defaults that mean "everything"; anything else needs to be sent explicitly
+            {
+                values.Add(RedisLiterals.LIMIT);
+                values.Add(skip);
+                values.Add(take);
+            }
+            switch (order)
+            {
+                case Order.Ascending:
+                    break; // default
+                case Order.Descending:
+                    values.Add(RedisLiterals.DESC);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException("order");
+            }
+            switch (sortType)
+            {
+                case SortType.Numeric:
+                    break; // default
+                case SortType.Alphabetic:
+                    values.Add(RedisLiterals.ALPHA);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException("sortType");
+            }
+            if (get != null && get.Length != 0)
+            {
+                foreach (var item in get)
+                {
+                    values.Add(RedisLiterals.GET);
+                    values.Add(item);
+                }
+            }
+            if (destination.IsNull) return Message.Create(Db, flags, RedisCommand.SORT, key, values.ToArray());
+
+            // because we are using STORE, we need to push this to a master
+            if (Message.GetMasterSlaveFlags(flags) == CommandFlags.DemandSlave)
+            {
+                throw ExceptionFactory.MasterOnly(RedisCommand.SORT);
+            }
+            flags = Message.SetMasterSlaveFlags(flags, CommandFlags.DemandMaster);
+            values.Add(RedisLiterals.STORE);
+            return Message.Create(Db, flags, RedisCommand.SORT, key, values.ToArray(), destination);
+        }
+
+        private Message GetSortedSetCombineAndStoreCommandMessage(SetOperation operation, RedisKey destination, RedisKey[] keys, double[] weights, Aggregate aggregate, CommandFlags flags)
+        {
+            RedisCommand command;
+            switch (operation)
+            {
+                case SetOperation.Intersect: command = RedisCommand.ZINTERSTORE; break;
+                case SetOperation.Union: command = RedisCommand.ZUNIONSTORE; break;
+                default: throw new ArgumentOutOfRangeException("operation");
+            }
+            if (keys == null) throw new ArgumentNullException("keys");
+
+            List<RedisValue> values = null;
+            if (weights != null && weights.Length != 0)
+            {
+                (values ?? (values = new List<RedisValue>())).Add(RedisLiterals.WEIGHTS);
+                foreach (var weight in weights)
+                    values.Add(weight);
+            }
+            switch (aggregate)
+            {
+                case Aggregate.Sum: break; // default
+                case Aggregate.Min:
+                    (values ?? (values = new List<RedisValue>())).Add(RedisLiterals.AGGREGATE);
+                    values.Add(RedisLiterals.MIN);
+                    break;
+                case Aggregate.Max:
+                    (values ?? (values = new List<RedisValue>())).Add(RedisLiterals.AGGREGATE);
+                    values.Add(RedisLiterals.MAX);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException("aggregate");
+            }
+            return new SortedSetCombineAndStoreCommandMessage(Db, flags, command, destination, keys, values == null ? RedisValue.EmptyArray : values.ToArray());
+
+        }
+
         private Message GetSortedSetLengthMessage(RedisKey key, double min, double max, Exclude exclude, CommandFlags flags)
         {
             if (double.IsNegativeInfinity(min) && double.IsPositiveInfinity(max))
@@ -1456,6 +1651,24 @@ namespace StackExchange.Redis
             slot = serverSelectionStrategy.CombineSlot(slot, second);
             return Message.CreateInSlot(Db, slot, flags, RedisCommand.BITOP, new[] { op, destination.AsRedisValue(), first.AsRedisValue(), second.AsRedisValue() });
         }
+        Message GetStringGetWithExpiryMessage(RedisKey key, CommandFlags flags, out ResultProcessor<RedisValueWithExpiry> processor, out ServerEndPoint server)
+        {
+            if (this is IBatch)
+            {
+                throw new NotSupportedException("This operation is not possible inside a transaction or batch; please issue separate GetString and KeyTimeToLive requests");
+            }
+            var features = GetFeatures(Db, key, flags, out server);
+            if (server != null && features.MillisecondExpiry && multiplexer.CommandMap.IsAvailable(RedisCommand.PTTL))
+            {
+                processor = StringGetWithExpiryProcessor.PTTL;
+                return new StringGetWithExpiryMessage(Db, flags, RedisCommand.PTTL, key);
+            }
+            // if we use TTL, it doesn't matter which server
+            server = null;
+            processor = StringGetWithExpiryProcessor.TTL;
+            return new StringGetWithExpiryMessage(Db, flags, RedisCommand.TTL, key);
+        }
+
         private Message GetStringSetMessage(KeyValuePair<RedisKey, RedisValue>[] values, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
             if (values == null) throw new ArgumentNullException("values");
@@ -1540,232 +1753,6 @@ namespace StackExchange.Redis
                 default: throw new ArgumentOutOfRangeException("operation");
             }
         }
-
-        public IEnumerable<RedisValue> SetScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = RedisDatabase.SetScanIterator.DefaultPageSize, CommandFlags flags = CommandFlags.None)
-        {
-            if (pageSize <= 0) throw new ArgumentOutOfRangeException("pageSize");
-            if (SetScanIterator.IsNil(pattern)) pattern = (byte[])null;
-
-            multiplexer.CommandMap.AssertAvailable(RedisCommand.SCAN);
-            ServerEndPoint server;
-            var features = GetFeatures(Db, key, flags, out server);
-            if (!features.Scan)
-            {
-                if(pattern.IsNull)
-                {
-                    return SetMembers(key, flags);
-                }
-            }            
-            return new SetScanIterator(this, server, key, pattern, pageSize, flags).Read();
-        }
-        
-        Message GetStringGetWithExpiryMessage(RedisKey key, CommandFlags flags, out ResultProcessor<RedisValueWithExpiry> processor, out ServerEndPoint server)
-        {
-            if (this is IBatch)
-            {
-                throw new NotSupportedException("This operation is not possible inside a transaction or batch; please issue separate GetString and KeyTimeToLive requests");
-            }
-            var features = GetFeatures(Db, key, flags, out server);
-            if (server != null && features.MillisecondExpiry && multiplexer.CommandMap.IsAvailable(RedisCommand.PTTL))
-            {
-                processor = StringGetWithExpiryProcessor.PTTL;
-                return new StringGetWithExpiryMessage(Db, flags, RedisCommand.PTTL, key);
-            }
-            // if we use TTL, it doesn't matter which server
-            server = null;
-            processor = StringGetWithExpiryProcessor.TTL;
-            return new StringGetWithExpiryMessage(Db, flags, RedisCommand.TTL, key);
-        }
-        public RedisValueWithExpiry StringGetWithExpiry(RedisKey key, CommandFlags flags = CommandFlags.None)
-        {
-            ServerEndPoint server;
-            ResultProcessor<RedisValueWithExpiry> processor;
-            var msg = GetStringGetWithExpiryMessage(key, flags, out processor, out server);
-            return ExecuteSync(msg, processor, server);
-        }
-
-        public Task<RedisValueWithExpiry> StringGetWithExpiryAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-        {
-            ServerEndPoint server;
-            ResultProcessor<RedisValueWithExpiry> processor;
-            var msg = GetStringGetWithExpiryMessage(key, flags, out processor, out server);
-            return ExecuteAsync(msg, processor, server);
-        }
-
-
-        private Message GetSortedSetAddMessage(RedisKey destination, RedisKey key, long skip, long take, Order order, SortType sortType, RedisValue by, RedisValue[] get, CommandFlags flags)
-        {
-            // most common cases; no "get", no "by", no "destination", no "skip", no "take"
-            if(destination.IsNull && skip == 0 && take == -1 && by.IsNull && (get == null || get.Length == 0))
-            {
-                switch(order)
-                {
-                    case Order.Ascending:
-                        switch(sortType)
-                        {
-                            case SortType.Numeric: return Message.Create(Db, flags, RedisCommand.SORT, key);
-                            case SortType.Alphabetic: return Message.Create(Db, flags, RedisCommand.SORT, key, RedisLiterals.ALPHA);                            
-                        }
-                        break;
-                    case Order.Descending:
-                        switch (sortType)
-                        {
-                            case SortType.Numeric: return Message.Create(Db, flags, RedisCommand.SORT, key, RedisLiterals.DESC);
-                            case SortType.Alphabetic: return Message.Create(Db, flags, RedisCommand.SORT, key, RedisLiterals.DESC, RedisLiterals.ALPHA);
-                        }
-                        break;
-                }
-            }
-
-            // and now: more complicated scenarios...
-            List<RedisValue> values = new List<RedisValue>();
-            if (!by.IsNull) {
-                values.Add(RedisLiterals.BY);
-                values.Add(by);
-            }
-            if (skip != 0 || take != -1)// these are our defaults that mean "everything"; anything else needs to be sent explicitly
-            {
-                values.Add(RedisLiterals.LIMIT);
-                values.Add(skip);
-                values.Add(take);
-            }
-            switch(order)
-            {
-                case Order.Ascending:
-                    break; // default
-                case Order.Descending:
-                    values.Add(RedisLiterals.DESC);
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException("order");
-            }
-            switch(sortType)
-            {
-                case SortType.Numeric:
-                    break; // default
-                case SortType.Alphabetic:
-                    values.Add(RedisLiterals.ALPHA);
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException("sortType");
-            }
-            if(get != null && get.Length != 0)
-            {
-                foreach(var item in get)
-                {
-                    values.Add(RedisLiterals.GET);
-                    values.Add(item);
-                }
-            }
-            if(destination.IsNull) return Message.Create(Db, flags, RedisCommand.SORT, key, values.ToArray());
-
-            // because we are using STORE, we need to push this to a master
-            if(Message.GetMasterSlaveFlags(flags) == CommandFlags.DemandSlave)
-            {
-                throw ExceptionFactory.MasterOnly(RedisCommand.SORT);
-            }
-            flags = Message.SetMasterSlaveFlags(flags, CommandFlags.DemandMaster);
-            values.Add(RedisLiterals.STORE);
-            return Message.Create(Db, flags, RedisCommand.SORT, key, values.ToArray(), destination);
-        }
-        public RedisValue[] Sort(RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default(RedisValue), RedisValue[] get = null, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = GetSortedSetAddMessage(default(RedisKey), key, skip, take, order, sortType, by, get, flags);
-            return ExecuteSync(msg, ResultProcessor.RedisValueArray);
-        }
-
-        public long SortAndStore(RedisKey destination, RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default(RedisValue), RedisValue[] get = null, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = GetSortedSetAddMessage(destination, key, skip, take, order, sortType, by, get, flags);
-            return ExecuteSync(msg, ResultProcessor.Int64);
-        }
-
-        public Task<RedisValue[]> SortAsync(RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default(RedisValue), RedisValue[] get = null, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = GetSortedSetAddMessage(default(RedisKey), key, skip, take, order, sortType, by, get, flags);
-            return ExecuteAsync(msg, ResultProcessor.RedisValueArray);
-        }
-
-        public Task<long> SortAndStoreAsync(RedisKey destination, RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default(RedisValue), RedisValue[] get = null, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = GetSortedSetAddMessage(destination, key, skip, take, order, sortType, by, get, flags);
-            return ExecuteAsync(msg, ResultProcessor.Int64);
-        }
-
-        private class StringGetWithExpiryProcessor : ResultProcessor<RedisValueWithExpiry>
-        {
-            public static readonly ResultProcessor<RedisValueWithExpiry> TTL = new StringGetWithExpiryProcessor(false), PTTL = new StringGetWithExpiryProcessor(true);
-            private readonly bool isMilliseconds;
-            private StringGetWithExpiryProcessor(bool isMilliseconds)
-            {
-                this.isMilliseconds = isMilliseconds;
-            }
-            protected  override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
-            {
-                switch(result.Type)
-                {
-                    case ResultType.Integer:
-                    case ResultType.SimpleString:
-                    case ResultType.BulkString:
-                        RedisValue value = result.AsRedisValue();
-                        var sgwem = message as StringGetWithExpiryMessage;
-                        TimeSpan? expiry;
-                        Exception ex;
-                        if (sgwem != null && sgwem.UnwrapValue(out expiry, out ex))
-                        {
-                            if (ex == null)
-                            {
-                                SetResult(message, new RedisValueWithExpiry(value, expiry));
-                            }
-                            else
-                            {
-                                SetException(message, ex);
-                            }
-                            return true;
-                        }
-                        break;
-                }
-                return false;
-            }
-        }
-        private class StringGetWithExpiryMessage : Message.CommandKeyBase, IMultiMessage
-        {
-            private readonly RedisCommand ttlCommand;
-            public StringGetWithExpiryMessage(int db, CommandFlags flags, RedisCommand ttlCommand, RedisKey key)
-                : base(db, flags | CommandFlags.NoRedirect /* <== not implemented/tested */, RedisCommand.GET, key)
-            {
-                this.ttlCommand = ttlCommand;
-            }
-            private ResultBox<TimeSpan?> box;
-            public bool UnwrapValue(out TimeSpan? value, out Exception ex)
-            {
-                if(box != null)
-                {
-                    ResultBox<TimeSpan?>.UnwrapAndRecycle(box, out value, out ex);
-                    box = null;
-                    return ex == null;
-                }
-                value = null;
-                ex = null;
-                return false;                
-            }
-            public override string CommandAndKey { get {  return ttlCommand + "+" + RedisCommand.GET + " " + Key; } }
-            internal override void WriteImpl(PhysicalConnection physical)
-            {
-                physical.WriteHeader(command, 1);
-                physical.Write(Key);
-            }
-            public IEnumerable<Message> GetMessages(PhysicalConnection connection)
-            {
-                box = ResultBox<TimeSpan?>.Get(null);
-                var ttl = Message.Create(Db, Flags, ttlCommand, Key);
-                var proc = ttlCommand == RedisCommand.PTTL ? ResultProcessor.TimeSpanFromMilliseconds : ResultProcessor.TimeSpanFromSeconds;
-                ttl.SetSource(proc, box);
-                yield return ttl;
-                yield return this;
-            }
-        }
-
         struct SetScanResult
         {
             public static readonly ResultProcessor<SetScanResult> Processor = new SetScanResultProcessor();
@@ -1774,7 +1761,7 @@ namespace StackExchange.Redis
             public SetScanResult(long cursor, RedisValue[] values)
             {
                 this.Cursor = cursor;
-                this.Values= values;
+                this.Values = values;
             }
             private class SetScanResultProcessor : ResultProcessor<SetScanResult>
             {
@@ -1797,6 +1784,7 @@ namespace StackExchange.Redis
                 }
             }
         }
+
         internal sealed class SetScanIterator
         {
             internal const int DefaultPageSize = 10;
@@ -1805,8 +1793,8 @@ namespace StackExchange.Redis
 
             private readonly CommandFlags flags;
 
-            private readonly int pageSize;
             private readonly RedisKey key;
+            private readonly int pageSize;
             private readonly RedisValue pattern;
 
             private readonly ServerEndPoint server;
@@ -1878,6 +1866,115 @@ namespace StackExchange.Redis
                         return Message.Create(database.Database, flags, RedisCommand.SSCAN, key, new RedisValue[] { cursor, RedisLiterals.MATCH, pattern, RedisLiterals.COUNT, pageSize });
                     }
                 }
+            }
+        }
+
+        sealed class SortedSetCombineAndStoreCommandMessage : Message.CommandKeyBase // ZINTERSTORE and ZUNIONSTORE have a very unusual signature
+        {
+            private readonly RedisKey[] keys;
+            private readonly RedisValue[] values;
+            public SortedSetCombineAndStoreCommandMessage(int db, CommandFlags flags, RedisCommand command, RedisKey destination, RedisKey[] keys, RedisValue[] values) : base(db, flags, command, destination)
+            {
+                for (int i = 0; i < keys.Length; i++)
+                    keys[i].Assert();
+                this.keys = keys;
+                for (int i = 0; i < values.Length; i++)
+                    values[i].Assert();
+                this.values = values;
+            }
+            public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
+            {
+                int slot = base.GetHashSlot(serverSelectionStrategy);
+                for (int i = 0; i < keys.Length; i++)
+                    slot = serverSelectionStrategy.CombineSlot(slot, keys[i]);
+                return slot;
+            }
+            internal override void WriteImpl(PhysicalConnection physical)
+            {
+                physical.WriteHeader(Command, 2 + keys.Length + values.Length);
+                physical.Write(Key);
+                physical.Write(keys.Length);
+                for (int i = 0; i < keys.Length; i++)
+                    physical.Write(keys[i]);
+                for (int i = 0; i < values.Length; i++)
+                    physical.Write(values[i]);
+            }
+        }
+        private class StringGetWithExpiryMessage : Message.CommandKeyBase, IMultiMessage
+        {
+            private readonly RedisCommand ttlCommand;
+            private ResultBox<TimeSpan?> box;
+
+            public StringGetWithExpiryMessage(int db, CommandFlags flags, RedisCommand ttlCommand, RedisKey key)
+                            : base(db, flags | CommandFlags.NoRedirect /* <== not implemented/tested */, RedisCommand.GET, key)
+            {
+                this.ttlCommand = ttlCommand;
+            }
+            public override string CommandAndKey { get { return ttlCommand + "+" + RedisCommand.GET + " " + Key; } }
+
+            public IEnumerable<Message> GetMessages(PhysicalConnection connection)
+            {
+                box = ResultBox<TimeSpan?>.Get(null);
+                var ttl = Message.Create(Db, Flags, ttlCommand, Key);
+                var proc = ttlCommand == RedisCommand.PTTL ? ResultProcessor.TimeSpanFromMilliseconds : ResultProcessor.TimeSpanFromSeconds;
+                ttl.SetSource(proc, box);
+                yield return ttl;
+                yield return this;
+            }
+
+            public bool UnwrapValue(out TimeSpan? value, out Exception ex)
+            {
+                if (box != null)
+                {
+                    ResultBox<TimeSpan?>.UnwrapAndRecycle(box, out value, out ex);
+                    box = null;
+                    return ex == null;
+                }
+                value = null;
+                ex = null;
+                return false;
+            }
+            internal override void WriteImpl(PhysicalConnection physical)
+            {
+                physical.WriteHeader(command, 1);
+                physical.Write(Key);
+            }
+        }
+
+        private class StringGetWithExpiryProcessor : ResultProcessor<RedisValueWithExpiry>
+        {
+            public static readonly ResultProcessor<RedisValueWithExpiry> TTL = new StringGetWithExpiryProcessor(false), PTTL = new StringGetWithExpiryProcessor(true);
+            private readonly bool isMilliseconds;
+            private StringGetWithExpiryProcessor(bool isMilliseconds)
+            {
+                this.isMilliseconds = isMilliseconds;
+            }
+            protected  override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            {
+                switch(result.Type)
+                {
+                    case ResultType.Integer:
+                    case ResultType.SimpleString:
+                    case ResultType.BulkString:
+                        RedisValue value = result.AsRedisValue();
+                        var sgwem = message as StringGetWithExpiryMessage;
+                        TimeSpan? expiry;
+                        Exception ex;
+                        if (sgwem != null && sgwem.UnwrapValue(out expiry, out ex))
+                        {
+                            if (ex == null)
+                            {
+                                SetResult(message, new RedisValueWithExpiry(value, expiry));
+                            }
+                            else
+                            {
+                                SetException(message, ex);
+                            }
+                            return true;
+                        }
+                        break;
+                }
+                return false;
             }
         }
     }

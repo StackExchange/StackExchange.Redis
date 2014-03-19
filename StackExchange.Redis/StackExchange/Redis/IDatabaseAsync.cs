@@ -490,6 +490,30 @@ namespace StackExchange.Redis
 
 
         /// <summary>
+        /// Sorts a list, set or sorted set (numerically or alphabetically, ascending by default); By default, the elements themselves are compared, but the values can also be
+        /// used to perform external key-lookups using the <c>by</c> parameter. By default, the elements themselves are returned, but external key-lookups (one or many) can
+        /// be performed instead by specifying the <c>get</c> parameter (note that <c>#</c> specifies the element itself, when used in <c>get</c>).
+        /// Referring to the <a href="http://redis.io/commands/sort">redis SORT documentation </a> for examples is recommended. When used in hashes, <c>by</c> and <c>get</c>
+        /// can be used to specify fields using <c>-&gt;</c> notation (again, refer to redis documentation).
+        /// </summary>
+        /// <remarks>http://redis.io/commands/sort</remarks>
+        /// <returns>Returns the number of elements stored in the new list</returns>
+        [IgnoreNamePrefix]
+        Task<long> SortAndStoreAsync(RedisKey destination, RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default(RedisValue), RedisValue[] get = null, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Sorts a list, set or sorted set (numerically or alphabetically, ascending by default); By default, the elements themselves are compared, but the values can also be
+        /// used to perform external key-lookups using the <c>by</c> parameter. By default, the elements themselves are returned, but external key-lookups (one or many) can
+        /// be performed instead by specifying the <c>get</c> parameter (note that <c>#</c> specifies the element itself, when used in <c>get</c>).
+        /// Referring to the <a href="http://redis.io/commands/sort">redis SORT documentation </a> for examples is recommended. When used in hashes, <c>by</c> and <c>get</c>
+        /// can be used to specify fields using <c>-&gt;</c> notation (again, refer to redis documentation).
+        /// </summary>
+        /// <remarks>http://redis.io/commands/sort</remarks>
+        /// <returns>Returns the sorted elements, or the external values if <c>get</c> is specified</returns>
+        [IgnoreNamePrefix]
+        Task<RedisValue[]> SortAsync(RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default(RedisValue), RedisValue[] get = null, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Adds the specified member with the specified score to the sorted set stored at key. If the specified member is already a member of the sorted set, the score is updated and the element reinserted at the right position to ensure the correct ordering.
         /// </summary>
         /// <returns>True if the value was added, False if it already existed (the score is still updated)</returns>
@@ -502,6 +526,24 @@ namespace StackExchange.Redis
         /// <returns>The number of elements added to the sorted sets, not including elements already existing for which the score was updated.</returns>
         /// <remarks>http://redis.io/commands/zadd</remarks>
         Task<long> SortedSetAddAsync(RedisKey key, KeyValuePair<RedisValue, double>[] values, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Computes a set operation over two sorted sets, and stores the result in destination, optionally performing 
+        /// a specific aggregation (defaults to sum)
+        /// </summary>
+        /// <remarks>http://redis.io/commands/zunionstore</remarks>
+        /// <remarks>http://redis.io/commands/zinterstore</remarks>
+        /// <returns>the number of elements in the resulting sorted set at destination</returns>
+        Task<long> SortedSetCombineAndStoreAsync(SetOperation operation, RedisKey destination, RedisKey first, RedisKey second, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Computes a set operation over multiple sorted sets (optionally using per-set weights), and stores the result in destination, optionally performing 
+        /// a specific aggregation (defaults to sum)
+        /// </summary>
+        /// <remarks>http://redis.io/commands/zunionstore</remarks>
+        /// <remarks>http://redis.io/commands/zinterstore</remarks>
+        /// <returns>the number of elements in the resulting sorted set at destination</returns>
+        Task<long> SortedSetCombineAndStoreAsync(SetOperation operation, RedisKey destination, RedisKey[] keys, double[] weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Decrements the score of member in the sorted set stored at key by decrement. If member does not exist in the sorted set, it is added with -decrement as its score (as if its previous score was 0.0).
@@ -706,6 +748,13 @@ namespace StackExchange.Redis
         Task<RedisValue> StringGetSetAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Get the value of key. If the key does not exist the special value nil is returned. An error is returned if the value stored at key is not a string, because GET only handles string values.
+        /// </summary>
+        /// <returns>the value of key, or nil when key does not exist.</returns>
+        /// <remarks>http://redis.io/commands/get</remarks>
+        Task<RedisValueWithExpiry> StringGetWithExpiryAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Increments the number stored at key by increment. If the key does not exist, it is set to 0 before performing the operation. An error is returned if the key contains a value of the wrong type or contains a string that is not representable as integer. This operation is limited to 64 bit signed integers.
         /// </summary>
         /// <returns>the value of key after the increment</returns>
@@ -752,38 +801,6 @@ namespace StackExchange.Redis
         /// <returns>the length of the string after it was modified by the command.</returns>
         /// <remarks>http://redis.io/commands/setrange</remarks>
         Task<RedisValue> StringSetRangeAsync(RedisKey key, long offset, RedisValue value, CommandFlags flags = CommandFlags.None);
-
-
-        /// <summary>
-        /// Get the value of key. If the key does not exist the special value nil is returned. An error is returned if the value stored at key is not a string, because GET only handles string values.
-        /// </summary>
-        /// <returns>the value of key, or nil when key does not exist.</returns>
-        /// <remarks>http://redis.io/commands/get</remarks>
-        Task<RedisValueWithExpiry> StringGetWithExpiryAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
-        /// Sorts a list, set or sorted set (numerically or alphabetically, ascending by default); By default, the elements themselves are compared, but the values can also be
-        /// used to perform external key-lookups using the <c>by</c> parameter. By default, the elements themselves are returned, but external key-lookups (one or many) can
-        /// be performed instead by specifying the <c>get</c> parameter (note that <c>#</c> specifies the element itself, when used in <c>get</c>).
-        /// Referring to the <a href="http://redis.io/commands/sort">redis SORT documentation </a> for examples is recommended. When used in hashes, <c>by</c> and <c>get</c>
-        /// can be used to specify fields using <c>-&gt;</c> notation (again, refer to redis documentation).
-        /// </summary>
-        /// <remarks>http://redis.io/commands/sort</remarks>
-        /// <returns>Returns the sorted elements, or the external values if <c>get</c> is specified</returns>
-        [IgnoreNamePrefix]
-        Task<RedisValue[]> SortAsync(RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default(RedisValue), RedisValue[] get = null, CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
-        /// Sorts a list, set or sorted set (numerically or alphabetically, ascending by default); By default, the elements themselves are compared, but the values can also be
-        /// used to perform external key-lookups using the <c>by</c> parameter. By default, the elements themselves are returned, but external key-lookups (one or many) can
-        /// be performed instead by specifying the <c>get</c> parameter (note that <c>#</c> specifies the element itself, when used in <c>get</c>).
-        /// Referring to the <a href="http://redis.io/commands/sort">redis SORT documentation </a> for examples is recommended. When used in hashes, <c>by</c> and <c>get</c>
-        /// can be used to specify fields using <c>-&gt;</c> notation (again, refer to redis documentation).
-        /// </summary>
-        /// <remarks>http://redis.io/commands/sort</remarks>
-        /// <returns>Returns the number of elements stored in the new list</returns>
-        [IgnoreNamePrefix]
-        Task<long> SortAndStoreAsync(RedisKey destination, RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default(RedisValue), RedisValue[] get = null, CommandFlags flags = CommandFlags.None);
     }
 
 
@@ -792,20 +809,21 @@ namespace StackExchange.Redis
     /// </summary>
     public struct RedisValueWithExpiry
     {
-        private readonly RedisValue value;
         private readonly TimeSpan? expiry;
+        private readonly RedisValue value;
         internal RedisValueWithExpiry(RedisValue value, TimeSpan? expiry)
         {
             this.value = value;
             this.expiry = expiry;
         }
         /// <summary>
-        /// The value of this record
-        /// </summary>
-        public RedisValue Value {  get {  return value; } }
-        /// <summary>
         /// The expiry of this record
         /// </summary>
         public TimeSpan? Expiry { get { return expiry; } }
+
+        /// <summary>
+        /// The value of this record
+        /// </summary>
+        public RedisValue Value {  get {  return value; } }
     }
 }

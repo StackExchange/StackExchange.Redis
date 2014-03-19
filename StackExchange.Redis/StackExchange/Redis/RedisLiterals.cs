@@ -44,6 +44,10 @@ namespace StackExchange.Redis
             DESC = "DESC",
             ALPHA = "ALPHA",
             STORE = "STORE",
+            WEIGHTS = "WEIGHTS",
+            MIN = "MIN",
+            MAX = "MAX",
+            AGGREGATE = "AGGREGATE",
 
             // DO NOT CHANGE CASE: these are configuration settings and MUST be as-is
             databases = "databases",
