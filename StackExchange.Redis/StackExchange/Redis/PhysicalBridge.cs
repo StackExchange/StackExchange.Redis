@@ -25,7 +25,6 @@ namespace StackExchange.Redis
         volatile bool isDisposed;
         //private volatile int missedHeartbeats;
         private long operationCount, socketCount;
-        private int pendingCount;
         private volatile PhysicalConnection physical;
 
 
@@ -116,7 +115,6 @@ namespace StackExchange.Redis
                     // you can go in the queue, but we won't be starting
                     // a worker, because the handshake has not completed
                     queue.Push(message);
-                    Interlocked.Increment(ref pendingCount);
                     return true;
                 }
                 else
@@ -126,12 +124,11 @@ namespace StackExchange.Redis
                 }
             }
 
-            queue.Push(message);
+            bool reqWrite = queue.Push(message);
             LogNonPreferred(message.Flags, isSlave);
-            int newPendingCount = Interlocked.Increment(ref pendingCount);
-            Trace("Now pending: " + newPendingCount);
+            Trace("Now pending: " + GetPendingCount());
 
-            if (newPendingCount == 1)
+            if (reqWrite)
             {
                 multiplexer.RequestWrite(this, false);
             }
@@ -336,7 +333,7 @@ namespace StackExchange.Redis
         }
         internal int GetPendingCount()
         {
-            return Thread.VolatileRead(ref pendingCount);
+            return queue.Count();
         }
         internal void OnHeartbeat()
         {
@@ -358,8 +355,8 @@ namespace StackExchange.Redis
                         var tmp = physical;
                         if (tmp != null)
                         {
-                            int writeEvery = serverEndPoint.WriteEverySeconds;
-                            if (writeEvery > 0 && tmp.LastWriteSecondsAgo >= writeEvery && Thread.VolatileRead(ref pendingCount) == 0)
+                            int writeEverySeconds = serverEndPoint.WriteEverySeconds;
+                            if (writeEverySeconds > 0 && tmp.LastWriteSecondsAgo >= writeEverySeconds)
                             {
                                 Trace("OnHeartbeat - overdue");
                                 if (state == (int)State.ConnectedEstablished)
@@ -417,16 +414,16 @@ namespace StackExchange.Redis
             {
                 return false;
             }
+            bool reqWrite = false;
             foreach(var message in messages)
             {   // deliberately not taking a single lock here; we don't care if
                 // other threads manage to interleave - in fact, it would be desirable
                 // (to avoid a batch monopolising the connection)
-                queue.Push(message);
+                if (queue.Push(message)) reqWrite = true;
                 LogNonPreferred(message.Flags, isSlave);
             }
-            int newPendingCount = Interlocked.Add(ref pendingCount, messages.Count);
-            Trace("Now pending: " + newPendingCount);
-            if(newPendingCount == messages.Count) // was empty before
+            Trace("Now pending: " + GetPendingCount());
+            if(reqWrite) // was empty before
             {
                 multiplexer.RequestWrite(this, false);
             }
@@ -679,8 +676,8 @@ namespace StackExchange.Redis
                         return WriteResult.QueueEmpty;
                     }
                     last = next;
-                    var newPendingCount = Interlocked.Decrement(ref pendingCount);
-                    Trace("Now pending: " + newPendingCount);
+                    
+                    Trace("Now pending: " + GetPendingCount());
                     WriteMessageDirect(conn, next);
                     count++;
                     if (maxWork > 0 && count >= maxWork)

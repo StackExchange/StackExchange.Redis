@@ -45,11 +45,12 @@ namespace StackExchange.Redis
             return null;
         }
 
-        public void Push(Message message)
+        public bool Push(Message message)
         {
             lock (regular)
             {
                 (message.IsHighPriority ? high : regular).Enqueue(message);
+                return high.Count + regular.Count == 1;
             }
         }
 
