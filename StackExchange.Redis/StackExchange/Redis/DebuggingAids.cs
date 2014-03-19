@@ -187,16 +187,6 @@ namespace StackExchange.Redis
         /// </summary>
         public bool AllowConnect { get { return allowConnect; } set { allowConnect = value; } }
         private volatile bool allowConnect = true;
-        static long writerCount;
-
-        partial void OnWriterCreated()
-        {
-            Interlocked.Increment(ref writerCount);
-        }
-        internal static long GetWriterCount()
-        {
-            return Interlocked.Read(ref writerCount);
-        }
     }
 
     partial class MessageQueue

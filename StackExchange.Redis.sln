@@ -24,6 +24,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Redis Configs", "Redis Conf
 		Redis Configs\redis-cli master.cmd = Redis Configs\redis-cli master.cmd
 		Redis Configs\redis-cli secure.cmd = Redis Configs\redis-cli secure.cmd
 		Redis Configs\redis-cli slave.cmd = Redis Configs\redis-cli slave.cmd
+		Redis Configs\redis-server alll local.cmd = Redis Configs\redis-server alll local.cmd
 		Redis Configs\redis-server master.cmd = Redis Configs\redis-server master.cmd
 		Redis Configs\redis-server secure.cmd = Redis Configs\redis-server secure.cmd
 		Redis Configs\redis-server slave.cmd = Redis Configs\redis-server slave.cmd

@@ -25,6 +25,14 @@ namespace StackExchange.Redis
         {
             if (string.IsNullOrWhiteSpace(name)) name = GetType().Name;
             this.name = name;
+
+            // we need a dedicated writer, because when under heavy ambient load
+            // (a busy asp.net site, for example), workers are not reliable enough
+            Thread dedicatedWriter = new Thread(writeAllQueues, 32 * 1024); // don't need a huge stack;
+            dedicatedWriter.Priority = ThreadPriority.AboveNormal; // time critical
+            dedicatedWriter.Name = name + ":Write";
+            dedicatedWriter.IsBackground = true; // should not keep process alive
+            dedicatedWriter.Start(this); // will self-exit when disposed
         }
 
         /// <summary>
@@ -68,6 +76,25 @@ namespace StackExchange.Redis
                         StartReader();
                 }
 
+            }
+        }
+
+        internal void RequestWrite(PhysicalBridge bridge, bool forced)
+        {
+            if (Interlocked.CompareExchange(ref bridge.inWriteQueue, 1, 0) == 0 || forced)
+            {
+                lock (writeQueue)
+                {
+                    writeQueue.Enqueue(bridge);
+                    if (writeQueue.Count == 1)
+                    {
+                        Monitor.PulseAll(writeQueue);
+                    }
+                    else if (writeQueue.Count >= 2)
+                    { // struggling are we? let's have some help dealing with the backlog
+                        ThreadPool.QueueUserWorkItem(writeOneQueue, this);
+                    }
+                }
             }
         }
 
@@ -315,12 +342,103 @@ namespace StackExchange.Redis
         /// </summary>
         public void Dispose()
         {
+            lock (writeQueue)
+            { // make sure writer threads know to exit
+                Monitor.PulseAll(writeQueue);
+            }
             lock (socketLookup)
             {
                 isDisposed = true;
                 socketLookup.Clear();
                 Monitor.PulseAll(socketLookup);
             }
+        }
+
+        private readonly Queue<PhysicalBridge> writeQueue = new Queue<PhysicalBridge>();
+
+        private static readonly ParameterizedThreadStart writeAllQueues = context =>
+        {
+            try { ((SocketManager)context).WriteAllQueues(); } catch { }
+        };
+        private static readonly WaitCallback writeOneQueue = context =>
+        {
+
+            try { ((SocketManager)context).WriteOneQueue(); } catch { }
+        };
+
+        private void WriteAllQueues()
+        {
+            while (true)
+            {
+                PhysicalBridge bridge;
+                lock (writeQueue)
+                {
+                    if (writeQueue.Count == 0)
+                    {
+                        if (isDisposed) break; // <========= exit point
+                        Monitor.Wait(writeQueue, 500);
+                        continue;
+                    }
+                    bridge = writeQueue.Dequeue();
+                }
+
+                switch (bridge.WriteQueue(200))
+                {
+                    case WriteResult.MoreWork:
+                        // back of the line!
+                        lock (writeQueue)
+                        {
+                            writeQueue.Enqueue(bridge);
+                        }
+                        break;
+                    case WriteResult.CompetingWriter:
+                        break;
+                    case WriteResult.NoConnection:
+                        Interlocked.Exchange(ref bridge.inWriteQueue, 0);
+                        break;
+                    case WriteResult.QueueEmpty:
+                        if (!bridge.ConfirmRemoveFromWriteQueue())
+                        { // more snuck in; back of the line!
+                            lock (writeQueue)
+                            {
+                                writeQueue.Enqueue(bridge);
+                            }
+                        }
+                        break;
+                }
+            }
+        }
+        private void WriteOneQueue()
+        {
+            PhysicalBridge bridge;
+            lock (writeQueue)
+            {
+                bridge = writeQueue.Count == 0 ? null : writeQueue.Dequeue();
+            }
+            if (bridge == null) return;
+            bool keepGoing;
+            do
+            {
+                switch (bridge.WriteQueue(-1))
+                {
+                    case WriteResult.MoreWork:
+                        keepGoing = true;
+                        break;
+                    case WriteResult.QueueEmpty:
+                        keepGoing = !bridge.ConfirmRemoveFromWriteQueue();
+                        break;
+                    case WriteResult.CompetingWriter:
+                        keepGoing = false;
+                        break;
+                    case WriteResult.NoConnection:
+                        Interlocked.Exchange(ref bridge.inWriteQueue, 0);
+                        keepGoing = false;
+                        break;
+                    default:
+                        keepGoing = false;
+                        break;
+                }
+            } while (keepGoing);
         }
 
         internal SocketToken BeginConnect(EndPoint endpoint, ISocketCallback callback)
