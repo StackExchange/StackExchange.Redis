@@ -128,7 +128,7 @@ There are 3 primary usage mechanisms with StackExchange.Redis:
 
 The synchronous usage is already shown in the examples above. This is the simplest usage, and does not involve the [TPL][1].
 
-For asynchronous uage, the key difference is the `Await` suffix on methods, and (typically) the use of the `await` language feature. For example:
+For asynchronous uage, the key difference is the `Async` suffix on methods, and (typically) the use of the `await` language feature. For example:
 
     string value = "abcdefg";
     await db.StringSetAsync("mykey", value);
