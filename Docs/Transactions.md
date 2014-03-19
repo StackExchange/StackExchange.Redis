@@ -40,8 +40,8 @@ If, when you check the data, you discover that you don't actually need the trans
 forget all the watched keys. Note that watched keys are also reset during `EXEC` and `DISCARD`. So *at the Redis layer*, this is conceptually:
 
     WATCH {custKey}
-	HGET {custKey} "UniqueId"
-	(check the value etc, then either:)
+	HEXISTS {custKey} "UniqueId"
+	(check the reply, then either:)
 	MULTI
 	HSET {custKey} "UniqueId" {newId}
 	EXEC
@@ -90,5 +90,14 @@ atomic commands exist. These are accessed via the `When` parameter - so our prev
 Lua
 ---
 
-You should also keep in mind that Lua scripting is a versatile tool for performing multiple operations as a single atomic unit at the server; since no other connections
-are serviced during a Lua script it behaves much like a transaction, but without the complexity of `MULTI` / `EXEC` etc. 
+You should also keep in mind that Redis 2.6 and above [support Lua scripting](http://redis.io/commands/EVAL), a versatile tool for performing multiple operations as a single atomic unit at the server.
+Since no other connections are serviced during a Lua script it behaves much like a transaction, but without the complexity of `MULTI` / `EXEC` etc.  This also avoids issues such as bandwidth and latency
+between the caller and the server, but the trade-off is that it monopolises the server for the duration of the script.
+
+At the Redis layer (and assuming `HSETNX` did not exist) this could be implemented as:
+
+    EVAL "if redis.call('hexists', KEYS[1], 'UniqueId') then return redis.call('hset', KEYS[1], 'UniqueId', ARGV[1]) else return 0 end" 1 {custKey} {newId}
+
+This scrip
+
+Lua scripting is not currently implemented in StackExchange.Redis, but will be very soon.

@@ -343,7 +343,9 @@ namespace StackExchange.Redis
         public void Dispose()
         {
             lock (writeQueue)
-            { // make sure writer threads know to exit
+            {
+                // make sure writer threads know to exit
+                isDisposed = true;
                 Monitor.PulseAll(writeQueue);
             }
             lock (socketLookup)
@@ -376,8 +378,9 @@ namespace StackExchange.Redis
                     if (writeQueue.Count == 0)
                     {
                         if (isDisposed) break; // <========= exit point
-                        Monitor.Wait(writeQueue, 500);
-                        continue;
+                        Monitor.Wait(writeQueue);
+                        if (isDisposed) break; // (woken by Dispose)
+                        if (writeQueue.Count == 0) continue; // still nothing...
                     }
                     bridge = writeQueue.Dequeue();
                 }
