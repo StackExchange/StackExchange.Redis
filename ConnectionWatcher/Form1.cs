@@ -104,7 +104,7 @@ namespace ConnectionWatcher
             Log(e.EndPoint + ": " + e.Message);
         }
 
-        private void Muxer_ConnectionRestored(object sender, EndPointEventArgs e)
+        private void Muxer_ConnectionRestored(object sender, ConnectionFailedEventArgs e)
         {
             Log("Endpoint restored: " + e.EndPoint);
         }

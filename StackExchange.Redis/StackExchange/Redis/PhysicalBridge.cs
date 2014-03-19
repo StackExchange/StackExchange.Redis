@@ -275,15 +275,15 @@ namespace StackExchange.Redis
 
         internal void OnConnectionFailed(PhysicalConnection connection, ConnectionFailureType failureType, Exception innerException)
         {
-            if (connection == physical && reportNextFailure)
+            if (reportNextFailure)
             {
                 reportNextFailure = false; // until it is restored
                 var endpoint = serverEndPoint.EndPoint;
-                multiplexer.OnConnectionFailed(endpoint, failureType, innerException, reconfigureNextFailure);
+                multiplexer.OnConnectionFailed(endpoint, connectionType, failureType, innerException, reconfigureNextFailure);
             }
         }
 
-        internal void OnDisconnected(ConnectionFailureType failureType, PhysicalConnection connection)
+        internal void OnDisconnected(ConnectionFailureType failureType, PhysicalConnection connection, out bool isCurrent)
         {
             Trace("OnDisconnected");
 
@@ -298,7 +298,7 @@ namespace StackExchange.Redis
                 CompleteSyncOrAsync(ping);
             }
 
-            if (physical == connection)
+            if (isCurrent = physical == connection)
             {
                 Trace("Bridge noting disconnect from active connection" + (isDisposed ? " (disposed)" : ""));
                 ChangeState(State.Disconnected);
@@ -368,7 +368,8 @@ namespace StackExchange.Redis
                                 }
                                 else
                                 {
-                                    OnDisconnected(ConnectionFailureType.SocketFailure, tmp);
+                                    bool ignore;
+                                    OnDisconnected(ConnectionFailureType.SocketFailure, tmp, out ignore);
                                 }
                             }
                         }

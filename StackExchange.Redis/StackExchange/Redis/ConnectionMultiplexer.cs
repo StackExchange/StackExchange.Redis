@@ -75,14 +75,14 @@ namespace StackExchange.Redis
             get { return configuration.ToString(); }
         }
 
-        internal void OnConnectionFailed(EndPoint endpoint, ConnectionFailureType failureType, Exception exception, bool reconfigure)
+        internal void OnConnectionFailed(EndPoint endpoint, ConnectionType connectionType, ConnectionFailureType failureType, Exception exception, bool reconfigure)
         {
             if (isDisposed) return;
             var handler = ConnectionFailed;
             if (handler != null)
             {
                 unprocessableCompletionManager.CompleteSyncOrAsync(
-                    new ConnectionFailedEventArgs(handler, this, endpoint, failureType, exception)
+                    new ConnectionFailedEventArgs(handler, this, endpoint, connectionType, failureType, exception)
                 );
             }
             if (reconfigure)
@@ -90,14 +90,14 @@ namespace StackExchange.Redis
                 ReconfigureIfNeeded(endpoint, false, "connection failed");
             }
         }
-        internal void OnConnectionRestored(EndPoint endpoint)
+        internal void OnConnectionRestored(EndPoint endpoint, ConnectionType connectionType)
         {
             if (isDisposed) return;
             var handler = ConnectionRestored;
             if (handler != null)
             {
                 unprocessableCompletionManager.CompleteSyncOrAsync(
-                    new EndPointEventArgs(handler, this, endpoint)
+                    new ConnectionFailedEventArgs(handler, this, endpoint, connectionType, ConnectionFailureType.None, null)
                 );
             }
             ReconfigureIfNeeded(endpoint, false, "connection restored");
@@ -392,7 +392,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Raised whenever a physical connection is established
         /// </summary>
-        public event EventHandler<EndPointEventArgs> ConnectionRestored;
+        public event EventHandler<ConnectionFailedEventArgs> ConnectionRestored;
 
         /// <summary>
         /// Raised when configuration changes are detected

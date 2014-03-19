@@ -145,8 +145,10 @@ namespace StackExchange.Redis
 
             // stop anything new coming in...
             bridge.Trace("Failed: " + failureType);
-            bridge.OnDisconnected(failureType, this);
-            if (Interlocked.CompareExchange(ref failureReported, 1, 0) == 0)
+            bool isCurrent;
+            bridge.OnDisconnected(failureType, this, out isCurrent);
+            
+            if (isCurrent && Interlocked.CompareExchange(ref failureReported, 1, 0) == 0)
             {
                 try
                 {

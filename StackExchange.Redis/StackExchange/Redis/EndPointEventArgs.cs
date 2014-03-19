@@ -7,7 +7,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// Event information related to redis endpoints
     /// </summary>
-    public sealed class EndPointEventArgs : EventArgs, ICompletable
+    public class EndPointEventArgs : EventArgs, ICompletable
     {
         private readonly EndPoint endpoint;
         private readonly EventHandler<EndPointEventArgs> handler;

@@ -310,7 +310,7 @@ namespace StackExchange.Redis
                 {
                     multiplexer.ResendSubscriptions(this);
                 }
-                multiplexer.OnConnectionRestored(endpoint);
+                multiplexer.OnConnectionRestored(endpoint, bridge.ConnectionType);
             }
             catch (Exception ex)
             {
