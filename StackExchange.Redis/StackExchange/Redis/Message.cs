@@ -418,6 +418,12 @@ namespace StackExchange.Redis
             }
         }
 
+        internal static Message Create(int db, CommandFlags flags, RedisCommand command, RedisKey key0, RedisValue[] values, RedisKey key1)
+        {
+            if (values == null) throw new ArgumentNullException("values");
+            return new CommandKeyValuesKeyMessage(db, flags, command, key0, values, key1);
+        }
+
         internal static CommandFlags GetMasterSlaveFlags(CommandFlags flags)
         {
             // for the purposes of the switch, we only care about two bits
@@ -538,7 +544,7 @@ namespace StackExchange.Redis
         }
 
         
-        private static CommandFlags SetMasterSlaveFlags(CommandFlags everything, CommandFlags masterSlave)
+        internal static CommandFlags SetMasterSlaveFlags(CommandFlags everything, CommandFlags masterSlave)
         {
             // take away the two flags we don't want, and add back the ones we care about
             return (everything & ~(CommandFlags.DemandMaster | CommandFlags.DemandSlave | CommandFlags.PreferMaster | CommandFlags.PreferSlave))
@@ -777,6 +783,33 @@ namespace StackExchange.Redis
                 physical.WriteHeader(Command, values.Length + 1);
                 physical.Write(Key);
                 for (int i = 0; i < values.Length; i++) physical.Write(values[i]);
+            }
+        }
+
+        sealed class CommandKeyValuesKeyMessage : CommandKeyBase
+        {
+            private readonly RedisValue[] values;
+            private readonly RedisKey key1;
+            public CommandKeyValuesKeyMessage(int db, CommandFlags flags, RedisCommand command, RedisKey key0, RedisValue[] values, RedisKey key1) : base(db, flags, command, key0)
+            {
+                for (int i = 0; i < values.Length; i++)
+                {
+                    values[i].Assert();
+                }
+                this.values = values;
+                this.key1 = key1.Assert();
+            }
+            internal override void WriteImpl(PhysicalConnection physical)
+            {
+                physical.WriteHeader(Command, values.Length + 2);
+                physical.Write(Key);
+                for (int i = 0; i < values.Length; i++) physical.Write(values[i]);
+                physical.Write(key1);
+            }
+            public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
+            {
+                var slot = base.GetHashSlot(serverSelectionStrategy);
+                return serverSelectionStrategy.CombineSlot(slot, key1);
             }
         }
 

@@ -124,6 +124,7 @@
         SLOWLOG,
         SMEMBERS,
         SMOVE,
+        SORT,
         SPOP,
         SRANDMEMBER,
         SREM,

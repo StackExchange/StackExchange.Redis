@@ -134,6 +134,7 @@
     <Compile Include="StackExchange\Redis\ServerType.cs" />
     <Compile Include="StackExchange\Redis\SetOperation.cs" />
     <Compile Include="StackExchange\Redis\SocketManager.cs" />
+    <Compile Include="StackExchange\Redis\SortType.cs" />
     <Compile Include="StackExchange\Redis\StringSplits.cs" />
     <Compile Include="StackExchange\Redis\TaskContinuationCheck.cs" />
     <Compile Include="StackExchange\Redis\When.cs" />

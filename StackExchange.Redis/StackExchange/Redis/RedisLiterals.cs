@@ -40,6 +40,10 @@ namespace StackExchange.Redis
             NOT = "NOT",
             XOR = "XOR",
             RESETSTAT = "RESETSTAT",
+            BY = "BY",
+            DESC = "DESC",
+            ALPHA = "ALPHA",
+            STORE = "STORE",
 
             // DO NOT CHANGE CASE: these are configuration settings and MUST be as-is
             databases = "databases",
@@ -53,6 +57,7 @@ namespace StackExchange.Redis
 
         public static readonly byte[] OK = Encoding.UTF8.GetBytes("OK");
         public static readonly byte[] ByteWildcard = { (byte)'*' };
+
 
         internal static RedisValue Get(Bitwise operation)
         {

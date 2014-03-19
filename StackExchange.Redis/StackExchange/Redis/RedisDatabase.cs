@@ -1592,6 +1592,106 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, processor, server);
         }
 
+
+        private Message GetSortedSetAddMessage(RedisKey destination, RedisKey key, long skip, long take, Order order, SortType sortType, RedisValue by, RedisValue[] get, CommandFlags flags)
+        {
+            // most common cases; no "get", no "by", no "destination", no "skip", no "take"
+            if(destination.IsNull && skip == 0 && take == -1 && by.IsNull && (get == null || get.Length == 0))
+            {
+                switch(order)
+                {
+                    case Order.Ascending:
+                        switch(sortType)
+                        {
+                            case SortType.Numeric: return Message.Create(Db, flags, RedisCommand.SORT, key);
+                            case SortType.Alphabetic: return Message.Create(Db, flags, RedisCommand.SORT, key, RedisLiterals.ALPHA);                            
+                        }
+                        break;
+                    case Order.Descending:
+                        switch (sortType)
+                        {
+                            case SortType.Numeric: return Message.Create(Db, flags, RedisCommand.SORT, key, RedisLiterals.DESC);
+                            case SortType.Alphabetic: return Message.Create(Db, flags, RedisCommand.SORT, key, RedisLiterals.DESC, RedisLiterals.ALPHA);
+                        }
+                        break;
+                }
+            }
+
+            // and now: more complicated scenarios...
+            List<RedisValue> values = new List<RedisValue>();
+            if (!by.IsNull) {
+                values.Add(RedisLiterals.BY);
+                values.Add(by);
+            }
+            if (skip != 0 || take != -1)// these are our defaults that mean "everything"; anything else needs to be sent explicitly
+            {
+                values.Add(RedisLiterals.LIMIT);
+                values.Add(skip);
+                values.Add(take);
+            }
+            switch(order)
+            {
+                case Order.Ascending:
+                    break; // default
+                case Order.Descending:
+                    values.Add(RedisLiterals.DESC);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException("order");
+            }
+            switch(sortType)
+            {
+                case SortType.Numeric:
+                    break; // default
+                case SortType.Alphabetic:
+                    values.Add(RedisLiterals.ALPHA);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException("sortType");
+            }
+            if(get != null && get.Length != 0)
+            {
+                foreach(var item in get)
+                {
+                    values.Add(RedisLiterals.GET);
+                    values.Add(item);
+                }
+            }
+            if(destination.IsNull) return Message.Create(Db, flags, RedisCommand.SORT, key, values.ToArray());
+
+            // because we are using STORE, we need to push this to a master
+            if(Message.GetMasterSlaveFlags(flags) == CommandFlags.DemandSlave)
+            {
+                throw ExceptionFactory.MasterOnly(RedisCommand.SORT);
+            }
+            flags = Message.SetMasterSlaveFlags(flags, CommandFlags.DemandMaster);
+            values.Add(RedisLiterals.STORE);
+            return Message.Create(Db, flags, RedisCommand.SORT, key, values.ToArray(), destination);
+        }
+        public RedisValue[] Sort(RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default(RedisValue), RedisValue[] get = null, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetSortedSetAddMessage(default(RedisKey), key, skip, take, order, sortType, by, get, flags);
+            return ExecuteSync(msg, ResultProcessor.RedisValueArray);
+        }
+
+        public long SortAndStore(RedisKey destination, RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default(RedisValue), RedisValue[] get = null, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetSortedSetAddMessage(destination, key, skip, take, order, sortType, by, get, flags);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+
+        public Task<RedisValue[]> SortAsync(RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default(RedisValue), RedisValue[] get = null, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetSortedSetAddMessage(default(RedisKey), key, skip, take, order, sortType, by, get, flags);
+            return ExecuteAsync(msg, ResultProcessor.RedisValueArray);
+        }
+
+        public Task<long> SortAndStoreAsync(RedisKey destination, RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default(RedisValue), RedisValue[] get = null, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetSortedSetAddMessage(destination, key, skip, take, order, sortType, by, get, flags);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
+
         private class StringGetWithExpiryProcessor : ResultProcessor<RedisValueWithExpiry>
         {
             public static readonly ResultProcessor<RedisValueWithExpiry> TTL = new StringGetWithExpiryProcessor(false), PTTL = new StringGetWithExpiryProcessor(true);
