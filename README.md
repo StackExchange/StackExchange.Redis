@@ -27,7 +27,7 @@ Documentation
 ---
 
 - [Basic Usage](https://github.com/StackExchange/StackExchange.Redis/blob/master/Docs/Basics.md) - getting started and basica usage
-- [Keys, Values and Channels](https://github.com/StackExchange/StackExchange.Redis/blob/master/Docs/Keys%20and%20Values.md) - discusses the data-types used on the API
+- [Keys, Values and Channels](https://github.com/StackExchange/StackExchange.Redis/blob/master/Docs/KeysValues.md) - discusses the data-types used on the API
 - [Transactions](https://github.com/StackExchange/StackExchange.Redis/blob/master/Docs/Transactions.md) - how atomic transactions work in redis
 
   [1]: http://msdn.microsoft.com/en-us/library/dd460717%28v=vs.110%29.aspx

@@ -1,5 +1,5 @@
 ﻿Basic Usage
----
+===
 
 The central object in StackExchange.Redis is the `ConnectionMultiplexer` class in the `StackExchange.Redis` namespace; this is the object that hides away the details of multiple servers. Because the `ConnectionMultiplexer` does a lot, it is designed to be **shared and reused** between callers. You should not create a `ConnectionMultiplexer` per operation. It is fully thread-safe and ready for this usage. In all the subsequent examples it will be assumed that you have a `ConnectionMultiplexer` instance stored away for re-use. But for now, let's create one. This is done using `ConnectionMultiplexer.Connect` or `ConnectionMultiplexer.ConnectAsync`, passing in either a configuration string or a `ConfigurationOptions` object. The configuration string can take the form of a comma-delimited series of nodes, so let's just connect to an instance on the local machine on the default port (6379):
 
