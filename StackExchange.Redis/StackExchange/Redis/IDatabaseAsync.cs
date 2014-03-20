@@ -375,6 +375,13 @@ namespace StackExchange.Redis
 
 
         /// <summary>
+        /// Execute a Lua script against the server
+        /// </summary>
+        /// <remarks>http://redis.io/commands/eval</remarks>
+        /// <returns>A dynamic representation of the script's result</returns>
+        Task<RedisResult> ScriptEvaluateAsync(string script, RedisKey[] keys = null, RedisValue[] values = null, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Add the specified member to the set stored at key. Specified members that are already a member of this set are ignored. If key does not exist, a new set is created before adding the specified members.
         /// </summary>
         /// <returns>True if the specified member was not already present in the set, else False</returns>

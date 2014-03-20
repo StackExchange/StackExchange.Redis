@@ -673,6 +673,18 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.RedisKey);
         }
 
+        public RedisResult ScriptEvaluate(string script, RedisKey[] keys = null, RedisValue[] values = null, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = new ScriptEvalMessage(Db, flags, RedisCommand.EVAL, script, keys ?? RedisKey.EmptyArray, values ?? RedisValue.EmptyArray);
+            return ExecuteSync(msg, ResultProcessor.RedisResult);
+        }
+
+        public Task<RedisResult> ScriptEvaluateAsync(string script, RedisKey[] keys = null, RedisValue[] values = null, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = new ScriptEvalMessage(Db, flags, RedisCommand.EVAL, script, keys ?? RedisKey.EmptyArray, values ?? RedisValue.EmptyArray);
+            return ExecuteAsync(msg, ResultProcessor.RedisResult);
+        }
+
         public bool SetAdd(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Db, flags, RedisCommand.SADD, key, value);
@@ -1869,6 +1881,41 @@ namespace StackExchange.Redis
             }
         }
 
+        private sealed class ScriptEvalMessage : Message
+        {
+            private readonly RedisKey[] keys;
+            private readonly RedisValue script;
+            private readonly RedisValue[] values;
+
+            public ScriptEvalMessage(int db, CommandFlags flags, RedisCommand command, string script, RedisKey[] keys, RedisValue[] values) : base(db, flags, command)
+            {
+                this.script = script;
+                for (int i = 0; i < keys.Length; i++)
+                    keys[i].Assert();
+                this.keys = keys;
+                for (int i = 0; i < values.Length; i++)
+                    values[i].Assert();
+                this.values = values;
+            }
+            public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
+            {
+                int slot = ServerSelectionStrategy.NoSlot;
+                for (int i = 0; i < keys.Length; i++)
+                    slot = serverSelectionStrategy.CombineSlot(slot, keys[i]);
+                return slot;
+            }
+
+            internal override void WriteImpl(PhysicalConnection physical)
+            {
+                physical.WriteHeader(command, 2 + keys.Length + values.Length);
+                physical.Write(script);
+                physical.Write(keys.Length);
+                for (int i = 0; i < keys.Length; i++)
+                    physical.Write(keys[i]);
+                for (int i = 0; i < values.Length; i++)
+                    physical.Write(values[i]);
+            }
+        }
         sealed class SortedSetCombineAndStoreCommandMessage : Message.CommandKeyBase // ZINTERSTORE and ZUNIONSTORE have a very unusual signature
         {
             private readonly RedisKey[] keys;

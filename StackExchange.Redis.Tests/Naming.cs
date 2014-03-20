@@ -185,6 +185,7 @@ namespace StackExchange.Redis.Tests
                     || shortName.StartsWith("String") || shortName.StartsWith("List")
                     || shortName.StartsWith("SortedSet") || shortName.StartsWith("Set")
                     || shortName.StartsWith("Debug") || shortName.StartsWith("Lock")
+                    || shortName.StartsWith("Script")
                     , fullName + ":Prefix");
             }
 

@@ -115,6 +115,7 @@
     <Compile Include="StackExchange\Redis\MessageQueue.cs" />
     <Compile Include="StackExchange\Redis\PhysicalConnection.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="StackExchange\Redis\RedisResult.cs" />
     <Compile Include="StackExchange\Redis\RedisTransaction.cs" />
     <Compile Include="StackExchange\Redis\RedisDatabase.cs" />
     <Compile Include="StackExchange\Redis\RedisFeatures.cs" />

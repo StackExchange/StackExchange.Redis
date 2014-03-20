@@ -80,6 +80,9 @@ namespace StackExchange.Redis
         public static readonly ResultProcessor<KeyValuePair<RedisValue, double>[]>
             SortedSetWithScores = new SortedSetWithScoresProcessor();
 
+        public static readonly ResultProcessor<RedisResult>
+            RedisResult = new RedisResultProcessor();
+
 
         static readonly byte[] MOVED = Encoding.UTF8.GetBytes("MOVED "), ASK = Encoding.UTF8.GetBytes("ASK ");
 
@@ -1006,6 +1009,22 @@ namespace StackExchange.Redis
                 bool happy = result.Type == ResultType.BulkString && result.Assert(connection.Multiplexer.UniqueId);
                 SetResult(message, happy);
                 return true; // we'll always acknowledge that we saw a non-error response
+            }
+        }
+
+        private class RedisResultProcessor : ResultProcessor<RedisResult>
+        {
+            // note that top-level error messages still get handled by SetResult, but nested errors
+            // (is that a thing?) will be wrapped in the RedisResult
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            {
+                var value = Redis.RedisResult.TryCreate(result);
+                if(value != null)
+                {
+                    SetResult(message, value);
+                    return true;
+                }
+                return false;
             }
         }
     }

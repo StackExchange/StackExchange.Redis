@@ -98,6 +98,9 @@ At the Redis layer (and assuming `HSETNX` did not exist) this could be implement
 
     EVAL "if redis.call('hexists', KEYS[1], 'UniqueId') then return redis.call('hset', KEYS[1], 'UniqueId', ARGV[1]) else return 0 end" 1 {custKey} {newId}
 
-This scrip
+This can be used in StackExchange.Redis via:
 
-Lua scripting is not currently implemented in StackExchange.Redis, but will be very soon.
+    var wasSet = (bool) db.ScriptEvaluate(@"if redis.call('hexists', KEYS[1], 'UniqueId') then return redis.call('hset', KEYS[1], 'UniqueId', ARGV[1]) else return 0 end",
+            new RedisKey[] { custKey }, new RedisValue[] { newId });
+
+(note that the response from `ScriptEvaluate` and `ScriptEvaluateAsync` is variable depending on your exact script; the response can be interpreted by casting - in this case as a `bool`)
