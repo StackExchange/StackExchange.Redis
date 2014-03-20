@@ -108,6 +108,7 @@
         SAVE,
         SCAN,
         SCARD,
+        SCRIPT,
         SDIFF,
         SDIFFSTORE,
         SELECT,

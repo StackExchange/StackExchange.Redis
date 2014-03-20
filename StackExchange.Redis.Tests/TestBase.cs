@@ -16,6 +16,14 @@ namespace StackExchange.Redis.Tests
     public abstract class TestBase : IDisposable
     {
 
+        protected void CollectGarbage()
+        {
+            for (int i = 0; i < 3; i++)
+            {
+                GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced);
+                GC.WaitForPendingFinalizers();
+            }
+        }
         private readonly SocketManager socketManager;
 
         protected TestBase()
@@ -138,6 +146,12 @@ namespace StackExchange.Redis.Tests
                     map[cmd] = null;
                 config.CommandMap = CommandMap.Create(map);
             }
+
+            if(Debugger.IsAttached)
+            {
+                syncTimeout = int.MaxValue;
+            }
+
             if (useSharedSocketManager) config.SocketManager = socketManager;
             if (channelPrefix != null) config.ChannelPrefix = channelPrefix;
             if (tieBreaker != null) config.TieBreaker = tieBreaker;
@@ -149,7 +163,7 @@ namespace StackExchange.Redis.Tests
             if (connectTimeout != null) config.ConnectTimeout = connectTimeout.Value;
             var watch = Stopwatch.StartNew();
             var task = ConnectionMultiplexer.ConnectAsync(config, log ?? Console.Out);
-            if (!task.Wait(config.ConnectTimeout * 2))
+            if (!task.Wait(config.ConnectTimeout >= (int.MaxValue / 2) ? int.MaxValue : config.ConnectTimeout * 2))
             {
                 task.ContinueWith(x =>
                 {

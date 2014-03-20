@@ -469,6 +469,7 @@ namespace StackExchange.Redis
                 case RedisCommand.READONLY:
                 case RedisCommand.READWRITE:
                 case RedisCommand.SAVE:
+                case RedisCommand.SCRIPT:
                 case RedisCommand.SHUTDOWN:
                 case RedisCommand.SLAVEOF:
                 case RedisCommand.SLOWLOG:

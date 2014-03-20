@@ -26,7 +26,8 @@ namespace StackExchange.Redis
             NullableDouble = new NullableDoubleProcessor();
 
         public static readonly ResultProcessor<byte[]>
-            ByteArray = new ByteArrayProcessor();
+            ByteArray = new ByteArrayProcessor(),
+            ScriptLoad = new ScriptLoadProcessor();
 
         public static readonly ResultProcessor<ClusterConfiguration>
             ClusterNodes = new ClusterNodesProcessor();
@@ -81,7 +82,7 @@ namespace StackExchange.Redis
             SortedSetWithScores = new SortedSetWithScoresProcessor();
 
         public static readonly ResultProcessor<RedisResult>
-            RedisResult = new RedisResultProcessor();
+            ScriptResult = new ScriptResultProcessor();
 
 
         static readonly byte[] MOVED = Encoding.UTF8.GetBytes("MOVED "), ASK = Encoding.UTF8.GetBytes("ASK ");
@@ -505,6 +506,14 @@ namespace StackExchange.Redis
                     case ResultType.BulkString:
                         SetResult(message, result.GetBoolean());
                         return true;
+                    case ResultType.Array:
+                        var items = result.GetItems();
+                        if(items.Length == 1)
+                        { // treat an array of 1 like a single reply (for example, SCRIPT EXISTS)
+                            SetResult(message, items[0].GetBoolean());
+                            return true;
+                        }
+                        break;
                 }
                 return false;
             }
@@ -518,6 +527,28 @@ namespace StackExchange.Redis
                 {
                     case ResultType.BulkString:
                         SetResult(message, result.GetBlob());
+                        return true;
+                }
+                return false;
+            }
+        }
+
+        internal sealed class ScriptLoadProcessor : ResultProcessor<byte[]>
+        {
+            // note that top-level error messages still get handled by SetResult, but nested errors
+            // (is that a thing?) will be wrapped in the RedisResult
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            {
+                switch (result.Type)
+                {
+                    case ResultType.BulkString:
+                        var hash = result.GetBlob();
+                        var sl = message as RedisDatabase.ScriptLoadMessage;
+                        if (sl != null)
+                        {
+                            connection.Bridge.ServerEndPoint.AddScript(sl.Script, hash);
+                        }
+                        SetResult(message, hash);
                         return true;
                 }
                 return false;
@@ -1012,8 +1043,19 @@ namespace StackExchange.Redis
             }
         }
 
-        private class RedisResultProcessor : ResultProcessor<RedisResult>
+        private class ScriptResultProcessor : ResultProcessor<RedisResult>
         {
+            static readonly byte[] NOSCRIPT = Encoding.UTF8.GetBytes("NOSCRIPT ");
+            public override bool SetResult(PhysicalConnection connection, Message message, RawResult result)
+            {
+                if(result.Type == ResultType.Error && result.AssertStarts(NOSCRIPT))
+                { // scripts are not flushed individually, so assume the entire script cache is toast ("SCRIPT FLUSH")
+                    connection.Bridge.ServerEndPoint.FlushScripts();
+                }
+                // and apply usual processing for the rest
+                return base.SetResult(connection, message, result);
+            }
+
             // note that top-level error messages still get handled by SetResult, but nested errors
             // (is that a thing?) will be wrapped in the RedisResult
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)

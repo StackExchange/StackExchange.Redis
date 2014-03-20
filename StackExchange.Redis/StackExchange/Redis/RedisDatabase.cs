@@ -676,13 +676,13 @@ namespace StackExchange.Redis
         public RedisResult ScriptEvaluate(string script, RedisKey[] keys = null, RedisValue[] values = null, CommandFlags flags = CommandFlags.None)
         {
             var msg = new ScriptEvalMessage(Db, flags, RedisCommand.EVAL, script, keys ?? RedisKey.EmptyArray, values ?? RedisValue.EmptyArray);
-            return ExecuteSync(msg, ResultProcessor.RedisResult);
+            return ExecuteSync(msg, ResultProcessor.ScriptResult);
         }
 
         public Task<RedisResult> ScriptEvaluateAsync(string script, RedisKey[] keys = null, RedisValue[] values = null, CommandFlags flags = CommandFlags.None)
         {
             var msg = new ScriptEvalMessage(Db, flags, RedisCommand.EVAL, script, keys ?? RedisKey.EmptyArray, values ?? RedisValue.EmptyArray);
-            return ExecuteAsync(msg, ResultProcessor.RedisResult);
+            return ExecuteAsync(msg, ResultProcessor.ScriptResult);
         }
 
         public bool SetAdd(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
@@ -1797,6 +1797,22 @@ namespace StackExchange.Redis
             }
         }
 
+        internal sealed class ScriptLoadMessage : Message
+        {
+            internal readonly string Script;
+            public ScriptLoadMessage(CommandFlags flags, string script) : base(-1, flags, RedisCommand.SCRIPT)
+            {
+                if (script == null) throw new ArgumentNullException("script");
+                this.Script = script;
+            }
+            internal override void WriteImpl(PhysicalConnection physical)
+            {
+                physical.WriteHeader(Command, 2);
+                physical.Write(RedisLiterals.LOAD);
+                physical.Write((RedisValue)Script);
+            }
+        }
+
         internal sealed class SetScanIterator
         {
             internal const int DefaultPageSize = 10;
@@ -1880,15 +1896,15 @@ namespace StackExchange.Redis
                 }
             }
         }
-
-        private sealed class ScriptEvalMessage : Message
+        private sealed class ScriptEvalMessage : Message, IMultiMessage
         {
             private readonly RedisKey[] keys;
-            private readonly RedisValue script;
+            private readonly string script;
             private readonly RedisValue[] values;
-
+            private RedisValue hash;
             public ScriptEvalMessage(int db, CommandFlags flags, RedisCommand command, string script, RedisKey[] keys, RedisValue[] values) : base(db, flags, command)
             {
+                if (script == null) throw new ArgumentNullException("script");
                 this.script = script;
                 for (int i = 0; i < keys.Length; i++)
                     keys[i].Assert();
@@ -1905,10 +1921,31 @@ namespace StackExchange.Redis
                 return slot;
             }
 
+            public IEnumerable<Message> GetMessages(PhysicalConnection connection)
+            {
+                this.hash = connection.Bridge.ServerEndPoint.GetScriptHash(script);
+                if(hash.IsNull)
+                {
+                    var msg = new ScriptLoadMessage(Flags, script);
+                    msg.SetInternalCall();
+                    msg.SetSource(ResultProcessor.ScriptLoad, null);
+                    yield return msg;
+                }
+                yield return this;
+            }
+
             internal override void WriteImpl(PhysicalConnection physical)
             {
-                physical.WriteHeader(command, 2 + keys.Length + values.Length);
-                physical.Write(script);
+                if(hash.IsNull)
+                {
+                    physical.WriteHeader(RedisCommand.EVAL, 2 + keys.Length + values.Length);
+                    physical.Write((RedisValue)script);
+                }
+                else
+                {
+                    physical.WriteHeader(RedisCommand.EVALSHA, 2 + keys.Length + values.Length);
+                    physical.Write(hash);
+                }                
                 physical.Write(keys.Length);
                 for (int i = 0; i < keys.Length; i++)
                     physical.Write(keys[i]);

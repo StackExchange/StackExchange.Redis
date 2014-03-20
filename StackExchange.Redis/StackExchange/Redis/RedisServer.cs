@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace StackExchange.Redis
@@ -138,6 +140,18 @@ namespace StackExchange.Redis
             ExecuteSync(Message.Create(-1, flags | CommandFlags.FireAndForget, RedisCommand.CONFIG, RedisLiterals.GET, setting), ResultProcessor.AutoConfigure);
             return task;
         }
+        public long DatabaseSize(int database = 0, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(database, flags, RedisCommand.DBSIZE);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+
+        public Task<long> DatabaseSizeAsync(int database = 0, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(database, flags, RedisCommand.DBSIZE);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
+
         public void FlushAllDatabases(CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(-1, flags, RedisCommand.FLUSHALL);
@@ -146,6 +160,18 @@ namespace StackExchange.Redis
         public Task FlushAllDatabasesAsync(CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(-1, flags, RedisCommand.FLUSHALL);
+            return ExecuteAsync(msg, ResultProcessor.DemandOK);
+        }
+
+        public void FlushDatabase(int database = 0, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(database, flags, RedisCommand.FLUSHDB);
+            ExecuteSync(msg, ResultProcessor.DemandOK);
+        }
+
+        public Task FlushDatabaseAsync(int database = 0, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(database, flags, RedisCommand.FLUSHDB);
             return ExecuteAsync(msg, ResultProcessor.DemandOK);
         }
 
@@ -222,15 +248,6 @@ namespace StackExchange.Redis
         {
             multiplexer.MakeMaster(server, options, log);
         }
-        Message GetSaveMessage(SaveType type, CommandFlags flags = CommandFlags.None)
-        {
-            switch(type)
-            {
-                case SaveType.BackgroundRewriteAppendOnlyFile: return Message.Create(-1, flags, RedisCommand.BGREWRITEAOF);
-                case SaveType.BackgroundSave: return Message.Create(-1, flags, RedisCommand.BGSAVE);
-                default:  throw new ArgumentOutOfRangeException("type");
-            }
-        }
         public void Save(SaveType type, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetSaveMessage(type, flags);
@@ -241,6 +258,56 @@ namespace StackExchange.Redis
         {
             var msg = GetSaveMessage(type, flags);
             return ExecuteAsync(msg, ResultProcessor.DemandOK);
+        }
+
+        public bool ScriptExists(string script, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.SCRIPT, RedisLiterals.EXISTS, ScriptHash.Hash(script));
+            return ExecuteSync(msg, ResultProcessor.Boolean);
+        }
+
+        public bool ScriptExists(byte[] sha1, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.SCRIPT, RedisLiterals.EXISTS, ScriptHash.Encode(sha1));
+            return ExecuteSync(msg, ResultProcessor.Boolean);
+        }
+
+        public Task<bool> ScriptExistsAsync(string script, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.SCRIPT, RedisLiterals.EXISTS, ScriptHash.Hash(script));
+            return ExecuteAsync(msg, ResultProcessor.Boolean);
+        }
+
+        public Task<bool> ScriptExistsAsync(byte[] sha1, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.SCRIPT, RedisLiterals.EXISTS, ScriptHash.Encode(sha1));
+            return ExecuteAsync(msg, ResultProcessor.Boolean);
+        }
+
+        public void ScriptFlush(CommandFlags flags = CommandFlags.None)
+        {
+            if (!multiplexer.RawConfig.AllowAdmin) throw ExceptionFactory.AdminModeNotEnabled(RedisCommand.SCRIPT);
+            var msg = Message.Create(-1, flags, RedisCommand.SCRIPT, RedisLiterals.FLUSH);
+            ExecuteSync(msg, ResultProcessor.DemandOK);
+        }
+
+        public Task ScriptFlushAsync(CommandFlags flags = CommandFlags.None)
+        {
+            if (!multiplexer.RawConfig.AllowAdmin) throw ExceptionFactory.AdminModeNotEnabled(RedisCommand.SCRIPT);
+            var msg = Message.Create(-1, flags, RedisCommand.SCRIPT, RedisLiterals.FLUSH);
+            return ExecuteAsync(msg, ResultProcessor.DemandOK);
+        }
+
+        public byte[] ScriptLoad(string script, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = new RedisDatabase.ScriptLoadMessage(flags, script);
+            return ExecuteSync(msg, ResultProcessor.ScriptLoad);
+        }
+
+        public Task<byte[]> ScriptLoadAsync(string script, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = new RedisDatabase.ScriptLoadMessage(flags, script);
+            return ExecuteAsync(msg, ResultProcessor.ScriptLoad);
         }
 
         public void Shutdown(ShutdownMode shutdownMode = ShutdownMode.Default, CommandFlags flags = CommandFlags.None)
@@ -333,19 +400,6 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.RedisChannelArray);
         }
 
-        public long SubscriptionSubscriberCount(RedisChannel channel, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.NUMSUB, channel);
-            return ExecuteSync(msg, ResultProcessor.Int64);
-        }
-
-        public Task<long> SubscriptionSubscriberCountAsync(RedisChannel channel, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.NUMSUB, channel);
-            return ExecuteAsync(msg, ResultProcessor.Int64);
-        }
-
-
         public long SubscriptionPatternCount(CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(-1, flags, RedisCommand.PUBLISH, RedisLiterals.NUMPAT);
@@ -355,6 +409,18 @@ namespace StackExchange.Redis
         public Task<long> SubscriptionPatternCountAsync(CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(-1, flags, RedisCommand.PUBLISH, RedisLiterals.NUMPAT);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
+
+        public long SubscriptionSubscriberCount(RedisChannel channel, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.NUMSUB, channel);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+
+        public Task<long> SubscriptionSubscriberCountAsync(RedisChannel channel, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.NUMSUB, channel);
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
@@ -382,7 +448,7 @@ namespace StackExchange.Redis
             {
                 string hostRaw;
                 int portRaw;
-                if(Format.TryGetHostPort(endpoint, out hostRaw, out portRaw))
+                if (Format.TryGetHostPort(endpoint, out hostRaw, out portRaw))
                 {
                     host = hostRaw;
                     port = portRaw;
@@ -394,6 +460,7 @@ namespace StackExchange.Redis
             }
             return Message.Create(-1, flags, RedisCommand.SLAVEOF, host, port);
         }
+
         internal override Task<T> ExecuteAsync<T>(Message message, ResultProcessor<T> processor, ServerEndPoint server = null)
         {   // inject our expected server automatically
             if (server == null) server = this.server;
@@ -422,22 +489,6 @@ namespace StackExchange.Redis
             return base.ExecuteSync<T>(message, processor, server);
         }
 
-        private void FixFlags(Message message, ServerEndPoint server)
-        {
-            // since the server is specified explicitly, we don't want defaults
-            // to make the "non-preferred-endpoint" counters look artificially
-            // inflated; note we only change *prefer* options
-            switch(Message.GetMasterSlaveFlags(message.Flags))
-            {
-                case CommandFlags.PreferMaster:
-                    if (server.IsSlave) message.SetPreferSlave();
-                    break;
-                case CommandFlags.PreferSlave:
-                    if (!server.IsSlave) message.SetPreferMaster();
-                    break;
-            }
-        }
-
         internal override RedisFeatures GetFeatures(int db, RedisKey key, CommandFlags flags, out ServerEndPoint server)
         {
             server = this.server;
@@ -454,31 +505,31 @@ namespace StackExchange.Redis
             ExecuteSync(msg, ResultProcessor.DemandOK);
         }
 
-
-        public long DatabaseSize(int database = 0, CommandFlags flags = CommandFlags.None)
+        private void FixFlags(Message message, ServerEndPoint server)
         {
-            var msg = Message.Create(database, flags, RedisCommand.DBSIZE);
-            return ExecuteSync(msg, ResultProcessor.Int64);
+            // since the server is specified explicitly, we don't want defaults
+            // to make the "non-preferred-endpoint" counters look artificially
+            // inflated; note we only change *prefer* options
+            switch (Message.GetMasterSlaveFlags(message.Flags))
+            {
+                case CommandFlags.PreferMaster:
+                    if (server.IsSlave) message.SetPreferSlave();
+                    break;
+                case CommandFlags.PreferSlave:
+                    if (!server.IsSlave) message.SetPreferMaster();
+                    break;
+            }
         }
 
-        public Task<long> DatabaseSizeAsync(int database = 0, CommandFlags flags = CommandFlags.None)
+        Message GetSaveMessage(SaveType type, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(database, flags, RedisCommand.DBSIZE);
-            return ExecuteAsync(msg, ResultProcessor.Int64);
+            switch(type)
+            {
+                case SaveType.BackgroundRewriteAppendOnlyFile: return Message.Create(-1, flags, RedisCommand.BGREWRITEAOF);
+                case SaveType.BackgroundSave: return Message.Create(-1, flags, RedisCommand.BGSAVE);
+                default:  throw new ArgumentOutOfRangeException("type");
+            }
         }
-
-        public void FlushDatabase(int database = 0, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(database, flags, RedisCommand.FLUSHDB);
-            ExecuteSync(msg, ResultProcessor.DemandOK);
-        }
-
-        public Task FlushDatabaseAsync(int database = 0, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(database, flags, RedisCommand.FLUSHDB);
-            return ExecuteAsync(msg, ResultProcessor.DemandOK);
-        }
-
         struct KeysScanResult
         {
             public static readonly ResultProcessor<KeysScanResult> Processor = new KeysResultProcessor();
@@ -511,6 +562,34 @@ namespace StackExchange.Redis
             }
         }
 
+        static class ScriptHash
+        {
+            static readonly byte[] hex = {
+                (byte)'0', (byte)'1', (byte)'2', (byte)'3', (byte)'4', (byte)'5', (byte)'6', (byte)'7',
+                (byte)'8', (byte)'9', (byte)'a', (byte)'b', (byte)'c', (byte)'d', (byte)'e', (byte)'f' };
+            public static RedisValue Encode(byte[] value)
+            {
+                if (value == null) return default(RedisValue);
+                byte[] result = new byte[value.Length * 2];
+                int offset = 0;
+                for (int i = 0; i < value.Length; i++)
+                {
+                    int val = value[i];
+                    result[offset++] = hex[val / 16];
+                    result[offset++] = hex[val % 16];
+                }
+                return result;
+            }
+            public static RedisValue Hash(string value)
+            {
+                if (value == null) return default(RedisValue);
+                using (var sha1 = SHA1.Create())
+                {
+                    var bytes = sha1.ComputeHash(Encoding.UTF8.GetBytes(value));
+                    return Encode(bytes);
+                }
+            }
+        }
         sealed class KeysScanIterator
         {
             internal const int DefaultPageSize = 10;

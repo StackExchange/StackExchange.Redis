@@ -280,7 +280,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal void OnDisconnected(ConnectionFailureType failureType, PhysicalConnection connection, out bool isCurrent)
+        internal void OnDisconnected(ConnectionFailureType failureType, PhysicalConnection connection, out bool isCurrent, out State oldState)
         {
             Trace("OnDisconnected");
 
@@ -294,11 +294,11 @@ namespace StackExchange.Redis
                 ping.Fail(failureType, null);
                 CompleteSyncOrAsync(ping);
             }
-
+            oldState = default(State); // only defined when isCurrent = true
             if (isCurrent = (physical == connection))
             {
                 Trace("Bridge noting disconnect from active connection" + (isDisposed ? " (disposed)" : ""));
-                ChangeState(State.Disconnected);
+                oldState = ChangeState(State.Disconnected);
                 physical = null;
 
                 if (!isDisposed && Interlocked.Increment(ref failConnectCount) == 1)
@@ -367,7 +367,8 @@ namespace StackExchange.Redis
                                 else
                                 {
                                     bool ignore;
-                                    OnDisconnected(ConnectionFailureType.SocketFailure, tmp, out ignore);
+                                    State oldState;
+                                    OnDisconnected(ConnectionFailureType.SocketFailure, tmp, out ignore, out oldState);
                                 }
                             }
                         }
@@ -463,6 +464,7 @@ namespace StackExchange.Redis
                     {
                         // we screwed up; abort; note that WriteMessageToServer already
                         // killed the underlying connection
+                        Trace("Unable to write to server");
                         next.Fail(ConnectionFailureType.ProtocolFailure, null);
                         CompleteSyncOrAsync(next);
                         break;
@@ -475,13 +477,14 @@ namespace StackExchange.Redis
             }
         }
 
-        private void ChangeState(State newState)
+        private State ChangeState(State newState)
         {
             var oldState = (State)Interlocked.Exchange(ref state, (int)newState);
             if (oldState != newState)
             {
                 multiplexer.Trace(connectionType + " state changed from " + oldState + " to " + newState);
             }
+            return oldState;
         }
 
         private bool ChangeState(State oldState, State newState)

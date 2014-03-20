@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -524,6 +525,26 @@ namespace StackExchange.Redis
             tmp = subscription;
             if (tmp != null) tmp.AppendProfile(sb);
             return sb.ToString();
+        }
+
+        private readonly Hashtable knownScripts = new Hashtable(StringComparer.Ordinal);
+        internal byte[] GetScriptHash(string script)
+        {
+            return (byte[])knownScripts[script];
+        }
+        internal void AddScript(string script, byte[] hash)
+        {
+            lock(knownScripts)
+            {
+                knownScripts[script] = hash;
+            }
+        }
+        internal void FlushScripts()
+        {
+            lock(knownScripts)
+            {
+                knownScripts.Clear();
+            }
         }
     }
 }

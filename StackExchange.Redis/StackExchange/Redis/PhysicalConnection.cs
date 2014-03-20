@@ -71,7 +71,8 @@ namespace StackExchange.Redis
 
         public PhysicalConnection(PhysicalBridge bridge)
         {
-             lastWriteTickCount = lastReadTickCount = lastBeatTickCount = Environment.TickCount;
+            lastWriteTickCount = lastReadTickCount = Environment.TickCount;
+            lastBeatTickCount = 0;
             this.connectionType = bridge.ConnectionType;
             this.multiplexer = bridge.Multiplexer;
             this.ChannelPrefix = multiplexer.RawConfig.ChannelPrefix;
@@ -151,7 +152,8 @@ namespace StackExchange.Redis
             // stop anything new coming in...
             bridge.Trace("Failed: " + failureType);
             bool isCurrent;
-            bridge.OnDisconnected(failureType, this, out isCurrent);
+            PhysicalBridge.State oldState;
+            bridge.OnDisconnected(failureType, this, out isCurrent, out oldState);
             
             if (isCurrent && Interlocked.CompareExchange(ref failureReported, 1, 0) == 0)
             {
@@ -163,7 +165,7 @@ namespace StackExchange.Redis
                     string message = failureType + " on " + Format.ToString(bridge.ServerEndPoint.EndPoint) + "/" + connectionType
                         + ", input-buffer: " + ioBufferBytes + ", outstanding: " + GetOutstandingCount()
                         + ", last-read: " + unchecked(now - lastRead) / 1000 + "s ago, last-write: " + unchecked(now - lastWrite) / 1000 + "s ago, keep-alive: " + bridge.ServerEndPoint.WriteEverySeconds + "s, pending: "
-                        + bridge.GetPendingCount() + ", last-heartbeat: " + unchecked(now - lastBeat) / 1000 + "s ago";
+                        + bridge.GetPendingCount() + ", state: " + oldState + ", last-heartbeat: " + (lastBeat == 0 ? "never" : (unchecked(now - lastBeat) / 1000 + "s ago"));
 
                     var ex = innerException == null
                         ? new RedisConnectionException(failureType, message)

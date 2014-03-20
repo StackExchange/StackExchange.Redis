@@ -48,6 +48,9 @@ namespace StackExchange.Redis
             MIN = "MIN",
             MAX = "MAX",
             AGGREGATE = "AGGREGATE",
+            LOAD = "LOAD",
+            EXISTS = "EXISTS",
+            FLUSH = "FLUSH",
 
             // DO NOT CHANGE CASE: these are configuration settings and MUST be as-is
             databases = "databases",

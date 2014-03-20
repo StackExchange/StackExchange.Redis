@@ -253,6 +253,46 @@ namespace StackExchange.Redis
         /// <remarks>http://redis.io/topics/persistence</remarks>
         Task SaveAsync(SaveType type, CommandFlags flags = CommandFlags.None);
 
+        /// <summary>
+        /// Inidicates whether the specified script is defined on the server
+        /// </summary>
+        bool ScriptExists(string script, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Inidicates whether the specified script hash is defined on the server
+        /// </summary>
+        bool ScriptExists(byte[] sha1, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Inidicates whether the specified script is defined on the server
+        /// </summary>
+        Task<bool> ScriptExistsAsync(string script, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Inidicates whether the specified script hash is defined on the server
+        /// </summary>
+        Task<bool> ScriptExistsAsync(byte[] sha1, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Removes all cached scripts on this server
+        /// </summary>
+        void ScriptFlush(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Removes all cached scripts on this server
+        /// </summary>
+        Task ScriptFlushAsync(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Explicitly defines a script on the server
+        /// </summary>
+        byte[] ScriptLoad(string script, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Explicitly defines a script on the server
+        /// </summary>
+        Task<byte[]> ScriptLoadAsync(string script, CommandFlags flags = CommandFlags.None);
+
         /// <summary>Asks the redis server to shutdown, killing all connections. Please FULLY read the notes on the SHUTDOWN command.</summary>
         /// <remarks>http://redis.io/commands/shutdown</remarks>
         void Shutdown(ShutdownMode shutdownMode = ShutdownMode.Default, CommandFlags flags = CommandFlags.None);
