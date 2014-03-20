@@ -69,7 +69,7 @@ Since the field names in hashes do not affect command routing, they are not keys
 Channels
 ---
 
-Channel names for pub/sub are represented by the `RedisChannel` type; this is largely identical to `RedisKey`, but is handled independently.
+Channel names for pub/sub are represented by the `RedisChannel` type; this is largely identical to `RedisKey`, but is handled independently since while channel-names are rightly first-class elements, they do not affect command routing.
 
 Scripting
 ---

@@ -44,6 +44,7 @@
     <None Include="..\README.md">
       <Link>README.md</Link>
     </None>
+    <None Include="Basics.md" />
     <None Include="Transactions.md" />
   </ItemGroup>
   <ItemGroup>
