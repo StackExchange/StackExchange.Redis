@@ -45,7 +45,7 @@ However, in addition to text and binary contents, values can also need to repres
 
 Note that while the conversions from primitives to `RedisValue` are implicit, many of the conversions from `RedisValue` to primitives are explicit: this is because it is very possible that these conversions will fail if the data does not have an appropriate value.
 
-Note additionally that *when treated numericically*, redis treats a non-existent key as zero; for consistency with this, nil responses are treated as zero:
+Note additionally that *when treated numerically*, redis treats a non-existent key as zero; for consistency with this, nil responses are treated as zero:
 
     db.KeyDelete("abc");
     int i = (int)db.StringGet("abc"); // this is ZERO
