@@ -295,7 +295,7 @@ namespace StackExchange.Redis
                 CompleteSyncOrAsync(ping);
             }
 
-            if (isCurrent = physical == connection)
+            if (isCurrent = (physical == connection))
             {
                 Trace("Bridge noting disconnect from active connection" + (isDisposed ? " (disposed)" : ""));
                 ChangeState(State.Disconnected);
@@ -355,6 +355,7 @@ namespace StackExchange.Redis
                         var tmp = physical;
                         if (tmp != null)
                         {
+                            tmp.Heartbeat();
                             int writeEverySeconds = serverEndPoint.WriteEverySeconds;
                             if (writeEverySeconds > 0 && tmp.LastWriteSecondsAgo >= writeEverySeconds)
                             {

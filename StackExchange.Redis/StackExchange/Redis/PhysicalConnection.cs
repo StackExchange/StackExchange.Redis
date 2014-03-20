@@ -71,7 +71,7 @@ namespace StackExchange.Redis
 
         public PhysicalConnection(PhysicalBridge bridge)
         {
-            lastWriteTickCount = lastReadTickCount = Environment.TickCount;
+             lastWriteTickCount = lastReadTickCount = lastBeatTickCount = Environment.TickCount;
             this.connectionType = bridge.ConnectionType;
             this.multiplexer = bridge.Multiplexer;
             this.ChannelPrefix = multiplexer.RawConfig.ChannelPrefix;
@@ -132,13 +132,18 @@ namespace StackExchange.Redis
             }
             OnCloseEcho();
         }
-        long lastWriteTickCount, lastReadTickCount;
+        long lastWriteTickCount, lastReadTickCount, lastBeatTickCount;
         public void Flush()
         {
             outStream.Flush();
             Interlocked.Exchange(ref lastWriteTickCount, Environment.TickCount);
         }
         int failureReported;
+
+        internal void Heartbeat()
+        {
+            Interlocked.Exchange(ref lastBeatTickCount, Environment.TickCount);
+        }
         public void RecordConnectionFailed(ConnectionFailureType failureType, Exception innerException = null)
         {
             IdentifyFailureType(innerException, ref failureType);
@@ -152,12 +157,13 @@ namespace StackExchange.Redis
             {
                 try
                 {
-                    long now = Environment.TickCount, lastRead = Interlocked.Read(ref lastReadTickCount), lastWrite = Interlocked.Read(ref lastWriteTickCount);
+                    long now = Environment.TickCount, lastRead = Interlocked.Read(ref lastReadTickCount), lastWrite = Interlocked.Read(ref lastWriteTickCount),
+                        lastBeat = Interlocked.Read(ref lastBeatTickCount);
 
                     string message = failureType + " on " + Format.ToString(bridge.ServerEndPoint.EndPoint) + "/" + connectionType
                         + ", input-buffer: " + ioBufferBytes + ", outstanding: " + GetOutstandingCount()
                         + ", last-read: " + unchecked(now - lastRead) / 1000 + "s ago, last-write: " + unchecked(now - lastWrite) / 1000 + "s ago, keep-alive: " + bridge.ServerEndPoint.WriteEverySeconds + "s, pending: "
-                        + bridge.GetPendingCount();
+                        + bridge.GetPendingCount() + ", last-heartbeat: " + unchecked(now - lastBeat) / 1000 + "s ago";
 
                     var ex = innerException == null
                         ? new RedisConnectionException(failureType, message)

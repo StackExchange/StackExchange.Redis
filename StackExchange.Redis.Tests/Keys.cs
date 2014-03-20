@@ -27,5 +27,44 @@ namespace StackExchange.Redis.Tests
                 Assert.AreEqual(Count, count);
             }
         }
+
+        [Test]
+        public void RandomKey()
+        {
+            using(var conn = Create(allowAdmin: true))
+            {
+                var db = conn.GetDatabase();
+                conn.GetServer(PrimaryServer, PrimaryPort).FlushDatabase();
+                string anyKey = db.RandomKey();
+
+                Assert.IsNull(anyKey);
+                db.StringSet("abc", "def");
+                byte[] keyBytes = db.RandomKey();
+
+                Assert.AreEqual("abc", Encoding.UTF8.GetString(keyBytes));
+            }
+        }
+
+        [Test]
+        public void Zeros()
+        {
+            using(var conn = Create())
+            {
+                var db = conn.GetDatabase();
+                db.KeyDelete("abc");
+                db.StringSet("abc", 123);
+                int k = (int)db.StringGet("abc");
+                Assert.AreEqual(123, k);
+
+                db.KeyDelete("abc");
+                int i = (int)db.StringGet("abc");
+                Assert.AreEqual(0, i);
+
+                Assert.IsTrue(db.StringGet("abc").IsNull);
+                int? value = (int?)db.StringGet("abc");
+                Assert.IsFalse(value.HasValue);
+
+            }
+        }
     }
 }
