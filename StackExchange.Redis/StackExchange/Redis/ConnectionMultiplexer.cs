@@ -7,7 +7,6 @@ using System.IO.Compression;
 using System.Linq;
 using System.Net;
 using System.Runtime.CompilerServices;
-using System.Runtime.Remoting.Lifetime;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -822,8 +821,6 @@ namespace StackExchange.Redis
                 long now = Environment.TickCount;
                 Interlocked.Exchange(ref lastHeartbeatTicks, now);
                 Interlocked.Exchange(ref lastGlobalHeartbeatTicks, now);
-                var lease = pulse == null ? null : pulse.GetLifetimeService() as ILease;
-                if (lease != null) lease.Renew(TimeSpan.FromMinutes(5));
                 Trace("heartbeat");
 
                 var tmp = serverSnapshot;
@@ -1238,8 +1235,6 @@ namespace StackExchange.Redis
                 {
                     LogLocked(log, "Starting heartbeat...");
                     pulse = new Timer(heartbeat, this, MillisecondsPerHeartbeat, MillisecondsPerHeartbeat);
-                    ILease lease = pulse.InitializeLifetimeService() as ILease;
-                    if(lease != null) lease.Renew(TimeSpan.FromMinutes(5));
                 }
 
                 string stormLog = GetStormLog();

@@ -155,7 +155,7 @@ namespace StackExchange.Redis
                     foreach(var pair in allSocketPairs)
                     {
                         var callback = pair.Callback;
-                        if (callback != null) callback.OnHeartbeat();
+                        if (callback != null) try { callback.OnHeartbeat(); } catch { }
                     }
                 }
 
@@ -275,9 +275,8 @@ namespace StackExchange.Redis
             }
         }
 
-        internal void Shutdown(SocketToken token)
+        private void Shutdown(Socket socket)
         {
-            var socket = token.Socket;
             if (socket != null)
             {
                 lock (socketLookup)
@@ -288,6 +287,10 @@ namespace StackExchange.Redis
                 try { socket.Close(); } catch { }
                 try { socket.Dispose(); } catch { }
             }
+        }
+        internal void Shutdown(SocketToken token)
+        {
+            Shutdown(token.Socket);
         }
 
         private readonly object QueueDrainSyncLock = new object();
@@ -483,8 +486,20 @@ namespace StackExchange.Redis
                 var callback = tuple.Item2;
                 socket.EndConnect(ar);
                 var netStream = new NetworkStream(socket, false);
-                callback.Connected(netStream);
-                AddRead(socket, callback);
+                var socketMode = callback == null ? SocketMode.Abort : callback.Connected(netStream);
+                switch (socketMode)
+                {
+                    case SocketMode.Poll:
+                        AddRead(socket, callback);
+                        break;
+                    case SocketMode.Async:
+                        try { callback.StartReading(); }
+                        catch { Shutdown(socket); }
+                        break;
+                    default:
+                        Shutdown(socket);
+                        break;
+                }
             }
             catch
             {
@@ -507,16 +522,27 @@ namespace StackExchange.Redis
         /// <summary>
         /// Indicates that a socket has connected
         /// </summary>
-        void Connected(Stream stream);
+        SocketMode Connected(Stream stream);
         /// <summary>
-        /// Indicates that data is available on the socket, and that the consumer should read from the socket
+        /// Indicates that data is available on the socket, and that the consumer should read synchronously from the socket while there is data
         /// </summary>
         void Read();
+        /// <summary>
+        /// Indicates that we cannot know whether data is available, and that the consume should commence reading asynchronously
+        /// </summary>
+        void StartReading();
         /// <summary>
         /// Indicates that the socket has signalled an error condition
         /// </summary>
         void Error();
         void OnHeartbeat();
+    }
+
+    internal enum SocketMode
+    {
+        Abort,
+        Poll,
+        Async
     }
 
     internal struct SocketToken

@@ -66,10 +66,10 @@ namespace StackExchange.Redis.Tests
 
                 // perf: sync/multi-threaded
                 TestConcurrent(db, key, 30, 10);
-                //TestConcurrent(db, key, 30, 20);
-                //TestConcurrent(db, key, 30, 30);
-                //TestConcurrent(db, key, 30, 40);
-                //TestConcurrent(db, key, 30, 50);
+                TestConcurrent(db, key, 30, 20);
+                TestConcurrent(db, key, 30, 30);
+                TestConcurrent(db, key, 30, 40);
+                TestConcurrent(db, key, 30, 50);
             }
         }
 
