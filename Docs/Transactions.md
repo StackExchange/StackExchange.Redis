@@ -8,7 +8,7 @@ A transaction in redis consists of a block of commands placed between `MULTI` an
 has been encountered, the commands on that connection *are not executed* - they are queued (and the caller gets the reply `QUEUED`
 to each). When an `EXEC` is encountered, they are
 all applied in a single unit (i.e. without other connections getting time betweeen operations). If a `DISCARD` is seen instead of 
-a `MULTI`, everything is thrown away. Because the commands inside the transaction are queued, you can't make decisions *inside*
+a `EXEC`, everything is thrown away. Because the commands inside the transaction are queued, you can't make decisions *inside*
 the transaction. For example, in a SQL database you might do the following (pseudo-code - illustrative only):
 
     // assign a new unique id only if they don't already
