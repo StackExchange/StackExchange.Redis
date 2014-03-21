@@ -186,7 +186,7 @@ namespace StackExchange.Redis
         }
         public override string ToString()
         {
-            return EndPoint.ToString();
+            return Format.ToString(EndPoint);
         }
 
         public bool TryEnqueue(Message message)
@@ -321,10 +321,16 @@ namespace StackExchange.Redis
 
         internal void OnHeartbeat()
         {
-            var tmp = interactive;
-            if (tmp != null) tmp.OnHeartbeat();
-            tmp = subscription;
-            if (tmp != null) tmp.OnHeartbeat();
+            try
+            {
+                var tmp = interactive;
+                if (tmp != null) tmp.OnHeartbeat(false);
+                tmp = subscription;
+                if (tmp != null) tmp.OnHeartbeat(false);
+            } catch(Exception ex)
+            {
+                multiplexer.OnInternalError(ex, EndPoint);
+            }
 
         }
 

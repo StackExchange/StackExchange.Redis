@@ -52,14 +52,24 @@ namespace StackExchange.Redis.Tests
                 }
             };
         }
-        private void Muxer_ConnectionFailed(object sender, ConnectionFailedEventArgs e)
+        protected void OnConnectionFailed(object sender, ConnectionFailedEventArgs e)
         {
             Interlocked.Increment(ref failCount);
             lock(exceptions)
             {
-                exceptions.Add("Connection failed: " + e.EndPoint);
+                exceptions.Add("Connection failed: " + EndPointCollection.ToString(e.EndPoint) + "/" + e.ConnectionType);
             }
         }
+
+        protected void OnInternalError(object sender, InternalErrorEventArgs e)
+        {
+            Interlocked.Increment(ref failCount);
+            lock (exceptions)
+            {
+                exceptions.Add("Internal error: " + e.Origin + ", " + EndPointCollection.ToString(e.EndPoint) + "/" + e.ConnectionType);
+            }
+        }
+
         static int failCount;
         volatile int expectedFailCount;
         [SetUp]
@@ -187,7 +197,8 @@ namespace StackExchange.Redis.Tests
                     Assert.Inconclusive(failMessage + "Server is not available");
                 }
             }
-            muxer.ConnectionFailed += Muxer_ConnectionFailed;
+            muxer.InternalError += OnInternalError;
+            muxer.ConnectionFailed += OnConnectionFailed;
             return muxer;
         }
 

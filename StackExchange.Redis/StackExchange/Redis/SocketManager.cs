@@ -75,7 +75,6 @@ namespace StackExchange.Redis
                     if (Interlocked.CompareExchange(ref readerCount, 0, 0) == 0)
                         StartReader();
                 }
-
             }
         }
 
@@ -134,10 +133,33 @@ namespace StackExchange.Redis
         {
             List<IntPtr> dead = null, active = new List<IntPtr>();
             IntPtr[] readSockets = EmptyPointers, errorSockets = EmptyPointers;
+            long lastHeartbeat = Environment.TickCount;
+            SocketPair[] allSocketPairs = null;
             while (true)
             {
                 active.Clear();
                 if (dead != null) dead.Clear();
+
+                // this check is actually a pace-maker; sometimes the Timer callback stalls for
+                // extended periods of time, which can cause socket disconnect
+                long now = Environment.TickCount;
+                if (unchecked(now - lastHeartbeat) >= 15000)
+                {
+                    lastHeartbeat = now;
+                    lock(socketLookup)
+                    {
+                        if(allSocketPairs == null || allSocketPairs.Length != socketLookup.Count)
+                            allSocketPairs = new SocketPair[socketLookup.Count];
+                        socketLookup.Values.CopyTo(allSocketPairs, 0);
+                    }
+                    foreach(var pair in allSocketPairs)
+                    {
+                        var callback = pair.Callback;
+                        if (callback != null) callback.OnHeartbeat();
+                    }
+                }
+
+
                 lock (socketLookup)
                 {
                     if (isDisposed) return;
@@ -186,7 +208,7 @@ namespace StackExchange.Redis
                 int ready;
                 try
                 {
-                    var timeout = new TimeValue(100);
+                    var timeout = new TimeValue(1000);
                     ready = select(0, readSockets, null, errorSockets, ref timeout);
                     if (ready <= 0)
                     {
@@ -460,9 +482,9 @@ namespace StackExchange.Redis
                 var socket = tuple.Item1;
                 var callback = tuple.Item2;
                 socket.EndConnect(ar);
-                AddRead(socket, callback);
                 var netStream = new NetworkStream(socket, false);
                 callback.Connected(netStream);
+                AddRead(socket, callback);
             }
             catch
             {
@@ -494,6 +516,7 @@ namespace StackExchange.Redis
         /// Indicates that the socket has signalled an error condition
         /// </summary>
         void Error();
+        void OnHeartbeat();
     }
 
     internal struct SocketToken

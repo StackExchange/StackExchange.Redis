@@ -10,7 +10,7 @@ namespace StackExchange.Redis
         // internally, this is very similar to RawResult, except it is designed to be usable
         // outside of the IO-processing pipeline: the buffers are standalone, etc
 
-        internal static RedisResult TryCreate(RawResult result)
+        internal static RedisResult TryCreate(PhysicalConnection connection, RawResult result)
         {
             try
             {
@@ -25,7 +25,7 @@ namespace StackExchange.Redis
                         var arr = new RedisResult[items.Length];
                         for (int i = 0; i < arr.Length; i++)
                         {
-                            var next = TryCreate(items[i]);
+                            var next = TryCreate(connection, items[i]);
                             if (next == null) return null; // means we didn't understand
                             arr[i] = next;
                         }
@@ -35,8 +35,9 @@ namespace StackExchange.Redis
                     default:
                         return null;
                 }
-            } catch
+            } catch(Exception ex)
             {
+                if(connection != null) connection.OnInternalError(ex);
                 return null; // will be logged as a protocol fail by the processor
             }
         }

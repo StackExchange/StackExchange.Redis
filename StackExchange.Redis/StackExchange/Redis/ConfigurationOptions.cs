@@ -262,6 +262,7 @@ namespace StackExchange.Redis
                     }
                     catch (Exception ex)
                     {
+                        multiplexer.OnInternalError(ex);
                         multiplexer.LogLocked(log, ex.Message);
                     }
                 }

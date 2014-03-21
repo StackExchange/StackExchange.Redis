@@ -7,6 +7,7 @@ using System.IO.Compression;
 using System.Linq;
 using System.Net;
 using System.Runtime.CompilerServices;
+using System.Runtime.Remoting.Lifetime;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -90,6 +91,25 @@ namespace StackExchange.Redis
                 ReconfigureIfNeeded(endpoint, false, "connection failed");
             }
         }
+        internal void OnInternalError(Exception exception, EndPoint endpoint = null, ConnectionType connectionType = ConnectionType.None, [CallerMemberName] string origin = null)
+        {
+            try
+            {
+                Trace("Internal error: " + origin + ", " + exception == null ? "unknown" : exception.Message);
+                if (isDisposed) return;
+                var handler = InternalError;
+                if (handler != null)
+                {
+                    unprocessableCompletionManager.CompleteSyncOrAsync(
+                        new InternalErrorEventArgs(handler, this, endpoint, connectionType, exception, origin)
+                    );
+                }
+            }
+            catch
+            { // our internal error event failed; whatcha gonna do, exactly?
+            }
+        }
+
         internal void OnConnectionRestored(EndPoint endpoint, ConnectionType connectionType)
         {
             if (isDisposed) return;
@@ -388,6 +408,11 @@ namespace StackExchange.Redis
         /// Raised whenever a physical connection fails
         /// </summary>
         public event EventHandler<ConnectionFailedEventArgs> ConnectionFailed;
+
+        /// <summary>
+        /// Raised whenever an internal error occurs (this is primarily for debugging)
+        /// </summary>
+        public event EventHandler<InternalErrorEventArgs> InternalError;
 
         /// <summary>
         /// Raised whenever a physical connection is established
@@ -779,25 +804,47 @@ namespace StackExchange.Redis
             {
                 ConfigurationChangedChannel = Encoding.UTF8.GetBytes(configChannel);
             }
+            lastHeartbeatTicks = Environment.TickCount;
         }
 
         partial void OnCreateReaderWriter(ConfigurationOptions configuration);
 
         internal const int MillisecondsPerHeartbeat = 1000;
 
-        private static readonly TimerCallback heartbeat = Heartbeat;
-        private static void Heartbeat(object state)
+        private static readonly TimerCallback heartbeat = state =>
         {
-            ((ConnectionMultiplexer)state).HeartbeatImpl();
-        }
-        private void HeartbeatImpl()
+            ((ConnectionMultiplexer)state).OnHeartbeat();
+        };
+        private void OnHeartbeat()
         {
-            Trace("heartbeat");
+            try
+            {
+                long now = Environment.TickCount;
+                Interlocked.Exchange(ref lastHeartbeatTicks, now);
+                Interlocked.Exchange(ref lastGlobalHeartbeatTicks, now);
+                var lease = pulse == null ? null : pulse.GetLifetimeService() as ILease;
+                if (lease != null) lease.Renew(TimeSpan.FromMinutes(5));
+                Trace("heartbeat");
 
-            var tmp = serverSnapshot;
-            for (int i = 0; i < tmp.Length; i++)
-                tmp[i].OnHeartbeat();
+                var tmp = serverSnapshot;
+                for (int i = 0; i < tmp.Length; i++)
+                    tmp[i].OnHeartbeat();
+            } catch(Exception ex)
+            {
+                OnInternalError(ex);
+            }
         }
+
+        private long lastHeartbeatTicks;
+        private static long lastGlobalHeartbeatTicks = Environment.TickCount;
+        internal long LastHeartbeatSecondsAgo {
+            get {
+                if (pulse == null) return -1;
+                return unchecked(Environment.TickCount - Interlocked.Read(ref lastHeartbeatTicks)) / 1000;
+            }
+        }
+        internal static long LastGlobalHeartbeatSecondsAgo
+        { get { return unchecked(Environment.TickCount - Interlocked.Read(ref lastGlobalHeartbeatTicks)) / 1000; } }
 
         internal CompletionManager UnprocessableCompletionManager { get { return unprocessableCompletionManager; } }
 
@@ -945,10 +992,38 @@ namespace StackExchange.Redis
             get
             {
                 int timeout = configuration.ConnectTimeout;
+                if (timeout >= int.MaxValue - 500) return int.MaxValue;
                 return timeout + Math.Min(500, timeout);
             }
         }
+        /// <summary>
+        /// Provides a text overview of the status of all connections
+        /// </summary>
+        public string GetStatus()
+        {
+            using(var sw = new StringWriter())
+            {
+                GetStatus(sw);
+                return sw.ToString();
+            }
+        }
+        /// <summary>
+        /// Provides a text overview of the status of all connections
+        /// </summary>
+        public void GetStatus(TextWriter log)
+        {
+            if (log == null) return;
 
+            var tmp = serverSnapshot;
+            foreach (var server in tmp)
+            {
+                LogLocked(log, server.Summary());
+                LogLocked(log, server.GetCounters().ToString());
+                LogLocked(log, server.GetProfile());
+            }
+            LogLocked(log, "Sync timeouts: {0}; fire and forget: {1}; last heartbeat: {2}s ago",
+                Interlocked.Read(ref syncTimeouts), Interlocked.Read(ref fireAndForgets), LastHeartbeatSecondsAgo);
+        }
         internal async Task<bool> ReconfigureAsync(bool first, bool reconfigureAll, TextWriter log, EndPoint blame, string cause)
         {
             if (isDisposed) throw new ObjectDisposedException(ToString());
@@ -1024,8 +1099,7 @@ namespace StackExchange.Redis
                 RedisKey tieBreakerKey = useTieBreakers ? (RedisKey)configuration.TieBreaker : default(RedisKey);
                 for (int i = 0; i < available.Length; i++)
                 {
-
-                    Trace("Testing: " + endpoints[i]);
+                    Trace("Testing: " + Format.ToString(endpoints[i]));
                     var server = GetServerEndPoint(endpoints[i]);
                     server.ReportNextFailure();
                     servers[i] = server;
@@ -1056,7 +1130,7 @@ namespace StackExchange.Redis
                 for (int i = 0; i < available.Length; i++)
                 {
                     var task = available[i];
-                    Trace(endpoints[i] + ": " + task.Status);
+                    Trace(Format.ToString(endpoints[i]) + ": " + task.Status);
                     if (task.IsFaulted)
                     {
                         servers[i].SetUnselectable(UnselectableFlags.DidNotRespond);
@@ -1158,21 +1232,14 @@ namespace StackExchange.Redis
                 }
                 if (showStats)
                 {
-                    foreach (var server in servers)
-                    {
-                        LogLocked(log, server.Summary());
-                        if (!first)
-                        {
-                            LogLocked(log, server.GetCounters().ToString());
-                            LogLocked(log, server.GetProfile());
-                        }
-                    }
-                    LogLocked(log, "Sync timeouts: {0}; fire and forget: {1}", Interlocked.Read(ref syncTimeouts), Interlocked.Read(ref fireAndForgets));
+                    GetStatus(log);
                 }
                 if (first)
                 {
                     LogLocked(log, "Starting heartbeat...");
                     pulse = new Timer(heartbeat, this, MillisecondsPerHeartbeat, MillisecondsPerHeartbeat);
+                    ILease lease = pulse.InitializeLifetimeService() as ILease;
+                    if(lease != null) lease.Renew(TimeSpan.FromMinutes(5));
                 }
 
                 string stormLog = GetStormLog();

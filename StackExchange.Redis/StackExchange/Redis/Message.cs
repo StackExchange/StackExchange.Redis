@@ -540,6 +540,7 @@ namespace StackExchange.Redis
             }
             catch (Exception ex)
             {
+                if (physical != null) physical.OnInternalError(ex);
                 Fail(ConnectionFailureType.InternalFailure, ex);
             }
         }

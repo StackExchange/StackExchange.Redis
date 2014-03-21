@@ -1060,7 +1060,7 @@ namespace StackExchange.Redis
             // (is that a thing?) will be wrapped in the RedisResult
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
-                var value = Redis.RedisResult.TryCreate(result);
+                var value = Redis.RedisResult.TryCreate(connection, result);
                 if(value != null)
                 {
                     SetResult(message, value);

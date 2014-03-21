@@ -6,6 +6,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
+using System.Runtime.CompilerServices;
 using System.Security.Authentication;
 using System.Text;
 using System.Threading;
@@ -78,7 +79,7 @@ namespace StackExchange.Redis
             this.ChannelPrefix = multiplexer.RawConfig.ChannelPrefix;
             if (this.ChannelPrefix != null && this.ChannelPrefix.Length == 0) this.ChannelPrefix = null; // null tests are easier than null+empty
             var endpoint = bridge.ServerEndPoint.EndPoint;
-            physicalName = connectionType + "#" + Interlocked.Increment(ref totalCount) + "@" + endpoint.ToString();
+            physicalName = connectionType + "#" + Interlocked.Increment(ref totalCount) + "@" + Format.ToString(endpoint);
             this.bridge = bridge;
             multiplexer.Trace("Connecting...", physicalName);
 
@@ -141,13 +142,15 @@ namespace StackExchange.Redis
         }
         int failureReported;
 
-        internal void Heartbeat()
+        internal void OnHeartbeat()
         {
             Interlocked.Exchange(ref lastBeatTickCount, Environment.TickCount);
         }
-        public void RecordConnectionFailed(ConnectionFailureType failureType, Exception innerException = null)
+        public void RecordConnectionFailed(ConnectionFailureType failureType, Exception innerException = null, [CallerMemberName] string origin = null)
         {
             IdentifyFailureType(innerException, ref failureType);
+
+            if(failureType == ConnectionFailureType.InternalFailure) OnInternalError(innerException, origin);
 
             // stop anything new coming in...
             bridge.Trace("Failed: " + failureType);
@@ -165,7 +168,9 @@ namespace StackExchange.Redis
                     string message = failureType + " on " + Format.ToString(bridge.ServerEndPoint.EndPoint) + "/" + connectionType
                         + ", input-buffer: " + ioBufferBytes + ", outstanding: " + GetOutstandingCount()
                         + ", last-read: " + unchecked(now - lastRead) / 1000 + "s ago, last-write: " + unchecked(now - lastWrite) / 1000 + "s ago, keep-alive: " + bridge.ServerEndPoint.WriteEverySeconds + "s, pending: "
-                        + bridge.GetPendingCount() + ", state: " + oldState + ", last-heartbeat: " + (lastBeat == 0 ? "never" : (unchecked(now - lastBeat) / 1000 + "s ago"));
+                        + bridge.GetPendingCount() + ", state: " + oldState + ", last-heartbeat: " + (lastBeat == 0 ? "never" : (unchecked(now - lastBeat) / 1000 + "s ago"))
+                        + (bridge.IsBeating ? " (mid-beat)" : "") + ", last-mbeat: " + multiplexer.LastHeartbeatSecondsAgo + "s ago, global: "
+                        + ConnectionMultiplexer.LastGlobalHeartbeatSecondsAgo + "s ago";
 
                     var ex = innerException == null
                         ? new RedisConnectionException(failureType, message)
@@ -478,21 +483,22 @@ namespace StackExchange.Redis
 
                 if (!string.IsNullOrWhiteSpace(config.SslHost))
                 {
-                    var ssl = new SslStream(netStream, false, config.CertificateValidationCallback, config.CertificateSelectionCallback, EncryptionPolicy.RequireEncryption);
+                    var ssl = new SslStream(stream, false, config.CertificateValidationCallback, config.CertificateSelectionCallback, EncryptionPolicy.RequireEncryption);
                     ssl.AuthenticateAsClient(config.SslHost);
                     stream = ssl;
                 }
                 OnWrapForLogging(ref stream, physicalName);
-                this.netStream = stream;
 
                 int bufferSize = config.WriteBuffer;
-                outStream = bufferSize <= 0 ? netStream : new BufferedStream(stream, bufferSize);
+                this.netStream = stream;
+                this.outStream = bufferSize <= 0 ? stream : new BufferedStream(stream, bufferSize);
                 multiplexer.Trace("Connected", physicalName);
 
                 bridge.OnConnected(this);
             }
             catch (Exception ex)
             {
+
                 RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex); // includes a bridge.OnDisconnected
                 multiplexer.Trace("Could not connect: " + ex.Message, physicalName);
             }
@@ -529,7 +535,7 @@ namespace StackExchange.Redis
                                 blame = Format.TryParseEndPoint(items[2].GetString());
                             }
                         }
-                        catch { }
+                        catch { /* no biggie */ }
                         multiplexer.Trace("Configuration changed: " + Format.ToString(blame), physicalName);
                         multiplexer.ReconfigureIfNeeded(blame, true, "broadcast");
                     }
@@ -572,6 +578,11 @@ namespace StackExchange.Redis
             }
         }
 
+        internal void OnInternalError(Exception exception, [CallerMemberName] string origin = null)
+        {
+            multiplexer.OnInternalError(exception, bridge.ServerEndPoint.EndPoint, connectionType, origin);
+        }
+
         partial void OnCloseEcho();
 
         partial void OnCreateEcho();
@@ -598,6 +609,18 @@ namespace StackExchange.Redis
                 }
             } while (result.HasValue);
             return messageCount;
+        }
+
+        void ISocketCallback.OnHeartbeat()
+        {
+            try
+            {
+                bridge.OnHeartbeat(true); // all the fun code is here
+            }
+            catch (Exception ex)
+            {
+                OnInternalError(ex);
+            }
         }
 
         void ISocketCallback.Read()
@@ -635,6 +658,7 @@ namespace StackExchange.Redis
                         ioBufferBytes = count;
                     }
                 } while (socketToken.Available != 0);
+                multiplexer.Trace("Buffer exhausted", physicalName);
                 // ^^^ note that the socket manager will call us again when there is something to do
             }
             catch (Exception ex)

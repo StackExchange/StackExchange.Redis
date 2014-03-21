@@ -7,6 +7,7 @@ namespace StackExchange.Redis
     partial class ConnectionMultiplexer
     {
         internal SocketManager SocketManager {  get {  return socketManager; } }
+
         private SocketManager socketManager;
         private bool ownsSocketManager;
 

@@ -27,7 +27,7 @@ namespace StackExchange.Redis.Tests
                 SslHost = sslHost,
                 EndPoints = { { "sslredis", port} },
                 AllowAdmin = true,
-                SyncTimeout = 5000
+                SyncTimeout = Debugger.IsAttached ? int.MaxValue : 5000
             };
             config.CertificateValidation += (sender, cert, chain, errors) =>
             {
@@ -36,6 +36,8 @@ namespace StackExchange.Redis.Tests
             };
             using (var muxer = ConnectionMultiplexer.Connect(config, Console.Out))
             {
+                muxer.ConnectionFailed += OnConnectionFailed;
+                muxer.InternalError += OnInternalError;
                 var db = muxer.GetDatabase();
                 db.Ping();
                 using (var file = File.Create("ssl" + port + ".zip"))
@@ -64,10 +66,10 @@ namespace StackExchange.Redis.Tests
 
                 // perf: sync/multi-threaded
                 TestConcurrent(db, key, 30, 10);
-                TestConcurrent(db, key, 30, 20);
-                TestConcurrent(db, key, 30, 30);
-                TestConcurrent(db, key, 30, 40);
-                TestConcurrent(db, key, 30, 50);
+                //TestConcurrent(db, key, 30, 20);
+                //TestConcurrent(db, key, 30, 30);
+                //TestConcurrent(db, key, 30, 40);
+                //TestConcurrent(db, key, 30, 50);
             }
         }
 
