@@ -248,7 +248,7 @@ namespace StackExchange.Redis
                     var obj = new QueueDrainSyncLock(this);
                     lock (obj)
                     {
-                        ThreadPool.QueueUserWorkItem(HelpProcessItems, this);
+                        ThreadPool.QueueUserWorkItem(HelpProcessItems, obj);
                         ProcessItems();
                         if (!obj.Consume())
                         {   // then our worker arrived and picked up work; we need
@@ -325,8 +325,8 @@ namespace StackExchange.Redis
 
         static readonly WaitCallback HelpProcessItems = state =>
         {
-            QueueDrainSyncLock qdsl = (QueueDrainSyncLock)state;
-            if (qdsl.Consume())
+            var qdsl = state as QueueDrainSyncLock;
+            if (qdsl != null && qdsl.Consume())
             {
                 var mgr = qdsl.Manager;
                 mgr.ProcessItems();
