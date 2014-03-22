@@ -45,6 +45,7 @@
       <Link>README.md</Link>
     </None>
     <None Include="Basics.md" />
+    <None Include="Events.md" />
     <None Include="PipelinesMultiplexers.md" />
     <None Include="Transactions.md" />
   </ItemGroup>
