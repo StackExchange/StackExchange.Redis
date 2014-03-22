@@ -82,7 +82,7 @@ Concurrency
 
 It should be noted that the pipeline / multiplexer / future-value approach also plays very nicely with continuation-based asynchronous code; for example you could write:
 
-    var value = (string) await db.StringGet(key);
+    string value = await db.StringGet(key);
     if (value == null) {
         value = await ComputeValueFromDatabase(...);
         db.StringSet(key, value, flags: CommandFlags.FireAndForget);
