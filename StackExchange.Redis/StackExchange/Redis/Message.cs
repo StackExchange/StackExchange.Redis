@@ -59,6 +59,8 @@ namespace StackExchange.Redis
     
     abstract class Message : ICompletable
     {
+
+        public static readonly Message[] EmptyArray = new Message[0];
         public readonly int Db;
 
         protected RedisCommand command;

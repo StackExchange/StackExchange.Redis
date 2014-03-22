@@ -384,8 +384,16 @@ namespace StackExchange.Redis
                     case (int)State.Disconnected:
                         if (!ifConnectedOnly)
                         {
+                            AbortUnsent();
                             multiplexer.Trace("Resurrecting " + this.ToString());
                             GetConnection();
+                        }
+                        break;
+                    case (int)State.Connecting:
+                    default:
+                        if (!ifConnectedOnly)
+                        {
+                            AbortUnsent();
                         }
                         break;
                 }
@@ -469,7 +477,7 @@ namespace StackExchange.Redis
         /// connected" handshake (when there is no dequeue loop) - otherwise,
         /// you can pretty much assume you're going to destroy the stream
         /// </summary>
-        internal void WriteMessageDirect(PhysicalConnection tmp, Message next)
+        internal bool WriteMessageDirect(PhysicalConnection tmp, Message next)
         {
             Trace("Writing: " + next);
             if (next is IMultiMessage)
@@ -484,13 +492,14 @@ namespace StackExchange.Redis
                         Trace("Unable to write to server");
                         next.Fail(ConnectionFailureType.ProtocolFailure, null);
                         CompleteSyncOrAsync(next);
-                        break;
+                        return false;
                     }
                 }
+                return true;
             }
             else
             {
-                WriteMessageToServer(tmp, next);
+                return WriteMessageToServer(tmp, next);
             }
         }
 
@@ -500,8 +509,25 @@ namespace StackExchange.Redis
             if (oldState != newState)
             {
                 multiplexer.Trace(connectionType + " state changed from " + oldState + " to " + newState);
+
+                if (newState == State.Disconnected)
+                {
+                    AbortUnsent();
+                }
             }
             return oldState;
+        }
+
+        private void AbortUnsent()
+        {
+            var dead = queue.DequeueAll();
+            Trace(dead.Length != 0, "Aborting " + dead.Length + " messages");
+            for (int i = 0; i < dead.Length; i++)
+            {
+                var msg = dead[i];
+                msg.Fail(ConnectionFailureType.UnableToResolvePhysicalConnection, null);
+                CompleteSyncOrAsync(msg);
+            }
         }
 
         private bool ChangeState(State oldState, State newState)
@@ -659,7 +685,7 @@ namespace StackExchange.Redis
                 message.Fail(ConnectionFailureType.InternalFailure, ex);
                 CompleteSyncOrAsync(message);
 
-                // we're not sure *what* happened here; kill the connection
+                // we're not sure *what* happened here; probably an IOException; kill the connection
                 if(connection != null) connection.RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
                 return false;
             }
@@ -683,6 +709,7 @@ namespace StackExchange.Redis
                 var conn = GetConnection();
                 if(conn == null)
                 {
+                    AbortUnsent();
                     Trace("Connection not available; exiting");
                     return WriteResult.NoConnection;
                 }
@@ -702,7 +729,12 @@ namespace StackExchange.Redis
                     last = next;
                     
                     Trace("Now pending: " + GetPendingCount());
-                    WriteMessageDirect(conn, next);
+                    if(!WriteMessageDirect(conn, next))
+                    {
+                        AbortUnsent();
+                        Trace("write failed; connection is toast; exiting");
+                        return WriteResult.NoConnection;
+                    }
                     count++;
                     if (maxWork > 0 && count >= maxWork)
                     {

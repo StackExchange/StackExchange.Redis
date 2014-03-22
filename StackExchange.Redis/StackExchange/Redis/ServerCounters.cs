@@ -14,6 +14,7 @@ namespace StackExchange.Redis
             this.EndPoint = endpoint;
             this.Interactive = new ConnectionCounters(ConnectionType.Interactive);
             this.Subscription = new ConnectionCounters(ConnectionType.Subscription);
+            this.Other = new ConnectionCounters(ConnectionType.None);
         }
 
         /// <summary>
@@ -29,14 +30,18 @@ namespace StackExchange.Redis
         /// <summary>
         /// Counters associated with the subscription (pub-sub) connection
         /// </summary>
-
         public ConnectionCounters Subscription { get; private set; }
+
+        /// <summary>
+        /// Counters associated with other ambient activity
+        /// </summary>
+        public ConnectionCounters Other { get; private set; }
 
 
         /// <summary>
         /// Indicates the total number of outstanding items against this server
         /// </summary>
-        public long TotalOutstanding { get { return Interactive.TotalOutstanding + Subscription.TotalOutstanding; } }
+        public long TotalOutstanding { get { return Interactive.TotalOutstanding + Subscription.TotalOutstanding + Other.TotalOutstanding; } }
 
         /// <summary>
         /// See Object.ToString();
@@ -48,6 +53,11 @@ namespace StackExchange.Redis
             Interactive.Append(sb);
             sb.Append("; sub ");
             Subscription.Append(sb);
+            if (Other.Any())
+            {
+                sb.Append("; other ");
+                Other.Append(sb);
+            }
             return sb.ToString();
         }
 

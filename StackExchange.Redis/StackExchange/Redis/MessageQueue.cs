@@ -26,6 +26,22 @@ namespace StackExchange.Redis
             return null;
         }
 
+        internal Message[] DequeueAll()
+        {
+            lock (regular)
+            {
+                int count = high.Count + regular.Count;
+                if (count == 0) return Message.EmptyArray;
+
+                var arr = new Message[count];
+                high.CopyTo(arr, 0);
+                regular.CopyTo(arr, high.Count);
+                high.Clear();
+                regular.Clear();
+                return arr;
+            }
+        }
+
         public object SyncLock {  get {  return regular; } }
         public Message PeekPing(out int queueLength)
         {

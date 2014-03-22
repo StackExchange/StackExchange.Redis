@@ -68,6 +68,17 @@ namespace StackExchange.Redis
             this.NonPreferredEndpointCount += other.NonPreferredEndpointCount;
         }
 
+        internal bool Any()
+        {
+            return CompletedAsynchronously != 0 || CompletedSynchronously != 0
+                || FailedAsynchronously != 0 || OperationCount != 0
+                || PendingUnsentItems != 0 || ResponsesAwaitingAsyncCompletion != 0
+                || SentItemsAwaitingResponse != 0 || SocketCount != 0
+                || Subscriptions != 0 || WriterCount != 0
+                || NonPreferredEndpointCount != 0;
+        }
+
+
         /// <summary>
         /// Operations that have been requested, but which have not yet been sent to the server
         /// </summary>

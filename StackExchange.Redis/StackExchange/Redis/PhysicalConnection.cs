@@ -160,8 +160,8 @@ namespace StackExchange.Redis
             
             if (isCurrent && Interlocked.CompareExchange(ref failureReported, 1, 0) == 0)
             {
-                try
-                {
+                //try
+                //{
                     long now = Environment.TickCount, lastRead = Interlocked.Read(ref lastReadTickCount), lastWrite = Interlocked.Read(ref lastWriteTickCount),
                         lastBeat = Interlocked.Read(ref lastBeatTickCount);
 
@@ -175,12 +175,14 @@ namespace StackExchange.Redis
                     var ex = innerException == null
                         ? new RedisConnectionException(failureType, message)
                         : new RedisConnectionException(failureType, message, innerException);
-                    throw ex;
-                }
-                catch (Exception caught)
-                {
-                    bridge.OnConnectionFailed(this, failureType, caught);
-                }
+
+                    bridge.OnConnectionFailed(this, failureType, ex);
+                //    throw ex;
+                //}
+                //catch (Exception caught)
+                //{
+                //    bridge.OnConnectionFailed(this, failureType, caught);
+                //}
 
             }
 

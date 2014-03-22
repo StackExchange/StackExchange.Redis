@@ -59,6 +59,7 @@ namespace StackExchange.Redis
             {
                 counters.Add(snapshot[i].GetCounters());
             }
+            unprocessableCompletionManager.GetCounters(counters.Other);
             return counters;
         }
 
@@ -1098,7 +1099,7 @@ namespace StackExchange.Redis
                 {
                     Trace("Testing: " + Format.ToString(endpoints[i]));
                     var server = GetServerEndPoint(endpoints[i]);
-                    server.ReportNextFailure();
+                    //server.ReportNextFailure();
                     servers[i] = server;
                     if (reconfigureAll && server.IsConnected)
                     {

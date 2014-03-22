@@ -60,6 +60,7 @@
     <Reference Include="Microsoft.CSharp" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="AsyncTests.cs" />
     <Compile Include="BasicOps.cs" />
     <Compile Include="Cluster.cs" />
     <Compile Include="Commands.cs" />

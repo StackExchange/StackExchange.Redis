@@ -11,14 +11,15 @@ namespace StackExchange.Redis
 
         public void SetException(Exception exception)
         {
-            try
-            {
-                throw exception;
-            }
-            catch (Exception caught)
-            { // stacktrace etc
-                this.exception = caught;
-            }
+            this.exception = exception;
+            //try
+            //{
+            //    throw exception;
+            //}
+            //catch (Exception caught)
+            //{ // stacktrace etc
+            //    this.exception = caught;
+            //}
         }
         public abstract bool TryComplete(bool isAsync);
 

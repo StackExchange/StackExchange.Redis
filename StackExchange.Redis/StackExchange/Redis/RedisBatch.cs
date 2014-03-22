@@ -96,9 +96,12 @@ namespace StackExchange.Redis
         private void FailNoServer(List<Message> messages)
         {
             if (messages == null) return;
+            var completion = multiplexer.UnprocessableCompletionManager;
             foreach(var msg in messages)
             {
                 msg.Fail(ConnectionFailureType.UnableToResolvePhysicalConnection, null);
+                completion.CompleteSyncOrAsync(msg);
+
             }
         }
     }
