@@ -20,7 +20,7 @@ namespace StackExchange.Redis
                         VersionPrefix = "version=", ConnectTimeoutPrefix = "connectTimeout=", PasswordPrefix = "password=",
                         TieBreakerPrefix = "tiebreaker=", WriteBufferPrefix = "writeBuffer=", SslHostPrefix = "sslHost=",
                         ConfigChannelPrefix = "configChannel=", AbortOnConnectFailPrefix = "abortConnect=", ResolveDnsPrefix = "resolveDns=",
-                        ChannelPrefixPrefix = "channelPrefix=";
+                        ChannelPrefixPrefix = "channelPrefix=", AllowSyncContinuationsPrefix = "syncCont=";
 
         private readonly EndPointCollection endpoints = new EndPointCollection();
 
@@ -29,7 +29,7 @@ namespace StackExchange.Redis
         /// </summary>
         public RedisChannel ChannelPrefix { get;set; }
 
-        private bool? allowAdmin, abortOnConnectFail, resolveDns;
+        private bool? allowAdmin, abortOnConnectFail, resolveDns, allowSyncContinuations;
 
         private string clientName, serviceName, password, tieBreaker, sslHost, configChannel;
         private Version defaultVersion;
@@ -149,6 +149,12 @@ namespace StackExchange.Redis
         /// </summary>
         public bool AbortOnConnectFail { get { return abortOnConnectFail ?? true; } set { abortOnConnectFail = value; } }
 
+        /// <summary>
+        /// Gets or sets whether synchronous task continuations should be explicitly avoided (allowed by default)
+        /// </summary>
+        public bool AllowSynchronousContinuations { get { return allowSyncContinuations ?? true; } set { allowSyncContinuations = value; } }
+
+
 
         /// <summary>
         /// Parse the configuration from a comma-delimited configuration string
@@ -172,6 +178,7 @@ namespace StackExchange.Redis
                 keepAlive = keepAlive,
                 syncTimeout = syncTimeout,
                 allowAdmin = allowAdmin,
+                allowSyncContinuations = allowSyncContinuations,
                 defaultVersion = defaultVersion,
                 connectTimeout = connectTimeout,
                 password = password,
@@ -218,6 +225,7 @@ namespace StackExchange.Redis
             Append(sb, AbortOnConnectFailPrefix, abortOnConnectFail);
             Append(sb, ResolveDnsPrefix, resolveDns);
             Append(sb, ChannelPrefixPrefix, (string)ChannelPrefix);
+            Append(sb, AllowSyncContinuationsPrefix, allowSyncContinuations);
             CommandMap.AppendDeltas(sb);
             return sb.ToString();
         }
@@ -299,7 +307,7 @@ namespace StackExchange.Redis
         {
             clientName = serviceName = password = tieBreaker = sslHost =  configChannel = null;
             keepAlive = syncTimeout = connectTimeout = writeBuffer = null;
-            allowAdmin = abortOnConnectFail = resolveDns = null;
+            allowAdmin = abortOnConnectFail = resolveDns = allowSyncContinuations = null;
             defaultVersion = null;
             endpoints.Clear();
             CertificateSelection = null;
@@ -349,6 +357,11 @@ namespace StackExchange.Redis
                         {
                             bool tmp;
                             if (Format.TryParseBoolean(value.Trim(), out tmp)) ResolveDns = tmp;
+                        }
+                        else if (IsOption(option, AllowSyncContinuationsPrefix))
+                        {
+                            bool tmp;
+                            if (Format.TryParseBoolean(value.Trim(), out tmp)) AllowSynchronousContinuations = tmp;
                         }
                         else if (IsOption(option, ServiceNamePrefix))
                         {

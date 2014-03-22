@@ -16,19 +16,18 @@ namespace StackExchange.Redis
 
         private readonly string name;
 
-        private int asyncResultCounter;
-
         long completedSync, completedAsync, failedAsync;
-
+        private readonly bool allowSyncContinuations;
         public CompletionManager(ConnectionMultiplexer multiplexer, string name)
         {
             this.multiplexer = multiplexer;
             this.name = name;
+            this.allowSyncContinuations = multiplexer.RawConfig.AllowSynchronousContinuations;
         }
         public void CompleteSyncOrAsync(ICompletable operation)
         {
             if (operation == null) return;
-            if (operation.TryComplete(false))
+            if (operation.TryComplete(false, allowSyncContinuations))
             {
                 multiplexer.Trace("Completed synchronously: " + operation, name);
                 Interlocked.Increment(ref completedSync);
@@ -39,11 +38,12 @@ namespace StackExchange.Redis
                 if (multiplexer.PreserveAsyncOrder)
                 {
                     multiplexer.Trace("Queueing for asynchronous completion", name);
+                    bool startNewWorker;
                     lock (asyncCompletionQueue)
                     {
                         asyncCompletionQueue.Enqueue(operation);
+                        startNewWorker = asyncCompletionQueue.Count == 1;
                     }
-                    bool startNewWorker = Interlocked.Increment(ref asyncResultCounter) == 1;
                     if (startNewWorker)
                     {
                         multiplexer.Trace("Starting new async completion worker", name);
@@ -98,7 +98,7 @@ namespace StackExchange.Redis
             try
             {
                 ConnectionMultiplexer.TraceWithoutContext("Completing async (any order): " + state);
-                ((ICompletable)state).TryComplete(true);
+                ((ICompletable)state).TryComplete(true, true);
             }
             catch (Exception ex)
             {
@@ -111,16 +111,6 @@ namespace StackExchange.Redis
             ((CompletionManager)state).ProcessAsyncCompletionQueueImpl();
         }
 
-        bool DecrementAsyncCounterAndCheckForMoreAsyncWork()
-        {
-            if (Thread.VolatileRead(ref asyncResultCounter) == 1)
-            {   // if we're on the very last item, then rather than exit immediately,
-                // let's give it a moment to see if more work comes in
-                Thread.Yield();
-            }
-            return Interlocked.Decrement(ref asyncResultCounter) != 0;
-        }
-
         partial void OnCompletedAsync();
         private void ProcessAsyncCompletionQueueImpl()
         {
@@ -130,19 +120,22 @@ namespace StackExchange.Redis
                 ICompletable next;
                 lock (asyncCompletionQueue)
                 {
-                    if (asyncCompletionQueue.Count == 0)
-                    {
-                        // compete; note that since we didn't do work we do NOT
-                        // want to decr the counter; fortunately "break" gets
-                        // this correct
-                        break;
-                    }
-                    next = asyncCompletionQueue.Dequeue();
+                    next = asyncCompletionQueue.Count == 0 ? null
+                        : asyncCompletionQueue.Dequeue();
                 }
+                if(next == null && Thread.Yield()) // give it a moment and try again
+                {
+                    lock (asyncCompletionQueue)
+                    {
+                        next = asyncCompletionQueue.Count == 0 ? null
+                            : asyncCompletionQueue.Dequeue();
+                    }
+                }
+                if (next == null) break; // nothing to do
                 try
                 {
                     multiplexer.Trace("Completing async (ordered): " + next, name);
-                    next.TryComplete(true);
+                    next.TryComplete(true, allowSyncContinuations);
                     Interlocked.Increment(ref completedAsync);
                 }
                 catch(Exception ex)
@@ -151,7 +144,7 @@ namespace StackExchange.Redis
                     Interlocked.Increment(ref failedAsync);
                 }
                 total++;
-            } while (DecrementAsyncCounterAndCheckForMoreAsyncWork());
+            } while (true);
 
             multiplexer.Trace("Async completion worker processed " + total + " operations", name);
         }

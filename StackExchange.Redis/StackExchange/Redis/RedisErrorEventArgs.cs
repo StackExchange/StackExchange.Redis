@@ -38,7 +38,7 @@ namespace StackExchange.Redis
             sb.Append("event, error: ").Append(message);
         }
 
-        bool ICompletable.TryComplete(bool isAsync)
+        bool ICompletable.TryComplete(bool isAsync, bool allowSyncContinuations)
         {
             return ConnectionMultiplexer.TryCompleteHandler(handler, sender, this, isAsync);
         }

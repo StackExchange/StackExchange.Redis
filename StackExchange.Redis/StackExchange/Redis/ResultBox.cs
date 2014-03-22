@@ -21,7 +21,7 @@ namespace StackExchange.Redis
             //    this.exception = caught;
             //}
         }
-        public abstract bool TryComplete(bool isAsync);
+        public abstract bool TryComplete(bool isAsync, bool allowSyncContinuations);
 
         [Conditional("DEBUG")]
         protected static void IncrementAllocationCount()
@@ -94,12 +94,12 @@ namespace StackExchange.Redis
             this.value = value;
         }
 
-        public override bool TryComplete(bool isAsync)
+        public override bool TryComplete(bool isAsync, bool allowSyncContinuations)
         {
             if (stateOrCompletionSource is TaskCompletionSource<T>)
             {
                 var tcs = (TaskCompletionSource<T>)stateOrCompletionSource;
-                if (isAsync || TaskContinationCheck.NoContinuations(tcs.Task))
+                if (isAsync || allowSyncContinuations || TaskContinationCheck.NoContinuations(tcs.Task))
                 {
                     T val;
                     Exception ex;

@@ -4,7 +4,7 @@ namespace StackExchange.Redis
 {
     interface ICompletable
     {
-        bool TryComplete(bool isAsync);
+        bool TryComplete(bool isAsync, bool allowSyncContinuations);
         void AppendStormLog(StringBuilder sb);
     }
 }

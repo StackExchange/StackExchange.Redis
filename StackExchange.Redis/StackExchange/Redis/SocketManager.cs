@@ -245,17 +245,47 @@ namespace StackExchange.Redis
                 if (ready >= 5) // number of sockets we should attempt to process by ourself before asking for help
                 {
                     // seek help, work in parallel, then synchronize
-                    lock (QueueDrainSyncLock)
+                    var obj = new QueueDrainSyncLock(this);
+                    lock (obj)
                     {
                         ThreadPool.QueueUserWorkItem(HelpProcessItems, this);
                         ProcessItems();
-                        Monitor.Wait(QueueDrainSyncLock);
+                        if (!obj.Consume())
+                        {   // then our worker arrived and picked up work; we need
+                            // to let it finish; note that if it *didn't* get that far
+                            // yet, the Consume() call will mean that it never tries
+                            Monitor.Wait(obj);
+                        }
                     }
                 }
                 else
                 {
                     // just do it ourself
                     ProcessItems();
+                }
+            }
+        }
+
+        sealed class QueueDrainSyncLock
+        {
+            private int workers;
+            public QueueDrainSyncLock(SocketManager manager)
+            {
+                this.manager = manager;
+            }
+            private readonly SocketManager manager;
+            public SocketManager Manager { get { return manager; } }
+
+            internal bool Consume()
+            {
+                return Interlocked.CompareExchange(ref workers, 1, 0) == 0;
+            }
+
+            internal void Pulse()
+            {
+                lock (this)
+                {
+                    Monitor.PulseAll(this);
                 }
             }
         }
@@ -293,14 +323,14 @@ namespace StackExchange.Redis
             Shutdown(token.Socket);
         }
 
-        private readonly object QueueDrainSyncLock = new object();
         static readonly WaitCallback HelpProcessItems = state =>
         {
-            var mgr = (SocketManager)state;
-            mgr.ProcessItems();
-            lock (mgr.QueueDrainSyncLock)
+            QueueDrainSyncLock qdsl = (QueueDrainSyncLock)state;
+            if (qdsl.Consume())
             {
-                Monitor.PulseAll(mgr.QueueDrainSyncLock);
+                var mgr = qdsl.Manager;
+                mgr.ProcessItems();
+                qdsl.Pulse();
             }
         };
 
