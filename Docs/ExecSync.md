@@ -12,7 +12,7 @@ When you are using the `*Async` API of StackExchange.Redis, it will hand you eit
 
 The last one of these has overloads that allow you to control the behavior, including one or more overloads that accept a [`TaskContinuationOptions`][1]. And one of these options is `ExecuteSynchronously`.
 
-To put it simply: **do not use `TaskContinuationOptions.ExecuteSynchronously` here. On other tasks, sure. But please please do not use this option on the task that StackExchange.Redis hands you. The reason
+To put it simply: **do not use `TaskContinuationOptions.ExecuteSynchronously` here**. On other tasks, sure. But please please do not use this option on the task that StackExchange.Redis hands you. The reason
 for this is that *if you do*, your continuation could end up interrupting the reader thread that is processing incoming redis data, and in a busy system blocking the reader will cause problems **very** quickly.
 
 If you *can't* control this (and I strongly suggest you try to), then you can change `ConfigurationOptions.AllowSynchronousContinuations` to `false` when creating your `ConnectionMultiplexer` (or add `;syncCont=false` to the configuration string);
