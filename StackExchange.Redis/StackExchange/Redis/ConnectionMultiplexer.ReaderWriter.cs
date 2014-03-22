@@ -19,7 +19,7 @@ namespace StackExchange.Redis
 
         partial void OnCloseReaderWriter()
         {
-            if (ownsSocketManager) socketManager.Dispose();
+            if (ownsSocketManager && socketManager != null) socketManager.Dispose();
             socketManager = null;
         }
 
