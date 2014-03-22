@@ -45,7 +45,7 @@ For example, to pipeline the two gets using procedural (blocking) code, we could
     var a = db.Wait(aPending);
     var b = db.Wait(bPending);
 
-Note that I'm using `db.Wait` here because it will automatically apply the configured synchronous timeout, but you can use `aPending.Wait()` or `Task.WaitAll(aPending, bPending);` if you prefer. Using pipelining allows us to get both requests onto the network immediately, eliminating most of the latency. Additionally, it also helps reduce packet fragmentation: 20 requests sents individually will require at least 20 packets, but 20 requests sent in a pipeline could fit into much fewer packets (perhaps even just one).
+Note that I'm using `db.Wait` here because it will automatically apply the configured synchronous timeout, but you can use `aPending.Wait()` or `Task.WaitAll(aPending, bPending);` if you prefer. Using pipelining allows us to get both requests onto the network immediately, eliminating most of the latency. Additionally, it also helps reduce packet fragmentation: 20 requests sent individually (waiting for each response) will require at least 20 packets, but 20 requests sent in a pipeline could fit into much fewer packets (perhaps even just one).
 
 Fire and Forget
 ---
@@ -56,14 +56,24 @@ A special-case of pipelining is when we expressly don't care about the response 
     db.KeyExpire(key, TimeSpan.FromMinutes(5), flags: CommandFlags.FireAndForget);
     var value = (string)db.StringGet(key);
 
-The `FireAndForget` flag causes the client library to queue the works as normal, but immediately return a default value (since `KeyExpire` returns a `bool`, this will return `false`, because `default(bool)` is `false` - however the return value is meaningless and should be ignored). This works for `*Async` methods too: an already-completed `Task<T>` is returned with the default value (or an already-completed `Task` is returned for `void` methods).
+The `FireAndForget` flag causes the client library to queue the work as normal, but immediately return a default value (since `KeyExpire` returns a `bool`, this will return `false`, because `default(bool)` is `false` - however the return value is meaningless and should be ignored). This works for `*Async` methods too: an already-completed `Task<T>` is returned with the default value (or an already-completed `Task` is returned for `void` methods).
 
 Multiplexing
 ---
 
-Pipelining is all well and good, but often any single block of code only want a single value (or maybe wants to perform a few operations, but which depend on each-other). This means that we still have the problem that we spend most of our time waiting for data to transfer between client and server.  Now consider a busy application, perhaps a web-server. Such applications are generally inherently concurrent, so if you have 20 parallel application requests all requiring data, you might think of spinning up 20 connections, or you could synchronize access to a single connection (which would mean the last caller would need to wait for the latency of all the other 19 before it eveen got a look in). Or as a compromise, perhaps a pool of 5 connections which are leased - no matter how you are doing it, there is going to be a lot of waiting. **StackExchange.Redis does not do this**; instead, it does a *lot* of work for you to make effective use of all this idle time by *multiplexing* a single connection. When used concurrently by different callers, it **automatically pipelines the separate requests**, so regardless of whether the requests use blocking or asynchronous access, the work is all pipeined. So we could have 10 or 20 of our "get a and b" scenario from earlier (from different application requests), and they would all get onto the connection as soon as possible.
+Pipelining is all well and good, but often any single block of code only want a single value (or maybe wants to perform a few operations, but which depend on each-other). This means that we still have the problem that we spend most of our time waiting for data to transfer between client and server.  Now consider a busy application, perhaps a web-server. Such applications are generally inherently concurrent, so if you have 20 parallel application requests all requiring data, you might think of spinning up 20 connections, or you could synchronize access to a single connection (which would mean the last caller would need to wait for the latency of all the other 19 before it even got started). Or as a compromise, perhaps a pool of 5 connections which are leased - no matter how you are doing it, there is going to be a lot of waiting. **StackExchange.Redis does not do this**; instead, it does a *lot* of work for you to make effective use of all this idle time by *multiplexing* a single connection. When used concurrently by different callers, it **automatically pipelines the separate requests**, so regardless of whether the requests use blocking or asynchronous access, the work is all pipeined. So we could have 10 or 20 of our "get a and b" scenario from earlier (from different application requests), and they would all get onto the connection as soon as possible. Essentially, it fills the `waiting` time with work from other callers.
 
-For this reason, the only redis features that StackExchange.Redis does not offer (and will not ever offer) are the "blocking pops" ([BLPOP](http://redis.io/commands/blpop), [BRPOP](http://redis.io/commands/brpop) and [BRPOPLPUSH](http://redis.io/commands/brpoplpush)) - because this would allow a single caller to stall the entire multiplexer, blocking all other callers. The only other time that StackExchange.Redis needs to hold work is when verifying pre-conditions for a transaction, which is why StackExchange.Redis encapsulates such conditions into internally managed `Condition` instances. [Read more about transactions here](https://github.com/StackExchange/StackExchange.Redis/blob/master/Docs/Transactions.md).
+For this reason, the only redis features that StackExchange.Redis does not offer (and *will not ever offer*) are the "blocking pops" ([BLPOP](http://redis.io/commands/blpop), [BRPOP](http://redis.io/commands/brpop) and [BRPOPLPUSH](http://redis.io/commands/brpoplpush)) - because this would allow a single caller to stall the entire multiplexer, blocking all other callers. The only other time that StackExchange.Redis needs to hold work is when verifying pre-conditions for a transaction, which is why StackExchange.Redis encapsulates such conditions into internally managed `Condition` instances. [Read more about transactions here](https://github.com/StackExchange/StackExchange.Redis/blob/master/Docs/Transactions.md). If you feel you want "blocking pops", then I strongly suggest you consider pub/sub instead:
+
+    sub.Subscribe(channel, delegate {
+        string work = db.ListRightPop(key);
+        if (work != null) Process(work);
+    });
+    //...
+    db.ListLeftPush(key, newWork, flags: CommandFlags.FireAndForget);
+    sub.Publish(channel, "");
+
+This achieves the same intent without requiring blocking operations.
 
 The multiplexed nature of StackExchange.Redis makes it possible to reach extremely high throughput on a single connection while using regular uncomplicated code.
 

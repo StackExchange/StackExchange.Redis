@@ -31,4 +31,10 @@ Documentation
 - [Keys, Values and Channels](https://github.com/StackExchange/StackExchange.Redis/blob/master/Docs/KeysValues.md) - discusses the data-types used on the API
 - [Transactions](https://github.com/StackExchange/StackExchange.Redis/blob/master/Docs/Transactions.md) - how atomic transactions work in redis
 
+Questions and Contributions
+---
+
+If you think you have found a bug or have a feature request, please [report an issue][2], or if appropriate: submit a pull request. If you have a question, feel free to [contact me](https://github.com/mgravell).
+
   [1]: http://msdn.microsoft.com/en-us/library/dd460717%28v=vs.110%29.aspx
+  [2]: https://github.com/StackExchange/StackExchange.Redis/issues?state=open
