@@ -7,4 +7,5 @@
 @echo Building BasicTest.exe ...
 @call mcs BasicTest\Program.cs -out:BasicTest\bin\mono\BasicTest.exe -target:exe -o+ -r:StackExchange.Redis\bin\mono\StackExchange.Redis.dll
 @copy StackExchange.Redis\bin\mono\*.* BasicTest\bin\mono > nul
-@call BasicTest\bin\mono\BasicTest.exe
+@echo Running basic test ...
+@call BasicTest\bin\mono\BasicTest.exe 100000

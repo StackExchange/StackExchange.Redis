@@ -9,15 +9,21 @@ namespace BasicTest
 {
     class Program
     {
-        static void Main()
+        static void Main(string[] args)
         {
-            MassiveBulkOpsAsync(true, true);
-            MassiveBulkOpsAsync(true, false);
-            MassiveBulkOpsAsync(false, true);
-            MassiveBulkOpsAsync(false, false);
+            int AsyncOpsQty = 10000;
+            if(args.Length == 1)
+            {
+                int tmp;
+                if(int.TryParse(args[0], out tmp))
+                    AsyncOpsQty = tmp;
+            }
+            MassiveBulkOpsAsync(AsyncOpsQty, true, true);
+            MassiveBulkOpsAsync(AsyncOpsQty, true, false);
+            MassiveBulkOpsAsync(AsyncOpsQty, false, true);
+            MassiveBulkOpsAsync(AsyncOpsQty, false, false);
         }
-        const int AsyncOpsQty = 100000;
-        static void MassiveBulkOpsAsync(bool preserveOrder, bool withContinuation)
+        static void MassiveBulkOpsAsync(int AsyncOpsQty, bool preserveOrder, bool withContinuation)
         {
             using (var muxer = ConnectionMultiplexer.Connect("127.0.0.1"))
             {
