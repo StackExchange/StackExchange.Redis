@@ -20,7 +20,7 @@ namespace StackExchange.Redis
         /// Indicates whether the specified task will not hijack threads when results are set
         /// </summary>
         public static readonly Func<Task, bool> IsSyncSafe;
-        static Action<Task> denyExecSync;
+        private static readonly Action<Task> DenyExecSync;
         static TaskSource()
         {
             try
@@ -41,7 +41,7 @@ namespace StackExchange.Redis
                     il.Emit(OpCodes.Or); // [task, combined]
                     il.Emit(OpCodes.Stfld, stateField); // []
                     il.Emit(OpCodes.Ret);
-                    denyExecSync = (Action<Task>)method.CreateDelegate(typeof(Action<Task>));
+                    DenyExecSync = (Action<Task>)method.CreateDelegate(typeof(Action<Task>));
 
                     method = new DynamicMethod("IsSyncSafe", typeof(bool), new[] { typeof(Task) }, typeof(Task), true);
                     il = method.GetILGenerator();
@@ -56,13 +56,13 @@ namespace StackExchange.Redis
 
                     // and test them (check for an exception etc)
                     var tcs = new TaskCompletionSource<int>();
-                    denyExecSync(tcs.Task);
+                    DenyExecSync(tcs.Task);
                     if(!IsSyncSafe(tcs.Task))
                     {
                         Debug.WriteLine("IsSyncSafe reported false!");
                         Trace.WriteLine("IsSyncSafe reported false!");
                         // revert to not trusting them
-                        denyExecSync = null;
+                        DenyExecSync = null;
                         IsSyncSafe = null;
                     }
                 }
@@ -71,12 +71,12 @@ namespace StackExchange.Redis
             {
                 Debug.WriteLine(ex.Message);
                 Trace.WriteLine(ex.Message);
-                denyExecSync = null;
+                DenyExecSync = null;
                 IsSyncSafe = null;
             }
 
-            if(denyExecSync == null)
-                denyExecSync = t => { }; // no-op if that fails
+            if(DenyExecSync == null)
+                DenyExecSync = t => { }; // no-op if that fails
             if (IsSyncSafe == null)
                 IsSyncSafe = t => false; // assume: not
         }
@@ -87,7 +87,7 @@ namespace StackExchange.Redis
         public static TaskCompletionSource<T> CreateDenyExecSync<T>(object asyncState)
         {
             var source = new TaskCompletionSource<T>(asyncState);
-            denyExecSync(source.Task);
+            DenyExecSync(source.Task);
             return source;
         }
         /// <summary>
