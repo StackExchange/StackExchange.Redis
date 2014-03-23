@@ -34,12 +34,16 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Redis Configs", "Redis Conf
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{709E0CE4-F0BA-4933-A4FD-4A8B6668A5D4}"
 	ProjectSection(SolutionItems) = preProject
+		monobuild.bash = monobuild.bash
+		monobuild.cmd = monobuild.cmd
 		StackExchange.Redis.nuspec = StackExchange.Redis.nuspec
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ConnectionWatcher", "ConnectionWatcher\ConnectionWatcher.csproj", "{6756F911-BD09-4226-B597-67871DEB8ED5}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Docs", "Docs\Docs.csproj", "{7909952C-0F38-4E62-A7BA-1A77E1452FDA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BasicTest", "BasicTest\BasicTest.csproj", "{BE213DFB-5334-4441-B975-0DBCFD5F5A73}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -81,6 +85,14 @@ Global
 		{7909952C-0F38-4E62-A7BA-1A77E1452FDA}.Release|Any CPU.Build.0 = Release|Any CPU
 		{7909952C-0F38-4E62-A7BA-1A77E1452FDA}.Verbose|Any CPU.ActiveCfg = Release|Any CPU
 		{7909952C-0F38-4E62-A7BA-1A77E1452FDA}.Verbose|Any CPU.Build.0 = Release|Any CPU
+		{BE213DFB-5334-4441-B975-0DBCFD5F5A73}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BE213DFB-5334-4441-B975-0DBCFD5F5A73}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BE213DFB-5334-4441-B975-0DBCFD5F5A73}.Log Output|Any CPU.ActiveCfg = Release|Any CPU
+		{BE213DFB-5334-4441-B975-0DBCFD5F5A73}.Log Output|Any CPU.Build.0 = Release|Any CPU
+		{BE213DFB-5334-4441-B975-0DBCFD5F5A73}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BE213DFB-5334-4441-B975-0DBCFD5F5A73}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BE213DFB-5334-4441-B975-0DBCFD5F5A73}.Verbose|Any CPU.ActiveCfg = Release|Any CPU
+		{BE213DFB-5334-4441-B975-0DBCFD5F5A73}.Verbose|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
