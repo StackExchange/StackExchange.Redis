@@ -13,7 +13,7 @@ namespace StackExchange.Redis.Tests
         [TestCase(SourceOrign.NewTCS, false)]
         [TestCase(SourceOrign.Create, false)]
         [TestCase(SourceOrign.CreateDenyExec, true)]
-        public void CheckContinuationCheck(SourceOrign origin, bool expected)
+        public void VerifyIsSyncSafe(SourceOrign origin, bool expected)
         {
             var source = Create<int>(origin);
             Assert.AreEqual(expected, TaskSource.IsSyncSafe(source.Task));
