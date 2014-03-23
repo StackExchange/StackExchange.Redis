@@ -71,6 +71,8 @@ namespace StackExchange.Redis
             {
                 Debug.WriteLine(ex.Message);
                 Trace.WriteLine(ex.Message);
+                denyExecSync = null;
+                IsSyncSafe = null;
             }
 
             if(denyExecSync == null)
