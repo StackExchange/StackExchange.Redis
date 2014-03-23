@@ -497,6 +497,12 @@ namespace StackExchange.Redis
 #endif
                         );
                     ssl.AuthenticateAsClient(config.SslHost);
+                    if(!ssl.IsEncrypted)
+                    {
+                        RecordConnectionFailed(ConnectionFailureType.AuthenticationFailure);
+                        multiplexer.Trace("Encryption failure");
+                        return SocketMode.Abort;
+                    }
                     stream = ssl;
                     socketMode = SocketMode.Async;
                 }
