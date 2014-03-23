@@ -53,6 +53,18 @@ namespace StackExchange.Redis
                     il.Emit(OpCodes.Ceq); // [true/false]
                     il.Emit(OpCodes.Ret);
                     IsSyncSafe = (Func<Task, bool>)method.CreateDelegate(typeof(Func<Task, bool>));
+
+                    // and test them (check for an exception etc)
+                    var tcs = new TaskCompletionSource<int>();
+                    denyExecSync(tcs.Task);
+                    if(!IsSyncSafe(tcs.Task))
+                    {
+                        Debug.WriteLine("IsSyncSafe reported false!");
+                        Trace.WriteLine("IsSyncSafe reported false!");
+                        // revert to not trusting them
+                        denyExecSync = null;
+                        IsSyncSafe = null;
+                    }
                 }
             }
             catch(Exception ex)
