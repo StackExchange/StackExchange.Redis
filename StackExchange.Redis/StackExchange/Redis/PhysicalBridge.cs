@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -173,7 +174,7 @@ namespace StackExchange.Redis
             inst = (int)(Interlocked.Read(ref operationCount) - Interlocked.Read(ref profileLastLog));
             qu = queue.Count();
             var tmp = physical;
-            qs = tmp == null ? 0 :  tmp.GetOutstandingCount();
+            qs = tmp == null ? 0 :  tmp.GetSentAwaitingResponseCount();
             qc = completionManager.GetOutstandingCount();
             wr = Interlocked.CompareExchange(ref activeWriters, 0, 0);
             wq = Interlocked.CompareExchange(ref inWriteQueue, 0, 0);
@@ -378,6 +379,12 @@ namespace StackExchange.Redis
                                     State oldState;
                                     OnDisconnected(ConnectionFailureType.SocketFailure, tmp, out ignore, out oldState);
                                 }
+                            } else if(!queue.Any() && tmp.GetSentAwaitingResponseCount() != 0)
+                            {
+                                // there's a chance this is a dead socket; sending data will shake that
+                                // up a bit, so if we have an empty unsent queue and a non-empty sent
+                                // queue, test the socket
+                                KeepAlive();
                             }
                         }
                         break;
@@ -695,6 +702,7 @@ namespace StackExchange.Redis
         internal WriteResult WriteQueue(int maxWork)
         {
             bool weAreWriter = false;
+            PhysicalConnection conn = null;
             try
             {
                 Trace("Writing queue from bridge");
@@ -706,7 +714,7 @@ namespace StackExchange.Redis
                     return WriteResult.CompetingWriter;
                 }
 
-                var conn = GetConnection();
+                conn = GetConnection();
                 if(conn == null)
                 {
                     AbortUnsent();
@@ -745,8 +753,14 @@ namespace StackExchange.Redis
                     }
                 }
             }
+            catch(IOException ex)
+            {
+                if (conn != null) conn.RecordConnectionFailed(ConnectionFailureType.SocketFailure, ex);
+                AbortUnsent();
+            }
             catch(Exception ex)
             {
+                AbortUnsent();
                 OnInternalError(ex);
             }
             finally

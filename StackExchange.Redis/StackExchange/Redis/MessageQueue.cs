@@ -78,7 +78,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal bool HasWork()
+        internal bool Any()
         {
             lock(regular)
             {
@@ -106,14 +106,6 @@ namespace StackExchange.Redis
                     item.AppendStormLog(sb);
                     sb.AppendLine();
                 }
-            }
-        }
-
-        internal bool Any()
-        {
-            lock(regular)
-            {
-                return high.Count != 0 || regular.Count != 0;
             }
         }
     }

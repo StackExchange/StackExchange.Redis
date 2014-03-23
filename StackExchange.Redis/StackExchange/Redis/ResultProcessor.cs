@@ -653,7 +653,8 @@ namespace StackExchange.Redis
 
         sealed class EstablishConnectionProcessor : ResultProcessor<bool>
         {
-            static readonly byte[] expected = Encoding.UTF8.GetBytes("PONG"), authFail = Encoding.UTF8.GetBytes("ERR operation not permitted");
+            static readonly byte[] expected = Encoding.UTF8.GetBytes("PONG"), authFail = Encoding.UTF8.GetBytes("ERR operation not permitted"),
+                loading = Encoding.UTF8.GetBytes("LOADING ");
             public override bool SetResult(PhysicalConnection connection, Message message, RawResult result)
             {
                 var final = base.SetResult(connection, message, result);
@@ -662,6 +663,9 @@ namespace StackExchange.Redis
                     if (result.Assert(authFail))
                     {
                         connection.RecordConnectionFailed(ConnectionFailureType.AuthenticationFailure);
+                    } else if(result.AssertStarts(loading))
+                    {
+                        connection.RecordConnectionFailed(ConnectionFailureType.Loading);
                     }
                     else
                     {

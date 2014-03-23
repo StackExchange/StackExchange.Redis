@@ -37,5 +37,9 @@
         /// The socket was closed
         /// </summary>
         ConnectionDisposed,
+        /// <summary>
+        /// The database is loading and is not available for use
+        /// </summary>
+        Loading
     }
 }

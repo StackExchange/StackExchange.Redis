@@ -166,7 +166,7 @@ namespace StackExchange.Redis
                         lastBeat = Interlocked.Read(ref lastBeatTickCount);
 
                     string message = failureType + " on " + Format.ToString(bridge.ServerEndPoint.EndPoint) + "/" + connectionType
-                        + ", input-buffer: " + ioBufferBytes + ", outstanding: " + GetOutstandingCount()
+                        + ", input-buffer: " + ioBufferBytes + ", outstanding: " + GetSentAwaitingResponseCount()
                         + ", last-read: " + unchecked(now - lastRead) / 1000 + "s ago, last-write: " + unchecked(now - lastWrite) / 1000 + "s ago, keep-alive: " + bridge.ServerEndPoint.WriteEverySeconds + "s, pending: "
                         + bridge.GetPendingCount() + ", state: " + oldState + ", last-heartbeat: " + (lastBeat == 0 ? "never" : (unchecked(now - lastBeat) / 1000 + "s ago"))
                         + (bridge.IsBeating ? " (mid-beat)" : "") + ", last-mbeat: " + multiplexer.LastHeartbeatSecondsAgo + "s ago, global: "
@@ -214,8 +214,9 @@ namespace StackExchange.Redis
             if (exception != null && failureType == ConnectionFailureType.InternalFailure)
             {
                 if (exception is AuthenticationException) failureType = ConnectionFailureType.AuthenticationFailure;
-                if (exception is EndOfStreamException) failureType = ConnectionFailureType.SocketClosed;
-                if (exception is SocketException || exception is IOException) failureType = ConnectionFailureType.SocketFailure;
+                else if (exception is SocketException || exception is IOException) failureType = ConnectionFailureType.SocketFailure;
+                else if (exception is EndOfStreamException) failureType = ConnectionFailureType.SocketClosed;
+                else if (exception is ObjectDisposedException) failureType = ConnectionFailureType.SocketClosed;
             }
         }
 
@@ -236,7 +237,7 @@ namespace StackExchange.Redis
             counters.Subscriptions = SubscriptionCount;
         }
 
-        internal int GetOutstandingCount()
+        internal int GetSentAwaitingResponseCount()
         {
             lock (outstanding)
             {
