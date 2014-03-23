@@ -56,7 +56,7 @@ namespace StackExchange.Redis
         {
             get {  return failureType; }
         }
-        bool ICompletable.TryComplete(bool isAsync, bool allowSyncContinuations)
+        bool ICompletable.TryComplete(bool isAsync)
         {
             return ConnectionMultiplexer.TryCompleteHandler(handler, sender, this, isAsync);
         }

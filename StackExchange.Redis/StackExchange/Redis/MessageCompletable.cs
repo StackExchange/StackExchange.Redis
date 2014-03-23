@@ -22,7 +22,7 @@ namespace StackExchange.Redis
         {
             return (string)channel;
         }
-        public bool TryComplete(bool isAsync, bool allowSyncContinuations)
+        public bool TryComplete(bool isAsync)
         {
             if (handler == null) return true;
             if (isAsync)

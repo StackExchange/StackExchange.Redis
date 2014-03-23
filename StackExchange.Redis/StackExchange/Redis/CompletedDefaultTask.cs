@@ -12,7 +12,9 @@ namespace StackExchange.Redis
         }
         public static Task<T> FromResult(T value, object asyncState)
         {
-            var tcs = new TaskCompletionSource<T>(asyncState);
+            // note we do not need to deny exec-sync here; the value will be known
+            // before we hand it to them
+            var tcs = TaskSource.Create<T>(asyncState);
             tcs.SetResult(value);
             return tcs.Task;
         }

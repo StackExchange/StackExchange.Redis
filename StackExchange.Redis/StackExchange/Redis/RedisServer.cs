@@ -470,7 +470,8 @@ namespace StackExchange.Redis
                 if (message == null) return CompletedTask<T>.Default(asyncState);
                 if (message.IsFireAndForget) return CompletedTask<T>.Default(null); // F+F explicitly does not get async-state
 
-                var tcs = new TaskCompletionSource<T>(asyncState);
+                // no need to deny exec-sync here; will be complete before they see if
+                var tcs = TaskSource.Create<T>(asyncState);
                 ConnectionMultiplexer.ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(message.Command));
                 return tcs.Task;
             }

@@ -370,11 +370,11 @@ namespace StackExchange.Redis
                 resultProcessor == null ? "(n/a)" : resultProcessor.GetType().Name);
         }
 
-        public bool TryComplete(bool isAsync, bool allowSyncContinuations)
+        public bool TryComplete(bool isAsync)
         {
             if (resultBox != null)
             {
-                return resultBox.TryComplete(isAsync, allowSyncContinuations);
+                return resultBox.TryComplete(isAsync);
             }
             else
             {

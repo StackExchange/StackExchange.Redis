@@ -72,7 +72,7 @@ namespace StackExchange.Redis
             }
             else
             {
-                var tcs = new TaskCompletionSource<T>(asyncState);
+                var tcs = TaskSource.CreateDenyExecSync<T>(asyncState);
                 var source = ResultBox<T>.Get(tcs);
                 message.SetSource(source, processor);
                 task = tcs.Task;

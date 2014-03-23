@@ -139,7 +139,7 @@
     <Compile Include="StackExchange\Redis\SocketManager.cs" />
     <Compile Include="StackExchange\Redis\SortType.cs" />
     <Compile Include="StackExchange\Redis\StringSplits.cs" />
-    <Compile Include="StackExchange\Redis\TaskContinuationCheck.cs" />
+    <Compile Include="StackExchange\Redis\TaskSource.cs" />
     <Compile Include="StackExchange\Redis\When.cs" />
     <Compile Include="StackExchange\Redis\ShutdownMode.cs" />
     <Compile Include="StackExchange\Redis\SaveType.cs" />

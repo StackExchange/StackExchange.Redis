@@ -17,17 +17,15 @@ namespace StackExchange.Redis
         private readonly string name;
 
         long completedSync, completedAsync, failedAsync;
-        private readonly bool allowSyncContinuations;
         public CompletionManager(ConnectionMultiplexer multiplexer, string name)
         {
             this.multiplexer = multiplexer;
             this.name = name;
-            this.allowSyncContinuations = multiplexer.RawConfig.AllowSynchronousContinuations;
         }
         public void CompleteSyncOrAsync(ICompletable operation)
         {
             if (operation == null) return;
-            if (operation.TryComplete(false, allowSyncContinuations))
+            if (operation.TryComplete(false))
             {
                 multiplexer.Trace("Completed synchronously: " + operation, name);
                 Interlocked.Increment(ref completedSync);
@@ -98,7 +96,7 @@ namespace StackExchange.Redis
             try
             {
                 ConnectionMultiplexer.TraceWithoutContext("Completing async (any order): " + state);
-                ((ICompletable)state).TryComplete(true, true);
+                ((ICompletable)state).TryComplete(true);
             }
             catch (Exception ex)
             {
@@ -135,7 +133,7 @@ namespace StackExchange.Redis
                 try
                 {
                     multiplexer.Trace("Completing async (ordered): " + next, name);
-                    next.TryComplete(true, allowSyncContinuations);
+                    next.TryComplete(true);
                     Interlocked.Increment(ref completedAsync);
                 }
                 catch(Exception ex)
