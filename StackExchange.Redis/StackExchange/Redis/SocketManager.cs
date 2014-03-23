@@ -40,9 +40,7 @@ namespace StackExchange.Redis
         /// </summary>
         public string Name { get { return name; } }
 
-        bool isDisposed;
-        private readonly Dictionary<IntPtr, SocketPair> socketLookup = new Dictionary<IntPtr, SocketPair>();
-        
+        bool isDisposed;        
         struct SocketPair
         {
             public readonly Socket Socket;
@@ -54,6 +52,7 @@ namespace StackExchange.Redis
             }
         }
 
+#if !MONO
         /// <summary>
         /// Adds a new socket and callback to the manager
         /// </summary>
@@ -77,6 +76,9 @@ namespace StackExchange.Redis
                 }
             }
         }
+        private readonly Dictionary<IntPtr, SocketPair> socketLookup = new Dictionary<IntPtr, SocketPair>();
+#endif
+
 
         internal void RequestWrite(PhysicalBridge bridge, bool forced)
         {
@@ -97,6 +99,8 @@ namespace StackExchange.Redis
             }
         }
 
+#if !MONO
+        private int readerCount;
         private void StartReader()
         {
             var thread = new Thread(read, 32 * 1024); // don't need a huge stack
@@ -304,25 +308,6 @@ namespace StackExchange.Redis
                 Microseconds = (int)(microSeconds % 1000000L);
             }
         }
-
-        private void Shutdown(Socket socket)
-        {
-            if (socket != null)
-            {
-                lock (socketLookup)
-                {
-                    socketLookup.Remove(socket.Handle);
-                }
-                try { socket.Shutdown(SocketShutdown.Both); } catch { }
-                try { socket.Close(); } catch { }
-                try { socket.Dispose(); } catch { }
-            }
-        }
-        internal void Shutdown(SocketToken token)
-        {
-            Shutdown(token.Socket);
-        }
-
         static readonly WaitCallback HelpProcessItems = state =>
         {
             var qdsl = state as QueueDrainSyncLock;
@@ -338,6 +323,27 @@ namespace StackExchange.Redis
         {
             ProcessItems(socketLookup, readQueue, CallbackOperation.Read);
             ProcessItems(socketLookup, errorQueue, CallbackOperation.Error);
+        }
+
+#endif
+        private void Shutdown(Socket socket)
+        {
+            if (socket != null)
+            {
+#if !MONO
+                lock (socketLookup)
+                {
+                    socketLookup.Remove(socket.Handle);
+                }
+#endif
+                try { socket.Shutdown(SocketShutdown.Both); } catch { }
+                try { socket.Close(); } catch { }
+                try { socket.Dispose(); } catch { }
+            }
+        }
+        internal void Shutdown(SocketToken token)
+        {
+            Shutdown(token.Socket);
         }
 
         private static void ProcessItems(Dictionary<IntPtr, SocketPair> socketLookup, Queue<IntPtr> queue, CallbackOperation operation)
@@ -390,7 +396,6 @@ namespace StackExchange.Redis
             Error
         }
 
-        private int readerCount;
 
         /// <summary>
         /// Releases all resources associated with this instance
@@ -403,12 +408,14 @@ namespace StackExchange.Redis
                 isDisposed = true;
                 Monitor.PulseAll(writeQueue);
             }
+#if !MONO
             lock (socketLookup)
             {
                 isDisposed = true;
                 socketLookup.Clear();
                 Monitor.PulseAll(socketLookup);
             }
+#endif
         }
 
         private readonly Queue<PhysicalBridge> writeQueue = new Queue<PhysicalBridge>();
@@ -519,9 +526,11 @@ namespace StackExchange.Redis
                 var socketMode = callback == null ? SocketMode.Abort : callback.Connected(netStream);
                 switch (socketMode)
                 {
+#if !MONO
                     case SocketMode.Poll:
                         AddRead(socket, callback);
                         break;
+#endif
                     case SocketMode.Async:
                         try { callback.StartReading(); }
                         catch { Shutdown(socket); }
@@ -571,7 +580,9 @@ namespace StackExchange.Redis
     internal enum SocketMode
     {
         Abort,
+#if !MONO
         Poll,
+#endif
         Async
     }
 

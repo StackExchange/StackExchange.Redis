@@ -477,7 +477,11 @@ namespace StackExchange.Redis
         {
             try
             {
+#if MONO
+                var socketMode = SocketMode.Async;
+#else
                 var socketMode = SocketMode.Poll;
+#endif
                 // disallow connection in some cases
                 OnDebugAbort();
 
@@ -487,7 +491,11 @@ namespace StackExchange.Redis
 
                 if (!string.IsNullOrWhiteSpace(config.SslHost))
                 {
-                    var ssl = new SslStream(stream, false, config.CertificateValidationCallback, config.CertificateSelectionCallback, EncryptionPolicy.RequireEncryption);
+                    var ssl = new SslStream(stream, false, config.CertificateValidationCallback, config.CertificateSelectionCallback
+#if !MONO
+                        , EncryptionPolicy.RequireEncryption
+#endif
+                        );
                     ssl.AuthenticateAsClient(config.SslHost);
                     stream = ssl;
                     socketMode = SocketMode.Async;

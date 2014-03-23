@@ -84,12 +84,7 @@ namespace StackExchange.Redis
         public static readonly ResultProcessor<RedisResult>
             ScriptResult = new ScriptResultProcessor();
 
-
-        static readonly byte[] MOVED = Encoding.UTF8.GetBytes("MOVED "), ASK = Encoding.UTF8.GetBytes("ASK ");
-
-        static readonly char[] space = { ' ' };
-
-        
+        static readonly byte[] MOVED = Encoding.UTF8.GetBytes("MOVED "), ASK = Encoding.UTF8.GetBytes("ASK ");        
 
         public void ConnectionFail(Message message, ConnectionFailureType fail, Exception innerException)
         {

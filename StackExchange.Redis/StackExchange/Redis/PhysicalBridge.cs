@@ -423,7 +423,9 @@ namespace StackExchange.Redis
 
         internal void RemovePhysical(PhysicalConnection connection)
         {
+#pragma warning disable 0420
             Interlocked.CompareExchange(ref physical, null, connection);
+#pragma warning restore 0420
         }
 
         [Conditional("VERBOSE")]
@@ -512,7 +514,9 @@ namespace StackExchange.Redis
 
         private State ChangeState(State newState)
         {
+#pragma warning disable 0420
             var oldState = (State)Interlocked.Exchange(ref state, (int)newState);
+#pragma warning restore 0420
             if (oldState != newState)
             {
                 multiplexer.Trace(connectionType + " state changed from " + oldState + " to " + newState);
@@ -539,7 +543,9 @@ namespace StackExchange.Redis
 
         private bool ChangeState(State oldState, State newState)
         {
+#pragma warning disable 0420
             bool result = Interlocked.CompareExchange(ref state, (int)newState, (int)oldState) == (int)oldState;
+#pragma warning restore 0420
             if (result)
             {
                 multiplexer.Trace(connectionType + " state changed from " + oldState + " to " + newState);

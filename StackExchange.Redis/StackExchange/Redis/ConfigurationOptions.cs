@@ -139,10 +139,10 @@ namespace StackExchange.Redis
         /// </summary>
         public int WriteBuffer { get { return writeBuffer.GetValueOrDefault(4096); } set { writeBuffer = value; } }
 
-        internal LocalCertificateSelectionCallback CertificateSelectionCallback { get { return CertificateSelection; } }
+        internal LocalCertificateSelectionCallback CertificateSelectionCallback { get { return CertificateSelection; } private set { CertificateSelection = value; } }
 
         // these just rip out the underlying handlers, bypassing the event accessors - needed when creating the SSL stream
-        internal RemoteCertificateValidationCallback CertificateValidationCallback { get { return CertificateValidation; } }
+        internal RemoteCertificateValidationCallback CertificateValidationCallback { get { return CertificateValidation; } private set { CertificateValidation = value; } }
 
         /// <summary>
         /// Gets or sets whether connect/configuration timeouts should be explicitly notified via a TimeoutException
@@ -181,8 +181,8 @@ namespace StackExchange.Redis
                 abortOnConnectFail = abortOnConnectFail,
                 resolveDns = resolveDns,
                 CommandMap = CommandMap,
-                CertificateValidation = CertificateValidation,
-                CertificateSelection = CertificateSelection,
+                CertificateValidationCallback = CertificateValidationCallback,
+                CertificateSelectionCallback = CertificateSelectionCallback,
                 ChannelPrefix = ChannelPrefix.Clone(),
                 SocketManager = SocketManager,
             };

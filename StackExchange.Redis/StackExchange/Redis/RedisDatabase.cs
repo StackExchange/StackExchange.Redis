@@ -1670,14 +1670,13 @@ namespace StackExchange.Redis
                 throw new NotSupportedException("This operation is not possible inside a transaction or batch; please issue separate GetString and KeyTimeToLive requests");
             }
             var features = GetFeatures(Db, key, flags, out server);
+            processor = StringGetWithExpiryProcessor.Default;
             if (server != null && features.MillisecondExpiry && multiplexer.CommandMap.IsAvailable(RedisCommand.PTTL))
             {
-                processor = StringGetWithExpiryProcessor.PTTL;
                 return new StringGetWithExpiryMessage(Db, flags, RedisCommand.PTTL, key);
             }
             // if we use TTL, it doesn't matter which server
             server = null;
-            processor = StringGetWithExpiryProcessor.TTL;
             return new StringGetWithExpiryMessage(Db, flags, RedisCommand.TTL, key);
         }
 
@@ -2027,12 +2026,8 @@ namespace StackExchange.Redis
 
         private class StringGetWithExpiryProcessor : ResultProcessor<RedisValueWithExpiry>
         {
-            public static readonly ResultProcessor<RedisValueWithExpiry> TTL = new StringGetWithExpiryProcessor(false), PTTL = new StringGetWithExpiryProcessor(true);
-            private readonly bool isMilliseconds;
-            private StringGetWithExpiryProcessor(bool isMilliseconds)
-            {
-                this.isMilliseconds = isMilliseconds;
-            }
+            public static readonly ResultProcessor<RedisValueWithExpiry> Default = new StringGetWithExpiryProcessor();
+            private StringGetWithExpiryProcessor() { }
             protected  override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
                 switch(result.Type)
