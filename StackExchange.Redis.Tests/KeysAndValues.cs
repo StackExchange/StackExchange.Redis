@@ -42,6 +42,13 @@ namespace StackExchange.Redis.Tests
             RedisValue i8 = 1L;
             CheckNotNull(i8);
 
+            RedisValue bool1 = true;
+            CheckNotNull(bool1);
+            RedisValue bool2 = false;
+            CheckNotNull(bool2);
+            RedisValue bool3 = true;
+            CheckNotNull(bool3);
+
             CheckSame(a0, a0);
             CheckSame(a1, a1);
             CheckSame(a0, a1);
@@ -53,6 +60,9 @@ namespace StackExchange.Redis.Tests
             CheckSame(i4, i4);
             CheckSame(i8, i8);
             CheckSame(i4, i8);
+
+            CheckSame(bool1, bool3);
+            CheckNotSame(bool1, bool2);
         }
 
         private void CheckSame(RedisValue x, RedisValue y)

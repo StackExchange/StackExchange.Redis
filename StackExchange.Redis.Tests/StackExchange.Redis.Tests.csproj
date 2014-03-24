@@ -61,6 +61,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BasicOps.cs" />
+    <Compile Include="Bits.cs" />
     <Compile Include="Cluster.cs" />
     <Compile Include="Commands.cs" />
     <Compile Include="ConnectionShutdown.cs" />
