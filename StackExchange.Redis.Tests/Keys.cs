@@ -35,11 +35,11 @@ namespace StackExchange.Redis.Tests
             {
                 var db = conn.GetDatabase();
                 conn.GetServer(PrimaryServer, PrimaryPort).FlushDatabase();
-                string anyKey = db.RandomKey();
+                string anyKey = db.KeyRandom();
 
                 Assert.IsNull(anyKey);
                 db.StringSet("abc", "def");
-                byte[] keyBytes = db.RandomKey();
+                byte[] keyBytes = db.KeyRandom();
 
                 Assert.AreEqual("abc", Encoding.UTF8.GetString(keyBytes));
             }

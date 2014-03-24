@@ -28,7 +28,7 @@ or
 
 Likewise, there are operations that *return* keys as `RedisKey` - and again, it simply works:
 
-    string someKey = db.RandomKey();
+    string someKey = db.KeyRandom();
 
 Values
 ---

@@ -661,13 +661,13 @@ namespace StackExchange.Redis
             return StringSetAsync(key, value, expiry, When.NotExists, flags);
         }
 
-        public RedisKey RandomKey(CommandFlags flags = CommandFlags.None)
+        public RedisKey KeyRandom(CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Db, flags, RedisCommand.RANDOMKEY);
             return ExecuteSync(msg, ResultProcessor.RedisKey);
         }
 
-        public Task<RedisKey> RandomKeyAsync(CommandFlags flags = CommandFlags.None)
+        public Task<RedisKey> KeyRandomAsync(CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Db, flags, RedisCommand.RANDOMKEY);
             return ExecuteAsync(msg, ResultProcessor.RedisKey);

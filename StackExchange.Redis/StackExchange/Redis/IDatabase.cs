@@ -382,8 +382,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <returns>the random key, or nil when the database is empty.</returns>
         /// <remarks>http://redis.io/commands/randomkey</remarks>
-        [IgnoreNamePrefix]
-        RedisKey RandomKey(CommandFlags flags = CommandFlags.None);
+        RedisKey KeyRandom(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Execute a Lua script against the server

@@ -71,8 +71,8 @@ namespace StackExchange.Redis.Tests
 
                 switch(method.Name)
                 {
-                    case "RandomKey":
-                    case "RandomKeyAsync":
+                    case "KeyRandom":
+                    case "KeyRandomAsync":
                         continue; // they're fine, but don't want to widen check to return type
                 }
 

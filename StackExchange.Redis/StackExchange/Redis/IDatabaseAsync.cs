@@ -368,8 +368,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <returns>the random key, or nil when the database is empty.</returns>
         /// <remarks>http://redis.io/commands/randomkey</remarks>
-        [IgnoreNamePrefix]
-        Task<RedisKey> RandomKeyAsync(CommandFlags flags = CommandFlags.None);
+        Task<RedisKey> KeyRandomAsync(CommandFlags flags = CommandFlags.None);
 
 
 
