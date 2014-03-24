@@ -274,7 +274,7 @@ namespace StackExchange.Redis
         /// </summary>
         public static implicit operator RedisValue(bool value)
         {
-            return value ? new RedisValue(1, IntegerSentinel) : new RedisValue(0, IntegerSentinel);
+            return new RedisValue(value ? 1 : 0, IntegerSentinel);
         }
         /// <summary>
         /// Creates a new RedisValue from a Boolean

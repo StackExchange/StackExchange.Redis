@@ -89,7 +89,6 @@
     <Compile Include="StackExchange\Redis\Format.cs" />
     <Compile Include="StackExchange\Redis\IBatch.cs" />
     <Compile Include="StackExchange\Redis\IMultiMessage.cs" />
-    <Compile Include="StackExchange\Redis\ChannelWrapper.cs" />
     <Compile Include="StackExchange\Redis\Order.cs" />
     <Compile Include="StackExchange\Redis\RedisBatch.cs" />
     <Compile Include="StackExchange\Redis\RedisCommand.cs" />
