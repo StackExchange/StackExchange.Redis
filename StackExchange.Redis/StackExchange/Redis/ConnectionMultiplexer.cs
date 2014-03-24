@@ -270,11 +270,11 @@ namespace StackExchange.Redis
         internal void MakeMaster(ServerEndPoint server, ReplicationChangeOptions options, TextWriter log)
         {
             CommandMap.AssertAvailable(RedisCommand.SLAVEOF);
-            if (!configuration.AllowAdmin) throw ExceptionFactory.AdminModeNotEnabled(RedisCommand.SLAVEOF);
+            if (!configuration.AllowAdmin) throw ExceptionFactory.AdminModeNotEnabled(IncludeDetailInExceptions, RedisCommand.SLAVEOF, null, server);
 
             if (server == null) throw new ArgumentNullException("server");
             var srv = new RedisServer(this, server, null);
-            if (!srv.IsConnected) throw ExceptionFactory.NoConnectionAvailable(RedisCommand.SLAVEOF);
+            if (!srv.IsConnected) throw ExceptionFactory.NoConnectionAvailable(IncludeDetailInExceptions, RedisCommand.SLAVEOF, null, server);
 
             if (log == null) log = TextWriter.Null;
             CommandMap.AssertAvailable(RedisCommand.SLAVEOF);
@@ -396,7 +396,7 @@ namespace StackExchange.Redis
         internal void CheckMessage(Message message)
         {
             if (!configuration.AllowAdmin && message.IsAdmin)
-                throw ExceptionFactory.AdminModeNotEnabled(message.Command);
+                throw ExceptionFactory.AdminModeNotEnabled(IncludeDetailInExceptions, message.Command, message, null);
             CommandMap.AssertAvailable(message.Command);
         }
 
@@ -790,7 +790,7 @@ namespace StackExchange.Redis
         private ConnectionMultiplexer(ConfigurationOptions configuration)
         {
             if (configuration == null) throw new ArgumentNullException("configuration");
-            ShowKeysInTimeout = true;
+            IncludeDetailInExceptions = true;
             
             this.configuration = configuration;
             this.CommandMap = configuration.CommandMap;
@@ -1434,14 +1434,14 @@ namespace StackExchange.Redis
 
                 if (message.IsMasterOnly() && server.IsSlave)
                 {
-                    throw ExceptionFactory.MasterOnly(message.Command);
+                    throw ExceptionFactory.MasterOnly(IncludeDetailInExceptions, message.Command, message, server);
                 }
 
                 if (server.ServerType == ServerType.Cluster)
                 {
                     if (message.GetHashSlot(ServerSelectionStrategy) == ServerSelectionStrategy.MultipleSlots)
                     {
-                        throw ExceptionFactory.MultiSlot();
+                        throw ExceptionFactory.MultiSlot(IncludeDetailInExceptions, message);
                     }
                 }
                 if (!server.IsConnected)
@@ -1455,7 +1455,8 @@ namespace StackExchange.Redis
                 if (message.Db >= 0)
                 {
                     int availableDatabases = server.Databases;
-                    if (availableDatabases > 0 && message.Db >= availableDatabases) throw ExceptionFactory.DatabaseOutfRange(message.Db);
+                    if (availableDatabases > 0 && message.Db >= availableDatabases) throw ExceptionFactory.DatabaseOutfRange(
+                        IncludeDetailInExceptions, message.Db, message, server);
                 }
 
                 Trace("Queueing on server: " + message);
@@ -1603,7 +1604,7 @@ namespace StackExchange.Redis
                 var source = ResultBox<T>.Get(tcs);
                 if (!TryPushMessageToBridge(message, processor, source, ref server))
                 {
-                    ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(message.Command));
+                    ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(IncludeDetailInExceptions, message.Command, message, server));
                 }
                 return tcs.Task;
             }
@@ -1644,7 +1645,7 @@ namespace StackExchange.Redis
                 {
                     if (!TryPushMessageToBridge(message, processor, source, ref server))
                     {
-                        throw ExceptionFactory.NoConnectionAvailable(message.Command);
+                        throw ExceptionFactory.NoConnectionAvailable(IncludeDetailInExceptions, message.Command, message, server);
                     }
 
                     if (Monitor.Wait(source, timeoutMilliseconds))
@@ -1656,15 +1657,15 @@ namespace StackExchange.Redis
                         Trace("Timeout performing " + message.ToString());
                         Interlocked.Increment(ref syncTimeouts);
                         string errMessage;
-                        if (server == null)
+                        if (server == null || !IncludeDetailInExceptions)
                         {
-                            errMessage = "Timeout performing " + (ShowKeysInTimeout ? message.CommandAndKey : message.Command.ToString());
+                            errMessage = "Timeout performing " + message.Command.ToString();
                         }
                         else
                         {
                             int inst, qu, qs, qc, wr, wq;
                             int queue = server.GetOutstandingCount(message.Command, out inst, out qu, out qs, out qc, out wr, out wq);
-                            var sb = new StringBuilder("Timeout performing ").Append(ShowKeysInTimeout ? message.CommandAndKey : message.Command.ToString())
+                            var sb = new StringBuilder("Timeout performing ").Append(message.CommandAndKey)
                                 .Append(", inst: ").Append(inst)
                                 .Append(", queue: ").Append(queue).Append(", qu=").Append(qu)
                                 .Append(", qs=").Append(qs).Append(", qc=").Append(qc)
@@ -1677,7 +1678,8 @@ namespace StackExchange.Redis
                                 else Interlocked.Exchange(ref stormLogSnapshot, log);
                             }
                         }
-                        throw new TimeoutException(errMessage); // very important not to return "source" to the pool here
+                        throw ExceptionFactory.Timeout(IncludeDetailInExceptions, errMessage, message, server);
+                        // very important not to return "source" to the pool here
                     }
                 }
                 // snapshot these so that we can recycle the box
@@ -1691,9 +1693,9 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Should the key name be displayed when generating a timeout message?
+        /// Should exceptions include identifiable details? (key names, additional .Data annotations)
         /// </summary>
-        public bool ShowKeysInTimeout { get; set; }
+        public bool IncludeDetailInExceptions { get; set; }
 
         int haveStormLog = 0, stormLogThreshold = 15;
         string stormLogSnapshot;

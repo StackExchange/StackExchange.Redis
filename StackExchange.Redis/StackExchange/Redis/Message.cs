@@ -93,14 +93,14 @@ namespace StackExchange.Redis
             {
                 if (dbNeeded)
                 {
-                    throw ExceptionFactory.DatabaseRequired(command);
+                    throw ExceptionFactory.DatabaseRequired(false, command);
                 }
             }
             else
             {
                 if (!dbNeeded)
                 {
-                    throw ExceptionFactory.DatabaseNotRequired(command);
+                    throw ExceptionFactory.DatabaseNotRequired(false, command);
                 }
             }
 
@@ -109,7 +109,7 @@ namespace StackExchange.Redis
                 switch (GetMasterSlaveFlags(flags))
                 {
                     case CommandFlags.DemandSlave:
-                        throw ExceptionFactory.MasterOnly(command);
+                        throw ExceptionFactory.MasterOnly(false, command, null, null);
                     case CommandFlags.DemandMaster:
                         // already fine as-is
                         break;

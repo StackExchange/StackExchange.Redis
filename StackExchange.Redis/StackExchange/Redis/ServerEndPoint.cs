@@ -341,7 +341,7 @@ namespace StackExchange.Redis
             message.SetSource(processor, source);
             if(!(bridge ?? GetBridge(message.Command)).TryEnqueue(message, isSlave))
             {
-                ConnectionMultiplexer.ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(message.Command));
+                ConnectionMultiplexer.ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(multiplexer.IncludeDetailInExceptions, message.Command, message, this));
             }
             return tcs.Task;
         }

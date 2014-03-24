@@ -56,7 +56,7 @@ namespace StackExchange.Redis
 
         internal void AssertAvailable(RedisCommand command)
         {
-            if (map[(int)command] == null) throw ExceptionFactory.CommandDisabled(command);
+            if (map[(int)command] == null) throw ExceptionFactory.CommandDisabled(false, command, null, null);
         }
 
         internal byte[] GetBytes(RedisCommand command)

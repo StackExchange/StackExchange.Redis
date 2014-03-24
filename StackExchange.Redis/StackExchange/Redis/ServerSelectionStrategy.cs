@@ -111,7 +111,7 @@ namespace StackExchange.Redis
             if (serverType == ServerType.Cluster)
             {
                 slot = message.GetHashSlot(this);
-                if (slot == MultipleSlots) throw ExceptionFactory.MultiSlot();
+                if (slot == MultipleSlots) throw ExceptionFactory.MultiSlot(multiplexer.IncludeDetailInExceptions, message);
             }
             return Select(slot, message.Command, message.Flags);
         }

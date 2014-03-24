@@ -286,7 +286,7 @@ namespace StackExchange.Redis
             return null;
         }
 
-        internal Message GetSelectDatabaseCommand(int targetDatabase)
+        internal Message GetSelectDatabaseCommand(int targetDatabase, Message message)
         {
             if (targetDatabase < 0) return null;
             if (targetDatabase != currentDatabase)
@@ -297,19 +297,19 @@ namespace StackExchange.Redis
                 if (!serverEndpoint.HasDatabases) // only db0 is available on cluster
                 {
                     if (targetDatabase != 0)
-                    { // should never see this, since the API doesn't allow it
+                    { // should never see this, since the API doesn't allow it; thus not too worried about ExceptionFactory
                         throw new RedisCommandException("Multiple databases are not supported on this server; cannot switch to database: " + targetDatabase);
                     }
                     return null;
                 }
                 if (TransactionActive)
-                {// should never see this, since the API doesn't allow it
+                {// should never see this, since the API doesn't allow it; thus not too worried about ExceptionFactory
                     throw new RedisCommandException("Multiple databases inside a transaction are not currently supported" + targetDatabase);
                 }
 
                 if (available != 0 && targetDatabase >= available) // we positively know it is out of range
                 {
-                    throw ExceptionFactory.DatabaseOutfRange(targetDatabase);
+                    throw ExceptionFactory.DatabaseOutfRange(multiplexer.IncludeDetailInExceptions, targetDatabase, message, serverEndpoint);
                 }
                 bridge.Trace("Switching database: " + targetDatabase);
                 currentDatabase = targetDatabase;
@@ -351,7 +351,7 @@ namespace StackExchange.Redis
             var commandBytes = multiplexer.CommandMap.GetBytes(command);
             if (commandBytes == null)
             {
-                throw ExceptionFactory.CommandDisabled(command);
+                throw ExceptionFactory.CommandDisabled(multiplexer.IncludeDetailInExceptions, command, null, bridge.ServerEndPoint);
             }
             outStream.WriteByte((byte)'*');
             WriteRaw(outStream, arguments + 1);
@@ -742,7 +742,7 @@ namespace StackExchange.Redis
             if (itemCount.HasValue)
             {
                 long i64;
-                if (!itemCount.TryGetInt64(out i64)) throw new RedisConnectionException(ConnectionFailureType.ProtocolFailure, "Invalid array length");
+                if (!itemCount.TryGetInt64(out i64)) throw ExceptionFactory.ConnectionFailure(multiplexer.IncludeDetailInExceptions, ConnectionFailureType.ProtocolFailure, "Invalid array length", bridge.ServerEndPoint);
                 int itemCountActual = checked((int)i64);
 
                 if (itemCountActual == 0) return RawResult.EmptyArray;
@@ -764,7 +764,7 @@ namespace StackExchange.Redis
             if (prefix.HasValue)
             {
                 long i64;
-                if (!prefix.TryGetInt64(out i64)) throw new RedisConnectionException(ConnectionFailureType.ProtocolFailure, "Invalid bulk string length");
+                if (!prefix.TryGetInt64(out i64)) throw ExceptionFactory.ConnectionFailure(multiplexer.IncludeDetailInExceptions, ConnectionFailureType.ProtocolFailure, "Invalid bulk string length", bridge.ServerEndPoint);
                 int bodySize = checked((int)i64);
                 if (bodySize < 0)
                 {
@@ -774,7 +774,7 @@ namespace StackExchange.Redis
                 {
                     if (buffer[offset + bodySize] != '\r' || buffer[offset + bodySize + 1] != '\n')
                     {
-                        throw new RedisConnectionException(ConnectionFailureType.ProtocolFailure, "Invalid bulk string terminator");
+                        throw ExceptionFactory.ConnectionFailure(multiplexer.IncludeDetailInExceptions, ConnectionFailureType.ProtocolFailure, "Invalid bulk string terminator", bridge.ServerEndPoint);
                     }
                     var result = new RawResult(ResultType.BulkString, buffer, offset, bodySize);
                     offset += bodySize + 2;

@@ -1553,7 +1553,7 @@ namespace StackExchange.Redis
             // because we are using STORE, we need to push this to a master
             if (Message.GetMasterSlaveFlags(flags) == CommandFlags.DemandSlave)
             {
-                throw ExceptionFactory.MasterOnly(RedisCommand.SORT);
+                throw ExceptionFactory.MasterOnly(multiplexer.IncludeDetailInExceptions, RedisCommand.SORT, null, null);
             }
             flags = Message.SetMasterSlaveFlags(flags, CommandFlags.DemandMaster);
             values.Add(RedisLiterals.STORE);

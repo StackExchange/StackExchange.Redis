@@ -257,7 +257,7 @@ namespace StackExchange.Redis
                 multiplexer.Trace("Enqueue: " + msg);
                 if(!TryEnqueue(msg, serverEndPoint.IsSlave))
                 {
-                    OnInternalError(ExceptionFactory.NoConnectionAvailable(msg.Command));
+                    OnInternalError(ExceptionFactory.NoConnectionAvailable(multiplexer.IncludeDetailInExceptions, msg.Command, msg, serverEndPoint));
                 }
             }
         }
@@ -605,7 +605,7 @@ namespace StackExchange.Redis
             int db = message.Db;
             if (db >= 0)
             {
-                var sel = connection.GetSelectDatabaseCommand(db);
+                var sel = connection.GetSelectDatabaseCommand(db, message);
                 if (sel != null)
                 {
                     connection.Enqueue(sel);
@@ -624,7 +624,7 @@ namespace StackExchange.Redis
                 bool isMasterOnly = message.IsMasterOnly();
                 if (isMasterOnly && serverEndPoint.IsSlave)
                 {
-                    throw ExceptionFactory.MasterOnly(message.Command);
+                    throw ExceptionFactory.MasterOnly(multiplexer.IncludeDetailInExceptions, message.Command, message, ServerEndPoint);
                 }
 
                 SelectDatabase(connection, message);

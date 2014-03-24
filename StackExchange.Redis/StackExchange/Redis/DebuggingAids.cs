@@ -218,7 +218,7 @@ namespace StackExchange.Redis
         {
             if (!multiplexer.RawConfig.AllowAdmin)
             {
-                throw ExceptionFactory.AdminModeNotEnabled(RedisCommand.DEBUG); // close enough
+                throw ExceptionFactory.AdminModeNotEnabled(multiplexer.IncludeDetailInExceptions, RedisCommand.DEBUG, null, serverEndPoint); // close enough
             }
             var tmp = physical;
             if (tmp != null) tmp.RecordConnectionFailed(ConnectionFailureType.SocketFailure);

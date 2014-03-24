@@ -286,14 +286,14 @@ namespace StackExchange.Redis
 
         public void ScriptFlush(CommandFlags flags = CommandFlags.None)
         {
-            if (!multiplexer.RawConfig.AllowAdmin) throw ExceptionFactory.AdminModeNotEnabled(RedisCommand.SCRIPT);
+            if (!multiplexer.RawConfig.AllowAdmin) throw ExceptionFactory.AdminModeNotEnabled(multiplexer.IncludeDetailInExceptions, RedisCommand.SCRIPT, null, server);
             var msg = Message.Create(-1, flags, RedisCommand.SCRIPT, RedisLiterals.FLUSH);
             ExecuteSync(msg, ResultProcessor.DemandOK);
         }
 
         public Task ScriptFlushAsync(CommandFlags flags = CommandFlags.None)
         {
-            if (!multiplexer.RawConfig.AllowAdmin) throw ExceptionFactory.AdminModeNotEnabled(RedisCommand.SCRIPT);
+            if (!multiplexer.RawConfig.AllowAdmin) throw ExceptionFactory.AdminModeNotEnabled(multiplexer.IncludeDetailInExceptions, RedisCommand.SCRIPT, null, server);
             var msg = Message.Create(-1, flags, RedisCommand.SCRIPT, RedisLiterals.FLUSH);
             return ExecuteAsync(msg, ResultProcessor.DemandOK);
         }
@@ -472,7 +472,7 @@ namespace StackExchange.Redis
 
                 // no need to deny exec-sync here; will be complete before they see if
                 var tcs = TaskSource.Create<T>(asyncState);
-                ConnectionMultiplexer.ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(message.Command));
+                ConnectionMultiplexer.ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(multiplexer.IncludeDetailInExceptions, message.Command, message, server));
                 return tcs.Task;
             }
             return base.ExecuteAsync<T>(message, processor, server);
@@ -485,7 +485,7 @@ namespace StackExchange.Redis
             if (!server.IsConnected)
             {
                 if (message == null || message.IsFireAndForget) return default(T);
-                throw ExceptionFactory.NoConnectionAvailable(message.Command);
+                throw ExceptionFactory.NoConnectionAvailable(multiplexer.IncludeDetailInExceptions, message.Command, message, server);
             }
             return base.ExecuteSync<T>(message, processor, server);
         }
