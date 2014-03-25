@@ -47,6 +47,7 @@
     <None Include="Basics.md" />
     <None Include="Events.md" />
     <None Include="ExecSync.md" />
+    <None Include="PubSubOrder.md" />
     <None Include="PipelinesMultiplexers.md" />
     <None Include="Transactions.md" />
   </ItemGroup>

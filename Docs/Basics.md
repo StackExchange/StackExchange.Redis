@@ -73,6 +73,8 @@ Separately (and often in a separate process on a separate machine) you can publi
 
 This will (virtually instantaneously) write `"hello"` to the console of the subscribed process. As before, both channel-names and messages can be binary.
 
+Please also see [Pub / Sub Message Order](https://github.com/StackExchange/StackExchange.Redis/blob/master/Docs/PubSubOrder.md) for guidance on sequential versus concurrent message processing.
+
 Accessing individual servers
 ---
 
