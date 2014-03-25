@@ -110,43 +110,58 @@ namespace StackExchange.Redis
         }
 
         partial void OnCompletedAsync();
+
+        int activeAsyncWorkerThread = 0;
         private void ProcessAsyncCompletionQueueImpl()
         {
-            int total = 0;
-            do
+            int currentThread = Environment.CurrentManagedThreadId;
+            try
             {
-                ICompletable next;
-                lock (asyncCompletionQueue)
+                if (Interlocked.CompareExchange(ref activeAsyncWorkerThread, currentThread, 0) != 0) return;
+                int total = 0;
+                do
                 {
-                    next = asyncCompletionQueue.Count == 0 ? null
-                        : asyncCompletionQueue.Dequeue();
-                }
-                if(next == null && Thread.Yield()) // give it a moment and try again
-                {
+                    ICompletable next;
                     lock (asyncCompletionQueue)
                     {
                         next = asyncCompletionQueue.Count == 0 ? null
                             : asyncCompletionQueue.Dequeue();
                     }
-                }
-                if (next == null) break; // nothing to do
-                try
-                {
-                    multiplexer.Trace("Completing async (ordered): " + next, name);
-                    next.TryComplete(true);
-                    Interlocked.Increment(ref completedAsync);
-                }
-                catch(Exception ex)
-                {
-                    multiplexer.Trace("Async completion error: " + ex.Message, name);
-                    Interlocked.Increment(ref failedAsync);
-                }
-                total++;
-            } while (true);
-
-            multiplexer.Trace("Async completion worker processed " + total + " operations", name);
+                    if (next == null)
+                    {
+                        // give it a moment and try again, noting that we might lose the battle
+                        // when we pause
+                        Interlocked.CompareExchange(ref activeAsyncWorkerThread, 0, currentThread);
+                        if (Thread.Yield() && Interlocked.CompareExchange(ref activeAsyncWorkerThread, currentThread, 0) == 0)
+                        {
+                            // we paused, and we got the lock back; anything else?
+                            lock (asyncCompletionQueue)
+                            {
+                                next = asyncCompletionQueue.Count == 0 ? null
+                                    : asyncCompletionQueue.Dequeue();
+                            }
+                        }
+                    }
+                    if (next == null) break; // nothing to do <===== exit point
+                    try
+                    {
+                        multiplexer.Trace("Completing async (ordered): " + next, name);
+                        next.TryComplete(true);
+                        Interlocked.Increment(ref completedAsync);
+                    }
+                    catch (Exception ex)
+                    {
+                        multiplexer.Trace("Async completion error: " + ex.Message, name);
+                        Interlocked.Increment(ref failedAsync);
+                    }
+                    total++;
+                } while (true);
+                multiplexer.Trace("Async completion worker processed " + total + " operations", name);
+            }
+            finally
+            {
+                Interlocked.CompareExchange(ref activeAsyncWorkerThread, 0, currentThread);
+            }
         }
-
-
     }
 }
