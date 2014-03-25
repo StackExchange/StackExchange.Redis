@@ -46,6 +46,7 @@
     </None>
     <None Include="Basics.md" />
     <None Include="Events.md" />
+    <None Include="Configuration.md" />
     <None Include="ExecSync.md" />
     <None Include="PubSubOrder.md" />
     <None Include="PipelinesMultiplexers.md" />
