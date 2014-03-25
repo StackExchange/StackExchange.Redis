@@ -117,7 +117,16 @@ namespace StackExchange.Redis
             int currentThread = Environment.CurrentManagedThreadId;
             try
             {
-                if (Interlocked.CompareExchange(ref activeAsyncWorkerThread, currentThread, 0) != 0) return;
+                while (Interlocked.CompareExchange(ref activeAsyncWorkerThread, currentThread, 0) != 0)
+                {
+                    // if we don't win the lock, check whether there is still work; if there is we
+                    // need to retry to prevent a nasty race condition
+                    lock(asyncCompletionQueue)
+                    {
+                        if (asyncCompletionQueue.Count == 0) return; // another thread drained it; can exit
+                    }
+                    Thread.Sleep(1);
+                }
                 int total = 0;
                 do
                 {
