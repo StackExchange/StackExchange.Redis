@@ -94,5 +94,13 @@ namespace StackExchange.Redis
             if (includeDetail) AddDetail(ex, null, server, null);
             return ex;
         }
+
+        internal static Exception NotSupported(bool includeDetail, RedisCommand command)
+        {
+            string s = GetLabel(includeDetail, command, null);
+            var ex = new RedisCommandException("Command is not available on your server: " + s);
+            if (includeDetail) AddDetail(ex, null, null, s);
+            return ex;
+        }
     }
 }

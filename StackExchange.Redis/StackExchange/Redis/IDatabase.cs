@@ -507,11 +507,26 @@ namespace StackExchange.Redis
         long SetRemove(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// The SSCAN command is used to incrementally iterate over a collection of elements.
+        /// The SSCAN command is used to incrementally iterate over set
         /// </summary>
         /// <returns>yields all elements of the set.</returns>
         /// <remarks>http://redis.io/commands/sscan</remarks>
-        IEnumerable<RedisValue> SetScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = RedisDatabase.SetScanIterator.DefaultPageSize, CommandFlags flags = CommandFlags.None);
+        IEnumerable<RedisValue> SetScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = RedisDatabase.ScanIterator.DefaultPageSize, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// The ZSCAN command is used to incrementally iterate over a sorted set
+        /// </summary>
+        /// <returns>yields all elements of the sorted set.</returns>
+        /// <remarks>http://redis.io/commands/zscan</remarks>
+        IEnumerable<KeyValuePair<RedisValue, double>> SortedSetScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = RedisDatabase.ScanIterator.DefaultPageSize, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// The HSCAN command is used to incrementally iterate over a hash
+        /// </summary>
+        /// <returns>yields all elements of the hash.</returns>
+        /// <remarks>http://redis.io/commands/hscan</remarks>
+        IEnumerable<KeyValuePair<RedisValue, RedisValue>> HashScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = RedisDatabase.ScanIterator.DefaultPageSize, CommandFlags flags = CommandFlags.None);
+
         /// <summary>
         /// Sorts a list, set or sorted set (numerically or alphabetically, ascending by default); By default, the elements themselves are compared, but the values can also be
         /// used to perform external key-lookups using the <c>by</c> parameter. By default, the elements themselves are returned, but external key-lookups (one or many) can

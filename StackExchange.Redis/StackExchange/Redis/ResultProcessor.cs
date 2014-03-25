@@ -75,10 +75,10 @@ namespace StackExchange.Redis
         public static readonly TimeSpanProcessor
             TimeSpanFromMilliseconds = new TimeSpanProcessor(true),
             TimeSpanFromSeconds = new TimeSpanProcessor(false);
-        public static readonly ResultProcessor<KeyValuePair<RedisValue, RedisValue>[]>
+        public static readonly ValuePairInterleavedProcessor
             ValuePairInterleaved = new ValuePairInterleavedProcessor();
 
-        public static readonly ResultProcessor<KeyValuePair<RedisValue, double>[]>
+        public static readonly SortedSetWithScoresProcessor
             SortedSetWithScores = new SortedSetWithScoresProcessor();
 
         public static readonly ResultProcessor<RedisResult>
@@ -928,65 +928,68 @@ namespace StackExchange.Redis
             }
         }
 
-        sealed class ValuePairInterleavedProcessor : ValuePairInterleavedProcessorBase<RedisValue, RedisValue>
+        internal sealed class ValuePairInterleavedProcessor : ValuePairInterleavedProcessorBase<RedisValue, RedisValue>
         {
             protected override RedisValue ParseKey(RawResult key) { return key.AsRedisValue(); }
             protected override RedisValue ParseValue(RawResult key) { return key.AsRedisValue(); }
         }
 
-        abstract class ValuePairInterleavedProcessorBase<TKey, TValue> : ResultProcessor<KeyValuePair<TKey, TValue>[]>
+        internal sealed class SortedSetWithScoresProcessor : ValuePairInterleavedProcessorBase<RedisValue, double>
+        {
+            protected override RedisValue ParseKey(RawResult key) { return key.AsRedisValue(); }
+            protected override double ParseValue(RawResult value)
+            {
+                double val;
+                return value.TryGetDouble(out val) ? val: double.NaN;
+            }
+        }
+
+        internal abstract class ValuePairInterleavedProcessorBase<TKey, TValue> : ResultProcessor<KeyValuePair<TKey, TValue>[]>
         {
             static readonly KeyValuePair<TKey, TValue>[] nix = new KeyValuePair<TKey, TValue>[0];
 
-            protected abstract TKey ParseKey(RawResult key);
-            protected abstract TValue ParseValue(RawResult value);
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            public bool TryParse(RawResult result, out KeyValuePair<TKey, TValue>[] pairs)
             {
                 switch (result.Type)
                 {
                     case ResultType.MultiBulk:
                         var arr = result.GetItems();
-                        int count = arr.Length / 2;
-                        KeyValuePair<TKey, TValue>[] pairs;
-                        if (count == 0)
+                        if (arr == null)
                         {
-                            pairs = nix;
+                            pairs = null;
                         }
                         else
                         {
-                            pairs = new KeyValuePair<TKey, TValue>[count];
-                            int offset = 0;
-                            for (int i = 0; i < pairs.Length; i++)
+                            int count = arr.Length / 2;
+                            if (count == 0)
                             {
-                                var setting = ParseKey(arr[offset++]);
-                                var value = ParseValue(arr[offset++]);
-                                pairs[i] = new KeyValuePair<TKey, TValue>(setting, value);
+                                pairs = nix;
+                            }
+                            else
+                            {
+                                pairs = new KeyValuePair<TKey, TValue>[count];
+                                int offset = 0;
+                                for (int i = 0; i < pairs.Length; i++)
+                                {
+                                    var setting = ParseKey(arr[offset++]);
+                                    var value = ParseValue(arr[offset++]);
+                                    pairs[i] = new KeyValuePair<TKey, TValue>(setting, value);
+                                }
                             }
                         }
-                        SetResult(message, pairs);
                         return true;
                     default:
+                        pairs = null;
                         return false;
                 }
             }
-        }
-
-        private class SortedSetWithScoresProcessor : ResultProcessor<KeyValuePair<RedisValue, double>[]>
-        {
+            protected abstract TKey ParseKey(RawResult key);
+            protected abstract TValue ParseValue(RawResult value);
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
-                if(result.Type == ResultType.MultiBulk)
+                KeyValuePair<TKey, TValue>[] arr;
+                if(TryParse(result, out arr))
                 {
-                    var items = result.GetItems();
-                    var arr = new KeyValuePair<RedisValue, double>[items.Length / 2];
-                    int index = 0;
-                    for(int i = 0; i < arr.Length; i++)
-                    {
-                        var member = items[index++].AsRedisValue();
-                        double score;
-                        if (!items[index++].TryGetDouble(out score)) return false;
-                        arr[i] = new KeyValuePair<RedisValue, double>(member, score);
-                    }
                     SetResult(message, arr);
                     return true;
                 }

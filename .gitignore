@@ -11,3 +11,4 @@ Mono/
 *.sln.ide
 *.rdb
 *.orig
+redis-cli.exe
