@@ -51,6 +51,7 @@ namespace StackExchange.Redis
             LOAD = "LOAD",
             EXISTS = "EXISTS",
             FLUSH = "FLUSH",
+            PING = "PING",
 
             // DO NOT CHANGE CASE: these are configuration settings and MUST be as-is
             databases = "databases",
@@ -62,8 +63,9 @@ namespace StackExchange.Redis
             server = "server",
             Wildcard = "*";
 
-        public static readonly byte[] OK = Encoding.UTF8.GetBytes("OK");
+        public static readonly byte[] BytesOK = Encoding.UTF8.GetBytes("OK");
         public static readonly byte[] ByteWildcard = { (byte)'*' };
+        public static readonly byte[] BytesPONG = Encoding.UTF8.GetBytes("PONG");
 
 
         internal static RedisValue Get(Bitwise operation)

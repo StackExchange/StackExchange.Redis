@@ -34,7 +34,7 @@ namespace StackExchange.Redis
         public RawResult(RawResult[] arr)
         {
             if (arr == null) throw new ArgumentNullException("arr");
-            this.resultType = ResultType.Array;
+            this.resultType = ResultType.MultiBulk;
             this.offset = 0;
             this.count = arr.Length;
             this.arr = arr;
@@ -59,7 +59,7 @@ namespace StackExchange.Redis
                     return string.Format("{0}: {1}", resultType, GetString());
                 case ResultType.BulkString:
                     return string.Format("{0}: {1} bytes", resultType, count);
-                case ResultType.Array:
+                case ResultType.MultiBulk:
                     return string.Format("{0}: {1} items", resultType, count);
                 default:
                     return "(unknown)";

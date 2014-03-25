@@ -17,7 +17,7 @@ namespace StackExchange.Redis
         {
             // can't use regular PING, but we can unsubscribe from something random that we weren't even subscribed to...
             RedisValue channel = Guid.NewGuid().ToByteArray();
-            var msg = ResultProcessor.TimingProcessor.CreateMessage(flags, RedisCommand.UNSUBSCRIBE, channel);
+            var msg = ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.UNSUBSCRIBE, channel);
             return ExecuteSync(msg, ResultProcessor.ResponseTimer);
         }
 
@@ -25,7 +25,7 @@ namespace StackExchange.Redis
         {
             // can't use regular PING, but we can unsubscribe from something random that we weren't even subscribed to...
             RedisValue channel = Guid.NewGuid().ToByteArray();
-            var msg = ResultProcessor.TimingProcessor.CreateMessage(flags, RedisCommand.UNSUBSCRIBE, channel);
+            var msg = ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.UNSUBSCRIBE, channel);
             return ExecuteAsync(msg, ResultProcessor.ResponseTimer);
         }
 

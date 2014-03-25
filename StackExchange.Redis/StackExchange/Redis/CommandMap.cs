@@ -9,7 +9,36 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed class CommandMap
     {
-        private static readonly CommandMap @default = CreateImpl(null);
+        private static readonly CommandMap
+            @default = CreateImpl(null, null),
+            twemproxy = CreateImpl(null, exclusions: new HashSet<RedisCommand>
+        {
+            // see https://github.com/twitter/twemproxy/blob/master/notes/redis.md
+            RedisCommand.KEYS, RedisCommand.MIGRATE, RedisCommand.MOVE, RedisCommand.OBJECT, RedisCommand.RANDOMKEY,
+            RedisCommand.RENAME, RedisCommand.RENAMENX, RedisCommand.SORT, RedisCommand.SCAN,
+
+            RedisCommand.BITOP, RedisCommand.MSET, RedisCommand.MSETNX,
+
+            RedisCommand.HSCAN,
+
+            RedisCommand.BLPOP, RedisCommand.BRPOP, RedisCommand.BRPOPLPUSH, // yeah, me neither!
+
+            RedisCommand.SSCAN,
+
+            RedisCommand.ZSCAN,
+
+            RedisCommand.PSUBSCRIBE, RedisCommand.PUBLISH, RedisCommand.PUNSUBSCRIBE, RedisCommand.SUBSCRIBE, RedisCommand.UNSUBSCRIBE,
+
+            RedisCommand.DISCARD, RedisCommand.EXEC, RedisCommand.MULTI, RedisCommand.UNWATCH, RedisCommand.WATCH,
+
+            RedisCommand.SCRIPT,
+
+            RedisCommand.AUTH, RedisCommand.ECHO, RedisCommand.PING, RedisCommand.QUIT, RedisCommand.SELECT,
+
+            RedisCommand.BGREWRITEAOF, RedisCommand.BGSAVE, RedisCommand.CLIENT, RedisCommand.CLUSTER, RedisCommand.CONFIG, RedisCommand.DBSIZE,
+            RedisCommand.DEBUG, RedisCommand.FLUSHALL, RedisCommand.FLUSHDB, RedisCommand.INFO, RedisCommand.LASTSAVE, RedisCommand.MONITOR, RedisCommand.SAVE,
+            RedisCommand.SHUTDOWN, RedisCommand.SLAVEOF, RedisCommand.SLOWLOG, RedisCommand.SYNC, RedisCommand.TIME
+        });
         private readonly byte[][] map;
 
         internal CommandMap(byte[][] map)
@@ -22,14 +51,77 @@ namespace StackExchange.Redis
         public static CommandMap Default { get { return @default; } }
 
         /// <summary>
+        /// The commands available to <a href="twemproxy">https://github.com/twitter/twemproxy</a>
+        /// </summary>
+        /// <remarks>https://github.com/twitter/twemproxy/blob/master/notes/redis.md</remarks>
+        public static CommandMap Twemproxy {  get { return twemproxy; } }
+
+        /// <summary>
         /// Create a new CommandMap, customizing some commands
         /// </summary>
         public static CommandMap Create(Dictionary<string, string> overrides)
         {
             if (overrides == null || overrides.Count == 0) return Default;
 
-            return CreateImpl(overrides);
+            if (ReferenceEquals(overrides.Comparer, StringComparer.OrdinalIgnoreCase) ||
+                ReferenceEquals(overrides.Comparer, StringComparer.InvariantCultureIgnoreCase))
+            {
+                // that's ok; we're happy with ordinal/invariant case-insensitive
+                // (but not culture-specific insensitive; completely untested)
+            }
+            else
+            {
+                // need case insensitive
+                overrides = new Dictionary<string, string>(overrides, StringComparer.OrdinalIgnoreCase);
+            }
+            return CreateImpl(overrides, null);
         }
+
+        /// <summary>
+        /// Creates a CommandMap by specifying which commands are available or unavailable
+        /// </summary>
+        public static CommandMap Create(HashSet<string> commands, bool available = true)
+        {
+            
+            if (available)
+            {
+                var dictionary = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                // nix everything
+                foreach (RedisCommand command in Enum.GetValues(typeof(RedisCommand)))
+                {
+                    dictionary[command.ToString()] = null;
+                }
+                if (commands != null)
+                {
+                    // then include (by removal) the things that are available
+                    foreach (string command in commands)
+                    {
+                        dictionary.Remove(command);
+                    }
+                }
+                return CreateImpl(dictionary, null);
+            }
+            else
+            {
+                HashSet<RedisCommand> exclusions = null;
+                if (commands != null)
+                {
+                    // nix the things that are specified
+                    foreach (var command in commands)
+                    {
+                        RedisCommand parsed;
+                        if (Enum.TryParse(command, true, out parsed))
+                        {
+                            (exclusions ?? (exclusions = new HashSet<RedisCommand>())).Add(parsed);
+                        }
+                    }
+                }
+                if (exclusions == null || exclusions.Count == 0) return Default;
+                return CreateImpl(null, exclusions);
+            }
+            
+        }
+
         /// <summary>
         /// See Object.ToString()
         /// </summary>
@@ -69,33 +161,37 @@ namespace StackExchange.Redis
             return map[(int)command] != null;
         }
 
-        private static CommandMap CreateImpl(Dictionary<string, string> overrides)
+        private static CommandMap CreateImpl(Dictionary<string, string> caseInsensitiveOverrides, HashSet<RedisCommand> exclusions)
         {
-            RedisCommand[] values = (RedisCommand[])Enum.GetValues(typeof(RedisCommand));
+            var commands = (RedisCommand[])Enum.GetValues(typeof(RedisCommand));
 
-            byte[][] map = new byte[values.Length][];
+            byte[][] map = new byte[commands.Length][];
             bool haveDelta = false;
-            for (int i = 0; i < values.Length; i++)
+            for (int i = 0; i < commands.Length; i++)
             {
-                int idx = (int)values[i];
-                string name = values[i].ToString(), value = name;
+                int idx = (int)commands[i];
+                string name = commands[i].ToString(), value = name;
 
-                if (overrides != null)
+                if (exclusions != null && exclusions.Contains(commands[i]))
                 {
-                    foreach (var pair in overrides)
+                    map[idx] = null;
+                }
+                else
+                {
+                    if (caseInsensitiveOverrides != null)
                     {
-                        if (string.Equals(name, pair.Key, StringComparison.OrdinalIgnoreCase))
+                        string tmp;
+                        if (caseInsensitiveOverrides.TryGetValue(name, out tmp))
                         {
-                            value = pair.Value;
-                            break;
+                            value = tmp;
                         }
                     }
-                }
-                if (value != name) haveDelta = true;
+                    if (value != name) haveDelta = true;
 
-                haveDelta = true;
-                byte[] val = string.IsNullOrWhiteSpace(value) ? null : Encoding.UTF8.GetBytes(value);
-                map[idx] = val;
+                    haveDelta = true;
+                    byte[] val = string.IsNullOrWhiteSpace(value) ? null : Encoding.UTF8.GetBytes(value);
+                    map[idx] = val;
+                }
             }
             if (!haveDelta && @default != null) return @default;
 

@@ -16,16 +16,29 @@ namespace StackExchange.Redis
             this.asyncState = asyncState;
         }
 
-
+        private ResultProcessor.TimingProcessor.TimerMessage GetTimerMessage(CommandFlags flags)
+        {
+            // do the best we can with available commands
+            var map = multiplexer.CommandMap;
+            if(map.IsAvailable(RedisCommand.PING))
+                return ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.PING);
+            if(map.IsAvailable(RedisCommand.TIME))
+                return ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.TIME);
+            if (map.IsAvailable(RedisCommand.ECHO))
+                return ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.ECHO, RedisLiterals.PING);
+            // as our fallback, we'll do something odd... we'll treat a key like a value, out of sheer desperation
+            // note: this usually means: twemproxy - in which case we're fine anyway, since the proxy does the routing
+            return ResultProcessor.TimingProcessor.CreateMessage(0, flags, RedisCommand.EXISTS, (RedisValue)multiplexer.UniqueId);
+        }
         public virtual TimeSpan Ping(CommandFlags flags = CommandFlags.None)
         {
-            var msg = ResultProcessor.TimingProcessor.CreateMessage(flags, RedisCommand.PING);
+            var msg = GetTimerMessage(flags);
             return ExecuteSync(msg, ResultProcessor.ResponseTimer);
         }
 
         public virtual Task<TimeSpan> PingAsync(CommandFlags flags = CommandFlags.None)
         {
-            var msg = ResultProcessor.TimingProcessor.CreateMessage(flags, RedisCommand.PING);
+            var msg = GetTimerMessage(flags);
             return ExecuteAsync(msg, ResultProcessor.ResponseTimer);
         }
 

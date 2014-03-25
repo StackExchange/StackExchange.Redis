@@ -236,11 +236,8 @@ namespace StackExchange.Redis
             switch (connectionType)
             {
                 case ConnectionType.Interactive:
-                    if (commandMap.IsAvailable(RedisCommand.PING))
-                    {
-                        msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.PING);
-                        msg.SetSource(ResultProcessor.DemandPONG, null);
-                    }
+                    msg = serverEndPoint.GetTracerMessage(false);
+                    msg.SetSource(ResultProcessor.Tracer, null);
                     break;
                 case ConnectionType.Subscription:
                     if (commandMap.IsAvailable(RedisCommand.UNSUBSCRIBE))

@@ -11,6 +11,9 @@
         BITCOUNT,
         BITOP,
         BITPOS,
+        BLPOP,
+        BRPOP,
+        BRPOPLPUSH,
 
         CLIENT,
         CLUSTER,
@@ -50,6 +53,7 @@
         HLEN,
         HMGET,
         HMSET,
+        HSCAN,
         HSET,
         HSETNX,
         HVALS,
@@ -78,7 +82,10 @@
         MONITOR,
         MOVE,
         MSET,
+        MSETNX,
         MULTI,
+
+        OBJECT,
 
         PERSIST,
         PEXPIRE,

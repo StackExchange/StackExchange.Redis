@@ -278,6 +278,9 @@ namespace StackExchange.Redis
             {
                 case RedisCommand.APPEND:
                 case RedisCommand.BITOP:
+                case RedisCommand.BLPOP:
+                case RedisCommand.BRPOP:
+                case RedisCommand.BRPOPLPUSH:
                 case RedisCommand.DECR:
                 case RedisCommand.DECRBY:
                 case RedisCommand.DEL:
@@ -305,6 +308,7 @@ namespace StackExchange.Redis
                 case RedisCommand.MIGRATE:
                 case RedisCommand.MOVE:
                 case RedisCommand.MSET:
+                case RedisCommand.MSETNX:
                 case RedisCommand.PERSIST:
                 case RedisCommand.PEXPIRE:
                 case RedisCommand.PEXPIREAT:

@@ -58,6 +58,13 @@ namespace StackExchange.Redis
             writeEverySeconds = config.KeepAlive;
             interactive = CreateBridge(ConnectionType.Interactive);
             serverType = ServerType.Standalone;
+
+            // overrides for twemproxy
+            if (multiplexer.RawConfig.Proxy == Proxy.Twemproxy)
+            {
+                databases = 1;
+                serverType = ServerType.Twemproxy;
+            }
         }
 
         public ClusterConfiguration ClusterConfiguration { get; private set; }
@@ -126,6 +133,18 @@ namespace StackExchange.Redis
             if (tmp != null) tmp.Dispose();
         }
 
+        public PhysicalBridge GetBridge(ConnectionType type, bool create = true)
+        {
+            if (isDisposed) return null;
+            switch (type)
+            {
+                case ConnectionType.Interactive:
+                    return interactive ?? (create ? interactive = CreateBridge(ConnectionType.Interactive) : null);
+                case ConnectionType.Subscription:
+                    return subscription ?? (create ? subscription = CreateBridge(ConnectionType.Subscription) : null);
+            }
+            return null;
+        }
         public PhysicalBridge GetBridge(RedisCommand command, bool create = true)
         {
             if (isDisposed) return null;
@@ -195,18 +214,26 @@ namespace StackExchange.Redis
             return bridge != null && bridge.TryEnqueue(message, isSlave);
         }
 
-        internal void Activate(RedisCommand command)
+        internal void Activate(ConnectionType type)
         {
-            GetBridge(command, true);
+            GetBridge(type, true);
         }
 
         internal void AutoConfigure(PhysicalConnection connection)
         {
+            if (serverType == ServerType.Twemproxy)
+            {
+                // don't try to detect configuration; all the config commands are disabled, and
+                // the fallback master/slave detection won't help
+                return;
+            }
+
             var commandMap = multiplexer.CommandMap;
             const CommandFlags flags = CommandFlags.FireAndForget | CommandFlags.HighPriority | CommandFlags.NoRedirect;
 
             var features = GetFeatures();
             Message msg;
+
             if (commandMap.IsAvailable(RedisCommand.CONFIG))
             {
                 if (multiplexer.RawConfig.KeepAlive <= 0)
@@ -261,7 +288,7 @@ namespace StackExchange.Redis
         {
             var tmp = interactive;
             Task result;
-            if (tmp == null || !tmp.IsConnected)
+            if (tmp == null || !tmp.IsConnected || !multiplexer.CommandMap.IsAvailable(RedisCommand.QUIT))
             {
                 result = CompletedTask<bool>.Default(null);
             }
@@ -466,10 +493,8 @@ namespace StackExchange.Redis
                 multiplexer.Trace("Auto-configure...");
                 AutoConfigure(connection);
             }
-            multiplexer.Trace("Sending critical ping");
-            msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.PING);
-            msg.SetInternalCall();
-            WriteDirectOrQueueFireAndForget(connection, msg, ResultProcessor.EstablishConnection);
+            multiplexer.Trace("Sending critical tracer");
+            WriteDirectOrQueueFireAndForget(connection, GetTracerMessage(true), ResultProcessor.EstablishConnection);
 
 
             // note: this **must** be the last thing on the subscription handshake, because after this
@@ -499,9 +524,42 @@ namespace StackExchange.Redis
 
         internal Task<bool> SendTracer()
         {
-            var msg = Message.Create(-1, CommandFlags.NoRedirect | CommandFlags.HighPriority, RedisCommand.ECHO,(RedisValue) multiplexer.UniqueId);
+            return QueueDirectAsync(GetTracerMessage(false), ResultProcessor.Tracer);
+        }
+
+        internal Message GetTracerMessage(bool assertIdentity)
+        {
+            // different configurations block certain commands, as can ad-hoc local configurations, so
+            // we'll do the best with what we have available.
+            // note that the muxer-ctor asserts that one of ECHO, PING, TIME of GET is available
+            // see also: TracerProcessor
+            var map = multiplexer.CommandMap;
+            Message msg;
+            const CommandFlags flags = CommandFlags.NoRedirect | CommandFlags.FireAndForget;
+            if (assertIdentity && map.IsAvailable(RedisCommand.ECHO))
+            {
+                msg = Message.Create(-1, flags, RedisCommand.ECHO, (RedisValue)multiplexer.UniqueId);
+            }
+            else if (map.IsAvailable(RedisCommand.PING))
+            {
+                msg = Message.Create(-1, flags, RedisCommand.PING);
+            }
+            else if (map.IsAvailable(RedisCommand.TIME))
+            {
+                msg = Message.Create(-1, flags, RedisCommand.TIME);
+            }
+            else if(!assertIdentity && map.IsAvailable(RedisCommand.ECHO))
+            {
+                // we'll use echo as a PING substitute if it is all we have (in preference to EXISTS)
+                msg = Message.Create(-1, flags, RedisCommand.ECHO, (RedisValue)multiplexer.UniqueId);
+            }
+            else
+            {
+                map.AssertAvailable(RedisCommand.EXISTS);
+                msg = Message.Create(0, flags, RedisCommand.EXISTS, (RedisValue)multiplexer.UniqueId);
+            }
             msg.SetInternalCall();
-            return QueueDirectAsync(msg, ResultProcessor.Tracer);
+            return msg;
         }
 
         internal int GetOutstandingCount(RedisCommand command, out int inst, out int qu, out int qs, out int qc, out int wr, out int wq)

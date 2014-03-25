@@ -70,6 +70,7 @@
     <Compile Include="Expiry.cs" />
     <Compile Include="Config.cs" />
     <Compile Include="FloatingPoint.cs" />
+    <Compile Include="Issues\Issue6.cs" />
     <Compile Include="Keys.cs" />
     <Compile Include="KeysAndValues.cs" />
     <Compile Include="Lists.cs" />

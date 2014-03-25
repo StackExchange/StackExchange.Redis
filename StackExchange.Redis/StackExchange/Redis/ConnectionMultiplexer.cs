@@ -793,10 +793,15 @@ namespace StackExchange.Redis
             IncludeDetailInExceptions = true;
             
             this.configuration = configuration;
-            this.CommandMap = configuration.CommandMap;
-            this.CommandMap.AssertAvailable(RedisCommand.PING);
-            this.CommandMap.AssertAvailable(RedisCommand.ECHO);
-            if (!string.IsNullOrWhiteSpace(configuration.Password)) this.CommandMap.AssertAvailable(RedisCommand.AUTH);
+            
+            var map = this.CommandMap = configuration.CommandMap;
+            if (!string.IsNullOrWhiteSpace(configuration.Password)) map.AssertAvailable(RedisCommand.AUTH);
+
+            if(!map.IsAvailable(RedisCommand.ECHO) && !map.IsAvailable(RedisCommand.PING) && !map.IsAvailable(RedisCommand.TIME))
+            { // I mean really, give me a CHANCE! I need *something* to check the server is available to me...
+                // see also: SendTracer (matching logic)
+                map.AssertAvailable(RedisCommand.EXISTS);
+            }
 
             PreserveAsyncOrder = true; // safest default
             this.timeoutMilliseconds = configuration.SyncTimeout;
@@ -857,6 +862,7 @@ namespace StackExchange.Redis
         /// </summary>
         public ISubscriber GetSubscriber(object asyncState = null)
         {
+            if (RawConfig.Proxy == Proxy.Twemproxy) throw new NotSupportedException("The pub/sub API is not available via twemproxy");
             return new RedisSubscriber(this, asyncState);
         }
         /// <summary>
@@ -865,6 +871,7 @@ namespace StackExchange.Redis
         public IDatabase GetDatabase(int db = 0, object asyncState = null)
         {
             if (db < 0) throw new ArgumentOutOfRangeException("db");
+            if (db != 0 && RawConfig.Proxy == Proxy.Twemproxy) throw new NotSupportedException("Twemproxy only supports database 0");
             return new RedisDatabase(this, db, asyncState);
         }
 
@@ -897,7 +904,7 @@ namespace StackExchange.Redis
         public IServer GetServer(EndPoint endpoint, object asyncState = null)
         {
             if (endpoint == null) throw new ArgumentNullException("endpoint");
-
+            if (RawConfig.Proxy == Proxy.Twemproxy) throw new NotSupportedException("The server API is not available via twemproxy");
             var server = (ServerEndPoint)servers[endpoint];
             if (server == null) throw new ArgumentException("The specified endpoint is not defined", "endpoint");
             return new RedisServer(this, server, asyncState);
@@ -1079,10 +1086,10 @@ namespace StackExchange.Redis
                     }
                     foreach (var server in serverSnapshot)
                     {
-                        server.Activate(RedisCommand.ECHO);
+                        server.Activate(ConnectionType.Interactive);
                         if (this.CommandMap.IsAvailable(RedisCommand.SUBSCRIBE))
                         {
-                            server.Activate(RedisCommand.SUBSCRIBE);
+                            server.Activate(ConnectionType.Subscription);
                         }
                     }
                 }
@@ -1110,8 +1117,8 @@ namespace StackExchange.Redis
                     if (reconfigureAll && server.IsConnected)
                     {
                         LogLocked(log, "Refreshing {0}...", Format.ToString(server.EndPoint));
-                        // note that these will be processed synchronously *BEFORE* the PONG is processed,
-                        // so we know that the configuration will be up to date if we see the PONG
+                        // note that these will be processed synchronously *BEFORE* the tracer is processed,
+                        // so we know that the configuration will be up to date if we see the tracer
                         server.AutoConfigure(null);
                     }
                     available[i] = server.SendTracer();
@@ -1159,6 +1166,7 @@ namespace StackExchange.Redis
 
                             switch (server.ServerType)
                             {
+                                case ServerType.Twemproxy:
                                 case ServerType.Standalone:
                                     servers[i].ClearUnselectable(UnselectableFlags.ServerType);
                                     standaloneCount++;
@@ -1202,7 +1210,7 @@ namespace StackExchange.Redis
 
                 if (clusterCount == 0)
                 {
-                    this.serverSelectionStrategy.ServerType = ServerType.Standalone;
+                    this.serverSelectionStrategy.ServerType = RawConfig.Proxy == Proxy.Twemproxy ? ServerType.Twemproxy : ServerType.Standalone;
                     var preferred = await NominatePreferredMaster(log, servers, useTieBreakers, tieBreakers, masters).ObserveErrors().ForAwait();
                     foreach (var master in masters)
                     {
@@ -1437,12 +1445,16 @@ namespace StackExchange.Redis
                     throw ExceptionFactory.MasterOnly(IncludeDetailInExceptions, message.Command, message, server);
                 }
 
-                if (server.ServerType == ServerType.Cluster)
+                switch(server.ServerType)
                 {
-                    if (message.GetHashSlot(ServerSelectionStrategy) == ServerSelectionStrategy.MultipleSlots)
-                    {
-                        throw ExceptionFactory.MultiSlot(IncludeDetailInExceptions, message);
-                    }
+                    case ServerType.Cluster:
+                    case ServerType.Twemproxy: // strictly speaking twemproxy uses a different hashing algo, but the hash-tag behavior is
+                                               // the same, so this does a pretty good job of spotting illegal commands before sending them
+                        if (message.GetHashSlot(ServerSelectionStrategy) == ServerSelectionStrategy.MultipleSlots)
+                        {
+                            throw ExceptionFactory.MultiSlot(IncludeDetailInExceptions, message);
+                        }
+                        break;
                 }
                 if (!server.IsConnected)
                 {

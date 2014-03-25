@@ -144,7 +144,7 @@ namespace StackExchange.Redis.Tests
             string clientName = null, int? syncTimeout = null, bool? allowAdmin = null, int? keepAlive = null,
             int? connectTimeout = null, string password = null, string tieBreaker = null, TextWriter log = null,
             bool fail = true, string[] disabledCommands = null, bool checkConnect = true, bool pause = true, string failMessage = null,
-            string channelPrefix = null, bool useSharedSocketManager = true)
+            string channelPrefix = null, bool useSharedSocketManager = true, Proxy? proxy = null)
         {
             if(pause) Thread.Sleep(500); // get a lot of glitches when hammering new socket creations etc; pace it out a bit
             string configuration = GetConfiguration();
@@ -171,6 +171,7 @@ namespace StackExchange.Redis.Tests
             if (allowAdmin != null) config.AllowAdmin = allowAdmin.Value;
             if (keepAlive != null) config.KeepAlive = keepAlive.Value;
             if (connectTimeout != null) config.ConnectTimeout = connectTimeout.Value;
+            if (proxy != null) config.Proxy = proxy.Value;
             var watch = Stopwatch.StartNew();
             var task = ConnectionMultiplexer.ConnectAsync(config, log ?? Console.Out);
             if (!task.Wait(config.ConnectTimeout >= (int.MaxValue / 2) ? int.MaxValue : config.ConnectTimeout * 2))

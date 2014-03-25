@@ -20,7 +20,7 @@ namespace StackExchange.Redis
                     case ResultType.SimpleString:
                     case ResultType.BulkString:
                         return new SingleRedisResult(result.AsRedisValue());
-                    case ResultType.Array:
+                    case ResultType.MultiBulk:
                         var items = result.GetItems();
                         var arr = new RedisResult[items.Length];
                         for (int i = 0; i < arr.Length; i++)

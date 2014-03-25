@@ -7,6 +7,6 @@
         Error = 2,
         Integer = 3,
         BulkString = 4,
-        Array = 5
+        MultiBulk = 5
     }
 }

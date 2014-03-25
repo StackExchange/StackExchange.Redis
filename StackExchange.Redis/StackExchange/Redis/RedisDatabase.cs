@@ -1688,6 +1688,7 @@ namespace StackExchange.Redis
                 case 0: return null;
                 case 1: return GetStringSetMessage(values[0].Key, values[0].Value, null, when, flags);
                 default:
+                    WhenAlwaysOrNotExists(when);
                     int slot = ServerSelectionStrategy.NoSlot, offset = 0;
                     var args = new RedisValue[values.Length * 2];
                     var serverSelectionStrategy = multiplexer.ServerSelectionStrategy;
@@ -1697,7 +1698,7 @@ namespace StackExchange.Redis
                         args[offset++] = values[i].Value;
                         slot = serverSelectionStrategy.CombineSlot(slot, values[i].Key);
                     }
-                    return Message.CreateInSlot(Db, slot, flags, RedisCommand.MSET, args);
+                    return Message.CreateInSlot(Db, slot, flags, when == When.NotExists ? RedisCommand.MSETNX : RedisCommand.MSET, args);
             }
         }
         Message GetStringSetMessage(RedisKey key, RedisValue value, TimeSpan? expiry = null, When when = When.Always, CommandFlags flags = CommandFlags.None)
@@ -1780,10 +1781,10 @@ namespace StackExchange.Redis
                 {
                     switch (result.Type)
                     {
-                        case ResultType.Array:
+                        case ResultType.MultiBulk:
                             var arr = result.GetItems();
                             long i64;
-                            if (arr.Length == 2 && arr[1].Type == ResultType.Array && arr[0].TryGetInt64(out i64))
+                            if (arr.Length == 2 && arr[1].Type == ResultType.MultiBulk && arr[0].TryGetInt64(out i64))
                             {
                                 var sscanResult = new SetScanResult(i64, arr[1].GetItemsAsValues());
                                 SetResult(message, sscanResult);

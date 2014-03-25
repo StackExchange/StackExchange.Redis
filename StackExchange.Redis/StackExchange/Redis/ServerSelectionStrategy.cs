@@ -108,10 +108,16 @@ namespace StackExchange.Redis
         {
             if (message == null) throw new ArgumentNullException("message");
             int slot = NoSlot;
-            if (serverType == ServerType.Cluster)
+            switch (serverType)
             {
-                slot = message.GetHashSlot(this);
-                if (slot == MultipleSlots) throw ExceptionFactory.MultiSlot(multiplexer.IncludeDetailInExceptions, message);
+                case ServerType.Cluster:
+                case ServerType.Twemproxy: // strictly speaking twemproxy uses a different hashing algo, but the hash-tag behavior is
+                                           // the same, so this does a pretty good job of spotting illegal commands before sending them
+
+                    slot = message.GetHashSlot(this);
+                    if (slot == MultipleSlots) throw ExceptionFactory.MultiSlot(multiplexer.IncludeDetailInExceptions, message);
+                    break;
+
             }
             return Select(slot, message.Command, message.Flags);
         }

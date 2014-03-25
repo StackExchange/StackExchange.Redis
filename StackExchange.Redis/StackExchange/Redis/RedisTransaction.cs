@@ -395,14 +395,14 @@ namespace StackExchange.Redis
                     switch (result.Type)
                     {
                         case ResultType.SimpleString:
-                            if (tran.IsAborted && result.Assert(RedisLiterals.OK))
+                            if (tran.IsAborted && result.Assert(RedisLiterals.BytesOK))
                             {
                                 connection.Multiplexer.Trace("Acknowledging UNWATCH (aborted electively)");
                                 SetResult(message, false);
                                 return true;
                             }
                             break;
-                        case ResultType.Array:
+                        case ResultType.MultiBulk:
                             if (!tran.IsAborted)
                             {
                                 var arr = result.GetItems();

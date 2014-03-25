@@ -12,13 +12,13 @@ namespace StackExchange.Redis
     {
         public static readonly ResultProcessor<bool>
             Boolean = new BooleanProcessor(),
-            DemandOK = new ExpectBasicStringProcessor(RedisLiterals.OK),
+            DemandOK = new ExpectBasicStringProcessor(RedisLiterals.BytesOK),
             DemandPONG = new ExpectBasicStringProcessor("PONG"),
             DemandZeroOrOne = new DemandZeroOrOneProcessor(),
             AutoConfigure = new AutoConfigureProcessor(),
-            EstablishConnection = new EstablishConnectionProcessor(),
             TrackSubscriptions = new TrackSubscriptionsProcessor(),
-            Tracer = new TracerProcessor();
+            Tracer = new TracerProcessor(false),
+            EstablishConnection = new TracerProcessor(true);
 
         public static readonly ResultProcessor<double>
             Double = new DoubleProcessor();
@@ -176,7 +176,7 @@ namespace StackExchange.Redis
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
-                if(result.Type == ResultType.Array)
+                if(result.Type == ResultType.MultiBulk)
                 {
                     var items = result.GetItems();
                     long count;
@@ -192,9 +192,9 @@ namespace StackExchange.Redis
         
         public sealed class TimingProcessor : ResultProcessor<TimeSpan>
         {
-            public static Message CreateMessage(CommandFlags flags, RedisCommand command, RedisValue value = default(RedisValue))
+            public static TimerMessage CreateMessage(int db, CommandFlags flags, RedisCommand command, RedisValue value = default(RedisValue))
             {
-                return new TimerMessage(flags, command, value);
+                return new TimerMessage(db, flags, command, value);
             }
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
@@ -203,7 +203,8 @@ namespace StackExchange.Redis
                     return false;
                 }
                 else
-                {
+                {   // don't check the actual reply; there are multiple ways of constructing
+                    // a timing message, and we don't actually care about what approach was used
                     var timingMessage = message as TimerMessage;
                     TimeSpan duration;
                     if (timingMessage != null)
@@ -221,12 +222,12 @@ namespace StackExchange.Redis
                 }
             }
 
-            sealed class TimerMessage : Message
+            internal sealed class TimerMessage : Message
             {
                 public readonly Stopwatch Watch;
                 private readonly RedisValue value;
-                public TimerMessage(CommandFlags flags, RedisCommand command, RedisValue value)
-                    : base(-1, flags, command)
+                public TimerMessage(int db, CommandFlags flags, RedisCommand command, RedisValue value)
+                    : base(db, flags, command)
                 {
                     this.Watch = Stopwatch.StartNew();
                     this.value = value;
@@ -356,7 +357,7 @@ namespace StackExchange.Redis
                         }
                         SetResult(message, true);
                         return true;
-                    case ResultType.Array:
+                    case ResultType.MultiBulk:
                         if (message != null && message.Command == RedisCommand.CONFIG)
                         {
                             var arr = result.GetItems();
@@ -489,7 +490,7 @@ namespace StackExchange.Redis
                 switch (result.Type)
                 {
                     case ResultType.SimpleString:
-                        if(result.Assert(RedisLiterals.OK))
+                        if(result.Assert(RedisLiterals.BytesOK))
                         {
                             SetResult(message, true);
                         } else
@@ -501,7 +502,7 @@ namespace StackExchange.Redis
                     case ResultType.BulkString:
                         SetResult(message, result.GetBoolean());
                         return true;
-                    case ResultType.Array:
+                    case ResultType.MultiBulk:
                         var items = result.GetItems();
                         if(items.Length == 1)
                         { // treat an array of 1 like a single reply (for example, SCRIPT EXISTS)
@@ -619,7 +620,7 @@ namespace StackExchange.Redis
                             return true;
                         }
                         break;
-                    case ResultType.Array:
+                    case ResultType.MultiBulk:
                         var arr = result.GetItems();
                         switch(arr.Length)
                         {
@@ -646,45 +647,6 @@ namespace StackExchange.Redis
             }
         }
 
-        sealed class EstablishConnectionProcessor : ResultProcessor<bool>
-        {
-            static readonly byte[] expected = Encoding.UTF8.GetBytes("PONG"), authFail = Encoding.UTF8.GetBytes("ERR operation not permitted"),
-                loading = Encoding.UTF8.GetBytes("LOADING ");
-            public override bool SetResult(PhysicalConnection connection, Message message, RawResult result)
-            {
-                var final = base.SetResult(connection, message, result);
-                if (result.IsError)
-                {
-                    if (result.Assert(authFail))
-                    {
-                        connection.RecordConnectionFailed(ConnectionFailureType.AuthenticationFailure);
-                    } else if(result.AssertStarts(loading))
-                    {
-                        connection.RecordConnectionFailed(ConnectionFailureType.Loading);
-                    }
-                    else
-                    {
-                        connection.RecordConnectionFailed(ConnectionFailureType.ProtocolFailure);
-                    }
-                }
-                return final;
-            }
-
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
-            {
-                if(result.Assert(expected))
-                {
-                    connection.Bridge.OnFullyEstablished(connection);
-                    SetResult(message, true);
-                    return true;
-                }
-                else
-                {
-                    connection.RecordConnectionFailed(ConnectionFailureType.ProtocolFailure);
-                    return false;
-                }
-            }
-        }
         sealed class ExpectBasicStringProcessor : ResultProcessor<bool>
         {
             private readonly byte[] expected;
@@ -797,7 +759,7 @@ namespace StackExchange.Redis
             {
                 switch (result.Type)
                 {
-                    case ResultType.Array:
+                    case ResultType.MultiBulk:
                         var arr = result.GetItemsAsKeys();
                         SetResult(message, arr);
                         return true;
@@ -846,7 +808,7 @@ namespace StackExchange.Redis
             {
                 switch (result.Type)
                 {
-                    case ResultType.Array:
+                    case ResultType.MultiBulk:
                         var arr = result.GetItemsAsValues();
 
                         SetResult(message, arr);
@@ -861,7 +823,7 @@ namespace StackExchange.Redis
             {
                 switch (result.Type)
                 {
-                    case ResultType.Array:
+                    case ResultType.MultiBulk:
                         var arr = result.GetItems();
                         RedisChannel[] final;
                         if (arr.Length == 0)
@@ -982,7 +944,7 @@ namespace StackExchange.Redis
             {
                 switch (result.Type)
                 {
-                    case ResultType.Array:
+                    case ResultType.MultiBulk:
                         var arr = result.GetItems();
                         int count = arr.Length / 2;
                         KeyValuePair<TKey, TValue>[] pairs;
@@ -1013,7 +975,7 @@ namespace StackExchange.Redis
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
-                if(result.Type == ResultType.Array)
+                if(result.Type == ResultType.MultiBulk)
                 {
                     var items = result.GetItems();
                     var arr = new KeyValuePair<RedisValue, double>[items.Length / 2];
@@ -1034,11 +996,67 @@ namespace StackExchange.Redis
 
         private class TracerProcessor : ResultProcessor<bool>
         {
+            private readonly bool establishConnection;
+
+            public TracerProcessor(bool establishConnection)
+            {
+                this.establishConnection = establishConnection;
+            }
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
-                bool happy = result.Type == ResultType.BulkString && result.Assert(connection.Multiplexer.UniqueId);
-                SetResult(message, happy);
-                return true; // we'll always acknowledge that we saw a non-error response
+                bool happy;
+                switch(message.Command)
+                {
+                    case RedisCommand.ECHO:
+                        happy = result.Type == ResultType.BulkString && (!establishConnection || result.Assert(connection.Multiplexer.UniqueId));
+                        break;
+                    case RedisCommand.PING:
+                        happy = result.Type == ResultType.SimpleString && result.Assert(RedisLiterals.BytesPONG);
+                        break;
+                    case RedisCommand.TIME:
+                        happy = result.Type == ResultType.MultiBulk && result.GetItems().Length == 2;
+                        break;
+                    case RedisCommand.EXISTS:
+                        happy = result.Type == ResultType.Integer;
+                        break;
+                    default:
+                        happy = true;
+                        break;
+                }
+                if(happy)
+                {
+                    if(establishConnection) connection.Bridge.OnFullyEstablished(connection);
+                    SetResult(message, happy);
+                    return true;
+                }
+                else
+                {
+                    connection.RecordConnectionFailed(ConnectionFailureType.ProtocolFailure);
+                    return false;
+                }
+            }
+
+            static readonly byte[] expected = RedisLiterals.BytesPONG, authFail = Encoding.UTF8.GetBytes("ERR operation not permitted"),
+                loading = Encoding.UTF8.GetBytes("LOADING ");
+            public override bool SetResult(PhysicalConnection connection, Message message, RawResult result)
+            {
+                var final = base.SetResult(connection, message, result);
+                if (result.IsError)
+                {
+                    if (result.Assert(authFail))
+                    {
+                        connection.RecordConnectionFailed(ConnectionFailureType.AuthenticationFailure);
+                    }
+                    else if (result.AssertStarts(loading))
+                    {
+                        connection.RecordConnectionFailed(ConnectionFailureType.Loading);
+                    }
+                    else
+                    {
+                        connection.RecordConnectionFailed(ConnectionFailureType.ProtocolFailure);
+                    }
+                }
+                return final;
             }
         }
 

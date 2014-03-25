@@ -8,6 +8,22 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
+
+    /// <summary>
+    /// Specifies the proxy that is being used to communicate to redis
+    /// </summary>
+    public enum Proxy
+    {
+        /// <summary>
+        /// Direct communication to the redis server(s)
+        /// </summary>
+        None,
+        /// <summary>
+        /// Communication via <a href="https://github.com/twitter/twemproxy">twemproxy</a>
+        /// </summary>
+        Twemproxy
+    }
+
     /// <summary>
     /// The options relevant to a set of redis connections
     /// </summary>
@@ -20,7 +36,7 @@ namespace StackExchange.Redis
                         VersionPrefix = "version=", ConnectTimeoutPrefix = "connectTimeout=", PasswordPrefix = "password=",
                         TieBreakerPrefix = "tiebreaker=", WriteBufferPrefix = "writeBuffer=", SslHostPrefix = "sslHost=",
                         ConfigChannelPrefix = "configChannel=", AbortOnConnectFailPrefix = "abortConnect=", ResolveDnsPrefix = "resolveDns=",
-                        ChannelPrefixPrefix = "channelPrefix=";
+                        ChannelPrefixPrefix = "channelPrefix=", ProxyPrefix = "proxy=";
 
         private readonly EndPointCollection endpoints = new EndPointCollection();
 
@@ -31,20 +47,13 @@ namespace StackExchange.Redis
 
         private bool? allowAdmin, abortOnConnectFail, resolveDns;
 
+        private Proxy? proxy;
+        private CommandMap commandMap;
         private string clientName, serviceName, password, tieBreaker, sslHost, configChannel;
         private Version defaultVersion;
 
         private int? keepAlive, syncTimeout, connectTimeout, writeBuffer;
-        /// <summary>
-        /// Create a new ConfigurationOptions instance
-        /// </summary>
-        public ConfigurationOptions()
-        {
-            CommandMap = CommandMap.Default;
-        }
-
-
-
+        
         /// <summary>
         /// A LocalCertificateSelectionCallback delegate responsible for selecting the certificate used for authentication; note
         /// that this cannot be specified in the configuration-string.
@@ -68,6 +77,11 @@ namespace StackExchange.Redis
         /// <summary>
         /// Indicates whether admin operations should be allowed
         /// </summary>
+        public Proxy Proxy { get { return proxy.GetValueOrDefault(); } set { proxy = value; } }
+
+        /// <summary>
+        /// Indicates whether admin operations should be allowed
+        /// </summary>
         public bool AllowAdmin { get { return allowAdmin.GetValueOrDefault(); } set { allowAdmin = value; } }
 
         /// <summary>
@@ -83,7 +97,24 @@ namespace StackExchange.Redis
         /// <summary>
         /// The command-map associated with this configuration
         /// </summary>
-        public CommandMap CommandMap { get; set; }
+        public CommandMap CommandMap
+        {
+            get
+            {
+                if (commandMap != null) return commandMap;
+                switch(Proxy)
+                {
+                    case Redis.Proxy.Twemproxy:
+                        return CommandMap.Twemproxy;
+                    default:
+                        return CommandMap.Default;
+                }
+            }
+            set {
+                if (value == null) throw new ArgumentNullException("value");
+                commandMap = value;
+            }
+        }
 
         /// <summary>
         /// Channel to use for broadcasting and listening for configuration change notification
@@ -180,7 +211,8 @@ namespace StackExchange.Redis
                 configChannel = configChannel,
                 abortOnConnectFail = abortOnConnectFail,
                 resolveDns = resolveDns,
-                CommandMap = CommandMap,
+                proxy = proxy,
+                commandMap = commandMap,
                 CertificateValidationCallback = CertificateValidationCallback,
                 CertificateSelectionCallback = CertificateSelectionCallback,
                 ChannelPrefix = ChannelPrefix.Clone(),
@@ -217,7 +249,8 @@ namespace StackExchange.Redis
             Append(sb, AbortOnConnectFailPrefix, abortOnConnectFail);
             Append(sb, ResolveDnsPrefix, resolveDns);
             Append(sb, ChannelPrefixPrefix, (string)ChannelPrefix);
-            CommandMap.AppendDeltas(sb);
+            Append(sb, ProxyPrefix, proxy);
+            if(commandMap != null) commandMap.AppendDeltas(sb);
             return sb.ToString();
         }
 
@@ -301,9 +334,10 @@ namespace StackExchange.Redis
             allowAdmin = abortOnConnectFail = resolveDns = null;
             defaultVersion = null;
             endpoints.Clear();
+            commandMap = null;
+
             CertificateSelection = null;
-            CertificateValidation = null;
-            CommandMap = CommandMap.Default;
+            CertificateValidation = null;            
             ChannelPrefix = default(RedisChannel);
             SocketManager = null;
         }
@@ -396,12 +430,16 @@ namespace StackExchange.Redis
                         {
                             int tmp;
                             if (Format.TryParseInt32(value.Trim(), out tmp)) WriteBuffer = tmp;
+                        } else if(IsOption(option, ProxyPrefix))
+                        {
+                            Proxy tmp;
+                            if (Enum.TryParse(option, true, out tmp)) Proxy = tmp;
                         }
                         else if(option[0]=='$')
                         {
                             RedisCommand cmd;
                             option = option.Substring(1, idx-1);
-                            if (Enum.TryParse<RedisCommand>(option, true, out cmd))
+                            if (Enum.TryParse(option, true, out cmd))
                             {
                                 if (map == null) map = new Dictionary<string, string>(StringComparer.InvariantCultureIgnoreCase);
                                 map[option] = value;
@@ -418,7 +456,10 @@ namespace StackExchange.Redis
                         if (ep != null && !endpoints.Contains(ep)) endpoints.Add(ep);
                     }
                 }
-                this.CommandMap = CommandMap.Create(map);
+                if (map != null && map.Count != 0)
+                {
+                    this.CommandMap = CommandMap.Create(map);
+                }
             }
         }
     }

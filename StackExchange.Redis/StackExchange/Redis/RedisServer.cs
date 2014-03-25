@@ -547,10 +547,10 @@ namespace StackExchange.Redis
                 {
                     switch (result.Type)
                     {
-                        case ResultType.Array:
+                        case ResultType.MultiBulk:
                             var arr = result.GetItems();
                             long i64;
-                            if (arr.Length == 2 && arr[1].Type == ResultType.Array && arr[0].TryGetInt64(out i64))
+                            if (arr.Length == 2 && arr[1].Type == ResultType.MultiBulk && arr[0].TryGetInt64(out i64))
                             {
                                 var keysResult = new KeysScanResult(i64, arr[1].GetItemsAsKeys());
                                 SetResult(message, keysResult);

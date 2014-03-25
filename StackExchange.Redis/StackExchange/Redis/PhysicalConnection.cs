@@ -294,7 +294,7 @@ namespace StackExchange.Redis
                 var serverEndpoint = bridge.ServerEndPoint;
                 int available = serverEndpoint.Databases;
 
-                if (!serverEndpoint.HasDatabases) // only db0 is available on cluster
+                if (!serverEndpoint.HasDatabases) // only db0 is available on cluster/twemproxy
                 {
                     if (targetDatabase != 0)
                     { // should never see this, since the API doesn't allow it; thus not too worried about ExceptionFactory
@@ -538,7 +538,7 @@ namespace StackExchange.Redis
         void MatchResult(RawResult result)
         {
             // check to see if it could be an out-of-band pubsub message
-            if (connectionType == ConnectionType.Subscription && result.Type == ResultType.Array)
+            if (connectionType == ConnectionType.Subscription && result.Type == ResultType.MultiBulk)
             {   // out of band message does not match to a queued message
                 var items = result.GetItems();
                 if (items.Length >= 3 && items[0].Assert(message))

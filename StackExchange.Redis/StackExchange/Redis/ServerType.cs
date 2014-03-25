@@ -16,6 +16,10 @@
         /// <summary>
         /// Distributed redis-cluster server
         /// </summary>
-        Cluster
+        Cluster,
+        /// <summary>
+        /// Distributed redis installation via <a href="https://github.com/twitter/twemproxy">twemproxy</a>
+        /// </summary>
+        Twemproxy
     }
 }

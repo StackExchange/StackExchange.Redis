@@ -76,7 +76,7 @@ namespace StackExchange.Redis
             {
                 switch(result.Type)
                 {
-                    case ResultType.Array:
+                    case ResultType.MultiBulk:
                         var parts = result.GetItems();
                         CommandTrace[] arr = new CommandTrace[parts.Length];
                         for (int i = 0; i < parts.Length; i++)
