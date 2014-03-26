@@ -1958,10 +1958,10 @@ namespace StackExchange.Redis
                 if (script == null) throw new ArgumentNullException("script");
                 this.script = script;
                 for (int i = 0; i < keys.Length; i++)
-                    keys[i].Assert();
+                    keys[i].AssertNotNull();
                 this.keys = keys;
                 for (int i = 0; i < values.Length; i++)
-                    values[i].Assert();
+                    values[i].AssertNotNull();
                 this.values = values;
             }
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
@@ -2021,10 +2021,10 @@ namespace StackExchange.Redis
             public SortedSetCombineAndStoreCommandMessage(int db, CommandFlags flags, RedisCommand command, RedisKey destination, RedisKey[] keys, RedisValue[] values) : base(db, flags, command, destination)
             {
                 for (int i = 0; i < keys.Length; i++)
-                    keys[i].Assert();
+                    keys[i].AssertNotNull();
                 this.keys = keys;
                 for (int i = 0; i < values.Length; i++)
-                    values[i].Assert();
+                    values[i].AssertNotNull();
                 this.values = values;
             }
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)

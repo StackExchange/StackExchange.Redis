@@ -588,16 +588,16 @@ namespace StackExchange.Redis
             if (connectionType == ConnectionType.Subscription && result.Type == ResultType.MultiBulk)
             {   // out of band message does not match to a queued message
                 var items = result.GetItems();
-                if (items.Length >= 3 && items[0].Assert(message))
+                if (items.Length >= 3 && items[0].IsEqual(message))
                 {
                     // special-case the configuration change broadcasts (we don't keep that in the usual pub/sub registry)
                     var configChanged = multiplexer.ConfigurationChangedChannel;
-                    if (configChanged != null && items[1].Assert(configChanged))
+                    if (configChanged != null && items[1].IsEqual(configChanged))
                     {
                         EndPoint blame = null;
                         try
                         {
-                            if (!items[2].Assert(RedisLiterals.ByteWildcard))
+                            if (!items[2].IsEqual(RedisLiterals.ByteWildcard))
                             {
                                 blame = Format.TryParseEndPoint(items[2].GetString());
                             }
@@ -616,7 +616,7 @@ namespace StackExchange.Redis
                     }
                     return; // AND STOP PROCESSING!
                 }
-                else if (items.Length >= 4 && items[0].Assert(pmessage))
+                else if (items.Length >= 4 && items[0].IsEqual(pmessage))
                 {
                     var channel = items[2].AsRedisChannel(ChannelPrefix);
                     multiplexer.Trace("PMESSAGE: " + channel, physicalName);

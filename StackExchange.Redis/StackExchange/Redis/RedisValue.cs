@@ -221,10 +221,9 @@ namespace StackExchange.Redis
             }
         }
 
-        internal RedisValue Assert()
+        internal void AssertNotNull()
         {
             if (IsNull) throw new ArgumentException("A null value is not valid in this context");
-            return this;
         }
         /// <summary>
         /// Creates a new RedisValue from an Int32

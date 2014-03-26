@@ -143,7 +143,7 @@ namespace StackExchange.Redis
             static readonly byte[] QUEUED = Encoding.UTF8.GetBytes("QUEUED");
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
-                if(result.Type == ResultType.SimpleString && result.Assert(QUEUED))
+                if(result.Type == ResultType.SimpleString && result.IsEqual(QUEUED))
                 {
                     var q = message as QueuedMessage;
                     if (q != null) q.WasQueued = true;
@@ -394,7 +394,7 @@ namespace StackExchange.Redis
                     switch (result.Type)
                     {
                         case ResultType.SimpleString:
-                            if (tran.IsAborted && result.Assert(RedisLiterals.BytesOK))
+                            if (tran.IsAborted && result.IsEqual(RedisLiterals.BytesOK))
                             {
                                 connection.Multiplexer.Trace("Acknowledging UNWATCH (aborted electively)");
                                 SetResult(message, false);

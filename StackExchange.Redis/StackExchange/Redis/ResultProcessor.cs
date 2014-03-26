@@ -301,8 +301,8 @@ namespace StackExchange.Redis
                     case ResultType.Integer:
                     case ResultType.SimpleString:
                     case ResultType.BulkString:
-                        if (result.Assert(one)) { value = true; return true; }
-                        else if (result.Assert(zero)) { value = false; return true; }
+                        if (result.IsEqual(one)) { value = true; return true; }
+                        else if (result.IsEqual(zero)) { value = false; return true; }
                         break;
                 }
                 value = false;
@@ -507,7 +507,7 @@ namespace StackExchange.Redis
                             for (int i = 0; i < count; i++)
                             {
                                 var key = arr[i * 2];
-                                if (key.Assert(timeout) && arr[(i * 2) + 1].TryGetInt64(out i64))
+                                if (key.IsEqual(timeout) && arr[(i * 2) + 1].TryGetInt64(out i64))
                                 {
                                     // note the configuration is in seconds
                                     int timeoutSeconds = checked((int)i64), targetSeconds;
@@ -525,21 +525,21 @@ namespace StackExchange.Redis
                                         server.WriteEverySeconds = targetSeconds;
                                     }
                                 }
-                                else if (key.Assert(databases) && arr[(i * 2) + 1].TryGetInt64(out i64))
+                                else if (key.IsEqual(databases) && arr[(i * 2) + 1].TryGetInt64(out i64))
                                 {
                                     int dbCount = checked((int)i64);
                                     server.Multiplexer.Trace("Auto-configured databases: " + dbCount);
                                     server.Databases = dbCount;
                                 }
-                                else if (key.Assert(slave_read_only))
+                                else if (key.IsEqual(slave_read_only))
                                 {
                                     var val = arr[(i * 2) + 1];
-                                    if (val.Assert(yes))
+                                    if (val.IsEqual(yes))
                                     {
                                         server.SlaveReadOnly = true;
                                         server.Multiplexer.Trace("Auto-configured slave-read-only: true");
                                     }
-                                    else if (val.Assert(no))
+                                    else if (val.IsEqual(no))
                                     {
                                         server.SlaveReadOnly = false;
                                         server.Multiplexer.Trace("Auto-configured slave-read-only: false");
@@ -572,7 +572,7 @@ namespace StackExchange.Redis
                 switch (result.Type)
                 {
                     case ResultType.SimpleString:
-                        if (result.Assert(RedisLiterals.BytesOK))
+                        if (result.IsEqual(RedisLiterals.BytesOK))
                         {
                             SetResult(message, true);
                         }
@@ -749,7 +749,7 @@ namespace StackExchange.Redis
             }
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
-                if (result.Assert(expected))
+                if (result.IsEqual(expected))
                 {
                     SetResult(message, true);
                     return true;
@@ -1042,7 +1042,7 @@ namespace StackExchange.Redis
                 var final = base.SetResult(connection, message, result);
                 if (result.IsError)
                 {
-                    if (result.Assert(authFail))
+                    if (result.IsEqual(authFail))
                     {
                         connection.RecordConnectionFailed(ConnectionFailureType.AuthenticationFailure);
                     }
@@ -1064,10 +1064,10 @@ namespace StackExchange.Redis
                 switch(message.Command)
                 {
                     case RedisCommand.ECHO:
-                        happy = result.Type == ResultType.BulkString && (!establishConnection || result.Assert(connection.Multiplexer.UniqueId));
+                        happy = result.Type == ResultType.BulkString && (!establishConnection || result.IsEqual(connection.Multiplexer.UniqueId));
                         break;
                     case RedisCommand.PING:
-                        happy = result.Type == ResultType.SimpleString && result.Assert(RedisLiterals.BytesPONG);
+                        happy = result.Type == ResultType.SimpleString && result.IsEqual(RedisLiterals.BytesPONG);
                         break;
                     case RedisCommand.TIME:
                         happy = result.Type == ResultType.MultiBulk && result.GetItems().Length == 2;

@@ -117,7 +117,7 @@ namespace StackExchange.Redis
             throw new InvalidCastException("Cannot convert to RedisValue: " + resultType);
         }
 
-        internal unsafe bool Assert(byte[] expected)
+        internal unsafe bool IsEqual(byte[] expected)
         {
             if (expected == null) throw new ArgumentNullException("expected");
             if (expected.Length != count) return false;

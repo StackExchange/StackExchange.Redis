@@ -169,10 +169,9 @@ namespace StackExchange.Redis
             return true;
         }
 
-        internal RedisChannel Assert()
+        internal void AssertNotNull()
         {
             if (IsNull) throw new ArgumentException("A null key is not valid in this context");
-            return this;
         }
 
         internal RedisChannel Clone()

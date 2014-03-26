@@ -563,7 +563,8 @@ namespace StackExchange.Redis
 
             public CommandChannelBase(int db, CommandFlags flags, RedisCommand command, RedisChannel channel) : base(db, flags, command)
             {
-                this.Channel = channel.Assert();
+                channel.AssertNotNull();
+                this.Channel = channel;
             }
 
             public override string CommandAndKey { get { return Command + " " + Channel; } }
@@ -575,7 +576,8 @@ namespace StackExchange.Redis
 
             public CommandKeyBase(int db, CommandFlags flags, RedisCommand command, RedisKey key) : base(db, flags, command)
             {
-                this.Key = key.Assert();
+                key.AssertNotNull();
+                this.Key = key;
             }
 
             public override string CommandAndKey { get { return Command + " " + Key; } }
@@ -600,7 +602,8 @@ namespace StackExchange.Redis
             private readonly RedisValue value;
             public CommandChannelValueMessage(int db, CommandFlags flags, RedisCommand command, RedisChannel channel, RedisValue value) : base(db, flags, command, channel)
             {
-                this.value = value.Assert();
+                value.AssertNotNull();
+                this.value = value;
             }
             internal override void WriteImpl(PhysicalConnection physical)
             {
@@ -615,8 +618,10 @@ namespace StackExchange.Redis
             private readonly RedisKey key1, key2;
             public CommandKeyKeyKeyMessage(int db, CommandFlags flags, RedisCommand command, RedisKey key0, RedisKey key1, RedisKey key2) : base(db, flags, command, key0)
             {
-                this.key1 = key1.Assert();
-                this.key2 = key2.Assert();
+                key1.AssertNotNull();
+                key2.AssertNotNull();
+                this.key1 = key1;
+                this.key2 = key2;
             }
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
             {
@@ -640,7 +645,8 @@ namespace StackExchange.Redis
             protected readonly RedisKey key1;
             public CommandKeyKeyMessage(int db, CommandFlags flags, RedisCommand command, RedisKey key0, RedisKey key1) : base(db, flags, command, key0)
             {
-                this.key1 = key1.Assert();
+                key1.AssertNotNull();
+                this.key1 = key1;
             }
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
             {
@@ -663,7 +669,7 @@ namespace StackExchange.Redis
             {
                 for (int i = 0; i < keys.Length; i++)
                 {
-                    keys[i].Assert();
+                    keys[i].AssertNotNull();
                 }
                 this.keys = keys;
             }
@@ -692,7 +698,8 @@ namespace StackExchange.Redis
             private readonly RedisValue value;
             public CommandKeyKeyValueMessage(int db, CommandFlags flags, RedisCommand command, RedisKey key0, RedisKey key1, RedisValue value) : base(db, flags, command, key0, key1)
             {
-                this.value = value.Assert();
+                value.AssertNotNull();
+                this.value = value;
             }
 
             internal override void WriteImpl(PhysicalConnection physical)
@@ -720,7 +727,7 @@ namespace StackExchange.Redis
             {
                 for (int i = 0; i < keys.Length; i++)
                 {
-                    keys[i].Assert();
+                    keys[i].AssertNotNull();
                 }
                 this.keys = keys;
             }
@@ -750,7 +757,8 @@ namespace StackExchange.Redis
             private readonly RedisValue value;
             public CommandKeyValueMessage(int db, CommandFlags flags, RedisCommand command, RedisKey key, RedisValue value) : base(db, flags, command, key)
             {
-                this.value = value.Assert();
+                value.AssertNotNull();
+                this.value = value;
             }
             internal override void WriteImpl(PhysicalConnection physical)
             {
@@ -767,10 +775,11 @@ namespace StackExchange.Redis
             {
                 for (int i = 0; i < values.Length; i++)
                 {
-                    values[i].Assert();
+                    values[i].AssertNotNull();
                 }
                 this.values = values;
-                this.key1 = key1.Assert();
+                key1.AssertNotNull();
+                this.key1 = key1;
             }
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
             {
@@ -794,7 +803,7 @@ namespace StackExchange.Redis
             {
                 for (int i = 0; i < values.Length; i++)
                 {
-                    values[i].Assert();
+                    values[i].AssertNotNull();
                 }
                 this.values = values;
             }
@@ -811,8 +820,10 @@ namespace StackExchange.Redis
             private readonly RedisValue value0, value1;
             public CommandKeyValueValueMessage(int db, CommandFlags flags, RedisCommand command, RedisKey key, RedisValue value0, RedisValue value1) : base(db, flags, command, key)
             {
-                this.value0 = value0.Assert();
-                this.value1 = value1.Assert();
+                value0.AssertNotNull();
+                value1.AssertNotNull();
+                this.value0 = value0;
+                this.value1 = value1;
             }
             internal override void WriteImpl(PhysicalConnection physical)
             {
@@ -828,9 +839,12 @@ namespace StackExchange.Redis
             private readonly RedisValue value0, value1, value2;
             public CommandKeyValueValueValueMessage(int db, CommandFlags flags, RedisCommand command, RedisKey key, RedisValue value0, RedisValue value1, RedisValue value2) : base(db, flags, command, key)
             {
-                this.value0 = value0.Assert();
-                this.value1 = value1.Assert();
-                this.value2 = value2.Assert();
+                value0.AssertNotNull();
+                value1.AssertNotNull();
+                value2.AssertNotNull();
+                this.value0 = value0;
+                this.value1 = value1;
+                this.value2 = value2;
             }
             internal override void WriteImpl(PhysicalConnection physical)
             {
@@ -847,10 +861,14 @@ namespace StackExchange.Redis
             private readonly RedisValue value0, value1, value2, value3;
             public CommandKeyValueValueValueValueMessage(int db, CommandFlags flags, RedisCommand command, RedisKey key, RedisValue value0, RedisValue value1, RedisValue value2, RedisValue value3) : base(db, flags, command, key)
             {
-                this.value0 = value0.Assert();
-                this.value1 = value1.Assert();
-                this.value2 = value2.Assert();
-                this.value3 = value3.Assert();
+                value0.AssertNotNull();
+                value1.AssertNotNull();
+                value2.AssertNotNull();
+                value3.AssertNotNull();
+                this.value0 = value0;
+                this.value1 = value1;
+                this.value2 = value2;
+                this.value3 = value3;
             }
             internal override void WriteImpl(PhysicalConnection physical)
             {
@@ -883,7 +901,7 @@ namespace StackExchange.Redis
                 this.slot = slot;
                 for (int i = 0; i < values.Length; i++)
                 {
-                    values[i].Assert();
+                    values[i].AssertNotNull();
                 }
                 this.values = values;
             }
@@ -906,7 +924,8 @@ namespace StackExchange.Redis
             private readonly RedisValue value;
             public CommandValueChannelMessage(int db, CommandFlags flags, RedisCommand command, RedisValue value, RedisChannel channel) : base(db, flags, command, channel)
             {
-                this.value = value.Assert();
+                value.AssertNotNull();
+                this.value = value;
             }
             internal override void WriteImpl(PhysicalConnection physical)
             {
@@ -921,7 +940,8 @@ namespace StackExchange.Redis
 
             public CommandValueKeyMessage(int db, CommandFlags flags, RedisCommand command, RedisValue value, RedisKey key) : base(db, flags, command, key)
             {
-                this.value = value.Assert();
+                value.AssertNotNull();
+                this.value = value;
             }
 
             public override void AppendStormLog(StringBuilder sb)
@@ -942,7 +962,8 @@ namespace StackExchange.Redis
             private readonly RedisValue value;
             public CommandValueMessage(int db, CommandFlags flags, RedisCommand command, RedisValue value) : base(db, flags, command)
             {
-                this.value = value.Assert();
+                value.AssertNotNull();
+                this.value = value;
             }
             internal override void WriteImpl(PhysicalConnection physical)
             {
@@ -956,8 +977,10 @@ namespace StackExchange.Redis
             private readonly RedisValue value0, value1;
             public CommandValueValueMessage(int db, CommandFlags flags, RedisCommand command, RedisValue value0, RedisValue value1) : base(db, flags, command)
             {
-                this.value0 = value0.Assert();
-                this.value1 = value1.Assert();
+                value0.AssertNotNull();
+                value1.AssertNotNull();
+                this.value0 = value0;
+                this.value1 = value1;
             }
             internal override void WriteImpl(PhysicalConnection physical)
             {
@@ -972,9 +995,12 @@ namespace StackExchange.Redis
             private readonly RedisValue value0, value1, value2;
             public CommandValueValueValueMessage(int db, CommandFlags flags, RedisCommand command, RedisValue value0, RedisValue value1, RedisValue value2) : base(db, flags, command)
             {
-                this.value0 = value0.Assert();
-                this.value1 = value1.Assert();
-                this.value2 = value2.Assert();
+                value0.AssertNotNull();
+                value1.AssertNotNull();
+                value2.AssertNotNull();
+                this.value0 = value0;
+                this.value1 = value1;
+                this.value2 = value2;
             }
             internal override void WriteImpl(PhysicalConnection physical)
             {
@@ -990,11 +1016,16 @@ namespace StackExchange.Redis
             private readonly RedisValue value0, value1, value2, value3, value4;
             public CommandValueValueValueValueValueMessage(int db, CommandFlags flags, RedisCommand command, RedisValue value0, RedisValue value1, RedisValue value2, RedisValue value3, RedisValue value4) : base(db, flags, command)
             {
-                this.value0 = value0.Assert();
-                this.value1 = value1.Assert();
-                this.value2 = value2.Assert();
-                this.value3 = value3.Assert();
-                this.value4 = value4.Assert();
+                value0.AssertNotNull();
+                value1.AssertNotNull();
+                value2.AssertNotNull();
+                value3.AssertNotNull();
+                value4.AssertNotNull();
+                this.value0 = value0;
+                this.value1 = value1;
+                this.value2 = value2;
+                this.value3 = value3;
+                this.value4 = value4;
             }
             internal override void WriteImpl(PhysicalConnection physical)
             {
