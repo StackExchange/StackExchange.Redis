@@ -521,7 +521,7 @@ namespace StackExchange.Redis.Tests
                 string key = Guid.NewGuid().ToString();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
                 db.StringSet(key, key, flags: CommandFlags.FireAndForget);
-                ((IRedisDebug)GetServer(muxer)).Quit(CommandFlags.FireAndForget);
+                GetServer(muxer).Quit(CommandFlags.FireAndForget);
                 var watch = Stopwatch.StartNew();
                 try
                 {
@@ -550,7 +550,7 @@ namespace StackExchange.Redis.Tests
                 string key = Guid.NewGuid().ToString();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
                 db.StringSet(key, key, flags: CommandFlags.FireAndForget);
-                ((IRedisServerDebug)GetServer(muxer)).SimulateConnectionFailure();
+                GetServer(muxer).SimulateConnectionFailure();
                 var watch = Stopwatch.StartNew();
                 db.Ping();
                 watch.Stop();

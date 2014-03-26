@@ -6,7 +6,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// Common operations available to all redis connections
     /// </summary>
-    public interface IRedis : IRedisAsync
+    public partial interface IRedis : IRedisAsync
     {
         /// <summary>
         /// This command is often used to test if a connection is still alive, or to measure latency.

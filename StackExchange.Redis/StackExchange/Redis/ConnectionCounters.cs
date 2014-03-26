@@ -1,5 +1,4 @@
-﻿using System;
-using System.Text;
+﻿using System.Text;
 
 namespace StackExchange.Redis
 {
@@ -43,14 +42,60 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// Indicates the total number of messages despatched to a non-preferred endpoint, for example sent to a master
+        /// when the caller stated a preference of slave
+        /// </summary>
+        public long NonPreferredEndpointCount { get; internal set; }
+
+        /// <summary>
         /// The number of operations performed on this connection
         /// </summary>
         public long OperationCount { get; internal set; }
 
         /// <summary>
+        /// Operations that have been requested, but which have not yet been sent to the server
+        /// </summary>
+        public int PendingUnsentItems { get; internal set; }
+
+        /// <summary>
+        /// Operations for which the response has been processed, but which are awaiting asynchronous completion
+        /// </summary>
+        public int ResponsesAwaitingAsyncCompletion { get; internal set; }
+
+        /// <summary>
+        /// Operations that have been sent to the server, but which are awaiting a response
+        /// </summary>
+        public int SentItemsAwaitingResponse { get; internal set; }
+
+        /// <summary>
+        /// The number of sockets used by this logical connection (total, including reconnects)
+        /// </summary>
+        public long SocketCount { get; internal set; }
+
+        /// <summary>
         /// The number of subscriptions (with and without patterns) currently held against this connection
         /// </summary>
         public long Subscriptions { get;internal set; }
+
+        /// <summary>
+        /// Indicates the total number of outstanding items against this connection
+        /// </summary>
+        public int TotalOutstanding { get { return PendingUnsentItems + SentItemsAwaitingResponse + ResponsesAwaitingAsyncCompletion; } }
+
+        /// <summary>
+        /// Indicates the total number of writers items against this connection
+        /// </summary>
+        public int WriterCount { get; internal set; }
+
+        /// <summary>
+        /// See Object.ToString()
+        /// </summary>
+        public override string ToString()
+        {
+            var sb = new StringBuilder();
+            Append(sb);
+            return sb.ToString();
+        }
 
         internal void Add(ConnectionCounters other)
         {
@@ -77,55 +122,6 @@ namespace StackExchange.Redis
                 || Subscriptions != 0 || WriterCount != 0
                 || NonPreferredEndpointCount != 0;
         }
-
-
-        /// <summary>
-        /// Operations that have been requested, but which have not yet been sent to the server
-        /// </summary>
-        public int PendingUnsentItems { get; internal set; }
-
-        /// <summary>
-        /// Operations for which the response has been processed, but which are awaiting asynchronous completion
-        /// </summary>
-        public int ResponsesAwaitingAsyncCompletion { get; internal set; }
-
-        /// <summary>
-        /// Operations that have been sent to the server, but which are awaiting a response
-        /// </summary>
-        public int SentItemsAwaitingResponse { get; internal set; }
-
-        /// <summary>
-        /// The number of sockets used by this logical connection (total, including reconnects)
-        /// </summary>
-        public long SocketCount { get; internal set; }
-
-        /// <summary>
-        /// Indicates the total number of outstanding items against this connection
-        /// </summary>
-        public int TotalOutstanding { get { return PendingUnsentItems + SentItemsAwaitingResponse + ResponsesAwaitingAsyncCompletion; } }
-
-        /// <summary>
-        /// Indicates the total number of writers items against this connection
-        /// </summary>
-        public int WriterCount { get; internal set; }
-        /// <summary>
-        /// Indicates the total number of messages despatched to a non-preferred endpoint, for example sent to a master
-        /// when the caller stated a preference of slave
-        /// </summary>
-        public long NonPreferredEndpointCount { get; internal set; }
-
-
-
-        /// <summary>
-        /// See Object.ToString()
-        /// </summary>
-        public override string ToString()
-        {
-            var sb = new StringBuilder();
-            Append(sb);
-            return sb.ToString();
-        }
-
         internal void Append(StringBuilder sb)
         {
             sb.Append("ops=").Append(OperationCount).Append(", qu=").Append(PendingUnsentItems)

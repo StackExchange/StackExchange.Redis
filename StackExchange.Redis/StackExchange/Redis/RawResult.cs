@@ -45,6 +45,8 @@ namespace StackExchange.Redis
         public bool IsError { get { return resultType == ResultType.Error; } }
 
         public ResultType Type { get { return resultType; } }
+        internal bool IsNull { get { return arr == null; } }
+
         public override string ToString()
         {
             if (arr == null)
@@ -65,6 +67,30 @@ namespace StackExchange.Redis
                     return "(unknown)";
             }
         }
+        internal RedisChannel AsRedisChannel(byte[] channelPrefix)
+        {
+            switch (resultType)
+            {
+                case ResultType.SimpleString:
+                case ResultType.BulkString:
+                    if (channelPrefix == null)
+                    {
+                        return (RedisChannel)GetBlob();
+                    }
+                    if (AssertStarts(channelPrefix))
+                    {
+                        var src = (byte[])arr;
+
+                        byte[] copy = new byte[count - channelPrefix.Length];
+                        Buffer.BlockCopy(src, offset + channelPrefix.Length, copy, 0, copy.Length);
+                        return (RedisChannel)copy;
+                    }
+                    return default(RedisChannel);
+                default:
+                    throw new InvalidCastException("Cannot convert to RedisChannel: " + resultType);
+            }
+        }
+
         internal RedisKey AsRedisKey()
         {
             switch (resultType)
@@ -76,31 +102,6 @@ namespace StackExchange.Redis
                     throw new InvalidCastException("Cannot convert to RedisKey: " + resultType);
             }
         }
-
-        internal RedisChannel AsRedisChannel(byte[] channelPrefix)
-        {
-            switch(resultType)
-            {
-                case ResultType.SimpleString:
-                case ResultType.BulkString:
-                    if(channelPrefix == null)
-                    {
-                        return (RedisChannel)GetBlob();
-                    }
-                    if(AssertStarts(channelPrefix))
-                    {
-                        var src = (byte[])arr;
-                        
-                        byte[] copy = new byte[count - channelPrefix.Length];
-                        Buffer.BlockCopy(src, offset + channelPrefix.Length, copy, 0, copy.Length);
-                        return (RedisChannel)copy;
-                    }
-                    return default(RedisChannel);
-                default:
-                    throw new InvalidCastException("Cannot convert to RedisChannel: " + resultType);
-            }
-        }
-
         internal RedisValue AsRedisValue()
         {
             switch (resultType)
@@ -156,7 +157,6 @@ namespace StackExchange.Redis
             }
             return true;
         }
-        internal bool IsNull {  get {  return arr == null; } }
         internal byte[] GetBlob()
         {
             var src = (byte[])arr;
@@ -180,16 +180,6 @@ namespace StackExchange.Redis
                 case (byte)'0': return false;
                 default: throw new InvalidCastException();
             }
-        }
-
-        internal bool TryGetInt64(out long value)
-        {
-            if (arr == null)
-            {
-                value = 0;
-                return false;
-            }
-            return RedisValue.TryParseInt64(arr as byte[], offset, count, out value);
         }
 
         internal RawResult[] GetItems()
@@ -251,18 +241,28 @@ namespace StackExchange.Redis
 
         internal bool TryGetDouble(out double val)
         {
-            if(arr == null)
+            if (arr == null)
             {
                 val = 0;
                 return false;
             }
             long i64;
-            if(TryGetInt64(out i64))
+            if (TryGetInt64(out i64))
             {
                 val = i64;
                 return true;
             }
             return Format.TryParseDouble(GetString(), out val);
+        }
+
+        internal bool TryGetInt64(out long value)
+        {
+            if (arr == null)
+            {
+                value = 0;
+                return false;
+            }
+            return RedisValue.TryParseInt64(arr as byte[], offset, count, out value);
         }
     }
 }

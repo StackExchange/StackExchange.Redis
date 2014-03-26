@@ -10,13 +10,6 @@ namespace StackExchange.Redis
     public sealed class EndPointCollection : Collection<EndPoint>
     {
         /// <summary>
-        /// Attempt to parse a string into an EndPoint
-        /// </summary>
-        public static EndPoint TryParse(string endpoint)
-        {
-            return Format.TryParseEndPoint(endpoint);
-        }
-        /// <summary>
         /// Format an endpoint
         /// </summary>
         public static string ToString(EndPoint endpoint)
@@ -24,6 +17,13 @@ namespace StackExchange.Redis
             return Format.ToString(endpoint);
         }
 
+        /// <summary>
+        /// Attempt to parse a string into an EndPoint
+        /// </summary>
+        public static EndPoint TryParse(string endpoint)
+        {
+            return Format.TryParseEndPoint(endpoint);
+        }
         /// <summary>
         /// Adds a new endpoint to the list
         /// </summary>

@@ -6,7 +6,6 @@ using System.Net;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace StackExchange.Redis
@@ -30,6 +29,7 @@ namespace StackExchange.Redis
         private readonly EndPoint endpoint;
 
 
+        private readonly Hashtable knownScripts = new Hashtable(StringComparer.Ordinal);
         private readonly ConnectionMultiplexer multiplexer;
 
         private int databases, writeEverySeconds;
@@ -86,8 +86,6 @@ namespace StackExchange.Redis
 
         public bool IsSlave { get { return isSlave; } set { SetConfig(ref isSlave, value); } }
 
-        public int WriteEverySeconds { get { return writeEverySeconds; } set { SetConfig(ref writeEverySeconds, value); } }
-
         public long OperationCount
         {
             get
@@ -109,6 +107,7 @@ namespace StackExchange.Redis
 
         public Version Version { get { return version; } set { SetConfig(ref version, value); } }
 
+        public int WriteEverySeconds { get { return writeEverySeconds; } set { SetConfig(ref writeEverySeconds, value); } }
         internal ConnectionMultiplexer Multiplexer { get { return multiplexer; } }
 
         public void ClearUnselectable(UnselectableFlags flags)
@@ -158,6 +157,11 @@ namespace StackExchange.Redis
                 default:
                     return interactive;
             }
+        }
+
+        public RedisFeatures GetFeatures()
+        {
+            return new RedisFeatures(version);
         }
 
         public void SetClusterConfiguration(ClusterConfiguration configuration)
@@ -217,6 +221,14 @@ namespace StackExchange.Redis
         internal void Activate(ConnectionType type)
         {
             GetBridge(type, true);
+        }
+
+        internal void AddScript(string script, byte[] hash)
+        {
+            lock (knownScripts)
+            {
+                knownScripts[script] = hash;
+            }
         }
 
         internal void AutoConfigure(PhysicalConnection connection)
@@ -299,6 +311,14 @@ namespace StackExchange.Redis
             return result;
         }
 
+        internal void FlushScripts()
+        {
+            lock (knownScripts)
+            {
+                knownScripts.Clear();
+            }
+        }
+
         internal ServerCounters GetCounters()
         {
             var counters = new ServerCounters(endpoint);
@@ -307,6 +327,75 @@ namespace StackExchange.Redis
             tmp = subscription;
             if (tmp != null) tmp.GetCounters(counters.Subscription);
             return counters;
+        }
+
+        internal int GetOutstandingCount(RedisCommand command, out int inst, out int qu, out int qs, out int qc, out int wr, out int wq)
+        {
+            var bridge = GetBridge(command, false);
+            if (bridge == null)
+            {
+                return inst = qu = qs = qc = wr = wq = 0;
+            }
+
+            return bridge.GetOutstandingCount(out inst, out qu, out qs, out qc, out wr, out wq);
+        }
+
+        internal string GetProfile()
+        {
+            var sb = new StringBuilder();
+            sb.Append("Circular op-count snapshot; int:");
+            var tmp = interactive;
+            if (tmp != null) tmp.AppendProfile(sb);
+            sb.Append("; sub:");
+            tmp = subscription;
+            if (tmp != null) tmp.AppendProfile(sb);
+            return sb.ToString();
+        }
+
+        internal byte[] GetScriptHash(string script)
+        {
+            return (byte[])knownScripts[script];
+        }
+
+        internal string GetStormLog(RedisCommand command)
+        {
+            var bridge = GetBridge(command);
+            return bridge == null ? null : bridge.GetStormLog();
+        }
+
+        internal Message GetTracerMessage(bool assertIdentity)
+        {
+            // different configurations block certain commands, as can ad-hoc local configurations, so
+            // we'll do the best with what we have available.
+            // note that the muxer-ctor asserts that one of ECHO, PING, TIME of GET is available
+            // see also: TracerProcessor
+            var map = multiplexer.CommandMap;
+            Message msg;
+            const CommandFlags flags = CommandFlags.NoRedirect | CommandFlags.FireAndForget;
+            if (assertIdentity && map.IsAvailable(RedisCommand.ECHO))
+            {
+                msg = Message.Create(-1, flags, RedisCommand.ECHO, (RedisValue)multiplexer.UniqueId);
+            }
+            else if (map.IsAvailable(RedisCommand.PING))
+            {
+                msg = Message.Create(-1, flags, RedisCommand.PING);
+            }
+            else if (map.IsAvailable(RedisCommand.TIME))
+            {
+                msg = Message.Create(-1, flags, RedisCommand.TIME);
+            }
+            else if (!assertIdentity && map.IsAvailable(RedisCommand.ECHO))
+            {
+                // we'll use echo as a PING substitute if it is all we have (in preference to EXISTS)
+                msg = Message.Create(-1, flags, RedisCommand.ECHO, (RedisValue)multiplexer.UniqueId);
+            }
+            else
+            {
+                map.AssertAvailable(RedisCommand.EXISTS);
+                msg = Message.Create(0, flags, RedisCommand.EXISTS, (RedisValue)multiplexer.UniqueId);
+            }
+            msg.SetInternalCall();
+            return msg;
         }
 
         internal bool IsSelectable(RedisCommand command)
@@ -391,6 +480,11 @@ namespace StackExchange.Redis
             if (tmp != null) tmp.ReportNextFailure();
         }
 
+        internal Task<bool> SendTracer()
+        {
+            return QueueDirectAsync(GetTracerMessage(false), ResultProcessor.Tracer);
+        }
+
         internal string Summary()
         {
             var sb = new StringBuilder(Format.ToString(endpoint))
@@ -422,11 +516,6 @@ namespace StackExchange.Redis
                 sb.Append("; not in use: ").Append(flags);
             }
             return sb.ToString();
-        }
-
-        public RedisFeatures GetFeatures()
-        {
-            return new RedisFeatures(version);
         }
         internal void WriteDirectOrQueueFireAndForget<T>(PhysicalConnection connection, Message message, ResultProcessor<T> processor)
         {
@@ -519,95 +608,6 @@ namespace StackExchange.Redis
                 multiplexer.Trace(caller + " changed from " + field + " to " + value, "Configuration");
                 field = value;
                 multiplexer.ReconfigureIfNeeded(endpoint, false, caller);
-            }
-        }
-
-        internal Task<bool> SendTracer()
-        {
-            return QueueDirectAsync(GetTracerMessage(false), ResultProcessor.Tracer);
-        }
-
-        internal Message GetTracerMessage(bool assertIdentity)
-        {
-            // different configurations block certain commands, as can ad-hoc local configurations, so
-            // we'll do the best with what we have available.
-            // note that the muxer-ctor asserts that one of ECHO, PING, TIME of GET is available
-            // see also: TracerProcessor
-            var map = multiplexer.CommandMap;
-            Message msg;
-            const CommandFlags flags = CommandFlags.NoRedirect | CommandFlags.FireAndForget;
-            if (assertIdentity && map.IsAvailable(RedisCommand.ECHO))
-            {
-                msg = Message.Create(-1, flags, RedisCommand.ECHO, (RedisValue)multiplexer.UniqueId);
-            }
-            else if (map.IsAvailable(RedisCommand.PING))
-            {
-                msg = Message.Create(-1, flags, RedisCommand.PING);
-            }
-            else if (map.IsAvailable(RedisCommand.TIME))
-            {
-                msg = Message.Create(-1, flags, RedisCommand.TIME);
-            }
-            else if(!assertIdentity && map.IsAvailable(RedisCommand.ECHO))
-            {
-                // we'll use echo as a PING substitute if it is all we have (in preference to EXISTS)
-                msg = Message.Create(-1, flags, RedisCommand.ECHO, (RedisValue)multiplexer.UniqueId);
-            }
-            else
-            {
-                map.AssertAvailable(RedisCommand.EXISTS);
-                msg = Message.Create(0, flags, RedisCommand.EXISTS, (RedisValue)multiplexer.UniqueId);
-            }
-            msg.SetInternalCall();
-            return msg;
-        }
-
-        internal int GetOutstandingCount(RedisCommand command, out int inst, out int qu, out int qs, out int qc, out int wr, out int wq)
-        {
-            var bridge = GetBridge(command, false);
-            if(bridge == null)
-            {
-                return inst = qu = qs = qc = wr = wq = 0; 
-            }
-
-            return bridge.GetOutstandingCount(out inst, out qu, out qs, out qc, out wr, out wq);
-        }
-
-        internal string GetStormLog(RedisCommand command)
-        {
-            var bridge = GetBridge(command);
-            return bridge == null ? null : bridge.GetStormLog();
-        }
-
-        internal string GetProfile()
-        {
-            var sb = new StringBuilder();
-            sb.Append("Circular op-count snapshot; int:");
-            var tmp = interactive;
-            if (tmp != null) tmp.AppendProfile(sb);
-            sb.Append("; sub:");
-            tmp = subscription;
-            if (tmp != null) tmp.AppendProfile(sb);
-            return sb.ToString();
-        }
-
-        private readonly Hashtable knownScripts = new Hashtable(StringComparer.Ordinal);
-        internal byte[] GetScriptHash(string script)
-        {
-            return (byte[])knownScripts[script];
-        }
-        internal void AddScript(string script, byte[] hash)
-        {
-            lock(knownScripts)
-            {
-                knownScripts[script] = hash;
-            }
-        }
-        internal void FlushScripts()
-        {
-            lock(knownScripts)
-            {
-                knownScripts.Clear();
             }
         }
     }

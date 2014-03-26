@@ -9,8 +9,8 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed class ConnectionFailedEventArgs : EventArgs, ICompletable
     {
-        private readonly EndPoint endpoint;
         private readonly ConnectionType connectionType;
+        private readonly EndPoint endpoint;
         private readonly Exception exception;
         private readonly ConnectionFailureType failureType;
         private readonly EventHandler<ConnectionFailedEventArgs> handler;
@@ -26,14 +26,6 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Gets the failing server-endpoint
-        /// </summary>
-        public EndPoint EndPoint
-        {
-            get { return endpoint; }
-        }
-
-        /// <summary>
         /// Gets the connection-type of the failing connection
         /// </summary>
         public ConnectionType ConnectionType
@@ -41,6 +33,13 @@ namespace StackExchange.Redis
             get { return connectionType; }
         }
 
+        /// <summary>
+        /// Gets the failing server-endpoint
+        /// </summary>
+        public EndPoint EndPoint
+        {
+            get { return endpoint; }
+        }
         /// <summary>
         /// Gets the exception if available (this can be null)
         /// </summary>
@@ -56,16 +55,16 @@ namespace StackExchange.Redis
         {
             get {  return failureType; }
         }
-        bool ICompletable.TryComplete(bool isAsync)
-        {
-            return ConnectionMultiplexer.TryCompleteHandler(handler, sender, this, isAsync);
-        }
-
         void ICompletable.AppendStormLog(StringBuilder sb)
         {
             sb.Append("event, connection-failed: ");
             if (endpoint == null) sb.Append("n/a");
             else sb.Append(Format.ToString(endpoint));
+        }
+
+        bool ICompletable.TryComplete(bool isAsync)
+        {
+            return ConnectionMultiplexer.TryCompleteHandler(handler, sender, this, isAsync);
         }
     }
 }

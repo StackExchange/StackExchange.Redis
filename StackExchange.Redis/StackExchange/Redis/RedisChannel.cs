@@ -9,6 +9,15 @@ namespace StackExchange.Redis
     public struct RedisChannel : IEquatable<RedisChannel>
     {
 
+        internal static readonly RedisChannel[] EmptyArray = new RedisChannel[0];
+
+        private readonly byte[] value;
+
+        private RedisChannel(byte[] value)
+        {
+            this.value = value;
+        }
+
         /// <summary>
         /// Indicates whether the channel-name is either null or a zero-length value
         /// </summary>
@@ -18,33 +27,6 @@ namespace StackExchange.Redis
             {
                 return value == null || value.Length == 0;
             }
-        }
-
-        internal RedisChannel Clone()
-        {
-            byte[] clone = value == null ? null : (byte[])value.Clone();
-            return clone;
-        }
-
-        internal bool Contains(byte value)
-        {
-            return this.value != null && Array.IndexOf(this.value, value) >= 0;
-        }
-
-        internal static bool AssertStarts(byte[] value, byte[] expected)
-        {
-            for (int i = 0; i < expected.Length; i++)
-            {
-                if (expected[i] != value[i]) return false;
-            }
-            return true;
-        }
-
-        internal static readonly RedisChannel[] EmptyArray = new RedisChannel[0];
-        private readonly byte[] value;
-        private RedisChannel(byte[] value)
-        {
-            this.value = value;
         }
 
         internal bool IsNull
@@ -178,12 +160,31 @@ namespace StackExchange.Redis
             return ((string)this) ?? "(null)";
         }
 
+        internal static bool AssertStarts(byte[] value, byte[] expected)
+        {
+            for (int i = 0; i < expected.Length; i++)
+            {
+                if (expected[i] != value[i]) return false;
+            }
+            return true;
+        }
+
         internal RedisChannel Assert()
         {
             if (IsNull) throw new ArgumentException("A null key is not valid in this context");
             return this;
         }
 
+        internal RedisChannel Clone()
+        {
+            byte[] clone = value == null ? null : (byte[])value.Clone();
+            return clone;
+        }
+
+        internal bool Contains(byte value)
+        {
+            return this.value != null && Array.IndexOf(this.value, value) >= 0;
+        }
         /// <summary>
         /// Create a channel name from a String
         /// </summary>

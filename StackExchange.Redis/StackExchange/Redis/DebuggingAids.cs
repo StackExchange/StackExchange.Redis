@@ -1,12 +1,7 @@
 ﻿using System;
 using System.Text;
 using System.Threading;
-using System.Diagnostics;
-using System.IO;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using System.Runtime.CompilerServices;
-using System.Collections.Generic;
 
 namespace StackExchange.Redis
 {
@@ -25,10 +20,7 @@ namespace StackExchange.Redis
             Interlocked.Increment(ref ResultBox.allocations);
         }
     }
-    /// <summary>
-    /// Additional IRedisServer methods for debugging
-    /// </summary>
-    public interface IRedisServerDebug : IServer
+    partial interface IServer
     {
         /// <summary>
         /// Show what is in the pending (unsent) queue
@@ -65,10 +57,7 @@ namespace StackExchange.Redis
         /// <remarks>http://redis.io/commands/client-pause</remarks>
         void Hang(TimeSpan duration, CommandFlags flags = CommandFlags.None);
     }
-    /// <summary>
-    /// Additional IRedis methods for debugging
-    /// </summary>
-    public interface IRedisDebug : IRedis, IRedisDebugAsync
+    partial interface IRedis
     {
         /// <summary>
         /// The CLIENT GETNAME returns the name of the current connection as set by CLIENT SETNAME. Since every new connection starts without an associated name, if no name was assigned a null string is returned.
@@ -83,10 +72,8 @@ namespace StackExchange.Redis
         /// <remarks>http://redis.io/commands/quit</remarks>
         void Quit(CommandFlags flags = CommandFlags.None);
     }
-    /// <summary>
-    /// Additional IRedisAsync methods for debugging
-    /// </summary>
-    public interface IRedisDebugAsync : IRedisAsync
+
+    partial interface IRedisAsync
     {
         /// <summary>
         /// The CLIENT GETNAME returns the name of the current connection as set by CLIENT SETNAME. Since every new connection starts without an associated name, if no name was assigned a null string is returned.
@@ -95,15 +82,15 @@ namespace StackExchange.Redis
         /// <returns>The connection name, or a null string if no name is set.</returns>
         Task<string> ClientGetNameAsync(CommandFlags flags = CommandFlags.None);
     }
-    partial class RedisBase : IRedisDebug
+    partial class RedisBase
     {
-        string IRedisDebug.ClientGetName(CommandFlags flags)
+        string IRedis.ClientGetName(CommandFlags flags)
         {
             var msg = Message.Create(-1, flags, RedisCommand.CLIENT, RedisLiterals.GETNAME);
             return ExecuteSync(msg, ResultProcessor.String);
         }
 
-        Task<string> IRedisDebugAsync.ClientGetNameAsync(CommandFlags flags)
+        Task<string> IRedisAsync.ClientGetNameAsync(CommandFlags flags)
         {
             var msg = Message.Create(-1, flags, RedisCommand.CLIENT, RedisLiterals.GETNAME);
             return ExecuteAsync(msg, ResultProcessor.String);
@@ -130,23 +117,23 @@ namespace StackExchange.Redis
         }
     }
 
-    partial class RedisServer : IRedisServerDebug
+    partial class RedisServer
     {
-        void IRedisServerDebug.SimulateConnectionFailure()
+        void IServer.SimulateConnectionFailure()
         {
             server.SimulateConnectionFailure();
         }
-        string IRedisServerDebug.ListPending(int maxCount)
+        string IServer.ListPending(int maxCount)
         {
             return server.ListPending(maxCount);
         }
-        void IRedisServerDebug.Crash()
+        void IServer.Crash()
         {
             // using DB-0 because we also use "DEBUG OBJECT", which is db-centric
             var msg = Message.Create(0, CommandFlags.FireAndForget, RedisCommand.DEBUG, RedisLiterals.SEGFAULT);
             ExecuteSync(msg, ResultProcessor.DemandOK);
         }
-        void IRedisServerDebug.Hang(TimeSpan duration, CommandFlags flags)
+        void IServer.Hang(TimeSpan duration, CommandFlags flags)
         {
             var msg = Message.Create(0, flags, RedisCommand.CLIENT, RedisLiterals.PAUSE, (long)duration.TotalMilliseconds);
             ExecuteSync(msg, ResultProcessor.DemandOK);

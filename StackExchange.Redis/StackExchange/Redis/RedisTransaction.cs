@@ -172,13 +172,6 @@ namespace StackExchange.Redis
                 this.conditions = (conditions == null || conditions.Count == 0) ? NixConditions : conditions.ToArray();
             }
 
-            public override void AppendStormLog(StringBuilder sb)
-            {
-                base.AppendStormLog(sb);
-                if (conditions.Length != 0) sb.Append(", ").Append(conditions.Length).Append(" conditions");
-                sb.Append(", ").Append(operations.Length).Append(" operations");
-            }
-
             public QueuedMessage[] InnerOperations { get { return operations; } }
 
             public bool IsAborted
@@ -186,6 +179,12 @@ namespace StackExchange.Redis
                 get { return command != RedisCommand.EXEC; }
             }
 
+            public override void AppendStormLog(StringBuilder sb)
+            {
+                base.AppendStormLog(sb);
+                if (conditions.Length != 0) sb.Append(", ").Append(conditions.Length).Append(" conditions");
+                sb.Append(", ").Append(operations.Length).Append(" operations");
+            }
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
             {
                 int slot = ServerSelectionStrategy.NoSlot;

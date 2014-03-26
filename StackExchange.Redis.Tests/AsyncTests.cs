@@ -24,7 +24,7 @@ namespace StackExchange.Redis.Tests
 
             using(var conn = Create(allowAdmin: true))
             {
-                var server = (IRedisServerDebug)conn.GetServer(PrimaryServer, PrimaryPort);
+                var server = conn.GetServer(PrimaryServer, PrimaryPort);
 
                 RedisKey key = Me();
                 var db = conn.GetDatabase();

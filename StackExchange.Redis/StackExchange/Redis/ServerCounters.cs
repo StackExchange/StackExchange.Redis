@@ -1,5 +1,4 @@
-﻿using System;
-using System.Net;
+﻿using System.Net;
 using System.Text;
 
 namespace StackExchange.Redis
@@ -28,16 +27,14 @@ namespace StackExchange.Redis
         public ConnectionCounters Interactive { get; private set; }
 
         /// <summary>
-        /// Counters associated with the subscription (pub-sub) connection
-        /// </summary>
-        public ConnectionCounters Subscription { get; private set; }
-
-        /// <summary>
         /// Counters associated with other ambient activity
         /// </summary>
         public ConnectionCounters Other { get; private set; }
 
-
+        /// <summary>
+        /// Counters associated with the subscription (pub-sub) connection
+        /// </summary>
+        public ConnectionCounters Subscription { get; private set; }
         /// <summary>
         /// Indicates the total number of outstanding items against this server
         /// </summary>

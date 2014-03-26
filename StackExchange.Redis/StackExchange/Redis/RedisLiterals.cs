@@ -64,10 +64,8 @@ namespace StackExchange.Redis
             Wildcard = "*";
 
         public static readonly byte[] BytesOK = Encoding.UTF8.GetBytes("OK");
-        public static readonly byte[] ByteWildcard = { (byte)'*' };
         public static readonly byte[] BytesPONG = Encoding.UTF8.GetBytes("PONG");
-
-
+        public static readonly byte[] ByteWildcard = { (byte)'*' };
         internal static RedisValue Get(Bitwise operation)
         {
             switch(operation)

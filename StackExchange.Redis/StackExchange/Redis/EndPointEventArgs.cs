@@ -26,10 +26,6 @@ namespace StackExchange.Redis
         {
             get {  return endpoint; }
         }
-        bool ICompletable.TryComplete(bool isAsync)
-        {
-            return ConnectionMultiplexer.TryCompleteHandler(handler, sender, this, isAsync);
-        }
         void ICompletable.AppendStormLog(StringBuilder sb)
         {
             sb.Append("event, endpoint: ");
@@ -37,5 +33,9 @@ namespace StackExchange.Redis
             else sb.Append(Format.ToString(endpoint));
         }
 
+        bool ICompletable.TryComplete(bool isAsync)
+        {
+            return ConnectionMultiplexer.TryCompleteHandler(handler, sender, this, isAsync);
+        }
     }
 }

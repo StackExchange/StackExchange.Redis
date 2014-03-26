@@ -116,7 +116,7 @@ namespace StackExchange.Redis.Tests
                 var conn = muxer.GetDatabase();
                 conn.Ping();
 #if DEBUG
-                var name = ((IRedisDebug)GetServer(muxer)).ClientGetName();
+                var name = GetServer(muxer).ClientGetName();
                 Assert.AreEqual("TestRig", name);
 #endif
             }

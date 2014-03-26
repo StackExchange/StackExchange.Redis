@@ -1,7 +1,7 @@
-@rd /s /q StackExchange.Redis\bin\mono
-@rd /s /q BasicTest\bin\mono
-@md StackExchange.Redis\bin\mono
-@md BasicTest\bin\mono
+@rd /s /q StackExchange.Redis\bin\mono 1>nul 2>nul
+@rd /s /q BasicTest\bin\mono 1>nul 2>nul
+@md StackExchange.Redis\bin\mono 1>nul 2>nul
+@md BasicTest\bin\mono 1>nul 2>nul
 @echo Building StackExchange.Redis.dll ...
 @call mcs -recurse:StackExchange.Redis\*.cs -out:StackExchange.Redis\bin\mono\StackExchange.Redis.dll -target:library -unsafe+ -o+ -r:System.IO.Compression.dll -d:MONO
 @echo Building BasicTest.exe ...

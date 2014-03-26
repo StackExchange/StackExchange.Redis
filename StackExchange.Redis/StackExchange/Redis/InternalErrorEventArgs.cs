@@ -9,13 +9,12 @@ namespace StackExchange.Redis
     /// </summary>
     public class InternalErrorEventArgs : EventArgs, ICompletable
     {
-        private readonly object sender;
         private readonly ConnectionType connectionType;
         private readonly EndPoint endpoint;
         private readonly Exception exception;
         private readonly EventHandler<InternalErrorEventArgs> handler;
         private readonly string origin;
-
+        private readonly object sender;
         internal InternalErrorEventArgs(EventHandler<InternalErrorEventArgs> handler, object sender, EndPoint endpoint, ConnectionType connectionType, Exception exception, string origin)
         {
             this.handler = handler;
@@ -26,14 +25,6 @@ namespace StackExchange.Redis
             this.origin = origin;
         }
         /// <summary>
-        /// Gets the failing server-endpoint (this can be null)
-        /// </summary>
-        public EndPoint EndPoint
-        {
-            get { return endpoint; }
-        }
-
-        /// <summary>
         /// Gets the connection-type of the failing connection
         /// </summary>
         public ConnectionType ConnectionType
@@ -41,6 +32,13 @@ namespace StackExchange.Redis
             get { return connectionType; }
         }
 
+        /// <summary>
+        /// Gets the failing server-endpoint (this can be null)
+        /// </summary>
+        public EndPoint EndPoint
+        {
+            get { return endpoint; }
+        }
         /// <summary>
         /// Gets the exception if available (this can be null)
         /// </summary>
@@ -56,15 +54,15 @@ namespace StackExchange.Redis
         {
             get { return origin; }
         }
-        bool ICompletable.TryComplete(bool isAsync)
-        {
-            return ConnectionMultiplexer.TryCompleteHandler(handler, sender, this, isAsync);
-        }
-
         void ICompletable.AppendStormLog(StringBuilder sb)
         {
             sb.Append("event, internal-error: ").Append(origin);
             if (endpoint != null) sb.Append(", ").Append(Format.ToString(endpoint));
+        }
+
+        bool ICompletable.TryComplete(bool isAsync)
+        {
+            return ConnectionMultiplexer.TryCompleteHandler(handler, sender, this, isAsync);
         }
     }
 }

@@ -146,19 +146,19 @@ namespace StackExchange.Redis.Tests
                 
 
 #if DEBUG
-                string a = ((IRedisServerDebug)conn.GetServer(rightMasterNode.EndPoint)).StringGet(db.Database, key);
+                string a = conn.GetServer(rightMasterNode.EndPoint).StringGet(db.Database, key);
                 Assert.AreEqual(value, a, "right master");
 
                 var node = config.Nodes.FirstOrDefault(x => !x.IsSlave && x.NodeId != rightMasterNode.NodeId);
                 Assert.IsNotNull(node);
                 if (node != null)
                 {
-                    string b = ((IRedisServerDebug)conn.GetServer(node.EndPoint)).StringGet(db.Database, key);
+                    string b = conn.GetServer(node.EndPoint).StringGet(db.Database, key);
                     Assert.AreEqual(value, b, "wrong master, allow redirect");
 
                     try
                     {
-                        string c = ((IRedisServerDebug)conn.GetServer(node.EndPoint)).StringGet(db.Database, key, CommandFlags.NoRedirect);
+                        string c = conn.GetServer(node.EndPoint).StringGet(db.Database, key, CommandFlags.NoRedirect);
                         Assert.Fail("wrong master, no redirect");
                     } catch (RedisServerException ex)
                     {
@@ -170,7 +170,7 @@ namespace StackExchange.Redis.Tests
                 Assert.IsNotNull(node);
                 if (node != null)
                 {
-                    string d = ((IRedisServerDebug)conn.GetServer(node.EndPoint)).StringGet(db.Database, key);
+                    string d = conn.GetServer(node.EndPoint).StringGet(db.Database, key);
                     Assert.AreEqual(value, d, "right slave");
                 }
 
@@ -178,12 +178,12 @@ namespace StackExchange.Redis.Tests
                 Assert.IsNotNull(node);
                 if (node != null)
                 {
-                    string e = ((IRedisServerDebug)conn.GetServer(node.EndPoint)).StringGet(db.Database, key);
+                    string e = conn.GetServer(node.EndPoint).StringGet(db.Database, key);
                     Assert.AreEqual(value, e, "wrong slave, allow redirect");
 
                     try
                     {
-                        string f = ((IRedisServerDebug)conn.GetServer(node.EndPoint)).StringGet(db.Database, key, CommandFlags.NoRedirect);
+                        string f = conn.GetServer(node.EndPoint).StringGet(db.Database, key, CommandFlags.NoRedirect);
                         Assert.Fail("wrong slave, no redirect");
                     }
                     catch (RedisServerException ex)

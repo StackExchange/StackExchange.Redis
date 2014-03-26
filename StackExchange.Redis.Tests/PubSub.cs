@@ -355,7 +355,7 @@ namespace StackExchange.Redis.Tests
                 Assert.AreEqual(1, server.GetCounters().Subscription.SocketCount, "sockets");
 
 #if DEBUG
-                ((IRedisServerDebug)server).SimulateConnectionFailure();
+                server.SimulateConnectionFailure();
                 SetExpectedAmbientFailureCount(2);
 #endif
 

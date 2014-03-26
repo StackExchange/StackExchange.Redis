@@ -159,12 +159,11 @@ namespace StackExchange.Redis
 
         internal abstract RedisKey[] AsRedisKeyArray();
 
+        internal abstract RedisResult[] AsRedisResultArray();
+
         internal abstract RedisValue AsRedisValue();
 
         internal abstract RedisValue[] AsRedisValueArray();
-
-        internal abstract RedisResult[] AsRedisResultArray();
-
         internal abstract string AsString();
         internal abstract string[] AsStringArray();
         private sealed class ArrayRedisResult : RedisResult
@@ -250,6 +249,8 @@ namespace StackExchange.Redis
 
             internal override RedisKey[] AsRedisKeyArray() { return Array.ConvertAll(value, x => x.AsRedisKey()); }
 
+            internal override RedisResult[] AsRedisResultArray() { return value; }
+
             internal override RedisValue AsRedisValue()
             {
                 if (value.Length == 1) return value[0].AsRedisValue();
@@ -264,8 +265,6 @@ namespace StackExchange.Redis
                 throw new InvalidCastException();
             }
             internal override string[] AsStringArray() { return Array.ConvertAll(value, x => x.AsString()); }
-
-            internal override RedisResult[] AsRedisResultArray() { return value; }
         }
 
         private sealed class ErrorRedisResult : RedisResult
@@ -309,13 +308,14 @@ namespace StackExchange.Redis
 
             internal override RedisKey[] AsRedisKeyArray() { throw new RedisServerException(value); }
 
+            internal override RedisResult[] AsRedisResultArray() { throw new RedisServerException(value); }
+
             internal override RedisValue AsRedisValue() { throw new RedisServerException(value); }
 
             internal override RedisValue[] AsRedisValueArray() { throw new RedisServerException(value); }
 
             internal override string AsString() { throw new RedisServerException(value); }
             internal override string[] AsStringArray() { throw new RedisServerException(value); }
-            internal override RedisResult[] AsRedisResultArray() { throw new RedisServerException(value); }
         }
 
         private sealed class SingleRedisResult : RedisResult
@@ -358,13 +358,14 @@ namespace StackExchange.Redis
 
             internal override RedisKey[] AsRedisKeyArray() { return new[] { AsRedisKey() }; }
 
+            internal override RedisResult[] AsRedisResultArray() { throw new InvalidCastException(); }
+
             internal override RedisValue AsRedisValue() { return value; }
 
             internal override RedisValue[] AsRedisValueArray() { return new[] { AsRedisValue() }; }
 
             internal override string AsString() { return (string)value; }
             internal override string[] AsStringArray() { return new[] { AsString() }; }
-            internal override RedisResult[] AsRedisResultArray() { throw new InvalidCastException(); }
         }
     }
 }

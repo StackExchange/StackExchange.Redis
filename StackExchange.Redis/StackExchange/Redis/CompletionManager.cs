@@ -16,6 +16,7 @@ namespace StackExchange.Redis
 
         private readonly string name;
 
+        int activeAsyncWorkerThread = 0;
         long completedSync, completedAsync, failedAsync;
         public CompletionManager(ConnectionMultiplexer multiplexer, string name)
         {
@@ -110,8 +111,6 @@ namespace StackExchange.Redis
         }
 
         partial void OnCompletedAsync();
-
-        int activeAsyncWorkerThread = 0;
         private void ProcessAsyncCompletionQueueImpl()
         {
             int currentThread = Environment.CurrentManagedThreadId;

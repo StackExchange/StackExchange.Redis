@@ -10,7 +10,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// Provides configuration controls of a redis server
     /// </summary>
-    public interface IServer : IRedis
+    public partial interface IServer : IRedis
     {
         /// <summary>
         /// Gets the cluster configuration associated with this server, if known

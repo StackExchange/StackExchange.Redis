@@ -20,34 +20,37 @@ namespace StackExchange.Redis
             Tracer = new TracerProcessor(false),
             EstablishConnection = new TracerProcessor(true);
 
-        public static readonly ResultProcessor<double>
-            Double = new DoubleProcessor();
-        public static readonly ResultProcessor<double?>
-            NullableDouble = new NullableDoubleProcessor();
-
         public static readonly ResultProcessor<byte[]>
             ByteArray = new ByteArrayProcessor(),
             ScriptLoad = new ScriptLoadProcessor();
 
         public static readonly ResultProcessor<ClusterConfiguration>
             ClusterNodes = new ClusterNodesProcessor();
+
         public static readonly ResultProcessor<EndPoint>
             ConnectionIdentity = new ConnectionIdentityProcessor();
 
         public static readonly ResultProcessor<DateTime>
             DateTime = new DateTimeProcessor();
 
+        public static readonly ResultProcessor<double>
+                                            Double = new DoubleProcessor();
         public static readonly ResultProcessor<IGrouping<string, KeyValuePair<string, string>>[]>
             Info = new InfoProcessor();
 
         public static readonly ResultProcessor<long>
             Int64 = new Int64Processor();
 
+        public static readonly ResultProcessor<double?>
+                            NullableDouble = new NullableDoubleProcessor();
         public static readonly ResultProcessor<long?>
             NullableInt64 = new NullableInt64Processor();
 
+        public static readonly ResultProcessor<RedisChannel[]>
+            RedisChannelArray = new RedisChannelArrayProcessor();
+
         public static readonly ResultProcessor<RedisKey>
-            RedisKey = new RedisKeyProcessor();
+                    RedisKey = new RedisKeyProcessor();
 
         public static readonly ResultProcessor<RedisKey[]>
             RedisKeyArray = new RedisKeyArrayProcessor();
@@ -60,15 +63,17 @@ namespace StackExchange.Redis
 
         public static readonly ResultProcessor<RedisValue[]>
             RedisValueArray = new RedisValueArrayProcessor();
-
-        public static readonly ResultProcessor<RedisChannel[]>
-            RedisChannelArray = new RedisChannelArrayProcessor();
-
         public static readonly ResultProcessor<TimeSpan>
             ResponseTimer = new TimingProcessor();
 
+        public static readonly ResultProcessor<RedisResult>
+            ScriptResult = new ScriptResultProcessor();
+
+        public static readonly SortedSetWithScoresProcessor
+            SortedSetWithScores = new SortedSetWithScoresProcessor();
+
         public static readonly ResultProcessor<string>
-            String = new StringProcessor(),
+                            String = new StringProcessor(),
             ClusterNodesRaw = new ClusterNodesRawProcessor();
         public static readonly ResultProcessor<KeyValuePair<string, string>[]>
             StringPairInterleaved = new StringPairInterleavedProcessor();
@@ -77,13 +82,6 @@ namespace StackExchange.Redis
             TimeSpanFromSeconds = new TimeSpanProcessor(false);
         public static readonly ValuePairInterleavedProcessor
             ValuePairInterleaved = new ValuePairInterleavedProcessor();
-
-        public static readonly SortedSetWithScoresProcessor
-            SortedSetWithScores = new SortedSetWithScoresProcessor();
-
-        public static readonly ResultProcessor<RedisResult>
-            ScriptResult = new ScriptResultProcessor();
-
         static readonly byte[] MOVED = Encoding.UTF8.GetBytes("MOVED "), ASK = Encoding.UTF8.GetBytes("ASK ");        
 
         public void ConnectionFail(Message message, ConnectionFailureType fail, Exception innerException)
@@ -172,24 +170,52 @@ namespace StackExchange.Redis
             ConnectionFail(message, ConnectionFailureType.ProtocolFailure, "Unexpected response to " + (message == null ? "n/a" : message.Command.ToString()) +": " + result.ToString());
         }
 
-        public sealed class TrackSubscriptionsProcessor : ResultProcessor<bool>
+        public sealed class TimeSpanProcessor : ResultProcessor<TimeSpan?>
         {
+            private readonly bool isMilliseconds;
+            public TimeSpanProcessor(bool isMilliseconds)
+            {
+                this.isMilliseconds = isMilliseconds;
+            }
+            public bool TryParse(RawResult result, out TimeSpan? expiry)
+            {
+                switch (result.Type)
+                {
+                    case ResultType.Integer:
+                        long time;
+                        if (result.TryGetInt64(out time))
+                        {
+                            if (time < 0)
+                            {
+                                expiry = null;
+                            }
+                            else if (isMilliseconds)
+                            {
+                                expiry = TimeSpan.FromMilliseconds(time);
+                            }
+                            else
+                            {
+                                expiry = TimeSpan.FromSeconds(time);
+                            }
+                            return true;
+                        }
+                        break;
+                }
+                expiry = null;
+                return false;
+            }
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
-                if(result.Type == ResultType.MultiBulk)
+                TimeSpan? expiry;
+                if (TryParse(result, out expiry))
                 {
-                    var items = result.GetItems();
-                    long count;
-                    if (items.Length >= 3 && items[2].TryGetInt64(out count))
-                    {
-                        connection.SubscriptionCount = count;
-                        return true;
-                    }
+                    SetResult(message, expiry);
+                    return true;
                 }
                 return false;
             }
         }
-        
+
         public sealed class TimingProcessor : ResultProcessor<TimeSpan>
         {
             public static TimerMessage CreateMessage(int db, CommandFlags flags, RedisCommand command, RedisValue value = default(RedisValue))
@@ -247,6 +273,23 @@ namespace StackExchange.Redis
             }
         }
 
+        public sealed class TrackSubscriptionsProcessor : ResultProcessor<bool>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            {
+                if(result.Type == ResultType.MultiBulk)
+                {
+                    var items = result.GetItems();
+                    long count;
+                    if (items.Length >= 3 && items[2].TryGetInt64(out count))
+                    {
+                        connection.SubscriptionCount = count;
+                        return true;
+                    }
+                }
+                return false;
+            }
+        }
         internal sealed class DemandZeroOrOneProcessor : ResultProcessor<bool>
         {
             static readonly byte[] zero = { (byte)'0' }, one = { (byte)'1' };
@@ -271,6 +314,97 @@ namespace StackExchange.Redis
                 if (TryGet(result, out value))
                 {
                     SetResult(message, value);
+                    return true;
+                }
+                return false;
+            }
+        }
+
+        internal sealed class ScriptLoadProcessor : ResultProcessor<byte[]>
+        {
+            // note that top-level error messages still get handled by SetResult, but nested errors
+            // (is that a thing?) will be wrapped in the RedisResult
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            {
+                switch (result.Type)
+                {
+                    case ResultType.BulkString:
+                        var hash = result.GetBlob();
+                        var sl = message as RedisDatabase.ScriptLoadMessage;
+                        if (sl != null)
+                        {
+                            connection.Bridge.ServerEndPoint.AddScript(sl.Script, hash);
+                        }
+                        SetResult(message, hash);
+                        return true;
+                }
+                return false;
+            }
+        }
+
+        internal sealed class SortedSetWithScoresProcessor : ValuePairInterleavedProcessorBase<RedisValue, double>
+        {
+            protected override RedisValue ParseKey(RawResult key) { return key.AsRedisValue(); }
+            protected override double ParseValue(RawResult value)
+            {
+                double val;
+                return value.TryGetDouble(out val) ? val : double.NaN;
+            }
+        }
+
+        internal sealed class ValuePairInterleavedProcessor : ValuePairInterleavedProcessorBase<RedisValue, RedisValue>
+        {
+            protected override RedisValue ParseKey(RawResult key) { return key.AsRedisValue(); }
+            protected override RedisValue ParseValue(RawResult key) { return key.AsRedisValue(); }
+        }
+
+        internal abstract class ValuePairInterleavedProcessorBase<TKey, TValue> : ResultProcessor<KeyValuePair<TKey, TValue>[]>
+        {
+            static readonly KeyValuePair<TKey, TValue>[] nix = new KeyValuePair<TKey, TValue>[0];
+
+            public bool TryParse(RawResult result, out KeyValuePair<TKey, TValue>[] pairs)
+            {
+                switch (result.Type)
+                {
+                    case ResultType.MultiBulk:
+                        var arr = result.GetItems();
+                        if (arr == null)
+                        {
+                            pairs = null;
+                        }
+                        else
+                        {
+                            int count = arr.Length / 2;
+                            if (count == 0)
+                            {
+                                pairs = nix;
+                            }
+                            else
+                            {
+                                pairs = new KeyValuePair<TKey, TValue>[count];
+                                int offset = 0;
+                                for (int i = 0; i < pairs.Length; i++)
+                                {
+                                    var setting = ParseKey(arr[offset++]);
+                                    var value = ParseValue(arr[offset++]);
+                                    pairs[i] = new KeyValuePair<TKey, TValue>(setting, value);
+                                }
+                            }
+                        }
+                        return true;
+                    default:
+                        pairs = null;
+                        return false;
+                }
+            }
+            protected abstract TKey ParseKey(RawResult key);
+            protected abstract TValue ParseValue(RawResult value);
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            {
+                KeyValuePair<TKey, TValue>[] arr;
+                if (TryParse(result, out arr))
+                {
+                    SetResult(message, arr);
                     return true;
                 }
                 return false;
@@ -426,58 +560,6 @@ namespace StackExchange.Redis
                 return null;
             }
         }
-        sealed class DoubleProcessor : ResultProcessor<double>
-        {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
-            {
-                switch (result.Type)
-                {
-                    case ResultType.Integer:
-                        long i64;
-                        if (result.TryGetInt64(out i64))
-                        {
-                            SetResult(message, i64);
-                            return true;
-                        }
-                        break;
-                    case ResultType.SimpleString:
-                    case ResultType.BulkString:
-                        double val;
-                        if (result.TryGetDouble(out val))
-                        {
-                            SetResult(message, val);
-                            return true;
-                        }
-                        break;
-                }
-                return false;
-            }
-        }
-        sealed class NullableDoubleProcessor : ResultProcessor<double?>
-        {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
-            {
-                switch (result.Type)
-                {
-                    case ResultType.Integer:
-                    case ResultType.SimpleString:
-                    case ResultType.BulkString:
-                        if(result.IsNull)
-                        {
-                            SetResult(message, null);
-                            return true;
-                        }
-                        double val;
-                        if (result.TryGetDouble(out val))
-                        {
-                            SetResult(message, val);
-                            return true;
-                        }
-                        break;
-                }
-                return false;
-            }
-        }
         sealed class BooleanProcessor : ResultProcessor<bool>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
@@ -490,21 +572,22 @@ namespace StackExchange.Redis
                 switch (result.Type)
                 {
                     case ResultType.SimpleString:
-                        if(result.Assert(RedisLiterals.BytesOK))
+                        if (result.Assert(RedisLiterals.BytesOK))
                         {
                             SetResult(message, true);
-                        } else
+                        }
+                        else
                         {
                             SetResult(message, result.GetBoolean());
                         }
                         return true;
-                    case ResultType.Integer:                    
+                    case ResultType.Integer:
                     case ResultType.BulkString:
                         SetResult(message, result.GetBoolean());
                         return true;
                     case ResultType.MultiBulk:
                         var items = result.GetItems();
-                        if(items.Length == 1)
+                        if (items.Length == 1)
                         { // treat an array of 1 like a single reply (for example, SCRIPT EXISTS)
                             SetResult(message, items[0].GetBoolean());
                             return true;
@@ -523,28 +606,6 @@ namespace StackExchange.Redis
                 {
                     case ResultType.BulkString:
                         SetResult(message, result.GetBlob());
-                        return true;
-                }
-                return false;
-            }
-        }
-
-        internal sealed class ScriptLoadProcessor : ResultProcessor<byte[]>
-        {
-            // note that top-level error messages still get handled by SetResult, but nested errors
-            // (is that a thing?) will be wrapped in the RedisResult
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
-            {
-                switch (result.Type)
-                {
-                    case ResultType.BulkString:
-                        var hash = result.GetBlob();
-                        var sl = message as RedisDatabase.ScriptLoadMessage;
-                        if (sl != null)
-                        {
-                            connection.Bridge.ServerEndPoint.AddScript(sl.Script, hash);
-                        }
-                        SetResult(message, hash);
                         return true;
                 }
                 return false;
@@ -605,6 +666,7 @@ namespace StackExchange.Redis
                 return true;
             }
         }
+
         sealed class DateTimeProcessor : ResultProcessor<DateTime>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
@@ -613,7 +675,7 @@ namespace StackExchange.Redis
                 switch (result.Type)
                 {
                     case ResultType.Integer:
-                        if(result.TryGetInt64(out unixTime))
+                        if (result.TryGetInt64(out unixTime))
                         {
                             var time = RedisBase.UnixEpoch.AddSeconds(unixTime);
                             SetResult(message, time);
@@ -622,7 +684,7 @@ namespace StackExchange.Redis
                         break;
                     case ResultType.MultiBulk:
                         var arr = result.GetItems();
-                        switch(arr.Length)
+                        switch (arr.Length)
                         {
                             case 1:
                                 if (arr[0].TryGetInt64(out unixTime))
@@ -633,7 +695,7 @@ namespace StackExchange.Redis
                                 }
                                 break;
                             case 2:
-                                if(arr[0].TryGetInt64(out unixTime) && arr[1].TryGetInt64(out micros))
+                                if (arr[0].TryGetInt64(out unixTime) && arr[1].TryGetInt64(out micros))
                                 {
                                     var time = RedisBase.UnixEpoch.AddSeconds(unixTime).AddTicks(micros * 10); // datetime ticks are 100ns
                                     SetResult(message, time);
@@ -647,6 +709,33 @@ namespace StackExchange.Redis
             }
         }
 
+        sealed class DoubleProcessor : ResultProcessor<double>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            {
+                switch (result.Type)
+                {
+                    case ResultType.Integer:
+                        long i64;
+                        if (result.TryGetInt64(out i64))
+                        {
+                            SetResult(message, i64);
+                            return true;
+                        }
+                        break;
+                    case ResultType.SimpleString:
+                    case ResultType.BulkString:
+                        double val;
+                        if (result.TryGetDouble(out val))
+                        {
+                            SetResult(message, val);
+                            return true;
+                        }
+                        break;
+                }
+                return false;
+            }
+        }
         sealed class ExpectBasicStringProcessor : ResultProcessor<bool>
         {
             private readonly byte[] expected;
@@ -668,6 +757,7 @@ namespace StackExchange.Redis
                 return false;
             }
         }
+
         sealed class InfoProcessor : ResultProcessor<IGrouping<string, KeyValuePair<string, string>>[]>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
@@ -727,6 +817,32 @@ namespace StackExchange.Redis
                 return false;
             }
         }
+
+        sealed class NullableDoubleProcessor : ResultProcessor<double?>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            {
+                switch (result.Type)
+                {
+                    case ResultType.Integer:
+                    case ResultType.SimpleString:
+                    case ResultType.BulkString:
+                        if(result.IsNull)
+                        {
+                            SetResult(message, null);
+                            return true;
+                        }
+                        double val;
+                        if (result.TryGetDouble(out val))
+                        {
+                            SetResult(message, val);
+                            return true;
+                        }
+                        break;
+                }
+                return false;
+            }
+        }
         sealed class NullableInt64Processor : ResultProcessor<long?>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
@@ -748,6 +864,35 @@ namespace StackExchange.Redis
                             return true;
                         }
                         break;
+                }
+                return false;
+            }
+        }
+
+        sealed class RedisChannelArrayProcessor : ResultProcessor<RedisChannel[]>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            {
+                switch (result.Type)
+                {
+                    case ResultType.MultiBulk:
+                        var arr = result.GetItems();
+                        RedisChannel[] final;
+                        if (arr.Length == 0)
+                        {
+                            final = RedisChannel.EmptyArray;
+                        }
+                        else
+                        {
+                            final = new RedisChannel[arr.Length];
+                            byte[] channelPrefix = connection.ChannelPrefix;
+                            for (int i = 0; i < final.Length; i++)
+                            {
+                                final[i] = result.AsRedisChannel(channelPrefix);
+                            }
+                        }
+                        SetResult(message, final);
+                        return true;
                 }
                 return false;
             }
@@ -817,35 +962,6 @@ namespace StackExchange.Redis
                 return false;
             }
         }
-        sealed class RedisChannelArrayProcessor : ResultProcessor<RedisChannel[]>
-        {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
-            {
-                switch (result.Type)
-                {
-                    case ResultType.MultiBulk:
-                        var arr = result.GetItems();
-                        RedisChannel[] final;
-                        if (arr.Length == 0)
-                        {
-                            final = RedisChannel.EmptyArray;
-                        }
-                        else
-                        {
-                            final = new RedisChannel[arr.Length];
-                            byte[] channelPrefix = connection.ChannelPrefix;
-                            for (int i = 0; i < final.Length; i++)
-                            {
-                                final[i] = result.AsRedisChannel(channelPrefix);
-                            }
-                        }
-                        SetResult(message, final);
-                        return true;
-                }
-                return false;
-            }
-        }
-
         sealed class RedisValueProcessor : ResultProcessor<RedisValue>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
@@ -861,6 +977,33 @@ namespace StackExchange.Redis
                 return false;
             }
         }
+        private class ScriptResultProcessor : ResultProcessor<RedisResult>
+        {
+            static readonly byte[] NOSCRIPT = Encoding.UTF8.GetBytes("NOSCRIPT ");
+            public override bool SetResult(PhysicalConnection connection, Message message, RawResult result)
+            {
+                if (result.Type == ResultType.Error && result.AssertStarts(NOSCRIPT))
+                { // scripts are not flushed individually, so assume the entire script cache is toast ("SCRIPT FLUSH")
+                    connection.Bridge.ServerEndPoint.FlushScripts();
+                }
+                // and apply usual processing for the rest
+                return base.SetResult(connection, message, result);
+            }
+
+            // note that top-level error messages still get handled by SetResult, but nested errors
+            // (is that a thing?) will be wrapped in the RedisResult
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            {
+                var value = Redis.RedisResult.TryCreate(connection, result);
+                if (value != null)
+                {
+                    SetResult(message, value);
+                    return true;
+                }
+                return false;
+            }
+        }
+
         sealed class StringPairInterleavedProcessor : ValuePairInterleavedProcessorBase<string, string>
         {
             protected override string ParseKey(RawResult key) { return key.GetString(); }
@@ -882,129 +1025,39 @@ namespace StackExchange.Redis
                 return false;
             }
         }
-        public sealed class TimeSpanProcessor : ResultProcessor<TimeSpan?>
-        {
-            private readonly bool isMilliseconds;
-            public TimeSpanProcessor(bool isMilliseconds)
-            {
-                this.isMilliseconds = isMilliseconds;
-            }
-            public bool TryParse(RawResult result, out TimeSpan? expiry)
-            {
-                switch (result.Type)
-                {
-                    case ResultType.Integer:
-                        long time;
-                        if (result.TryGetInt64(out time))
-                        {
-                            if (time < 0)
-                            {
-                                expiry = null;
-                            }
-                            else if (isMilliseconds)
-                            {
-                                expiry = TimeSpan.FromMilliseconds(time);
-                            }
-                            else
-                            {
-                                expiry = TimeSpan.FromSeconds(time);
-                            }
-                            return true;
-                        }
-                        break;
-                }
-                expiry = null;
-                return false;
-            }
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
-            {
-                TimeSpan? expiry;
-                if(TryParse(result, out expiry))
-                {
-                    SetResult(message, expiry);
-                    return true;
-                }
-                return false;
-            }
-        }
-
-        internal sealed class ValuePairInterleavedProcessor : ValuePairInterleavedProcessorBase<RedisValue, RedisValue>
-        {
-            protected override RedisValue ParseKey(RawResult key) { return key.AsRedisValue(); }
-            protected override RedisValue ParseValue(RawResult key) { return key.AsRedisValue(); }
-        }
-
-        internal sealed class SortedSetWithScoresProcessor : ValuePairInterleavedProcessorBase<RedisValue, double>
-        {
-            protected override RedisValue ParseKey(RawResult key) { return key.AsRedisValue(); }
-            protected override double ParseValue(RawResult value)
-            {
-                double val;
-                return value.TryGetDouble(out val) ? val: double.NaN;
-            }
-        }
-
-        internal abstract class ValuePairInterleavedProcessorBase<TKey, TValue> : ResultProcessor<KeyValuePair<TKey, TValue>[]>
-        {
-            static readonly KeyValuePair<TKey, TValue>[] nix = new KeyValuePair<TKey, TValue>[0];
-
-            public bool TryParse(RawResult result, out KeyValuePair<TKey, TValue>[] pairs)
-            {
-                switch (result.Type)
-                {
-                    case ResultType.MultiBulk:
-                        var arr = result.GetItems();
-                        if (arr == null)
-                        {
-                            pairs = null;
-                        }
-                        else
-                        {
-                            int count = arr.Length / 2;
-                            if (count == 0)
-                            {
-                                pairs = nix;
-                            }
-                            else
-                            {
-                                pairs = new KeyValuePair<TKey, TValue>[count];
-                                int offset = 0;
-                                for (int i = 0; i < pairs.Length; i++)
-                                {
-                                    var setting = ParseKey(arr[offset++]);
-                                    var value = ParseValue(arr[offset++]);
-                                    pairs[i] = new KeyValuePair<TKey, TValue>(setting, value);
-                                }
-                            }
-                        }
-                        return true;
-                    default:
-                        pairs = null;
-                        return false;
-                }
-            }
-            protected abstract TKey ParseKey(RawResult key);
-            protected abstract TValue ParseValue(RawResult value);
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
-            {
-                KeyValuePair<TKey, TValue>[] arr;
-                if(TryParse(result, out arr))
-                {
-                    SetResult(message, arr);
-                    return true;
-                }
-                return false;
-            }
-        }
-
         private class TracerProcessor : ResultProcessor<bool>
         {
+            static readonly byte[]
+                authFail = Encoding.UTF8.GetBytes("ERR operation not permitted"),
+                loading = Encoding.UTF8.GetBytes("LOADING ");
+
             private readonly bool establishConnection;
 
             public TracerProcessor(bool establishConnection)
             {
                 this.establishConnection = establishConnection;
             }
+            public override bool SetResult(PhysicalConnection connection, Message message, RawResult result)
+            {
+                var final = base.SetResult(connection, message, result);
+                if (result.IsError)
+                {
+                    if (result.Assert(authFail))
+                    {
+                        connection.RecordConnectionFailed(ConnectionFailureType.AuthenticationFailure);
+                    }
+                    else if (result.AssertStarts(loading))
+                    {
+                        connection.RecordConnectionFailed(ConnectionFailureType.Loading);
+                    }
+                    else
+                    {
+                        connection.RecordConnectionFailed(ConnectionFailureType.ProtocolFailure);
+                    }
+                }
+                return final;
+            }
+
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
                 bool happy;
@@ -1037,56 +1090,6 @@ namespace StackExchange.Redis
                     connection.RecordConnectionFailed(ConnectionFailureType.ProtocolFailure);
                     return false;
                 }
-            }
-
-            static readonly byte[] expected = RedisLiterals.BytesPONG, authFail = Encoding.UTF8.GetBytes("ERR operation not permitted"),
-                loading = Encoding.UTF8.GetBytes("LOADING ");
-            public override bool SetResult(PhysicalConnection connection, Message message, RawResult result)
-            {
-                var final = base.SetResult(connection, message, result);
-                if (result.IsError)
-                {
-                    if (result.Assert(authFail))
-                    {
-                        connection.RecordConnectionFailed(ConnectionFailureType.AuthenticationFailure);
-                    }
-                    else if (result.AssertStarts(loading))
-                    {
-                        connection.RecordConnectionFailed(ConnectionFailureType.Loading);
-                    }
-                    else
-                    {
-                        connection.RecordConnectionFailed(ConnectionFailureType.ProtocolFailure);
-                    }
-                }
-                return final;
-            }
-        }
-
-        private class ScriptResultProcessor : ResultProcessor<RedisResult>
-        {
-            static readonly byte[] NOSCRIPT = Encoding.UTF8.GetBytes("NOSCRIPT ");
-            public override bool SetResult(PhysicalConnection connection, Message message, RawResult result)
-            {
-                if(result.Type == ResultType.Error && result.AssertStarts(NOSCRIPT))
-                { // scripts are not flushed individually, so assume the entire script cache is toast ("SCRIPT FLUSH")
-                    connection.Bridge.ServerEndPoint.FlushScripts();
-                }
-                // and apply usual processing for the rest
-                return base.SetResult(connection, message, result);
-            }
-
-            // note that top-level error messages still get handled by SetResult, but nested errors
-            // (is that a thing?) will be wrapped in the RedisResult
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
-            {
-                var value = Redis.RedisResult.TryCreate(connection, result);
-                if(value != null)
-                {
-                    SetResult(message, value);
-                    return true;
-                }
-                return false;
             }
         }
     }

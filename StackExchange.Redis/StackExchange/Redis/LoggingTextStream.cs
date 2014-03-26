@@ -1,10 +1,4 @@
-﻿using System;
-using System.Diagnostics;
-using System.IO;
-using System.Runtime.CompilerServices;
-using System.Text;
-
-namespace StackExchange.Redis
+﻿namespace StackExchange.Redis
 {
 #if LOGOUTPUT
     sealed class LoggingTextStream : Stream
@@ -144,4 +138,4 @@ namespace StackExchange.Redis
         }
     }
 #endif
-        }
+}

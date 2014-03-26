@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Text;
 
 namespace StackExchange.Redis
@@ -9,6 +8,8 @@ namespace StackExchange.Redis
         private readonly Queue<Message>
             regular = new Queue<Message>(),
             high = new Queue<Message>();
+
+        public object SyncLock { get { return regular; } }
 
         public Message Dequeue()
         {
@@ -26,23 +27,6 @@ namespace StackExchange.Redis
             return null;
         }
 
-        internal Message[] DequeueAll()
-        {
-            lock (regular)
-            {
-                int count = high.Count + regular.Count;
-                if (count == 0) return Message.EmptyArray;
-
-                var arr = new Message[count];
-                high.CopyTo(arr, 0);
-                regular.CopyTo(arr, high.Count);
-                high.Clear();
-                regular.Clear();
-                return arr;
-            }
-        }
-
-        public object SyncLock {  get {  return regular; } }
         public Message PeekPing(out int queueLength)
         {
             lock (regular)
@@ -70,6 +54,14 @@ namespace StackExchange.Redis
             }
         }
 
+        internal bool Any()
+        {
+            lock (regular)
+            {
+                return high.Count != 0 || regular.Count != 0;
+            }
+        }
+
         internal int Count()
         {
             lock (regular)
@@ -78,14 +70,21 @@ namespace StackExchange.Redis
             }
         }
 
-        internal bool Any()
+        internal Message[] DequeueAll()
         {
-            lock(regular)
+            lock (regular)
             {
-                return high.Count != 0 || regular.Count != 0;
+                int count = high.Count + regular.Count;
+                if (count == 0) return Message.EmptyArray;
+
+                var arr = new Message[count];
+                high.CopyTo(arr, 0);
+                regular.CopyTo(arr, high.Count);
+                high.Clear();
+                regular.Clear();
+                return arr;
             }
         }
-
         internal void GetStormLog(StringBuilder sb)
         {
             lock(regular)

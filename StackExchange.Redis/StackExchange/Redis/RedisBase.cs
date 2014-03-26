@@ -9,27 +9,13 @@ namespace StackExchange.Redis
         internal readonly ConnectionMultiplexer multiplexer;
         protected readonly object asyncState;
 
-        ConnectionMultiplexer IRedisAsync.Multiplexer {  get {  return multiplexer; } }
         internal RedisBase(ConnectionMultiplexer multiplexer, object asyncState)
         {
             this.multiplexer = multiplexer;
             this.asyncState = asyncState;
         }
 
-        private ResultProcessor.TimingProcessor.TimerMessage GetTimerMessage(CommandFlags flags)
-        {
-            // do the best we can with available commands
-            var map = multiplexer.CommandMap;
-            if(map.IsAvailable(RedisCommand.PING))
-                return ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.PING);
-            if(map.IsAvailable(RedisCommand.TIME))
-                return ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.TIME);
-            if (map.IsAvailable(RedisCommand.ECHO))
-                return ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.ECHO, RedisLiterals.PING);
-            // as our fallback, we'll do something odd... we'll treat a key like a value, out of sheer desperation
-            // note: this usually means: twemproxy - in which case we're fine anyway, since the proxy does the routing
-            return ResultProcessor.TimingProcessor.CreateMessage(0, flags, RedisCommand.EXISTS, (RedisValue)multiplexer.UniqueId);
-        }
+        ConnectionMultiplexer IRedisAsync.Multiplexer { get { return multiplexer; } }
         public virtual TimeSpan Ping(CommandFlags flags = CommandFlags.None)
         {
             var msg = GetTimerMessage(flags);
@@ -59,13 +45,14 @@ namespace StackExchange.Redis
             return multiplexer.ToString();
         }
 
-        public void Wait(Task task)
-        {
-            multiplexer.Wait(task);
-        }
         public bool TryWait(Task task)
         {
             return task.Wait(multiplexer.TimeoutMilliseconds);
+        }
+
+        public void Wait(Task task)
+        {
+            multiplexer.Wait(task);
         }
 
         public T Wait<T>(Task<T> task)
@@ -126,7 +113,7 @@ namespace StackExchange.Redis
 
         protected void WhenAlwaysOrNotExists(When when)
         {
-            switch(when)
+            switch (when)
             {
                 case When.Always:
                 case When.NotExists:
@@ -134,6 +121,21 @@ namespace StackExchange.Redis
                 default:
                     throw new ArgumentException(when + " is not valid in this context; the permitted values are: Always, NotExists");
             }
+        }
+
+        private ResultProcessor.TimingProcessor.TimerMessage GetTimerMessage(CommandFlags flags)
+        {
+            // do the best we can with available commands
+            var map = multiplexer.CommandMap;
+            if(map.IsAvailable(RedisCommand.PING))
+                return ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.PING);
+            if(map.IsAvailable(RedisCommand.TIME))
+                return ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.TIME);
+            if (map.IsAvailable(RedisCommand.ECHO))
+                return ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.ECHO, RedisLiterals.PING);
+            // as our fallback, we'll do something odd... we'll treat a key like a value, out of sheer desperation
+            // note: this usually means: twemproxy - in which case we're fine anyway, since the proxy does the routing
+            return ResultProcessor.TimingProcessor.CreateMessage(0, flags, RedisCommand.EXISTS, (RedisValue)multiplexer.UniqueId);
         }
     }
 }

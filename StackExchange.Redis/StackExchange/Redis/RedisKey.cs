@@ -146,6 +146,11 @@ namespace StackExchange.Redis
             return ((string)this) ?? "(null)";
         }
 
+        internal RedisValue AsRedisValue()
+        {
+            return value;
+        }
+
         internal RedisKey Assert()
         {
             if (IsNull) throw new ArgumentException("A null key is not valid in this context");
@@ -190,11 +195,6 @@ namespace StackExchange.Redis
             {
                 return BitConverter.ToString(arr);
             }
-        }
-
-        internal RedisValue AsRedisValue()
-        {
-            return value;
         }
     }
 }

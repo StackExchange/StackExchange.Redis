@@ -193,6 +193,15 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
+        public IEnumerable<KeyValuePair<RedisValue, RedisValue>> HashScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = RedisDatabase.ScanUtils.DefaultPageSize, CommandFlags flags = CommandFlags.None)
+        {
+            var scan = TryScan<KeyValuePair<RedisValue, RedisValue>>(key, pattern, pageSize, flags, RedisCommand.HSCAN, HashScanResultProcessor.Default);
+            if (scan != null) return scan;
+
+            if (pattern.IsNull) return HashGetAll(key, flags);
+            throw ExceptionFactory.NotSupported(true, RedisCommand.HSCAN);
+        }
+
         public bool HashSet(RedisKey key, RedisValue hashField, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
             WhenAlwaysOrNotExists(when);
@@ -360,6 +369,18 @@ namespace StackExchange.Redis
         {
             var msg = Message.Create(Db, flags, RedisCommand.PERSIST, key);
             return ExecuteAsync(msg, ResultProcessor.Boolean);
+        }
+
+        public RedisKey KeyRandom(CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Db, flags, RedisCommand.RANDOMKEY);
+            return ExecuteSync(msg, ResultProcessor.RedisKey);
+        }
+
+        public Task<RedisKey> KeyRandomAsync(CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Db, flags, RedisCommand.RANDOMKEY);
+            return ExecuteAsync(msg, ResultProcessor.RedisKey);
         }
 
         public bool KeyRename(RedisKey key, RedisKey newKey, When when = When.Always, CommandFlags flags = CommandFlags.None)
@@ -660,19 +681,6 @@ namespace StackExchange.Redis
         {
             return StringSetAsync(key, value, expiry, When.NotExists, flags);
         }
-
-        public RedisKey KeyRandom(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(Db, flags, RedisCommand.RANDOMKEY);
-            return ExecuteSync(msg, ResultProcessor.RedisKey);
-        }
-
-        public Task<RedisKey> KeyRandomAsync(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(Db, flags, RedisCommand.RANDOMKEY);
-            return ExecuteAsync(msg, ResultProcessor.RedisKey);
-        }
-
         public RedisResult ScriptEvaluate(string script, RedisKey[] keys = null, RedisValue[] values = null, CommandFlags flags = CommandFlags.None)
         {
             var msg = new ScriptEvalMessage(Db, flags, RedisCommand.EVAL, script, keys ?? RedisKey.EmptyArray, values ?? RedisValue.EmptyArray);
@@ -866,44 +874,14 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
-        public IEnumerable<RedisValue> SetScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = RedisDatabase.ScanIterator.DefaultPageSize, CommandFlags flags = CommandFlags.None)
+        public IEnumerable<RedisValue> SetScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = RedisDatabase.ScanUtils.DefaultPageSize, CommandFlags flags = CommandFlags.None)
         {
-            var scan = TryScan(key, pattern, pageSize, flags, RedisCommand.SSCAN, SetScanResultProcessor.Default);
+            var scan = TryScan<RedisValue>(key, pattern, pageSize, flags, RedisCommand.SSCAN, SetScanResultProcessor.Default);
             if (scan != null) return scan;
 
             if (pattern.IsNull) return SetMembers(key, flags);
             throw ExceptionFactory.NotSupported(true, RedisCommand.SSCAN);
         }
-        public IEnumerable<KeyValuePair<RedisValue,RedisValue>> HashScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = RedisDatabase.ScanIterator.DefaultPageSize, CommandFlags flags = CommandFlags.None)
-        {
-            var scan = TryScan(key, pattern, pageSize, flags, RedisCommand.HSCAN, HashScanResultProcessor.Default);
-            if (scan != null) return scan;
-
-            if (pattern.IsNull) return HashGetAll(key, flags);
-            throw ExceptionFactory.NotSupported(true, RedisCommand.HSCAN);
-        }
-        public IEnumerable<KeyValuePair<RedisValue, double>> SortedSetScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = RedisDatabase.ScanIterator.DefaultPageSize, CommandFlags flags = CommandFlags.None)
-        {
-            var scan = TryScan(key, pattern, pageSize, flags, RedisCommand.ZSCAN, SortedSetScanResultProcessor.Default);
-            if (scan != null) return scan;
-
-            if (pattern.IsNull) return SortedSetRangeByRankWithScores(key, flags: flags);
-            throw ExceptionFactory.NotSupported(true, RedisCommand.ZSCAN);
-        }
-
-        private IEnumerable<T> TryScan<T>(RedisKey key, RedisValue pattern, int pageSize, CommandFlags flags, RedisCommand command, ResultProcessor<ScanIterator<T>.ScanResult> processor)
-        {
-            if (pageSize <= 0) throw new ArgumentOutOfRangeException("pageSize");
-            if (!multiplexer.CommandMap.IsAvailable(command)) return null;
-
-            ServerEndPoint server;
-            var features = GetFeatures(Db, key, flags, out server);
-            if (!features.Scan) return null;
-
-            if (ScanIterator.IsNil(pattern)) pattern = (byte[])null;
-            return new ScanIterator<T>(this, server, key, pattern, pageSize, flags, command, processor).Read();
-        }
-
         public RedisValue[] Sort(RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default(RedisValue), RedisValue[] get = null, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetSortedSetAddMessage(default(RedisKey), key, skip, take, order, sortType, by, get, flags);
@@ -1003,6 +981,7 @@ namespace StackExchange.Redis
             var msg = GetSortedSetLengthMessage(key, min, max, exclude, flags);
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
+
         public Task<long> SortedSetLengthAsync(RedisKey key, double min = double.NegativeInfinity, double max = double.PositiveInfinity, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetSortedSetLengthMessage(key, min, max, exclude, flags);
@@ -1115,6 +1094,15 @@ namespace StackExchange.Redis
         {
             var msg = GetSortedSetRemoveRangeByScoreMessage(key, start, stop, exclude, flags);
             return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
+
+        public IEnumerable<KeyValuePair<RedisValue, double>> SortedSetScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = RedisDatabase.ScanUtils.DefaultPageSize, CommandFlags flags = CommandFlags.None)
+        {
+            var scan = TryScan<KeyValuePair<RedisValue, double>>(key, pattern, pageSize, flags, RedisCommand.ZSCAN, SortedSetScanResultProcessor.Default);
+            if (scan != null) return scan;
+
+            if (pattern.IsNull) return SortedSetRangeByRankWithScores(key, flags: flags);
+            throw ExceptionFactory.NotSupported(true, RedisCommand.ZSCAN);
         }
 
         public double? SortedSetScore(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
@@ -1625,6 +1613,7 @@ namespace StackExchange.Redis
             var to = GetRange(max, exclude, false);
             return Message.Create(Db, flags, RedisCommand.ZCOUNT, key, from, to);
         }
+
         private Message GetSortedSetRangeByScoreMessage(RedisKey key, double start, double stop, Exclude exclude, Order order, long skip, long take, CommandFlags flags, bool withScores)
         {
             // usage: {ZRANGEBYSCORE|ZREVRANGEBYSCORE} key from to [WITHSCORES] [LIMIT offset count]
@@ -1668,6 +1657,7 @@ namespace StackExchange.Redis
             }
             return Message.CreateInSlot(Db, slot, flags, RedisCommand.BITOP, values);
         }
+
         private Message GetStringBitOperationMessage(Bitwise operation, RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags)
         {
             // these ones are too bespoke to warrant custom Message implementations
@@ -1683,6 +1673,7 @@ namespace StackExchange.Redis
             slot = serverSelectionStrategy.CombineSlot(slot, second);
             return Message.CreateInSlot(Db, slot, flags, RedisCommand.BITOP, new[] { op, destination.AsRedisValue(), first.AsRedisValue(), second.AsRedisValue() });
         }
+
         Message GetStringGetWithExpiryMessage(RedisKey key, CommandFlags flags, out ResultProcessor<RedisValueWithExpiry> processor, out ServerEndPoint server)
         {
             if (this is IBatch)
@@ -1721,6 +1712,7 @@ namespace StackExchange.Redis
                     return Message.CreateInSlot(Db, slot, flags, when == When.NotExists ? RedisCommand.MSETNX : RedisCommand.MSET, args);
             }
         }
+
         Message GetStringSetMessage(RedisKey key, RedisValue value, TimeSpan? expiry = null, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
             WhenAlwaysOrExistsOrNotExists(when);
@@ -1757,6 +1749,7 @@ namespace StackExchange.Redis
             }
             throw new NotSupportedException();
         }
+
         Message IncrMessage(RedisKey key, long value, CommandFlags flags)
         {
             switch (value)
@@ -1785,78 +1778,20 @@ namespace StackExchange.Redis
                 default: throw new ArgumentOutOfRangeException("operation");
             }
         }
-        
 
-        internal sealed class ScriptLoadMessage : Message
+        private IEnumerable<T> TryScan<T>(RedisKey key, RedisValue pattern, int pageSize, CommandFlags flags, RedisCommand command, ResultProcessor<ScanIterator<T>.ScanResult> processor)
         {
-            internal readonly string Script;
-            public ScriptLoadMessage(CommandFlags flags, string script) : base(-1, flags, RedisCommand.SCRIPT)
-            {
-                if (script == null) throw new ArgumentNullException("script");
-                this.Script = script;
-            }
-            internal override void WriteImpl(PhysicalConnection physical)
-            {
-                physical.WriteHeader(Command, 2);
-                physical.Write(RedisLiterals.LOAD);
-                physical.Write((RedisValue)Script);
-            }
-        }
-        private abstract class ScanResultProcessor<T> : ResultProcessor<ScanIterator<T>.ScanResult>
-        {
-            protected abstract T[] Parse(RawResult result);
+            if (pageSize <= 0) throw new ArgumentOutOfRangeException("pageSize");
+            if (!multiplexer.CommandMap.IsAvailable(command)) return null;
 
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
-            {
-                switch (result.Type)
-                {
-                    case ResultType.MultiBulk:
-                        var arr = result.GetItems();
-                        long i64;
-                        if (arr.Length == 2 && arr[1].Type == ResultType.MultiBulk && arr[0].TryGetInt64(out i64))
-                        {
-                            var sscanResult = new ScanIterator<T>.ScanResult(i64, Parse(arr[1]));
-                            SetResult(message, sscanResult);
-                            return true;
-                        }
-                        break;
-                }
-                return false;
-            }
-        }
-        sealed class SetScanResultProcessor : ScanResultProcessor<RedisValue>
-        {
-            public static readonly ResultProcessor<ScanIterator<RedisValue>.ScanResult> Default = new SetScanResultProcessor();
-            private SetScanResultProcessor() { }
-            protected override RedisValue[] Parse(RawResult result)
-            {
-                return result.GetItemsAsValues();
-            }
-        }
-        sealed class HashScanResultProcessor : ScanResultProcessor<KeyValuePair<RedisValue,RedisValue>>
-        {
-            public static readonly ResultProcessor<ScanIterator<KeyValuePair<RedisValue, RedisValue>>.ScanResult> Default = new HashScanResultProcessor();
-            private HashScanResultProcessor() { }
-            protected override KeyValuePair<RedisValue, RedisValue>[] Parse(RawResult result)
-            {
-                KeyValuePair<RedisValue, RedisValue>[] pairs;
-                if (!ValuePairInterleaved.TryParse(result, out pairs)) pairs = null;
-                return pairs;
-            }
-        }
-        sealed class SortedSetScanResultProcessor : ScanResultProcessor<KeyValuePair<RedisValue, double>>
-        {
-            public static readonly ResultProcessor<ScanIterator<KeyValuePair<RedisValue, double>>.ScanResult> Default = new SortedSetScanResultProcessor();
-            private SortedSetScanResultProcessor() { }
-            protected override KeyValuePair<RedisValue, double>[] Parse(RawResult result)
-            {
-                KeyValuePair<RedisValue, double>[] pairs;
-                if (!SortedSetWithScores.TryParse(result, out pairs)) pairs = null;
-                return pairs;
-            }
-        }
+            ServerEndPoint server;
+            var features = GetFeatures(Db, key, flags, out server);
+            if (!features.Scan) return null;
 
-        internal static class ScanIterator
+            if (ScanUtils.IsNil(pattern)) pattern = (byte[])null;
+            return new ScanIterator<T>(this, server, key, pattern, pageSize, flags, command, processor).Read();
+        }
+        internal static class ScanUtils
         {
             public const int DefaultPageSize = 10;
             public static bool IsNil(RedisValue pattern)
@@ -1867,28 +1802,24 @@ namespace StackExchange.Redis
                 return rawValue.Length == 1 && rawValue[0] == '*';
             }
         }
+
         internal class ScanIterator<T>
         {
-            internal struct ScanResult
-            {
-                public readonly long Cursor;
-                public readonly T[] Values;
-                public ScanResult(long cursor, T[] values)
-                {
-                    this.Cursor = cursor;
-                    this.Values = values;
-                }
-            }
+            private readonly RedisCommand command;
 
             private readonly RedisDatabase database;
 
             private readonly CommandFlags flags;
-            private readonly RedisCommand command;
+
             private readonly RedisKey key;
+
             private readonly int pageSize;
+
             private readonly RedisValue pattern;
-            private readonly ServerEndPoint server;
+
             private readonly ResultProcessor<ScanResult> processor;
+
+            private readonly ServerEndPoint server;
 
             public ScanIterator(RedisDatabase database, ServerEndPoint server, RedisKey key, RedisValue pattern, int pageSize, CommandFlags flags,
                 RedisCommand command, ResultProcessor<ScanResult> processor)
@@ -1902,6 +1833,7 @@ namespace StackExchange.Redis
                 this.command = command;
                 this.processor = processor;
             }
+
             public IEnumerable<T> Read()
             {
                 var msg = CreateMessage(0, false);
@@ -1930,9 +1862,9 @@ namespace StackExchange.Redis
             Message CreateMessage(long cursor, bool running)
             {
                 if (cursor == 0 && running) return null; // end of the line
-                if (ScanIterator.IsNil(pattern))
+                if (ScanUtils.IsNil(pattern))
                 {
-                    if (pageSize == ScanIterator.DefaultPageSize)
+                    if (pageSize == ScanUtils.DefaultPageSize)
                     {
                         return Message.Create(database.Database, flags, command, key, cursor);
                     }
@@ -1943,7 +1875,7 @@ namespace StackExchange.Redis
                 }
                 else
                 {
-                    if (pageSize == ScanIterator.DefaultPageSize)
+                    if (pageSize == ScanUtils.DefaultPageSize)
                     {
                         return Message.Create(database.Database, flags, command, key, cursor, RedisLiterals.MATCH, pattern);
                     }
@@ -1954,8 +1886,67 @@ namespace StackExchange.Redis
                 }
             }
 
+            internal struct ScanResult
+            {
+                public readonly long Cursor;
+                public readonly T[] Values;
+                public ScanResult(long cursor, T[] values)
+                {
+                    this.Cursor = cursor;
+                    this.Values = values;
+                }
+            }
         }
-        
+
+        internal sealed class ScriptLoadMessage : Message
+        {
+            internal readonly string Script;
+            public ScriptLoadMessage(CommandFlags flags, string script) : base(-1, flags, RedisCommand.SCRIPT)
+            {
+                if (script == null) throw new ArgumentNullException("script");
+                this.Script = script;
+            }
+            internal override void WriteImpl(PhysicalConnection physical)
+            {
+                physical.WriteHeader(Command, 2);
+                physical.Write(RedisLiterals.LOAD);
+                physical.Write((RedisValue)Script);
+            }
+        }
+        sealed class HashScanResultProcessor : ScanResultProcessor<KeyValuePair<RedisValue, RedisValue>>
+        {
+            public static readonly ResultProcessor<ScanIterator<KeyValuePair<RedisValue, RedisValue>>.ScanResult> Default = new HashScanResultProcessor();
+            private HashScanResultProcessor() { }
+            protected override KeyValuePair<RedisValue, RedisValue>[] Parse(RawResult result)
+            {
+                KeyValuePair<RedisValue, RedisValue>[] pairs;
+                if (!ValuePairInterleaved.TryParse(result, out pairs)) pairs = null;
+                return pairs;
+            }
+        }
+
+        private abstract class ScanResultProcessor<T> : ResultProcessor<ScanIterator<T>.ScanResult>
+        {
+            protected abstract T[] Parse(RawResult result);
+
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            {
+                switch (result.Type)
+                {
+                    case ResultType.MultiBulk:
+                        var arr = result.GetItems();
+                        long i64;
+                        if (arr.Length == 2 && arr[1].Type == ResultType.MultiBulk && arr[0].TryGetInt64(out i64))
+                        {
+                            var sscanResult = new ScanIterator<T>.ScanResult(i64, Parse(arr[1]));
+                            SetResult(message, sscanResult);
+                            return true;
+                        }
+                        break;
+                }
+                return false;
+            }
+        }
         private sealed class ScriptEvalMessage : Message, IMultiMessage
         {
             private readonly RedisKey[] keys;
@@ -1984,7 +1975,7 @@ namespace StackExchange.Redis
             public IEnumerable<Message> GetMessages(PhysicalConnection connection)
             {
                 this.hash = connection.Bridge.ServerEndPoint.GetScriptHash(script);
-                if(hash.IsNull)
+                if (hash.IsNull)
                 {
                     var msg = new ScriptLoadMessage(Flags, script);
                     msg.SetInternalCall();
@@ -1996,7 +1987,7 @@ namespace StackExchange.Redis
 
             internal override void WriteImpl(PhysicalConnection physical)
             {
-                if(hash.IsNull)
+                if (hash.IsNull)
                 {
                     physical.WriteHeader(RedisCommand.EVAL, 2 + keys.Length + values.Length);
                     physical.Write((RedisValue)script);
@@ -2005,12 +1996,22 @@ namespace StackExchange.Redis
                 {
                     physical.WriteHeader(RedisCommand.EVALSHA, 2 + keys.Length + values.Length);
                     physical.Write(hash);
-                }                
+                }
                 physical.Write(keys.Length);
                 for (int i = 0; i < keys.Length; i++)
                     physical.Write(keys[i]);
                 for (int i = 0; i < values.Length; i++)
                     physical.Write(values[i]);
+            }
+        }
+
+        sealed class SetScanResultProcessor : ScanResultProcessor<RedisValue>
+        {
+            public static readonly ResultProcessor<ScanIterator<RedisValue>.ScanResult> Default = new SetScanResultProcessor();
+            private SetScanResultProcessor() { }
+            protected override RedisValue[] Parse(RawResult result)
+            {
+                return result.GetItemsAsValues();
             }
         }
         sealed class SortedSetCombineAndStoreCommandMessage : Message.CommandKeyBase // ZINTERSTORE and ZUNIONSTORE have a very unusual signature
@@ -2042,6 +2043,18 @@ namespace StackExchange.Redis
                     physical.Write(keys[i]);
                 for (int i = 0; i < values.Length; i++)
                     physical.Write(values[i]);
+            }
+        }
+
+        sealed class SortedSetScanResultProcessor : ScanResultProcessor<KeyValuePair<RedisValue, double>>
+        {
+            public static readonly ResultProcessor<ScanIterator<KeyValuePair<RedisValue, double>>.ScanResult> Default = new SortedSetScanResultProcessor();
+            private SortedSetScanResultProcessor() { }
+            protected override KeyValuePair<RedisValue, double>[] Parse(RawResult result)
+            {
+                KeyValuePair<RedisValue, double>[] pairs;
+                if (!SortedSetWithScores.TryParse(result, out pairs)) pairs = null;
+                return pairs;
             }
         }
         private class StringGetWithExpiryMessage : Message.CommandKeyBase, IMultiMessage

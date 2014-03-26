@@ -17,32 +17,6 @@ namespace StackExchange.Redis
         public EndPoint Address { get; private set; }
 
         /// <summary>
-        /// The host of the client (typically an IP address)
-        /// </summary>
-        public string Host
-        {
-            get
-            {
-                string host;
-                int port;
-                return Format.TryGetHostPort(Address, out host, out port) ? host : null;
-            }
-        }
-
-        /// <summary>
-        /// The port of the client
-        /// </summary>
-        public int Port
-        {
-            get
-            {
-                string host;
-                int port;
-                return Format.TryGetHostPort(Address, out host, out port) ? port : 0;
-            }
-        }
-
-        /// <summary>
         /// total duration of the connection in seconds
         /// </summary>
         public int AgeSeconds { get; private set; }
@@ -74,6 +48,19 @@ namespace StackExchange.Redis
         public string FlagsRaw { get; private set; }
 
         /// <summary>
+        /// The host of the client (typically an IP address)
+        /// </summary>
+        public string Host
+        {
+            get
+            {
+                string host;
+                int port;
+                return Format.TryGetHostPort(Address, out host, out port) ? host : null;
+            }
+        }
+
+        /// <summary>
         /// idle time of the connection in seconds
         /// </summary>
         public int IdleSeconds { get; private set; }
@@ -93,6 +80,18 @@ namespace StackExchange.Redis
         /// </summary>
         public int PatternSubscriptionCount { get; private set; }
 
+        /// <summary>
+        /// The port of the client
+        /// </summary>
+        public int Port
+        {
+            get
+            {
+                string host;
+                int port;
+                return Format.TryGetHostPort(Address, out host, out port) ? port : 0;
+            }
+        }
         /// <summary>
         /// The raw content from redis
         /// </summary>

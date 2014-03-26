@@ -136,12 +136,20 @@
     <Compile Include="StackExchange\Redis\ServerType.cs" />
     <Compile Include="StackExchange\Redis\SetOperation.cs" />
     <Compile Include="StackExchange\Redis\SocketManager.cs" />
+    <Compile Include="StackExchange\Redis\SocketManager.NoPoll.cs">
+      <DependentUpon>SocketManager.cs</DependentUpon>
+    </Compile>
     <Compile Include="StackExchange\Redis\SortType.cs" />
     <Compile Include="StackExchange\Redis\StringSplits.cs" />
     <Compile Include="StackExchange\Redis\TaskSource.cs" />
     <Compile Include="StackExchange\Redis\When.cs" />
     <Compile Include="StackExchange\Redis\ShutdownMode.cs" />
     <Compile Include="StackExchange\Redis\SaveType.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="StackExchange\Redis\SocketManager.Poll.cs">
+      <DependentUpon>SocketManager.cs</DependentUpon>
+    </Compile>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

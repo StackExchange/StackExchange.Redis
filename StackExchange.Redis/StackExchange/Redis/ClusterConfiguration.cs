@@ -42,6 +42,22 @@ namespace StackExchange.Redis
         public int To { get { return to; } }
 
         /// <summary>
+        /// Indicates whether two ranges are not equal
+        /// </summary>
+        public static bool operator !=(SlotRange x, SlotRange y)
+        {
+            return x.from != y.from || x.to != y.to;
+        }
+
+        /// <summary>
+        /// Indicates whether two ranges are equal
+        /// </summary>
+        public static bool operator ==(SlotRange x, SlotRange y)
+        {
+            return x.from == y.from && x.to == y.to;
+        }
+
+        /// <summary>
         /// Try to parse a string as a range
         /// </summary>
         public static bool TryParse(string range, out SlotRange value)
@@ -93,22 +109,6 @@ namespace StackExchange.Redis
             }
             return false;
         }
-
-        /// <summary>
-        /// Indicates whether two ranges are equal
-        /// </summary>
-        public static bool operator ==(SlotRange x, SlotRange y)
-        {
-            return x.from == y.from && x.to == y.to;
-        }
-        /// <summary>
-        /// Indicates whether two ranges are not equal
-        /// </summary>
-        public static bool operator !=(SlotRange x, SlotRange y)
-        {
-            return x.from != y.from || x.to != y.to;
-        }
-
         /// <summary>
         /// Indicates whether two ranges are equal
         /// </summary>
@@ -122,7 +122,8 @@ namespace StackExchange.Redis
         /// </summary>
         public override int GetHashCode()
         {
-            return (int)from | ((int)to << 16);
+            int x = from, y = to; // makes CS0675 a little happier
+            return x | (y << 16);
         }
 
         /// <summary>

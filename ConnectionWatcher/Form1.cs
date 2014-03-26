@@ -352,7 +352,7 @@ namespace ConnectionWatcher
             {
                 try
                 {
-                    ((IRedisServerDebug)muxer.GetServer(pair.EndPoint)).SimulateConnectionFailure();
+                    muxer.GetServer(pair.EndPoint).SimulateConnectionFailure();
                 } catch(Exception ex)
                 {
                     Log(ex.Message);

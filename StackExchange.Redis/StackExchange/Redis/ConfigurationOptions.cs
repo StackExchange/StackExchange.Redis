@@ -40,20 +40,18 @@ namespace StackExchange.Redis
 
         private readonly EndPointCollection endpoints = new EndPointCollection();
 
-        /// <summary>
-        /// Automatically encodes and decodes channels
-        /// </summary>
-        public RedisChannel ChannelPrefix { get;set; }
-
         private bool? allowAdmin, abortOnConnectFail, resolveDns;
 
-        private Proxy? proxy;
-        private CommandMap commandMap;
         private string clientName, serviceName, password, tieBreaker, sslHost, configChannel;
+
+        private CommandMap commandMap;
+
         private Version defaultVersion;
 
         private int? keepAlive, syncTimeout, connectTimeout, writeBuffer;
-        
+
+        private Proxy? proxy;
+
         /// <summary>
         /// A LocalCertificateSelectionCallback delegate responsible for selecting the certificate used for authentication; note
         /// that this cannot be specified in the configuration-string.
@@ -69,15 +67,9 @@ namespace StackExchange.Redis
         public event RemoteCertificateValidationCallback CertificateValidation;
 
         /// <summary>
-        /// Gets or sets the SocketManager instance to be used with these options; if this is null a per-multiplexer
-        /// SocketManager is created automatically.
+        /// Gets or sets whether connect/configuration timeouts should be explicitly notified via a TimeoutException
         /// </summary>
-        public SocketManager SocketManager {  get;set; }
-
-        /// <summary>
-        /// Indicates whether admin operations should be allowed
-        /// </summary>
-        public Proxy Proxy { get { return proxy.GetValueOrDefault(); } set { proxy = value; } }
+        public bool AbortOnConnectFail { get { return abortOnConnectFail ?? true; } set { abortOnConnectFail = value; } }
 
         /// <summary>
         /// Indicates whether admin operations should be allowed
@@ -85,10 +77,9 @@ namespace StackExchange.Redis
         public bool AllowAdmin { get { return allowAdmin.GetValueOrDefault(); } set { allowAdmin = value; } }
 
         /// <summary>
-        /// Indicates whether endpoints should be resolved via DNS before connecting
+        /// Automatically encodes and decodes channels
         /// </summary>
-        public bool ResolveDns { get { return resolveDns.GetValueOrDefault(); } set { resolveDns = value; } }
-
+        public RedisChannel ChannelPrefix { get;set; }
         /// <summary>
         /// The client name to user for all connections
         /// </summary>
@@ -102,7 +93,7 @@ namespace StackExchange.Redis
             get
             {
                 if (commandMap != null) return commandMap;
-                switch(Proxy)
+                switch (Proxy)
                 {
                     case Redis.Proxy.Twemproxy:
                         return CommandMap.Twemproxy;
@@ -110,7 +101,8 @@ namespace StackExchange.Redis
                         return CommandMap.Default;
                 }
             }
-            set {
+            set
+            {
                 if (value == null) throw new ArgumentNullException("value");
                 commandMap = value;
             }
@@ -147,10 +139,25 @@ namespace StackExchange.Redis
         public string Password { get { return password; } set { password = value; } }
 
         /// <summary>
+        /// Indicates whether admin operations should be allowed
+        /// </summary>
+        public Proxy Proxy { get { return proxy.GetValueOrDefault(); } set { proxy = value; } }
+
+        /// <summary>
+        /// Indicates whether endpoints should be resolved via DNS before connecting
+        /// </summary>
+        public bool ResolveDns { get { return resolveDns.GetValueOrDefault(); } set { resolveDns = value; } }
+
+        /// <summary>
         /// The service name used to resolve a service via sentinel
         /// </summary>
         public string ServiceName { get { return serviceName; } set { serviceName = value; } }
 
+        /// <summary>
+        /// Gets or sets the SocketManager instance to be used with these options; if this is null a per-multiplexer
+        /// SocketManager is created automatically.
+        /// </summary>
+        public SocketManager SocketManager {  get;set; }
         /// <summary>
         /// The target-host to use when validating SSL certificate; setting a value here enables SSL mode
         /// </summary>
@@ -174,12 +181,6 @@ namespace StackExchange.Redis
 
         // these just rip out the underlying handlers, bypassing the event accessors - needed when creating the SSL stream
         internal RemoteCertificateValidationCallback CertificateValidationCallback { get { return CertificateValidation; } private set { CertificateValidation = value; } }
-
-        /// <summary>
-        /// Gets or sets whether connect/configuration timeouts should be explicitly notified via a TimeoutException
-        /// </summary>
-        public bool AbortOnConnectFail { get { return abortOnConnectFail ?? true; } set { abortOnConnectFail = value; } }
-
         /// <summary>
         /// Parse the configuration from a comma-delimited configuration string
         /// </summary>

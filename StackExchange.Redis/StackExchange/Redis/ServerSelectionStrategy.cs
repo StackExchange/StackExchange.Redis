@@ -6,6 +6,7 @@ namespace StackExchange.Redis
 {
     internal sealed class ServerSelectionStrategy
     {
+        public const int NoSlot = -1, MultipleSlots = -2;
         private const int RedisClusterSlotCount = 16384;
         static readonly ushort[] crc16tab =
             {
@@ -57,26 +58,6 @@ namespace StackExchange.Redis
 
         public ServerType ServerType { get { return serverType; } set { serverType = value; } }
         internal int TotalSlots { get { return RedisClusterSlotCount; } }
-
-        public const int NoSlot = -1, MultipleSlots = -2;
-
-
-        internal int CombineSlot(int oldSlot, int newSlot)
-        {
-            if (oldSlot == MultipleSlots || newSlot == NoSlot) return oldSlot;
-            if (oldSlot == NoSlot) return newSlot;
-            return oldSlot == newSlot ? oldSlot : MultipleSlots;
-        }
-        internal int CombineSlot(int oldSlot, RedisKey key)
-        {
-            byte[] blob = key.Value;
-            if (oldSlot == MultipleSlots || (blob = key.Value) == null) return oldSlot;
-
-            int newSlot = HashSlot(blob);                        
-            if (oldSlot == NoSlot) return newSlot;
-            return oldSlot == newSlot ? oldSlot : MultipleSlots;
-        }
-
         /// <summary>
         /// Computes the hash-slot that would be used by the given key
         /// </summary>
@@ -104,6 +85,7 @@ namespace StackExchange.Redis
                 }
             }
         }
+
         public ServerEndPoint Select(Message message)
         {
             if (message == null) throw new ArgumentNullException("message");
@@ -121,43 +103,11 @@ namespace StackExchange.Redis
             }
             return Select(slot, message.Command, message.Flags);
         }
-        
+
         public ServerEndPoint Select(int db, RedisCommand command, RedisKey key, CommandFlags flags)
         {
             int slot = serverType == ServerType.Cluster ? HashSlot(key) : NoSlot;
             return Select(slot, command, flags);
-        }
-        
-        private ServerEndPoint Select(int slot, RedisCommand command, CommandFlags flags)
-        {
-            flags = Message.GetMasterSlaveFlags(flags); // only intersted in master/slave preferences
-
-            ServerEndPoint[] arr;
-            if (slot == NoSlot || (arr = map) == null) return Any(command, flags);
-
-            ServerEndPoint endpoint = arr[slot], testing;
-            // but: ^^^ is the MASTER slots; if we want a slave, we need to do some thinking
-            
-            if (endpoint != null)
-            {
-                switch (flags)
-                {
-                    case CommandFlags.DemandSlave:
-                        return FindSlave(endpoint, command) ?? Any(command, flags);
-                    case CommandFlags.PreferSlave:
-                        testing = FindSlave(endpoint, command);
-                        if (testing != null) return testing;
-                        break;
-                    case CommandFlags.DemandMaster:
-                        return FindMaster(endpoint, command) ?? Any(command, flags);
-                    case CommandFlags.PreferMaster:
-                        testing = FindMaster(endpoint, command);
-                        if (testing != null) return testing;
-                        break;
-                }
-                if (endpoint.IsSelectable(command)) return endpoint;
-            }
-            return Any(command, flags);
         }
 
         public bool TryResend(int hashSlot, Message message, EndPoint endpoint, bool isMoved)
@@ -225,6 +175,21 @@ namespace StackExchange.Redis
             }
         }
 
+        internal int CombineSlot(int oldSlot, int newSlot)
+        {
+            if (oldSlot == MultipleSlots || newSlot == NoSlot) return oldSlot;
+            if (oldSlot == NoSlot) return newSlot;
+            return oldSlot == newSlot ? oldSlot : MultipleSlots;
+        }
+        internal int CombineSlot(int oldSlot, RedisKey key)
+        {
+            byte[] blob = key.Value;
+            if (oldSlot == MultipleSlots || (blob = key.Value) == null) return oldSlot;
+
+            int newSlot = HashSlot(blob);                        
+            if (oldSlot == NoSlot) return newSlot;
+            return oldSlot == newSlot ? oldSlot : MultipleSlots;
+        }
         internal int CountCoveredSlots()
         {
             var arr = map;
@@ -284,7 +249,7 @@ namespace StackExchange.Redis
         private ServerEndPoint[] MapForMutation()
         {
             var arr = map;
-            if(arr == null)
+            if (arr == null)
             {
                 lock (this)
                 {
@@ -293,6 +258,38 @@ namespace StackExchange.Redis
                 }
             }
             return arr;
+        }
+
+        private ServerEndPoint Select(int slot, RedisCommand command, CommandFlags flags)
+        {
+            flags = Message.GetMasterSlaveFlags(flags); // only intersted in master/slave preferences
+
+            ServerEndPoint[] arr;
+            if (slot == NoSlot || (arr = map) == null) return Any(command, flags);
+
+            ServerEndPoint endpoint = arr[slot], testing;
+            // but: ^^^ is the MASTER slots; if we want a slave, we need to do some thinking
+            
+            if (endpoint != null)
+            {
+                switch (flags)
+                {
+                    case CommandFlags.DemandSlave:
+                        return FindSlave(endpoint, command) ?? Any(command, flags);
+                    case CommandFlags.PreferSlave:
+                        testing = FindSlave(endpoint, command);
+                        if (testing != null) return testing;
+                        break;
+                    case CommandFlags.DemandMaster:
+                        return FindMaster(endpoint, command) ?? Any(command, flags);
+                    case CommandFlags.PreferMaster:
+                        testing = FindMaster(endpoint, command);
+                        if (testing != null) return testing;
+                        break;
+                }
+                if (endpoint.IsSelectable(command)) return endpoint;
+            }
+            return Any(command, flags);
         }
     }
 }

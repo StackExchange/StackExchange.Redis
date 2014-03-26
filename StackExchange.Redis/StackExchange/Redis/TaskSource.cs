@@ -82,6 +82,14 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// Create a new TaskCompletion source
+        /// </summary>
+        public static TaskCompletionSource<T> Create<T>(object asyncState)
+        {
+            return new TaskCompletionSource<T>(asyncState);
+        }
+
+        /// <summary>
         /// Create a new TaskCompletionSource that will not allow result-setting threads to be hijacked
         /// </summary>
         public static TaskCompletionSource<T> CreateDenyExecSync<T>(object asyncState)
@@ -89,13 +97,6 @@ namespace StackExchange.Redis
             var source = new TaskCompletionSource<T>(asyncState);
             DenyExecSync(source.Task);
             return source;
-        }
-        /// <summary>
-        /// Create a new TaskCompletion source
-        /// </summary>
-        public static TaskCompletionSource<T> Create<T>(object asyncState)
-        {
-            return new TaskCompletionSource<T>(asyncState);
         }
     }
 }

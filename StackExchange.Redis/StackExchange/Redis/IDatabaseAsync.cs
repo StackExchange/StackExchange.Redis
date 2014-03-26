@@ -201,6 +201,13 @@ namespace StackExchange.Redis
         Task<bool> KeyPersistAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Return a random key from the currently selected database.
+        /// </summary>
+        /// <returns>the random key, or nil when the database is empty.</returns>
+        /// <remarks>http://redis.io/commands/randomkey</remarks>
+        Task<RedisKey> KeyRandomAsync(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Renames key to newkey. It returns an error when the source and destination names are the same, or when key does not exist. 
         /// </summary>
         /// <returns>http://redis.io/commands/rename</returns>
@@ -362,17 +369,6 @@ namespace StackExchange.Redis
         /// Takes a lock (specifying a token value) if it is not already taken
         /// </summary>
         Task<bool> LockTakeAsync(RedisKey key, RedisValue value, TimeSpan expiry, CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
-        /// Return a random key from the currently selected database.
-        /// </summary>
-        /// <returns>the random key, or nil when the database is empty.</returns>
-        /// <remarks>http://redis.io/commands/randomkey</remarks>
-        Task<RedisKey> KeyRandomAsync(CommandFlags flags = CommandFlags.None);
-
-
-
-
         /// <summary>
         /// Execute a Lua script against the server
         /// </summary>

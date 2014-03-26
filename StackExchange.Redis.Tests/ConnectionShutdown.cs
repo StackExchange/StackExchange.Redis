@@ -41,7 +41,7 @@ namespace StackExchange.Redis.Tests
 
 #if DEBUG
                 conn.AllowConnect = false;
-                var server = (IRedisServerDebug)conn.GetServer(PrimaryServer, PrimaryPort);
+                var server = conn.GetServer(PrimaryServer, PrimaryPort);
 
                 SetExpectedAmbientFailureCount(2);
                 server.SimulateConnectionFailure();

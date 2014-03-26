@@ -6,14 +6,16 @@ namespace StackExchange.Redis
 {
     internal static class Format
     {
-        public static bool TryParseInt32(string s, out int value)
-        {
-            return int.TryParse(s, NumberStyles.Integer, NumberFormatInfo.InvariantInfo, out value);
-        }
         public static int ParseInt32(string s)
         {
             return int.Parse(s, NumberStyles.Integer, NumberFormatInfo.InvariantInfo);
         }
+
+        public static string ToString(int value)
+        {
+            return value.ToString(NumberFormatInfo.InvariantInfo);
+        }
+
         public static bool TryParseBoolean(string s, out bool value)
         {
             if (bool.TryParse(s, out value)) return true;
@@ -32,39 +34,20 @@ namespace StackExchange.Redis
             return false;
         }
 
-        public static string ToString(int value)
+        public static bool TryParseInt32(string s, out int value)
         {
-            return value.ToString(NumberFormatInfo.InvariantInfo);
+            return int.TryParse(s, NumberStyles.Integer, NumberFormatInfo.InvariantInfo, out value);
         }
+        internal static EndPoint ParseEndPoint(string host, int port)
+        {
+            IPAddress ip;
+            if (IPAddress.TryParse(host, out ip)) return new IPEndPoint(ip, port);
+            return new DnsEndPoint(host, port);
+        }
+
         internal static string ToString(long value)
         {
             return value.ToString(NumberFormatInfo.InvariantInfo);
-        }
-
-        internal static bool TryParseDouble(string s, out double value)
-        {
-            if(s == null || s.Length == 0)
-            {
-                value = 0;
-                return false;
-            }
-            if(s.Length==1 && s[0] >= '0' && s[1] <= '9')
-            {
-                value = (int)(s[0] - '0');
-                return true;
-            }
-            // need to handle these
-            if(string.Equals("+inf", s, StringComparison.OrdinalIgnoreCase))
-            {
-                value = double.PositiveInfinity;
-                return true;
-            }
-            if(string.Equals("-inf", s, StringComparison.OrdinalIgnoreCase))
-            {
-                value = double.NegativeInfinity;
-                return true;
-            }
-            return double.TryParse(s, NumberStyles.Any, NumberFormatInfo.InvariantInfo, out value);
         }
 
         internal static string ToString(double value)
@@ -76,6 +59,7 @@ namespace StackExchange.Redis
             }
             return value.ToString("G17", NumberFormatInfo.InvariantInfo);
         }
+
         internal static string ToString(object value)
         {
             return Convert.ToString(value, CultureInfo.InvariantCulture);
@@ -119,11 +103,31 @@ namespace StackExchange.Redis
             port = 0;
             return false;
         }
-        internal static EndPoint ParseEndPoint(string host, int port)
+
+        internal static bool TryParseDouble(string s, out double value)
         {
-            IPAddress ip;
-            if (IPAddress.TryParse(host, out ip)) return new IPEndPoint(ip, port);
-            return new DnsEndPoint(host, port);
+            if(s == null || s.Length == 0)
+            {
+                value = 0;
+                return false;
+            }
+            if(s.Length==1 && s[0] >= '0' && s[1] <= '9')
+            {
+                value = (int)(s[0] - '0');
+                return true;
+            }
+            // need to handle these
+            if(string.Equals("+inf", s, StringComparison.OrdinalIgnoreCase))
+            {
+                value = double.PositiveInfinity;
+                return true;
+            }
+            if(string.Equals("-inf", s, StringComparison.OrdinalIgnoreCase))
+            {
+                value = double.NegativeInfinity;
+                return true;
+            }
+            return double.TryParse(s, NumberStyles.Any, NumberFormatInfo.InvariantInfo, out value);
         }
         internal static EndPoint TryParseEndPoint(string endpoint)
         {
