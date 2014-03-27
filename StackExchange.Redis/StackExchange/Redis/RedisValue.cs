@@ -83,12 +83,12 @@ namespace StackExchange.Redis
                 }
                 else
                 {
-                    Equals((byte[])x, (byte[])y);
+                    return Equals((byte[])x, (byte[])y);
                 }
             }
             else if (y.valueBlob == IntegerSentinel)
             {
-                Equals((byte[])x, (byte[])y);
+                return Equals((byte[])x, (byte[])y);
             }
 
             return Equals(x.valueBlob, y.valueBlob);
@@ -233,6 +233,13 @@ namespace StackExchange.Redis
             return new RedisValue(value, IntegerSentinel);
         }
         /// <summary>
+        /// Creates a new RedisValue from a nullable Int32
+        /// </summary>
+        public static implicit operator RedisValue(int? value)
+        {
+            return value == null ? @null : (RedisValue)value.GetValueOrDefault();
+        }
+        /// <summary>
         /// Creates a new RedisValue from an Int64
         /// </summary>
         public static implicit operator RedisValue(long value)
@@ -240,11 +247,26 @@ namespace StackExchange.Redis
             return new RedisValue(value, IntegerSentinel);
         }
         /// <summary>
+        /// Creates a new RedisValue from a nullable Int64
+        /// </summary>
+        public static implicit operator RedisValue(long? value)
+        {
+            return value == null ? @null : (RedisValue)value.GetValueOrDefault();
+        }
+        /// <summary>
         /// Creates a new RedisValue from a Double
         /// </summary>
         public static implicit operator RedisValue(double value)
         {
             return Format.ToString(value);
+        }
+
+        /// <summary>
+        /// Creates a new RedisValue from a nullable Double
+        /// </summary>
+        public static implicit operator RedisValue(double? value)
+        {
+            return value == null ? @null : (RedisValue)value.GetValueOrDefault();
         }
         /// <summary>
         /// Creates a new RedisValue from a String
@@ -274,6 +296,13 @@ namespace StackExchange.Redis
         public static implicit operator RedisValue(bool value)
         {
             return new RedisValue(value ? 1 : 0, IntegerSentinel);
+        }
+        /// <summary>
+        /// Creates a new RedisValue from a nullable Boolean
+        /// </summary>
+        public static implicit operator RedisValue(bool? value)
+        {
+            return value == null ? @null : (RedisValue)value.GetValueOrDefault();
         }
         /// <summary>
         /// Creates a new RedisValue from a Boolean
