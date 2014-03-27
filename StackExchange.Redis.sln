@@ -46,6 +46,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Docs", "Docs\Docs.csproj", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BasicTest", "BasicTest\BasicTest.csproj", "{BE213DFB-5334-4441-B975-0DBCFD5F5A73}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MigratedBookSleeveTestSuite", "MigratedBookSleeveTestSuite\MigratedBookSleeveTestSuite.csproj", "{97B45B3A-34DB-43C3-A979-37F217390142}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -94,6 +96,14 @@ Global
 		{BE213DFB-5334-4441-B975-0DBCFD5F5A73}.Release|Any CPU.Build.0 = Release|Any CPU
 		{BE213DFB-5334-4441-B975-0DBCFD5F5A73}.Verbose|Any CPU.ActiveCfg = Release|Any CPU
 		{BE213DFB-5334-4441-B975-0DBCFD5F5A73}.Verbose|Any CPU.Build.0 = Release|Any CPU
+		{97B45B3A-34DB-43C3-A979-37F217390142}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{97B45B3A-34DB-43C3-A979-37F217390142}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{97B45B3A-34DB-43C3-A979-37F217390142}.Log Output|Any CPU.ActiveCfg = Release|Any CPU
+		{97B45B3A-34DB-43C3-A979-37F217390142}.Log Output|Any CPU.Build.0 = Release|Any CPU
+		{97B45B3A-34DB-43C3-A979-37F217390142}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{97B45B3A-34DB-43C3-A979-37F217390142}.Release|Any CPU.Build.0 = Release|Any CPU
+		{97B45B3A-34DB-43C3-A979-37F217390142}.Verbose|Any CPU.ActiveCfg = Release|Any CPU
+		{97B45B3A-34DB-43C3-A979-37F217390142}.Verbose|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
