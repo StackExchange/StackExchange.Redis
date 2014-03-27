@@ -194,6 +194,7 @@ namespace StackExchange.Redis
         partial void OnDispose();
         partial void OnShutdown(Socket socket);
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")]
         private void Shutdown(Socket socket)
         {
             if (socket != null)

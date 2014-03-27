@@ -102,5 +102,20 @@ namespace StackExchange.Redis
             return value is SortedSetEntry ? CompareTo((SortedSetEntry)value) : -1;
         }
 
+        /// <summary>
+        /// Compares two values for equality
+        /// </summary>
+        public static bool operator ==(SortedSetEntry x, SortedSetEntry y)
+        {
+            return x.score == y.score && x.element == y.element;
+        }
+        /// <summary>
+        /// Compares two values for non-equality
+        /// </summary>
+        public static bool operator !=(SortedSetEntry x, SortedSetEntry y)
+        {
+            return x.score != y.score || x.element != y.element;
+        }
+
     }
 }

@@ -30,6 +30,8 @@ namespace StackExchange.Redis.Tests
         {
             socketManager = new SocketManager(GetType().Name);
         }
+
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1063:ImplementIDisposableCorrectly")]
         public void Dispose()
         {
             socketManager.Dispose();

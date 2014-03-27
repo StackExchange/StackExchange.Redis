@@ -78,5 +78,19 @@ namespace StackExchange.Redis
         {
             return this.name == value.name && this.value == value.value;
         }
+        /// <summary>
+        /// Compares two values for equality
+        /// </summary>
+        public static bool operator ==(HashEntry x, HashEntry y)
+        {
+            return x.name == y.name && x.value == y.value;
+        }
+        /// <summary>
+        /// Compares two values for non-equality
+        /// </summary>
+        public static bool operator !=(HashEntry x, HashEntry y)
+        {
+            return x.name != y.name || x.value != y.value;
+        }
     }
 }
