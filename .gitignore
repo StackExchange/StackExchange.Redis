@@ -12,3 +12,4 @@ Mono/
 *.rdb
 *.orig
 redis-cli.exe
+Redis Configs/*.dat
