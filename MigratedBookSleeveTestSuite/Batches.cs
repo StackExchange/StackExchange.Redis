@@ -1,70 +1,62 @@
-﻿//using NUnit.Framework;
-//using System;
-//using System.Collections.Generic;
-//using System.Linq;
-//using System.Text;
-//using System.Threading.Tasks;
+﻿using NUnit.Framework;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
 
-//namespace Tests
-//{
-//    [TestFixture]
-//    public class Batches
-//    {
-//        [Test]
-//        public void TestBatchNotSent()
-//        {
-//            using (var conn = Config.GetUnsecuredConnection())
-//            {
-//                conn.Keys.Remove(0, "batch");
-//                conn.Strings.Set(0, "batch", "batch-not-sent");
-//                var tasks = new List<Task>();
-//                using (var batch = conn.CreateBatch())
-//                {
-//                    tasks.Add(batch.Keys.Remove(0, "batch"));
-//                    tasks.Add(batch.Sets.Add(0, "batch", "a"));
-//                    tasks.Add(batch.Sets.Add(0, "batch", "b"));
-//                    tasks.Add(batch.Sets.Add(0, "batch", "c"));
-//                }
-//                Assert.AreEqual("batch-not-sent", conn.Wait(conn.Strings.GetString(0, "batch")));
-//            }
-//        }
+namespace Tests
+{
+    [TestFixture]
+    public class Batches
+    {
+        [Test]
+        public void TestBatchNotSent()
+        {
+            using (var muxer = Config.GetUnsecuredConnection())
+            {
+                var conn = muxer.GetDatabase(0);
+                conn.KeyDeleteAsync("batch");
+                conn.StringSetAsync("batch", "batch-not-sent");
+                var tasks = new List<Task>();
+                var batch = conn.CreateBatch();
+                
+                tasks.Add(batch.KeyDeleteAsync("batch"));
+                tasks.Add(batch.SetAddAsync("batch", "a"));
+                tasks.Add(batch.SetAddAsync("batch", "b"));
+                tasks.Add(batch.SetAddAsync("batch", "c"));
 
-//        [Test]
-//        public void TestBatchSentTogether()
-//        {
-//            TestBatchSent(true);
-//        }
-//        [Test]
-//        public void TestBatchSentApart()
-//        {
-//            TestBatchSent(false);
-//        }
-//        private void TestBatchSent(bool together)
-//        {
-//            using (var conn = Config.GetUnsecuredConnection())
-//            {
-//                conn.Keys.Remove(0, "batch");
-//                conn.Strings.Set(0, "batch", "batch-sent");
-//                var tasks = new List<Task>();
-//                using (var batch = conn.CreateBatch())
-//                {
-//                    tasks.Add(batch.Keys.Remove(0, "batch"));
-//                    tasks.Add(batch.Sets.Add(0, "batch", "a"));
-//                    tasks.Add(batch.Sets.Add(0, "batch", "b"));
-//                    tasks.Add(batch.Sets.Add(0, "batch", "c"));
-//                    batch.Send(together);
-//                }
-//                var result = conn.Sets.GetAllString(0, "batch");
-//                tasks.Add(result);
-//                Task.WhenAll(tasks.ToArray());
+                Assert.AreEqual("batch-not-sent", (string)conn.StringGet("batch"));
+            }
+        }
 
-//                var arr = result.Result;
-//                Array.Sort(arr);
-//                Assert.AreEqual(3, arr.Length);
-//                Assert.AreEqual("a", arr[0]);
-//                Assert.AreEqual("b", arr[1]);
-//                Assert.AreEqual("c", arr[2]);
-//            }
-//        }
-//    }
-//}
+        [Test]
+        public void TestBatchSent()
+        {
+            using (var muxer = Config.GetUnsecuredConnection())
+            {
+                var conn = muxer.GetDatabase(0);
+                conn.KeyDeleteAsync("batch");
+                conn.StringSetAsync("batch", "batch-sent");
+                var tasks = new List<Task>();
+                var batch = conn.CreateBatch();
+                tasks.Add(batch.KeyDeleteAsync("batch"));
+                tasks.Add(batch.SetAddAsync("batch", "a"));
+                tasks.Add(batch.SetAddAsync("batch", "b"));
+                tasks.Add(batch.SetAddAsync("batch", "c"));
+                batch.Execute();
+                
+                var result = conn.SetMembersAsync("batch");
+                tasks.Add(result);
+                Task.WhenAll(tasks.ToArray());
+
+                var arr = result.Result;
+                Array.Sort(arr, (x, y) => string.Compare(x, y));
+                Assert.AreEqual(3, arr.Length);
+                Assert.AreEqual("a", (string)arr[0]);
+                Assert.AreEqual("b", (string)arr[1]);
+                Assert.AreEqual("c", (string)arr[2]);
+            }
+        }
+    }
+}
