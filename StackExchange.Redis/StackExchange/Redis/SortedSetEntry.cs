@@ -83,7 +83,7 @@ namespace StackExchange.Redis
         /// </summary>
         public bool Equals(SortedSetEntry value)
         {
-            return this.element == value.element && this.score == value.score;
+            return this.score == value.score && this.element == value.element;
         }
 
         /// <summary>
