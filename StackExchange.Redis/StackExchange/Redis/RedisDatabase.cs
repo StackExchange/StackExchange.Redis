@@ -1625,6 +1625,20 @@ namespace StackExchange.Redis
             // there's basically only 4 layouts; with/without each of scores/limit
             var command = order == Order.Descending ? RedisCommand.ZREVRANGEBYSCORE : RedisCommand.ZRANGEBYSCORE;
             bool unlimited = skip == 0 && take == -1; // these are our defaults that mean "everything"; anything else needs to be sent explicitly
+
+            bool reverseLimits = (order == Order.Ascending) == (start > stop);
+            if (reverseLimits)
+            {
+                var tmp = start;
+                start = stop;
+                stop = tmp;
+                switch(exclude)
+                {
+                    case Exclude.Start: exclude = Exclude.Stop; break;
+                    case Exclude.Stop: exclude = Exclude.Start; break;
+                }
+            }
+
             RedisValue from = GetRange(start, exclude, true), to = GetRange(stop, exclude, false);
             if (withScores)
             {

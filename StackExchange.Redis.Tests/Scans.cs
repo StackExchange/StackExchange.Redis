@@ -6,11 +6,6 @@ namespace StackExchange.Redis.Tests
     [TestFixture]
     public class Scans : TestBase
     {
-
-        protected override string GetConfiguration()
-        {
-            return "ubuntu";
-        }
         [Test]
         [TestCase(true)]
         [TestCase(false)]
@@ -65,6 +60,40 @@ namespace StackExchange.Redis.Tests
                 Assert.AreEqual(1, sDictionary["a"]);
                 Assert.AreEqual(2, sDictionary["b"]);
                 Assert.AreEqual(3, sDictionary["c"]);
+
+                var basic = db.SortedSetRangeByRankWithScores(key, order: Order.Ascending).ToDictionary();
+                Assert.AreEqual(3, basic.Count);
+                Assert.AreEqual(1, basic["a"]);
+                Assert.AreEqual(2, basic["b"]);
+                Assert.AreEqual(3, basic["c"]);
+
+                basic = db.SortedSetRangeByRankWithScores(key, order: Order.Descending).ToDictionary();
+                Assert.AreEqual(3, basic.Count);
+                Assert.AreEqual(1, basic["a"]);
+                Assert.AreEqual(2, basic["b"]);
+                Assert.AreEqual(3, basic["c"]);
+
+                var basicArr = db.SortedSetRangeByScoreWithScores(key, order: Order.Ascending);
+                Assert.AreEqual(3, basicArr.Length);
+                Assert.AreEqual(1, basicArr[0].Score);
+                Assert.AreEqual(2, basicArr[1].Score);
+                Assert.AreEqual(3, basicArr[2].Score);
+                basic = basicArr.ToDictionary();
+                Assert.AreEqual(3, basic.Count, "asc");
+                Assert.AreEqual(1, basic["a"]);
+                Assert.AreEqual(2, basic["b"]);
+                Assert.AreEqual(3, basic["c"]);
+
+                basicArr = db.SortedSetRangeByScoreWithScores(key, order: Order.Descending);
+                Assert.AreEqual(3, basicArr.Length);
+                Assert.AreEqual(3, basicArr[0].Score);
+                Assert.AreEqual(2, basicArr[1].Score);
+                Assert.AreEqual(1, basicArr[2].Score);
+                basic = basicArr.ToDictionary();
+                Assert.AreEqual(3, basic.Count, "desc");
+                Assert.AreEqual(1, basic["a"]);
+                Assert.AreEqual(2, basic["b"]);
+                Assert.AreEqual(3, basic["c"]);
             }
         }
 
@@ -99,6 +128,13 @@ namespace StackExchange.Redis.Tests
                 Assert.AreEqual("1", sDictionary["a"]);
                 Assert.AreEqual("2", sDictionary["b"]);
                 Assert.AreEqual("3", sDictionary["c"]);
+
+
+                var basic = db.HashGetAll(key).ToDictionary();
+                Assert.AreEqual(3, basic.Count);
+                Assert.AreEqual(1, (long)basic["a"]);
+                Assert.AreEqual(2, (long)basic["b"]);
+                Assert.AreEqual(3, (long)basic["c"]);
             }
         }
 
