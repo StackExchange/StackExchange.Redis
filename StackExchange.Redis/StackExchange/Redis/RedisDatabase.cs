@@ -115,16 +115,16 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.RedisValueArray);
         }
 
-        public KeyValuePair<RedisValue, RedisValue>[] HashGetAll(RedisKey key, CommandFlags flags = CommandFlags.None)
+        public HashEntry[] HashGetAll(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Db, flags, RedisCommand.HGETALL, key);
-            return ExecuteSync(msg, ResultProcessor.ValuePairInterleaved);
+            return ExecuteSync(msg, ResultProcessor.HashEntryArray);
         }
 
-        public Task<KeyValuePair<RedisValue, RedisValue>[]> HashGetAllAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+        public Task<HashEntry[]> HashGetAllAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Db, flags, RedisCommand.HGETALL, key);
-            return ExecuteAsync(msg, ResultProcessor.ValuePairInterleaved);
+            return ExecuteAsync(msg, ResultProcessor.HashEntryArray);
         }
 
         public Task<RedisValue> HashGetAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
@@ -193,9 +193,9 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
-        public IEnumerable<KeyValuePair<RedisValue, RedisValue>> HashScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = RedisDatabase.ScanUtils.DefaultPageSize, CommandFlags flags = CommandFlags.None)
+        public IEnumerable<HashEntry> HashScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = RedisDatabase.ScanUtils.DefaultPageSize, CommandFlags flags = CommandFlags.None)
         {
-            var scan = TryScan<KeyValuePair<RedisValue, RedisValue>>(key, pattern, pageSize, flags, RedisCommand.HSCAN, HashScanResultProcessor.Default);
+            var scan = TryScan<HashEntry>(key, pattern, pageSize, flags, RedisCommand.HSCAN, HashScanResultProcessor.Default);
             if (scan != null) return scan;
 
             if (pattern.IsNull) return HashGetAll(key, flags);
@@ -211,7 +211,7 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.Boolean);
         }
 
-        public void HashSet(RedisKey key, KeyValuePair<RedisValue, RedisValue>[] hashFields, CommandFlags flags = CommandFlags.None)
+        public void HashSet(RedisKey key, HashEntry[] hashFields, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetHashSetMessage(key, hashFields, flags);
             if (msg == null) return;
@@ -227,7 +227,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Boolean);
         }
 
-        public Task HashSetAsync(RedisKey key, KeyValuePair<RedisValue, RedisValue>[] hashFields, CommandFlags flags = CommandFlags.None)
+        public Task HashSetAsync(RedisKey key, HashEntry[] hashFields, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetHashSetMessage(key, hashFields, flags);
             return ExecuteAsync(msg, ResultProcessor.DemandOK);
@@ -912,7 +912,7 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.Boolean);
         }
 
-        public long SortedSetAdd(RedisKey key, KeyValuePair<RedisValue, double>[] values, CommandFlags flags = CommandFlags.None)
+        public long SortedSetAdd(RedisKey key, SortedSetEntry[] values, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetSortedSetAddMessage(key, values, flags);
             return ExecuteSync(msg, ResultProcessor.Int64);
@@ -924,7 +924,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Boolean);
         }
 
-        public Task<long> SortedSetAddAsync(RedisKey key, KeyValuePair<RedisValue, double>[] values, CommandFlags flags = CommandFlags.None)
+        public Task<long> SortedSetAddAsync(RedisKey key, SortedSetEntry[] values, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetSortedSetAddMessage(key, values, flags);
             return ExecuteAsync(msg, ResultProcessor.Int64);
@@ -1000,13 +1000,13 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray);
         }
 
-        public KeyValuePair<RedisValue, double>[] SortedSetRangeByRankWithScores(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        public SortedSetEntry[] SortedSetRangeByRankWithScores(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Db, flags, order == Order.Descending ? RedisCommand.ZREVRANGE : RedisCommand.ZRANGE, key, start, stop, RedisLiterals.WITHSCORES);
             return ExecuteSync(msg, ResultProcessor.SortedSetWithScores);
         }
 
-        public Task<KeyValuePair<RedisValue, double>[]> SortedSetRangeByRankWithScoresAsync(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        public Task<SortedSetEntry[]> SortedSetRangeByRankWithScoresAsync(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Db, flags, order == Order.Descending ? RedisCommand.ZREVRANGE : RedisCommand.ZRANGE, key, start, stop, RedisLiterals.WITHSCORES);
             return ExecuteAsync(msg, ResultProcessor.SortedSetWithScores);
@@ -1024,13 +1024,13 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray);
         }
 
-        public KeyValuePair<RedisValue, double>[] SortedSetRangeByScoreWithScores(RedisKey key, double start = double.NegativeInfinity, double stop = double.PositiveInfinity, Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
+        public SortedSetEntry[] SortedSetRangeByScoreWithScores(RedisKey key, double start = double.NegativeInfinity, double stop = double.PositiveInfinity, Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetSortedSetRangeByScoreMessage(key, start, stop, exclude, order, skip, take, flags, true);
             return ExecuteSync(msg, ResultProcessor.SortedSetWithScores);
         }
 
-        public Task<KeyValuePair<RedisValue, double>[]> SortedSetRangeByScoreWithScoresAsync(RedisKey key, double start = double.NegativeInfinity, double stop = double.PositiveInfinity, Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
+        public Task<SortedSetEntry[]> SortedSetRangeByScoreWithScoresAsync(RedisKey key, double start = double.NegativeInfinity, double stop = double.PositiveInfinity, Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetSortedSetRangeByScoreMessage(key, start, stop, exclude, order, skip, take, flags, true);
             return ExecuteAsync(msg, ResultProcessor.SortedSetWithScores);
@@ -1096,9 +1096,9 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
-        public IEnumerable<KeyValuePair<RedisValue, double>> SortedSetScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = RedisDatabase.ScanUtils.DefaultPageSize, CommandFlags flags = CommandFlags.None)
+        public IEnumerable<SortedSetEntry> SortedSetScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = RedisDatabase.ScanUtils.DefaultPageSize, CommandFlags flags = CommandFlags.None)
         {
-            var scan = TryScan<KeyValuePair<RedisValue, double>>(key, pattern, pageSize, flags, RedisCommand.ZSCAN, SortedSetScanResultProcessor.Default);
+            var scan = TryScan<SortedSetEntry>(key, pattern, pageSize, flags, RedisCommand.ZSCAN, SortedSetScanResultProcessor.Default);
             if (scan != null) return scan;
 
             if (pattern.IsNull) return SortedSetRangeByRankWithScores(key, flags: flags);
@@ -1412,20 +1412,25 @@ namespace StackExchange.Redis
             return Message.Create(Db, flags, RedisCommand.EXPIREAT, key, seconds);
         }
 
-        private Message GetHashSetMessage(RedisKey key, KeyValuePair<RedisValue, RedisValue>[] hashFields, CommandFlags flags)
+        private Message GetHashSetMessage(RedisKey key, HashEntry[] hashFields, CommandFlags flags)
         {
             if (hashFields == null) throw new ArgumentNullException("hashFields");
             switch (hashFields.Length)
             {
                 case 0: return null;
-                case 1: return Message.Create(Db, flags, RedisCommand.HMSET, key, hashFields[0].Key, hashFields[0].Value);
+                case 1: return Message.Create(Db, flags, RedisCommand.HMSET, key,
+                        hashFields[0].name, hashFields[0].value);
+                case 2:
+                    return Message.Create(Db, flags, RedisCommand.HMSET, key,
+                        hashFields[0].name, hashFields[0].value,
+                        hashFields[1].name, hashFields[1].value);
                 default:
                     var arr = new RedisValue[hashFields.Length * 2];
                     int offset = 0;
                     for (int i = 0; i < hashFields.Length; i++)
                     {
-                        arr[offset++] = hashFields[i].Key;
-                        arr[offset++] = hashFields[i].Value;
+                        arr[offset++] = hashFields[i].name;
+                        arr[offset++] = hashFields[i].value;
                     }
                     return Message.Create(Db, flags, RedisCommand.HMSET, key, arr);
             }
@@ -1466,7 +1471,7 @@ namespace StackExchange.Redis
             return Message.Create(Db, flags, RedisCommand.RESTORE, key, pttl, value);
         }
 
-        private Message GetSortedSetAddMessage(RedisKey key, KeyValuePair<RedisValue, double>[] values, CommandFlags flags)
+        private Message GetSortedSetAddMessage(RedisKey key, SortedSetEntry[] values, CommandFlags flags)
         {
             if (values == null) throw new ArgumentNullException("values");
             switch (values.Length)
@@ -1474,18 +1479,18 @@ namespace StackExchange.Redis
                 case 0: return null;
                 case 1:
                     return Message.Create(Db, flags, RedisCommand.ZADD, key,
-                values[0].Value, values[0].Key);
+                        values[0].element, values[0].score);
                 case 2:
                     return Message.Create(Db, flags, RedisCommand.ZADD, key,
-                values[0].Value, values[0].Key,
-                values[1].Value, values[1].Key);
+                        values[0].element, values[0].score,
+                        values[1].element, values[1].score);
                 default:
                     var arr = new RedisValue[values.Length * 2];
                     int index = 0;
                     for (int i = 0; i < values.Length; i++)
                     {
-                        arr[index++] = values[i].Value;
-                        arr[index++] = values[i].Key;
+                        arr[index++] = values[i].element;
+                        arr[index++] = values[i].score;
                     }
                     return Message.Create(Db, flags, RedisCommand.ZADD, key, arr);
             }
@@ -1913,14 +1918,14 @@ namespace StackExchange.Redis
                 physical.Write((RedisValue)Script);
             }
         }
-        sealed class HashScanResultProcessor : ScanResultProcessor<KeyValuePair<RedisValue, RedisValue>>
+        sealed class HashScanResultProcessor : ScanResultProcessor<HashEntry>
         {
-            public static readonly ResultProcessor<ScanIterator<KeyValuePair<RedisValue, RedisValue>>.ScanResult> Default = new HashScanResultProcessor();
+            public static readonly ResultProcessor<ScanIterator<HashEntry>.ScanResult> Default = new HashScanResultProcessor();
             private HashScanResultProcessor() { }
-            protected override KeyValuePair<RedisValue, RedisValue>[] Parse(RawResult result)
+            protected override HashEntry[] Parse(RawResult result)
             {
-                KeyValuePair<RedisValue, RedisValue>[] pairs;
-                if (!ValuePairInterleaved.TryParse(result, out pairs)) pairs = null;
+                HashEntry[] pairs;
+                if (!HashEntryArray.TryParse(result, out pairs)) pairs = null;
                 return pairs;
             }
         }
@@ -2046,13 +2051,13 @@ namespace StackExchange.Redis
             }
         }
 
-        sealed class SortedSetScanResultProcessor : ScanResultProcessor<KeyValuePair<RedisValue, double>>
+        sealed class SortedSetScanResultProcessor : ScanResultProcessor<SortedSetEntry>
         {
-            public static readonly ResultProcessor<ScanIterator<KeyValuePair<RedisValue, double>>.ScanResult> Default = new SortedSetScanResultProcessor();
+            public static readonly ResultProcessor<ScanIterator<SortedSetEntry>.ScanResult> Default = new SortedSetScanResultProcessor();
             private SortedSetScanResultProcessor() { }
-            protected override KeyValuePair<RedisValue, double>[] Parse(RawResult result)
+            protected override SortedSetEntry[] Parse(RawResult result)
             {
-                KeyValuePair<RedisValue, double>[] pairs;
+                SortedSetEntry[] pairs;
                 if (!SortedSetWithScores.TryParse(result, out pairs)) pairs = null;
                 return pairs;
             }

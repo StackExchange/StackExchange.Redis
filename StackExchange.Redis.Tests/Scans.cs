@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Linq;
 using NUnit.Framework;
 
 namespace StackExchange.Redis.Tests
@@ -56,9 +52,19 @@ namespace StackExchange.Redis.Tests
 
                 var arr = db.SortedSetScan(key).ToArray();
                 Assert.AreEqual(3, arr.Length);
-                Assert.IsTrue(arr.Any(x => x.Key == "a" && x.Value == 1), "a");
-                Assert.IsTrue(arr.Any(x => x.Key == "b" && x.Value == 2), "b");
-                Assert.IsTrue(arr.Any(x => x.Key == "c" && x.Value == 3), "c");
+                Assert.IsTrue(arr.Any(x => x.Element == "a" && x.Score == 1), "a");
+                Assert.IsTrue(arr.Any(x => x.Element == "b" && x.Score == 2), "b");
+                Assert.IsTrue(arr.Any(x => x.Element == "c" && x.Score == 3), "c");
+
+                var dictionary = arr.ToDictionary();
+                Assert.AreEqual(1, dictionary["a"]);
+                Assert.AreEqual(2, dictionary["b"]);
+                Assert.AreEqual(3, dictionary["c"]);
+
+                var sDictionary = arr.ToStringDictionary();
+                Assert.AreEqual(1, sDictionary["a"]);
+                Assert.AreEqual(2, sDictionary["b"]);
+                Assert.AreEqual(3, sDictionary["c"]);
             }
         }
 
@@ -80,9 +86,19 @@ namespace StackExchange.Redis.Tests
 
                 var arr = db.HashScan(key).ToArray();
                 Assert.AreEqual(3, arr.Length);
-                Assert.IsTrue(arr.Any(x => x.Key == "a" && x.Value == "1"), "a");
-                Assert.IsTrue(arr.Any(x => x.Key == "b" && x.Value == "2"), "b");
-                Assert.IsTrue(arr.Any(x => x.Key == "c" && x.Value == "3"), "c");
+                Assert.IsTrue(arr.Any(x => x.Name == "a" && x.Value == "1"), "a");
+                Assert.IsTrue(arr.Any(x => x.Name == "b" && x.Value == "2"), "b");
+                Assert.IsTrue(arr.Any(x => x.Name == "c" && x.Value == "3"), "c");
+
+                var dictionary = arr.ToDictionary();
+                Assert.AreEqual(1, (long)dictionary["a"]);
+                Assert.AreEqual(2, (long)dictionary["b"]);
+                Assert.AreEqual(3, (long)dictionary["c"]);
+
+                var sDictionary = arr.ToStringDictionary();
+                Assert.AreEqual("1", sDictionary["a"]);
+                Assert.AreEqual("2", sDictionary["b"]);
+                Assert.AreEqual("3", sDictionary["c"]);
             }
         }
 

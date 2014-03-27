@@ -69,8 +69,8 @@ namespace StackExchange.Redis
         public static readonly ResultProcessor<RedisResult>
             ScriptResult = new ScriptResultProcessor();
 
-        public static readonly SortedSetWithScoresProcessor
-            SortedSetWithScores = new SortedSetWithScoresProcessor();
+        public static readonly SortedSetEntryArrayProcessor
+            SortedSetWithScores = new SortedSetEntryArrayProcessor();
 
         public static readonly ResultProcessor<string>
                             String = new StringProcessor(),
@@ -80,8 +80,8 @@ namespace StackExchange.Redis
         public static readonly TimeSpanProcessor
             TimeSpanFromMilliseconds = new TimeSpanProcessor(true),
             TimeSpanFromSeconds = new TimeSpanProcessor(false);
-        public static readonly ValuePairInterleavedProcessor
-            ValuePairInterleaved = new ValuePairInterleavedProcessor();
+        public static readonly HashEntryArrayProcessor
+            HashEntryArray = new HashEntryArrayProcessor();
         static readonly byte[] MOVED = Encoding.UTF8.GetBytes("MOVED "), ASK = Encoding.UTF8.GetBytes("ASK ");        
 
         public void ConnectionFail(Message message, ConnectionFailureType fail, Exception innerException)
@@ -342,27 +342,28 @@ namespace StackExchange.Redis
             }
         }
 
-        internal sealed class SortedSetWithScoresProcessor : ValuePairInterleavedProcessorBase<RedisValue, double>
+        internal sealed class SortedSetEntryArrayProcessor : ValuePairInterleavedProcessorBase<SortedSetEntry>
         {
-            protected override RedisValue ParseKey(RawResult key) { return key.AsRedisValue(); }
-            protected override double ParseValue(RawResult value)
+            protected override SortedSetEntry Parse(RawResult first, RawResult second)
             {
                 double val;
-                return value.TryGetDouble(out val) ? val : double.NaN;
+                return new SortedSetEntry(first.AsRedisValue(), second.TryGetDouble(out val) ? val : double.NaN);
             }
         }
 
-        internal sealed class ValuePairInterleavedProcessor : ValuePairInterleavedProcessorBase<RedisValue, RedisValue>
+        internal sealed class HashEntryArrayProcessor : ValuePairInterleavedProcessorBase<HashEntry>
         {
-            protected override RedisValue ParseKey(RawResult key) { return key.AsRedisValue(); }
-            protected override RedisValue ParseValue(RawResult key) { return key.AsRedisValue(); }
+            protected override HashEntry Parse(RawResult first, RawResult second)
+            {
+                return new HashEntry(first.AsRedisValue(), second.AsRedisValue());
+            }
         }
 
-        internal abstract class ValuePairInterleavedProcessorBase<TKey, TValue> : ResultProcessor<KeyValuePair<TKey, TValue>[]>
+        internal abstract class ValuePairInterleavedProcessorBase<T> : ResultProcessor<T[]>
         {
-            static readonly KeyValuePair<TKey, TValue>[] nix = new KeyValuePair<TKey, TValue>[0];
+            static readonly T[] nix = new T[0];
 
-            public bool TryParse(RawResult result, out KeyValuePair<TKey, TValue>[] pairs)
+            public bool TryParse(RawResult result, out T[] pairs)
             {
                 switch (result.Type)
                 {
@@ -381,13 +382,11 @@ namespace StackExchange.Redis
                             }
                             else
                             {
-                                pairs = new KeyValuePair<TKey, TValue>[count];
+                                pairs = new T[count];
                                 int offset = 0;
                                 for (int i = 0; i < pairs.Length; i++)
                                 {
-                                    var setting = ParseKey(arr[offset++]);
-                                    var value = ParseValue(arr[offset++]);
-                                    pairs[i] = new KeyValuePair<TKey, TValue>(setting, value);
+                                    pairs[i] = Parse(arr[offset++], arr[offset++]);
                                 }
                             }
                         }
@@ -397,11 +396,10 @@ namespace StackExchange.Redis
                         return false;
                 }
             }
-            protected abstract TKey ParseKey(RawResult key);
-            protected abstract TValue ParseValue(RawResult value);
+            protected abstract T Parse(RawResult first, RawResult second);
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
-                KeyValuePair<TKey, TValue>[] arr;
+                T[] arr;
                 if (TryParse(result, out arr))
                 {
                     SetResult(message, arr);
@@ -1004,10 +1002,12 @@ namespace StackExchange.Redis
             }
         }
 
-        sealed class StringPairInterleavedProcessor : ValuePairInterleavedProcessorBase<string, string>
+        sealed class StringPairInterleavedProcessor : ValuePairInterleavedProcessorBase<KeyValuePair<string, string>>
         {
-            protected override string ParseKey(RawResult key) { return key.GetString(); }
-            protected override string ParseValue(RawResult key) { return key.GetString(); }
+            protected override KeyValuePair<string, string> Parse(RawResult first, RawResult second)
+            {
+                return new KeyValuePair<string, string>(first.GetString(), second.GetString());
+            }
         }
 
         sealed class StringProcessor : ResultProcessor<string>

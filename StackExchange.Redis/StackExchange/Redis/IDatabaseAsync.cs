@@ -58,7 +58,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <returns>list of fields and their values stored in the hash, or an empty list when key does not exist.</returns>
         /// <remarks>http://redis.io/commands/hgetall</remarks>
-        Task<KeyValuePair<RedisValue, RedisValue>[]> HashGetAllAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
+        Task<HashEntry[]> HashGetAllAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns the value associated with field in the hash stored at key.
@@ -109,7 +109,7 @@ namespace StackExchange.Redis
         /// Sets the specified fields to their respective values in the hash stored at key. This command overwrites any existing fields in the hash. If key does not exist, a new key holding a hash is created.
         /// </summary>
         /// <remarks>http://redis.io/commands/hmset</remarks>
-        Task HashSetAsync(RedisKey key, KeyValuePair<RedisValue, RedisValue>[] hashFields, CommandFlags flags = CommandFlags.None);
+        Task HashSetAsync(RedisKey key, HashEntry[] hashFields, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Sets field in the hash stored at key to value. If key does not exist, a new key holding a hash is created. If field already exists in the hash, it is overwritten.
@@ -527,7 +527,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <returns>The number of elements added to the sorted sets, not including elements already existing for which the score was updated.</returns>
         /// <remarks>http://redis.io/commands/zadd</remarks>
-        Task<long> SortedSetAddAsync(RedisKey key, KeyValuePair<RedisValue, double>[] values, CommandFlags flags = CommandFlags.None);
+        Task<long> SortedSetAddAsync(RedisKey key, SortedSetEntry[] values, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Computes a set operation over two sorted sets, and stores the result in destination, optionally performing 
@@ -584,7 +584,7 @@ namespace StackExchange.Redis
         /// <returns>list of elements in the specified range</returns>
         /// <remarks>http://redis.io/commands/zrange</remarks>
         /// <remarks>http://redis.io/commands/zrevrange</remarks>
-        Task<KeyValuePair<RedisValue, double>[]> SortedSetRangeByRankWithScoresAsync(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None);
+        Task<SortedSetEntry[]> SortedSetRangeByRankWithScoresAsync(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns the specified range of elements in the sorted set stored at key. By default the elements are considered to be ordered from the lowest to the highest score. Lexicographical order is used for elements with equal score.
@@ -605,7 +605,7 @@ namespace StackExchange.Redis
         /// <returns>list of elements in the specified score range</returns>
         /// <remarks>http://redis.io/commands/zrangebyscore</remarks>
         /// <remarks>http://redis.io/commands/zrevrangebyscore</remarks>
-        Task<KeyValuePair<RedisValue, double>[]> SortedSetRangeByScoreWithScoresAsync(RedisKey key,
+        Task<SortedSetEntry[]> SortedSetRangeByScoreWithScoresAsync(RedisKey key,
             double start = double.NegativeInfinity, double stop = double.PositiveInfinity,
             Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long take = -1,
             CommandFlags flags = CommandFlags.None);

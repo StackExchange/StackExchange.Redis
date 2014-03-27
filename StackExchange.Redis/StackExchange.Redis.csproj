@@ -64,6 +64,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="StackExchange\Redis\Aggregate.cs" />
+    <Compile Include="StackExchange\Redis\ExtensionMethods.cs" />
+    <Compile Include="StackExchange\Redis\HashEntry.cs" />
     <Compile Include="StackExchange\Redis\InternalErrorEventArgs.cs" />
     <Compile Include="StackExchange\Redis\RedisChannel.cs" />
     <Compile Include="StackExchange\Redis\Bitwise.cs" />
@@ -139,6 +141,7 @@
     <Compile Include="StackExchange\Redis\SocketManager.NoPoll.cs">
       <DependentUpon>SocketManager.cs</DependentUpon>
     </Compile>
+    <Compile Include="StackExchange\Redis\SortedSetEntry.cs" />
     <Compile Include="StackExchange\Redis\SortType.cs" />
     <Compile Include="StackExchange\Redis\StringSplits.cs" />
     <Compile Include="StackExchange\Redis\TaskSource.cs" />
