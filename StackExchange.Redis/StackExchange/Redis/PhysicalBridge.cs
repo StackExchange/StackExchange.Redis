@@ -10,7 +10,8 @@ namespace StackExchange.Redis
 {
     enum WriteResult
     {
-        QueueEmpty,
+        QueueEmptyAfterWrite,
+        NothingToDo,
         MoreWork,
         CompetingWriter,
         NoConnection,
@@ -529,17 +530,20 @@ namespace StackExchange.Redis
                     return WriteResult.NoConnection;
                 }
 
-                int count = 0;
                 Message last = null;
+                int count = 0;
                 while (true)
                 {
                     var next = queue.Dequeue();
                     if (next == null)
                     {
                         Trace("Nothing to write; exiting");
-                        Trace(last != null, "Flushed up to: " + last);
-                        conn.Flush();
-                        return WriteResult.QueueEmpty;
+                        if(count == 0)
+                        {
+                            conn.Flush(); // only flush on an empty run
+                            return WriteResult.NothingToDo;
+                        }
+                        return WriteResult.QueueEmptyAfterWrite;
                     }
                     last = next;
 
@@ -562,7 +566,11 @@ namespace StackExchange.Redis
             }
             catch (IOException ex)
             {
-                if (conn != null) conn.RecordConnectionFailed(ConnectionFailureType.SocketFailure, ex);
+                if (conn != null)
+                {
+                    conn.RecordConnectionFailed(ConnectionFailureType.SocketFailure, ex);
+                    conn = null;
+                }
                 AbortUnsent();
             }
             catch (Exception ex)
@@ -578,7 +586,7 @@ namespace StackExchange.Redis
                     Trace("Exiting writer");
                 }
             }
-            return queue.Any() ? WriteResult.MoreWork : WriteResult.QueueEmpty;
+            return queue.Any() ? WriteResult.MoreWork : WriteResult.QueueEmptyAfterWrite;
         }
 
         private void AbortUnsent()

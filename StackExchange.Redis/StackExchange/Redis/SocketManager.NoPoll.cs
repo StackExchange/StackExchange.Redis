@@ -6,7 +6,7 @@ namespace StackExchange.Redis
     {
         internal const SocketMode DefaultSocketMode = SocketMode.Async;
 
-        partial void OnAddRead(System.Net.Sockets.Socket socket, ISocketCallback callback)
+        private void OnAddRead(System.Net.Sockets.Socket socket, ISocketCallback callback)
         {
             throw new System.NotSupportedException();
         }

@@ -71,7 +71,7 @@ namespace StackExchange.Redis
             }
         }
 
-        partial void OnAddRead(Socket socket, ISocketCallback callback)
+        private void OnAddRead(Socket socket, ISocketCallback callback)
         {
             if (socket == null) throw new ArgumentNullException("socket");
             if (callback == null) throw new ArgumentNullException("callback");

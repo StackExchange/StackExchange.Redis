@@ -12,14 +12,6 @@ using System.Threading;
 
 namespace StackExchange.Redis
 {
-    internal enum WorkState
-    {
-        Pending,
-        Failed,
-        NothingToDo,
-        Disconnected,
-        HasWork
-    }
 
     internal sealed partial class PhysicalConnection : IDisposable, ISocketCallback
     {

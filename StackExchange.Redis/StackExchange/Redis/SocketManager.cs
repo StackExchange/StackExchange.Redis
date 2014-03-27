@@ -191,10 +191,6 @@ namespace StackExchange.Redis
             }
         }
 
-        /// <summary>
-        /// Adds a new socket and callback to the manager
-        /// </summary>
-        partial void OnAddRead(Socket socket, ISocketCallback callback);
         partial void OnDispose();
         partial void OnShutdown(Socket socket);
 
@@ -229,6 +225,7 @@ namespace StackExchange.Redis
                 switch (bridge.WriteQueue(200))
                 {
                     case WriteResult.MoreWork:
+                    case WriteResult.QueueEmptyAfterWrite:
                         // back of the line!
                         lock (writeQueue)
                         {
@@ -240,7 +237,7 @@ namespace StackExchange.Redis
                     case WriteResult.NoConnection:
                         Interlocked.Exchange(ref bridge.inWriteQueue, 0);
                         break;
-                    case WriteResult.QueueEmpty:
+                    case WriteResult.NothingToDo:
                         if (!bridge.ConfirmRemoveFromWriteQueue())
                         { // more snuck in; back of the line!
                             lock (writeQueue)
@@ -267,9 +264,10 @@ namespace StackExchange.Redis
                 switch (bridge.WriteQueue(-1))
                 {
                     case WriteResult.MoreWork:
+                    case WriteResult.QueueEmptyAfterWrite:
                         keepGoing = true;
                         break;
-                    case WriteResult.QueueEmpty:
+                    case WriteResult.NothingToDo:
                         keepGoing = !bridge.ConfirmRemoveFromWriteQueue();
                         break;
                     case WriteResult.CompetingWriter:
