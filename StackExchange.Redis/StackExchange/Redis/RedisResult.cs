@@ -7,6 +7,7 @@ namespace StackExchange.Redis
     /// </summary>
     public abstract class RedisResult
     {
+
         // internally, this is very similar to RawResult, except it is designed to be usable
         // outside of the IO-processing pipeline: the buffers are standalone, etc
 
@@ -41,6 +42,11 @@ namespace StackExchange.Redis
                 return null; // will be logged as a protocol fail by the processor
             }
         }
+
+        /// <summary>
+        /// Indicates whether this result was a null result
+        /// </summary>
+        public abstract bool IsNull { get; }
 
         /// <summary>
         /// Interprets the result as a String
@@ -168,6 +174,10 @@ namespace StackExchange.Redis
         internal abstract string[] AsStringArray();
         private sealed class ArrayRedisResult : RedisResult
         {
+            public override bool IsNull
+            {
+                get { return value == null; }
+            }
             private readonly RedisResult[] value;
             public ArrayRedisResult(RedisResult[] value)
             {
@@ -275,6 +285,10 @@ namespace StackExchange.Redis
                 if (value == null) throw new ArgumentNullException("value");
                 this.value = value;
             }
+            public override bool IsNull
+            {
+                get { return value == null; }
+            }
             public override string ToString() { return value; }
             internal override bool AsBoolean() { throw new RedisServerException(value); }
 
@@ -324,6 +338,11 @@ namespace StackExchange.Redis
             public SingleRedisResult(RedisValue value)
             {
                 this.value = value;
+            }
+
+            public override bool IsNull
+            {
+                get { return value.IsNull; }
             }
 
             public override string ToString() { return value.ToString(); }

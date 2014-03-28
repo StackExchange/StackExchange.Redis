@@ -273,9 +273,18 @@ namespace StackExchange.Redis
                     }
                     return null;
                 }
+
+                if(message.Command == RedisCommand.SELECT)
+                {
+                    // this could come from an EVAL/EVALSHA inside a transaction, for example; we'll accept it
+                    bridge.Trace("Switching database: " + targetDatabase);
+                    currentDatabase = targetDatabase;
+                    return null;
+                }
+
                 if (TransactionActive)
                 {// should never see this, since the API doesn't allow it; thus not too worried about ExceptionFactory
-                    throw new RedisCommandException("Multiple databases inside a transaction are not currently supported" + targetDatabase);
+                    throw new RedisCommandException("Multiple databases inside a transaction are not currently supported: " + targetDatabase);
                 }
 
                 if (available != 0 && targetDatabase >= available) // we positively know it is out of range
@@ -284,11 +293,15 @@ namespace StackExchange.Redis
                 }
                 bridge.Trace("Switching database: " + targetDatabase);
                 currentDatabase = targetDatabase;
-                return targetDatabase < DefaultRedisDatabaseCount
-                    ? ReusableChangeDatabaseCommands[targetDatabase] // 0-15 by default
-                        : Message.Create(targetDatabase, CommandFlags.FireAndForget, RedisCommand.SELECT);
+                return GetSelectDatabaseCommand(targetDatabase);
             }
             return null;
+        }
+        internal static Message GetSelectDatabaseCommand(int targetDatabase)
+        {
+            return targetDatabase < DefaultRedisDatabaseCount
+                    ? ReusableChangeDatabaseCommands[targetDatabase] // 0-15 by default
+                        : Message.Create(targetDatabase, CommandFlags.FireAndForget, RedisCommand.SELECT);
         }
 
         internal int GetSentAwaitingResponseCount()

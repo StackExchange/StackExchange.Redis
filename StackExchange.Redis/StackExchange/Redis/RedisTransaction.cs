@@ -86,6 +86,22 @@ namespace StackExchange.Redis
             // store it, and return the task of the *outer* command
             // (there is no task for the inner command)
             (pending ?? (pending = new List<QueuedMessage>())).Add(queued);
+
+
+            switch(message.Command)
+            {
+                case RedisCommand.EVAL:
+                case RedisCommand.EVALSHA:
+                    // people can do very naughty things in an EVAL
+                    // including change the DB; change it back to what we
+                    // think it should be!
+                    var sel = PhysicalConnection.GetSelectDatabaseCommand(message.Db);
+                    queued = new QueuedMessage(sel);
+                    wasQueued = ResultBox<bool>.Get(null);
+                    queued.SetSource(wasQueued, QueuedProcessor.Default);
+                    pending.Add(queued);
+                    break;
+            }
             return task;
         }
 
