@@ -6,7 +6,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// Represents values that can be stored in redis
     /// </summary>
-    public struct RedisValue : IEquatable<RedisValue>
+    public struct RedisValue : IEquatable<RedisValue>, IComparable<RedisValue>, IComparable
     {
         internal static readonly RedisValue[] EmptyArray = new RedisValue[0];
 
@@ -225,6 +225,94 @@ namespace StackExchange.Redis
         {
             if (IsNull) throw new ArgumentException("A null value is not valid in this context");
         }
+
+        enum CompareType {
+            Null, Int64, Double, Raw
+        }
+        CompareType ResolveType(out long i64, out double r8)
+        {
+            byte[] blob = valueBlob;
+            if (blob == IntegerSentinel)
+            {
+                i64 = valueInt64;
+                r8 = default(double);
+                return CompareType.Int64;
+            }
+            if(blob == null)
+            {
+                i64 = default(long);
+                r8 = default(double);
+                return CompareType.Null;
+            }
+            if(TryParseInt64(blob, 0, blob.Length, out i64))
+            {
+                r8 = default(double);
+                return CompareType.Int64;
+            }
+            if(TryParseDouble(blob, out r8))
+            {
+                i64 = default(long);
+                return CompareType.Double;
+            }
+            i64 = default(long);
+            r8 = default(double);
+            return CompareType.Raw;
+        }
+
+        /// <summary>
+        /// Compare against a RedisValue for relative order
+        /// </summary>
+        public int CompareTo(RedisValue other)
+        {
+            try
+            {
+                long thisInt64, otherInt64;
+                double thisDouble, otherDouble;
+                CompareType thisType = this.ResolveType(out thisInt64, out thisDouble),
+                    otherType = other.ResolveType(out otherInt64, out otherDouble);
+            
+                if(thisType == CompareType.Null)
+                {
+                    return otherType == CompareType.Null ? 0 : -1;
+                }
+                if(otherType == CompareType.Null)
+                {
+                    return 1;
+                }
+
+                if(thisType == CompareType.Int64)
+                {
+                    if (otherType == CompareType.Int64) return thisInt64.CompareTo(otherInt64);
+                    if (otherType == CompareType.Double) return ((double)thisInt64).CompareTo(otherDouble);
+                }
+                else if(thisType == CompareType.Double)
+                {
+                    if (otherType == CompareType.Int64) return thisDouble.CompareTo((double)otherInt64);
+                    if (otherType == CompareType.Double) return thisDouble.CompareTo(otherDouble);
+                }
+                // otherwise, compare as strings            
+                return StringComparer.InvariantCulture.Compare((string)this, (string)other);
+            }
+            catch(Exception ex)
+            {
+                ConnectionMultiplexer.TraceWithoutContext(ex.Message);
+            }
+            // if all else fails, consider equivalent
+            return 0;
+        }
+
+        int IComparable.CompareTo(object obj)
+        {
+            if (obj is RedisValue) return CompareTo((RedisValue)obj);
+            if (obj is long) return CompareTo((RedisValue)(long)obj);
+            if (obj is double) return CompareTo((RedisValue)(double)obj);
+            if (obj is string) return CompareTo((RedisValue)(string)obj);
+            if (obj is byte[]) return CompareTo((RedisValue)(byte[])obj);
+            if (obj is bool) return CompareTo((RedisValue)(bool)obj);
+            return -1;
+        }
+
+
         /// <summary>
         /// Creates a new RedisValue from an Int32
         /// </summary>
@@ -349,12 +437,21 @@ namespace StackExchange.Redis
             if (blob == IntegerSentinel) return value.valueInt64;
             if (blob == null) return 0; // in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
 
-            // simple integer?
-            if (blob.Length == 1 && blob[0] >= '0' && blob[0] <= '9') return (blob[0] - '0');
-
             double r8;
-            if (Format.TryParseDouble(Encoding.UTF8.GetString(blob), out r8)) return r8;
+            if (TryParseDouble(blob, out r8)) return r8;
             throw new InvalidCastException();
+        }
+
+        static bool TryParseDouble(byte[] blob, out double value)
+        {
+            // simple integer?
+            if (blob.Length == 1 && blob[0] >= '0' && blob[0] <= '9')
+            {
+                value = blob[0] - '0';
+                return true;
+            }
+
+            return Format.TryParseDouble(Encoding.UTF8.GetString(blob), out value);
         }
 
         /// <summary>

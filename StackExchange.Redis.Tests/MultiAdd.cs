@@ -90,8 +90,29 @@ namespace StackExchange.Redis.Tests
                 db.SetAdd(key, new RedisValue[] { "h", "i", "j","k" });
 
                 var vals = db.SetMembers(key);
-                string s = string.Join(",", vals.OrderByDescending(x => (string)x));
+                string s = string.Join(",", vals.OrderByDescending(x => x));
                 Assert.AreEqual("k,j,i,h,g,f,e,d,c,b,a", s);
+            }
+        }
+
+        [Test]
+        public void AddSetEveryWayNumbers()
+        {
+            using (var conn = Create())
+            {
+                var db = conn.GetDatabase(3);
+
+                RedisKey key = Me();
+                db.KeyDelete(key);
+                db.SetAdd(key, "a");
+                db.SetAdd(key, new RedisValue[] { "1" });
+                db.SetAdd(key, new RedisValue[] { "11", "2" });
+                db.SetAdd(key, new RedisValue[] { "10", "3", "1.5" });
+                db.SetAdd(key, new RedisValue[] { "2.2", "-1", "s", "t" });
+
+                var vals = db.SetMembers(key);
+                string s = string.Join(",", vals.OrderByDescending(x => x));
+                Assert.AreEqual("t,s,a,11,10,3,2.2,2,1.5,1,-1", s);
             }
         }
     }

@@ -111,7 +111,7 @@ namespace StackExchange.Redis
                 value = 0;
                 return false;
             }
-            if(s.Length==1 && s[0] >= '0' && s[1] <= '9')
+            if(s.Length==1 && s[0] >= '0' && s[0] <= '9')
             {
                 value = (int)(s[0] - '0');
                 return true;
