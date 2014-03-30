@@ -1479,18 +1479,18 @@ namespace StackExchange.Redis
                 case 0: return null;
                 case 1:
                     return Message.Create(Db, flags, RedisCommand.ZADD, key,
-                        values[0].element, values[0].score);
+                        values[0].score, values[0].element);
                 case 2:
                     return Message.Create(Db, flags, RedisCommand.ZADD, key,
-                        values[0].element, values[0].score,
-                        values[1].element, values[1].score);
+                        values[0].score, values[0].element,
+                        values[1].score, values[1].element);
                 default:
                     var arr = new RedisValue[values.Length * 2];
                     int index = 0;
                     for (int i = 0; i < values.Length; i++)
                     {
-                        arr[index++] = values[i].element;
                         arr[index++] = values[i].score;
+                        arr[index++] = values[i].element;
                     }
                     return Message.Create(Db, flags, RedisCommand.ZADD, key, arr);
             }
