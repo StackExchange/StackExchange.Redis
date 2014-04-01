@@ -298,6 +298,17 @@ namespace StackExchange.Redis
         void Shutdown(ShutdownMode shutdownMode = ShutdownMode.Default, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// The SLAVEOF command can change the replication settings of a slave on the fly. If a Redis server is already acting as slave, specifying a null master will turn off the replication, turning the Redis server into a MASTER. Specifying a non-null master will make the server a slave of another server listening at the specified hostname and port.
+        /// </summary>
+        /// <remarks>http://redis.io/commands/slaveof</remarks>
+        void SlaveOf(EndPoint master, CommandFlags flags = CommandFlags.None);
+        /// <summary>
+        /// The SLAVEOF command can change the replication settings of a slave on the fly. If a Redis server is already acting as slave, specifying a null master will turn off the replication, turning the Redis server into a MASTER. Specifying a non-null master will make the server a slave of another server listening at the specified hostname and port.
+        /// </summary>
+        /// <remarks>http://redis.io/commands/slaveof</remarks>
+        Task SlaveOfAsync(EndPoint master, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// To read the slow log the SLOWLOG GET command is used, that returns every entry in the slow log. It is possible to return only the N most recent entries passing an additional argument to the command (for instance SLOWLOG GET 10).
         /// </summary>
         /// <remarks>http://redis.io/commands/slowlog</remarks>

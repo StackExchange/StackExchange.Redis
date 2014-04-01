@@ -496,7 +496,7 @@ namespace StackExchange.Redis
             return new RedisFeatures(server.Version);
         }
 
-        internal void SlaveOf(EndPoint endpoint, CommandFlags flags = CommandFlags.None)
+        public void SlaveOf(EndPoint endpoint, CommandFlags flags = CommandFlags.None)
         {
             var msg = CreateSlaveOfMessage(endpoint, flags);
             if (endpoint == server.EndPoint)
@@ -504,6 +504,16 @@ namespace StackExchange.Redis
                 throw new ArgumentException("Cannot slave to self");
             }
             ExecuteSync(msg, ResultProcessor.DemandOK);
+        }
+
+        public Task SlaveOfAsync(EndPoint endpoint, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = CreateSlaveOfMessage(endpoint, flags);
+            if (endpoint == server.EndPoint)
+            {
+                throw new ArgumentException("Cannot slave to self");
+            }
+            return ExecuteAsync(msg, ResultProcessor.DemandOK);
         }
 
         private void FixFlags(Message message, ServerEndPoint server)
