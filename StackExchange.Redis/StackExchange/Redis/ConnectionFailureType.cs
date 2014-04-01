@@ -40,6 +40,10 @@
         /// <summary>
         /// The database is loading and is not available for use
         /// </summary>
-        Loading
+        Loading,
+        /// <summary>
+        /// It has not been possible to create an intial connection to the redis server(s)
+        /// </summary>
+        UnableToConnect
     }
 }

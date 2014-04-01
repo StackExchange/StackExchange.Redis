@@ -647,7 +647,7 @@ namespace StackExchange.Redis
                 bool configured = await muxer.ReconfigureAsync(true, false, log, null, "connect").ObserveErrors().ForAwait();
                 if (!configured)
                 {
-                    throw new InvalidOperationException("Unable to configure servers");
+                    throw ExceptionFactory.UnableToConnect();
                 }
                 killMe = null;
                 return muxer;
@@ -670,7 +670,7 @@ namespace StackExchange.Redis
                 bool configured = await muxer.ReconfigureAsync(true, false, log, null, "connect").ObserveErrors().ForAwait();
                 if (!configured)
                 {
-                    throw new InvalidOperationException("Unable to configure servers");
+                    throw ExceptionFactory.UnableToConnect();
                 }
                 killMe = null;
                 return muxer;
@@ -717,6 +717,7 @@ namespace StackExchange.Redis
                         throw new TimeoutException();
                     }
                 }
+                if(!task.Result) throw ExceptionFactory.UnableToConnect();
                 killMe = null;
                 return muxer;
             }
@@ -745,6 +746,7 @@ namespace StackExchange.Redis
                         throw new TimeoutException();
                     }
                 }
+                if(!task.Result) throw ExceptionFactory.UnableToConnect();
                 killMe = null;
                 return muxer;
             }
@@ -1258,6 +1260,10 @@ namespace StackExchange.Redis
                     LogLocked(log, "");
                     LogLocked(log, stormLog);
 
+                }
+                if(first && configuration.AbortOnConnectFail && (standaloneCount == 0 && clusterCount == 0))
+                {
+                    return false;
                 }
                 return true;
 

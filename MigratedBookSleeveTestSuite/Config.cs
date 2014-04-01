@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Threading.Tasks;
 using System.IO;
 using StackExchange.Redis;
+using System.Linq;
 
 namespace Tests
 {
@@ -123,18 +124,57 @@ namespace Tests
             }
         }
 
-        [Test, ExpectedException(typeof(SocketException))]
+        [Test, ExpectedException(typeof(RedisConnectionException))]
         public void CanNotOpenNonsenseConnection_IP()
         {
-            using (var conn = ConnectionMultiplexer.Connect(Config.LocalHost + ":6500"))
-            {
+            var log = new StringWriter();
+            try {
+                using (var conn = ConnectionMultiplexer.Connect(Config.LocalHost + ":6500")) { }
+            } finally {
+                Console.WriteLine(log);
             }
         }
-        [Test, ExpectedException(typeof(SocketException))]
+        [Test, ExpectedException(typeof(RedisConnectionException))]
         public void CanNotOpenNonsenseConnection_DNS()
         {
-            using (var conn = ConnectionMultiplexer.Connect("doesnot.exist.ds.aasd981230d.com:6500"))
+            var log = new StringWriter();
+            try {
+                using (var conn = ConnectionMultiplexer.Connect("doesnot.exist.ds.aasd981230d.com:6500", log)) { }
+            } finally {
+                Console.WriteLine(log);
+            }
+        }
+
+        [Test]
+        public void CreateDisconnectedNonsenseConnection_IP()
+        {
+            var log = new StringWriter();
+            try
             {
+                using (var conn = ConnectionMultiplexer.Connect(Config.LocalHost + ":6500,abortConnect=false")) {
+                    Assert.IsFalse(conn.GetServer(conn.GetEndPoints().Single()).IsConnected);
+                    Assert.IsFalse(conn.GetDatabase().IsConnected(default(RedisKey)));
+                }
+            }
+            finally
+            {
+                Console.WriteLine(log);
+            }
+        }
+        [Test]
+        public void CreateDisconnectedNonsenseConnection_DNS()
+        {
+            var log = new StringWriter();
+            try
+            {
+                using (var conn = ConnectionMultiplexer.Connect("doesnot.exist.ds.aasd981230d.com:6500,abortConnect=false", log)) {
+                    Assert.IsFalse(conn.GetServer(conn.GetEndPoints().Single()).IsConnected);
+                    Assert.IsFalse(conn.GetDatabase().IsConnected(default(RedisKey)));
+                }
+            }
+            finally
+            {
+                Console.WriteLine(log);
             }
         }
 
