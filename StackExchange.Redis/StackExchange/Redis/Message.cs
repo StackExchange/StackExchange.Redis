@@ -311,6 +311,9 @@ namespace StackExchange.Redis
                 case RedisCommand.PERSIST:
                 case RedisCommand.PEXPIRE:
                 case RedisCommand.PEXPIREAT:
+                case RedisCommand.PFADD:
+                case RedisCommand.PFCOUNT: // technically a write command
+                case RedisCommand.PFMERGE:
                 case RedisCommand.PSETEX:
                 case RedisCommand.RENAME:
                 case RedisCommand.RENAMENX:

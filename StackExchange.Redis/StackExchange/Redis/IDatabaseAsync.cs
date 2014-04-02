@@ -127,6 +127,39 @@ namespace StackExchange.Redis
         Task<RedisValue[]> HashValuesAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Adds the element to the HyperLogLog data structure stored at the variable name specified as first argument.
+        /// </summary>
+        /// <returns>true if at least 1 HyperLogLog internal register was altered. false otherwise.</returns>
+        /// <remarks>http://redis.io/commands/pfadd</remarks>
+        Task<bool> HyperLogLogAddAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Adds all the element arguments to the HyperLogLog data structure stored at the variable name specified as first argument.
+        /// </summary>
+        /// <returns>true if at least 1 HyperLogLog internal register was altered. false otherwise.</returns>
+        /// <remarks>http://redis.io/commands/pfadd</remarks>
+        Task<bool> HyperLogLogAddAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns the approximated cardinality computed by the HyperLogLog data structure stored at the specified variable, or 0 if the variable does not exist.
+        /// </summary>
+        /// <returns>The approximated number of unique elements observed via HyperLogLogAdd.</returns>
+        /// <remarks>http://redis.io/commands/pfcount</remarks>
+        Task<long> HyperLogLogLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Merge multiple HyperLogLog values into an unique value that will approximate the cardinality of the union of the observed Sets of the source HyperLogLog structures.
+        /// </summary>
+        /// <remarks>http://redis.io/commands/pfmerge</remarks>
+        Task HyperLogLogMergeAsync(RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Merge multiple HyperLogLog values into an unique value that will approximate the cardinality of the union of the observed Sets of the source HyperLogLog structures.
+        /// </summary>
+        /// <remarks>http://redis.io/commands/pfmerge</remarks>
+        Task HyperLogLogMergeAsync(RedisKey destination, RedisKey[] sourceKeys, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Inidicate exactly which redis server we are talking to
         /// </summary>
         [IgnoreNamePrefix]

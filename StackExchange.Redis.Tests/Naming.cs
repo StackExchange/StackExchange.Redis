@@ -106,6 +106,8 @@ namespace StackExchange.Redis.Tests
                 case "CreateTransaction":
                 case "IsConnected":
                 case "SetScan":
+                case "SortedSetScan":
+                case "HashScan":
                 case "SubscribedEndpoint":
                     return true;
             }
@@ -185,7 +187,7 @@ namespace StackExchange.Redis.Tests
                     || shortName.StartsWith("String") || shortName.StartsWith("List")
                     || shortName.StartsWith("SortedSet") || shortName.StartsWith("Set")
                     || shortName.StartsWith("Debug") || shortName.StartsWith("Lock")
-                    || shortName.StartsWith("Script")
+                    || shortName.StartsWith("Script") || shortName.StartsWith("HyperLogLog")
                     , fullName + ":Prefix");
             }
 
