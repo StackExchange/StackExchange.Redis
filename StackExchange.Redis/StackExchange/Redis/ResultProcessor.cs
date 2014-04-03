@@ -937,7 +937,8 @@ namespace StackExchange.Redis
                     case ResultType.BulkString:
                         string s = result.GetString();
                         RedisType value;
-                        if (!Enum.TryParse<RedisType>(s, true, out value)) value = global::StackExchange.Redis.RedisType.Unknown;
+                        if (string.Equals(s, "zset", StringComparison.OrdinalIgnoreCase)) value = Redis.RedisType.SortedSet;
+                        else if (!Enum.TryParse<RedisType>(s, true, out value)) value = global::StackExchange.Redis.RedisType.Unknown;
                         SetResult(message, value);
                         return true;
                 }
