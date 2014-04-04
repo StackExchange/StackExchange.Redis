@@ -22,8 +22,8 @@ namespace StackExchange.Redis.Tests
         public void ConfigStringRoundTripWithDefaultPorts(string config, int expectedPort)
         {
             var options = ConfigurationOptions.Parse(config);
-            string backAgain = config.ToString();
-            Assert.AreEqual(config, backAgain);
+            string backAgain = options.ToString();
+            Assert.AreEqual(config, backAgain.Replace("=True","=true").Replace("=False", "=false"));
 
             options.SetDefaultPorts(); // normally it is the multiplexer that calls this, not us
             Assert.AreEqual(expectedPort, ((DnsEndPoint)options.EndPoints.Single()).Port);
