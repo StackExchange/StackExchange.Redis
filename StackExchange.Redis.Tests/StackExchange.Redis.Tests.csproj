@@ -67,6 +67,7 @@
     <Compile Include="Commands.cs" />
     <Compile Include="ConnectionShutdown.cs" />
     <Compile Include="Databases.cs" />
+    <Compile Include="DefaultPorts.cs" />
     <Compile Include="Expiry.cs" />
     <Compile Include="Config.cs" />
     <Compile Include="FloatingPoint.cs" />

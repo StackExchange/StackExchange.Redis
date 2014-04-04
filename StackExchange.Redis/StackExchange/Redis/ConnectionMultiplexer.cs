@@ -695,6 +695,7 @@ namespace StackExchange.Redis
                 throw new ArgumentException("configuration");
             }
             if (config.EndPoints.Count == 0) throw new ArgumentException("No endpoints specified", "configuration");
+            config.SetDefaultPorts();
             return new ConnectionMultiplexer(config);
         }
         /// <summary>

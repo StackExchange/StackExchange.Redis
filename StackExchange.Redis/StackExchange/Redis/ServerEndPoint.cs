@@ -55,7 +55,7 @@ namespace StackExchange.Redis
             slaveReadOnly = true;
             isSlave = false;
             databases = 0;
-            writeEverySeconds = config.KeepAlive;
+            writeEverySeconds = config.KeepAlive > 0 ? config.KeepAlive : 60;
             interactive = CreateBridge(ConnectionType.Interactive);
             serverType = ServerType.Standalone;
 

@@ -232,6 +232,14 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// Resolve the default port for any endpoints that did not have a port explicitly specified
+        /// </summary>
+        public void SetDefaultPorts()
+        {
+            endpoints.SetDefaultPorts(UseSsl ? 6380 : 6379);
+        }
+
+        /// <summary>
         /// Returns the effective configuration string for this configuration
         /// </summary>
         public override string ToString()

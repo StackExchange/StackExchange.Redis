@@ -66,18 +66,20 @@ namespace StackExchange.Redis
         }
 
         internal static string ToString(EndPoint endpoint)
-        {
-            if (endpoint == null) return "";
+        {   
             var dns = endpoint as DnsEndPoint;
-            if (dns == null)
+            if (dns != null)
             {
-                return endpoint.ToString();
-            }
-            else
-            {   // DnsEndPoint includes the family-type in
-                //  ToString(), but we don't want that
+                if (dns.Port == 0) return dns.Host;
                 return dns.Host + ":" + Format.ToString(dns.Port);
             }
+            var ip = endpoint as IPEndPoint;
+            if (ip != null)
+            {
+                if (ip.Port == 0) return ip.Address.ToString();
+                return ip.Address.ToString() + ":" + Format.ToString(ip.Port);
+            }
+            return endpoint == null ? "" : endpoint.ToString();
         }
         internal static string ToStringHostOnly(EndPoint endpoint)
         {
@@ -152,7 +154,7 @@ namespace StackExchange.Redis
             if (i < 0)
             {
                 host = endpoint;
-                port = 6379;
+                port = 0;
             }
             else
             {

@@ -71,6 +71,31 @@ namespace StackExchange.Redis
             if (existingIndex >= 0 && existingIndex != index) throw new ArgumentException("EndPoints must be unique", "item");
             base.SetItem(index, item);
         }
-    }
 
+        internal void SetDefaultPorts(int defaultPort)
+        {
+            for (int i = 0; i < Count; i++)
+            {
+                var endpoint = this[i];
+                var dns = endpoint as DnsEndPoint;
+                if (dns != null)
+                {
+                    if (dns.Port == 0)
+                    {
+                        this[i] = new DnsEndPoint(dns.Host, defaultPort, dns.AddressFamily);
+                        continue;
+                    }
+                }
+                var ip = endpoint as IPEndPoint;
+                if (ip != null)
+                {
+                    if (ip.Port == 0)
+                    {
+                        this[i] = new IPEndPoint(ip.Address, defaultPort);
+                        continue;
+                    }
+                }
+            }
+        }
+    }
 }

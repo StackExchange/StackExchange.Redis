@@ -12,10 +12,10 @@ namespace StackExchange.Redis.Tests
     public class SSL : TestBase
     {
         [Test]
-        [TestCase(6379, false, false)]
-        [TestCase(6380, true, false)]
-        [TestCase(6380, true, true)]
-        public void ConnectToSSLServer(int port, bool useSsl, bool specifyHost)
+        [TestCase(false, false)]
+        [TestCase(true, false)]
+        [TestCase(true, true)]
+        public void ConnectToSSLServer(bool useSsl, bool specifyHost)
         {
             string host = null;
             
@@ -32,7 +32,7 @@ namespace StackExchange.Redis.Tests
                         { "cluster", null }
                     }
                 ),
-                EndPoints = { { host, port} },
+                EndPoints = { { host } },
                 AllowAdmin = true,
                 SyncTimeout = Debugger.IsAttached ? int.MaxValue : 5000
             };
@@ -66,7 +66,7 @@ namespace StackExchange.Redis.Tests
                 muxer.InternalError += OnInternalError;
                 var db = muxer.GetDatabase();
                 db.Ping();
-                using (var file = File.Create("ssl" + port + ".zip"))
+                using (var file = File.Create("ssl-" + useSsl + "-" + specifyHost + ".zip"))
                 {
                     muxer.ExportConfiguration(file);
                 }
