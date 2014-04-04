@@ -34,13 +34,13 @@ namespace StackExchange.Redis
         private const string AllowAdminPrefix = "allowAdmin=", SyncTimeoutPrefix = "syncTimeout=",
                                 ServiceNamePrefix = "serviceName=", ClientNamePrefix = "name=", KeepAlivePrefix = "keepAlive=",
                         VersionPrefix = "version=", ConnectTimeoutPrefix = "connectTimeout=", PasswordPrefix = "password=",
-                        TieBreakerPrefix = "tiebreaker=", WriteBufferPrefix = "writeBuffer=", SslHostPrefix = "sslHost=",
+                        TieBreakerPrefix = "tiebreaker=", WriteBufferPrefix = "writeBuffer=", UseSslPrefix = "ssl=", SslHostPrefix = "sslHost=",
                         ConfigChannelPrefix = "configChannel=", AbortOnConnectFailPrefix = "abortConnect=", ResolveDnsPrefix = "resolveDns=",
                         ChannelPrefixPrefix = "channelPrefix=", ProxyPrefix = "proxy=";
 
         private readonly EndPointCollection endpoints = new EndPointCollection();
 
-        private bool? allowAdmin, abortOnConnectFail, resolveDns;
+        private bool? allowAdmin, abortOnConnectFail, resolveDns, useSsl;
 
         private string clientName, serviceName, password, tieBreaker, sslHost, configChannel;
 
@@ -75,6 +75,11 @@ namespace StackExchange.Redis
         /// Indicates whether admin operations should be allowed
         /// </summary>
         public bool AllowAdmin { get { return allowAdmin.GetValueOrDefault(); } set { allowAdmin = value; } }
+
+        /// <summary>
+        /// Indicates whether the connection should be encrypted
+        /// </summary>
+        public bool UseSsl { get { return useSsl.GetValueOrDefault(); } set { useSsl = value; } }
 
         /// <summary>
         /// Automatically encodes and decodes channels
@@ -208,6 +213,7 @@ namespace StackExchange.Redis
                 password = password,
                 tieBreaker = tieBreaker,
                 writeBuffer = writeBuffer,
+                useSsl = useSsl,
                 sslHost = sslHost,
                 configChannel = configChannel,
                 abortOnConnectFail = abortOnConnectFail,
@@ -245,7 +251,8 @@ namespace StackExchange.Redis
             Append(sb, PasswordPrefix, password);
             Append(sb, TieBreakerPrefix, tieBreaker);
             Append(sb, WriteBufferPrefix, writeBuffer);
-            Append(sb, SslHostPrefix, sslHost);
+            Append(sb, UseSslPrefix, useSsl);
+            Append(sb, SslHostPrefix, sslHost);            
             Append(sb, ConfigChannelPrefix, configChannel);
             Append(sb, AbortOnConnectFailPrefix, abortOnConnectFail);
             Append(sb, ResolveDnsPrefix, resolveDns);
@@ -330,9 +337,9 @@ namespace StackExchange.Redis
         }
         void Clear()
         {
-            clientName = serviceName = password = tieBreaker = sslHost =  configChannel = null;
+            clientName = serviceName = password = tieBreaker = sslHost = configChannel = null;
             keepAlive = syncTimeout = connectTimeout = writeBuffer = null;
-            allowAdmin = abortOnConnectFail = resolveDns = null;
+            allowAdmin = abortOnConnectFail = resolveDns = useSsl = null;
             defaultVersion = null;
             endpoints.Clear();
             commandMap = null;
@@ -422,6 +429,11 @@ namespace StackExchange.Redis
                         else if (IsOption(option, TieBreakerPrefix))
                         {
                             TieBreaker = value.Trim();
+                        }
+                        else if (IsOption(option, UseSslPrefix))
+                        {
+                            bool tmp;
+                            if (Format.TryParseBoolean(value.Trim(), out tmp)) UseSsl = tmp;
                         }
                         else if (IsOption(option, SslHostPrefix))
                         {

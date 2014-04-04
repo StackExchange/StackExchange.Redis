@@ -79,6 +79,20 @@ namespace StackExchange.Redis
                 return dns.Host + ":" + Format.ToString(dns.Port);
             }
         }
+        internal static string ToStringHostOnly(EndPoint endpoint)
+        {
+            var dns = endpoint as DnsEndPoint;
+            if (dns != null)
+            {
+                return dns.Host;
+            }
+            var ip = endpoint as IPEndPoint;
+            if(ip != null)
+            {
+                return ip.Address.ToString();
+            }
+            return "";
+        }
 
         internal static bool TryGetHostPort(EndPoint endpoint, out string host, out int port)
         {

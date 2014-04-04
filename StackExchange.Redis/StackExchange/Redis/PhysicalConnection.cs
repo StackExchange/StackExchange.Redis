@@ -522,14 +522,17 @@ namespace StackExchange.Redis
                 // [network]<==[ssl]<==[logging]<==[buffered]
                 var config = multiplexer.RawConfig;
 
-                if (!string.IsNullOrWhiteSpace(config.SslHost))
+                if(config.UseSsl)
                 {
+                    var host = config.SslHost;
+                    if (string.IsNullOrWhiteSpace(host)) host = Format.ToStringHostOnly(bridge.ServerEndPoint.EndPoint);
+
                     var ssl = new SslStream(stream, false, config.CertificateValidationCallback, config.CertificateSelectionCallback
 #if !MONO
                         , EncryptionPolicy.RequireEncryption
 #endif
                         );
-                    ssl.AuthenticateAsClient(config.SslHost);
+                    ssl.AuthenticateAsClient(host);
                     if (!ssl.IsEncrypted)
                     {
                         RecordConnectionFailed(ConnectionFailureType.AuthenticationFailure);

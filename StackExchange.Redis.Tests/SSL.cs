@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Net;
 using NUnit.Framework;
+using System.Linq;
 
 namespace StackExchange.Redis.Tests
 {
@@ -11,10 +12,17 @@ namespace StackExchange.Redis.Tests
     public class SSL : TestBase
     {
         [Test]
-        [TestCase(6379, null)]
-        [TestCase(6380, "as if we care")]
-        public void ConnectToSSLServer(int port, string sslHost)
+        [TestCase(6379, false, false)]
+        [TestCase(6380, true, false)]
+        [TestCase(6380, true, true)]
+        public void ConnectToSSLServer(int port, bool useSsl, bool specifyHost)
         {
+            string host = null;
+            
+            const string path = @"D:\RedisSslHost.txt"; // because I choose not to advertise my server here!
+            if (File.Exists(path)) host = File.ReadLines(path).First();
+            if (string.IsNullOrWhiteSpace(host)) Assert.Inconclusive("no ssl host specified at: " + path);
+
             var config = new ConfigurationOptions
             {
                 CommandMap = CommandMap.Create( // looks like "config" is disabled
@@ -24,18 +32,36 @@ namespace StackExchange.Redis.Tests
                         { "cluster", null }
                     }
                 ),
-                SslHost = sslHost,
-                EndPoints = { { "sslredis", port} },
+                EndPoints = { { host, port} },
                 AllowAdmin = true,
                 SyncTimeout = Debugger.IsAttached ? int.MaxValue : 5000
             };
-            config.CertificateValidation += (sender, cert, chain, errors) =>
+            if(useSsl)
             {
-                Console.WriteLine("cert issued to: " + cert.Subject);
-                return true; // fingers in ears, pretend we don't know this is wrong
-            };
-            using (var muxer = ConnectionMultiplexer.Connect(config, Console.Out))
+                config.UseSsl = useSsl;
+                if (specifyHost)
+                {
+                    config.SslHost = host;
+                }
+                config.CertificateValidation += (sender, cert, chain, errors) =>
+                {
+                    Console.WriteLine("errors: " + errors);
+                    Console.WriteLine("cert issued to: " + cert.Subject);
+                    return true; // fingers in ears, pretend we don't know this is wrong
+                };
+            }
+
+            var configString = config.ToString();
+            Console.WriteLine("config: " + configString);
+            var clone = ConfigurationOptions.Parse(configString);
+            Assert.AreEqual(configString, clone.ToString(), "config string");
+
+            using(var log = new StringWriter())
+            using (var muxer = ConnectionMultiplexer.Connect(config, log))
             {
+                Console.WriteLine("Connect log:");
+                Console.WriteLine(log);
+                Console.WriteLine("====");
                 muxer.ConnectionFailed += OnConnectionFailed;
                 muxer.InternalError += OnInternalError;
                 var db = muxer.GetDatabase();
@@ -66,12 +92,13 @@ namespace StackExchange.Redis.Tests
 
                 // perf: sync/multi-threaded
                 TestConcurrent(db, key, 30, 10);
-                TestConcurrent(db, key, 30, 20);
-                TestConcurrent(db, key, 30, 30);
-                TestConcurrent(db, key, 30, 40);
-                TestConcurrent(db, key, 30, 50);
+                //TestConcurrent(db, key, 30, 20);
+                //TestConcurrent(db, key, 30, 30);
+                //TestConcurrent(db, key, 30, 40);
+                //TestConcurrent(db, key, 30, 50);
             }
         }
+
 
         private static void TestConcurrent(IDatabase db, RedisKey key, int SyncLoop, int Threads)
         {
