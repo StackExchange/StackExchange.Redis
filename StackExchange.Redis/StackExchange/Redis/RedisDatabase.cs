@@ -251,6 +251,66 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray);
         }
 
+        public bool HyperLogLogAdd(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
+        {
+            var cmd = Message.Create(Db, flags, RedisCommand.PFADD, key, value);
+            return ExecuteSync(cmd, ResultProcessor.Boolean);
+        }
+
+        public bool HyperLogLogAdd(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
+        {
+            var cmd = Message.Create(Db, flags, RedisCommand.PFADD, key, values);
+            return ExecuteSync(cmd, ResultProcessor.Boolean);
+        }
+
+        public Task<bool> HyperLogLogAddAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
+        {
+            var cmd = Message.Create(Db, flags, RedisCommand.PFADD, key, value);
+            return ExecuteAsync(cmd, ResultProcessor.Boolean);
+        }
+
+        public Task<bool> HyperLogLogAddAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
+        {
+            var cmd = Message.Create(Db, flags, RedisCommand.PFADD, key, values);
+            return ExecuteAsync(cmd, ResultProcessor.Boolean);
+        }
+
+        public long HyperLogLogLength(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            var cmd = Message.Create(Db, flags, RedisCommand.PFCOUNT, key);
+            return ExecuteSync(cmd, ResultProcessor.Int64);
+        }
+
+        public Task<long> HyperLogLogLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            var cmd = Message.Create(Db, flags, RedisCommand.PFCOUNT, key);
+            return ExecuteAsync(cmd, ResultProcessor.Int64);
+        }
+
+        public void HyperLogLogMerge(RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
+        {
+            var cmd = Message.Create(Db, flags, RedisCommand.PFMERGE, destination, first, second);
+            ExecuteSync(cmd, ResultProcessor.DemandOK);
+        }
+
+        public void HyperLogLogMerge(RedisKey destination, RedisKey[] sourceKeys, CommandFlags flags = CommandFlags.None)
+        {
+            var cmd = Message.Create(Db, flags, RedisCommand.PFMERGE, destination, sourceKeys);
+            ExecuteSync(cmd, ResultProcessor.DemandOK);
+        }
+
+        public Task HyperLogLogMergeAsync(RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
+        {
+            var cmd = Message.Create(Db, flags, RedisCommand.PFMERGE, destination, first, second);
+            return ExecuteAsync(cmd, ResultProcessor.DemandOK);
+        }
+
+        public Task HyperLogLogMergeAsync(RedisKey destination, RedisKey[] sourceKeys, CommandFlags flags = CommandFlags.None)
+        {
+            var cmd = Message.Create(Db, flags, RedisCommand.PFMERGE, destination, sourceKeys);
+            return ExecuteAsync(cmd, ResultProcessor.DemandOK);
+        }
+
         public EndPoint IdentifyEndpoint(RedisKey key = default(RedisKey), CommandFlags flags = CommandFlags.None)
         {
             var msg = key.IsNull ? Message.Create(Db, flags, RedisCommand.PING) : Message.Create(Db, flags, RedisCommand.EXISTS, key);
@@ -268,6 +328,7 @@ namespace StackExchange.Redis
             var server = multiplexer.SelectServer(Db, RedisCommand.PING, flags, key);
             return server != null && server.IsConnected;
         }
+
         public bool KeyDelete(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Db, flags, RedisCommand.DEL, key);
@@ -680,6 +741,20 @@ namespace StackExchange.Redis
         public Task<bool> LockTakeAsync(RedisKey key, RedisValue value, TimeSpan expiry, CommandFlags flags = CommandFlags.None)
         {
             return StringSetAsync(key, value, expiry, When.NotExists, flags);
+        }
+
+        public long Publish(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None)
+        {
+            if (channel.IsNullOrEmpty) throw new ArgumentNullException("channel");
+            var msg = Message.Create(-1, flags, RedisCommand.PUBLISH, channel, message);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+
+        public Task<long> PublishAsync(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None)
+        {
+            if (channel.IsNullOrEmpty) throw new ArgumentNullException("channel");
+            var msg = Message.Create(-1, flags, RedisCommand.PUBLISH, channel, message);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
         }
         public RedisResult ScriptEvaluate(string script, RedisKey[] keys = null, RedisValue[] values = null, CommandFlags flags = CommandFlags.None)
         {
@@ -1655,7 +1730,7 @@ namespace StackExchange.Redis
         private Message GetSortedSetRemoveRangeByScoreMessage(RedisKey key, double start, double stop, Exclude exclude, CommandFlags flags)
         {
             return Message.Create(Db, flags, RedisCommand.ZREMRANGEBYSCORE, key,
-                    GetRange(start, exclude, true), GetRange(start, exclude, false));
+                    GetRange(start, exclude, true), GetRange(stop, exclude, false));
         }
 
         private Message GetStringBitOperationMessage(Bitwise operation, RedisKey destination, RedisKey[] keys, CommandFlags flags)
@@ -1810,65 +1885,6 @@ namespace StackExchange.Redis
             if (ScanUtils.IsNil(pattern)) pattern = (byte[])null;
             return new ScanIterator<T>(this, server, key, pattern, pageSize, flags, command, processor).Read();
         }
-
-        public bool HyperLogLogAdd(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
-        {
-            var cmd = Message.Create(Db, flags, RedisCommand.PFADD, key, value);
-            return ExecuteSync(cmd, ResultProcessor.Boolean);
-        }
-
-        public bool HyperLogLogAdd(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
-        {
-            var cmd = Message.Create(Db, flags, RedisCommand.PFADD, key, values);
-            return ExecuteSync(cmd, ResultProcessor.Boolean);
-        }
-
-        public long HyperLogLogLength(RedisKey key, CommandFlags flags = CommandFlags.None)
-        {
-            var cmd = Message.Create(Db, flags, RedisCommand.PFCOUNT, key);
-            return ExecuteSync(cmd, ResultProcessor.Int64);
-        }
-
-        public void HyperLogLogMerge(RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
-        {
-            var cmd = Message.Create(Db, flags, RedisCommand.PFMERGE, destination, first, second);
-            ExecuteSync(cmd, ResultProcessor.DemandOK);
-        }
-        public void HyperLogLogMerge(RedisKey destination, RedisKey[] sourceKeys, CommandFlags flags = CommandFlags.None)
-        {
-            var cmd = Message.Create(Db, flags, RedisCommand.PFMERGE, destination, sourceKeys);
-            ExecuteSync(cmd, ResultProcessor.DemandOK);
-        }
-
-        public Task<bool> HyperLogLogAddAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
-        {
-            var cmd = Message.Create(Db, flags, RedisCommand.PFADD, key, value);
-            return ExecuteAsync(cmd, ResultProcessor.Boolean);
-        }
-
-        public Task<bool> HyperLogLogAddAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
-        {
-            var cmd = Message.Create(Db, flags, RedisCommand.PFADD, key, values);
-            return ExecuteAsync(cmd, ResultProcessor.Boolean);
-        }
-
-        public Task<long> HyperLogLogLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-        {
-            var cmd = Message.Create(Db, flags, RedisCommand.PFCOUNT, key);
-            return ExecuteAsync(cmd, ResultProcessor.Int64);
-        }
-
-        public Task HyperLogLogMergeAsync(RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
-        {
-            var cmd = Message.Create(Db, flags, RedisCommand.PFMERGE, destination, first, second);
-            return ExecuteAsync(cmd, ResultProcessor.DemandOK);
-        }
-        public Task HyperLogLogMergeAsync(RedisKey destination, RedisKey[] sourceKeys, CommandFlags flags = CommandFlags.None)
-        {
-            var cmd = Message.Create(Db, flags, RedisCommand.PFMERGE, destination, sourceKeys);
-            return ExecuteAsync(cmd, ResultProcessor.DemandOK);
-        }
-
         internal static class ScanUtils
         {
             public const int DefaultPageSize = 10;

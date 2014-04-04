@@ -423,6 +423,13 @@ namespace StackExchange.Redis
         /// Takes a lock (specifying a token value) if it is not already taken
         /// </summary>
         bool LockTake(RedisKey key, RedisValue value, TimeSpan expiry, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Posts a message to the given channel.
+        /// </summary>
+        /// <returns>the number of clients that received the message.</returns>
+        /// <remarks>http://redis.io/commands/publish</remarks>
+        long Publish(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None);
         /// <summary>
         /// Execute a Lua script against the server
         /// </summary>

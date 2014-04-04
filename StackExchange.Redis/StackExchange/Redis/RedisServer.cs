@@ -402,13 +402,13 @@ namespace StackExchange.Redis
 
         public long SubscriptionPatternCount(CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.PUBLISH, RedisLiterals.NUMPAT);
+            var msg = Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.NUMPAT);
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
         public Task<long> SubscriptionPatternCountAsync(CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(-1, flags, RedisCommand.PUBLISH, RedisLiterals.NUMPAT);
+            var msg = Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.NUMPAT);
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
