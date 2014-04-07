@@ -4,7 +4,7 @@ obj
 *.suo
 *.user
 *.nupkg
-packages/NuGet.CommandLine.*
+packages/*
 *.sln.docstates
 _ReSharper.*
 Mono/
