@@ -65,6 +65,7 @@ namespace StackExchange.Redis
 
         public static readonly byte[] BytesOK = Encoding.UTF8.GetBytes("OK");
         public static readonly byte[] BytesPONG = Encoding.UTF8.GetBytes("PONG");
+        public static readonly byte[] BytesBackgroundSavingStarted = Encoding.UTF8.GetBytes("Background saving started");
         public static readonly byte[] ByteWildcard = { (byte)'*' };
         internal static RedisValue Get(Bitwise operation)
         {

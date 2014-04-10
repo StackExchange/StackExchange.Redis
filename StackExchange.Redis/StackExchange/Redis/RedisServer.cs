@@ -251,13 +251,13 @@ namespace StackExchange.Redis
         public void Save(SaveType type, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetSaveMessage(type, flags);
-            ExecuteSync(msg, ResultProcessor.DemandOK);
+            ExecuteSync(msg, GetSaveResultProcessor(type));
         }
 
         public Task SaveAsync(SaveType type, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetSaveMessage(type, flags);
-            return ExecuteAsync(msg, ResultProcessor.DemandOK);
+            return ExecuteAsync(msg, GetSaveResultProcessor(type));
         }
 
         public bool ScriptExists(string script, CommandFlags flags = CommandFlags.None)
@@ -541,6 +541,17 @@ namespace StackExchange.Redis
                 default:  throw new ArgumentOutOfRangeException("type");
             }
         }
+
+        ResultProcessor<bool> GetSaveResultProcessor(SaveType type)
+        {
+            switch (type)
+            {
+                case SaveType.BackgroundRewriteAppendOnlyFile: return ResultProcessor.DemandOK;
+                case SaveType.BackgroundSave: return ResultProcessor.BackgroundSaveStarted;
+                default: throw new ArgumentOutOfRangeException("type");
+            }
+        }
+
         struct KeysScanResult
         {
             public static readonly ResultProcessor<KeysScanResult> Processor = new KeysResultProcessor();
