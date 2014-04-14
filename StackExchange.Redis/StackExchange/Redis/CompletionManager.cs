@@ -113,7 +113,12 @@ namespace StackExchange.Redis
         partial void OnCompletedAsync();
         private void ProcessAsyncCompletionQueueImpl()
         {
+#if NET40
+            int currentThread = Thread.CurrentThread.ManagedThreadId;
+#else
             int currentThread = Environment.CurrentManagedThreadId;
+#endif
+
             try
             {
                 while (Interlocked.CompareExchange(ref activeAsyncWorkerThread, currentThread, 0) != 0)

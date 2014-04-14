@@ -1,0 +1,8 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="BuildKit"
+         xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Target Name="BuildKit">
+    <MSBuild Projects="StackExchange.Redis\StackExchange.Redis.csproj" Properties="Configuration=Release"/>
+    <MSBuild Projects="StackExchange.Redis_Net40\StackExchange.Redis_Net40.csproj" Properties="Configuration=Release"/>
+  </Target>
+</Project>

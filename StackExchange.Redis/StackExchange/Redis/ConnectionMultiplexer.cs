@@ -6,10 +6,14 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Net;
-using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Runtime.CompilerServices;
+#if NET40
+using Microsoft.Runtime.CompilerServices;
+#endif
+
 namespace StackExchange.Redis
 {
     internal static partial class TaskExtensions
@@ -159,6 +163,7 @@ namespace StackExchange.Redis
             }
         }
 
+#if !NET40
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")]
         static void Write<T>(ZipArchive zip, string name, Task task, Action<T, StreamWriter> callback)
         {
@@ -265,7 +270,7 @@ namespace StackExchange.Redis
                 }
             }
         }
-
+#endif
 
         internal void MakeMaster(ServerEndPoint server, ReplicationChangeOptions options, TextWriter log)
         {
@@ -539,8 +544,14 @@ namespace StackExchange.Redis
             try
             {
                 // if none error, great
+
+#if NET40
+                var allTasks = TaskEx.WhenAll(tasks).ObserveErrors();
+                var any = TaskEx.WhenAny(allTasks, TaskEx.Delay(timeoutMilliseconds)).ObserveErrors();
+#else
                 var allTasks = Task.WhenAll(tasks).ObserveErrors();
                 var any = Task.WhenAny(allTasks, Task.Delay(timeoutMilliseconds)).ObserveErrors();
+#endif
                 return await any.ForAwait() == allTasks;
             }
             catch
@@ -557,7 +568,11 @@ namespace StackExchange.Redis
                     if (remaining <= 0) return false;
                     try
                     {
+#if NET40
+                        var any = TaskEx.WhenAny(task, TaskEx.Delay(remaining)).ObserveErrors();
+#else
                         var any = Task.WhenAny(task, Task.Delay(remaining)).ObserveErrors();
+#endif
                         await any.ForAwait();
                     }
                     catch
@@ -1070,7 +1085,11 @@ namespace StackExchange.Redis
                     if (configuration.ResolveDns && configuration.HasDnsEndPoints())
                     {
                         var dns = configuration.ResolveEndPointsAsync(this, log).ObserveErrors();
+#if NET40
+                        var any = TaskEx.WhenAny(dns, TaskEx.Delay(timeoutMilliseconds));
+#else
                         var any = Task.WhenAny(dns, Task.Delay(timeoutMilliseconds));
+#endif
                         if ((await any.ForAwait()) != dns)
                         {
                             throw new TimeoutException("Timeout resolving endpoints");

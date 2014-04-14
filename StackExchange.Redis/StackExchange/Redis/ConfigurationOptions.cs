@@ -298,7 +298,11 @@ namespace StackExchange.Redis
                         else
                         {
                             multiplexer.LogLocked(log, "Using DNS to resolve '{0}'...", dns.Host);
+#if NET40
+                            var ips = Dns.GetHostAddresses(dns.Host);
+#else
                             var ips = await Dns.GetHostAddressesAsync(dns.Host).ObserveErrors().ForAwait();
+#endif
                             if (ips.Length == 1)
                             {
                                 ip = ips[0];
