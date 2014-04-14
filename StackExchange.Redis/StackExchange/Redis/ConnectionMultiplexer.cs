@@ -9,9 +9,10 @@ using System.Net;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Runtime.CompilerServices;
 #if NET40
 using Microsoft.Runtime.CompilerServices;
+#else
+using System.Runtime.CompilerServices;
 #endif
 
 namespace StackExchange.Redis
@@ -95,7 +96,7 @@ namespace StackExchange.Redis
                 ReconfigureIfNeeded(endpoint, false, "connection failed");
             }
         }
-        internal void OnInternalError(Exception exception, EndPoint endpoint = null, ConnectionType connectionType = ConnectionType.None, [CallerMemberName] string origin = null)
+        internal void OnInternalError(Exception exception, EndPoint endpoint = null, ConnectionType connectionType = ConnectionType.None, [System.Runtime.CompilerServices.CallerMemberName] string origin = null)
         {
             try
             {
@@ -930,12 +931,12 @@ namespace StackExchange.Redis
 
 
         [Conditional("VERBOSE")]
-        internal void Trace(string message, [CallerMemberName] string category = null)
+        internal void Trace(string message, [System.Runtime.CompilerServices.CallerMemberName] string category = null)
         {
             OnTrace(message, category);
         }
         [Conditional("VERBOSE")]
-        internal void Trace(bool condition, string message, [CallerMemberName] string category = null)
+        internal void Trace(bool condition, string message, [System.Runtime.CompilerServices.CallerMemberName] string category = null)
         {
             if (condition) OnTrace(message, category);
         }
@@ -944,12 +945,12 @@ namespace StackExchange.Redis
         static partial void OnTraceWithoutContext(string message, string category);
 
         [Conditional("VERBOSE")]
-        internal static void TraceWithoutContext(string message, [CallerMemberName] string category = null)
+        internal static void TraceWithoutContext(string message, [System.Runtime.CompilerServices.CallerMemberName] string category = null)
         {
             OnTraceWithoutContext(message, category);
         }
         [Conditional("VERBOSE")]
-        internal static void TraceWithoutContext(bool condition, string message, [CallerMemberName] string category = null)
+        internal static void TraceWithoutContext(bool condition, string message, [System.Runtime.CompilerServices.CallerMemberName] string category = null)
         {
             if(condition) OnTraceWithoutContext(message, category);
         }
@@ -1302,7 +1303,7 @@ namespace StackExchange.Redis
             }
         }
 
-        partial void OnTraceLog(TextWriter log, [CallerMemberName] string caller = null);
+        partial void OnTraceLog(TextWriter log, [System.Runtime.CompilerServices.CallerMemberName] string caller = null);
         private async Task<ServerEndPoint> NominatePreferredMaster(TextWriter log, ServerEndPoint[] servers, bool useTieBreakers, Task<string>[] tieBreakers, List<ServerEndPoint> masters)
         {
             Dictionary<string, int> uniques = null;

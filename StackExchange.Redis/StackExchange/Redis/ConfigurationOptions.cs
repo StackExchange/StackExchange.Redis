@@ -276,6 +276,7 @@ namespace StackExchange.Redis
             return false;
         }
 
+#pragma warning disable 1998 // NET40 is sync, not async, currently
         internal async Task ResolveEndPointsAsync(ConnectionMultiplexer multiplexer, TextWriter log)
         {
             Dictionary<string, IPAddress> cache = new Dictionary<string, IPAddress>(StringComparer.InvariantCultureIgnoreCase);
@@ -320,7 +321,7 @@ namespace StackExchange.Redis
                 }
             }
         }
-
+#pragma warning restore 1998
         static void Append(StringBuilder sb, object value)
         {
             if (value == null) return;
