@@ -13,12 +13,13 @@ namespace StackExchange.Redis
         public static readonly ResultProcessor<bool>
             Boolean = new BooleanProcessor(),
             DemandOK = new ExpectBasicStringProcessor(RedisLiterals.BytesOK),
-            DemandPONG = new ExpectBasicStringProcessor("PONG"),
+            DemandPONG = new ExpectBasicStringProcessor(RedisLiterals.BytesPONG),
             DemandZeroOrOne = new DemandZeroOrOneProcessor(),
             AutoConfigure = new AutoConfigureProcessor(),
             TrackSubscriptions = new TrackSubscriptionsProcessor(),
             Tracer = new TracerProcessor(false),
-            EstablishConnection = new TracerProcessor(true);
+            EstablishConnection = new TracerProcessor(true),
+            BackgroundSaveStarted = new ExpectBasicStringProcessor(RedisLiterals.BytesBackgroundSavingStarted);
 
         public static readonly ResultProcessor<byte[]>
             ByteArray = new ByteArrayProcessor(),
