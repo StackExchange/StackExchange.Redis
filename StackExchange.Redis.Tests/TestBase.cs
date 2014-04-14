@@ -145,7 +145,8 @@ namespace StackExchange.Redis.Tests
         protected virtual ConnectionMultiplexer Create(
             string clientName = null, int? syncTimeout = null, bool? allowAdmin = null, int? keepAlive = null,
             int? connectTimeout = null, string password = null, string tieBreaker = null, TextWriter log = null,
-            bool fail = true, string[] disabledCommands = null, bool checkConnect = true, bool pause = true, string failMessage = null,
+            bool fail = true, string[] disabledCommands = null, string[] enabledCommands = null,
+            bool checkConnect = true, bool pause = true, string failMessage = null,
             string channelPrefix = null, bool useSharedSocketManager = true, Proxy? proxy = null)
         {
             if(pause) Thread.Sleep(500); // get a lot of glitches when hammering new socket creations etc; pace it out a bit
@@ -153,10 +154,10 @@ namespace StackExchange.Redis.Tests
             var config = ConfigurationOptions.Parse(configuration);
             if (disabledCommands != null && disabledCommands.Length != 0)
             {
-                var map = new Dictionary<string, string>();
-                foreach (var cmd in disabledCommands)
-                    map[cmd] = null;
-                config.CommandMap = CommandMap.Create(map);
+                config.CommandMap = CommandMap.Create(new HashSet<string>(disabledCommands), false);
+            } else if (enabledCommands != null && enabledCommands.Length != 0)
+            {
+                config.CommandMap = CommandMap.Create(new HashSet<string>(enabledCommands), true);
             }
 
             if(Debugger.IsAttached)

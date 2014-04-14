@@ -88,6 +88,7 @@
     <Compile Include="Scripting.cs" />
     <Compile Include="Secure.cs" />
     <Compile Include="Sets.cs" />
+    <Compile Include="SSDB.cs" />
     <Compile Include="SSL.cs" />
     <Compile Include="TaskTests.cs" />
     <Compile Include="TestBase.cs" />

@@ -38,7 +38,13 @@ namespace StackExchange.Redis
             RedisCommand.BGREWRITEAOF, RedisCommand.BGSAVE, RedisCommand.CLIENT, RedisCommand.CLUSTER, RedisCommand.CONFIG, RedisCommand.DBSIZE,
             RedisCommand.DEBUG, RedisCommand.FLUSHALL, RedisCommand.FLUSHDB, RedisCommand.INFO, RedisCommand.LASTSAVE, RedisCommand.MONITOR, RedisCommand.SAVE,
             RedisCommand.SHUTDOWN, RedisCommand.SLAVEOF, RedisCommand.SLOWLOG, RedisCommand.SYNC, RedisCommand.TIME
-        });
+        }), ssdb = Create(new HashSet<string> {
+            // see http://www.ideawu.com/ssdb/docs/redis-to-ssdb.html
+            "ping",
+            "get", "set", "del", "incr", "incrby", "mget", "mset", "keys", "getset", "setnx",
+            "hget", "hset", "hdel", "hincrby", "hkeys", "hvals", "hmget", "hmset", "hlen",
+            "zscore", "zadd", "zrem", "zrange", "zrangebyscore", "zincrby", "zdecrby", "zcard",
+            "llen", "lpush", "rpush", "lpop", "rpop", "lrange", "lindex" }, true);
         private readonly byte[][] map;
 
         internal CommandMap(byte[][] map)
@@ -55,6 +61,13 @@ namespace StackExchange.Redis
         /// </summary>
         /// <remarks>https://github.com/twitter/twemproxy/blob/master/notes/redis.md</remarks>
         public static CommandMap Twemproxy {  get { return twemproxy; } }
+
+        /// <summary>
+        /// The commands available to <a href="ssdb">http://www.ideawu.com/ssdb/</a>
+        /// </summary>
+        /// <remarks>http://www.ideawu.com/ssdb/docs/redis-to-ssdb.html</remarks>
+        public static CommandMap SSDB { get { return ssdb; } }
+
 
         /// <summary>
         /// Create a new CommandMap, customizing some commands
