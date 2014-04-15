@@ -1,4 +1,4 @@
-﻿Where are `KEYS`, `SCAN`, `FLUSHDB`, `FLUSHALL` ?
+﻿Where are `KEYS`, `SCAN`, `FLUSHDB` etc?
 ===
 
 Some very common recurring questions are:
@@ -14,15 +14,16 @@ The key word here, oddly enough, is the last one: database. Because StackExchang
 - `KEYS` / `SCAN`
 - `FLUSHDB` / `FLUSHALL`
 - `RANDOMKEY`
-- `CLIENT *`
-- `CLUSTER *`
-- `CONFIG` / `INFO` / `TIME`
+- `CLIENT`
+- `CLUSTER`
+- `CONFIG *` / `INFO` / `TIME`
 - `SLAVEOF`
 - `SAVE` / `BGSAVE` / `LASTSAVE`
 - `SCRIPT` (not to be confused with `EVAL` / `EVALSHA`)
 - `SHUTDOWN`
 - `SLOWLOG`
-- `PUBSUB *` (not to be confused with `PUBLISH` / `SUBSCRIBE` / etc)
+- `PUBSUB` (not to be confused with `PUBLISH` / `SUBSCRIBE` / etc)
+- some `DEBUG` operations
 
 (I've probably missed at least one) Most of these will seem pretty obvious, but the first 3 rows are not so obvious:
 
@@ -33,7 +34,7 @@ The key word here, oddly enough, is the last one: database. Because StackExchang
 Actually, StackExchange.Redis spoofs the `RANDOMKEY` one on the `IDatabase` API by simply selecting a target server at random, but this is not possible for the others.
 
 So how do I use them?
-===
+---
 
 Simple: start from a server, not a database.
 
@@ -48,6 +49,6 @@ Note that unlike the `IDatabase` API (where the target database has already been
 The `Keys(...)` method deserves special mention: it is unusual in that it does not have an `*Async` counterpart. The reason for this is that behind the scenes, the system will determine the most appropriate method to use (`KEYS` vs `SCAN`, based on the server version), and if possible will use the `SCAN` approach to hand you back an `IEnumerable<RedisKey>` that does all the paging internally - so you never need to see the implementation details of the cursor operations. If `SCAN` is not available, it will use `KEYS`, which can cause blockages at the server. Either way, both `SCAN` and `KEYS` will need to sweep the entire keyspace, so should be avoided on production servers - or at least, targeted at slaves.
 
 So I need to remember which server I connected to? That sucks!
-===
+---
 
 No, not quite. You can use `conn.GetEndPoints()` to list the endpoints (either all known, or the ones specified in the original configuration - these are not necessarily the same thing), and iterate with `GetServer()` to find the server you want (for example, selecting a slave).
