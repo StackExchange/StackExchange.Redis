@@ -33,6 +33,7 @@ Documentation
 - [Transactions](https://github.com/StackExchange/StackExchange.Redis/blob/master/Docs/Transactions.md) - how atomic transactions work in redis
 - [Events](https://github.com/StackExchange/StackExchange.Redis/blob/master/Docs/Events.md) - the events available for logging / information purposes
 - [Pub/Sub Message Order](https://github.com/StackExchange/StackExchange.Redis/blob/master/Docs/PubSubOrder.md) - advice on sequential and concurrent processing
+- [Where are `KEYS` / `SCAN` / `FLUSH*`?](https://github.com/StackExchange/StackExchange.Redis/blob/master/Docs/KeysScan.md) - how to use server-based commands
 
 Questions and Contributions
 ---
