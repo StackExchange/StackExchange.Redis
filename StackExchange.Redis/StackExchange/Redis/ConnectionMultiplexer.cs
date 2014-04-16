@@ -69,9 +69,9 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Gets or sets a client-name that will be used on all new connections
+        /// Gets the client-name that will be used on all new connections
         /// </summary>
-        public string ClientName { get { return configuration.ClientName; } }
+        public string ClientName { get { return configuration.ClientName ?? Environment.MachineName; } }
 
         /// <summary>
         /// Gets the configuration of the connection

@@ -5,6 +5,8 @@ using System.IO;
 using System.Net;
 using NUnit.Framework;
 using System.Linq;
+using System.Security.Cryptography.X509Certificates;
+using System.Net.Security;
 
 namespace StackExchange.Redis.Tests
 {
@@ -119,5 +121,55 @@ namespace StackExchange.Redis.Tests
                 (long)((SyncLoop * Threads) / time.TotalSeconds),
                 value);
         }
+
+
+        [Test]
+        public void RedisLabsSSL()
+        {
+            const string path = @"d:\RedisLabsSslHost.txt";
+            const string pfxPath = @"d:\RedisLabsUser.pfx";
+
+            if (!File.Exists(path)) Assert.Inconclusive();
+            string hostAndPort = File.ReadAllText(path);
+            int timeout = 5000;
+            if (Debugger.IsAttached) timeout *= 100;
+            var options = new ConfigurationOptions
+            {
+                EndPoints = { hostAndPort },
+                ConnectTimeout = timeout,
+                AllowAdmin = true,
+                CommandMap = CommandMap.Create(new HashSet<string> {
+                    "subscribe", "unsubscribe", "cluster"
+                }, false)
+            };
+            if (!Directory.Exists(Me())) Directory.CreateDirectory(Me());
+#if LOGOUTPUT
+            ConnectionMultiplexer.EchoPath = Me();
+#endif
+            options.UseSsl = true;
+            options.CertificateSelection += delegate {
+                return new X509Certificate2(pfxPath, "pass");
+            };
+            RedisKey key = Me();
+            using(var conn = ConnectionMultiplexer.Connect(options))
+            {
+                var db = conn.GetDatabase();
+                db.KeyDelete(key);
+                string s = db.StringGet(key);
+                Assert.IsNull(s);
+                db.StringSet(key, "abc");
+                s = db.StringGet(key);
+                Assert.AreEqual("abc", s);
+                
+                var latency = db.Ping();
+                Console.WriteLine("RedisLabs latency: {0:###,##0.##}ms", latency.TotalMilliseconds);
+
+                using (var file = File.Create("RedisLabs.zip"))
+                {
+                    conn.ExportConfiguration(file);
+                }
+            }
+        }
+
     }
 }
