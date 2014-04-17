@@ -33,7 +33,6 @@ in the intellisense comments, which is licensed under the
 Creative Commons Attribution-ShareAlike 4.0 International license; full
 details are available here:
 https://github.com/antirez/redis-doc/blob/master/COPYRIGHT
-As per this license, this content can be freely shared and adapted.
 
 The development solution uses the Redis-64 package from nuget
 (https://www.nuget.org/packages/Redis-64) by Microsoft Open Technologies, inc.
