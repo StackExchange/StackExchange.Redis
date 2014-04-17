@@ -29,7 +29,7 @@ is licensed separately under the three clause BSD license. The full license
 information can be viewed here: http://redis.io/topics/license
 
 This tool makes use of the "redis-doc" library from http://redis.io/documentation
-in the intellisense commentsm which is licensed under the
+in the intellisense comments, which is licensed under the
 Creative Commons Attribution-ShareAlike 4.0 International license; full
 details are available here:
 https://github.com/antirez/redis-doc/blob/master/COPYRIGHT
