@@ -148,7 +148,7 @@ namespace StackExchange.Redis.Tests
 #endif
             options.UseSsl = true;
             options.CertificateSelection += delegate {
-                return new X509Certificate2(pfxPath, "pass");
+                return new X509Certificate2(pfxPath, "");
             };
             RedisKey key = Me();
             using(var conn = ConnectionMultiplexer.Connect(options))

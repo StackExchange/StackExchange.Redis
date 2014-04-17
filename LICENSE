@@ -28,10 +28,12 @@ The Redis project (http://redis.io/) is independent of this client library, and
 is licensed separately under the three clause BSD license. The full license
 information can be viewed here: http://redis.io/topics/license
 
-This tool makes use of the "redis doc" library from http://redis.io/documentation
-in the intellisense comments; the license for this library is under discussion
-at time of writing; if this concludes such that this usage is inappropriate,
-the intellisense comments will be rewriteen.
+This tool makes use of the "redis-doc" library from http://redis.io/documentation
+in the intellisense commentsm which is licensed under the
+Creative Commons Attribution-ShareAlike 4.0 International license; full
+details are available here:
+https://github.com/antirez/redis-doc/blob/master/COPYRIGHT
+and are freely both shared and adapted.
 
 The development solution uses the Redis-64 package from nuget
 (https://www.nuget.org/packages/Redis-64) by Microsoft Open Technologies, inc.
