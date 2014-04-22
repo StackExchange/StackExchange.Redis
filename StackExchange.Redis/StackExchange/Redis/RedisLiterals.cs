@@ -61,7 +61,10 @@ namespace StackExchange.Redis
             no = "no",
             replication = "replication",
             server = "server",
-            Wildcard = "*";
+            Wildcard = "*",
+
+            PlusSumbol = "+",
+            MinusSymbol = "-";
 
         public static readonly byte[] BytesOK = Encoding.UTF8.GetBytes("OK");
         public static readonly byte[] BytesPONG = Encoding.UTF8.GetBytes("PONG");

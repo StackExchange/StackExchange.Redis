@@ -76,6 +76,7 @@
     <Compile Include="Issues\SO22786599.cs" />
     <Compile Include="Keys.cs" />
     <Compile Include="KeysAndValues.cs" />
+    <Compile Include="Lex.cs" />
     <Compile Include="Lists.cs" />
     <Compile Include="Locking.cs" />
     <Compile Include="MultiAdd.cs" />

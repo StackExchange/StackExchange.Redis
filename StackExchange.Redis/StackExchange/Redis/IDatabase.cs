@@ -637,6 +637,13 @@ namespace StackExchange.Redis
         long SortedSetLength(RedisKey key, double min = double.NegativeInfinity, double max = double.PositiveInfinity, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// When all the elements in a sorted set are inserted with the same score, in order to force lexicographical ordering, this command returns the number of elements in the sorted set at key with a value between min and max.
+        /// </summary>
+        /// <returns>the number of elements in the specified score range.</returns>
+        /// <remarks>When all the elements in a sorted set are inserted with the same score, in order to force lexicographical ordering, this command returns all the elements in the sorted set at key with a value between min and max.</remarks>
+        long SortedSetLengthByValue(RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Returns the specified range of elements in the sorted set stored at key. By default the elements are considered to be ordered from the lowest to the highest score. Lexicographical order is used for elements with equal score.
         /// Both start and stop are zero-based indexes, where 0 is the first element, 1 is the next element and so on. They can also be negative numbers indicating offsets from the end of the sorted set, with -1 being the last element of the sorted set, -2 the penultimate element and so on.
         /// </summary>
@@ -653,6 +660,8 @@ namespace StackExchange.Redis
         /// <remarks>http://redis.io/commands/zrange</remarks>
         /// <remarks>http://redis.io/commands/zrevrange</remarks>
         SortedSetEntry[] SortedSetRangeByRankWithScores(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None);
+
+
 
         /// <summary>
         /// Returns the specified range of elements in the sorted set stored at key. By default the elements are considered to be ordered from the lowest to the highest score. Lexicographical order is used for elements with equal score.
@@ -676,6 +685,15 @@ namespace StackExchange.Redis
         SortedSetEntry[] SortedSetRangeByScoreWithScores(RedisKey key,
             double start = double.NegativeInfinity, double stop = double.PositiveInfinity,
             Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long take = -1,
+            CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// When all the elements in a sorted set are inserted with the same score, in order to force lexicographical ordering, this command returns all the elements in the sorted set at key with a value between min and max.
+        /// </summary>
+        /// <remarks>http://redis.io/commands/zrangebylex</remarks>
+        /// <returns>list of elements in the specified score range.</returns>
+        RedisValue[] SortedSetRangeByValue(RedisKey key, RedisValue min = default(RedisValue), RedisValue max = default(RedisValue),
+            Exclude exclude = Exclude.None, long skip = 0, long take = -1,
             CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -714,6 +732,12 @@ namespace StackExchange.Redis
         /// <remarks>http://redis.io/commands/zremrangebyscore</remarks>
         long SortedSetRemoveRangeByScore(RedisKey key, double start, double stop, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None);
 
+        /// <summary>
+        /// When all the elements in a sorted set are inserted with the same score, in order to force lexicographical ordering, this command removes all elements in the sorted set stored at key between the lexicographical range specified by min and max.
+        /// </summary>
+        /// <remarks>http://redis.io/commands/zremrangebylex</remarks>
+        /// <returns>the number of elements removed.</returns>
+        long SortedSetRemoveRangeByValue(RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None);
         /// <summary>
         /// The ZSCAN command is used to incrementally iterate over a sorted set
         /// </summary>

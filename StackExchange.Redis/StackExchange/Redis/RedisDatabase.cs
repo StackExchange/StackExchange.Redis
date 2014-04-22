@@ -1527,6 +1527,20 @@ namespace StackExchange.Redis
             return tran;
         }
 
+        private RedisValue GetLexRange(RedisValue value, Exclude exclude, bool isStart)
+        {
+            if(value.IsNull)
+            {
+                return isStart? RedisLiterals.MinusSymbol : RedisLiterals.PlusSumbol;
+            }
+            byte[] orig = value;
+
+            byte[] result = new byte[orig.Length + 1];
+            // no defaults here; must always explicitly specify [ / (
+            result[0] = (exclude & (isStart ? Exclude.Start : Exclude.Stop)) == 0 ? (byte)'[' : (byte)'(';
+            Buffer.BlockCopy(orig, 0, result, 1, orig.Length);            
+            return result;
+        }
         private RedisValue GetRange(double value, Exclude exclude, bool isStart)
         {
             if (isStart)
@@ -1885,6 +1899,52 @@ namespace StackExchange.Redis
             if (ScanUtils.IsNil(pattern)) pattern = (byte[])null;
             return new ScanIterator<T>(this, server, key, pattern, pageSize, flags, command, processor).Read();
         }
+
+        private Message GetLexMessage(RedisCommand command, RedisKey key, RedisValue min, RedisValue max, Exclude exclude, long skip, long take, CommandFlags flags)
+        {
+            RedisValue start = GetLexRange(min, exclude, true), stop = GetLexRange(max, exclude, false);
+
+            if (skip == 0 && take == -1)
+                return Message.Create(Db, flags, command, key, start, stop);
+
+            return Message.Create(Db, flags, command, key, new[] { start, stop, RedisLiterals.LIMIT, skip, take });
+        }
+        public long SortedSetLengthByValue(RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetLexMessage(RedisCommand.ZLEXCOUNT, key, min, max, exclude, 0, -1, flags);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+
+        public RedisValue[] SortedSetRangeByValue(RedisKey key, RedisValue min = default(RedisValue), RedisValue max = default(RedisValue), Exclude exclude = Exclude.None, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetLexMessage(RedisCommand.ZRANGEBYLEX, key, min, max, exclude, skip, take, flags);
+            return ExecuteSync(msg, ResultProcessor.RedisValueArray);
+        }
+
+        public long SortedSetRemoveRangeByValue(RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetLexMessage(RedisCommand.ZREMRANGEBYLEX, key, min, max, exclude, 0, -1, flags);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+
+        public Task<long> SortedSetLengthByValueAsync(RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetLexMessage(RedisCommand.ZLEXCOUNT, key, min, max, exclude, 0, -1, flags);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
+
+        public Task<RedisValue[]> SortedSetRangeByValueAsync(RedisKey key, RedisValue min = default(RedisValue), RedisValue max = default(RedisValue), Exclude exclude = Exclude.None, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetLexMessage(RedisCommand.ZRANGEBYLEX, key, min, max, exclude, skip, take, flags);
+            return ExecuteAsync(msg, ResultProcessor.RedisValueArray);
+        }
+
+        public Task<long> SortedSetRemoveRangeByValueAsync(RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetLexMessage(RedisCommand.ZREMRANGEBYLEX, key, min, max, exclude, 0, -1, flags);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
+
         internal static class ScanUtils
         {
             public const int DefaultPageSize = 10;

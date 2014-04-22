@@ -338,6 +338,7 @@ namespace StackExchange.Redis
                 case RedisCommand.ZINTERSTORE:
                 case RedisCommand.ZINCRBY:
                 case RedisCommand.ZREM:
+                case RedisCommand.ZREMRANGEBYLEX:
                 case RedisCommand.ZREMRANGEBYRANK:
                 case RedisCommand.ZREMRANGEBYSCORE:
                 case RedisCommand.ZUNIONSTORE:

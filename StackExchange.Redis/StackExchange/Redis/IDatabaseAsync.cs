@@ -410,6 +410,7 @@ namespace StackExchange.Redis
         /// <returns>the number of clients that received the message.</returns>
         /// <remarks>http://redis.io/commands/publish</remarks>
         Task<long> PublishAsync(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None);
+
         /// <summary>
         /// Execute a Lua script against the server
         /// </summary>
@@ -473,6 +474,7 @@ namespace StackExchange.Redis
         /// <returns>1 if the element is a member of the set. 0 if the element is not a member of the set, or if key does not exist.</returns>
         /// <remarks>http://redis.io/commands/sismember</remarks>
         Task<bool> SetContainsAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None);
+
         /// <summary>
         /// Returns the set cardinality (number of elements) of the set stored at key.
         /// </summary>
@@ -530,7 +532,6 @@ namespace StackExchange.Redis
         /// <returns>the number of members that were removed from the set, not including non existing members.</returns>
         /// <remarks>http://redis.io/commands/srem</remarks>
         Task<long> SetRemoveAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None);
-
 
         /// <summary>
         /// Sorts a list, set or sorted set (numerically or alphabetically, ascending by default); By default, the elements themselves are compared, but the values can also be
@@ -608,6 +609,14 @@ namespace StackExchange.Redis
         /// <returns>the cardinality (number of elements) of the sorted set, or 0 if key does not exist.</returns>
         /// <remarks>http://redis.io/commands/zcard</remarks>
         Task<long> SortedSetLengthAsync(RedisKey key, double min = double.NegativeInfinity, double max = double.PositiveInfinity, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// When all the elements in a sorted set are inserted with the same score, in order to force lexicographical ordering, this command returns the number of elements in the sorted set at key with a value between min and max.
+        /// </summary>
+        /// <returns>the number of elements in the specified score range.</returns>
+        /// <remarks>When all the elements in a sorted set are inserted with the same score, in order to force lexicographical ordering, this command returns all the elements in the sorted set at key with a value between min and max.</remarks>
+        Task<long> SortedSetLengthByValueAsync(RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None);
+
         /// <summary>
         /// Returns the specified range of elements in the sorted set stored at key. By default the elements are considered to be ordered from the lowest to the highest score. Lexicographical order is used for elements with equal score.
         /// Both start and stop are zero-based indexes, where 0 is the first element, 1 is the next element and so on. They can also be negative numbers indicating offsets from the end of the sorted set, with -1 being the last element of the sorted set, -2 the penultimate element and so on.
@@ -616,7 +625,6 @@ namespace StackExchange.Redis
         /// <remarks>http://redis.io/commands/zrange</remarks>
         /// <remarks>http://redis.io/commands/zrevrange</remarks>
         Task<RedisValue[]> SortedSetRangeByRankAsync(RedisKey key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None);
-
 
         /// <summary>
         /// Returns the specified range of elements in the sorted set stored at key. By default the elements are considered to be ordered from the lowest to the highest score. Lexicographical order is used for elements with equal score.
@@ -649,6 +657,15 @@ namespace StackExchange.Redis
         Task<SortedSetEntry[]> SortedSetRangeByScoreWithScoresAsync(RedisKey key,
             double start = double.NegativeInfinity, double stop = double.PositiveInfinity,
             Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long take = -1,
+            CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// When all the elements in a sorted set are inserted with the same score, in order to force lexicographical ordering, this command returns all the elements in the sorted set at key with a value between min and max.
+        /// </summary>
+        /// <remarks>http://redis.io/commands/zrangebylex</remarks>
+        /// <returns>list of elements in the specified score range.</returns>
+        Task<RedisValue[]> SortedSetRangeByValueAsync(RedisKey key, RedisValue min = default(RedisValue), RedisValue max = default(RedisValue),
+            Exclude exclude = Exclude.None, long skip = 0, long take = -1,
             CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -687,6 +704,12 @@ namespace StackExchange.Redis
         /// <remarks>http://redis.io/commands/zremrangebyscore</remarks>
         Task<long> SortedSetRemoveRangeByScoreAsync(RedisKey key, double start, double stop, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None);
 
+        /// <summary>
+        /// When all the elements in a sorted set are inserted with the same score, in order to force lexicographical ordering, this command removes all elements in the sorted set stored at key between the lexicographical range specified by min and max.
+        /// </summary>
+        /// <remarks>http://redis.io/commands/zremrangebylex</remarks>
+        /// <returns>the number of elements removed.</returns>
+        Task<long> SortedSetRemoveRangeByValueAsync(RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None);
         /// <summary>
         /// Returns the score of member in the sorted set at key; If member does not exist in the sorted set, or key does not exist, nil is returned.
         /// </summary>
