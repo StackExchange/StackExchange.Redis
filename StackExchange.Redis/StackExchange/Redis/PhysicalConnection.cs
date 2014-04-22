@@ -137,8 +137,12 @@ namespace StackExchange.Redis
 
         public void Flush()
         {
-            outStream.Flush();
-            Interlocked.Exchange(ref lastWriteTickCount, Environment.TickCount);
+            var tmp = outStream;
+            if (tmp != null)
+            {
+                tmp.Flush();
+                Interlocked.Exchange(ref lastWriteTickCount, Environment.TickCount);
+            }
         }
 
         public void RecordConnectionFailed(ConnectionFailureType failureType, Exception innerException = null, [CallerMemberName] string origin = null)
