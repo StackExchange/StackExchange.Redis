@@ -10,7 +10,7 @@ Features
 
 - High performance multiplexed design, allowing for efficient use of shared connections from multiple calling threads
 - Abstraction over redis node configuration: the client can silently negotiate multiple redis servers for robustness and availability
-- Convenient access to the full redis feature-set (caveat: scripting is still outstanding)
+- Convenient access to the full redis feature-set
 - Full dual programming model both synchronous and asynchronous usage, without requiring "sync over async" usage of the [TPL][1]
 - Support for redis "cluster"
 
