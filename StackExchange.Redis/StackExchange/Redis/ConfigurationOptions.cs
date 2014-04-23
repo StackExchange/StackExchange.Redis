@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Net;
 using System.Net.Security;
@@ -34,13 +35,13 @@ namespace StackExchange.Redis
         private const string AllowAdminPrefix = "allowAdmin=", SyncTimeoutPrefix = "syncTimeout=",
                                 ServiceNamePrefix = "serviceName=", ClientNamePrefix = "name=", KeepAlivePrefix = "keepAlive=",
                         VersionPrefix = "version=", ConnectTimeoutPrefix = "connectTimeout=", PasswordPrefix = "password=",
-                        TieBreakerPrefix = "tiebreaker=", WriteBufferPrefix = "writeBuffer=", UseSslPrefix = "ssl=", SslHostPrefix = "sslHost=",
+                        TieBreakerPrefix = "tiebreaker=", WriteBufferPrefix = "writeBuffer=", sslPrefix = "ssl=", SslHostPrefix = "sslHost=",
                         ConfigChannelPrefix = "configChannel=", AbortOnConnectFailPrefix = "abortConnect=", ResolveDnsPrefix = "resolveDns=",
                         ChannelPrefixPrefix = "channelPrefix=", ProxyPrefix = "proxy=";
 
         private readonly EndPointCollection endpoints = new EndPointCollection();
 
-        private bool? allowAdmin, abortOnConnectFail, resolveDns, useSsl;
+        private bool? allowAdmin, abortOnConnectFail, resolveDns, ssl;
 
         private string clientName, serviceName, password, tieBreaker, sslHost, configChannel;
 
@@ -79,7 +80,13 @@ namespace StackExchange.Redis
         /// <summary>
         /// Indicates whether the connection should be encrypted
         /// </summary>
-        public bool UseSsl { get { return useSsl.GetValueOrDefault(); } set { useSsl = value; } }
+        [Obsolete("Please use .Ssl instead of .UseSsl"), Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+        public bool UseSsl { get { return Ssl; } set { Ssl = value; } }
+
+        /// <summary>
+        /// Indicates whether the connection should be encrypted
+        /// </summary>
+        public bool Ssl { get { return ssl.GetValueOrDefault(); } set { ssl = value; } }
 
         /// <summary>
         /// Automatically encodes and decodes channels
@@ -213,7 +220,7 @@ namespace StackExchange.Redis
                 password = password,
                 tieBreaker = tieBreaker,
                 writeBuffer = writeBuffer,
-                useSsl = useSsl,
+                ssl = ssl,
                 sslHost = sslHost,
                 configChannel = configChannel,
                 abortOnConnectFail = abortOnConnectFail,
@@ -236,7 +243,7 @@ namespace StackExchange.Redis
         /// </summary>
         public void SetDefaultPorts()
         {
-            endpoints.SetDefaultPorts(UseSsl ? 6380 : 6379);
+            endpoints.SetDefaultPorts(Ssl ? 6380 : 6379);
         }
 
         /// <summary>
@@ -259,7 +266,7 @@ namespace StackExchange.Redis
             Append(sb, PasswordPrefix, password);
             Append(sb, TieBreakerPrefix, tieBreaker);
             Append(sb, WriteBufferPrefix, writeBuffer);
-            Append(sb, UseSslPrefix, useSsl);
+            Append(sb, sslPrefix, ssl);
             Append(sb, SslHostPrefix, sslHost);            
             Append(sb, ConfigChannelPrefix, configChannel);
             Append(sb, AbortOnConnectFailPrefix, abortOnConnectFail);
@@ -352,7 +359,7 @@ namespace StackExchange.Redis
         {
             clientName = serviceName = password = tieBreaker = sslHost = configChannel = null;
             keepAlive = syncTimeout = connectTimeout = writeBuffer = null;
-            allowAdmin = abortOnConnectFail = resolveDns = useSsl = null;
+            allowAdmin = abortOnConnectFail = resolveDns = ssl = null;
             defaultVersion = null;
             endpoints.Clear();
             commandMap = null;
@@ -443,10 +450,10 @@ namespace StackExchange.Redis
                         {
                             TieBreaker = value.Trim();
                         }
-                        else if (IsOption(option, UseSslPrefix))
+                        else if (IsOption(option, sslPrefix))
                         {
                             bool tmp;
-                            if (Format.TryParseBoolean(value.Trim(), out tmp)) UseSsl = tmp;
+                            if (Format.TryParseBoolean(value.Trim(), out tmp)) Ssl = tmp;
                         }
                         else if (IsOption(option, SslHostPrefix))
                         {

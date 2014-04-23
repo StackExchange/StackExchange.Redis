@@ -49,7 +49,7 @@ namespace StackExchange.Redis.Tests
             {
                 options.EndPoints.Add(host, port);
             }
-            if (useSsl) options.UseSsl = true;
+            if (useSsl) options.Ssl = true;
 
             options.SetDefaultPorts(); // normally it is the multiplexer that calls this, not us
             Assert.AreEqual(expectedPort, ((DnsEndPoint)options.EndPoints.Single()).Port);

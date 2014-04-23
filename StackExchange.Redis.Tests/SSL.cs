@@ -40,7 +40,7 @@ namespace StackExchange.Redis.Tests
             };
             if(useSsl)
             {
-                config.UseSsl = useSsl;
+                config.Ssl = useSsl;
                 if (specifyHost)
                 {
                     config.SslHost = host;
@@ -146,7 +146,7 @@ namespace StackExchange.Redis.Tests
 #if LOGOUTPUT
             ConnectionMultiplexer.EchoPath = Me();
 #endif
-            options.UseSsl = true;
+            options.Ssl = true;
             options.CertificateSelection += delegate {
                 return new X509Certificate2(pfxPath, "");
             };

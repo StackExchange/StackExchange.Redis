@@ -526,7 +526,7 @@ namespace StackExchange.Redis
                 // [network]<==[ssl]<==[logging]<==[buffered]
                 var config = multiplexer.RawConfig;
 
-                if(config.UseSsl)
+                if(config.Ssl)
                 {
                     var host = config.SslHost;
                     if (string.IsNullOrWhiteSpace(host)) host = Format.ToStringHostOnly(bridge.ServerEndPoint.EndPoint);
