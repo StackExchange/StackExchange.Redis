@@ -11,6 +11,7 @@ namespace StackExchange.Redis.Tests
         {
             var config = ConfigurationOptions.Parse(".,$PING=p");
             Assert.AreEqual(1, config.EndPoints.Count);
+            config.SetDefaultPorts();
             Assert.Contains(new DnsEndPoint(".",6379), config.EndPoints);
             var map = config.CommandMap;
             Assert.AreEqual("$PING=p", map.ToString());

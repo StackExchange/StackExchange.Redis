@@ -293,7 +293,7 @@ namespace StackExchange.Redis.Tests
             }
         }
         [Test]
-        [ExpectedException(typeof(RedisServerException), ExpectedMessage = "ERR Operation against a key holding the wrong kind of value")]
+        [ExpectedException(typeof(RedisServerException), ExpectedMessage = "WRONGTYPE Operation against a key holding the wrong kind of value")]
         public void GetWithExpiryWrongTypeAsync()
         {
             using (var conn = Create())
@@ -315,7 +315,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Test]
-        [ExpectedException(typeof(RedisServerException), ExpectedMessage = "ERR Operation against a key holding the wrong kind of value")]
+        [ExpectedException(typeof(RedisServerException), ExpectedMessage = "WRONGTYPE Operation against a key holding the wrong kind of value")]
         public void GetWithExpiryWrongTypeSync()
         {
             using (var conn = Create())

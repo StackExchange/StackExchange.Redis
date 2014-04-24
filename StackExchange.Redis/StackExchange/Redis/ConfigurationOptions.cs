@@ -6,7 +6,7 @@ using System.Net;
 using System.Net.Security;
 using System.Text;
 using System.Threading.Tasks;
-
+using System.Linq;
 namespace StackExchange.Redis
 {
 
@@ -32,12 +32,68 @@ namespace StackExchange.Redis
     {
         internal const string DefaultTieBreaker = "__Booksleeve_TieBreak", DefaultConfigurationChannel = "__Booksleeve_MasterChanged";
 
-        private const string AllowAdminPrefix = "allowAdmin=", SyncTimeoutPrefix = "syncTimeout=",
-                                ServiceNamePrefix = "serviceName=", ClientNamePrefix = "name=", KeepAlivePrefix = "keepAlive=",
-                        VersionPrefix = "version=", ConnectTimeoutPrefix = "connectTimeout=", PasswordPrefix = "password=",
-                        TieBreakerPrefix = "tiebreaker=", WriteBufferPrefix = "writeBuffer=", sslPrefix = "ssl=", SslHostPrefix = "sslHost=",
-                        ConfigChannelPrefix = "configChannel=", AbortOnConnectFailPrefix = "abortConnect=", ResolveDnsPrefix = "resolveDns=",
-                        ChannelPrefixPrefix = "channelPrefix=", ProxyPrefix = "proxy=";
+        private static class OptionKeys
+        {
+            public static int ParseInt32(string key, string value, int minValue = int.MinValue, int maxValue = int.MaxValue)
+            {
+                int tmp;
+                if (!Format.TryParseInt32(value, out tmp)) throw new ArgumentOutOfRangeException("Keyword '" + key + "' requires an integer value");
+                if (tmp < minValue) throw new ArgumentOutOfRangeException("Keyword '" + key + "' has a minimum value of " + minValue);
+                if (tmp > maxValue) throw new ArgumentOutOfRangeException("Keyword '" + key + "' has a maximum value of " + maxValue);
+                return tmp;
+            }
+
+            internal static bool ParseBoolean(string key, string value)
+            {
+                bool tmp;
+                if (!Format.TryParseBoolean(value, out tmp)) throw new ArgumentOutOfRangeException("Keyword '" + key + "' requires a boolean value");
+                return tmp;
+            }
+            internal static Version ParseVersion(string key, string value)
+            {
+                Version tmp;
+                if (!System.Version.TryParse(value, out tmp)) throw new ArgumentOutOfRangeException("Keyword '" + key + "' requires a version value");
+                return tmp;
+            }
+            internal static Proxy ParseProxy(string key, string value)
+            {
+                Proxy tmp;
+                if (!Enum.TryParse(value, true, out tmp)) throw new ArgumentOutOfRangeException("Keyword '" + key + "' requires a proxy value");
+                return tmp;
+            }
+
+            internal static void Unknown(string key)
+            {
+                throw new ArgumentException("Keyword '" + key + "' is not supported");
+            }
+
+            internal const string AllowAdmin = "allowAdmin", SyncTimeout = "syncTimeout",
+                                ServiceName = "serviceName", ClientName = "name", KeepAlive = "keepAlive",
+                        Version = "version", ConnectTimeout = "connectTimeout", Password = "password",
+                        TieBreaker = "tiebreaker", WriteBuffer = "writeBuffer", Ssl = "ssl", SslHost = "sslHost",
+                        ConfigChannel = "configChannel", AbortOnConnectFail = "abortConnect", ResolveDns = "resolveDns",
+                        ChannelPrefix = "channelPrefix", Proxy = "proxy";
+            private static readonly Dictionary<string, string> normalizedOptions = new[]
+            {
+                AllowAdmin, SyncTimeout,
+                ServiceName, ClientName, KeepAlive,
+                Version, ConnectTimeout, Password,
+                TieBreaker, WriteBuffer, Ssl, SslHost,
+                ConfigChannel, AbortOnConnectFail, ResolveDns,
+                ChannelPrefix, Proxy
+            }.ToDictionary(x => x, StringComparer.InvariantCultureIgnoreCase);
+
+            public static string TryNormalize(string value)
+            {
+                string tmp;
+                if(value != null && normalizedOptions.TryGetValue(value, out tmp))
+                {
+                    return tmp ?? "";
+                }
+                return value ?? "";
+            }
+        }
+
 
         private readonly EndPointCollection endpoints = new EndPointCollection();
 
@@ -199,7 +255,16 @@ namespace StackExchange.Redis
         public static ConfigurationOptions Parse(string configuration)
         {
             var options = new ConfigurationOptions();
-            options.DoParse(configuration);
+            options.DoParse(configuration, false);
+            return options;
+        }
+        /// <summary>
+        /// Parse the configuration from a comma-delimited configuration string
+        /// </summary>
+        public static ConfigurationOptions Parse(string configuration, bool ignoreUnknown)
+        {
+            var options = new ConfigurationOptions();
+            options.DoParse(configuration, ignoreUnknown);
             return options;
         }
 
@@ -256,23 +321,23 @@ namespace StackExchange.Redis
             {
                 Append(sb, Format.ToString(endpoint));
             }
-            Append(sb, ClientNamePrefix, clientName);
-            Append(sb, ServiceNamePrefix, serviceName);
-            Append(sb, KeepAlivePrefix, keepAlive);
-            Append(sb, SyncTimeoutPrefix, syncTimeout);
-            Append(sb, AllowAdminPrefix, allowAdmin);
-            Append(sb, VersionPrefix, defaultVersion);
-            Append(sb, ConnectTimeoutPrefix, connectTimeout);
-            Append(sb, PasswordPrefix, password);
-            Append(sb, TieBreakerPrefix, tieBreaker);
-            Append(sb, WriteBufferPrefix, writeBuffer);
-            Append(sb, sslPrefix, ssl);
-            Append(sb, SslHostPrefix, sslHost);            
-            Append(sb, ConfigChannelPrefix, configChannel);
-            Append(sb, AbortOnConnectFailPrefix, abortOnConnectFail);
-            Append(sb, ResolveDnsPrefix, resolveDns);
-            Append(sb, ChannelPrefixPrefix, (string)ChannelPrefix);
-            Append(sb, ProxyPrefix, proxy);
+            Append(sb, OptionKeys.ClientName, clientName);
+            Append(sb, OptionKeys.ServiceName, serviceName);
+            Append(sb, OptionKeys.KeepAlive, keepAlive);
+            Append(sb, OptionKeys.SyncTimeout, syncTimeout);
+            Append(sb, OptionKeys.AllowAdmin, allowAdmin);
+            Append(sb, OptionKeys.Version, defaultVersion);
+            Append(sb, OptionKeys.ConnectTimeout, connectTimeout);
+            Append(sb, OptionKeys.Password, password);
+            Append(sb, OptionKeys.TieBreaker, tieBreaker);
+            Append(sb, OptionKeys.WriteBuffer, writeBuffer);
+            Append(sb, OptionKeys.Ssl, ssl);
+            Append(sb, OptionKeys.SslHost, sslHost);            
+            Append(sb, OptionKeys.ConfigChannel, configChannel);
+            Append(sb, OptionKeys.AbortOnConnectFail, abortOnConnectFail);
+            Append(sb, OptionKeys.ResolveDns, resolveDns);
+            Append(sb, OptionKeys.ChannelPrefix, (string)ChannelPrefix);
+            Append(sb, OptionKeys.Proxy, proxy);
             if(commandMap != null) commandMap.AppendDeltas(sb);
             return sb.ToString();
         }
@@ -347,7 +412,11 @@ namespace StackExchange.Redis
             if (!string.IsNullOrWhiteSpace(s))
             {
                 if (sb.Length != 0) sb.Append(',');
-                sb.Append(prefix).Append(s);
+                if(!string.IsNullOrEmpty(prefix))
+                {
+                    sb.Append(prefix).Append('=');
+                }
+                sb.Append(s);
             }
         }
 
@@ -372,7 +441,7 @@ namespace StackExchange.Redis
 
         object ICloneable.Clone() { return Clone(); }
 
-        private void DoParse(string configuration)
+        private void DoParse(string configuration, bool ignoreUnknown)
         {
             Clear();
             if (!string.IsNullOrWhiteSpace(configuration))
@@ -390,97 +459,78 @@ namespace StackExchange.Redis
                     int idx = option.IndexOf('=');
                     if (idx > 0)
                     {
+                        var key = option.Substring(0, idx).Trim();                        
                         var value = option.Substring(idx + 1).Trim();
-                        if (IsOption(option, SyncTimeoutPrefix))
+
+                        switch (OptionKeys.TryNormalize(key))
                         {
-                            int tmp;
-                            if (Format.TryParseInt32(value.Trim(), out tmp) && tmp > 0) SyncTimeout = tmp;
-                        }
-                        else if (IsOption(option, AllowAdminPrefix))
-                        {
-                            bool tmp;
-                            if (Format.TryParseBoolean(value.Trim(), out tmp)) AllowAdmin = tmp;
-                        }
-                        else if (IsOption(option, AbortOnConnectFailPrefix))
-                        {
-                            bool tmp;
-                            if (Format.TryParseBoolean(value.Trim(), out tmp)) AbortOnConnectFail = tmp;
-                        }
-                        else if (IsOption(option, ResolveDnsPrefix))
-                        {
-                            bool tmp;
-                            if (Format.TryParseBoolean(value.Trim(), out tmp)) ResolveDns = tmp;
-                        }
-                        else if (IsOption(option, ServiceNamePrefix))
-                        {
-                            ServiceName = value.Trim();
-                        }
-                        else if (IsOption(option, ClientNamePrefix))
-                        {
-                            ClientName = value.Trim();
-                        }
-                        else if (IsOption(option, ChannelPrefixPrefix))
-                        {
-                            ChannelPrefix = value.Trim();
-                        }
-                        else if (IsOption(option, ConfigChannelPrefix))
-                        {
-                            ConfigurationChannel = value.Trim();
-                        }
-                        else if (IsOption(option, KeepAlivePrefix))
-                        {
-                            int tmp;
-                            if (Format.TryParseInt32(value.Trim(), out tmp)) KeepAlive = tmp;
-                        }
-                        else if (IsOption(option, ConnectTimeoutPrefix))
-                        {
-                            int tmp;
-                            if (Format.TryParseInt32(value.Trim(), out tmp)) ConnectTimeout = tmp;
-                        }
-                        else if (IsOption(option, VersionPrefix))
-                        {
-                            Version tmp;
-                            if (Version.TryParse(value.Trim(), out tmp)) DefaultVersion = tmp;
-                        }
-                        else if (IsOption(option, PasswordPrefix))
-                        {
-                            Password = value.Trim();
-                        }
-                        else if (IsOption(option, TieBreakerPrefix))
-                        {
-                            TieBreaker = value.Trim();
-                        }
-                        else if (IsOption(option, sslPrefix))
-                        {
-                            bool tmp;
-                            if (Format.TryParseBoolean(value.Trim(), out tmp)) Ssl = tmp;
-                        }
-                        else if (IsOption(option, SslHostPrefix))
-                        {
-                            SslHost = value.Trim();
-                        }
-                        else if (IsOption(option, WriteBufferPrefix))
-                        {
-                            int tmp;
-                            if (Format.TryParseInt32(value.Trim(), out tmp)) WriteBuffer = tmp;
-                        } else if(IsOption(option, ProxyPrefix))
-                        {
-                            Proxy tmp;
-                            if (Enum.TryParse(option, true, out tmp)) Proxy = tmp;
-                        }
-                        else if(option[0]=='$')
-                        {
-                            RedisCommand cmd;
-                            option = option.Substring(1, idx-1);
-                            if (Enum.TryParse(option, true, out cmd))
-                            {
-                                if (map == null) map = new Dictionary<string, string>(StringComparer.InvariantCultureIgnoreCase);
-                                map[option] = value;
-                            }
-                        }
-                        else
-                        {
-                            ConnectionMultiplexer.TraceWithoutContext("Unknown configuration option:" + option);
+                            case OptionKeys.SyncTimeout:
+                                SyncTimeout = OptionKeys.ParseInt32(key, value, minValue: 1);
+                                break;
+                            case OptionKeys.AllowAdmin:
+                                AllowAdmin = OptionKeys.ParseBoolean(key, value);
+                                break;
+                            case OptionKeys.AbortOnConnectFail:
+                                AbortOnConnectFail = OptionKeys.ParseBoolean(key, value);
+                                break;
+                            case OptionKeys.ResolveDns:
+                                ResolveDns = OptionKeys.ParseBoolean(key, value);
+                                break;
+                            case OptionKeys.ServiceName:
+                                ServiceName = value;
+                                break;
+                            case OptionKeys.ClientName:
+                                ClientName = value;
+                                break;
+                            case OptionKeys.ChannelPrefix:
+                                ChannelPrefix = value;
+                                break;
+                            case OptionKeys.ConfigChannel:
+                                ConfigurationChannel = value;
+                                break;
+                            case OptionKeys.KeepAlive:
+                                KeepAlive = OptionKeys.ParseInt32(key, value);
+                                break;
+                            case OptionKeys.ConnectTimeout:
+                                ConnectTimeout = OptionKeys.ParseInt32(key, value);
+                                break;
+                            case OptionKeys.Version:
+                                DefaultVersion = OptionKeys.ParseVersion(key, value);
+                                break;
+                            case OptionKeys.Password:
+                                Password = value;
+                                break;
+                            case OptionKeys.TieBreaker:
+                                TieBreaker = value;
+                                break;
+                            case OptionKeys.Ssl:
+                                Ssl = OptionKeys.ParseBoolean(key, value);
+                                break;
+                            case OptionKeys.SslHost:
+                                SslHost = value;
+                                break;
+                            case OptionKeys.WriteBuffer:
+                                WriteBuffer = OptionKeys.ParseInt32(key, value);
+                                break;
+                            case OptionKeys.Proxy:
+                                Proxy = OptionKeys.ParseProxy(key, value);
+                                break;
+                            default:
+                                if (!string.IsNullOrEmpty(key) && key[0] == '$')
+                                {
+                                    RedisCommand cmd;
+                                    var cmdName = option.Substring(1, idx - 1);
+                                    if (Enum.TryParse(cmdName, true, out cmd))
+                                    {
+                                        if (map == null) map = new Dictionary<string, string>(StringComparer.InvariantCultureIgnoreCase);
+                                        map[cmdName] = value;
+                                    }
+                                }
+                                else
+                                {
+                                    if(!ignoreUnknown) OptionKeys.Unknown(key);
+                                }
+                                break;
                         }
                     }
                     else

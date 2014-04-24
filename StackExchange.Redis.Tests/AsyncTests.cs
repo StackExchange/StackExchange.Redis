@@ -42,7 +42,7 @@ namespace StackExchange.Redis.Tests
                 Assert.IsTrue(c.IsFaulted, "faulted");
                 var ex = c.Exception.InnerExceptions.Single();
                 Assert.IsInstanceOf<RedisConnectionException>(ex);
-                Assert.AreEqual("No connection is available to service this operation: SADD", ex.Message);
+                Assert.AreEqual("No connection is available to service this operation: SADD AsyncTasksReportFailureIfServerUnavailable", ex.Message);
             }
         }
 #endif

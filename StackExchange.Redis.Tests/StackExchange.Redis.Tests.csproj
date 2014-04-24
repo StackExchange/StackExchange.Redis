@@ -72,6 +72,7 @@
     <Compile Include="Config.cs" />
     <Compile Include="FloatingPoint.cs" />
     <Compile Include="Issues\BGSAVEResponse.cs" />
+    <Compile Include="Issues\Issue25.cs" />
     <Compile Include="Issues\Issue6.cs" />
     <Compile Include="Issues\SO22786599.cs" />
     <Compile Include="Keys.cs" />
