@@ -513,6 +513,11 @@ namespace StackExchange.Redis
             } while (keepReading);
         }
 
+        internal int GetAvailableInboundBytes()
+        {
+            return this.socketToken.Available;
+        }
+
         SocketMode ISocketCallback.Connected(Stream stream)
         {
             try

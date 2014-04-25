@@ -1702,13 +1702,15 @@ namespace StackExchange.Redis
                         }
                         else
                         {
-                            int inst, qu, qs, qc, wr, wq;
-                            int queue = server.GetOutstandingCount(message.Command, out inst, out qu, out qs, out qc, out wr, out wq);
+                            int inst, qu, qs, qc, wr, wq, @in;
+                            int queue = server.GetOutstandingCount(message.Command, out inst, out qu, out qs, out qc, out wr, out wq, out @in);
                             var sb = new StringBuilder("Timeout performing ").Append(message.CommandAndKey)
                                 .Append(", inst: ").Append(inst)
                                 .Append(", queue: ").Append(queue).Append(", qu=").Append(qu)
                                 .Append(", qs=").Append(qs).Append(", qc=").Append(qc)
-                                .Append(", wr=").Append(wr).Append("/").Append(wq);
+                                .Append(", wr=").Append(wr).Append("/").Append(wq)
+                                .Append(", in=").Append(@in);
+
                             errMessage = sb.ToString();
                             if (stormLogThreshold >= 0 && queue >= stormLogThreshold && Interlocked.CompareExchange(ref haveStormLog, 1, 0) == 0)
                             {

@@ -209,12 +209,19 @@ namespace StackExchange.Redis
             }
         }
 
-        internal int GetOutstandingCount(out int inst, out int qu, out int qs, out int qc, out int wr, out int wq)
+        internal int GetOutstandingCount(out int inst, out int qu, out int qs, out int qc, out int wr, out int wq, out int @in)
         {// defined as: PendingUnsentItems + SentItemsAwaitingResponse + ResponsesAwaitingAsyncCompletion
             inst = (int)(Interlocked.Read(ref operationCount) - Interlocked.Read(ref profileLastLog));
             qu = queue.Count();
             var tmp = physical;
-            qs = tmp == null ? 0 : tmp.GetSentAwaitingResponseCount();
+            if(tmp == null)
+            {
+                qs = @in = 0;
+            } else
+            {
+                qs = tmp.GetSentAwaitingResponseCount();
+                @in = tmp.GetAvailableInboundBytes();
+            }
             qc = completionManager.GetOutstandingCount();
             wr = Interlocked.CompareExchange(ref activeWriters, 0, 0);
             wq = Interlocked.CompareExchange(ref inWriteQueue, 0, 0);
