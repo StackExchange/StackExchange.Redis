@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Text;
 
 namespace StackExchange.Redis
@@ -228,6 +229,29 @@ namespace StackExchange.Redis
                     arr[i] = items[i].AsRedisValue();
                 }
                 return arr;
+            }
+        }
+
+        // returns an array of RawResults
+        internal RawResult[] GetArrayOfRawResults()
+        {
+            if (arr == null)
+            {
+                return null;
+            }
+            else if (arr.Length == 0)
+            {
+                return new RawResult[0];
+            }
+            else
+            {
+                var rawResultArray = new RawResult[arr.Length];
+                for (int i = 0; i < arr.Length; i++)
+                {
+                    var rawResult = (RawResult)arr.GetValue(i);
+                    rawResultArray.SetValue(rawResult, i);
+                }
+                return rawResultArray;
             }
         }
 

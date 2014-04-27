@@ -1129,7 +1129,7 @@ namespace StackExchange.Redis
                     {
                         attemptsLeft--;
                     }
-                    int standaloneCount = 0, clusterCount = 0;
+                    int standaloneCount = 0, clusterCount = 0, sentinelCount = 0;
                     var endpoints = configuration.EndPoints;
                     LogLocked(log, "{0} unique nodes specified", endpoints.Count);
 
@@ -1200,29 +1200,34 @@ namespace StackExchange.Redis
                                 servers[i].ClearUnselectable(UnselectableFlags.DidNotRespond);
                                 LogLocked(log, "{0} returned with success", Format.ToString(endpoints[i]));
 
-                                switch (server.ServerType)
+                                // count the server types
+                                switch (server.ServerType) 
                                 {
                                     case ServerType.Twemproxy:
                                     case ServerType.Standalone:
-                                        servers[i].ClearUnselectable(UnselectableFlags.ServerType);
                                         standaloneCount++;
-                                        if (server.IsSlave)
-                                        {
-                                            servers[i].ClearUnselectable(UnselectableFlags.RedundantMaster);
-                                        }
-                                        else
-                                        {
-                                            masters.Add(server);
-                                        }
+                                        break;
+                                    case ServerType.Sentinel:
+                                        sentinelCount++;
                                         break;
                                     case ServerType.Cluster:
-                                        servers[i].ClearUnselectable(UnselectableFlags.ServerType);
                                         clusterCount++;
-                                        if (server.IsSlave)
+                                        break;
+                                }
+
+                                // set the server UnselectableFlags and update masters list
+                                switch (server.ServerType) 
+                                {
+                                    case ServerType.Twemproxy:
+                                    case ServerType.Sentinel:
+                                    case ServerType.Standalone:
+                                    case ServerType.Cluster:
+                                        servers[i].ClearUnselectable(UnselectableFlags.ServerType);
+                                        if (server.IsSlave) 
                                         {
                                             servers[i].ClearUnselectable(UnselectableFlags.RedundantMaster);
-                                        }
-                                        else
+                                        } 
+                                        else 
                                         {
                                             masters.Add(server);
                                         }
@@ -1247,7 +1252,19 @@ namespace StackExchange.Redis
 
                     if (clusterCount == 0)
                     {
-                        this.serverSelectionStrategy.ServerType = RawConfig.Proxy == Proxy.Twemproxy ? ServerType.Twemproxy : ServerType.Standalone;
+                        // set the serverSelectionStrategy
+                        if (RawConfig.Proxy == Proxy.Twemproxy) 
+                        {
+                            this.serverSelectionStrategy.ServerType = ServerType.Twemproxy;
+                        } 
+                        else if (standaloneCount == 0 && sentinelCount > 0) 
+                        {
+                            this.serverSelectionStrategy.ServerType = ServerType.Sentinel;
+                        } 
+                        else 
+                        {
+                            this.serverSelectionStrategy.ServerType = ServerType.Standalone;
+                        }
                         var preferred = await NominatePreferredMaster(log, servers, useTieBreakers, tieBreakers, masters).ObserveErrors().ForAwait();
                         foreach (var master in masters)
                         {
@@ -1292,7 +1309,7 @@ namespace StackExchange.Redis
                         LogLocked(log, "");
                         LogLocked(log, stormLog);
                     }
-                    healthy = standaloneCount != 0 || clusterCount != 0;
+                    healthy = standaloneCount != 0 || clusterCount != 0 || sentinelCount != 0;
                     if (first && !healthy && attemptsLeft > 0)
                     {
                         LogLocked(log, "resetting failing connections to retry...");

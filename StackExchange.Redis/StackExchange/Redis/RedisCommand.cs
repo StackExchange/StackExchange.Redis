@@ -122,6 +122,7 @@
         SDIFF,
         SDIFFSTORE,
         SELECT,
+        SENTINEL,
         SET,
         SETBIT,
         SETEX,
