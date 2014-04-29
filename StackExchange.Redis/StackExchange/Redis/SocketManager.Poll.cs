@@ -8,6 +8,8 @@ using System.Threading;
 #if !MONO
 namespace StackExchange.Redis
 {
+    
+
     partial class SocketManager
     {
         internal const SocketMode DefaultSocketMode = SocketMode.Poll;
@@ -115,7 +117,6 @@ namespace StackExchange.Redis
             ProcessItems(socketLookup, readQueue, CallbackOperation.Read);
             ProcessItems(socketLookup, errorQueue, CallbackOperation.Error);
         }
-
         private void Read()
         {
             bool weAreReader = false;

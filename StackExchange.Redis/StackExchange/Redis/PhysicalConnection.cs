@@ -512,9 +512,11 @@ namespace StackExchange.Redis
                 }
             } while (keepReading);
         }
+        int haveReader;
 
-        internal int GetAvailableInboundBytes()
+        internal int GetAvailableInboundBytes(out int activeReaders)
         {
+            activeReaders = Interlocked.CompareExchange(ref haveReader, 0, 0);
             return this.socketToken.Available;
         }
 
@@ -732,6 +734,7 @@ namespace StackExchange.Redis
 
         void ISocketCallback.Read()
         {
+            Interlocked.Increment(ref haveReader);
             try
             {
                 do
@@ -748,6 +751,9 @@ namespace StackExchange.Redis
             catch (Exception ex)
             {
                 RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
+            }finally
+            {
+                Interlocked.Decrement(ref haveReader);
             }
         }
         private RawResult ReadArray(byte[] buffer, ref int offset, ref int count)

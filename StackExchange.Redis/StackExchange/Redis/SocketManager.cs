@@ -15,7 +15,6 @@ namespace StackExchange.Redis
         Poll,
         Async
     }
-
     /// <summary>
     /// Allows callbacks from SocketManager as work is discovered
     /// </summary>
