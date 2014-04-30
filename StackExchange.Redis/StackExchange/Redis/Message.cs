@@ -56,7 +56,7 @@ namespace StackExchange.Redis
         internal RedisServerException(string message) : base(message) { }
     }
 
-    
+
     abstract class Message : ICompletable
     {
 
@@ -66,11 +66,13 @@ namespace StackExchange.Redis
         internal const CommandFlags InternalCallFlag = (CommandFlags)128;
         protected RedisCommand command;
 
-        private const CommandFlags AskingFlag = (CommandFlags)32;
+        private const CommandFlags AskingFlag = (CommandFlags)32,
+                                   ScriptUnavailableFlag = (CommandFlags)256;
+
         const CommandFlags MaskMasterServerPreference = CommandFlags.DemandMaster | CommandFlags.DemandSlave | CommandFlags.PreferMaster | CommandFlags.PreferSlave;
 
         private const CommandFlags UserSelectableFlags
-                                    = CommandFlags.None | CommandFlags.DemandMaster | CommandFlags.DemandSlave
+            = CommandFlags.None | CommandFlags.DemandMaster | CommandFlags.DemandSlave
             | CommandFlags.PreferMaster | CommandFlags.PreferSlave
             | CommandFlags.HighPriority | CommandFlags.FireAndForget | CommandFlags.NoRedirect;
 
@@ -160,6 +162,15 @@ namespace StackExchange.Redis
         public bool IsAsking
         {
             get { return (flags & AskingFlag) != 0; }
+        }
+
+        internal bool IsScriptUnavailable
+        {
+            get { return (flags & ScriptUnavailableFlag) != 0; }
+        }
+        internal void SetScriptUnavailable()
+        {
+            flags |= ScriptUnavailableFlag;
         }
 
         public bool IsFireAndForget

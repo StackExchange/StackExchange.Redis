@@ -759,7 +759,15 @@ namespace StackExchange.Redis
         public RedisResult ScriptEvaluate(string script, RedisKey[] keys = null, RedisValue[] values = null, CommandFlags flags = CommandFlags.None)
         {
             var msg = new ScriptEvalMessage(Db, flags, RedisCommand.EVAL, script, keys ?? RedisKey.EmptyArray, values ?? RedisValue.EmptyArray);
-            return ExecuteSync(msg, ResultProcessor.ScriptResult);
+            try
+            {
+                return ExecuteSync(msg, ResultProcessor.ScriptResult);
+            } catch(RedisServerException)
+            {
+                // could be a NOSCRIPT; for a sync call, we can re-issue that without problem
+                if(msg.IsScriptUnavailable) return ExecuteSync(msg, ResultProcessor.ScriptResult);
+                throw;
+            }
         }
 
         public Task<RedisResult> ScriptEvaluateAsync(string script, RedisKey[] keys = null, RedisValue[] values = null, CommandFlags flags = CommandFlags.None)

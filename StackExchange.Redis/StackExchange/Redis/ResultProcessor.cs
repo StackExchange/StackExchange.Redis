@@ -985,6 +985,7 @@ namespace StackExchange.Redis
                 if (result.Type == ResultType.Error && result.AssertStarts(NOSCRIPT))
                 { // scripts are not flushed individually, so assume the entire script cache is toast ("SCRIPT FLUSH")
                     connection.Bridge.ServerEndPoint.FlushScripts();
+                    message.SetScriptUnavailable();
                 }
                 // and apply usual processing for the rest
                 return base.SetResult(connection, message, result);

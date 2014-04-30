@@ -30,7 +30,9 @@ namespace StackExchange.Redis.Tests
         }
 
         [Test]
-        public void CheckLoads()
+        [TestCase(true)]
+        [TestCase(false)]
+        public void CheckLoads(bool async)
         {
             using (var conn0 = Create(allowAdmin: true))
             using (var conn1 = Create(allowAdmin: true))
@@ -57,14 +59,25 @@ namespace StackExchange.Redis.Tests
                 server.ScriptFlush();
                 Assert.IsFalse(server.ScriptExists(script));
                 db.Ping();
-                // now: fails the first time
-                try
+
+                if (async)
                 {
+                    // now: fails the first time
+                    try
+                    {
+                        db.Wait(db.ScriptEvaluateAsync(script));
+                        Assert.Fail();
+                    }
+                    catch(AggregateException ex)
+                    {
+                        Assert.AreEqual(1, ex.InnerExceptions.Count);
+                        Assert.IsInstanceOf<RedisServerException>(ex.InnerExceptions[0]);
+                        Assert.AreEqual("NOSCRIPT No matching script. Please use EVAL.", ex.InnerExceptions[0].Message);
+                    }
+                } else
+                {
+                    // just works; magic
                     Assert.IsTrue((bool)db.ScriptEvaluate(script));
-                    Assert.Fail();
-                } catch(RedisServerException ex)
-                {
-                    Assert.IsTrue(ex.Message == "NOSCRIPT No matching script. Please use EVAL.");
                 }
 
                 // but gets marked as unloaded, so we can use it again...

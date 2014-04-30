@@ -54,5 +54,7 @@ namespace StackExchange.Redis
         NoRedirect = 64,
 
         // 128: used for "internal call"; never user-specified, so not visible on the public API
+
+        // 256: used for "retry"; never user-specified, so not visible on the public API
     }
 }
