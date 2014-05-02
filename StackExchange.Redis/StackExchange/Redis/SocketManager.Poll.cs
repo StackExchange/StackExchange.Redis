@@ -5,7 +5,7 @@ using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Threading;
 
-#if !MONO
+#if !__MonoCS__
 namespace StackExchange.Redis
 {
     
