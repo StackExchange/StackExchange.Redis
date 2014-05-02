@@ -50,6 +50,11 @@ namespace StackExchange.Redis
         public bool IsNull { get { return valueBlob == null; } }
 
         /// <summary>
+        /// Indicates whether the value should be considered not a null value
+        /// </summary>
+        public bool IsNotNull { get { return !IsNull; } }
+
+        /// <summary>
         /// Indicates whether the value is either null or a zero-length value
         /// </summary>
         public bool IsNullOrEmpty
@@ -59,6 +64,11 @@ namespace StackExchange.Redis
                 return valueBlob == null || (valueBlob.Length == 0 && !(valueBlob == IntegerSentinel));
             }
         }
+
+        /// <summary>
+        /// Indicates whether the value is not null and not a zero-length value
+        /// </summary>
+        public bool IsNotNullOrEmpty { get { return !IsNullOrEmpty; } }
 
         /// <summary>
         /// Indicates whether two RedisValue values are equivalent
