@@ -26,8 +26,8 @@ namespace BasicTest
             MassiveBulkOpsAsync(AsyncOpsQty, false, false);
         }
         static void MassiveBulkOpsAsync(int AsyncOpsQty, bool preserveOrder, bool withContinuation)
-        {
-            using (var muxer = ConnectionMultiplexer.Connect("127.0.0.1"))
+        {            
+            using (var muxer = ConnectionMultiplexer.Connect("localhost,resolvedns=1"))
             {
                 muxer.PreserveAsyncOrder = preserveOrder;
                 RedisKey key = "MBOA";

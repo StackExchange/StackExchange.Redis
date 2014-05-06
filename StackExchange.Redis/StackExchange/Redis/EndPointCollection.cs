@@ -67,7 +67,15 @@ namespace StackExchange.Redis
         protected override void SetItem(int index, EndPoint item)
         {
             if (item == null) throw new ArgumentNullException("item");
-            int existingIndex = IndexOf(item);
+            int existingIndex;
+            try
+            {
+                existingIndex = IndexOf(item);
+            } catch(NullReferenceException)
+            {
+                // mono has a nasty bug in DnsEndPoint.Equals; if they do bad things here: sorry, I can't help
+                existingIndex = -1;
+            }
             if (existingIndex >= 0 && existingIndex != index) throw new ArgumentException("EndPoints must be unique", "item");
             base.SetItem(index, item);
         }

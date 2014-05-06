@@ -122,7 +122,17 @@ namespace StackExchange.Redis
             var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             SetFastLoopbackOption(socket);
             socket.NoDelay = true;
-            socket.BeginConnect(endpoint, EndConnect, Tuple.Create(socket, callback));
+            try
+            {
+                socket.BeginConnect(endpoint, EndConnect, Tuple.Create(socket, callback));
+            } catch (NotImplementedException ex)
+            {
+                if (!(endpoint is IPEndPoint))
+                {
+                    throw new InvalidOperationException("BeginConnect failed with NotImplementedException; consider using IP endpoints, or enable ResolveDns in the configuration", ex);
+                }
+                throw;
+            }
             return new SocketToken(socket);
         }
         internal void SetFastLoopbackOption(Socket socket)
