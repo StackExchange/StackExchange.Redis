@@ -1,4 +1,4 @@
-﻿#if MONO
+﻿#if __MonoCS__
 
 namespace StackExchange.Redis
 {

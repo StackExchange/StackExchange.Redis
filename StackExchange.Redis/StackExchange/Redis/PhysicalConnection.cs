@@ -539,7 +539,7 @@ namespace StackExchange.Redis
                     if (string.IsNullOrWhiteSpace(host)) host = Format.ToStringHostOnly(bridge.ServerEndPoint.EndPoint);
 
                     var ssl = new SslStream(stream, false, config.CertificateValidationCallback, config.CertificateSelectionCallback
-#if !MONO
+#if !__MonoCS__
                         , EncryptionPolicy.RequireEncryption
 #endif
                         );

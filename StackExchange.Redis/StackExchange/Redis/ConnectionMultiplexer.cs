@@ -169,7 +169,7 @@ namespace StackExchange.Redis
         static void Write<T>(ZipArchive zip, string name, Task task, Action<T, StreamWriter> callback)
         {
             var entry = zip.CreateEntry(name,
-#if MONO
+#if __MonoCS__
                 CompressionLevel.Fastest
 #else
                 CompressionLevel.Optimal
