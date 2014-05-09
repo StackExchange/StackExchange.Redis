@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using NUnit.Framework;
+using System.Linq;
 
 namespace StackExchange.Redis.Tests
 {
@@ -138,6 +139,34 @@ namespace StackExchange.Redis.Tests
                 Console.WriteLine("script: {0}ms; direct: {1}ms",
                     scriptTime.TotalMilliseconds,
                     directTime.TotalMilliseconds);
+            }
+        }
+
+        [Test]
+        public void TestCallByHash()
+        {
+            const string Script = "return redis.call('incr', KEYS[1])";
+
+            using (var conn = Create(allowAdmin: true))
+            {
+                var server = conn.GetServer(PrimaryServer, PrimaryPort);
+                server.FlushAllDatabases();
+                server.ScriptFlush();
+
+                byte[] hash = server.ScriptLoad(Script);
+
+                var db = conn.GetDatabase();
+                RedisKey[] keys = { Me() };
+
+                string hexHash = string.Concat(Array.ConvertAll(hash, x => x.ToString("X2")));
+                Assert.AreEqual("2BAB3B661081DB58BD2341920E0BA7CF5DC77B25", hexHash);
+
+                db.ScriptEvaluate(hexHash, keys);
+                db.ScriptEvaluate(hash, keys);               
+
+                var count = (int)db.StringGet(keys)[0];
+                Assert.AreEqual(2, count);
+
             }
         }
     }

@@ -466,6 +466,29 @@ namespace StackExchange.Redis
             }
         }
 
+        internal void WriteAsHex(byte[] value)
+        {
+            var stream = outStream;
+            stream.WriteByte((byte)'$');
+            if (value == null)
+            {
+                WriteRaw(stream, -1);
+            } else
+            {
+                WriteRaw(stream, value.Length * 2);
+                for(int i = 0; i < value.Length; i++)
+                {
+                    stream.WriteByte(ToHexNibble(value[i] >> 4));
+                    stream.WriteByte(ToHexNibble(value[i] & 15));
+                }
+                stream.Write(Crlf, 0, 2);
+            }
+        }
+        internal static byte ToHexNibble(int value)
+        {
+            return value < 10 ? (byte)('0' + value) : (byte)('a' - 10 + value);
+        }
+
         static void WriteUnified(Stream stream, byte[] prefix, byte[] value)
         {
             stream.WriteByte((byte)'$');
@@ -804,6 +827,7 @@ namespace StackExchange.Redis
             }
             return RawResult.Nil;
         }
+
 
         private RawResult ReadLineTerminatedString(ResultType type, byte[] buffer, ref int offset, ref int count)
         {

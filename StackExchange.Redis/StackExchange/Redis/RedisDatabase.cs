@@ -758,7 +758,7 @@ namespace StackExchange.Redis
         }
         public RedisResult ScriptEvaluate(string script, RedisKey[] keys = null, RedisValue[] values = null, CommandFlags flags = CommandFlags.None)
         {
-            var msg = new ScriptEvalMessage(Db, flags, RedisCommand.EVAL, script, keys ?? RedisKey.EmptyArray, values ?? RedisValue.EmptyArray);
+            var msg = new ScriptEvalMessage(Db, flags, script, keys, values);
             try
             {
                 return ExecuteSync(msg, ResultProcessor.ScriptResult);
@@ -769,10 +769,20 @@ namespace StackExchange.Redis
                 throw;
             }
         }
+        public RedisResult ScriptEvaluate(byte[] hash, RedisKey[] keys = null, RedisValue[] values = null, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = new ScriptEvalMessage(Db, flags, hash, keys, values);
+            return ExecuteSync(msg, ResultProcessor.ScriptResult);
+        }
 
         public Task<RedisResult> ScriptEvaluateAsync(string script, RedisKey[] keys = null, RedisValue[] values = null, CommandFlags flags = CommandFlags.None)
         {
-            var msg = new ScriptEvalMessage(Db, flags, RedisCommand.EVAL, script, keys ?? RedisKey.EmptyArray, values ?? RedisValue.EmptyArray);
+            var msg = new ScriptEvalMessage(Db, flags, script, keys, values);
+            return ExecuteAsync(msg, ResultProcessor.ScriptResult);
+        }
+        public Task<RedisResult> ScriptEvaluateAsync(byte[] hash, RedisKey[] keys = null, RedisValue[] values = null, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = new ScriptEvalMessage(Db, flags, hash, keys, values);
             return ExecuteAsync(msg, ResultProcessor.ScriptResult);
         }
 
@@ -2114,11 +2124,25 @@ namespace StackExchange.Redis
             private readonly RedisKey[] keys;
             private readonly string script;
             private readonly RedisValue[] values;
-            private RedisValue hash;
-            public ScriptEvalMessage(int db, CommandFlags flags, RedisCommand command, string script, RedisKey[] keys, RedisValue[] values) : base(db, flags, command)
+            private byte[] asciiHash, hexHash;
+            public ScriptEvalMessage(int db, CommandFlags flags, string script, RedisKey[] keys, RedisValue[] values)
+                : this(db, flags, ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA : RedisCommand.EVAL, script, null, keys, values)
             {
                 if (script == null) throw new ArgumentNullException("script");
+            }
+            public ScriptEvalMessage(int db, CommandFlags flags, byte[] hash, RedisKey[] keys, RedisValue[] values)
+                : this(db, flags, RedisCommand.EVAL, null, hash, keys, values)
+            {
+                if (hash == null) throw new ArgumentNullException("hash");
+            }
+
+            private ScriptEvalMessage(int db, CommandFlags flags, RedisCommand command, string script, byte[] hexHash, RedisKey[] keys, RedisValue[] values) : base(db, flags, command)
+            {
                 this.script = script;
+                this.hexHash = hexHash;
+
+                if (keys == null) keys = RedisKey.EmptyArray;
+                if (values == null) values = RedisValue.EmptyArray;
                 for (int i = 0; i < keys.Length; i++)
                     keys[i].AssertNotNull();
                 this.keys = keys;
@@ -2126,6 +2150,7 @@ namespace StackExchange.Redis
                     values[i].AssertNotNull();
                 this.values = values;
             }
+
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
             {
                 int slot = ServerSelectionStrategy.NoSlot;
@@ -2136,28 +2161,37 @@ namespace StackExchange.Redis
 
             public IEnumerable<Message> GetMessages(PhysicalConnection connection)
             {
-                this.hash = connection.Bridge.ServerEndPoint.GetScriptHash(script);
-                if (hash.IsNull)
+                if (script != null) // a script was provided (rather than a hash); check it is known
                 {
-                    var msg = new ScriptLoadMessage(Flags, script);
-                    msg.SetInternalCall();
-                    msg.SetSource(ResultProcessor.ScriptLoad, null);
-                    yield return msg;
+                    asciiHash = connection.Bridge.ServerEndPoint.GetScriptHash(script, command);
+
+                    if (asciiHash == null)
+                    {
+                        var msg = new ScriptLoadMessage(Flags, script);
+                        msg.SetInternalCall();
+                        msg.SetSource(ResultProcessor.ScriptLoad, null);
+                        yield return msg;
+                    }
                 }
                 yield return this;
             }
 
             internal override void WriteImpl(PhysicalConnection physical)
             {
-                if (hash.IsNull)
+                if(hexHash != null)
                 {
-                    physical.WriteHeader(RedisCommand.EVAL, 2 + keys.Length + values.Length);
-                    physical.Write((RedisValue)script);
+                    physical.WriteHeader(RedisCommand.EVALSHA, 2 + keys.Length + values.Length);
+                    physical.WriteAsHex(hexHash);
+                }
+                else if (asciiHash != null)
+                {
+                    physical.WriteHeader(RedisCommand.EVALSHA, 2 + keys.Length + values.Length);
+                    physical.Write((RedisValue)asciiHash);
                 }
                 else
                 {
-                    physical.WriteHeader(RedisCommand.EVALSHA, 2 + keys.Length + values.Length);
-                    physical.Write(hash);
+                    physical.WriteHeader(RedisCommand.EVAL, 2 + keys.Length + values.Length);
+                    physical.Write((RedisValue)script);
                 }
                 physical.Write(keys.Length);
                 for (int i = 0; i < keys.Length; i++)

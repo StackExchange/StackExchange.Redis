@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace StackExchange.Redis
 {
@@ -323,6 +324,51 @@ namespace StackExchange.Redis
 
         internal sealed class ScriptLoadProcessor : ResultProcessor<byte[]>
         {
+            static readonly Regex sha1 = new Regex("^[0-9a-f]{40}$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+            internal static bool IsSHA1(string script)
+            {
+                return script != null && sha1.IsMatch(script);
+            }
+            internal static byte[] ParseSHA1(byte[] value)
+            {
+                if (value != null && value.Length == 40)
+                {
+                    var tmp = new byte[20];
+                    int charIndex = 0;
+                    for (int i = 0; i < tmp.Length; i++)
+                    {
+                        int x = FromHex((char)value[charIndex++]), y = FromHex((char)value[charIndex++]);
+                        if (x < 0 || y < 0) return null;
+                        tmp[i] = (byte)((x << 4) | y);
+                    }
+                    return tmp;
+                }
+                return null;
+            }
+            internal static byte[] ParseSHA1(string value)
+            {
+                if (value != null && value.Length == 40 && sha1.IsMatch(value))
+                {
+                    var tmp = new byte[20];
+                    int charIndex = 0;
+                    for (int i = 0; i < tmp.Length; i++)
+                    {
+                        int x = FromHex(value[charIndex++]), y = FromHex(value[charIndex++]);
+                        if (x < 0 || y < 0) return null;
+                        tmp[i] = (byte)((x << 4) | y);
+                    }
+                    return tmp;
+                }
+                return null;
+            }
+            private static int FromHex(char c)
+            {
+                if (c >= '0' && c <= '9') return c - '0';
+                if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+                if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+                return -1;
+            }
             // note that top-level error messages still get handled by SetResult, but nested errors
             // (is that a thing?) will be wrapped in the RedisResult
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
@@ -330,11 +376,18 @@ namespace StackExchange.Redis
                 switch (result.Type)
                 {
                     case ResultType.BulkString:
-                        var hash = result.GetBlob();
+                        var asciiHash = result.GetBlob();
+                        if (asciiHash == null || asciiHash.Length != 40) return false;
+
+                        byte[] hash = null;
+                        if (!message.IsInternalCall)
+                        {
+                            hash = ParseSHA1(asciiHash); // external caller wants the hex bytes, not the ascii bytes
+                        }
                         var sl = message as RedisDatabase.ScriptLoadMessage;
                         if (sl != null)
                         {
-                            connection.Bridge.ServerEndPoint.AddScript(sl.Script, hash);
+                            connection.Bridge.ServerEndPoint.AddScript(sl.Script, asciiHash);
                         }
                         SetResult(message, hash);
                         return true;

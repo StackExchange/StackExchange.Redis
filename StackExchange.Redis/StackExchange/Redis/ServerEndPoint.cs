@@ -352,9 +352,19 @@ namespace StackExchange.Redis
             return sb.ToString();
         }
 
-        internal byte[] GetScriptHash(string script)
+        internal byte[] GetScriptHash(string script, RedisCommand command)
         {
-            return (byte[])knownScripts[script];
+            var found = (byte[])knownScripts[script];
+            if(found == null && command == RedisCommand.EVALSHA)
+            {
+                // the script provided is a hex sha; store and re-use the ascii for that
+                found = Encoding.ASCII.GetBytes(script);
+                lock(knownScripts)
+                {
+                    knownScripts[script] = found;
+                }
+            }
+            return found;
         }
 
         internal string GetStormLog(RedisCommand command)

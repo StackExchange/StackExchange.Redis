@@ -414,9 +414,16 @@ namespace StackExchange.Redis
         /// <summary>
         /// Execute a Lua script against the server
         /// </summary>
-        /// <remarks>http://redis.io/commands/eval</remarks>
+        /// <remarks>http://redis.io/commands/eval, http://redis.io/commands/evalsha</remarks>
         /// <returns>A dynamic representation of the script's result</returns>
         Task<RedisResult> ScriptEvaluateAsync(string script, RedisKey[] keys = null, RedisValue[] values = null, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Execute a Lua script against the server using just the SHA1 hash
+        /// </summary>
+        /// <remarks>http://redis.io/commands/evalsha</remarks>
+        /// <returns>A dynamic representation of the script's result</returns>
+        Task<RedisResult> ScriptEvaluateAsync(byte[] hash, RedisKey[] keys = null, RedisValue[] values = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Add the specified member to the set stored at key. Specified members that are already a member of this set are ignored. If key does not exist, a new set is created before adding the specified members.
