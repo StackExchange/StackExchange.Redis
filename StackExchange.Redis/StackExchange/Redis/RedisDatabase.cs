@@ -408,6 +408,56 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Boolean, server: server);
         }
 
+        public void KeyMigrate(RedisKey key, EndPoint toServer, int toDatabase = 0, int timeoutMilliseconds = 0, MigrateOptions migrateOptions = MigrateOptions.None, CommandFlags flags = CommandFlags.None)
+        {
+            if (timeoutMilliseconds <= 0) timeoutMilliseconds = multiplexer.TimeoutMilliseconds;
+            var msg = new KeyMigrateCommandMessage(Db, key, toServer, toDatabase, timeoutMilliseconds, migrateOptions, flags);
+            ExecuteSync(msg, ResultProcessor.DemandOK);
+        }
+        public Task KeyMigrateAsync(RedisKey key, EndPoint toServer, int toDatabase = 0, int timeoutMilliseconds = 0, MigrateOptions migrateOptions = MigrateOptions.None, CommandFlags flags = CommandFlags.None)
+        {
+            if (timeoutMilliseconds <= 0) timeoutMilliseconds = multiplexer.TimeoutMilliseconds;
+            var msg = new KeyMigrateCommandMessage(Db, key, toServer, toDatabase, timeoutMilliseconds, migrateOptions, flags);
+            return ExecuteAsync(msg, ResultProcessor.DemandOK);
+        }
+
+        sealed class KeyMigrateCommandMessage : Message.CommandKeyBase // MIGRATE is atypical
+        {
+            private MigrateOptions migrateOptions;
+            private int timeoutMilliseconds;
+            private int toDatabase;
+            RedisValue toHost, toPort;
+
+            public KeyMigrateCommandMessage(int db, RedisKey key, EndPoint toServer, int toDatabase, int timeoutMilliseconds, MigrateOptions migrateOptions, CommandFlags flags)
+                : base(db, flags, RedisCommand.MIGRATE, key)
+            {
+                if (toServer == null) throw new ArgumentNullException("server");
+                string toHost;
+                int toPort;
+                if (!Format.TryGetHostPort(toServer, out toHost, out toPort)) throw new ArgumentException("toServer");
+                this.toHost = toHost;
+                this.toPort = toPort;
+                if (toDatabase < 0) throw new ArgumentOutOfRangeException("toDatabase");
+                this.toDatabase = toDatabase;
+                this.timeoutMilliseconds = timeoutMilliseconds;
+                this.migrateOptions = migrateOptions;
+            }
+
+            internal override void WriteImpl(PhysicalConnection physical)
+            {
+                bool isCopy = (migrateOptions & MigrateOptions.Copy) != 0;
+                bool isReplace = (migrateOptions & MigrateOptions.Replace) != 0;
+                physical.WriteHeader(Command, 5 + (isCopy ? 1 : 0) + (isReplace ? 1 : 0));
+                physical.Write(toHost);
+                physical.Write(toPort);
+                physical.Write(Key);
+                physical.Write(toDatabase);
+                physical.Write(timeoutMilliseconds);
+                if (isCopy) physical.Write(RedisLiterals.COPY);
+                if (isReplace) physical.Write(RedisLiterals.REPLACE);
+            }
+        }
+
         public bool KeyMove(RedisKey key, int database, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Db, flags, RedisCommand.MOVE, key, database);

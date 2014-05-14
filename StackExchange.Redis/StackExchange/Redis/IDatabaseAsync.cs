@@ -222,6 +222,13 @@ namespace StackExchange.Redis
         /// <remarks>http://redis.io/commands/persist</remarks>
         Task<bool> KeyExpireAsync(RedisKey key, DateTime? expiry, CommandFlags flags = CommandFlags.None);
 
+
+        /// <summary>
+        /// Atomically transfer a key from a source Redis instance to a destination Redis instance. On success the key is deleted from the original instance by default, and is guaranteed to exist in the target instance.
+        /// </summary>
+        /// <remarks>http://redis.io/commands/MIGRATE</remarks>
+        Task KeyMigrateAsync(RedisKey key, EndPoint toServer, int toDatabase = 0, int timeoutMilliseconds = 0, MigrateOptions migrateOptions = MigrateOptions.None, CommandFlags flags = CommandFlags.None);
+
         /// <summary>
         /// Move key from the currently selected database (see SELECT) to the specified destination database. When key already exists in the destination database, or it does not exist in the source database, it does nothing. It is possible to use MOVE as a locking primitive because of this.
         /// </summary>

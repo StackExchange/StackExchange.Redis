@@ -52,6 +52,8 @@ namespace StackExchange.Redis
             EXISTS = "EXISTS",
             FLUSH = "FLUSH",
             PING = "PING",
+            COPY = "COPY",
+            REPLACE = "REPLACE",
 
             // DO NOT CHANGE CASE: these are configuration settings and MUST be as-is
             databases = "databases",

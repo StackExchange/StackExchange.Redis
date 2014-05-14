@@ -23,6 +23,14 @@ namespace StackExchange.Redis
         [IgnoreNamePrefix]
         IBatch CreateBatch(object asyncState = null);
 
+
+        /// <summary>
+        /// Atomically transfer a key from a source Redis instance to a destination Redis instance. On success the key is deleted from the original instance by default, and is guaranteed to exist in the target instance.
+        /// </summary>
+        /// <remarks>http://redis.io/commands/MIGRATE</remarks>
+        void KeyMigrate(RedisKey key, EndPoint toServer, int toDatabase = 0, int timeoutMilliseconds = 0, MigrateOptions migrateOptions = MigrateOptions.None, CommandFlags flags = CommandFlags.None);
+
+
         /// <summary>
         /// Allows creation of a group of operations that will be sent to the server as a single unit,
         /// and processed on the server as a single unit.
