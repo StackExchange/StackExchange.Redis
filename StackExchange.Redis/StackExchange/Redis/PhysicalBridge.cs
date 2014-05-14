@@ -363,6 +363,7 @@ namespace StackExchange.Redis
             }
         }
 
+        private int connectStartTicks;
         internal void OnHeartbeat(bool ifConnectedOnly)
         {
             bool runThisTime = false;
@@ -378,6 +379,24 @@ namespace StackExchange.Redis
 
                 switch (state)
                 {
+                    case (int)State.Connecting:
+                        int connectTimeMilliseconds = unchecked(Environment.TickCount - Thread.VolatileRead(ref connectStartTicks));
+                        if (connectTimeMilliseconds >= multiplexer.RawConfig.ConnectTimeout)
+                        {
+                            Trace("Aborting connect");
+                            // abort and reconnect
+                            var snapshot = physical;
+                            bool isCurrent;
+                            State oldState;
+                            OnDisconnected(ConnectionFailureType.UnableToConnect, snapshot, out isCurrent, out oldState);
+                            using (snapshot) { } // dispose etc
+                            TryConnect();
+                        }
+                        if (!ifConnectedOnly)
+                        {
+                            AbortUnsent();
+                        }
+                        break;
                     case (int)State.ConnectedEstablishing:
                     case (int)State.ConnectedEstablished:
                         var tmp = physical;
@@ -416,7 +435,6 @@ namespace StackExchange.Redis
                             GetConnection();
                         }
                         break;
-                    case (int)State.Connecting:
                     default:
                         if (!ifConnectedOnly)
                         {
@@ -666,6 +684,7 @@ namespace StackExchange.Redis
                         if (ChangeState(State.Disconnected, State.Connecting))
                         {
                             Interlocked.Increment(ref socketCount);
+                            Interlocked.Exchange(ref connectStartTicks, Environment.TickCount);
                             physical = new PhysicalConnection(this);
                         }
                     }

@@ -62,7 +62,7 @@ namespace StackExchange.Redis
 
         int ioBufferBytes = 0;
 
-        long lastWriteTickCount, lastReadTickCount, lastBeatTickCount;
+        int lastWriteTickCount, lastReadTickCount, lastBeatTickCount;
 
         private Stream netStream, outStream;
 
@@ -99,7 +99,7 @@ namespace StackExchange.Redis
         {
             get
             {
-                return unchecked(Environment.TickCount - Interlocked.Read(ref lastWriteTickCount)) / 1000;
+                return unchecked(Environment.TickCount - Thread.VolatileRead(ref lastWriteTickCount)) / 1000;
             }
         }
 
@@ -161,8 +161,8 @@ namespace StackExchange.Redis
             {
                 //try
                 //{
-                long now = Environment.TickCount, lastRead = Interlocked.Read(ref lastReadTickCount), lastWrite = Interlocked.Read(ref lastWriteTickCount),
-                    lastBeat = Interlocked.Read(ref lastBeatTickCount);
+                int now = Environment.TickCount, lastRead = Thread.VolatileRead(ref lastReadTickCount), lastWrite = Thread.VolatileRead(ref lastWriteTickCount),
+                    lastBeat = Thread.VolatileRead(ref lastBeatTickCount);
 
                 string message = failureType + " on " + Format.ToString(bridge.ServerEndPoint.EndPoint) + "/" + connectionType
                     + ", input-buffer: " + ioBufferBytes + ", outstanding: " + GetSentAwaitingResponseCount()

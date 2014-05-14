@@ -176,7 +176,24 @@ namespace StackExchange.Redis
         /// For debugging; when not enabled, servers cannot connect
         /// </summary>
         public bool AllowConnect { get { return allowConnect; } set { allowConnect = value; } }
-        private volatile bool allowConnect = true;
+        private volatile bool allowConnect = true, ignoreConnect = false;
+
+        /// <summary>
+        /// For debugging; when not enabled, end-connect is silently ignored (to simulate a long-running connect)
+        /// </summary>
+        public bool IgnoreConnect { get { return ignoreConnect; } set { ignoreConnect = value; } }
+    }
+
+    partial class SocketManager
+    {
+        partial void ShouldIgnoreConnect(ISocketCallback callback, ref bool ignore)
+        {
+            ignore = callback.IgnoreConnect;
+        }
+    }
+    partial interface ISocketCallback
+    {
+        bool IgnoreConnect { get; }
     }
 
     partial class MessageQueue
@@ -226,6 +243,11 @@ namespace StackExchange.Redis
             {
                 throw new RedisConnectionException(ConnectionFailureType.InternalFailure, "debugging");
             }
+        }
+
+        bool ISocketCallback.IgnoreConnect
+        {
+            get { return multiplexer.IgnoreConnect; }
         }
     }
 #endif

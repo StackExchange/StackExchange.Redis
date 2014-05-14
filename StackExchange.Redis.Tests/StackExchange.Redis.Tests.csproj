@@ -65,6 +65,7 @@
     <Compile Include="Bits.cs" />
     <Compile Include="Cluster.cs" />
     <Compile Include="Commands.cs" />
+    <Compile Include="ConnectFailTimeout.cs" />
     <Compile Include="ConnectionShutdown.cs" />
     <Compile Include="Databases.cs" />
     <Compile Include="DefaultPorts.cs" />

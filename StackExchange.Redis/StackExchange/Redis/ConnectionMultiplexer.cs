@@ -849,7 +849,7 @@ namespace StackExchange.Redis
         {
             try
             {
-                long now = Environment.TickCount;
+                int now = Environment.TickCount;
                 Interlocked.Exchange(ref lastHeartbeatTicks, now);
                 Interlocked.Exchange(ref lastGlobalHeartbeatTicks, now);
                 Trace("heartbeat");
@@ -863,16 +863,16 @@ namespace StackExchange.Redis
             }
         }
 
-        private long lastHeartbeatTicks;
-        private static long lastGlobalHeartbeatTicks = Environment.TickCount;
+        private int lastHeartbeatTicks;
+        private static int lastGlobalHeartbeatTicks = Environment.TickCount;
         internal long LastHeartbeatSecondsAgo {
             get {
                 if (pulse == null) return -1;
-                return unchecked(Environment.TickCount - Interlocked.Read(ref lastHeartbeatTicks)) / 1000;
+                return unchecked(Environment.TickCount - Thread.VolatileRead(ref lastHeartbeatTicks)) / 1000;
             }
         }
         internal static long LastGlobalHeartbeatSecondsAgo
-        { get { return unchecked(Environment.TickCount - Interlocked.Read(ref lastGlobalHeartbeatTicks)) / 1000; } }
+        { get { return unchecked(Environment.TickCount - Thread.VolatileRead(ref lastGlobalHeartbeatTicks)) / 1000; } }
 
         internal CompletionManager UnprocessableCompletionManager { get { return unprocessableCompletionManager; } }
 

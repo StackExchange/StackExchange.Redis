@@ -18,7 +18,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// Allows callbacks from SocketManager as work is discovered
     /// </summary>
-    internal interface ISocketCallback
+    internal partial interface ISocketCallback
     {
         /// <summary>
         /// Indicates that a socket has connected
@@ -124,7 +124,12 @@ namespace StackExchange.Redis
             socket.NoDelay = true;
             try
             {
-                socket.BeginConnect(endpoint, EndConnect, Tuple.Create(socket, callback));
+                var ar = socket.BeginConnect(endpoint, EndConnect, Tuple.Create(socket, callback));
+                if (ar.CompletedSynchronously)
+                {
+                    ConnectionMultiplexer.TraceWithoutContext("EndConnect (sync)");
+                    EndConnectImpl(ar);
+                }
             } catch (NotImplementedException ex)
             {
                 if (!(endpoint is IPEndPoint))
@@ -181,10 +186,21 @@ namespace StackExchange.Redis
 
         private void EndConnect(IAsyncResult ar)
         {
+            if (!ar.CompletedSynchronously)
+            {
+                ConnectionMultiplexer.TraceWithoutContext("EndConnect (async)");
+                EndConnectImpl(ar);
+            }
+        }
+        private void EndConnectImpl(IAsyncResult ar)
+        {
             Tuple<Socket, ISocketCallback> tuple = null;
             try
             {
                 tuple = (Tuple<Socket, ISocketCallback>)ar.AsyncState;
+                bool ignoreConnect = false;
+                ShouldIgnoreConnect(tuple.Item2, ref ignoreConnect);
+                if (ignoreConnect) return;
                 var socket = tuple.Item1;
                 var callback = tuple.Item2;
                 socket.EndConnect(ar);
@@ -193,28 +209,35 @@ namespace StackExchange.Redis
                 switch (socketMode)
                 {
                     case SocketMode.Poll:
+                        ConnectionMultiplexer.TraceWithoutContext("Starting poll");
                         OnAddRead(socket, callback);
                         break;
                     case SocketMode.Async:
+                        ConnectionMultiplexer.TraceWithoutContext("Starting read");
                         try
                         { callback.StartReading(); }
-                        catch
-                        { Shutdown(socket); }
+                        catch (Exception ex)
+                        {
+                            ConnectionMultiplexer.TraceWithoutContext(ex.Message);
+                            Shutdown(socket);
+                        }
                         break;
                     default:
+                        ConnectionMultiplexer.TraceWithoutContext("Aborting socket");
                         Shutdown(socket);
                         break;
                 }
             }
-            catch
+            catch(Exception outer)
             {
+                ConnectionMultiplexer.TraceWithoutContext(outer.Message);
                 if (tuple != null)
                 {
                     try
                     { tuple.Item2.Error(); }
-                    catch (Exception ex)
+                    catch (Exception inner)
                     {
-                        Trace.WriteLine(ex);
+                        ConnectionMultiplexer.TraceWithoutContext(inner.Message);
                     }
                 }
             }
@@ -222,6 +245,8 @@ namespace StackExchange.Redis
 
         partial void OnDispose();
         partial void OnShutdown(Socket socket);
+
+        partial void ShouldIgnoreConnect(ISocketCallback callback, ref bool ignore);
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")]
         private void Shutdown(Socket socket)
