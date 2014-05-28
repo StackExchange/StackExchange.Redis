@@ -51,7 +51,6 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed partial class ConnectionMultiplexer : IDisposable
     {
-
         /// <summary>
         /// Get summary statistics associates with this server
         /// </summary>
@@ -726,7 +725,7 @@ namespace StackExchange.Redis
                 killMe = muxer;
                 // note that task has timeouts internally, so it might take *just over* the reegular timeout
                 var task = muxer.ReconfigureAsync(true, false, log, null, "connect");
-                if (!task.Wait(muxer.SyncConnectTimeout))
+                if (!task.Wait(muxer.SyncConnectTimeout(true)))
                 {
                     task.ObserveErrors();
                     if (muxer.RawConfig.AbortOnConnectFail)
@@ -755,7 +754,7 @@ namespace StackExchange.Redis
                 killMe = muxer;
                 // note that task has timeouts internally, so it might take *just over* the reegular timeout
                 var task = muxer.ReconfigureAsync(true, false, log, null, "connect");
-                if (!task.Wait(muxer.SyncConnectTimeout))
+                if (!task.Wait(muxer.SyncConnectTimeout(true)))
                 {
                     task.ObserveErrors();
                     if (muxer.RawConfig.AbortOnConnectFail)
@@ -1005,7 +1004,7 @@ namespace StackExchange.Redis
             // note we expect ReconfigureAsync to internally allow [n] duration,
             // so to avoid near misses, here we wait 2*[n]
             var task = ReconfigureAsync(false, true, log, null, "configure");
-            if (!task.Wait(SyncConnectTimeout))
+            if (!task.Wait(SyncConnectTimeout(false)))
             {
                 task.ObserveErrors();
                 if (configuration.AbortOnConnectFail)
@@ -1017,14 +1016,17 @@ namespace StackExchange.Redis
             return task.Result;
         }
 
-        internal int SyncConnectTimeout
+        internal int SyncConnectTimeout(bool forConnect)
         {
-            get
-            {
-                int timeout = configuration.ConnectTimeout;
-                if (timeout >= int.MaxValue - 500) return int.MaxValue;
-                return timeout + Math.Min(500, timeout);
-            }
+            int retryCount = forConnect ? RawConfig.ConnectRetry : 1;
+            if (retryCount <= 0) retryCount = 1;
+
+            int timeout = configuration.ConnectTimeout;            
+            if (timeout >= int.MaxValue / retryCount) return int.MaxValue;
+
+            timeout *= retryCount;
+            if (timeout >= int.MaxValue - 500) return int.MaxValue;
+            return timeout + Math.Min(500, timeout);
         }
         /// <summary>
         /// Provides a text overview of the status of all connections
@@ -1117,174 +1119,195 @@ namespace StackExchange.Redis
                     }
                 }
 
-                var endpoints = configuration.EndPoints;
-                LogLocked(log, "{0} unique nodes specified", endpoints.Count);
+                int attemptsLeft = first ? configuration.ConnectRetry : 1;
 
-                if (endpoints.Count == 0)
+                bool healthy = false;
+                do
                 {
-                    throw new InvalidOperationException("No nodes to consider");
-                }
-
-                const CommandFlags flags = CommandFlags.NoRedirect | CommandFlags.HighPriority;
-                var available = new Task<bool>[endpoints.Count];
-                var servers = new ServerEndPoint[available.Length];
-                bool useTieBreakers = !string.IsNullOrWhiteSpace(configuration.TieBreaker);
-                var tieBreakers = useTieBreakers ? new Task<string>[endpoints.Count] : null;
-                RedisKey tieBreakerKey = useTieBreakers ? (RedisKey)configuration.TieBreaker : default(RedisKey);
-                for (int i = 0; i < available.Length; i++)
-                {
-                    Trace("Testing: " + Format.ToString(endpoints[i]));
-                    var server = GetServerEndPoint(endpoints[i]);
-                    //server.ReportNextFailure();
-                    servers[i] = server;
-                    if (reconfigureAll && server.IsConnected)
+                    if (first)
                     {
-                        LogLocked(log, "Refreshing {0}...", Format.ToString(server.EndPoint));
-                        // note that these will be processed synchronously *BEFORE* the tracer is processed,
-                        // so we know that the configuration will be up to date if we see the tracer
-                        server.AutoConfigure(null);
+                        attemptsLeft--;
                     }
-                    available[i] = server.SendTracer();
-                    Message msg;
-                    if (useTieBreakers)
+                    int standaloneCount = 0, clusterCount = 0;
+                    var endpoints = configuration.EndPoints;
+                    LogLocked(log, "{0} unique nodes specified", endpoints.Count);
+
+                    if (endpoints.Count == 0)
                     {
-                        LogLocked(log, "Requesting tie-break from {0} > {1}...", Format.ToString(server.EndPoint), configuration.TieBreaker);
-                        msg = Message.Create(0, flags, RedisCommand.GET, tieBreakerKey);
-                        msg.SetInternalCall();
-                        tieBreakers[i] = server.QueueDirectAsync(msg, ResultProcessor.String);
+                        throw new InvalidOperationException("No nodes to consider");
                     }
-                }
 
-                LogLocked(log, "Allowing endpoints {0} to respond...", TimeSpan.FromMilliseconds(configuration.ConnectTimeout));
-                Trace("Allowing endpoints " + TimeSpan.FromMilliseconds(configuration.ConnectTimeout) + " to respond...");
-                await WaitAllIgnoreErrorsAsync(available, configuration.ConnectTimeout).ForAwait();
-                List<ServerEndPoint> masters = new List<ServerEndPoint>(available.Length);
-
-                int standaloneCount = 0, clusterCount = 0;
-                for (int i = 0; i < available.Length; i++)
-                {
-                    var task = available[i];
-                    Trace(Format.ToString(endpoints[i]) + ": " + task.Status);
-                    if (task.IsFaulted)
+                    const CommandFlags flags = CommandFlags.NoRedirect | CommandFlags.HighPriority;
+                    var available = new Task<bool>[endpoints.Count];
+                    var servers = new ServerEndPoint[available.Length];
+                    bool useTieBreakers = !string.IsNullOrWhiteSpace(configuration.TieBreaker);
+                    var tieBreakers = useTieBreakers ? new Task<string>[endpoints.Count] : null;
+                    RedisKey tieBreakerKey = useTieBreakers ? (RedisKey)configuration.TieBreaker : default(RedisKey);
+                    for (int i = 0; i < available.Length; i++)
                     {
-                        servers[i].SetUnselectable(UnselectableFlags.DidNotRespond);
-                        var aex = task.Exception;
-                        foreach (var ex in aex.InnerExceptions)
+                        Trace("Testing: " + Format.ToString(endpoints[i]));
+                        var server = GetServerEndPoint(endpoints[i]);
+                        //server.ReportNextFailure();
+                        servers[i] = server;
+                        if (reconfigureAll && server.IsConnected)
                         {
-                            LogLocked(log, "{0} faulted: {1}", Format.ToString(endpoints[i]), ex.Message);
+                            LogLocked(log, "Refreshing {0}...", Format.ToString(server.EndPoint));
+                            // note that these will be processed synchronously *BEFORE* the tracer is processed,
+                            // so we know that the configuration will be up to date if we see the tracer
+                            server.AutoConfigure(null);
+                        }
+                        available[i] = server.SendTracer();
+                        Message msg;
+                        if (useTieBreakers)
+                        {
+                            LogLocked(log, "Requesting tie-break from {0} > {1}...", Format.ToString(server.EndPoint), configuration.TieBreaker);
+                            msg = Message.Create(0, flags, RedisCommand.GET, tieBreakerKey);
+                            msg.SetInternalCall();
+                            tieBreakers[i] = server.QueueDirectAsync(msg, ResultProcessor.String);
                         }
                     }
-                    else if (task.IsCanceled)
-                    {
-                        servers[i].SetUnselectable(UnselectableFlags.DidNotRespond);
-                        LogLocked(log, "{0} was canceled", Format.ToString(endpoints[i]));
-                    }
-                    else if (task.IsCompleted)
-                    {
-                        var server = servers[i];
-                        if (task.Result)
-                        {
-                            servers[i].ClearUnselectable(UnselectableFlags.DidNotRespond);
-                            LogLocked(log, "{0} returned with success", Format.ToString(endpoints[i]));
 
-                            switch (server.ServerType)
-                            {
-                                case ServerType.Twemproxy:
-                                case ServerType.Standalone:
-                                    servers[i].ClearUnselectable(UnselectableFlags.ServerType);
-                                    standaloneCount++;
-                                    if (server.IsSlave)
-                                    {
-                                        servers[i].ClearUnselectable(UnselectableFlags.RedundantMaster);
-                                    }
-                                    else
-                                    {
-                                        masters.Add(server);
-                                    }
-                                    break;
-                                case ServerType.Cluster:
-                                    servers[i].ClearUnselectable(UnselectableFlags.ServerType);
-                                    clusterCount++;
-                                    if (server.IsSlave)
-                                    {
-                                        servers[i].ClearUnselectable(UnselectableFlags.RedundantMaster);
-                                    }
-                                    else
-                                    {
-                                        masters.Add(server);
-                                    }
-                                    break;
-                                default:
-                                    servers[i].SetUnselectable(UnselectableFlags.ServerType);
-                                    break;
-                            }
-                        } else
+                    LogLocked(log, "Allowing endpoints {0} to respond...", TimeSpan.FromMilliseconds(configuration.ConnectTimeout));
+                    Trace("Allowing endpoints " + TimeSpan.FromMilliseconds(configuration.ConnectTimeout) + " to respond...");
+                    await WaitAllIgnoreErrorsAsync(available, configuration.ConnectTimeout).ForAwait();
+                    List<ServerEndPoint> masters = new List<ServerEndPoint>(available.Length);
+
+                    for (int i = 0; i < available.Length; i++)
+                    {
+                        var task = available[i];
+                        Trace(Format.ToString(endpoints[i]) + ": " + task.Status);
+                        if (task.IsFaulted)
                         {
                             servers[i].SetUnselectable(UnselectableFlags.DidNotRespond);
-                            LogLocked(log, "{0} returned, but incorrectly", Format.ToString(endpoints[i]));
+                            var aex = task.Exception;
+                            foreach (var ex in aex.InnerExceptions)
+                            {
+                                LogLocked(log, "{0} faulted: {1}", Format.ToString(endpoints[i]), ex.Message);
+                            }
+                        }
+                        else if (task.IsCanceled)
+                        {
+                            servers[i].SetUnselectable(UnselectableFlags.DidNotRespond);
+                            LogLocked(log, "{0} was canceled", Format.ToString(endpoints[i]));
+                        }
+                        else if (task.IsCompleted)
+                        {
+                            var server = servers[i];
+                            if (task.Result)
+                            {
+                                servers[i].ClearUnselectable(UnselectableFlags.DidNotRespond);
+                                LogLocked(log, "{0} returned with success", Format.ToString(endpoints[i]));
+
+                                switch (server.ServerType)
+                                {
+                                    case ServerType.Twemproxy:
+                                    case ServerType.Standalone:
+                                        servers[i].ClearUnselectable(UnselectableFlags.ServerType);
+                                        standaloneCount++;
+                                        if (server.IsSlave)
+                                        {
+                                            servers[i].ClearUnselectable(UnselectableFlags.RedundantMaster);
+                                        }
+                                        else
+                                        {
+                                            masters.Add(server);
+                                        }
+                                        break;
+                                    case ServerType.Cluster:
+                                        servers[i].ClearUnselectable(UnselectableFlags.ServerType);
+                                        clusterCount++;
+                                        if (server.IsSlave)
+                                        {
+                                            servers[i].ClearUnselectable(UnselectableFlags.RedundantMaster);
+                                        }
+                                        else
+                                        {
+                                            masters.Add(server);
+                                        }
+                                        break;
+                                    default:
+                                        servers[i].SetUnselectable(UnselectableFlags.ServerType);
+                                        break;
+                                }
+                            }
+                            else
+                            {
+                                servers[i].SetUnselectable(UnselectableFlags.DidNotRespond);
+                                LogLocked(log, "{0} returned, but incorrectly", Format.ToString(endpoints[i]));
+                            }
+                        }
+                        else
+                        {
+                            servers[i].SetUnselectable(UnselectableFlags.DidNotRespond);
+                            LogLocked(log, "{0} did not respond", Format.ToString(endpoints[i]));
+                        }
+                    }
+
+                    if (clusterCount == 0)
+                    {
+                        this.serverSelectionStrategy.ServerType = RawConfig.Proxy == Proxy.Twemproxy ? ServerType.Twemproxy : ServerType.Standalone;
+                        var preferred = await NominatePreferredMaster(log, servers, useTieBreakers, tieBreakers, masters).ObserveErrors().ForAwait();
+                        foreach (var master in masters)
+                        {
+                            if (master == preferred)
+                            {
+                                master.ClearUnselectable(UnselectableFlags.RedundantMaster);
+                            }
+                            else
+                            {
+                                master.SetUnselectable(UnselectableFlags.RedundantMaster);
+                            }
                         }
                     }
                     else
                     {
-                        servers[i].SetUnselectable(UnselectableFlags.DidNotRespond);
-                        LogLocked(log, "{0} did not respond", Format.ToString(endpoints[i]));
-                    }
-                }
+                        serverSelectionStrategy.ServerType = ServerType.Cluster;
+                        long coveredSlots = serverSelectionStrategy.CountCoveredSlots();
+                        LogLocked(log, "Cluster: {0} of {1} slots covered",
+                            coveredSlots, serverSelectionStrategy.TotalSlots);
 
-                if (clusterCount == 0)
-                {
-                    this.serverSelectionStrategy.ServerType = RawConfig.Proxy == Proxy.Twemproxy ? ServerType.Twemproxy : ServerType.Standalone;
-                    var preferred = await NominatePreferredMaster(log, servers, useTieBreakers, tieBreakers, masters).ObserveErrors().ForAwait();
-                    foreach (var master in masters)
+                    }
+                    if (!first)
                     {
-                        if (master == preferred)
+                        long subscriptionChanges = ValidateSubscriptions();
+                        if (subscriptionChanges == 0)
                         {
-                            master.ClearUnselectable(UnselectableFlags.RedundantMaster);
-                        } else
+                            LogLocked(log, "No subscription changes necessary");
+                        }
+                        else
                         {
-                            master.SetUnselectable(UnselectableFlags.RedundantMaster);
+                            LogLocked(log, "Subscriptions reconfigured: {0}", subscriptionChanges);
                         }
                     }
-                }
-                else
-                {
-                    serverSelectionStrategy.ServerType = ServerType.Cluster;
-                    long coveredSlots = serverSelectionStrategy.CountCoveredSlots();
-                    LogLocked(log, "Cluster: {0} of {1} slots covered",
-                        coveredSlots, serverSelectionStrategy.TotalSlots);
-
-                }
-                if (!first)
-                {
-                    long subscriptionChanges = ValidateSubscriptions();
-                    if (subscriptionChanges == 0)
+                    if (showStats)
                     {
-                        LogLocked(log, "No subscription changes necessary");
-                    } else
-                    {
-                        LogLocked(log, "Subscriptions reconfigured: {0}", subscriptionChanges);
+                        GetStatus(log);
                     }
-                }
-                if (showStats)
+
+                    string stormLog = GetStormLog();
+                    if (!string.IsNullOrWhiteSpace(stormLog))
+                    {
+                        LogLocked(log, "");
+                        LogLocked(log, stormLog);
+                    }
+                    healthy = standaloneCount != 0 || clusterCount != 0;
+                    if (first && !healthy && attemptsLeft > 0)
+                    {
+                        LogLocked(log, "resetting failing connections to retry...");
+                        ResetAllNonConnected();
+                        LogLocked(log, "retrying; attempts left: " + attemptsLeft + "...");
+                    }
+                    //WTF("?: " + attempts);
+                } while (first && !healthy && attemptsLeft > 0);
+
+                if(first && configuration.AbortOnConnectFail && !healthy)
                 {
-                    GetStatus(log);
+                    return false;
                 }
                 if (first)
                 {
                     LogLocked(log, "Starting heartbeat...");
                     pulse = new Timer(heartbeat, this, MillisecondsPerHeartbeat, MillisecondsPerHeartbeat);
-                }
-
-                string stormLog = GetStormLog();
-                if (!string.IsNullOrWhiteSpace(stormLog))
-                {
-                    LogLocked(log, "");
-                    LogLocked(log, stormLog);
-
-                }
-                if(first && configuration.AbortOnConnectFail && (standaloneCount == 0 && clusterCount == 0))
-                {
-                    return false;
                 }
                 return true;
 
@@ -1300,6 +1323,15 @@ namespace StackExchange.Redis
                 if (ranThisCall) Interlocked.Exchange(ref activeConfigCause, null);
                 if (!first) OnConfigurationChanged(blame);
                 Trace("Reconfiguration exited");
+            }
+        }
+
+        private void ResetAllNonConnected()
+        {
+            var snapshot = serverSnapshot;
+            foreach(var server in snapshot)
+            {
+                server.ResetNonConnected();
             }
         }
 

@@ -72,7 +72,7 @@ namespace StackExchange.Redis
                         Version = "version", ConnectTimeout = "connectTimeout", Password = "password",
                         TieBreaker = "tiebreaker", WriteBuffer = "writeBuffer", Ssl = "ssl", SslHost = "sslHost",
                         ConfigChannel = "configChannel", AbortOnConnectFail = "abortConnect", ResolveDns = "resolveDns",
-                        ChannelPrefix = "channelPrefix", Proxy = "proxy";
+                        ChannelPrefix = "channelPrefix", Proxy = "proxy", ConnectRetry = "connectRetry";
             private static readonly Dictionary<string, string> normalizedOptions = new[]
             {
                 AllowAdmin, SyncTimeout,
@@ -80,7 +80,7 @@ namespace StackExchange.Redis
                 Version, ConnectTimeout, Password,
                 TieBreaker, WriteBuffer, Ssl, SslHost,
                 ConfigChannel, AbortOnConnectFail, ResolveDns,
-                ChannelPrefix, Proxy
+                ChannelPrefix, Proxy, ConnectRetry
             }.ToDictionary(x => x, StringComparer.InvariantCultureIgnoreCase);
 
             public static string TryNormalize(string value)
@@ -105,7 +105,7 @@ namespace StackExchange.Redis
 
         private Version defaultVersion;
 
-        private int? keepAlive, syncTimeout, connectTimeout, writeBuffer;
+        private int? keepAlive, syncTimeout, connectTimeout, writeBuffer, connectRetry;
 
         private Proxy? proxy;
 
@@ -152,6 +152,11 @@ namespace StackExchange.Redis
         /// The client name to user for all connections
         /// </summary>
         public string ClientName { get { return clientName; } set { clientName = value; } }
+
+        /// <summary>
+        /// The number of times to repeat the initial connect cycle if no servers respond promptly
+        /// </summary>
+        public int ConnectRetry { get { return connectRetry ?? 3; } set { connectRetry = value; } }
 
         /// <summary>
         /// The command-map associated with this configuration
@@ -302,6 +307,7 @@ namespace StackExchange.Redis
                 CertificateSelectionCallback = CertificateSelectionCallback,
                 ChannelPrefix = ChannelPrefix.Clone(),
                 SocketManager = SocketManager,
+                connectRetry = connectRetry
             };
             foreach (var item in endpoints)
                 options.endpoints.Add(item);
@@ -343,6 +349,7 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.AbortOnConnectFail, abortOnConnectFail);
             Append(sb, OptionKeys.ResolveDns, resolveDns);
             Append(sb, OptionKeys.ChannelPrefix, (string)ChannelPrefix);
+            Append(sb, OptionKeys.ConnectRetry, connectRetry);
             Append(sb, OptionKeys.Proxy, proxy);
             if(commandMap != null) commandMap.AppendDeltas(sb);
             return sb.ToString();
@@ -433,7 +440,7 @@ namespace StackExchange.Redis
         void Clear()
         {
             clientName = serviceName = password = tieBreaker = sslHost = configChannel = null;
-            keepAlive = syncTimeout = connectTimeout = writeBuffer = null;
+            keepAlive = syncTimeout = connectTimeout = writeBuffer = connectRetry = null;
             allowAdmin = abortOnConnectFail = resolveDns = ssl = null;
             defaultVersion = null;
             endpoints.Clear();
@@ -499,6 +506,9 @@ namespace StackExchange.Redis
                                 break;
                             case OptionKeys.ConnectTimeout:
                                 ConnectTimeout = OptionKeys.ParseInt32(key, value);
+                                break;
+                            case OptionKeys.ConnectRetry:
+                                ConnectRetry = OptionKeys.ParseInt32(key, value);
                                 break;
                             case OptionKeys.Version:
                                 DefaultVersion = OptionKeys.ParseVersion(key, value);

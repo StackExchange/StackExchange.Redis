@@ -6,6 +6,7 @@ namespace StackExchange.Redis.Tests
     [TestFixture]
     public class ConnectFailTimeout : TestBase
     {
+#if DEBUG
         [TestCase]
         public void NoticesConnectFail()
         {
@@ -34,6 +35,6 @@ namespace StackExchange.Redis.Tests
                 System.Console.WriteLine(time);
             }
         }
-
+#endif
     }
 }

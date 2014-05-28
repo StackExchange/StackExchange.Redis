@@ -138,7 +138,8 @@ namespace StackExchange.Redis
                 }
                 throw;
             }
-            return new SocketToken(socket);
+            var token = new SocketToken(socket);
+            return token;
         }
         internal void SetFastLoopbackOption(Socket socket)
         {
@@ -226,6 +227,19 @@ namespace StackExchange.Redis
                         ConnectionMultiplexer.TraceWithoutContext("Aborting socket");
                         Shutdown(socket);
                         break;
+                }
+            }
+            catch(ObjectDisposedException)
+            {
+                ConnectionMultiplexer.TraceWithoutContext("(socket shutdown)");
+                if (tuple != null)
+                {
+                    try
+                    { tuple.Item2.Error(); }
+                    catch (Exception inner)
+                    {
+                        ConnectionMultiplexer.TraceWithoutContext(inner.Message);
+                    }
                 }
             }
             catch(Exception outer)

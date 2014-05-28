@@ -301,6 +301,17 @@ namespace StackExchange.Redis
             }
         }
 
+
+        internal void ResetNonConnected()
+        {
+            var tmp = physical;
+            if (tmp != null && state != (int)State.ConnectedEstablished)
+            {
+                tmp.RecordConnectionFailed(ConnectionFailureType.UnableToConnect);
+            }
+            GetConnection();
+        }
+
         internal void OnConnectionFailed(PhysicalConnection connection, ConnectionFailureType failureType, Exception innerException)
         {
             if (reportNextFailure)

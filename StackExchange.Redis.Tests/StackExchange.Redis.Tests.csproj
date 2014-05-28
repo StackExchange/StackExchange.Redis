@@ -99,6 +99,7 @@
     <Compile Include="TaskTests.cs" />
     <Compile Include="TestBase.cs" />
     <Compile Include="Transactions.cs" />
+    <Compile Include="VPNTest.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

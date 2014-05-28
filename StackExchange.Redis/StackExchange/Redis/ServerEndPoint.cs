@@ -46,6 +46,14 @@ namespace StackExchange.Redis
 
         private Version version;
 
+
+        internal void ResetNonConnected()
+        {
+            var tmp = interactive;
+            if (tmp != null) tmp.ResetNonConnected();
+            tmp = subscription;
+            if (tmp != null) tmp.ResetNonConnected();
+        }
         public ServerEndPoint(ConnectionMultiplexer multiplexer, EndPoint endpoint)
         {
             this.multiplexer = multiplexer;
