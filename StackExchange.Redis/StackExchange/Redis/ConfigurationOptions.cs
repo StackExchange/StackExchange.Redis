@@ -184,7 +184,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Specifies the time in milliseconds that should be allowed for connection
         /// </summary>
-        public int ConnectTimeout { get { return connectTimeout ?? SyncTimeout; } set { connectTimeout = value; } }
+        public int ConnectTimeout { get { return connectTimeout.GetValueOrDefault(5000); } set { connectTimeout = value; } }
 
         /// <summary>
         /// The server version to assume
