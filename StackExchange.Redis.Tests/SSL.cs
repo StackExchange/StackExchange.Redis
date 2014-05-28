@@ -14,6 +14,42 @@ namespace StackExchange.Redis.Tests
     public class SSL : TestBase
     {
         [Test]
+        [TestCase(null, true)]
+        [TestCase(null, false)]
+        [TestCase(6380, true)]
+        [TestCase(6379, false)]
+        public void ConnectToAzure(int? port, bool ssl)
+        {
+            string name, password;
+            GetAzureCredentials(out name, out password);
+            var options = new ConfigurationOptions();
+            if (port == null)
+            {
+                options.EndPoints.Add(name + ".redis.cache.windows.net");
+            } else
+            {
+                options.EndPoints.Add(name + ".redis.cache.windows.net", port.Value);
+            }
+            options.Ssl = ssl;
+            options.Password = password;
+            Console.WriteLine(options);
+            using(var connection = ConnectionMultiplexer.Connect(options))
+            {
+                var ttl = connection.GetDatabase().Ping();
+                Console.WriteLine(ttl);
+            }
+        }
+
+        private static void GetAzureCredentials(out string name, out string password)
+        {
+            var lines = File.ReadAllLines(@"d:\dev\azure.txt");
+            if (lines == null || lines.Length != 2)
+                Assert.Inconclusive("azure credentials missing");
+            name = lines[0];
+            password = lines[1];
+        }
+
+        [Test]
         [TestCase(false, false)]
         [TestCase(true, false)]
         [TestCase(true, true)]
