@@ -1084,6 +1084,7 @@ namespace StackExchange.Redis
         private class TracerProcessor : ResultProcessor<bool>
         {
             static readonly byte[]
+                authRequired = Encoding.UTF8.GetBytes("NOAUTH Authentication required."),
                 authFail = Encoding.UTF8.GetBytes("ERR operation not permitted"),
                 loading = Encoding.UTF8.GetBytes("LOADING ");
 
@@ -1098,7 +1099,7 @@ namespace StackExchange.Redis
                 var final = base.SetResult(connection, message, result);
                 if (result.IsError)
                 {
-                    if (result.IsEqual(authFail))
+                    if (result.IsEqual(authFail) || result.IsEqual(authRequired))
                     {
                         connection.RecordConnectionFailed(ConnectionFailureType.AuthenticationFailure);
                     }
