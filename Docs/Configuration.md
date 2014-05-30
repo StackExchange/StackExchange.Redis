@@ -44,7 +44,7 @@ Configuration Options
 
 The `ConfigurationOptions` object has a wide range of properties, all of which are fully documented in intellisense. Some of the more common options to use include:
 
-| Object model           | Configuration string   | Meaning                                                                         |
+| Configuration string   | `ConfigurationOptions` | Meaning                                                                         |
 | ---------------------- | ---------------------- | ------------------------------------------------------------------------------- |
 | abortConnect={bool}    | `AbortOnConnectFail`   | If true, `Connect` will not create a connection while no servers are available  |
 | allowAdmion={bool}     | `AllowAdmin`           | Enables a range of commands that are considered risky                           |
