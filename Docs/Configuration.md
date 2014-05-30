@@ -23,7 +23,7 @@ This will connect to a single server on the local machine using the default redi
 
     var conn = ConnectionMultiplexer.Connect("redis0:6380,redis1:6380,allowAdmin=true");
 
-An extensive mapping between the `string` and `ConfigurationOptions` representation is not documented here, but you can switch between them trivially:
+An overview of mapping between the `string` and `ConfigurationOptions` representation is shown below, but you can switch between them trivially:
 
     ConfigurationOptions options = ConfigurationOptions.Parse(configString);
 
@@ -44,13 +44,29 @@ Configuration Options
 
 The `ConfigurationOptions` object has a wide range of properties, all of which are fully documented in intellisense. Some of the more common options to use include:
 
-- `AllowAdmin` - enables potentially harmful system commands that are not needed by data-oriented clients
-- `ClientName` - sets a name against the connections to identify them (visible to redis maintenance tools)
-- `CommandMap` - renames or disables individual redis commands
-- `DefaultVersion` - the redis version to assume if it cannot auto-configure
-- `EndPoints` - the set of redis nodes to connect to
-- `Password` - the password to authenticate (`AUTH`) against the redis server
-- `SyncTimeout` - the timeout to apply when performing synchronous operations
+| Object model           | Configuration string   | Meaning                                                                         |
+| ---------------------- | ---------------------- | ------------------------------------------------------------------------------- |
+| abortConnect={bool}    | `AbortOnConnectFail`   | If true, `Connect` will not create a connection while no servers are available  |
+| allowAdmion={bool}     | `AllowAdmin`           | Enables a range of commands that are considered risky                           |
+| channelPrefix={string} | `ChannelPrefix`        | Optional channel prefix for all pub/sub operations                              |
+| connectRetry={int}     | `ConnectRetry`         | The number of times to repeat connect attempts during initial `Connect`         |
+| connectTimeout={int}   | `ConnectTimeout`       | Timeout (ms) for connect operations                                             |
+| configChannel={string} | `ConfigurationChannel` | Broadcast channel name for communicating configuration changes                  |
+| keepAlive={int}        | `KeepAlive`            | Time (seconds) at which to send a message to help keep sockets alive            |
+| name={string}          | `ClientName`           | Identification for the connection within redis                                  |
+| password={string}      | `Password`             | Password for the redis server                                                   |
+| proxy={proxy type}     | `Proxy`                | Type of proxy in use (if any); for example "twemproxy"                          |
+| resolveDns={bool}      | `ResolveDns`           | Specifies that DNS resolution should be explict and eager, rather than implicit |
+| serviceName={string}   | `ServiceName`          | Not currently implemented (intended for use with sentinel)                      |
+| ssl={bool}             | `Ssl`                  | Specifies that SSL encryption should be used                                    |
+| sslHost={string}       | `SslHost`              | Enforces a particular SSL host identity on the server's certificate             |
+| syncTimeout={int}      | `SyncTimeout`          | Time (ms) to allow for synchronous operations                                   |
+| tiebreaker={string}    | `TieBreaker`           | Key to use for selecting a server in an ambiguous master scenario               |
+| version={string}       | `DefaultVersion`       | Redis version level (useful when the server does not make this available)       |
+| writeBuffer={int}      | `WriteBuffer`          | Size of the output buffer                                                       |
+
+Tokens in the configuration string are comma-separated; any without an `=` sign are assumed to be redis server endpoints. Endpoints without an explicit port will use 6379 if ssl is not enabled, and 6380 if ssl is enabled.
+Tokens starting with `$` are taken to represent command maps, for example: `$config=cfg`.
 
 Automatic and Manual Configuration
 ---
