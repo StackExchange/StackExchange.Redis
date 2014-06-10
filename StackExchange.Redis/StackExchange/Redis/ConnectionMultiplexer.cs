@@ -662,7 +662,7 @@ namespace StackExchange.Redis
                 bool configured = await muxer.ReconfigureAsync(true, false, log, null, "connect").ObserveErrors().ForAwait();
                 if (!configured)
                 {
-                    throw ExceptionFactory.UnableToConnect();
+                    throw ExceptionFactory.UnableToConnect(muxer.failureMessage);
                 }
                 killMe = null;
                 return muxer;
@@ -685,7 +685,7 @@ namespace StackExchange.Redis
                 bool configured = await muxer.ReconfigureAsync(true, false, log, null, "connect").ObserveErrors().ForAwait();
                 if (!configured)
                 {
-                    throw ExceptionFactory.UnableToConnect();
+                    throw ExceptionFactory.UnableToConnect(muxer.failureMessage);
                 }
                 killMe = null;
                 return muxer;
@@ -733,7 +733,7 @@ namespace StackExchange.Redis
                         throw new TimeoutException();
                     }
                 }
-                if(!task.Result) throw ExceptionFactory.UnableToConnect();
+                if(!task.Result) throw ExceptionFactory.UnableToConnect(muxer.failureMessage);
                 killMe = null;
                 return muxer;
             }
