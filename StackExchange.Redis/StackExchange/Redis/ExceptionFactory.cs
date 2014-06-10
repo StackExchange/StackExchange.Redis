@@ -106,10 +106,10 @@ namespace StackExchange.Redis
             return message == null ? command.ToString() : (includeDetail ? message.CommandAndKey : message.Command.ToString());
         }
 
-        internal static Exception UnableToConnect()
+        internal static Exception UnableToConnect(string failureMessage=null)
         {
             return new RedisConnectionException(ConnectionFailureType.UnableToConnect,
-                "It was not possible to connect to the redis server(s); to create a disconnected multiplexer, disable AbortOnConnectFail");
+                "It was not possible to connect to the redis server(s); to create a disconnected multiplexer, disable AbortOnConnectFail. " + failureMessage);
         }
     }
 }
