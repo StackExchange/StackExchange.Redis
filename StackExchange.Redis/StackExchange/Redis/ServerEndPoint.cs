@@ -319,7 +319,7 @@ namespace StackExchange.Redis
             return result;
         }
 
-        internal void FlushScripts()
+        internal void FlushScriptCache()
         {
             lock (knownScripts)
             {

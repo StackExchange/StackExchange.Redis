@@ -101,6 +101,23 @@ namespace StackExchange.Redis
 
     partial class ServerEndPoint
     {
+        private string runId;
+        internal string RunId
+        {
+            get { return runId; }
+            set
+            {
+                if(value != runId) // we only care about changes
+                {
+                    // if we had an old run-id, and it has changed, then the
+                    // server has been restarted; which means the script cache
+                    // is toast
+                    if(runId != null) FlushScriptCache();
+                    runId = value;
+                }
+            }
+        }
+
         internal void SimulateConnectionFailure()
         {
             var tmp = interactive;

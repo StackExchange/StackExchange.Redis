@@ -538,6 +538,10 @@ namespace StackExchange.Redis
                                                 break;
                                         }
                                     }
+                                    else if((val = Extract(line, "run_id:")) != null)
+                                    {
+                                        server.RunId = val;
+                                    }
                                 }
                             }
                         }
@@ -1037,7 +1041,7 @@ namespace StackExchange.Redis
             {
                 if (result.Type == ResultType.Error && result.AssertStarts(NOSCRIPT))
                 { // scripts are not flushed individually, so assume the entire script cache is toast ("SCRIPT FLUSH")
-                    connection.Bridge.ServerEndPoint.FlushScripts();
+                    connection.Bridge.ServerEndPoint.FlushScriptCache();
                     message.SetScriptUnavailable();
                 }
                 // and apply usual processing for the rest
