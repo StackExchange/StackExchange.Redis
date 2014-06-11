@@ -662,7 +662,7 @@ namespace StackExchange.Redis
                 bool configured = await muxer.ReconfigureAsync(true, false, log, null, "connect").ObserveErrors().ForAwait();
                 if (!configured)
                 {
-                    throw ExceptionFactory.UnableToConnect();
+                    throw ExceptionFactory.UnableToConnect(muxer.failureMessage);
                 }
                 killMe = null;
                 return muxer;
@@ -685,7 +685,7 @@ namespace StackExchange.Redis
                 bool configured = await muxer.ReconfigureAsync(true, false, log, null, "connect").ObserveErrors().ForAwait();
                 if (!configured)
                 {
-                    throw ExceptionFactory.UnableToConnect();
+                    throw ExceptionFactory.UnableToConnect(muxer.failureMessage);
                 }
                 killMe = null;
                 return muxer;
@@ -733,7 +733,7 @@ namespace StackExchange.Redis
                         throw new TimeoutException();
                     }
                 }
-                if(!task.Result) throw ExceptionFactory.UnableToConnect();
+                if(!task.Result) throw ExceptionFactory.UnableToConnect(muxer.failureMessage);
                 killMe = null;
                 return muxer;
             }
@@ -762,7 +762,7 @@ namespace StackExchange.Redis
                         throw new TimeoutException();
                     }
                 }
-                if(!task.Result) throw ExceptionFactory.UnableToConnect();
+                if (!task.Result) throw ExceptionFactory.UnableToConnect(muxer.failureMessage);
                 killMe = null;
                 return muxer;
             }
@@ -772,6 +772,7 @@ namespace StackExchange.Redis
             }
         }
 
+        private string failureMessage;
         private readonly Hashtable servers = new Hashtable();
         private volatile ServerEndPoint[] serverSnapshot = NilServers;
 
@@ -1183,6 +1184,7 @@ namespace StackExchange.Redis
                             foreach (var ex in aex.InnerExceptions)
                             {
                                 LogLocked(log, "{0} faulted: {1}", Format.ToString(endpoints[i]), ex.Message);
+                                failureMessage = ex.Message;
                             }
                         }
                         else if (task.IsCanceled)

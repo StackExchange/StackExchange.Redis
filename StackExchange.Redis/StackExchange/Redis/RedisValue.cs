@@ -61,6 +61,17 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// Indicates whether the value is greater than zero-length
+        /// </summary>
+        public bool HasValue
+        {
+            get
+            {
+                return valueBlob != null && valueBlob.Length > 0;
+            }
+        }
+
+        /// <summary>
         /// Indicates whether two RedisValue values are equivalent
         /// </summary>
         public static bool operator !=(RedisValue x, RedisValue y)
