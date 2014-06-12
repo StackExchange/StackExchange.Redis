@@ -47,7 +47,7 @@ The `ConfigurationOptions` object has a wide range of properties, all of which a
 | Configuration string   | `ConfigurationOptions` | Meaning                                                                         |
 | ---------------------- | ---------------------- | ------------------------------------------------------------------------------- |
 | abortConnect={bool}    | `AbortOnConnectFail`   | If true, `Connect` will not create a connection while no servers are available  |
-| allowAdmion={bool}     | `AllowAdmin`           | Enables a range of commands that are considered risky                           |
+| allowAdmin={bool}     | `AllowAdmin`           | Enables a range of commands that are considered risky                           |
 | channelPrefix={string} | `ChannelPrefix`        | Optional channel prefix for all pub/sub operations                              |
 | connectRetry={int}     | `ConnectRetry`         | The number of times to repeat connect attempts during initial `Connect`         |
 | connectTimeout={int}   | `ConnectTimeout`       | Timeout (ms) for connect operations                                             |
