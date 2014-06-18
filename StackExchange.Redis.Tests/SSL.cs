@@ -159,14 +159,15 @@ namespace StackExchange.Redis.Tests
         }
 
 
+
+        const string RedisLabsSslHostFile = @"d:\RedisLabsSslHost.txt";
+        const string RedisLabsPfxPath = @"d:\RedisLabsUser.pfx";
+
         [Test]
         public void RedisLabsSSL()
         {
-            const string path = @"d:\RedisLabsSslHost.txt";
-            const string pfxPath = @"d:\RedisLabsUser.pfx";
-
-            if (!File.Exists(path)) Assert.Inconclusive();
-            string hostAndPort = File.ReadAllText(path);
+            if (!File.Exists(RedisLabsSslHostFile)) Assert.Inconclusive();
+            string hostAndPort = File.ReadAllText(RedisLabsSslHostFile);
             int timeout = 5000;
             if (Debugger.IsAttached) timeout *= 100;
             var options = new ConfigurationOptions
@@ -184,7 +185,7 @@ namespace StackExchange.Redis.Tests
 #endif
             options.Ssl = true;
             options.CertificateSelection += delegate {
-                return new X509Certificate2(pfxPath, "");
+                return new X509Certificate2(RedisLabsPfxPath, "");
             };
             RedisKey key = Me();
             using(var conn = ConnectionMultiplexer.Connect(options))
@@ -205,6 +206,71 @@ namespace StackExchange.Redis.Tests
                     conn.ExportConfiguration(file);
                 }
             }
+        }
+
+        [Test]
+        [TestCase(false)]
+        [TestCase(true)]
+        public void RedisLabsEnvironmentVariableClientCertificate(bool setEnv)
+        {
+            try
+            {
+                if (setEnv)
+                {
+                    Environment.SetEnvironmentVariable("SERedis_ClientCertPfxPath", RedisLabsPfxPath);
+                }
+                if (!File.Exists(RedisLabsSslHostFile)) Assert.Inconclusive();
+                string hostAndPort = File.ReadAllText(RedisLabsSslHostFile);
+                int timeout = 5000;
+                if (Debugger.IsAttached) timeout *= 100;
+                var options = new ConfigurationOptions
+                {
+                    EndPoints = { hostAndPort },
+                    ConnectTimeout = timeout,
+                    AllowAdmin = true,
+                    CommandMap = CommandMap.Create(new HashSet<string> {
+                    "subscribe", "unsubscribe", "cluster"
+                }, false)
+                };
+                if (!Directory.Exists(Me())) Directory.CreateDirectory(Me());
+#if LOGOUTPUT
+            ConnectionMultiplexer.EchoPath = Me();
+#endif
+                options.Ssl = true;
+                RedisKey key = Me();
+                using (var conn = ConnectionMultiplexer.Connect(options))
+                {
+                    if (!setEnv) Assert.Fail();
+
+                    var db = conn.GetDatabase();
+                    db.KeyDelete(key);
+                    string s = db.StringGet(key);
+                    Assert.IsNull(s);
+                    db.StringSet(key, "abc");
+                    s = db.StringGet(key);
+                    Assert.AreEqual("abc", s);
+
+                    var latency = db.Ping();
+                    Console.WriteLine("RedisLabs latency: {0:###,##0.##}ms", latency.TotalMilliseconds);
+
+                    using (var file = File.Create("RedisLabs.zip"))
+                    {
+                        conn.ExportConfiguration(file);
+                    }
+                }
+            }
+            catch(RedisConnectionException ex)
+            {
+                if(setEnv || ex.FailureType != ConnectionFailureType.UnableToConnect)
+                {
+                    throw;
+                }
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable("SERedis_ClientCertPfxPath", null);
+            }
+
         }
 
     }

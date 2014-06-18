@@ -7,6 +7,7 @@ using System.Net.Security;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Security.Authentication;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 
@@ -543,6 +544,20 @@ namespace StackExchange.Redis
             return this.socketToken.Available;
         }
 
+        static LocalCertificateSelectionCallback GetAmbientCertificateCallback()
+        {
+            try
+            {
+                var pfxPath = Environment.GetEnvironmentVariable("SERedis_ClientCertPfxPath");
+                var pfxPassword = Environment.GetEnvironmentVariable("SERedis_ClientCertPassword");
+                if (!string.IsNullOrEmpty(pfxPath) && File.Exists(pfxPath))
+                {
+                    return delegate { return new X509Certificate2(pfxPath, pfxPassword ?? ""); };
+                }                
+            } catch
+            { }
+            return null;
+        }
         SocketMode ISocketCallback.Connected(Stream stream)
         {
             try
@@ -561,7 +576,8 @@ namespace StackExchange.Redis
                     var host = config.SslHost;
                     if (string.IsNullOrWhiteSpace(host)) host = Format.ToStringHostOnly(bridge.ServerEndPoint.EndPoint);
 
-                    var ssl = new SslStream(stream, false, config.CertificateValidationCallback, config.CertificateSelectionCallback
+                    var ssl = new SslStream(stream, false, config.CertificateValidationCallback,
+                        config.CertificateSelectionCallback ?? GetAmbientCertificateCallback()
 #if !__MonoCS__
                         , EncryptionPolicy.RequireEncryption
 #endif
