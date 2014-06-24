@@ -63,6 +63,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="StackExchange\Redis\Aggregate.cs" />
+    <Compile Include="StackExchange\Redis\ClientType.cs" />
     <Compile Include="StackExchange\Redis\ExtensionMethods.cs" />
     <Compile Include="StackExchange\Redis\HashEntry.cs" />
     <Compile Include="StackExchange\Redis\InternalErrorEventArgs.cs" />

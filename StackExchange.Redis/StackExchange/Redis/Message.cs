@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -417,15 +419,29 @@ namespace StackExchange.Redis
             }
         }
 
-        internal static Message Create(int db, CommandFlags flags, RedisCommand command, RedisKey[] keys)
+        internal static Message Create(int db, CommandFlags flags, RedisCommand command, IList<RedisKey> keys)
         {
-            switch (keys.Length)
+            switch (keys.Count)
             {
                 case 0: return new CommandMessage(db, flags, command);
                 case 1: return new CommandKeyMessage(db, flags, command, keys[0]);
                 case 2: return new CommandKeyKeyMessage(db, flags, command, keys[0], keys[1]);
                 case 3: return new CommandKeyKeyKeyMessage(db, flags, command, keys[0], keys[1], keys[2]);
-                default: return new CommandKeysMessage(db, flags, command, keys);
+                default: return new CommandKeysMessage(db, flags, command, (keys as RedisKey[]) ?? keys.ToArray());
+            }
+        }
+
+        internal static Message Create(int db, CommandFlags flags, RedisCommand command, IList<RedisValue> values)
+        {
+            switch (values.Count)
+            {
+                case 0: return new CommandMessage(db, flags, command);
+                case 1: return new CommandValueMessage(db, flags, command, values[0]);
+                case 2: return new CommandValueValueMessage(db, flags, command, values[0], values[1]);
+                case 3: return new CommandValueValueValueMessage(db, flags, command, values[0], values[1], values[2]);
+                // no 4; not worth adding
+                case 5: return new CommandValueValueValueValueValueMessage(db, flags, command, values[0], values[1], values[2], values[3], values[4]);
+                default: return new CommandValuesMessage(db, flags, command, (values as RedisValue[]) ?? values.ToArray());
             }
         }
 
@@ -733,6 +749,26 @@ namespace StackExchange.Redis
             {
                 physical.WriteHeader(Command, 1);
                 physical.Write(Key);
+            }
+        }
+        sealed class CommandValuesMessage : Message
+        {
+            private readonly RedisValue[] values;
+            public CommandValuesMessage(int db, CommandFlags flags, RedisCommand command, RedisValue[] values) : base(db, flags, command)
+            {
+                for (int i = 0; i < values.Length; i++)
+                {
+                    values[i].AssertNotNull();
+                }
+                this.values = values;
+            }
+            internal override void WriteImpl(PhysicalConnection physical)
+            {
+                physical.WriteHeader(command, values.Length);
+                for (int i = 0; i < values.Length; i++)
+                {
+                    physical.Write(values[i]);
+                }
             }
         }
         sealed class CommandKeysMessage : Message

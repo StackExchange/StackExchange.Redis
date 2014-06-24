@@ -64,6 +64,19 @@ namespace StackExchange.Redis
         Task ClientKillAsync(EndPoint endpoint, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// The CLIENT KILL command closes multiple connections that match the specified filters
+        /// </summary>
+        /// <returns>the number of clients killed.</returns>
+        /// <remarks>http://redis.io/commands/client-kill</remarks>
+        long ClientKill(long? id = null, ClientType? clientType = null, EndPoint endpoint = null, bool skipMe = true, CommandFlags flags = CommandFlags.None);
+        /// <summary>
+        /// The CLIENT KILL command closes multiple connections that match the specified filters
+        /// </summary>
+        /// <returns>the number of clients killed.</returns>
+        /// <remarks>http://redis.io/commands/client-kill</remarks>
+        Task<long> ClientKillAsync(long? id = null, ClientType? clientType = null, EndPoint endpoint = null, bool skipMe = true, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// The CLIENT LIST command returns information and statistics about the client connections server in a mostly human readable format.
         /// </summary>
         /// <remarks>http://redis.io/commands/client-list</remarks>

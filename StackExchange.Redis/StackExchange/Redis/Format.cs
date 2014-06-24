@@ -11,6 +11,11 @@ namespace StackExchange.Redis
             return int.Parse(s, NumberStyles.Integer, NumberFormatInfo.InvariantInfo);
         }
 
+        public static long ParseInt64(string s)
+        {
+            return long.Parse(s, NumberStyles.Integer, NumberFormatInfo.InvariantInfo);
+        }
+
         public static string ToString(int value)
         {
             return value.ToString(NumberFormatInfo.InvariantInfo);

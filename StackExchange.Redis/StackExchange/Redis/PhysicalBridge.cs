@@ -802,6 +802,11 @@ namespace StackExchange.Redis
                 {
                     case RedisCommand.EVAL:
                     case RedisCommand.EVALSHA:
+                        if(!serverEndPoint.GetFeatures().ScriptingDatabaseSafe)
+                        {
+                            connection.SetUnknownDatabase();
+                        }
+                        break;
                     case RedisCommand.DISCARD:
                     case RedisCommand.EXEC:
                         connection.SetUnknownDatabase();

@@ -52,6 +52,58 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.DemandOK);
         }
 
+        public long ClientKill(long? id = null, ClientType? clientType = null, EndPoint endpoint = null, bool skipMe = true, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetClientKillMessage(endpoint, id, clientType, skipMe, flags);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+
+        public Task<long> ClientKillAsync(long? id = null, ClientType? clientType = null, EndPoint endpoint = null, bool skipMe = true, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetClientKillMessage(endpoint, id, clientType, skipMe, flags);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
+        Message GetClientKillMessage(EndPoint endpoint, long? id, ClientType? clientType, bool skipMe, CommandFlags flags)
+        {
+            List<RedisValue> parts = new List<RedisValue>(9);
+            parts.Add(RedisLiterals.KILL);
+            if(id != null)
+            {
+                parts.Add(RedisLiterals.ID);
+                parts.Add(id.Value);
+            }
+            if (clientType != null)
+            {
+                parts.Add(RedisLiterals.TYPE);
+                switch(clientType.Value)
+                {
+                    case ClientType.Normal:
+                        parts.Add(RedisLiterals.normal);
+                        break;
+                    case ClientType.Slave:
+                        parts.Add(RedisLiterals.slave);
+                        break;
+                    case ClientType.PubSub:
+                        parts.Add(RedisLiterals.pubsub);
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException("clientType");
+                }
+                parts.Add(id.Value);
+            }
+            if (endpoint != null)
+            {
+                parts.Add(RedisLiterals.ADDR);
+                parts.Add((RedisValue)Format.ToString(endpoint));
+            }
+            if(!skipMe)
+            {
+                parts.Add(RedisLiterals.SKIPME);
+                parts.Add(RedisLiterals.no);
+            }
+            return Message.Create(-1, flags, RedisCommand.CLIENT, parts);
+        }
+
         public ClientInfo[] ClientList(CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(-1, flags, RedisCommand.CLIENT, RedisLiterals.LIST);

@@ -108,12 +108,30 @@ namespace StackExchange.Redis
         public int TransactionCommandLength { get; private set; }
 
         /// <summary>
+        /// an unique 64-bit client ID (introduced in Redis 2.8.12).
+        /// </summary>
+        public long Id { get;private set; }
+
+        /// <summary>
         /// Format the object as a string
         /// </summary>
         public override string ToString()
         {
             string addr = Format.ToString(Address);
             return string.IsNullOrWhiteSpace(Name) ? addr : (addr + " - " + Name);
+        }
+
+        /// <summary>
+        /// The class of the connection
+        /// </summary>
+        public ClientType ClientType
+        {
+            get
+            {
+                if (SubscriptionCount != 0 || PatternSubscriptionCount != 0) return ClientType.PubSub;
+                if ((Flags & ClientFlags.Slave) != 0) return ClientType.Slave;
+                return ClientType.Normal;                
+            }
         }
 
         internal static ClientInfo[] Parse(string input)
@@ -161,6 +179,7 @@ namespace StackExchange.Redis
                                 AddFlag(ref flags, value, ClientFlags.CloseASAP, 'A');
                                 client.Flags = flags;
                                 break;
+                            case "id": client.Id = Format.ParseInt64(value); break;
                         }
                     }
                     clients.Add(client);

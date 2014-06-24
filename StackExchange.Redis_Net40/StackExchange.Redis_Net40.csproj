@@ -64,6 +64,9 @@
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\Bitwise.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ClientFlags.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ClientInfo.cs" />
+    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ClientType.cs">
+      <Link>ClientType.cs</Link>
+    </Compile>
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ClusterConfiguration.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\CommandFlags.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\CommandMap.cs" />
