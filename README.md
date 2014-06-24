@@ -21,6 +21,12 @@ StackExchange.Redis can be installed via the nuget UI (as [StackExchange.Redis](
 
     PM> Install-Package StackExchange.Redis
 
+If you require a strong-named package (because your project is strong-named), then you may wish to use instead:
+
+    PM> Install-Package StackExchange.Redis.StrongName
+
+([for further reading, see here](http://blog.marcgravell.com/2014/06/snk-we-need-to-talk.html))
+
 Documentation
 ---
 
