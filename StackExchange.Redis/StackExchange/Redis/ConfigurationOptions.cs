@@ -263,8 +263,10 @@ namespace StackExchange.Redis
         /// <summary>
         /// Parse the configuration from a comma-delimited configuration string
         /// </summary>
+        /// <exception cref="ArgumentNullException"><paramref name="configuration"/> is <c>null</c>.</exception>
+        /// <exception cref="ArgumentException"><paramref name="configuration"/> is empty.</exception>
         public static ConfigurationOptions Parse(string configuration)
-        {
+        {    
             var options = new ConfigurationOptions();
             options.DoParse(configuration, false);
             return options;
@@ -272,6 +274,8 @@ namespace StackExchange.Redis
         /// <summary>
         /// Parse the configuration from a comma-delimited configuration string
         /// </summary>
+        /// <exception cref="ArgumentNullException"><paramref name="configuration"/> is <c>null</c>.</exception>
+        /// <exception cref="ArgumentException"><paramref name="configuration"/> is empty.</exception>
         public static ConfigurationOptions Parse(string configuration, bool ignoreUnknown)
         {
             var options = new ConfigurationOptions();
@@ -456,109 +460,117 @@ namespace StackExchange.Redis
 
         private void DoParse(string configuration, bool ignoreUnknown)
         {
-            Clear();
-            if (!string.IsNullOrWhiteSpace(configuration))
+            if (configuration == null)
             {
-                // break it down by commas
-                var arr = configuration.Split(StringSplits.Comma);
-                Dictionary<string, string> map = null;
-                foreach (var paddedOption in arr)
+                throw new ArgumentNullException("configuration");
+            }
+
+            if (string.IsNullOrWhiteSpace(configuration))
+            {
+                throw new ArgumentException("is empty", configuration);
+            }
+
+            Clear();
+
+            // break it down by commas
+            var arr = configuration.Split(StringSplits.Comma);
+            Dictionary<string, string> map = null;
+            foreach (var paddedOption in arr)
+            {
+                var option = paddedOption.Trim();
+
+                if (string.IsNullOrWhiteSpace(option)) continue;
+
+                // check for special tokens
+                int idx = option.IndexOf('=');
+                if (idx > 0)
                 {
-                    var option = paddedOption.Trim();
+                    var key = option.Substring(0, idx).Trim();                        
+                    var value = option.Substring(idx + 1).Trim();
 
-                    if (string.IsNullOrWhiteSpace(option)) continue;
-
-                    // check for special tokens
-                    int idx = option.IndexOf('=');
-                    if (idx > 0)
+                    switch (OptionKeys.TryNormalize(key))
                     {
-                        var key = option.Substring(0, idx).Trim();                        
-                        var value = option.Substring(idx + 1).Trim();
-
-                        switch (OptionKeys.TryNormalize(key))
-                        {
-                            case OptionKeys.SyncTimeout:
-                                SyncTimeout = OptionKeys.ParseInt32(key, value, minValue: 1);
-                                break;
-                            case OptionKeys.AllowAdmin:
-                                AllowAdmin = OptionKeys.ParseBoolean(key, value);
-                                break;
-                            case OptionKeys.AbortOnConnectFail:
-                                AbortOnConnectFail = OptionKeys.ParseBoolean(key, value);
-                                break;
-                            case OptionKeys.ResolveDns:
-                                ResolveDns = OptionKeys.ParseBoolean(key, value);
-                                break;
-                            case OptionKeys.ServiceName:
-                                ServiceName = value;
-                                break;
-                            case OptionKeys.ClientName:
-                                ClientName = value;
-                                break;
-                            case OptionKeys.ChannelPrefix:
-                                ChannelPrefix = value;
-                                break;
-                            case OptionKeys.ConfigChannel:
-                                ConfigurationChannel = value;
-                                break;
-                            case OptionKeys.KeepAlive:
-                                KeepAlive = OptionKeys.ParseInt32(key, value);
-                                break;
-                            case OptionKeys.ConnectTimeout:
-                                ConnectTimeout = OptionKeys.ParseInt32(key, value);
-                                break;
-                            case OptionKeys.ConnectRetry:
-                                ConnectRetry = OptionKeys.ParseInt32(key, value);
-                                break;
-                            case OptionKeys.Version:
-                                DefaultVersion = OptionKeys.ParseVersion(key, value);
-                                break;
-                            case OptionKeys.Password:
-                                Password = value;
-                                break;
-                            case OptionKeys.TieBreaker:
-                                TieBreaker = value;
-                                break;
-                            case OptionKeys.Ssl:
-                                Ssl = OptionKeys.ParseBoolean(key, value);
-                                break;
-                            case OptionKeys.SslHost:
-                                SslHost = value;
-                                break;
-                            case OptionKeys.WriteBuffer:
-                                WriteBuffer = OptionKeys.ParseInt32(key, value);
-                                break;
-                            case OptionKeys.Proxy:
-                                Proxy = OptionKeys.ParseProxy(key, value);
-                                break;
-                            default:
-                                if (!string.IsNullOrEmpty(key) && key[0] == '$')
+                        case OptionKeys.SyncTimeout:
+                            SyncTimeout = OptionKeys.ParseInt32(key, value, minValue: 1);
+                            break;
+                        case OptionKeys.AllowAdmin:
+                            AllowAdmin = OptionKeys.ParseBoolean(key, value);
+                            break;
+                        case OptionKeys.AbortOnConnectFail:
+                            AbortOnConnectFail = OptionKeys.ParseBoolean(key, value);
+                            break;
+                        case OptionKeys.ResolveDns:
+                            ResolveDns = OptionKeys.ParseBoolean(key, value);
+                            break;
+                        case OptionKeys.ServiceName:
+                            ServiceName = value;
+                            break;
+                        case OptionKeys.ClientName:
+                            ClientName = value;
+                            break;
+                        case OptionKeys.ChannelPrefix:
+                            ChannelPrefix = value;
+                            break;
+                        case OptionKeys.ConfigChannel:
+                            ConfigurationChannel = value;
+                            break;
+                        case OptionKeys.KeepAlive:
+                            KeepAlive = OptionKeys.ParseInt32(key, value);
+                            break;
+                        case OptionKeys.ConnectTimeout:
+                            ConnectTimeout = OptionKeys.ParseInt32(key, value);
+                            break;
+                        case OptionKeys.ConnectRetry:
+                            ConnectRetry = OptionKeys.ParseInt32(key, value);
+                            break;
+                        case OptionKeys.Version:
+                            DefaultVersion = OptionKeys.ParseVersion(key, value);
+                            break;
+                        case OptionKeys.Password:
+                            Password = value;
+                            break;
+                        case OptionKeys.TieBreaker:
+                            TieBreaker = value;
+                            break;
+                        case OptionKeys.Ssl:
+                            Ssl = OptionKeys.ParseBoolean(key, value);
+                            break;
+                        case OptionKeys.SslHost:
+                            SslHost = value;
+                            break;
+                        case OptionKeys.WriteBuffer:
+                            WriteBuffer = OptionKeys.ParseInt32(key, value);
+                            break;
+                        case OptionKeys.Proxy:
+                            Proxy = OptionKeys.ParseProxy(key, value);
+                            break;
+                        default:
+                            if (!string.IsNullOrEmpty(key) && key[0] == '$')
+                            {
+                                RedisCommand cmd;
+                                var cmdName = option.Substring(1, idx - 1);
+                                if (Enum.TryParse(cmdName, true, out cmd))
                                 {
-                                    RedisCommand cmd;
-                                    var cmdName = option.Substring(1, idx - 1);
-                                    if (Enum.TryParse(cmdName, true, out cmd))
-                                    {
-                                        if (map == null) map = new Dictionary<string, string>(StringComparer.InvariantCultureIgnoreCase);
-                                        map[cmdName] = value;
-                                    }
+                                    if (map == null) map = new Dictionary<string, string>(StringComparer.InvariantCultureIgnoreCase);
+                                    map[cmdName] = value;
                                 }
-                                else
-                                {
-                                    if(!ignoreUnknown) OptionKeys.Unknown(key);
-                                }
-                                break;
-                        }
-                    }
-                    else
-                    {
-                        var ep = Format.TryParseEndPoint(option);
-                        if (ep != null && !endpoints.Contains(ep)) endpoints.Add(ep);
+                            }
+                            else
+                            {
+                                if(!ignoreUnknown) OptionKeys.Unknown(key);
+                            }
+                            break;
                     }
                 }
-                if (map != null && map.Count != 0)
+                else
                 {
-                    this.CommandMap = CommandMap.Create(map);
+                    var ep = Format.TryParseEndPoint(option);
+                    if (ep != null && !endpoints.Contains(ep)) endpoints.Add(ep);
                 }
+            }
+            if (map != null && map.Count != 0)
+            {
+                this.CommandMap = CommandMap.Create(map);
             }
         }
     }
