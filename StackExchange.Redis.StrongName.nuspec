@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package>
+  <metadata>
+    <id>StackExchange.Redis.StrongName</id>
+    <version>1.0.312</version>
+    <authors>Stack Exchange inc., marc.gravell</authors>
+    <owners>Stack Exchange inc., marc.gravell</owners>
+    <summary>Redis client library</summary>
+    <description>High performance Redis client, incorporating both synchronous and asynchronous usage; the notional successor to BookSleeve</description>
+    <tags>Async Redis NoSQL Client Distributed Cache PubSub Messaging</tags>
+    <language>en-US</language>    
+    <projectUrl>https://github.com/StackExchange/StackExchange.Redis</projectUrl>
+    <licenseUrl>https://raw.github.com/StackExchange/StackExchange.Redis/master/LICENSE</licenseUrl>
+    <copyright>Stack Exchange inc. 2014</copyright>
+
+    <dependencies>
+      <group targetFramework="net40">
+        <dependency id="Microsoft.Bcl" version="1.1.8"/>
+        <dependency id="Microsoft.Bcl.Async" version="1.0.168"/>
+        <dependency id="Microsoft.Bcl.Build" version="1.0.14"/>
+      </group>
+      <group targetFramework="net45">
+      </group>
+    </dependencies>
+  </metadata>
+  <files>
+    <file src="StackExchange.Redis\bin\Release\StackExchange.Redis*.*" target="lib\net45" />
+    <file src="StackExchange.Redis_Net40\bin\Release\StackExchange.Redis*.*" target="lib\net40" />
+  </files>
+</package>
