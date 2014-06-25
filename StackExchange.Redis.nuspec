@@ -6,7 +6,7 @@
     <authors>Stack Exchange inc., marc.gravell</authors>
     <owners>Stack Exchange inc., marc.gravell</owners>
     <summary>Redis client library</summary>
-    <description>High performance Redis client, incorporating both synchronous and asynchronous usage; the notional successor to BookSleeve</description>
+    <description>High performance Redis client, incorporating both synchronous and asynchronous usage; the notional successor to BookSleeve. If you require a strong-named version, try StackExchange.Redis.StrongName</description>
     <tags>Async Redis NoSQL Client Distributed Cache PubSub Messaging</tags>
     <language>en-US</language>    
     <projectUrl>https://github.com/StackExchange/StackExchange.Redis</projectUrl>
