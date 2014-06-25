@@ -44,7 +44,11 @@ namespace StackExchange.Redis
             "get", "set", "del", "incr", "incrby", "mget", "mset", "keys", "getset", "setnx",
             "hget", "hset", "hdel", "hincrby", "hkeys", "hvals", "hmget", "hmset", "hlen",
             "zscore", "zadd", "zrem", "zrange", "zrangebyscore", "zincrby", "zdecrby", "zcard",
-            "llen", "lpush", "rpush", "lpop", "rpop", "lrange", "lindex" }, true);
+            "llen", "lpush", "rpush", "lpop", "rpop", "lrange", "lindex" 
+        }, true),
+            sentinel = Create(new HashSet<string> {
+            // see http://redis.io/topics/sentinel
+            "ping", "info", "sentinel", "subscribe", "psubscribe", "unsubscribe", "punsubscribe" }, true);
         private readonly byte[][] map;
 
         internal CommandMap(byte[][] map)
@@ -68,6 +72,11 @@ namespace StackExchange.Redis
         /// <remarks>http://www.ideawu.com/ssdb/docs/redis-to-ssdb.html</remarks>
         public static CommandMap SSDB { get { return ssdb; } }
 
+        /// <summary>
+        /// The commands available to <a href="Sentinel">http://redis.io/topics/sentinel</a>
+        /// </summary>
+        /// <remarks>http://redis.io/topics/sentinel</remarks>
+        public static CommandMap Sentinel { get { return sentinel; } }
 
         /// <summary>
         /// Create a new CommandMap, customizing some commands

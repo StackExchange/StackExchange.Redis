@@ -61,6 +61,19 @@ namespace StackExchange.Redis
 
 
 
+            // Sentinel Literals
+            MASTERS = "MASTERS",
+            MASTER = "MASTER",
+            SLAVES = "SLAVES",
+            GETMASTERADDRBYNAME = "GET-MASTER-ADDR-BY-NAME",
+//            RESET = "RESET",
+            FAILOVER = "FAILOVER", 
+
+            // Sentinel Literals as of 2.8.4
+            MONITOR = "MONITOR",
+            REMOVE = "REMOVE",
+//            SET = "SET",
+
             // DO NOT CHANGE CASE: these are configuration settings and MUST be as-is
             databases = "databases",
             no = "no",

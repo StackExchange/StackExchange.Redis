@@ -94,6 +94,7 @@
     <Compile Include="Scans.cs" />
     <Compile Include="Scripting.cs" />
     <Compile Include="Secure.cs" />
+    <Compile Include="Sentinel.cs" />
     <Compile Include="Sets.cs" />
     <Compile Include="SSDB.cs" />
     <Compile Include="SSL.cs" />

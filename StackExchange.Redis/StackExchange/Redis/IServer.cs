@@ -393,6 +393,101 @@ namespace StackExchange.Redis
         /// <returns>The server's current time.</returns>
         /// <remarks>http://redis.io/commands/time</remarks>
         Task<DateTime> TimeAsync(CommandFlags flags = CommandFlags.None);
+
+        #region Sentinel
+
+        /// <summary>
+        /// Returns the ip and port number of the master with that name. 
+        /// If a failover is in progress or terminated successfully for this master it returns the address and port of the promoted slave.
+        /// </summary>
+        /// <param name="serviceName">the sentinel service name</param>
+        /// <param name="flags"></param>
+        /// <returns>the master ip and port</returns>
+        /// <remarks>http://redis.io/topics/sentinel</remarks>
+        EndPoint SentinelGetMasterAddressByName(string serviceName, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns the ip and port number of the master with that name. 
+        /// If a failover is in progress or terminated successfully for this master it returns the address and port of the promoted slave.
+        /// </summary>
+        /// <param name="serviceName">the sentinel service name</param>
+        /// <param name="flags"></param>
+        /// <returns>the master ip and port</returns>
+        /// <remarks>http://redis.io/topics/sentinel</remarks>
+        Task<EndPoint> SentinelGetMasterAddressByNameAsync(string serviceName, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Show the state and info of the specified master.
+        /// </summary>
+        /// <param name="serviceName">the sentinel service name</param>
+        /// <param name="flags"></param>
+        /// <returns>the master state as KeyValuePairs</returns>
+        /// <remarks>http://redis.io/topics/sentinel</remarks>
+        KeyValuePair<string, string>[] SentinelMaster(string serviceName, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Force a failover as if the master was not reachable, and without asking for agreement to other Sentinels 
+        /// (however a new version of the configuration will be published so that the other Sentinels will update their configurations).
+        /// </summary>
+        /// <param name="serviceName">the sentinel service name</param>
+        /// <param name="flags"></param>
+        /// <returns>the master state as KeyValuePairs</returns>
+        /// <remarks>http://redis.io/topics/sentinel</remarks>
+        Task<KeyValuePair<string, string>[]> SentinelMasterAsync(string serviceName, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Show a list of monitored masters and their state.
+        /// </summary>
+        /// <param name="flags"></param>
+        /// <returns>an array of master state KeyValuePair arrays</returns>
+        /// <remarks>http://redis.io/topics/sentinel</remarks>
+        KeyValuePair<string, string>[][] SentinelMasters(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Show a list of monitored masters and their state.
+        /// </summary>
+        /// <param name="flags"></param>
+        /// <returns>an array of master state KeyValuePair arrays</returns>
+        /// <remarks>http://redis.io/topics/sentinel</remarks>
+        Task<KeyValuePair<string, string>[][]> SentinelMastersAsync(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Show a list of slaves for this master, and their state.
+        /// </summary>
+        /// <param name="serviceName">the sentinel service name</param>
+        /// <param name="flags"></param>
+        /// <returns>an array of slave state KeyValuePair arrays</returns>
+        /// <remarks>http://redis.io/topics/sentinel</remarks>
+        KeyValuePair<string, string>[][] SentinelSlaves(string serviceName, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Show a list of slaves for this master, and their state.
+        /// </summary>
+        /// <param name="serviceName">the sentinel service name</param>
+        /// <param name="flags"></param>
+        /// <returns>an array of slave state KeyValuePair arrays</returns>
+        /// <remarks>http://redis.io/topics/sentinel</remarks>
+        Task<KeyValuePair<string, string>[][]> SentinelSlavesAsync(string serviceName, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Force a failover as if the master was not reachable, and without asking for agreement to other Sentinels 
+        /// (however a new version of the configuration will be published so that the other Sentinels will update their configurations).
+        /// </summary>
+        /// <param name="serviceName">the sentinel service name</param>
+        /// <param name="flags"></param>
+        /// <remarks>http://redis.io/topics/sentinel</remarks>
+        void SentinelFailover(string serviceName, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Force a failover as if the master was not reachable, and without asking for agreement to other Sentinels 
+        /// (however a new version of the configuration will be published so that the other Sentinels will update their configurations).
+        /// </summary>
+        /// <param name="serviceName">the sentinel service name</param>
+        /// <param name="flags"></param>
+        /// <remarks>http://redis.io/topics/sentinel</remarks>
+        Task SentinelFailoverAsync(string serviceName, CommandFlags flags = CommandFlags.None);
+
+        #endregion
     }
 
 

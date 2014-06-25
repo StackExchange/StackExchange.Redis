@@ -505,6 +505,7 @@ namespace StackExchange.Redis
                 case RedisCommand.SYNC:
                 case RedisCommand.TIME:
                 case RedisCommand.UNSUBSCRIBE:
+                case RedisCommand.SENTINEL:
                     return false;
                 default:
                     return true;

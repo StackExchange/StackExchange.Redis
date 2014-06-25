@@ -804,7 +804,7 @@ namespace StackExchange.Redis
                 if (!itemCount.TryGetInt64(out i64)) throw ExceptionFactory.ConnectionFailure(multiplexer.IncludeDetailInExceptions, ConnectionFailureType.ProtocolFailure, "Invalid array length", bridge.ServerEndPoint);
                 int itemCountActual = checked((int)i64);
 
-                if (itemCountActual == 0) return RawResult.EmptyArray;
+                if (itemCountActual <= 0) return RawResult.EmptyArray;
 
                 var arr = new RawResult[itemCountActual];
                 for (int i = 0; i < itemCountActual; i++)
