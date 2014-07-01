@@ -1,5 +1,6 @@
 .hg
 bin
+bin.snk
 obj
 *.suo
 *.user

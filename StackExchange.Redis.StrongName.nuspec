@@ -24,7 +24,7 @@
     </dependencies>
   </metadata>
   <files>
-    <file src="StackExchange.Redis\bin\Release\StackExchange.Redis*.*" target="lib\net45" />
-    <file src="StackExchange.Redis_Net40\bin\Release\StackExchange.Redis*.*" target="lib\net40" />
+    <file src="StackExchange.Redis\bin.snk\Release\StackExchange.Redis*.*" target="lib\net45" />
+    <file src="StackExchange.Redis_Net40\bin.snk\Release\StackExchange.Redis*.*" target="lib\net40" />
   </files>
 </package>

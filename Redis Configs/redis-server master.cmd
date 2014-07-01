@@ -1,1 +1,1 @@
-@..\packages\Redis-64.2.8.4\redis-server.exe master.conf
+@..\packages\Redis-64.2.8.9\redis-server.exe master.conf
