@@ -523,18 +523,25 @@ namespace StackExchange.Redis
         void BeginReading()
         {
             bool keepReading;
-            do
+            try
             {
-                keepReading = false;
-                int space = EnsureSpaceAndComputeBytesToRead();
-                multiplexer.Trace("Beginning async read...", physicalName);
-                var result = netStream.BeginRead(ioBuffer, ioBufferBytes, space, endRead, this);
-                if (result.CompletedSynchronously)
+                do
                 {
-                    multiplexer.Trace("Completed synchronously: processing immediately", physicalName);
-                    keepReading = EndReading(result);
-                }
-            } while (keepReading);
+                    keepReading = false;
+                    int space = EnsureSpaceAndComputeBytesToRead();
+                    multiplexer.Trace("Beginning async read...", physicalName);
+                    var result = netStream.BeginRead(ioBuffer, ioBufferBytes, space, endRead, this);
+                    if (result.CompletedSynchronously)
+                    {
+                        multiplexer.Trace("Completed synchronously: processing immediately", physicalName);
+                        keepReading = EndReading(result);
+                    }
+                } while (keepReading);
+            }
+            catch(System.IO.IOException ex)
+            {
+                multiplexer.Trace("Could not connect: " + ex.Message, physicalName);
+            }
         }
         int haveReader;
 
