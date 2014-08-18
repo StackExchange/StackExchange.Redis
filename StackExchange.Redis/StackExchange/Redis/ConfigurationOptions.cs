@@ -264,9 +264,9 @@ namespace StackExchange.Redis
         internal RemoteCertificateValidationCallback CertificateValidationCallback { get { return CertificateValidation; } private set { CertificateValidation = value; } }
 
         /// <summary>
-        /// Check configuration every n seconds (disabled by default)
+        /// Check configuration every n seconds (every minute by default)
         /// </summary>
-        public int ConfigCheckSeconds { get { return configCheckSeconds.GetValueOrDefault(); } set { configCheckSeconds = value; } }
+        public int ConfigCheckSeconds { get { return configCheckSeconds.GetValueOrDefault(60); } set { configCheckSeconds = value; } }
 
         /// <summary>
         /// Parse the configuration from a comma-delimited configuration string
