@@ -72,7 +72,8 @@ namespace StackExchange.Redis
                         Version = "version", ConnectTimeout = "connectTimeout", Password = "password",
                         TieBreaker = "tiebreaker", WriteBuffer = "writeBuffer", Ssl = "ssl", SslHost = "sslHost",
                         ConfigChannel = "configChannel", AbortOnConnectFail = "abortConnect", ResolveDns = "resolveDns",
-                        ChannelPrefix = "channelPrefix", Proxy = "proxy", ConnectRetry = "connectRetry";
+                        ChannelPrefix = "channelPrefix", Proxy = "proxy", ConnectRetry = "connectRetry",
+                        ConfigCheckSeconds = "configCheckSeconds";
             private static readonly Dictionary<string, string> normalizedOptions = new[]
             {
                 AllowAdmin, SyncTimeout,
@@ -80,7 +81,8 @@ namespace StackExchange.Redis
                 Version, ConnectTimeout, Password,
                 TieBreaker, WriteBuffer, Ssl, SslHost,
                 ConfigChannel, AbortOnConnectFail, ResolveDns,
-                ChannelPrefix, Proxy, ConnectRetry
+                ChannelPrefix, Proxy, ConnectRetry,
+                ConfigCheckSeconds
             }.ToDictionary(x => x, StringComparer.InvariantCultureIgnoreCase);
 
             public static string TryNormalize(string value)
@@ -105,7 +107,7 @@ namespace StackExchange.Redis
 
         private Version defaultVersion;
 
-        private int? keepAlive, syncTimeout, connectTimeout, writeBuffer, connectRetry;
+        private int? keepAlive, syncTimeout, connectTimeout, writeBuffer, connectRetry, configCheckSeconds;
 
         private Proxy? proxy;
 
@@ -260,6 +262,12 @@ namespace StackExchange.Redis
 
         // these just rip out the underlying handlers, bypassing the event accessors - needed when creating the SSL stream
         internal RemoteCertificateValidationCallback CertificateValidationCallback { get { return CertificateValidation; } private set { CertificateValidation = value; } }
+
+        /// <summary>
+        /// Check configuration every n seconds (disabled by default)
+        /// </summary>
+        public int ConfigCheckSeconds { get { return configCheckSeconds.GetValueOrDefault(); } set { configCheckSeconds = value; } }
+
         /// <summary>
         /// Parse the configuration from a comma-delimited configuration string
         /// </summary>
@@ -311,7 +319,8 @@ namespace StackExchange.Redis
                 CertificateSelectionCallback = CertificateSelectionCallback,
                 ChannelPrefix = ChannelPrefix.Clone(),
                 SocketManager = SocketManager,
-                connectRetry = connectRetry
+                connectRetry = connectRetry,
+                configCheckSeconds = configCheckSeconds
             };
             foreach (var item in endpoints)
                 options.endpoints.Add(item);
@@ -355,7 +364,8 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.ChannelPrefix, (string)ChannelPrefix);
             Append(sb, OptionKeys.ConnectRetry, connectRetry);
             Append(sb, OptionKeys.Proxy, proxy);
-            if(commandMap != null) commandMap.AppendDeltas(sb);
+            Append(sb, OptionKeys.ConfigCheckSeconds, configCheckSeconds);
+            if (commandMap != null) commandMap.AppendDeltas(sb);
             return sb.ToString();
         }
 
@@ -444,7 +454,7 @@ namespace StackExchange.Redis
         void Clear()
         {
             clientName = serviceName = password = tieBreaker = sslHost = configChannel = null;
-            keepAlive = syncTimeout = connectTimeout = writeBuffer = connectRetry = null;
+            keepAlive = syncTimeout = connectTimeout = writeBuffer = connectRetry = configCheckSeconds = null;
             allowAdmin = abortOnConnectFail = resolveDns = ssl = null;
             defaultVersion = null;
             endpoints.Clear();
@@ -522,6 +532,9 @@ namespace StackExchange.Redis
                             break;
                         case OptionKeys.ConnectRetry:
                             ConnectRetry = OptionKeys.ParseInt32(key, value);
+                            break;
+                        case OptionKeys.ConfigCheckSeconds:
+                            ConfigCheckSeconds = OptionKeys.ParseInt32(key, value);
                             break;
                         case OptionKeys.Version:
                             DefaultVersion = OptionKeys.ParseVersion(key, value);

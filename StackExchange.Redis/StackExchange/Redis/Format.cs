@@ -49,6 +49,12 @@ namespace StackExchange.Redis
             if (IPAddress.TryParse(host, out ip)) return new IPEndPoint(ip, port);
             return new DnsEndPoint(host, port);
         }
+        internal static EndPoint TryParseEndPoint(string host, string port)
+        {
+            if (string.IsNullOrEmpty(host) || string.IsNullOrEmpty(port)) return null;
+            int i;
+            return TryParseInt32(port, out i) ? ParseEndPoint(host, i) : null;
+        }
 
         internal static string ToString(long value)
         {

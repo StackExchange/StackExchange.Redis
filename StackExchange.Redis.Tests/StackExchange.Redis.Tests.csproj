@@ -78,6 +78,7 @@
     <Compile Include="Issues\Issue6.cs" />
     <Compile Include="Issues\SO22786599.cs" />
     <Compile Include="Issues\SO23949477.cs" />
+    <Compile Include="Issues\SO24807536.cs" />
     <Compile Include="Keys.cs" />
     <Compile Include="KeysAndValues.cs" />
     <Compile Include="Lex.cs" />
@@ -96,10 +97,12 @@
     <Compile Include="Secure.cs" />
     <Compile Include="Sentinel.cs" />
     <Compile Include="Sets.cs" />
+    <Compile Include="Issues\SO25113323.cs" />
     <Compile Include="SSDB.cs" />
     <Compile Include="SSL.cs" />
     <Compile Include="TaskTests.cs" />
     <Compile Include="TestBase.cs" />
+    <Compile Include="TestInfoReplicationChecks.cs" />
     <Compile Include="Transactions.cs" />
     <Compile Include="VPNTest.cs" />
   </ItemGroup>

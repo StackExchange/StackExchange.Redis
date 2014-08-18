@@ -6,6 +6,7 @@ using System.Net;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace StackExchange.Redis
@@ -271,6 +272,7 @@ namespace StackExchange.Redis
             }
             if (commandMap.IsAvailable(RedisCommand.INFO))
             {
+                lastInfoReplicationCheckTicks = Environment.TickCount;
                 if (features.InfoSections)
                 {
                     msg = Message.Create(-1, flags, RedisCommand.INFO, RedisLiterals.replication);
@@ -469,6 +471,36 @@ namespace StackExchange.Redis
                 connection.RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
             }
         }
+
+        
+        internal int LastInfoReplicationCheckSecondsAgo
+        {
+            get { return unchecked(Environment.TickCount - Thread.VolatileRead(ref lastInfoReplicationCheckTicks)) / 1000; }
+        }
+
+        private EndPoint masterEndPoint;
+        public EndPoint MasterEndPoint
+        {
+            get { return masterEndPoint; }
+            set { SetConfig(ref masterEndPoint, value); }
+        }
+
+
+        internal bool CheckInfoReplication()
+        {
+            lastInfoReplicationCheckTicks = Environment.TickCount;
+            PhysicalBridge bridge;
+            if (version >= RedisFeatures.v2_8_0 && multiplexer.CommandMap.IsAvailable(RedisCommand.INFO)
+                && (bridge = GetBridge(ConnectionType.Interactive, false)) != null)
+            {
+                var msg = Message.Create(-1, CommandFlags.FireAndForget | CommandFlags.HighPriority | CommandFlags.NoRedirect, RedisCommand.INFO, RedisLiterals.replication);
+                msg.SetInternalCall();
+                QueueDirectFireAndForget(msg, ResultProcessor.AutoConfigure, bridge);
+                return true;
+            }
+            return false;
+        }
+        private int lastInfoReplicationCheckTicks;
 
         internal void OnHeartbeat()
         {

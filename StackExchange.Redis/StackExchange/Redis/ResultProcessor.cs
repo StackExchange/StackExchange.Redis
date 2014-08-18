@@ -501,6 +501,8 @@ namespace StackExchange.Redis
                                 SetResult(message, true);
                                 return true;
                             }
+                            string masterHost = null, masterPort = null;
+                            bool roleSeen = false;
                             using (var reader = new StringReader(info))
                             {
                                 while ((line = reader.ReadLine()) != null)
@@ -510,6 +512,7 @@ namespace StackExchange.Redis
                                     string val;
                                     if ((val = Extract(line, "role:")) != null)
                                     {
+                                        roleSeen = true;
                                         switch (val)
                                         {
                                             case "master":
@@ -521,6 +524,14 @@ namespace StackExchange.Redis
                                                 server.Multiplexer.Trace("Auto-configured role: slave");
                                                 break;
                                         }
+                                    }
+                                    else if ((val = Extract(line, "master_host:")) != null)
+                                    {
+                                        masterHost = val;
+                                    }
+                                    else if ((val = Extract(line, "master_port:")) != null)
+                                    {
+                                        masterPort = val;
                                     }
                                     else if ((val = Extract(line, "redis_version:")) != null)
                                     {
@@ -553,6 +564,10 @@ namespace StackExchange.Redis
                                     {
                                         server.RunId = val;
                                     }
+                                }
+                                if (roleSeen)
+                                { // these are in the same section, if presnt
+                                    server.MasterEndPoint = Format.TryParseEndPoint(masterHost, masterPort);
                                 }
                             }
                         }
