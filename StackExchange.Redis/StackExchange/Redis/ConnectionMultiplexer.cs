@@ -617,7 +617,7 @@ namespace StackExchange.Redis
             for (int i = 0; i < len; i++)
             {
                 var server = tmp[(int)(((uint)i + startOffset) % len)];
-                if (server.ServerType == serverType && server.IsSelectable(command))
+                if (server != null && server.ServerType == serverType && server.IsSelectable(command))
                 {
                     if (server.IsSlave)
                     {
@@ -972,7 +972,7 @@ namespace StackExchange.Redis
 
         string activeConfigCause;
 
-        internal void ReconfigureIfNeeded(EndPoint blame, bool fromBroadcast, string cause)
+        internal bool ReconfigureIfNeeded(EndPoint blame, bool fromBroadcast, string cause, bool publishReconfigure = false, CommandFlags flags = CommandFlags.None)
         {
             if (fromBroadcast)
             {
@@ -981,12 +981,14 @@ namespace StackExchange.Redis
             string activeCause = Interlocked.CompareExchange(ref activeConfigCause, null, null);
             if (activeCause == null)
             {
-                bool reconfigureAll = fromBroadcast;
+                bool reconfigureAll = fromBroadcast || publishReconfigure;
                 Trace("Configuration change detected; checking nodes", "Configuration");
-                ReconfigureAsync(false, reconfigureAll, null, blame, cause).ObserveErrors();
+                ReconfigureAsync(false, reconfigureAll, null, blame, cause, publishReconfigure, flags).ObserveErrors();
+                return true;
             } else
             {
                 Trace("Configuration change skipped; already in progress via " + activeCause, "Configuration");
+                return false;
             }
         }
 
@@ -1057,7 +1059,7 @@ namespace StackExchange.Redis
             LogLocked(log, "Sync timeouts: {0}; fire and forget: {1}; last heartbeat: {2}s ago",
                 Interlocked.Read(ref syncTimeouts), Interlocked.Read(ref fireAndForgets), LastHeartbeatSecondsAgo);
         }
-        internal async Task<bool> ReconfigureAsync(bool first, bool reconfigureAll, TextWriter log, EndPoint blame, string cause)
+        internal async Task<bool> ReconfigureAsync(bool first, bool reconfigureAll, TextWriter log, EndPoint blame, string cause, bool publishReconfigure = false, CommandFlags publishReconfigureFlags = CommandFlags.None)
         {
             if (isDisposed) throw new ObjectDisposedException(ToString());
             //if connection failed treat it as first to honor retry logic.
@@ -1327,6 +1329,16 @@ namespace StackExchange.Redis
                 {
                     LogLocked(log, "Starting heartbeat...");
                     pulse = new Timer(heartbeat, this, MillisecondsPerHeartbeat, MillisecondsPerHeartbeat);
+                }
+                if(publishReconfigure)
+                {
+                    try
+                    {
+                        LogLocked(log, "Broadcasting reconfigure...");
+                        PublishReconfigureImpl(publishReconfigureFlags);
+                    }
+                    catch
+                    { }
                 }
                 return true;
 
@@ -1817,12 +1829,24 @@ namespace StackExchange.Redis
         /// <summary>
         /// Request all compatible clients to reconfigure or reconnect
         /// </summary>
-        /// <returns>The number of instances known to have received the message (however, the actual number can be higher)</returns>
+        /// <returns>The number of instances known to have received the message (however, the actual number can be higher; returns -1 if the operation is pending)</returns>
         public long PublishReconfigure(CommandFlags flags = CommandFlags.None)
         {
             byte[] channel = ConfigurationChangedChannel;
             if (channel == null) return 0;
-
+            if (ReconfigureIfNeeded(null, false, "PublishReconfigure", true, flags))
+            {
+                return -1;
+            }
+            else
+            {
+                return PublishReconfigureImpl(flags);
+            }
+        }
+        private long PublishReconfigureImpl(CommandFlags flags)
+        {
+            byte[] channel = ConfigurationChangedChannel;
+            if (channel == null) return 0;
             return GetSubscriber().Publish(channel, RedisLiterals.Wildcard, flags);
         }
 
