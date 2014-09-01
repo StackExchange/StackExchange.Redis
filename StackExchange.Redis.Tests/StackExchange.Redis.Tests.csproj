@@ -79,6 +79,7 @@
     <Compile Include="Issues\SO22786599.cs" />
     <Compile Include="Issues\SO23949477.cs" />
     <Compile Include="Issues\SO24807536.cs" />
+    <Compile Include="Issues\SO25567566.cs" />
     <Compile Include="Keys.cs" />
     <Compile Include="KeysAndValues.cs" />
     <Compile Include="Lex.cs" />
