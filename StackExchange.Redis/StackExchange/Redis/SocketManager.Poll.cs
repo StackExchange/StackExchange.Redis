@@ -20,7 +20,7 @@ namespace StackExchange.Redis
             if (qdsl != null && qdsl.Consume())
             {
                 var mgr = qdsl.Manager;
-                mgr.ProcessItems();
+                mgr.ProcessItems(false);
                 qdsl.Pulse();
             }
         };
@@ -94,6 +94,7 @@ namespace StackExchange.Redis
                 }
             }
         }
+
         partial void OnDispose()
         {
             lock (socketLookup)
@@ -112,9 +113,11 @@ namespace StackExchange.Redis
             }
         }
 
-        private void ProcessItems()
+        private void ProcessItems(bool setState)
         {
+            if(setState) managerState = ManagerState.ProcessReadQueue;
             ProcessItems(socketLookup, readQueue, CallbackOperation.Read);
+            if (setState) managerState = ManagerState.ProcessErrorQueue;
             ProcessItems(socketLookup, errorQueue, CallbackOperation.Error);
         }
         private void Read()
@@ -123,10 +126,19 @@ namespace StackExchange.Redis
             try
             {
                 weAreReader = Interlocked.CompareExchange(ref readerCount, 1, 0) == 0;
-                if (weAreReader) ReadImpl();
+                if (weAreReader)
+                {
+                    managerState = ManagerState.Preparing;
+                    ReadImpl();
+                    managerState = ManagerState.Inactive;
+                }
             }
             catch (Exception ex)
             {
+                if (weAreReader)
+                {
+                    managerState = ManagerState.Faulted;
+                }
                 Debug.WriteLine(ex);
                 Trace.WriteLine(ex);
             }
@@ -135,6 +147,33 @@ namespace StackExchange.Redis
                 if (weAreReader) Interlocked.Exchange(ref readerCount, 0);
             }
         }
+        internal enum ManagerState
+        {
+            Inactive,
+            Preparing,
+            Faulted,
+            CheckForHeartbeat,
+            ExecuteHeartbeat,
+            LocateActiveSockets,
+            NoSocketsPause,
+            PrepareActiveSockets,
+            CullDeadSockets,
+            NoActiveSocketsPause,
+            GrowingSocketArray,
+            CopyingPointersForSelect,
+            ExecuteSelect,
+            EnqueueRead,
+            EnqueueError,
+            RequestAssistance,
+            ProcessQueues,
+            ProcessReadQueue,
+            ProcessErrorQueue,            
+        }
+        internal ManagerState State
+        {
+            get { return managerState; }
+        }
+        private volatile ManagerState managerState;
 
         private void ReadImpl()
         {
@@ -144,6 +183,7 @@ namespace StackExchange.Redis
             SocketPair[] allSocketPairs = null;
             while (true)
             {
+                managerState = ManagerState.CheckForHeartbeat;
                 active.Clear();
                 if (dead != null) dead.Clear();
 
@@ -152,6 +192,7 @@ namespace StackExchange.Redis
                 long now = Environment.TickCount;
                 if (unchecked(now - lastHeartbeat) >= 15000)
                 {
+                    managerState = ManagerState.ExecuteHeartbeat;
                     lastHeartbeat = now;
                     lock (socketLookup)
                     {
@@ -166,7 +207,7 @@ namespace StackExchange.Redis
                     }
                 }
 
-
+                managerState = ManagerState.LocateActiveSockets;
                 lock (socketLookup)
                 {
                     if (isDisposed) return;
@@ -174,9 +215,11 @@ namespace StackExchange.Redis
                     if (socketLookup.Count == 0)
                     {
                         // if empty, give it a few seconds chance before exiting
+                        managerState = ManagerState.NoSocketsPause;
                         Monitor.Wait(socketLookup, TimeSpan.FromSeconds(20));
                         if (socketLookup.Count == 0) return; // nothing new came in, so exit
                     }
+                    managerState = ManagerState.PrepareActiveSockets;
                     foreach (var pair in socketLookup)
                     {
                         var socket = pair.Value.Socket;
@@ -192,6 +235,7 @@ namespace StackExchange.Redis
                     }
                     if (dead != null && dead.Count != 0)
                     {
+                        managerState = ManagerState.CullDeadSockets;
                         foreach (var socket in dead) socketLookup.Remove(socket);
                     }
                 }
@@ -199,16 +243,19 @@ namespace StackExchange.Redis
                 if (pollingSockets == 0)
                 {
                     // nobody had actual sockets; just sleep
+                    managerState = ManagerState.NoActiveSocketsPause;
                     Thread.Sleep(10);
                     continue;
                 }
 
                 if (readSockets.Length < active.Count + 1)
                 {
+                    managerState = ManagerState.GrowingSocketArray;
                     ConnectionMultiplexer.TraceWithoutContext("Resizing socket array for " + active.Count + " sockets");
                     readSockets = new IntPtr[active.Count + 6]; // leave so space for growth
                     errorSockets = new IntPtr[active.Count + 6];
                 }
+                managerState = ManagerState.CopyingPointersForSelect;
                 readSockets[0] = errorSockets[0] = (IntPtr)active.Count;
                 active.CopyTo(readSockets, 1);
                 active.CopyTo(errorSockets, 1);
@@ -216,6 +263,7 @@ namespace StackExchange.Redis
                 try
                 {
                     var timeout = new TimeValue(1000);
+                    managerState = ManagerState.ExecuteSelect;
                     ready = select(0, readSockets, null, errorSockets, ref timeout);
                     if (ready <= 0)
                     {
@@ -232,22 +280,29 @@ namespace StackExchange.Redis
                 }
 
                 int queueCount = (int)readSockets[0];
-                lock (readQueue)
+                if (queueCount != 0)
                 {
-                    for (int i = 1; i <= queueCount; i++)
+                    managerState = ManagerState.EnqueueRead;
+                    lock (readQueue)
                     {
-                        readQueue.Enqueue(readSockets[i]);
+                        for (int i = 1; i <= queueCount; i++)
+                        {
+                            readQueue.Enqueue(readSockets[i]);
+                        }
                     }
                 }
                 queueCount = (int)errorSockets[0];
-                lock (errorQueue)
+                if (queueCount != 0)
                 {
-                    for (int i = 1; i <= queueCount; i++)
+                    managerState = ManagerState.EnqueueError;
+                    lock (errorQueue)
                     {
-                        errorQueue.Enqueue(errorSockets[i]);
+                        for (int i = 1; i <= queueCount; i++)
+                        {
+                            errorQueue.Enqueue(errorSockets[i]);
+                        }
                     }
                 }
-
 
                 if (ready >= 5) // number of sockets we should attempt to process by ourself before asking for help
                 {
@@ -255,8 +310,10 @@ namespace StackExchange.Redis
                     var obj = new QueueDrainSyncLock(this);
                     lock (obj)
                     {
+                        managerState = ManagerState.RequestAssistance;
                         ThreadPool.QueueUserWorkItem(HelpProcessItems, obj);
-                        ProcessItems();
+                        managerState = ManagerState.ProcessQueues;
+                        ProcessItems(true);
                         if (!obj.Consume())
                         {   // then our worker arrived and picked up work; we need
                             // to let it finish; note that if it *didn't* get that far
@@ -268,7 +325,8 @@ namespace StackExchange.Redis
                 else
                 {
                     // just do it ourself
-                    ProcessItems();
+                    managerState = ManagerState.ProcessQueues;
+                    ProcessItems(true);
                 }
             }
         }
