@@ -467,13 +467,13 @@ namespace StackExchange.Redis
         public long SubscriptionSubscriberCount(RedisChannel channel, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.NUMSUB, channel);
-            return ExecuteSync(msg, ResultProcessor.Int64);
+            return ExecuteSync(msg, ResultProcessor.PubSubNumSub);
         }
 
         public Task<long> SubscriptionSubscriberCountAsync(RedisChannel channel, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.NUMSUB, channel);
-            return ExecuteAsync(msg, ResultProcessor.Int64);
+            return ExecuteAsync(msg, ResultProcessor.PubSubNumSub);
         }
 
         public DateTime Time(CommandFlags flags = CommandFlags.None)

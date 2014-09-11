@@ -92,6 +92,7 @@
     <Compile Include="PreserveOrder.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="PubSub.cs" />
+    <Compile Include="PubSubCommand.cs" />
     <Compile Include="RealWorld.cs" />
     <Compile Include="Scans.cs" />
     <Compile Include="Scripting.cs" />

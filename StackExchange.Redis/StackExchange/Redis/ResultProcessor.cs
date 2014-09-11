@@ -41,7 +41,8 @@ namespace StackExchange.Redis
             Info = new InfoProcessor();
 
         public static readonly ResultProcessor<long>
-            Int64 = new Int64Processor();
+            Int64 = new Int64Processor(),
+            PubSubNumSub = new PubSubNumSubProcessor();
 
         public static readonly ResultProcessor<double?>
                             NullableDouble = new NullableDoubleProcessor();
@@ -879,7 +880,7 @@ namespace StackExchange.Redis
             }
         }
 
-        sealed class Int64Processor : ResultProcessor<long>
+        class Int64Processor : ResultProcessor<long>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
@@ -897,6 +898,23 @@ namespace StackExchange.Redis
                         break;
                 }
                 return false;
+            }
+        }
+        class PubSubNumSubProcessor : Int64Processor
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            {
+                if(result.Type == ResultType.MultiBulk)
+                {
+                    var arr = result.GetItems();
+                    long val;
+                    if(arr != null && arr.Length == 2 && arr[1].TryGetInt64(out val))
+                    {
+                        SetResult(message, val);
+                        return true;
+                    }
+                }
+                return base.SetResultCore(connection, message, result);
             }
         }
 
@@ -970,7 +988,7 @@ namespace StackExchange.Redis
                             byte[] channelPrefix = connection.ChannelPrefix;
                             for (int i = 0; i < final.Length; i++)
                             {
-                                final[i] = result.AsRedisChannel(channelPrefix);
+                                final[i] = arr[i].AsRedisChannel(channelPrefix);
                             }
                         }
                         SetResult(message, final);
