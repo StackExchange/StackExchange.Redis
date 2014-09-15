@@ -999,7 +999,16 @@ namespace StackExchange.Redis
         {
             return ReconfigureAsync(false, true, log, null, "configure").ObserveErrors();
         }
-        /// <summary>
+
+		/// <summary>
+		/// Reconfigure the current connections based on the existing configuration
+		/// </summary>
+		public Task<bool> ConfigureAsyncForTest(TextWriter log = null, string cause = null)
+		{
+			return ReconfigureAsync(false, true, log, null, cause).ObserveErrors();
+		}
+
+		/// <summary>
         /// Reconfigure the current connections based on the existing configuration
         /// </summary>
         public bool Configure(TextWriter log = null)
@@ -1104,14 +1113,20 @@ namespace StackExchange.Redis
                     }
                     int index = 0;
                     lock (this.servers)
-                    {
-                        serverSnapshot = new ServerEndPoint[configuration.EndPoints.Count];
-                        foreach (var endpoint in configuration.EndPoints)
-                        {
+					{
+	                    // Remove existing servers from list
+						this.servers.Clear();
+
+						// Create new server endpoint snapshot
+						var updatedServerSnapshot = new ServerEndPoint[configuration.EndPoints.Count];
+                        foreach (var endpoint in configuration.EndPoints) {
                             var server = new ServerEndPoint(this, endpoint);
-                            serverSnapshot[index++] = server;
+							updatedServerSnapshot[index++] = server;
                             this.servers.Add(endpoint, server);
                         }
+
+						// Atomic update of serverSnapshot array
+	                    serverSnapshot = updatedServerSnapshot;
                     }
                     foreach (var server in serverSnapshot)
                     {

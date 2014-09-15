@@ -156,8 +156,8 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [Test]
-        public async void TestConfigureAsync()
+		[Test]
+		public async void TestConfigureAsync()
         {
             using(var muxer = Create())
             {
@@ -167,7 +167,20 @@ namespace StackExchange.Redis.Tests
                 Debug.WriteLine("Reconfigured");
             }
         }
-        [Test]
+
+		[Test]
+		public async void TestConfigureAsyncWithConnectionFailedAsReconfigureCause()
+		{
+			using (var muxer = Create(allowAdmin: true))
+			{
+				Thread.Sleep(1000);
+				Debug.WriteLine("About to reconfigure.....");
+				await muxer.ConfigureAsyncForTest(null, "connection failed");
+				Debug.WriteLine("Reconfigured");
+			}
+		}
+
+		[Test]
         public void TestConfigureSync()
         {
             using (var muxer = Create())
