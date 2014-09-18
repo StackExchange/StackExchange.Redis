@@ -43,7 +43,7 @@ namespace StackExchange.Redis
 
         private bool slaveReadOnly, isSlave;
 
-        private volatile UnselectableFlags unselectableReasons;
+        internal volatile UnselectableFlags unselectableReasons;
 
         private Version version;
 

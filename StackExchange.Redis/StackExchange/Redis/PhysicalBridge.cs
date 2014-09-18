@@ -414,6 +414,10 @@ namespace StackExchange.Redis
                         var tmp = physical;
                         if (tmp != null)
                         {
+                            if(state == (int)State.ConnectedEstablished)
+                            {
+                                tmp.Bridge.ServerEndPoint.ClearUnselectable(UnselectableFlags.DidNotRespond);
+                            }
                             tmp.OnHeartbeat();
                             int writeEverySeconds = serverEndPoint.WriteEverySeconds,
                                 checkConfigSeconds = multiplexer.RawConfig.ConfigCheckSeconds;

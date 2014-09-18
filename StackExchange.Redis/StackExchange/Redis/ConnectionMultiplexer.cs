@@ -1062,8 +1062,6 @@ namespace StackExchange.Redis
         internal async Task<bool> ReconfigureAsync(bool first, bool reconfigureAll, TextWriter log, EndPoint blame, string cause, bool publishReconfigure = false, CommandFlags publishReconfigureFlags = CommandFlags.None)
         {
             if (isDisposed) throw new ObjectDisposedException(ToString());
-            //if connection failed treat it as first to honor retry logic.
-            first = cause.CompareTo("connection failed") == 0 ? true : first;
             bool showStats = true;
             if (log == null)
             {
