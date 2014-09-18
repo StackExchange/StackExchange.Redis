@@ -20,7 +20,7 @@ Copyright (C) Microsoft Corporation. All rights reserved.
       satisfying indirect dependencies on System.Runtime 1.5 and System.Threading.Tasks 1.5 respectively.  
     -->
     <AutoUnifyAssemblyReferences>false</AutoUnifyAssemblyReferences>
-
+ 
     <!-- MSBuild by default doesn't pass the Web.Config ResolveAssemblyReference, in which case, set it so that it sees binding redirects -->
     <AppConfig Condition="'$(AppConfig)' == '' And '$(WebProjectOutputDir)' != '' And Exists('$(ProjectConfigFileName)')">$(ProjectConfigFileName)</AppConfig>
   </PropertyGroup>
@@ -41,10 +41,28 @@ Copyright (C) Microsoft Corporation. All rights reserved.
     -->
   <PropertyGroup>
     <__IntermediateAppConfig>$(IntermediateOutputPath)$(MSBuildProjectFile).App.config</__IntermediateAppConfig>
-
     <SkipEnsureBindingRedirects Condition="'$(TargetFrameworkIdentifier)' == 'Silverlight' or '$(OutputType)' == 'AppContainerExe'">true</SkipEnsureBindingRedirects>
+
+    <!-- Default logic is to use existing Bcl.Build code for any binding redirects which are not now supported by the     
+    framework functionality which is controlled by existing MSBUILD properties, that were added in Dev12
+    
+    Supported Dev12 scenarios are:
+    Project Output Type exe, winexe
+    <AutoGenerateBindingRedirects> in project file set to true    
+    
+    All others outside of this should continue to use existing mechanism in BCL.Build to ensure behavioural compatbility 
+    for output types. -->
+
+    <SkipEnsureBindingRedirects Condition="'$(SkipEnsureBindingRedirects)' == ''">false</SkipEnsureBindingRedirects>
+    <SkipEnsureBindingRedirects Condition="'$(AutoGenerateBindingRedirects)' =='true' and '$(GenerateBindingRedirectsOutputType)' == 'true'">true</SkipEnsureBindingRedirects>
   </PropertyGroup>
 
+  <!-- we haven't already been told to skip binding redirects, the project supports bindingredirect generation, and hasn't yet opted-in, force the opt in and disable our own bindingRedirect generation. -->
+  <PropertyGroup Condition="'$(SkipEnsureBindingRedirects)' != 'true'  and ('$(AutoGenerateBindingRedirects)' =='' and '$(GenerateBindingRedirectsOutputType)' == 'true')">
+    <SkipEnsureBindingRedirects>true</SkipEnsureBindingRedirects>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+  </PropertyGroup>
+  
   <UsingTask TaskName="EnsureBindingRedirects" AssemblyFile="$(MSBuildThisFileDirectory)Microsoft.Bcl.Build.Tasks.dll" />
 
   <!-- 
@@ -134,9 +152,9 @@ Copyright (C) Microsoft Corporation. All rights reserved.
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference>
-        <AdditionalProperties>$(_BclBuildProjectReferenceProperties);%(ProjectReference.AdditionalProperties)</AdditionalProperties>
-      </ProjectReference>
+      <ProjectReference>      
+         <AdditionalProperties>$(_BclBuildProjectReferenceProperties);%(ProjectReference.AdditionalProperties)</AdditionalProperties>
+     </ProjectReference>
     </ItemGroup>
   </Target>
 

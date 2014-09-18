@@ -210,16 +210,8 @@ return timeTaken
                 // now cause all kinds of problems
                 Config.GetServer(muxer).ScriptFlush();
 
-                //expect this one to fail
-                try
-                {
-                    conn.ScriptEvaluate("return redis.call('get', KEYS[1])", new RedisKey[] { "foo" }, null);
-                    Assert.Fail("Shouldn't have got here");
-                }
-                catch (RedisException)
-                { }
-                catch
-                { Assert.Fail("Expected RedisException"); }
+                //expect this one to <strike>fail</strike> just work fine (self-fix)
+                conn.ScriptEvaluate("return redis.call('get', KEYS[1])", new RedisKey[] { "foo" }, null);                
 
                 result = (string)conn.ScriptEvaluate("return redis.call('get', KEYS[1])", new RedisKey[] { "foo" }, null);
                 Assert.AreEqual("bar", result);

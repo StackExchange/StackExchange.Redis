@@ -43,7 +43,7 @@ namespace StackExchange.Redis
 
         private bool slaveReadOnly, isSlave;
 
-        internal volatile UnselectableFlags unselectableReasons;
+        private volatile UnselectableFlags unselectableReasons;
 
         private Version version;
 
@@ -122,10 +122,13 @@ namespace StackExchange.Redis
         public void ClearUnselectable(UnselectableFlags flags)
         {
             var oldFlags = unselectableReasons;
-            unselectableReasons &= ~flags;
-            if (unselectableReasons != oldFlags)
+            if (oldFlags != 0)
             {
-                multiplexer.Trace(unselectableReasons == 0 ? "Now usable" : ("Now unusable: " + flags), ToString());
+                unselectableReasons &= ~flags;
+                if (unselectableReasons != oldFlags)
+                {
+                    multiplexer.Trace(unselectableReasons == 0 ? "Now usable" : ("Now unusable: " + flags), ToString());
+                }
             }
         }
 
@@ -209,11 +212,14 @@ namespace StackExchange.Redis
 
         public void SetUnselectable(UnselectableFlags flags)
         {
-            var oldFlags = unselectableReasons;
-            unselectableReasons |= flags;
-            if (unselectableReasons != oldFlags)
+            if (flags != 0)
             {
-                multiplexer.Trace(unselectableReasons == 0 ? "Now usable" : ("Now unusable: " + flags), ToString());
+                var oldFlags = unselectableReasons;
+                unselectableReasons |= flags;
+                if (unselectableReasons != oldFlags)
+                {
+                    multiplexer.Trace(unselectableReasons == 0 ? "Now usable" : ("Now unusable: " + flags), ToString());
+                }
             }
         }
         public override string ToString()

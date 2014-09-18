@@ -17,7 +17,6 @@
       <group targetFramework="net40">
         <dependency id="Microsoft.Bcl" version="1.1.9"/>
         <dependency id="Microsoft.Bcl.Async" version="1.0.168"/>
-        <dependency id="Microsoft.Bcl.Build" version="1.0.14"/>
       </group>
       <group targetFramework="net45">
       </group>
