@@ -44,7 +44,12 @@ namespace StackExchange.Redis.StackExchange.Redis.KeyspaceIsolation
                 throw new ArgumentNullException("database");
             }
 
-            if (keyPrefix.IsNull || keyPrefix.Value.Length == 0)
+            if (keyPrefix.IsNull)
+            {
+                throw new ArgumentNullException("keyPrefix");
+            }
+
+            if (keyPrefix.Value.Length == 0)
             {
                 return database; // fine - you can keep using the original, then
             }

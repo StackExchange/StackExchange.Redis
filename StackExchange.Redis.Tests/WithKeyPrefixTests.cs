@@ -9,18 +9,59 @@ namespace StackExchange.Redis.Tests
     public class WithKeyPrefixTests : TestBase
     {
         [Test]
+        public void BlankPrefixYieldsSame_Bytes()
+        {
+            using (var conn = Create())
+            {
+                var raw = conn.GetDatabase(1);
+                var prefixed = raw.WithKeyPrefix(new byte[0]);
+                Assert.AreSame(raw, prefixed);
+            }
+        }
+        [Test]
+        public void BlankPrefixYieldsSame_String()
+        {
+            using (var conn = Create())
+            {
+                var raw = conn.GetDatabase(1);
+                var prefixed = raw.WithKeyPrefix("");
+                Assert.AreSame(raw, prefixed);
+            }
+        }
+        [Test, ExpectedException(typeof(ArgumentNullException))]
+        public void NullPrefixIsError_Bytes()
+        {
+            using (var conn = Create())
+            {
+                var raw = conn.GetDatabase(1);
+                var prefixed = raw.WithKeyPrefix((string)null);
+            }
+        }
+        [Test, ExpectedException(typeof(ArgumentNullException))]
+        public void NullPrefixIsError_String()
+        {
+            using (var conn = Create())
+            {
+                var raw = conn.GetDatabase(1);
+                var prefixed = raw.WithKeyPrefix((string)null);
+            }
+        }
+
+        [Test, ExpectedException(typeof(ArgumentNullException))]
+        [TestCase("abc")]
+        [TestCase("")]
+        [TestCase(null)]
+        public void NullDatabaseIsError(string prefix)
+        {
+            IDatabase raw = null;
+            var prefixed = raw.WithKeyPrefix(prefix);
+        }
+        [Test]
         public void BasicSmokeTest()
         {
             using(var conn = Create())
             {
                 var raw = conn.GetDatabase(1);
-
-                var vanilla = raw.WithKeyPrefix("");
-                Assert.AreSame(raw, vanilla);
-                vanilla = raw.WithKeyPrefix((byte[])null);
-                Assert.AreSame(raw, vanilla);
-                vanilla = raw.WithKeyPrefix((string)null);
-                Assert.AreSame(raw, vanilla);
 
                 var foo = raw.WithKeyPrefix("foo");
                 var foobar = foo.WithKeyPrefix("bar");
