@@ -195,5 +195,25 @@ namespace StackExchange.Redis
                 return BitConverter.ToString(arr);
             }
         }
+
+        /// <summary>
+        /// Concatenate two keys
+        /// </summary>
+        public static RedisKey operator +(RedisKey x, RedisKey y)
+        {
+            byte[] xVal = x.value, yVal = y.value;
+            // either null? yeild the other; note this includes the "both null becomes null" case
+            if (xVal == null) return y;
+            if (yVal == null) return x;
+
+            // either empty? yeild the other; note this includes the "both null becomes null" case
+            if (xVal.Length == 0) return y;
+            if (yVal.Length == 0) return x;
+
+            byte[] result = new byte[xVal.Length + yVal.Length];
+            Buffer.BlockCopy(xVal, 0, result, 0, xVal.Length);
+            Buffer.BlockCopy(yVal, 0, result, xVal.Length, yVal.Length);
+            return result;
+        }
     }
 }
