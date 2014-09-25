@@ -706,7 +706,7 @@ namespace StackExchange.Redis.StackExchange.Redis.KeyspaceIsolation
 
         protected RedisValue ToInner(RedisValue outer)
         {
-            return this.Prefix + outer;
+            return RedisKey.Concatenate(this.Prefix, outer);
         }
 
         protected RedisValue SortByToInner(RedisValue outer)
