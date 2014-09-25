@@ -67,6 +67,11 @@
     <Compile Include="StackExchange\Redis\ExtensionMethods.cs" />
     <Compile Include="StackExchange\Redis\HashEntry.cs" />
     <Compile Include="StackExchange\Redis\InternalErrorEventArgs.cs" />
+    <Compile Include="StackExchange\Redis\KeyspaceIsolation\BatchWrapper.cs" />
+    <Compile Include="StackExchange\Redis\KeyspaceIsolation\DatabaseExtension.cs" />
+    <Compile Include="StackExchange\Redis\KeyspaceIsolation\DatabaseWrapper.cs" />
+    <Compile Include="StackExchange\Redis\KeyspaceIsolation\TransactionWrapper.cs" />
+    <Compile Include="StackExchange\Redis\KeyspaceIsolation\WrapperBase.cs" />
     <Compile Include="StackExchange\Redis\MigrateOptions.cs" />
     <Compile Include="StackExchange\Redis\RedisChannel.cs" />
     <Compile Include="StackExchange\Redis\Bitwise.cs" />

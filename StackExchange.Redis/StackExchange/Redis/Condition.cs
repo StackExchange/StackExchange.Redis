@@ -144,11 +144,11 @@ namespace StackExchange.Redis
 
         internal class ExistsCondition : Condition
         {
-            readonly bool expectedResult;
+            internal readonly bool expectedResult;
 
-            readonly RedisValue hashField;
+            internal readonly RedisValue hashField;
 
-            readonly RedisKey key;
+            internal readonly RedisKey key;
 
             public ExistsCondition(RedisKey key, RedisValue hashField, bool expectedResult)
             {
@@ -197,11 +197,11 @@ namespace StackExchange.Redis
             }
         }
 
-        private class EqualsCondition : Condition
+        internal class EqualsCondition : Condition
         {
-            readonly bool expectedEqual;
-            readonly RedisValue hashField, expectedValue;
-            readonly RedisKey key;
+            internal readonly bool expectedEqual;
+            internal readonly RedisValue hashField, expectedValue;
+            internal readonly RedisKey key;
             public EqualsCondition(RedisKey key, RedisValue hashField, bool expectedEqual, RedisValue expectedValue)
             {
                 if (key.IsNull) throw new ArgumentException("key");
