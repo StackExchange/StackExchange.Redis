@@ -623,6 +623,8 @@ namespace StackExchange.Redis.StackExchange.Redis.KeyspaceIsolation
             return this.Inner.SortedSetScan(this.ToInner(key), pattern, pageSize, flags);
         }
 
+
+#if DEBUG
         public string ClientGetName(CommandFlags flags = CommandFlags.None)
         {
             return this.Inner.ClientGetName(flags);
@@ -632,5 +634,6 @@ namespace StackExchange.Redis.StackExchange.Redis.KeyspaceIsolation
         {
             this.Inner.Quit(flags);
         }
+#endif
     }
 }
