@@ -5,7 +5,7 @@ namespace StackExchange.Redis.StackExchange.Redis.KeyspaceIsolation
     /// <summary>
     ///     Provides the <see cref="WithKeyPrefix"/> extension method to <see cref="IDatabase"/>.
     /// </summary>
-    public static class DatabaseExtension
+    public static class DatabaseExtensions
     {
         /// <summary>
         ///     Creates a new <see cref="IDatabase"/> instance that provides an isolated key space
@@ -44,9 +44,22 @@ namespace StackExchange.Redis.StackExchange.Redis.KeyspaceIsolation
                 throw new ArgumentNullException("database");
             }
 
-            if (keyPrefix.IsNull || keyPrefix.Value.Length == 0)
+            if (keyPrefix.IsNull)
             {
-                throw new ArgumentException("The specified prefix cannot be null or empty", "keyPrefix");
+                throw new ArgumentNullException("keyPrefix");
+            }
+
+            if (keyPrefix.Value.Length == 0)
+            {
+                return database; // fine - you can keep using the original, then
+            }
+
+            if(database is DatabaseWrapper)
+            {
+                // combine the key in advance to minimize indirection
+                var wrapper = (DatabaseWrapper)database;
+                keyPrefix = wrapper.ToInner(keyPrefix);
+                database = wrapper.Inner;
             }
 
             return new DatabaseWrapper(database, keyPrefix);

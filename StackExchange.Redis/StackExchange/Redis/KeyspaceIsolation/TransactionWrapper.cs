@@ -12,7 +12,7 @@ namespace StackExchange.Redis.StackExchange.Redis.KeyspaceIsolation
 
         public ConditionResult AddCondition(Condition condition)
         {
-            return this.Inner.AddCondition(this.ToInner(condition));
+            return this.Inner.AddCondition(condition == null ? null : condition.MapKeys(GetMapFunction()));
         }
 
         public bool Execute(CommandFlags flags = CommandFlags.None)
