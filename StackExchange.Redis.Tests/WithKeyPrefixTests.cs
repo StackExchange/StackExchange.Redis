@@ -34,7 +34,7 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create())
             {
                 var raw = conn.GetDatabase(1);
-                var prefixed = raw.WithKeyPrefix((string)null);
+                var prefixed = raw.WithKeyPrefix((byte[])null);
             }
         }
         [Test, ExpectedException(typeof(ArgumentNullException))]
