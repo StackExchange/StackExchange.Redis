@@ -9,7 +9,7 @@ or
 
 > There doesn't seem to be a `Flush(...)` method? How can I remove all the keys in the database?
 
-The key word here, oddly enough, is the last one: database. Because StackExchange.Redis aims to target scenarios such as cluster, it is important to know which commands target the *database* (the logical database that could be distributed over multiple nodes), and which commands target the *server*. The folliowing commands all target a single server:
+The key word here, oddly enough, is the last one: database. Because StackExchange.Redis aims to target scenarios such as cluster, it is important to know which commands target the *database* (the logical database that could be distributed over multiple nodes), and which commands target the *server*. The following commands all target a single server:
 
 - `KEYS` / `SCAN`
 - `FLUSHDB` / `FLUSHALL`
