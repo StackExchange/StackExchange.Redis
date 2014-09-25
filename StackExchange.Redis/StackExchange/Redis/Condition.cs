@@ -9,6 +9,7 @@ namespace StackExchange.Redis
     /// </summary>
     public abstract class Condition
     {
+        internal abstract Condition MapKeys(Func<RedisKey,RedisKey> map);
 
         private Condition() { }
 
@@ -144,12 +145,14 @@ namespace StackExchange.Redis
 
         internal class ExistsCondition : Condition
         {
-            internal readonly bool expectedResult;
+            private readonly bool expectedResult;
+            private readonly RedisValue hashField;
+            private readonly RedisKey key;
 
-            internal readonly RedisValue hashField;
-
-            internal readonly RedisKey key;
-
+            internal override Condition MapKeys(Func<RedisKey,RedisKey> map)
+            {
+                return new ExistsCondition(map(key), hashField, expectedResult);
+            }
             public ExistsCondition(RedisKey key, RedisValue hashField, bool expectedResult)
             {
                 if (key.IsNull) throw new ArgumentException("key");
@@ -199,9 +202,14 @@ namespace StackExchange.Redis
 
         internal class EqualsCondition : Condition
         {
-            internal readonly bool expectedEqual;
-            internal readonly RedisValue hashField, expectedValue;
-            internal readonly RedisKey key;
+
+            internal override Condition MapKeys(Func<RedisKey,RedisKey> map)
+            {
+                return new EqualsCondition(map(key), hashField, expectedEqual, expectedValue);
+            }
+            private readonly bool expectedEqual;
+            private readonly RedisValue hashField, expectedValue;
+            private readonly RedisKey key;
             public EqualsCondition(RedisKey key, RedisValue hashField, bool expectedEqual, RedisValue expectedValue)
             {
                 if (key.IsNull) throw new ArgumentException("key");

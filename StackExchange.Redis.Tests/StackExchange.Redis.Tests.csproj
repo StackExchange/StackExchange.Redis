@@ -107,6 +107,7 @@
     <Compile Include="TestInfoReplicationChecks.cs" />
     <Compile Include="Transactions.cs" />
     <Compile Include="VPNTest.cs" />
+    <Compile Include="WithKeyPrefixTests.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

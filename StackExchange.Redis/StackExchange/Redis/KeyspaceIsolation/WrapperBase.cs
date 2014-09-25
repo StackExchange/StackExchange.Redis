@@ -644,7 +644,7 @@ namespace StackExchange.Redis.StackExchange.Redis.KeyspaceIsolation
             return this.Inner.ClientGetNameAsync(flags);
         }
 
-        protected RedisKey ToInner(RedisKey outer)
+        protected internal RedisKey ToInner(RedisKey outer)
         {
             return this.Prefix + outer;
         }
@@ -757,41 +757,11 @@ namespace StackExchange.Redis.StackExchange.Redis.KeyspaceIsolation
             return this.Prefix + outer;
         }
 
-        protected Condition ToInner(Condition outer)
+        private Func<RedisKey, RedisKey> mapFunction;
+        protected Func<RedisKey, RedisKey> GetMapFunction()
         {
-            Condition.ExistsCondition asExists = outer as Condition.ExistsCondition;
-
-            if (asExists != null)
-            {
-                return this.ToInner(asExists);
-            }
-
-            Condition.EqualsCondition asEquals = outer as Condition.EqualsCondition;
-
-            if (asEquals != null)
-            {
-                return this.ToInner(asEquals);
-            }
-            
-            throw new NotSupportedException(string.Format(CultureInfo.InvariantCulture,
-                "Unsupported condition: {0}", outer));
-        }
-
-        private Condition.ExistsCondition ToInner(Condition.ExistsCondition outer)
-        {
-            return new Condition.ExistsCondition(
-                this.ToInner(outer.key),
-                outer.hashField,
-                outer.expectedResult);
-        }
-
-        private Condition.EqualsCondition ToInner(Condition.EqualsCondition outer)
-        {
-            return new Condition.EqualsCondition(
-                this.ToInner(outer.key),
-                outer.hashField,
-                outer.expectedEqual,
-                outer.expectedValue);
+            // create as a delegate when first required, then re-use
+            return mapFunction ?? (mapFunction = new Func<RedisKey, RedisKey>(this.ToInner)); 
         }
     }
 }
