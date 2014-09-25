@@ -754,7 +754,7 @@ namespace StackExchange.Redis.StackExchange.Redis.KeyspaceIsolation
 
         protected RedisChannel ToInner(RedisChannel outer)
         {
-            return this.Prefix + outer;
+            return RedisKey.Concatenate((byte[])Prefix, (byte[])outer);
         }
 
         private Func<RedisKey, RedisKey> mapFunction;

@@ -201,18 +201,22 @@ namespace StackExchange.Redis
         /// </summary>
         public static RedisKey operator +(RedisKey x, RedisKey y)
         {
-            byte[] xVal = x.value, yVal = y.value;
+            return Concatenate(x.value, y.value);
+        }
+
+        internal static byte[] Concatenate(byte[] x, byte[] y)
+        {
             // either null? yield the other; note this includes the "both null becomes null" case
-            if (xVal == null) return y;
-            if (yVal == null) return x;
+            if (x == null) return y;
+            if (y == null) return x;
 
             // either empty? yield the other
-            if (xVal.Length == 0) return y;
-            if (yVal.Length == 0) return x;
+            if (x.Length == 0) return y;
+            if (y.Length == 0) return x;
 
-            byte[] result = new byte[xVal.Length + yVal.Length];
-            Buffer.BlockCopy(xVal, 0, result, 0, xVal.Length);
-            Buffer.BlockCopy(yVal, 0, result, xVal.Length, yVal.Length);
+            byte[] result = new byte[x.Length + y.Length];
+            Buffer.BlockCopy(x, 0, result, 0, x.Length);
+            Buffer.BlockCopy(y, 0, result, x.Length, y.Length);
             return result;
         }
     }
