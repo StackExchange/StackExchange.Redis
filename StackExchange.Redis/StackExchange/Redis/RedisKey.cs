@@ -202,11 +202,11 @@ namespace StackExchange.Redis
         public static RedisKey operator +(RedisKey x, RedisKey y)
         {
             byte[] xVal = x.value, yVal = y.value;
-            // either null? yeild the other; note this includes the "both null becomes null" case
+            // either null? yield the other; note this includes the "both null becomes null" case
             if (xVal == null) return y;
             if (yVal == null) return x;
 
-            // either empty? yeild the other; note this includes the "both null becomes null" case
+            // either empty? yield the other
             if (xVal.Length == 0) return y;
             if (yVal.Length == 0) return x;
 
