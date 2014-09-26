@@ -39,4 +39,6 @@ using System.Runtime.InteropServices;
 
 [assembly:CLSCompliant(true)]
 
+#if !STRONG_NAME
 [assembly:InternalsVisibleTo("StackExchange.Redis.Tests")]
+#endif
