@@ -6,12 +6,12 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis.StackExchange.Redis.KeyspaceIsolation
 {
-    internal abstract class WrapperBase<TInner> : IDatabaseAsync where TInner : IDatabaseAsync
+    internal class WrapperBase<TInner> : IDatabaseAsync where TInner : IDatabaseAsync
     {
         private readonly TInner _inner;
         private readonly RedisKey _prefix;
 
-        protected WrapperBase(TInner inner, RedisKey prefix)
+        internal WrapperBase(TInner inner, RedisKey prefix)
         {
             _inner = inner;
             _prefix = prefix;

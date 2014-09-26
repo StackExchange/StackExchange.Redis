@@ -38,3 +38,5 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyInformationalVersion("1.0.0.0")]
 
 [assembly:CLSCompliant(true)]
+
+[assembly:InternalsVisibleTo("StackExchange.Redis.Tests")]
