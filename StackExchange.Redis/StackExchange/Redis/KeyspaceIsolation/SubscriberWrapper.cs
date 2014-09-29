@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 
 namespace StackExchange.Redis.StackExchange.Redis.KeyspaceIsolation
@@ -9,8 +10,8 @@ namespace StackExchange.Redis.StackExchange.Redis.KeyspaceIsolation
     internal sealed class SubscriberWrapper : RedisWrapperBase<ISubscriber>, ISubscriber
     {
         // Stores outer->inner handler mappings. Needed to unsubscribe a specific outer handler.
-        private readonly Dictionary<Action<RedisChannel, RedisValue>, Action<RedisChannel, RedisValue>> _mappedHandlers =
-            new Dictionary<Action<RedisChannel, RedisValue>, Action<RedisChannel, RedisValue>>();
+        private readonly ConditionalWeakTable<Action<RedisChannel, RedisValue>, Action<RedisChannel, RedisValue>> _handlerMappings =
+            new ConditionalWeakTable<Action<RedisChannel, RedisValue>, Action<RedisChannel, RedisValue>>();
 
         // Stores active inner subscriptions. Needed to unsubscribe all.
         private readonly Dictionary<RedisChannel, Action<RedisChannel, RedisValue>> _innerSubscriptions =
@@ -146,18 +147,17 @@ namespace StackExchange.Redis.StackExchange.Redis.KeyspaceIsolation
                 return outer;
             }
 
-            lock (_mappedHandlers)
+            if (remember)
+            {
+                return _handlerMappings.GetValue(outer, this.CreateInnerHandler);
+            }
+            else
             {
                 Action<RedisChannel, RedisValue> inner;
 
-                if (!_mappedHandlers.TryGetValue(outer, out inner))
+                if (!_handlerMappings.TryGetValue(outer, out inner))
                 {
                     inner = this.CreateInnerHandler(outer);
-
-                    if (remember)
-                    {
-                        _mappedHandlers.Add(outer, inner);
-                    }
                 }
 
                 return inner;
