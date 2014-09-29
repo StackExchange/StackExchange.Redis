@@ -156,10 +156,14 @@
     <Compile Include="StackExchange\Redis\ShutdownMode.cs" />
     <Compile Include="StackExchange\Redis\SaveType.cs" />
     <Compile Include="StackExchange\Redis\KeyspaceIsolation\BatchWrapper.cs" />
-    <Compile Include="StackExchange\Redis\KeyspaceIsolation\DatabaseExtension.cs" />
+    <Compile Include="StackExchange\Redis\KeyspaceIsolation\DatabaseExtensions.cs" />
     <Compile Include="StackExchange\Redis\KeyspaceIsolation\DatabaseWrapper.cs" />
     <Compile Include="StackExchange\Redis\KeyspaceIsolation\TransactionWrapper.cs" />
-    <Compile Include="StackExchange\Redis\KeyspaceIsolation\WrapperBase.cs" />
+    <Compile Include="StackExchange\Redis\KeyspaceIsolation\DatabaseWrapperBase.cs" />
+    <Compile Include="StackExchange\Redis\KeyspaceIsolation\SubscriberExtensions.cs" />
+    <Compile Include="StackExchange\Redis\KeyspaceIsolation\SubscriberWrapper.cs" />
+    <Compile Include="StackExchange\Redis\KeyspaceIsolation\RedisWrapperBase.cs" />
+    <Compile Include="StackExchange\Redis\KeyspaceIsolation\ExtensionHelper.cs" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="StackExchange\Redis\SocketManager.Poll.cs">

@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis.StackExchange.Redis.KeyspaceIsolation
 {
-    internal sealed class TransactionWrapper : WrapperBase<ITransaction>, ITransaction
+    internal sealed class TransactionWrapper : DatabaseWrapperBase<ITransaction>, ITransaction
     {
         public TransactionWrapper(ITransaction inner, RedisKey prefix)
             : base(inner, prefix)

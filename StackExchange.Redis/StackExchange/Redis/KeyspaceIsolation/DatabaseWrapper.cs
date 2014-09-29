@@ -4,7 +4,7 @@ using System.Net;
 
 namespace StackExchange.Redis.StackExchange.Redis.KeyspaceIsolation
 {
-    internal sealed class DatabaseWrapper : WrapperBase<IDatabase>, IDatabase
+    internal sealed class DatabaseWrapper : DatabaseWrapperBase<IDatabase>, IDatabase
     {
         public DatabaseWrapper(IDatabase inner, RedisKey prefix)
             : base(inner, prefix)
@@ -622,7 +622,6 @@ namespace StackExchange.Redis.StackExchange.Redis.KeyspaceIsolation
         {
             return this.Inner.SortedSetScan(this.ToInner(key), pattern, pageSize, flags);
         }
-
 
 #if DEBUG
         public string ClientGetName(CommandFlags flags = CommandFlags.None)
