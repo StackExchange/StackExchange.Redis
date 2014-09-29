@@ -639,10 +639,12 @@ namespace StackExchange.Redis.StackExchange.Redis.KeyspaceIsolation
             this.Inner.WaitAll(tasks);
         }
 
+#if DEBUG
         public Task<string> ClientGetNameAsync(CommandFlags flags = CommandFlags.None)
         {
             return this.Inner.ClientGetNameAsync(flags);
         }
+#endif
 
         protected internal RedisKey ToInner(RedisKey outer)
         {
