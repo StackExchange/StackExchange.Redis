@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
 
@@ -77,13 +78,11 @@ namespace StackExchange.Redis.StackExchange.Redis.KeyspaceIsolation
             this.UnregisterInnerSubscription(innerChannel, innerHandler);
         }
 
-        public async Task UnsubscribeAsync(RedisChannel channel, Action<RedisChannel, RedisValue> handler = null, CommandFlags flags = CommandFlags.None)
+        public Task UnsubscribeAsync(RedisChannel channel, Action<RedisChannel, RedisValue> handler = null, CommandFlags flags = CommandFlags.None)
         {
             var innerChannel = this.ToInner(channel);
             var innerHandler = this.GetInnerHandler(handler, remember: false);
-
-            await this.Inner.UnsubscribeAsync(innerChannel, innerHandler, flags);
-            this.UnregisterInnerSubscription(innerChannel, innerHandler);
+            return this.InnerUnsubscribeAsync(innerChannel, innerHandler, flags);
         }
 
         public void UnsubscribeAll(CommandFlags flags = CommandFlags.None)
@@ -104,12 +103,10 @@ namespace StackExchange.Redis.StackExchange.Redis.KeyspaceIsolation
             {
                 taskList = new List<Task>(_innerSubscriptions.Count);
 
-                foreach (RedisChannel channel in _innerSubscriptions.Keys)
+                foreach (var entry in _innerSubscriptions.ToArray())
                 {
-                    taskList.Add(this.Inner.UnsubscribeAsync(channel, null, flags));
+                    taskList.Add(this.InnerUnsubscribeAsync(entry.Key, entry.Value, flags));
                 }
-
-                _innerSubscriptions.Clear();
             }
 
 #if NET40
@@ -117,6 +114,12 @@ namespace StackExchange.Redis.StackExchange.Redis.KeyspaceIsolation
 #else
             return Task.WhenAll(taskList);
 #endif
+        }
+
+        private async Task InnerUnsubscribeAsync(RedisChannel innerChannel, Action<RedisChannel, RedisValue> innerHandler = null, CommandFlags flags = CommandFlags.None)
+        {
+            await this.Inner.UnsubscribeAsync(innerChannel, innerHandler, flags);
+            this.UnregisterInnerSubscription(innerChannel, innerHandler);
         }
 
         public TimeSpan Ping(CommandFlags flags = CommandFlags.None)
@@ -218,6 +221,16 @@ namespace StackExchange.Redis.StackExchange.Redis.KeyspaceIsolation
             lock (_innerSubscriptions)
             {
                 return _innerSubscriptions.ContainsKey(channel);
+            }
+        }
+
+        internal Action<RedisChannel, RedisValue> GetInnerHandlerForChannel(RedisChannel channel)
+        {
+            lock (_innerSubscriptions)
+            {
+                Action<RedisChannel, RedisValue> handler;
+                _innerSubscriptions.TryGetValue(channel, out handler);
+                return handler;
             }
         }
 

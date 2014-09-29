@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq.Expressions;
 using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 using Moq;
 using NUnit.Framework;
@@ -134,11 +135,17 @@ namespace StackExchange.Redis.Tests
             Assert.IsFalse(wrapper.IsSubscribedToInnerChannel("c"));
             Assert.IsTrue(wrapper.IsSubscribedToInnerChannel("d"));
 
+            var handlerForA = wrapper.GetInnerHandlerForChannel("a");
+            var handlerForD = wrapper.GetInnerHandlerForChannel("d");
+
+            Assert.IsNotNull(handlerForA);
+            Assert.IsNotNull(handlerForD);
+
             wrapper.UnsubscribeAll(CommandFlags.HighPriority);
 
-            mock.Verify(_ => _.UnsubscribeAsync("a", null, CommandFlags.HighPriority), Times.Once());
+            mock.Verify(_ => _.UnsubscribeAsync("a", handlerForA, CommandFlags.HighPriority), Times.Once());
             mock.Verify(_ => _.UnsubscribeAsync("b", It.IsAny<Action<RedisChannel, RedisValue>>(), It.IsAny<CommandFlags>()), Times.Never());
-            mock.Verify(_ => _.UnsubscribeAsync("d", null, CommandFlags.HighPriority), Times.Once());
+            mock.Verify(_ => _.UnsubscribeAsync("d", handlerForD, CommandFlags.HighPriority), Times.Once());
             mock.Verify(_ => _.UnsubscribeAsync("c", It.IsAny<Action<RedisChannel, RedisValue>>(), It.IsAny<CommandFlags>()), Times.Never());
         }
 
@@ -166,12 +173,18 @@ namespace StackExchange.Redis.Tests
             Assert.IsFalse(wrapper.IsSubscribedToInnerChannel("c"));
             Assert.IsTrue(wrapper.IsSubscribedToInnerChannel("d"));
 
+            var handlerForA = wrapper.GetInnerHandlerForChannel("a");
+            var handlerForD = wrapper.GetInnerHandlerForChannel("d");
+
+            Assert.IsNotNull(handlerForA);
+            Assert.IsNotNull(handlerForD);
+
             Task task = wrapper.UnsubscribeAllAsync(CommandFlags.HighPriority);
             task.Wait();
 
-            mock.Verify(_ => _.UnsubscribeAsync("a", null, CommandFlags.HighPriority), Times.Once());
+            mock.Verify(_ => _.UnsubscribeAsync("a", handlerForA, CommandFlags.HighPriority), Times.Once());
             mock.Verify(_ => _.UnsubscribeAsync("b", It.IsAny<Action<RedisChannel, RedisValue>>(), It.IsAny<CommandFlags>()), Times.Never());
-            mock.Verify(_ => _.UnsubscribeAsync("d", null, CommandFlags.HighPriority), Times.Once());
+            mock.Verify(_ => _.UnsubscribeAsync("d", handlerForD, CommandFlags.HighPriority), Times.Once());
             mock.Verify(_ => _.UnsubscribeAsync("c", It.IsAny<Action<RedisChannel, RedisValue>>(), It.IsAny<CommandFlags>()), Times.Never());
         }
 
@@ -358,6 +371,201 @@ namespace StackExchange.Redis.Tests
             }
 
             Assert.IsTrue(wrapper.IsSubscribedToInnerChannel("prefix:channel"));
+        }
+
+        [Test]
+        public void Duplicate_handler_registration()
+        {
+            int invocationsOfA = 0, invocationsOfB = 0;
+            Action<RedisChannel, RedisValue> handlerA = (channel, message) => { ++invocationsOfA; };
+            Action<RedisChannel, RedisValue> handlerB = (channel, message) => { ++invocationsOfB; };
+
+            wrapper.RegisterInnerSubscription("channel", handlerA);
+            wrapper.RegisterInnerSubscription("channel", handlerB);
+            wrapper.RegisterInnerSubscription("channel", handlerA);
+            wrapper.RegisterInnerSubscription("channel", handlerA);
+
+            Assert.IsTrue(wrapper.IsSubscribedToInnerChannel("channel"));
+            wrapper.GetInnerHandlerForChannel("channel")("channel", default(RedisValue));
+
+            Assert.AreEqual(3, invocationsOfA);
+            Assert.AreEqual(1, invocationsOfB);
+
+            wrapper.UnregisterInnerSubscription("channel", handlerA);
+            wrapper.UnregisterInnerSubscription("channel", handlerB);
+            wrapper.UnregisterInnerSubscription("channel", handlerA);
+
+            Assert.IsTrue(wrapper.IsSubscribedToInnerChannel("channel"));
+            wrapper.GetInnerHandlerForChannel("channel")("channel", default(RedisValue));
+
+            Assert.AreEqual(4, invocationsOfA);
+            Assert.AreEqual(1, invocationsOfB);
+
+            wrapper.UnregisterInnerSubscription("channel", handlerA);
+
+            Assert.IsFalse(wrapper.IsSubscribedToInnerChannel("channel"));
+            Assert.IsNull(wrapper.GetInnerHandlerForChannel("channel"));
+        }
+
+        [Test]
+        public void Concurrent_subscribe_unsubscribe_1()
+        {
+            using (ManualResetEvent evt = new ManualResetEvent(false))
+            {
+                mock.Setup(_ => _.SubscribeAsync(It.IsAny<RedisChannel>(), It.IsAny<Action<RedisChannel, RedisValue>>(), It.IsAny<CommandFlags>()))
+                    .Returns(() => Task.Factory.StartNew(() => evt.WaitOne()));
+
+                Action<RedisChannel, RedisValue> handlerA = (channel, message) => { };
+                Action<RedisChannel, RedisValue> handlerB = (channel, message) => { };
+
+                // Begin subscribing to channel
+                var task = wrapper.SubscribeAsync("channel", handlerA);
+
+                // Subscription should not be in effect yet
+                Assert.IsFalse(wrapper.IsSubscribedToInnerChannel("prefix:channel"));
+
+                // Concurrently subscribe to channel with another handler
+                wrapper.Subscribe("channel", handlerB);
+
+                // Run task in background
+                evt.Set();
+                task.Wait();
+                evt.Reset();
+
+                // Both subscriptions should be in effect
+                Assert.IsTrue(wrapper.IsSubscribedToInnerChannel("prefix:channel"));
+                Assert.AreNotSame(wrapper.GetInnerHandler(handlerB), wrapper.GetInnerHandlerForChannel("prefix:channel"));
+
+                // Begin unsubscribing both handlers
+                task = wrapper.UnsubscribeAsync("channel");
+
+                // Concurrently resubscribe to channel with handler B
+                wrapper.Subscribe("channel", handlerB);
+
+                // Run task in background
+                evt.Set();
+                task.Wait();
+                evt.Reset();
+
+                // Subscription should still be active for handler B
+                Assert.IsTrue(wrapper.IsSubscribedToInnerChannel("prefix:channel"));
+                Assert.AreSame(wrapper.GetInnerHandler(handlerB), wrapper.GetInnerHandlerForChannel("prefix:channel"));
+
+                // Begin subscribing with handler A
+                task = wrapper.SubscribeAsync("channel", handlerA);
+
+                // Concurrently unsubscribe both handlers
+                wrapper.Unsubscribe("channel");
+
+                // At this intermediate point there should be no subscription
+                Assert.IsFalse(wrapper.IsSubscribedToInnerChannel("prefix:channel"));
+
+                // Run task in background
+                evt.Set();
+                task.Wait();
+                evt.Reset();
+
+                // Subscription should be active for handler A
+                Assert.IsTrue(wrapper.IsSubscribedToInnerChannel("prefix:channel"));
+                Assert.AreSame(wrapper.GetInnerHandler(handlerA), wrapper.GetInnerHandlerForChannel("prefix:channel"));
+            }
+        }
+
+        [Test]
+        public void Concurrent_subscribe_unsubscribe_2()
+        {
+            using (ManualResetEvent evt = new ManualResetEvent(false))
+            {
+                mock.Setup(_ => _.SubscribeAsync(It.IsAny<RedisChannel>(), It.IsAny<Action<RedisChannel, RedisValue>>(), It.IsAny<CommandFlags>()))
+                    .Returns(() => Task.Factory.StartNew(() => evt.WaitOne()));
+
+                Action<RedisChannel, RedisValue> handlerA = (channel, message) => { };
+                Action<RedisChannel, RedisValue> handlerB = (channel, message) => { };
+
+                // Begin subscribing to channel
+                var task = wrapper.SubscribeAsync("channel", handlerA);
+
+                // Subscription should not be in effect yet
+                Assert.IsFalse(wrapper.IsSubscribedToInnerChannel("prefix:channel"));
+
+                // Concurrently subscribe to channel with another handler
+                wrapper.Subscribe("channel", handlerB);
+
+                // Run task in background
+                evt.Set();
+                task.Wait();
+                evt.Reset();
+
+                // Both subscriptions should be in effect
+                Assert.IsTrue(wrapper.IsSubscribedToInnerChannel("prefix:channel"));
+                Assert.AreNotSame(wrapper.GetInnerHandler(handlerB), wrapper.GetInnerHandlerForChannel("prefix:channel"));
+
+                // Begin unsubscribing both handlers
+                task = wrapper.UnsubscribeAllAsync();
+
+                // Concurrently resubscribe to channel with handler B
+                wrapper.Subscribe("channel", handlerB);
+
+                // Run task in background
+                evt.Set();
+                task.Wait();
+                evt.Reset();
+
+                // Subscription should still be active for handler B
+                Assert.IsTrue(wrapper.IsSubscribedToInnerChannel("prefix:channel"));
+                Assert.AreSame(wrapper.GetInnerHandler(handlerB), wrapper.GetInnerHandlerForChannel("prefix:channel"));
+
+                // Begin subscribing with handler A
+                task = wrapper.SubscribeAsync("channel", handlerA);
+
+                // Concurrently unsubscribe both handlers
+                wrapper.UnsubscribeAll();
+
+                // At this intermediate point there should be no subscription
+                Assert.IsFalse(wrapper.IsSubscribedToInnerChannel("prefix:channel"));
+
+                // Run task in background
+                evt.Set();
+                task.Wait();
+                evt.Reset();
+
+                // Subscription should be active for handler A
+                Assert.IsTrue(wrapper.IsSubscribedToInnerChannel("prefix:channel"));
+                Assert.AreSame(wrapper.GetInnerHandler(handlerA), wrapper.GetInnerHandlerForChannel("prefix:channel"));
+            }
+        }
+
+        [Test]
+        public void Unsubscribe_all_with_sporadic_inner_exceptions()
+        {
+            Action<RedisChannel, RedisValue> handler = (channel, message) => { };
+
+            mock.Setup(_ => _.UnsubscribeAsync("prefix:a", handler, CommandFlags.None))
+                .Returns(() => Task.Factory.StartNew(() => { /*ok*/ }));
+
+            mock.Setup(_ => _.UnsubscribeAsync("prefix:b", handler, CommandFlags.None))
+                .Returns(() => Task.Factory.StartNew(() => { throw new DummyException(); }));
+
+            mock.Setup(_ => _.UnsubscribeAsync("prefix:c", handler, CommandFlags.None))
+                .Returns(() => Task.Factory.StartNew(() => { /*ok*/ }));
+
+            wrapper.RegisterInnerSubscription("prefix:a", handler);
+            wrapper.RegisterInnerSubscription("prefix:b", handler);
+            wrapper.RegisterInnerSubscription("prefix:c", handler);
+
+            Assert.IsTrue(wrapper.IsSubscribedToInnerChannel("prefix:a"));
+            Assert.IsTrue(wrapper.IsSubscribedToInnerChannel("prefix:b"));
+            Assert.IsTrue(wrapper.IsSubscribedToInnerChannel("prefix:c"));
+
+            wrapper.UnsubscribeAll();
+
+            mock.Verify(_ => _.UnsubscribeAsync("prefix:a", handler, CommandFlags.None), Times.Once());
+            mock.Verify(_ => _.UnsubscribeAsync("prefix:b", handler, CommandFlags.None), Times.Once());
+            mock.Verify(_ => _.UnsubscribeAsync("prefix:c", handler, CommandFlags.None), Times.Once());
+
+            Assert.IsFalse(wrapper.IsSubscribedToInnerChannel("prefix:a"));
+            Assert.IsTrue(wrapper.IsSubscribedToInnerChannel("prefix:b"));
+            Assert.IsFalse(wrapper.IsSubscribedToInnerChannel("prefix:c"));
         }
 
         private sealed class DummyException : Exception { }
