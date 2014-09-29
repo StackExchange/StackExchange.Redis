@@ -161,7 +161,7 @@ namespace StackExchange.Redis.StackExchange.Redis.KeyspaceIsolation
             }
         }
 
-        private bool TryGetOuterHandler(RedisChannel inner, out RedisChannel outer)
+        private bool TryGetOuter(RedisChannel inner, out RedisChannel outer)
         {
             byte[] prefix = this.Prefix.Value;
 
@@ -206,7 +206,7 @@ namespace StackExchange.Redis.StackExchange.Redis.KeyspaceIsolation
                 RedisChannel outerChannel;
 
                 // Invoke outer handler only if the inner channel can be properly 'unprefixed'
-                if (this.TryGetOuterHandler(innerChannel, out outerChannel))
+                if (this.TryGetOuter(innerChannel, out outerChannel))
                 {
                     outerHandler(outerChannel, value);
                 }
