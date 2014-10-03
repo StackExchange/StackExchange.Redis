@@ -618,6 +618,7 @@ namespace StackExchange.Redis
                 case TypeCode.UInt16: return (ushort)this;
                 case TypeCode.UInt32: return (uint)this;
                 case TypeCode.UInt64: return (long)this;
+                case TypeCode.Object: return this;
                 default:
                     throw new NotSupportedException();
             }
