@@ -6,7 +6,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// Represents values that can be stored in redis
     /// </summary>
-    public struct RedisValue : IEquatable<RedisValue>, IComparable<RedisValue>, IComparable
+    public struct RedisValue : IEquatable<RedisValue>, IComparable<RedisValue>, IComparable, IConvertible
     {
         internal static readonly RedisValue[] EmptyArray = new RedisValue[0];
 
@@ -529,6 +529,113 @@ namespace StackExchange.Redis
                 return Encoding.UTF8.GetBytes(Format.ToString(value.valueInt64));
             }
             return valueBlob;
+        }
+
+        TypeCode IConvertible.GetTypeCode()
+        {
+            return TypeCode.Object;
+        }
+
+        bool IConvertible.ToBoolean(IFormatProvider provider)
+        {
+            return (bool)this;
+        }
+
+        byte IConvertible.ToByte(IFormatProvider provider)
+        {
+            return (byte)this;
+        }
+
+        char IConvertible.ToChar(IFormatProvider provider)
+        {
+            return (char)this;
+        }
+
+        DateTime IConvertible.ToDateTime(IFormatProvider provider)
+        {
+            return DateTime.Parse((string)this, provider);
+        }
+
+        decimal IConvertible.ToDecimal(IFormatProvider provider)
+        {
+            return (decimal)this;
+        }
+
+        double IConvertible.ToDouble(IFormatProvider provider)
+        {
+            return (double)this;
+        }
+
+        short IConvertible.ToInt16(IFormatProvider provider)
+        {
+            return (short)this;
+        }
+
+        int IConvertible.ToInt32(IFormatProvider provider)
+        {
+            return (int)this;
+        }
+
+        long IConvertible.ToInt64(IFormatProvider provider)
+        {
+            return (long)this;
+        }
+
+        sbyte IConvertible.ToSByte(IFormatProvider provider)
+        {
+            return (sbyte)this;
+        }
+
+        float IConvertible.ToSingle(IFormatProvider provider)
+        {
+            return (float)this;
+        }
+
+        string IConvertible.ToString(IFormatProvider provider)
+        {
+            return (string)this;
+        }
+
+        object IConvertible.ToType(Type conversionType, IFormatProvider provider)
+        {
+            if (conversionType== null) throw new ArgumentNullException("conversionType");
+            if (conversionType== typeof(byte[])) return (byte[])this;
+            if (conversionType == typeof(RedisValue)) return this;
+            switch(Type.GetTypeCode(conversionType))
+            {
+                case TypeCode.Boolean: return (bool)this;
+                case TypeCode.Byte: return (byte)this;
+                case TypeCode.Char: return (char)this;
+                case TypeCode.DateTime: return DateTime.Parse((string)this, provider);
+                case TypeCode.Decimal: return (decimal)this;
+                case TypeCode.Double: return (double)this;
+                case TypeCode.Int16: return (short)this;
+                case TypeCode.Int32: return (int)this;
+                case TypeCode.Int64: return (long)this;
+                case TypeCode.SByte: return (sbyte)this;
+                case TypeCode.Single: return (float)this;
+                case TypeCode.String: return (string)this;
+                case TypeCode.UInt16: return (ushort)this;
+                case TypeCode.UInt32: return (uint)this;
+                case TypeCode.UInt64: return (long)this;
+                default:
+                    throw new NotSupportedException();
+            }
+        }
+
+        ushort IConvertible.ToUInt16(IFormatProvider provider)
+        {
+            return (ushort)this;
+        }
+
+        uint IConvertible.ToUInt32(IFormatProvider provider)
+        {
+            return (uint)this;
+        }
+
+        ulong IConvertible.ToUInt64(IFormatProvider provider)
+        {
+            return (ulong)this;
         }
     }
 }

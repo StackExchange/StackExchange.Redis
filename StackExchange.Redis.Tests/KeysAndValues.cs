@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using NUnit.Framework;
+using System.Globalization;
 
 namespace StackExchange.Redis.Tests
 {
@@ -112,6 +113,40 @@ namespace StackExchange.Redis.Tests
             CheckSame(value, default(RedisValue));
             CheckSame(value, (string)null);
             CheckSame(value, (byte[])null);
+        }
+
+
+        [Test]
+        public void ValuesAreConvertible()
+        {
+            RedisValue val = 123;
+            object o = val;
+            byte[] blob = (byte[])Convert.ChangeType(o, typeof(byte[]));
+
+            Assert.AreEqual(3, blob.Length);
+            Assert.AreEqual((byte)'1', blob[0]);
+            Assert.AreEqual((byte)'2', blob[1]);
+            Assert.AreEqual((byte)'3', blob[2]);
+
+            Assert.AreEqual((double)123, Convert.ToDouble(o));
+
+            IConvertible c = (IConvertible)o;
+            Assert.AreEqual((short)123, c.ToInt16(CultureInfo.InvariantCulture));
+            Assert.AreEqual((int)123, c.ToInt32(CultureInfo.InvariantCulture));
+            Assert.AreEqual((long)123, c.ToInt64(CultureInfo.InvariantCulture));
+            Assert.AreEqual((float)123, c.ToSingle(CultureInfo.InvariantCulture));
+            Assert.AreEqual("123", c.ToString(CultureInfo.InvariantCulture));
+            Assert.AreEqual((double)123, c.ToDouble(CultureInfo.InvariantCulture));
+            Assert.AreEqual((decimal)123, c.ToDecimal(CultureInfo.InvariantCulture));
+            Assert.AreEqual((ushort)123, c.ToUInt16(CultureInfo.InvariantCulture));
+            Assert.AreEqual((uint)123, c.ToUInt32(CultureInfo.InvariantCulture));
+            Assert.AreEqual((ulong)123, c.ToUInt64(CultureInfo.InvariantCulture));
+
+            blob = (byte[])c.ToType(typeof(byte[]), CultureInfo.InvariantCulture);
+            Assert.AreEqual(3, blob.Length);
+            Assert.AreEqual((byte)'1', blob[0]);
+            Assert.AreEqual((byte)'2', blob[1]);
+            Assert.AreEqual((byte)'3', blob[2]);
         }
     }
 }
