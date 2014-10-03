@@ -148,5 +148,18 @@ namespace StackExchange.Redis.Tests
             Assert.AreEqual((byte)'2', blob[1]);
             Assert.AreEqual((byte)'3', blob[2]);
         }
+
+        [Test]
+        public void CanBeDynamic()
+        {
+            RedisValue val = "abc";
+            object o = val;
+            dynamic d = o;
+            byte[] blob = (byte[])d; // could be in a try/catch
+            Assert.AreEqual(3, blob.Length);
+            Assert.AreEqual((byte)'a', blob[0]);
+            Assert.AreEqual((byte)'b', blob[1]);
+            Assert.AreEqual((byte)'c', blob[2]);
+        }
     }
 }
