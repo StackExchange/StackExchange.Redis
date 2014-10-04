@@ -146,10 +146,14 @@
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\TaskSource.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\When.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\KeyspaceIsolation\BatchWrapper.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\KeyspaceIsolation\DatabaseExtension.cs" />
+    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\KeyspaceIsolation\DatabaseExtensions.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\KeyspaceIsolation\DatabaseWrapper.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\KeyspaceIsolation\TransactionWrapper.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\KeyspaceIsolation\WrapperBase.cs" />
+    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\KeyspaceIsolation\DatabaseWrapperBase.cs" />
+    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\KeyspaceIsolation\SubscriberExtensions.cs" />
+    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\KeyspaceIsolation\SubscriberWrapper.cs" />
+    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\KeyspaceIsolation\RedisWrapperBase.cs" />
+    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\KeyspaceIsolation\ExtensionHelper.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />

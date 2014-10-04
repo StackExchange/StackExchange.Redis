@@ -14,7 +14,7 @@ namespace StackExchange.Redis.Tests
         private Mock<IDatabase> mock;
         private DatabaseWrapper wrapper;
 
-        [TestFixtureSetUp]
+        [SetUp]
         public void Initialize()
         {
             mock = new Mock<IDatabase>();

@@ -695,7 +695,7 @@ namespace StackExchange.Redis
             }
         }
 
-        static ConnectionMultiplexer CreateMultiplexer(object configuration)
+        internal static ConnectionMultiplexer CreateMultiplexer(object configuration)
         {
             if (configuration == null) throw new ArgumentNullException("configuration");
             ConfigurationOptions config;

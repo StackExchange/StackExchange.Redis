@@ -66,7 +66,9 @@
   <ItemGroup>
     <Compile Include="AsyncTests.cs" />
     <Compile Include="BasicOps.cs" />
-    <Compile Include="WrapperBaseTests.cs" />
+    <Compile Include="SubscriberWrapperTests.cs" />
+    <Compile Include="RedisWrapperBaseTests.cs" />
+    <Compile Include="DatabaseWrapperBaseTests.cs" />
     <Compile Include="TransactionWrapperTests.cs" />
     <Compile Include="Bits.cs" />
     <Compile Include="Cluster.cs" />
