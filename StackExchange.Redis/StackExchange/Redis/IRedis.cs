@@ -16,6 +16,27 @@ namespace StackExchange.Redis
         TimeSpan Ping(CommandFlags flags = CommandFlags.None);
     }
 
+    /// <summary>
+    /// Represents a resumable, cursor-based scanning operation
+    /// </summary>
+    public interface IScanning
+    {
+        /// <summary>
+        /// Returns the cursor that represents the *active* page of results (not the pending/next page of results)
+        /// </summary>
+        long CurrentCursor { get; }
+
+        /// <summary>
+        /// Returns the cursor for the *pending/next* page of results
+        /// </summary>
+        long NextCursor { get; }
+
+        /// <summary>
+        /// The page size of the current operation
+        /// </summary>
+        int PageSize { get; }
+    }
+
     [Conditional("DEBUG")]
     [AttributeUsage(AttributeTargets.Method, AllowMultiple = false, Inherited = true)]
     internal class IgnoreNamePrefixAttribute : Attribute

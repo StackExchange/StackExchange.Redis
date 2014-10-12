@@ -1,11 +1,144 @@
 ﻿using System.Linq;
 using NUnit.Framework;
+using System;
+using System.Threading;
+using System.Collections.Generic;
 
 namespace StackExchange.Redis.Tests
 {
     [TestFixture]
     public class Scans : TestBase
     {
+        [Test]
+        [TestCase(true)]
+        [TestCase(false)]
+        public void KeysScan(bool supported)
+        {
+            string[] disabledCommands = supported ? null : new[] { "scan" };
+            using (var conn = Create(disabledCommands: disabledCommands, allowAdmin: true))
+            {
+                const int DB = 7;
+                var db = conn.GetDatabase(DB);
+                var server = GetServer(conn);
+                server.FlushDatabase(DB);
+                for(int i = 0 ; i < 100 ; i++)
+                {
+                    db.StringSet("KeysScan:" + i, Guid.NewGuid().ToString(), flags: CommandFlags.FireAndForget);
+                }
+                var seq = server.Keys(DB, pageSize:50);
+                bool isScanning = seq is IScanning;
+                Assert.AreEqual(supported, isScanning, "scanning");
+                Assert.AreEqual(100, seq.Distinct().Count());
+                Assert.AreEqual(100, seq.Distinct().Count());
+                Assert.AreEqual(100, server.Keys(DB, "KeysScan:*").Distinct().Count());
+                // 7, 70, 71, ..., 79
+                Assert.AreEqual(11, server.Keys(DB, "KeysScan:7*").Distinct().Count());
+            }
+        }
+
+
+        public void ScansIScanning()
+        {
+            using (var conn = Create(allowAdmin: true))
+            {
+                const int DB = 7;
+                var db = conn.GetDatabase(DB);
+                var server = GetServer(conn);
+                server.FlushDatabase(DB);
+                for (int i = 0; i < 100; i++)
+                {
+                    db.StringSet("ScansRepeatable:" + i, Guid.NewGuid().ToString(), flags: CommandFlags.FireAndForget);
+                }
+                var seq = server.Keys(DB, pageSize: 15);
+                using(var iter = seq.GetEnumerator())
+                {
+                    IScanning s0 = (IScanning)seq, s1 = (IScanning)iter;
+
+                    Assert.AreEqual(15, s0.PageSize);
+                    Assert.AreEqual(15, s1.PageSize);
+
+                    // start at zero                    
+                    Assert.AreEqual(0, s0.CurrentCursor);
+                    Assert.AreEqual(0, s0.NextCursor);
+                    Assert.AreEqual(s0.CurrentCursor, s1.CurrentCursor);
+                    Assert.AreEqual(s0.NextCursor, s1.NextCursor);
+
+                    for(int i = 0 ; i < 47 ; i++)
+                    {
+                        Assert.IsTrue(iter.MoveNext());
+                    }
+
+                    // non-zero in the middle
+                    Assert.AreNotEqual(0, s0.CurrentCursor);
+                    Assert.AreNotEqual(0, s0.NextCursor);
+                    Assert.AreEqual(s0.CurrentCursor, s1.CurrentCursor);
+                    Assert.AreEqual(s0.NextCursor, s1.NextCursor);
+                    Assert.AreNotEqual(s1.CurrentCursor, s1.NextCursor, "iter");
+                    Assert.AreNotEqual(s0.CurrentCursor, s0.NextCursor, "seq");
+
+                    for (int i = 0; i < 53; i++)
+                    {
+                        Assert.IsTrue(iter.MoveNext());
+                    }
+
+                    // zero "next" at the end
+                    Assert.IsFalse(iter.MoveNext());
+                    Assert.AreEqual(0, s0.NextCursor);
+                    Assert.AreEqual(0, s1.NextCursor);
+                    Assert.AreNotEqual(0, s0.CurrentCursor);
+                    Assert.AreNotEqual(0, s1.CurrentCursor);                    
+                }
+            }
+        }
+
+        public void ScanResume()
+        {
+            using (var conn = Create(allowAdmin: true))
+            {
+                const int DB = 7;
+                var db = conn.GetDatabase(DB);
+                var server = GetServer(conn);
+                server.FlushDatabase(DB);
+                int i;
+                for (i = 0; i < 100; i++)
+                {
+                    db.StringSet("ScanResume:" + i, Guid.NewGuid().ToString(), flags: CommandFlags.FireAndForget);
+                }
+                
+                var expected = new HashSet<string>();
+                long snap = 0;
+
+                i = 0;
+                var seq = server.Keys(DB, pageSize: 15);
+                foreach(var key in seq)
+                {
+                    i++;
+                    if (i < 57) continue;
+                    if (i == 57)
+                    {
+                        snap = ((IScanning)seq).CurrentCursor;
+                    }
+                    expected.Add((string)key);
+                }                
+                Assert.AreNotEqual(43, expected.Count);
+                Assert.AreNotEqual(0, snap);
+
+                seq = server.Keys(DB, pageSize: 15, cursor: snap);
+                int count = 0;
+                foreach(var key in seq)
+                {
+                    expected.Remove((string)key);
+                    count++;
+                }
+                Assert.AreEqual(0, expected.Count);
+                Assert.AreEqual(55, count); // expect some overlap due to paged, etc
+
+            }
+        }
+
+
+       
+
         [Test]
         [TestCase(true)]
         [TestCase(false)]
