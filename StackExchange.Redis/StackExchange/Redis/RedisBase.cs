@@ -141,9 +141,9 @@ namespace StackExchange.Redis
         }
 
 
-        internal abstract class CursorEnumerableBase
+        internal abstract class CursorEnumerable
         {
-            internal const int DefaultPageSize = 10;
+            internal const int Origin = 0, DefaultPageSize = 10;
             internal static bool IsNil(RedisValue pattern)
             {
                 if (pattern.IsNullOrEmpty) return true;
@@ -152,7 +152,7 @@ namespace StackExchange.Redis
                 return rawValue.Length == 1 && rawValue[0] == '*';
             }
         }
-        internal abstract class CursorEnumerableBase<T> : CursorEnumerableBase, IEnumerable<T>, IScanning
+        internal abstract class CursorEnumerable<T> : CursorEnumerable, IEnumerable<T>, IScanning
         {
             private readonly RedisBase redis;
             private readonly ServerEndPoint server;
@@ -161,7 +161,7 @@ namespace StackExchange.Redis
             protected readonly int pageSize;
             protected readonly long initialCursor;
 
-            protected CursorEnumerableBase(RedisBase redis, ServerEndPoint server, int db, int pageSize, long cursor, CommandFlags flags)
+            protected CursorEnumerable(RedisBase redis, ServerEndPoint server, int db, int pageSize, long cursor, CommandFlags flags)
             {
                 this.redis = redis;
                 this.server = server;
@@ -217,8 +217,8 @@ namespace StackExchange.Redis
 
             class CursorEnumerator : IEnumerator<T>, IScanning
             {
-                private CursorEnumerableBase<T> parent;
-                public CursorEnumerator(CursorEnumerableBase<T> parent)
+                private CursorEnumerable<T> parent;
+                public CursorEnumerator(CursorEnumerable<T> parent)
                 {
                     if (parent == null) throw new ArgumentNullException("parent");
                     this.parent = parent;

@@ -148,7 +148,7 @@ namespace StackExchange.Redis.Tests
         [Test]
         public void HashScan()
         {
-            wrapper.HashScan("key", "pattern", 123, CommandFlags.HighPriority);
+            wrapper.HashScan("key", "pattern", 123, flags: CommandFlags.HighPriority);
             mock.Verify(_ => _.HashScan("prefix:key", "pattern", 123, CommandFlags.HighPriority));
         }
 
@@ -603,7 +603,7 @@ namespace StackExchange.Redis.Tests
         [Test]
         public void SetScan()
         {
-            wrapper.SetScan("key", "pattern", 123, CommandFlags.HighPriority);
+            wrapper.SetScan("key", "pattern", 123, flags: CommandFlags.HighPriority);
             mock.Verify(_ => _.SetScan("prefix:key", "pattern", 123, CommandFlags.HighPriority));
         }
 
@@ -773,7 +773,7 @@ namespace StackExchange.Redis.Tests
         [Test]
         public void SortedSetScan()
         {
-            wrapper.SortedSetScan("key", "pattern", 123, CommandFlags.HighPriority);
+            wrapper.SortedSetScan("key", "pattern", 123, flags: CommandFlags.HighPriority);
             mock.Verify(_ => _.SortedSetScan("prefix:key", "pattern", 123, CommandFlags.HighPriority));
         }
 

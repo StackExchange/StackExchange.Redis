@@ -271,13 +271,13 @@ namespace StackExchange.Redis
 
         IEnumerable<RedisKey> IServer.Keys(int database, RedisValue pattern, int pageSize, CommandFlags flags)
         {
-            return Keys(database, pattern, pageSize, 0, flags);
+            return Keys(database, pattern, pageSize, CursorEnumerable.Origin, flags);
         }
 
-        public IEnumerable<RedisKey> Keys(int database = 0, RedisValue pattern = default(RedisValue), int pageSize = CursorEnumerableBase.DefaultPageSize, long cursor = 0, CommandFlags flags = CommandFlags.None)
+        public IEnumerable<RedisKey> Keys(int database = 0, RedisValue pattern = default(RedisValue), int pageSize = CursorEnumerable.DefaultPageSize, long cursor = CursorEnumerable.Origin, CommandFlags flags = CommandFlags.None)
         {
             if (pageSize <= 0) throw new ArgumentOutOfRangeException("pageSize");
-            if (CursorEnumerableBase.IsNil(pattern)) pattern = RedisLiterals.Wildcard;
+            if (CursorEnumerable.IsNil(pattern)) pattern = RedisLiterals.Wildcard;
 
             if (multiplexer.CommandMap.IsAvailable(RedisCommand.SCAN))
             {
@@ -286,7 +286,7 @@ namespace StackExchange.Redis
                 if (features.Scan) return new KeysScanEnumerable(this, database, pattern, pageSize, cursor, flags);
             }
 
-            if (cursor != 0) throw new InvalidOperationException("A cursor cannot be used with KEYS");
+            if (cursor != 0) throw ExceptionFactory.NoCursor(RedisCommand.KEYS);
             Message msg = Message.Create(database, flags, RedisCommand.KEYS, pattern);
             return ExecuteSync(msg, ResultProcessor.RedisKeyArray);
         }
@@ -640,7 +640,7 @@ namespace StackExchange.Redis
             }
         }
 
-        sealed class KeysScanEnumerable : CursorEnumerableBase<RedisKey>
+        sealed class KeysScanEnumerable : CursorEnumerable<RedisKey>
         {
             private readonly RedisValue pattern;
 
