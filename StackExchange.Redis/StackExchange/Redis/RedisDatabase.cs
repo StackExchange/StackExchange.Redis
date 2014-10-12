@@ -287,9 +287,25 @@ namespace StackExchange.Redis
             return ExecuteSync(cmd, ResultProcessor.Int64);
         }
 
+        public long HyperLogLogLength(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
+        {
+            if (keys == null) throw new ArgumentNullException("keys");
+
+            var cmd = Message.Create(Db, flags, RedisCommand.PFCOUNT, keys);
+            return ExecuteSync(cmd, ResultProcessor.Int64);
+        }
+
         public Task<long> HyperLogLogLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             var cmd = Message.Create(Db, flags, RedisCommand.PFCOUNT, key);
+            return ExecuteAsync(cmd, ResultProcessor.Int64);
+        }
+
+        public Task<long> HyperLogLogLengthAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
+        {
+            if (keys == null) throw new ArgumentNullException("keys");
+
+            var cmd = Message.Create(Db, flags, RedisCommand.PFCOUNT, keys);
             return ExecuteAsync(cmd, ResultProcessor.Int64);
         }
 

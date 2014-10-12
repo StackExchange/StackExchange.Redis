@@ -148,6 +148,13 @@ namespace StackExchange.Redis
         Task<long> HyperLogLogLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Returns the approximated cardinality of the union of the HyperLogLogs passed, by internally merging the HyperLogLogs stored at the provided keys into a temporary hyperLogLog, or 0 if the variable does not exist.
+        /// </summary>
+        /// <returns>The approximated number of unique elements observed via HyperLogLogAdd.</returns>
+        /// <remarks>http://redis.io/commands/pfcount</remarks>
+        Task<long> HyperLogLogLengthAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Merge multiple HyperLogLog values into an unique value that will approximate the cardinality of the union of the observed Sets of the source HyperLogLog structures.
         /// </summary>
         /// <remarks>http://redis.io/commands/pfmerge</remarks>

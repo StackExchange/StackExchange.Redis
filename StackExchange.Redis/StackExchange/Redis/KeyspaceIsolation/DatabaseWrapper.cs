@@ -121,6 +121,11 @@ namespace StackExchange.Redis.StackExchange.Redis.KeyspaceIsolation
             return this.Inner.HyperLogLogLength(this.ToInner(key), flags);
         }
 
+        public long HyperLogLogLength(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
+        {
+            return this.Inner.HyperLogLogLength(this.ToInner(keys), flags);
+        }
+
         public void HyperLogLogMerge(RedisKey destination, RedisKey[] sourceKeys, CommandFlags flags = CommandFlags.None)
         {
             this.Inner.HyperLogLogMerge(this.ToInner(destination), this.ToInner(sourceKeys), flags);

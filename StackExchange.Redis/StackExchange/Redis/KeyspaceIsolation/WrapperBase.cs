@@ -127,6 +127,11 @@ namespace StackExchange.Redis.StackExchange.Redis.KeyspaceIsolation
             return this.Inner.HyperLogLogLengthAsync(this.ToInner(key), flags);
         }
 
+        public Task<long> HyperLogLogLengthAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
+        {
+            return this.Inner.HyperLogLogLengthAsync(this.ToInner(keys), flags);
+        }
+
         public Task HyperLogLogMergeAsync(RedisKey destination, RedisKey[] sourceKeys, CommandFlags flags = CommandFlags.None)
         {
             return this.Inner.HyperLogLogMergeAsync(this.ToInner(destination), this.ToInner(sourceKeys), flags);
