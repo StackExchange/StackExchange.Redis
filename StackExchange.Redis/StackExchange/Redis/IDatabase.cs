@@ -141,7 +141,7 @@ namespace StackExchange.Redis
         IEnumerable<HashEntry> HashScan(RedisKey key, RedisValue pattern, int pageSize, CommandFlags flags);
 
         /// <summary>
-        /// The HSCAN command is used to incrementally iterate over a hash
+        /// The HSCAN command is used to incrementally iterate over a hash; note: to resume an iteration via <i>cursor</i>, cast the original enumerable or enumerator to <i>IScanning</i>.
         /// </summary>
         /// <returns>yields all elements of the hash.</returns>
         /// <remarks>http://redis.io/commands/hscan</remarks>
@@ -589,7 +589,7 @@ namespace StackExchange.Redis
         IEnumerable<RedisValue> SetScan(RedisKey key, RedisValue pattern, int pageSize, CommandFlags flags);
 
         /// <summary>
-        /// The SSCAN command is used to incrementally iterate over set
+        /// The SSCAN command is used to incrementally iterate over set; note: to resume an iteration via <i>cursor</i>, cast the original enumerable or enumerator to <i>IScanning</i>.
         /// </summary>
         /// <returns>yields all elements of the set.</returns>
         /// <remarks>http://redis.io/commands/sscan</remarks>
@@ -782,7 +782,7 @@ namespace StackExchange.Redis
         IEnumerable<SortedSetEntry> SortedSetScan(RedisKey key, RedisValue pattern, int pageSize, CommandFlags flags);
 
         /// <summary>
-        /// The ZSCAN command is used to incrementally iterate over a sorted set
+        /// The ZSCAN command is used to incrementally iterate over a sorted set; note: to resume an iteration via <i>cursor</i>, cast the original enumerable or enumerator to <i>IScanning</i>.
         /// </summary>
         /// <returns>yields all elements of the sorted set.</returns>
         /// <remarks>http://redis.io/commands/zscan</remarks>

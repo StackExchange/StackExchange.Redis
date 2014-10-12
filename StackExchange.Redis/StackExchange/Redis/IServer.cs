@@ -232,7 +232,7 @@ namespace StackExchange.Redis
         IEnumerable<RedisKey> Keys(int database, RedisValue pattern, int pageSize, CommandFlags flags);
 
         /// <summary>
-        /// Returns all keys matching pattern; the KEYS or SCAN commands will be used based on the server capabilities.
+        /// Returns all keys matching pattern; the KEYS or SCAN commands will be used based on the server capabilities; note: to resume an iteration via <i>cursor</i>, cast the original enumerable or enumerator to <i>IScanning</i>.
         /// </summary>
         /// <remarks>Warning: consider KEYS as a command that should only be used in production environments with extreme care.</remarks>
         /// <remarks>http://redis.io/commands/keys</remarks>
