@@ -141,7 +141,7 @@ namespace StackExchange.Redis
         }
 
 
-        internal abstract class CursorEnumerable
+        internal static class CursorUtils
         {
             internal const int Origin = 0, DefaultPageSize = 10;
             internal static bool IsNil(RedisValue pattern)
@@ -152,7 +152,7 @@ namespace StackExchange.Redis
                 return rawValue.Length == 1 && rawValue[0] == '*';
             }
         }
-        internal abstract class CursorEnumerable<T> : CursorEnumerable, IEnumerable<T>, IScanning
+        internal abstract class CursorEnumerable<T> : IEnumerable<T>, IScanning
         {
             private readonly RedisBase redis;
             private readonly ServerEndPoint server;

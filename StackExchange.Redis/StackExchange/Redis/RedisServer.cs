@@ -271,13 +271,13 @@ namespace StackExchange.Redis
 
         IEnumerable<RedisKey> IServer.Keys(int database, RedisValue pattern, int pageSize, CommandFlags flags)
         {
-            return Keys(database, pattern, pageSize, CursorEnumerable.Origin, flags);
+            return Keys(database, pattern, pageSize, CursorUtils.Origin, flags);
         }
 
-        public IEnumerable<RedisKey> Keys(int database = 0, RedisValue pattern = default(RedisValue), int pageSize = CursorEnumerable.DefaultPageSize, long cursor = CursorEnumerable.Origin, CommandFlags flags = CommandFlags.None)
+        public IEnumerable<RedisKey> Keys(int database = 0, RedisValue pattern = default(RedisValue), int pageSize = CursorUtils.DefaultPageSize, long cursor = CursorUtils.Origin, CommandFlags flags = CommandFlags.None)
         {
             if (pageSize <= 0) throw new ArgumentOutOfRangeException("pageSize");
-            if (CursorEnumerable.IsNil(pattern)) pattern = RedisLiterals.Wildcard;
+            if (CursorUtils.IsNil(pattern)) pattern = RedisLiterals.Wildcard;
 
             if (multiplexer.CommandMap.IsAvailable(RedisCommand.SCAN))
             {
@@ -652,9 +652,9 @@ namespace StackExchange.Redis
 
             protected override Message CreateMessage(long cursor)
             {
-                if (IsNil(pattern))
+                if (CursorUtils.IsNil(pattern))
                 {
-                    if (pageSize == DefaultPageSize)
+                    if (pageSize == CursorUtils.DefaultPageSize)
                     {
                         return Message.Create(db, flags, RedisCommand.SCAN, cursor);
                     }
@@ -665,7 +665,7 @@ namespace StackExchange.Redis
                 }
                 else
                 {
-                    if (pageSize == DefaultPageSize)
+                    if (pageSize == CursorUtils.DefaultPageSize)
                     {
                         return Message.Create(db, flags, RedisCommand.SCAN, cursor, RedisLiterals.MATCH, pattern);
                     }

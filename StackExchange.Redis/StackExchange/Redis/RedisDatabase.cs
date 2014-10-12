@@ -195,10 +195,10 @@ namespace StackExchange.Redis
 
         IEnumerable<HashEntry> IDatabase.HashScan(RedisKey key, RedisValue pattern, int pageSize, CommandFlags flags)
         {
-            return HashScan(key, pattern, pageSize, CursorEnumerable.Origin, flags);
+            return HashScan(key, pattern, pageSize, CursorUtils.Origin, flags);
         }
 
-        public IEnumerable<HashEntry> HashScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = CursorEnumerable.DefaultPageSize, long cursor = CursorEnumerable.Origin, CommandFlags flags = CommandFlags.None)
+        public IEnumerable<HashEntry> HashScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = CursorUtils.DefaultPageSize, long cursor = CursorUtils.Origin, CommandFlags flags = CommandFlags.None)
         {
             var scan = TryScan<HashEntry>(key, pattern, pageSize, cursor, flags, RedisCommand.HSCAN, HashScanResultProcessor.Default);
             if (scan != null) return scan;
@@ -1041,10 +1041,10 @@ namespace StackExchange.Redis
 
         IEnumerable<RedisValue> IDatabase.SetScan(RedisKey key, RedisValue pattern, int pageSize, CommandFlags flags)
         {
-            return SetScan(key, pattern, pageSize, CursorEnumerable.Origin, flags);
+            return SetScan(key, pattern, pageSize, CursorUtils.Origin, flags);
         }
 
-        public IEnumerable<RedisValue> SetScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = CursorEnumerable.DefaultPageSize, long cursor = CursorEnumerable.Origin, CommandFlags flags = CommandFlags.None)
+        public IEnumerable<RedisValue> SetScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = CursorUtils.DefaultPageSize, long cursor = CursorUtils.Origin, CommandFlags flags = CommandFlags.None)
         {
             var scan = TryScan<RedisValue>(key, pattern, pageSize, cursor, flags, RedisCommand.SSCAN, SetScanResultProcessor.Default);
             if (scan != null) return scan;
@@ -1269,10 +1269,10 @@ namespace StackExchange.Redis
 
         IEnumerable<SortedSetEntry> IDatabase.SortedSetScan(RedisKey key, RedisValue pattern, int pageSize, CommandFlags flags)
         {
-            return SortedSetScan(key, pattern, pageSize, CursorEnumerable.Origin, flags);
+            return SortedSetScan(key, pattern, pageSize, CursorUtils.Origin, flags);
         }
 
-        public IEnumerable<SortedSetEntry> SortedSetScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = CursorEnumerable.DefaultPageSize, long cursor = CursorEnumerable.Origin, CommandFlags flags = CommandFlags.None)
+        public IEnumerable<SortedSetEntry> SortedSetScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = CursorUtils.DefaultPageSize, long cursor = CursorUtils.Origin, CommandFlags flags = CommandFlags.None)
         {
             var scan = TryScan<SortedSetEntry>(key, pattern, pageSize, cursor, flags, RedisCommand.ZSCAN, SortedSetScanResultProcessor.Default);
             if (scan != null) return scan;
@@ -1998,7 +1998,7 @@ namespace StackExchange.Redis
             var features = GetFeatures(Db, key, flags, out server);
             if (!features.Scan) return null;
 
-            if (CursorEnumerable.IsNil(pattern)) pattern = (byte[])null;
+            if (CursorUtils.IsNil(pattern)) pattern = (byte[])null;
             return new ScanIterator<T>(this, server, key, pattern, pageSize, cursor, flags, command, processor);
         }
 
@@ -2070,9 +2070,9 @@ namespace StackExchange.Redis
             }
             protected override Message CreateMessage(long cursor)
             {
-                if (IsNil(pattern))
+                if (CursorUtils.IsNil(pattern))
                 {
-                    if (pageSize == DefaultPageSize)
+                    if (pageSize == CursorUtils.DefaultPageSize)
                     {
                         return Message.Create(db, flags, command, key, cursor);
                     }
@@ -2083,7 +2083,7 @@ namespace StackExchange.Redis
                 }
                 else
                 {
-                    if (pageSize == DefaultPageSize)
+                    if (pageSize == CursorUtils.DefaultPageSize)
                     {
                         return Message.Create(db, flags, command, key, cursor, RedisLiterals.MATCH, pattern);
                     }

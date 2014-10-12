@@ -1764,11 +1764,15 @@ namespace StackExchange.Redis
                         else
                         {
                             int inst, qu, qs, qc, wr, wq, @in, ar;
+#if !__MonoCS__
                             var mgrState = socketManager.State;
+#endif
                             int queue = server.GetOutstandingCount(message.Command, out inst, out qu, out qs, out qc, out wr, out wq, out @in, out ar);
                             var sb = new StringBuilder("Timeout performing ").Append(message.CommandAndKey)
                                 .Append(", inst: ").Append(inst)
+#if !__MonoCS__
                                 .Append(", mgr: ").Append(mgrState)
+#endif
                                 .Append(", queue: ").Append(queue).Append(", qu=").Append(qu)
                                 .Append(", qs=").Append(qs).Append(", qc=").Append(qc)
                                 .Append(", wr=").Append(wr).Append("/").Append(wq)
