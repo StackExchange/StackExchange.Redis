@@ -19,22 +19,22 @@ namespace StackExchange.Redis
     /// <summary>
     /// Represents a resumable, cursor-based scanning operation
     /// </summary>
-    public interface IScanning
+    public interface IScanningCursor
     {
         /// <summary>
-        /// Returns the cursor that represents the *active* page of results (not the pending/next page of results)
+        /// Returns the cursor that represents the *active* page of results (not the pending/next page of results as returned by SCAN/HSCAN/ZSCAN/SSCAN)
         /// </summary>
-        long CurrentCursor { get; }
-
-        /// <summary>
-        /// Returns the cursor for the *pending/next* page of results
-        /// </summary>
-        long NextCursor { get; }
+        long Cursor { get; }
 
         /// <summary>
         /// The page size of the current operation
         /// </summary>
         int PageSize { get; }
+
+        /// <summary>
+        /// The offset into the current page
+        /// </summary>
+        int PageOffset { get; }
     }
 
     [Conditional("DEBUG")]

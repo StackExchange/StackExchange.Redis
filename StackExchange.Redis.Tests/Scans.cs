@@ -26,7 +26,7 @@ namespace StackExchange.Redis.Tests
                     db.StringSet("KeysScan:" + i, Guid.NewGuid().ToString(), flags: CommandFlags.FireAndForget);
                 }
                 var seq = server.Keys(DB, pageSize:50);
-                bool isScanning = seq is IScanning;
+                bool isScanning = seq is IScanningCursor;
                 Assert.AreEqual(supported, isScanning, "scanning");
                 Assert.AreEqual(100, seq.Distinct().Count());
                 Assert.AreEqual(100, seq.Distinct().Count());
@@ -52,30 +52,24 @@ namespace StackExchange.Redis.Tests
                 var seq = server.Keys(DB, pageSize: 15);
                 using(var iter = seq.GetEnumerator())
                 {
-                    IScanning s0 = (IScanning)seq, s1 = (IScanning)iter;
+                    IScanningCursor s0 = (IScanningCursor)seq, s1 = (IScanningCursor)iter;
 
                     Assert.AreEqual(15, s0.PageSize);
                     Assert.AreEqual(15, s1.PageSize);
 
                     // start at zero                    
-                    Assert.AreEqual(0, s0.CurrentCursor);
-                    Assert.AreEqual(0, s0.NextCursor);
-                    Assert.AreEqual(s0.CurrentCursor, s1.CurrentCursor);
-                    Assert.AreEqual(s0.NextCursor, s1.NextCursor);
-
+                    Assert.AreEqual(0, s0.Cursor);
+                    Assert.AreEqual(s0.Cursor, s1.Cursor);
+                    
                     for(int i = 0 ; i < 47 ; i++)
                     {
                         Assert.IsTrue(iter.MoveNext());
                     }
 
                     // non-zero in the middle
-                    Assert.AreNotEqual(0, s0.CurrentCursor);
-                    Assert.AreNotEqual(0, s0.NextCursor);
-                    Assert.AreEqual(s0.CurrentCursor, s1.CurrentCursor);
-                    Assert.AreEqual(s0.NextCursor, s1.NextCursor);
-                    Assert.AreNotEqual(s1.CurrentCursor, s1.NextCursor, "iter");
-                    Assert.AreNotEqual(s0.CurrentCursor, s0.NextCursor, "seq");
-
+                    Assert.AreNotEqual(0, s0.Cursor);
+                    Assert.AreEqual(s0.Cursor, s1.Cursor);
+                    
                     for (int i = 0; i < 53; i++)
                     {
                         Assert.IsTrue(iter.MoveNext());
@@ -83,10 +77,8 @@ namespace StackExchange.Redis.Tests
 
                     // zero "next" at the end
                     Assert.IsFalse(iter.MoveNext());
-                    Assert.AreEqual(0, s0.NextCursor);
-                    Assert.AreEqual(0, s1.NextCursor);
-                    Assert.AreNotEqual(0, s0.CurrentCursor);
-                    Assert.AreNotEqual(0, s1.CurrentCursor);                    
+                    Assert.AreNotEqual(0, s0.Cursor);
+                    Assert.AreNotEqual(0, s1.Cursor);                    
                 }
             }
         }
@@ -106,7 +98,8 @@ namespace StackExchange.Redis.Tests
                 }
                 
                 var expected = new HashSet<string>();
-                long snap = 0;
+                long snapCursor = 0;
+                int snapOffset = 0;
 
                 i = 0;
                 var seq = server.Keys(DB, pageSize: 15);
@@ -116,14 +109,16 @@ namespace StackExchange.Redis.Tests
                     if (i < 57) continue;
                     if (i == 57)
                     {
-                        snap = ((IScanning)seq).CurrentCursor;
+                        snapCursor = ((IScanningCursor)seq).Cursor;
+                        snapOffset = ((IScanningCursor)seq).PageOffset;
                     }
                     expected.Add((string)key);
                 }                
                 Assert.AreNotEqual(43, expected.Count);
-                Assert.AreNotEqual(0, snap);
+                Assert.AreNotEqual(0, snapCursor);
+                Assert.AreEqual(11, snapOffset);
 
-                seq = server.Keys(DB, pageSize: 15, cursor: snap);
+                seq = server.Keys(DB, pageSize: 15, cursor: snapCursor, pageOffset: snapOffset);
                 int count = 0;
                 foreach(var key in seq)
                 {
@@ -131,7 +126,7 @@ namespace StackExchange.Redis.Tests
                     count++;
                 }
                 Assert.AreEqual(0, expected.Count);
-                Assert.AreEqual(55, count); // expect some overlap due to paged, etc
+                Assert.AreEqual(44, count); // expect the initial item to be repeated
 
             }
         }

@@ -195,15 +195,15 @@ namespace StackExchange.Redis
 
         IEnumerable<HashEntry> IDatabase.HashScan(RedisKey key, RedisValue pattern, int pageSize, CommandFlags flags)
         {
-            return HashScan(key, pattern, pageSize, CursorUtils.Origin, flags);
+            return HashScan(key, pattern, pageSize, CursorUtils.Origin, 0, flags);
         }
 
-        public IEnumerable<HashEntry> HashScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = CursorUtils.DefaultPageSize, long cursor = CursorUtils.Origin, CommandFlags flags = CommandFlags.None)
+        public IEnumerable<HashEntry> HashScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = CursorUtils.DefaultPageSize, long cursor = CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
         {
-            var scan = TryScan<HashEntry>(key, pattern, pageSize, cursor, flags, RedisCommand.HSCAN, HashScanResultProcessor.Default);
+            var scan = TryScan<HashEntry>(key, pattern, pageSize, cursor, pageOffset, flags, RedisCommand.HSCAN, HashScanResultProcessor.Default);
             if (scan != null) return scan;
 
-            if (cursor != 0) throw ExceptionFactory.NoCursor(RedisCommand.HGETALL);
+            if (cursor != 0 || pageOffset != 0) throw ExceptionFactory.NoCursor(RedisCommand.HGETALL);
             if (pattern.IsNull) return HashGetAll(key, flags);
             throw ExceptionFactory.NotSupported(true, RedisCommand.HSCAN);
         }
@@ -1041,15 +1041,15 @@ namespace StackExchange.Redis
 
         IEnumerable<RedisValue> IDatabase.SetScan(RedisKey key, RedisValue pattern, int pageSize, CommandFlags flags)
         {
-            return SetScan(key, pattern, pageSize, CursorUtils.Origin, flags);
+            return SetScan(key, pattern, pageSize, CursorUtils.Origin, 0, flags);
         }
 
-        public IEnumerable<RedisValue> SetScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = CursorUtils.DefaultPageSize, long cursor = CursorUtils.Origin, CommandFlags flags = CommandFlags.None)
+        public IEnumerable<RedisValue> SetScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = CursorUtils.DefaultPageSize, long cursor = CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
         {
-            var scan = TryScan<RedisValue>(key, pattern, pageSize, cursor, flags, RedisCommand.SSCAN, SetScanResultProcessor.Default);
+            var scan = TryScan<RedisValue>(key, pattern, pageSize, cursor, pageOffset, flags, RedisCommand.SSCAN, SetScanResultProcessor.Default);
             if (scan != null) return scan;
 
-            if(cursor != 0) throw ExceptionFactory.NoCursor(RedisCommand.SMEMBERS);
+            if(cursor != 0 || pageOffset != 0) throw ExceptionFactory.NoCursor(RedisCommand.SMEMBERS);
             if (pattern.IsNull) return SetMembers(key, flags);
             throw ExceptionFactory.NotSupported(true, RedisCommand.SSCAN);
         }
@@ -1269,15 +1269,15 @@ namespace StackExchange.Redis
 
         IEnumerable<SortedSetEntry> IDatabase.SortedSetScan(RedisKey key, RedisValue pattern, int pageSize, CommandFlags flags)
         {
-            return SortedSetScan(key, pattern, pageSize, CursorUtils.Origin, flags);
+            return SortedSetScan(key, pattern, pageSize, CursorUtils.Origin, 0, flags);
         }
 
-        public IEnumerable<SortedSetEntry> SortedSetScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = CursorUtils.DefaultPageSize, long cursor = CursorUtils.Origin, CommandFlags flags = CommandFlags.None)
+        public IEnumerable<SortedSetEntry> SortedSetScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = CursorUtils.DefaultPageSize, long cursor = CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
         {
-            var scan = TryScan<SortedSetEntry>(key, pattern, pageSize, cursor, flags, RedisCommand.ZSCAN, SortedSetScanResultProcessor.Default);
+            var scan = TryScan<SortedSetEntry>(key, pattern, pageSize, cursor, pageOffset, flags, RedisCommand.ZSCAN, SortedSetScanResultProcessor.Default);
             if (scan != null) return scan;
 
-            if (cursor != 0) throw ExceptionFactory.NoCursor(RedisCommand.ZRANGE);
+            if (cursor != 0 || pageOffset != 0) throw ExceptionFactory.NoCursor(RedisCommand.ZRANGE);
             if (pattern.IsNull) return SortedSetRangeByRankWithScores(key, flags: flags);
             throw ExceptionFactory.NotSupported(true, RedisCommand.ZSCAN);
         }
@@ -1989,7 +1989,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private IEnumerable<T> TryScan<T>(RedisKey key, RedisValue pattern, int pageSize, long cursor, CommandFlags flags, RedisCommand command, ResultProcessor<ScanIterator<T>.ScanResult> processor)
+        private IEnumerable<T> TryScan<T>(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags, RedisCommand command, ResultProcessor<ScanIterator<T>.ScanResult> processor)
         {
             if (pageSize <= 0) throw new ArgumentOutOfRangeException("pageSize");
             if (!multiplexer.CommandMap.IsAvailable(command)) return null;
@@ -1999,7 +1999,7 @@ namespace StackExchange.Redis
             if (!features.Scan) return null;
 
             if (CursorUtils.IsNil(pattern)) pattern = (byte[])null;
-            return new ScanIterator<T>(this, server, key, pattern, pageSize, cursor, flags, command, processor);
+            return new ScanIterator<T>(this, server, key, pattern, pageSize, cursor, pageOffset, flags, command, processor);
         }
 
         private Message GetLexMessage(RedisCommand command, RedisKey key, RedisValue min, RedisValue max, Exclude exclude, long skip, long take, CommandFlags flags)
@@ -2055,9 +2055,9 @@ namespace StackExchange.Redis
             private readonly RedisCommand command;
             private readonly ResultProcessor<ScanResult> processor;
 
-            public ScanIterator(RedisDatabase database, ServerEndPoint server, RedisKey key, RedisValue pattern, int pageSize, long cursor, CommandFlags flags,
+            public ScanIterator(RedisDatabase database, ServerEndPoint server, RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags,
                 RedisCommand command, ResultProcessor<ScanResult> processor)
-                : base(database, server, database.Database, pageSize, cursor, flags)
+                : base(database, server, database.Database, pageSize, cursor, pageOffset, flags)
             {
                 this.key = key;
                 this.pattern = pattern;

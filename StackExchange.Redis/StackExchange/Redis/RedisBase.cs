@@ -152,16 +152,17 @@ namespace StackExchange.Redis
                 return rawValue.Length == 1 && rawValue[0] == '*';
             }
         }
-        internal abstract class CursorEnumerable<T> : IEnumerable<T>, IScanning
+        internal abstract class CursorEnumerable<T> : IEnumerable<T>, IScanningCursor
         {
             private readonly RedisBase redis;
             private readonly ServerEndPoint server;
             protected readonly int db;
             protected readonly CommandFlags flags;
-            protected readonly int pageSize;
+            protected readonly int pageSize, initialOffset;
             protected readonly long initialCursor;
+            private volatile IScanningCursor activeCursor;
 
-            protected CursorEnumerable(RedisBase redis, ServerEndPoint server, int db, int pageSize, long cursor, CommandFlags flags)
+            protected CursorEnumerable(RedisBase redis, ServerEndPoint server, int db, int pageSize, long cursor, int pageOffset, CommandFlags flags)
             {
                 this.redis = redis;
                 this.server = server;
@@ -169,6 +170,7 @@ namespace StackExchange.Redis
                 this.pageSize = pageSize;
                 this.flags = flags;
                 this.initialCursor = cursor;
+                this.initialOffset = pageOffset;
             }
 
             public IEnumerator<T> GetEnumerator()
@@ -192,22 +194,17 @@ namespace StackExchange.Redis
 
             protected abstract Message CreateMessage(long cursor);
 
-            private long currentCursor, nextCursor;
-
-            internal void SetPosition(long current, long next)
-            {
-                Interlocked.Exchange(ref currentCursor, current);
-                Interlocked.Exchange(ref nextCursor, next);
-            }
 
             protected abstract ResultProcessor<ScanResult> Processor { get; }
 
-            protected ScanResult GetNextPageSync(long cursor)
+            protected ScanResult GetNextPageSync(IScanningCursor obj, long cursor)
             {
+                this.activeCursor = obj;
                 return redis.ExecuteSync(CreateMessage(cursor), Processor, server);
             }
-            protected Task<ScanResult> GetNextPageAsync(long cursor)
+            protected Task<ScanResult> GetNextPageAsync(IScanningCursor obj, long cursor)
             {
+                this.activeCursor = obj;
                 return redis.ExecuteAsync(CreateMessage(cursor), Processor, server);
             }
             protected ScanResult Wait(Task<ScanResult> pending)
@@ -215,7 +212,7 @@ namespace StackExchange.Redis
                 return redis.Wait(pending);
             }
 
-            class CursorEnumerator : IEnumerator<T>, IScanning
+            class CursorEnumerator : IEnumerator<T>, IScanningCursor
             {
                 private CursorEnumerable<T> parent;
                 public CursorEnumerator(CursorEnumerable<T> parent)
@@ -233,7 +230,13 @@ namespace StackExchange.Redis
 
                 object System.Collections.IEnumerator.Current
                 {
-                    get { return page[pageIndex]; ; }
+                    get { return page[pageIndex]; }
+                }
+
+                private void LoadNextPageAsync()
+                {
+                    if(pending == null && nextCursor != 0)
+                        pending = parent.GetNextPageAsync(this, nextCursor);
                 }
 
                 private bool SimpleNext()
@@ -241,10 +244,7 @@ namespace StackExchange.Redis
                     if (page != null && ++pageIndex < page.Length)
                     {
                         // first of a new page? cool; start a new background op, because we're about to exit the iterator
-                        if (pageIndex == 0 && pending == null && nextCursor != 0)
-                        {
-                            pending = parent.GetNextPageAsync(nextCursor);
-                        }
+                        if (pageIndex == 0) LoadNextPageAsync();
                         return true;
                     }
                     return false;
@@ -266,10 +266,11 @@ namespace StackExchange.Redis
 
                 void ProcessReply(ScanResult result)
                 {
-                    pending = null;
-                    page = result.Values;
+                    currentCursor = nextCursor;
+                    nextCursor = result.Cursor;
                     pageIndex = -1;
-                    parent.SetPosition(currentCursor = nextCursor, nextCursor = result.Cursor);
+                    page = result.Values;
+                    pending = null;                                
                 }
 
                 public bool MoveNext()
@@ -279,8 +280,10 @@ namespace StackExchange.Redis
                         case State.Complete:
                             return false;
                         case State.Initial:
-                            ProcessReply(parent.GetNextPageSync(nextCursor));
+                            ProcessReply(parent.GetNextPageSync(this, nextCursor));
+                            pageIndex = parent.initialOffset - 1;
                             state = State.Running;
+                            LoadNextPageAsync();
                             goto case State.Running;
                         case State.Running:
                             // are we working through the current buffer?
@@ -296,7 +299,7 @@ namespace StackExchange.Redis
                             // nothing outstanding? wait synchronously
                             while(nextCursor != 0)
                             {
-                                ProcessReply(parent.GetNextPageSync(nextCursor));
+                                ProcessReply(parent.GetNextPageSync(this, nextCursor));
                                 if (SimpleNext()) return true;
                             }
 
@@ -313,41 +316,40 @@ namespace StackExchange.Redis
                 {
                     if(state == State.Disposed) throw new ObjectDisposedException(GetType().Name);
                     nextCursor = currentCursor = parent.initialCursor;
+                    pageIndex = parent.initialOffset - 1;
                     state = State.Initial;
-                    page = null;
-                    pageIndex = -1;
+                    page = null;                    
                     pending = null;
                 }
 
-                long IScanning.CurrentCursor
+                long IScanningCursor.Cursor
                 {
                     get { return currentCursor; }
                 }
 
-                long IScanning.NextCursor
-                {
-                    get { return nextCursor; }
-                }
-
-                int IScanning.PageSize
+                int IScanningCursor.PageSize
                 {
                     get { return parent.pageSize; }
                 }
+
+                int IScanningCursor.PageOffset
+                {
+                    get { return pageIndex; }
+                }
             }
 
-            long IScanning.CurrentCursor
+            long IScanningCursor.Cursor
             {
-                get { return Interlocked.Read(ref currentCursor); }
+                get { var tmp = activeCursor; return tmp == null ? CursorUtils.Origin : tmp.Cursor; }
             }
 
-            long IScanning.NextCursor
-            {
-                get { return Interlocked.Read(ref nextCursor); }
-            }
-
-            int IScanning.PageSize
+            int IScanningCursor.PageSize
             {
                 get { return pageSize; }
+            }
+            int IScanningCursor.PageOffset
+            {
+                get { var tmp = activeCursor; return tmp == null ? 0 : tmp.PageOffset; }
             }
         }
     }
