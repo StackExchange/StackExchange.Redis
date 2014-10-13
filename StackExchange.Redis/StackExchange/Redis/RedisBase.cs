@@ -164,6 +164,7 @@ namespace StackExchange.Redis
 
             protected CursorEnumerable(RedisBase redis, ServerEndPoint server, int db, int pageSize, long cursor, int pageOffset, CommandFlags flags)
             {
+                if (pageOffset < 0) throw new ArgumentOutOfRangeException("pageOffset");
                 this.redis = redis;
                 this.server = server;
                 this.db = db;
@@ -281,7 +282,7 @@ namespace StackExchange.Redis
                             return false;
                         case State.Initial:
                             ProcessReply(parent.GetNextPageSync(this, nextCursor));
-                            pageIndex = parent.initialOffset - 1;
+                            pageIndex = parent.initialOffset - 1; // will be incremented in a moment
                             state = State.Running;
                             LoadNextPageAsync();
                             goto case State.Running;
@@ -316,7 +317,7 @@ namespace StackExchange.Redis
                 {
                     if(state == State.Disposed) throw new ObjectDisposedException(GetType().Name);
                     nextCursor = currentCursor = parent.initialCursor;
-                    pageIndex = parent.initialOffset - 1;
+                    pageIndex = parent.initialOffset; // don't -1 here; this makes it look "right" before incremented
                     state = State.Initial;
                     page = null;                    
                     pending = null;
@@ -340,7 +341,7 @@ namespace StackExchange.Redis
 
             long IScanningCursor.Cursor
             {
-                get { var tmp = activeCursor; return tmp == null ? CursorUtils.Origin : tmp.Cursor; }
+                get { var tmp = activeCursor; return tmp == null ? initialCursor : tmp.Cursor; }
             }
 
             int IScanningCursor.PageSize
@@ -349,7 +350,7 @@ namespace StackExchange.Redis
             }
             int IScanningCursor.PageOffset
             {
-                get { var tmp = activeCursor; return tmp == null ? 0 : tmp.PageOffset; }
+                get { var tmp = activeCursor; return tmp == null ? initialOffset : tmp.PageOffset; }
             }
         }
     }

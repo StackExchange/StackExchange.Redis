@@ -99,7 +99,7 @@ namespace StackExchange.Redis.Tests
                 
                 var expected = new HashSet<string>();
                 long snapCursor = 0;
-                int snapOffset = 0;
+                int snapOffset = 0, snapPageSize = 0;
 
                 i = 0;
                 var seq = server.Keys(DB, pageSize: 15);
@@ -111,14 +111,41 @@ namespace StackExchange.Redis.Tests
                     {
                         snapCursor = ((IScanningCursor)seq).Cursor;
                         snapOffset = ((IScanningCursor)seq).PageOffset;
+                        snapPageSize = ((IScanningCursor)seq).PageSize;
                     }
                     expected.Add((string)key);
                 }                
                 Assert.AreNotEqual(43, expected.Count);
                 Assert.AreNotEqual(0, snapCursor);
                 Assert.AreEqual(11, snapOffset);
+                Assert.AreEqual(15, snapPageSize);
 
                 seq = server.Keys(DB, pageSize: 15, cursor: snapCursor, pageOffset: snapOffset);
+                var seqCur = (IScanningCursor)seq;
+                Assert.AreEqual(snapCursor, seqCur.Cursor);
+                Assert.AreEqual(snapPageSize, seqCur.PageSize);
+                Assert.AreEqual(snapOffset, seqCur.PageOffset);
+                using(var iter = seq.GetEnumerator())
+                {
+                    var iterCur = (IScanningCursor)iter;
+                    Assert.AreEqual(snapCursor, iterCur.Cursor);
+                    Assert.AreEqual(snapOffset, iterCur.PageOffset);
+                    Assert.AreEqual(snapCursor, seqCur.Cursor);
+                    Assert.AreEqual(snapOffset, seqCur.PageOffset);
+
+                    Assert.IsTrue(iter.MoveNext());
+                    Assert.AreEqual(snapCursor, iterCur.Cursor);
+                    Assert.AreEqual(snapOffset, iterCur.PageOffset);
+                    Assert.AreEqual(snapCursor, seqCur.Cursor);
+                    Assert.AreEqual(snapOffset, seqCur.PageOffset);
+
+                    Assert.IsTrue(iter.MoveNext());
+                    Assert.AreEqual(snapCursor, iterCur.Cursor);
+                    Assert.AreEqual(snapOffset + 1, iterCur.PageOffset);
+                    Assert.AreEqual(snapCursor, seqCur.Cursor);
+                    Assert.AreEqual(snapOffset + 1, seqCur.PageOffset);
+                }
+
                 int count = 0;
                 foreach(var key in seq)
                 {
