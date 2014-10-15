@@ -597,6 +597,9 @@ namespace StackExchange.Redis
             {
                 case SaveType.BackgroundRewriteAppendOnlyFile: return Message.Create(-1, flags, RedisCommand.BGREWRITEAOF);
                 case SaveType.BackgroundSave: return Message.Create(-1, flags, RedisCommand.BGSAVE);
+#pragma warning disable 0618
+                case SaveType.ForegroundSave: return Message.Create(-1, flags, RedisCommand.SAVE);
+#pragma warning restore 0618
                 default:  throw new ArgumentOutOfRangeException("type");
             }
         }
@@ -607,6 +610,9 @@ namespace StackExchange.Redis
             {
                 case SaveType.BackgroundRewriteAppendOnlyFile: return ResultProcessor.DemandOK;
                 case SaveType.BackgroundSave: return ResultProcessor.BackgroundSaveStarted;
+#pragma warning disable 0618
+                case SaveType.ForegroundSave: return ResultProcessor.DemandOK;
+#pragma warning restore 0618
                 default: throw new ArgumentOutOfRangeException("type");
             }
         }

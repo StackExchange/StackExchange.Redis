@@ -1,7 +1,8 @@
-﻿namespace StackExchange.Redis
+﻿using System;
+namespace StackExchange.Redis
 {
     /// <summary>
-    /// The type of save operation to perform; note that foreground saving is not offered, as this is basically never a good thing to do through regular code.
+    /// The type of save operation to perform
     /// </summary>
     public enum SaveType
     {
@@ -15,5 +16,11 @@
         /// </summary>
         /// <remarks>http://redis.io/commands/bgsave</remarks>
         BackgroundSave,
+        /// <summary>
+        /// Save the DB in foreground. This is almost never a good thing to do, and could cause significant blocking. Only do this if you know you need to save
+        /// </summary>
+        /// <remarks>http://redis.io/commands/save</remarks>
+        [Obsolete("Saving on the foreground can cause significant blocking; use with extreme caution")]
+        ForegroundSave
     }
 }

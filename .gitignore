@@ -11,6 +11,7 @@ _ReSharper.*
 Mono/
 *.sln.ide
 *.rdb
+*.aof
 *.orig
 redis-cli.exe
 Redis Configs/*.dat
