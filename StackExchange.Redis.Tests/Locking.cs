@@ -2,6 +2,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 using NUnit.Framework;
+using System.Collections.Generic;
 
 namespace StackExchange.Redis.Tests
 {
@@ -9,13 +10,14 @@ namespace StackExchange.Redis.Tests
     public class Locking : TestBase
     {
         [Test]
-        public void AggressiveParallel()
+        [TestCaseSource("TestModes")]
+        public void AggressiveParallel(TestMode testMode)
         {
             int count = 2;
             int errorCount = 0;
             ManualResetEvent evt = new ManualResetEvent(false);
-            using (var c1 = Create())
-            using (var c2 = Create())
+            using (var c1 = Create(testMode))
+            using (var c2 = Create(testMode))
             {
                 WaitCallback cb = obj =>
                 {
@@ -29,7 +31,7 @@ namespace StackExchange.Redis.Tests
                     conn.Ping();
                     if (Interlocked.Decrement(ref count) == 0) evt.Set();
                 };
-                const int db = 2;
+                int db = testMode == TestMode.Twemproxy ? 0 : 2;
                 ThreadPool.QueueUserWorkItem(cb, c1.GetDatabase(db));
                 ThreadPool.QueueUserWorkItem(cb, c2.GetDatabase(db));
                 evt.WaitOne(8000);
@@ -104,15 +106,42 @@ namespace StackExchange.Redis.Tests
             // note we get a ping from GetCounters
         }
 
-        [Test]
-        public void TakeLockAndExtend()
+        private ConnectionMultiplexer Create(TestMode mode)
         {
-            using (var conn = Create())
+            switch(mode)
+            {
+                case TestMode.MultiExec:
+                    return Create();
+                case TestMode.NoMultiExec:
+                    return Create(disabledCommands: new[] { "multi", "exec" });
+                case TestMode.Twemproxy:
+                    return Create(proxy: Proxy.Twemproxy);
+                default:
+                    throw new NotSupportedException(mode.ToString());
+            }
+        }
+
+        public enum TestMode
+        {
+            MultiExec,
+            NoMultiExec,
+            Twemproxy
+        }
+        public IEnumerable<TestMode> TestModes()
+        {
+            return (TestMode[])Enum.GetValues(typeof(TestMode));
+        }
+        [Test]
+        [TestCaseSource("TestModes")]
+        public void TakeLockAndExtend(TestMode mode)
+        {
+            bool withTran = mode == TestMode.MultiExec;
+            using (var conn = Create(mode))
             {
                 RedisValue right = Guid.NewGuid().ToString(),
                     wrong = Guid.NewGuid().ToString();
 
-                const int DB = 7;
+                int DB = mode == TestMode.Twemproxy ? 0 : 7;
                 RedisKey Key = "lock-key";
 
                 var db = conn.GetDatabase(DB);
@@ -123,9 +152,9 @@ namespace StackExchange.Redis.Tests
                 var t1 = db.LockTakeAsync(Key, right, TimeSpan.FromSeconds(20));
                 var t1b = db.LockTakeAsync(Key, wrong, TimeSpan.FromSeconds(10));
                 var t2 = db.LockQueryAsync(Key);
-                var t3 = db.LockReleaseAsync(Key, wrong);
+                var t3 = withTran ? db.LockReleaseAsync(Key, wrong) : null;
                 var t4 = db.LockQueryAsync(Key);
-                var t5 = db.LockExtendAsync(Key, wrong, TimeSpan.FromSeconds(60));
+                var t5 = withTran ? db.LockExtendAsync(Key, wrong, TimeSpan.FromSeconds(60)) : null;
                 var t6 = db.LockQueryAsync(Key);
                 var t7 = db.KeyTimeToLiveAsync(Key);
                 var t8 = db.LockExtendAsync(Key, right, TimeSpan.FromSeconds(60));
@@ -142,9 +171,9 @@ namespace StackExchange.Redis.Tests
                 Assert.IsTrue(conn.Wait(t1), "1");
                 Assert.IsFalse(conn.Wait(t1b), "1b");
                 Assert.AreEqual(right, conn.Wait(t2), "2");
-                Assert.IsFalse(conn.Wait(t3), "3");
+                if(withTran) Assert.IsFalse(conn.Wait(t3), "3");
                 Assert.AreEqual(right, conn.Wait(t4), "4");
-                Assert.IsFalse(conn.Wait(t5), "5");
+                if (withTran) Assert.IsFalse(conn.Wait(t5), "5");
                 Assert.AreEqual(right, conn.Wait(t6), "6");
                 var ttl = conn.Wait(t7).Value.TotalSeconds;
                 Assert.IsTrue(ttl > 0 && ttl <= 20, "7");
@@ -190,9 +219,10 @@ namespace StackExchange.Redis.Tests
 
 
         [Test]
-        public void TestBasicLockNotTaken()
+        [TestCaseSource("TestModes")]
+        public void TestBasicLockNotTaken(TestMode testMode)
         {
-            using (var conn = Create())
+            using (var conn = Create(testMode))
             {
                 int errorCount = 0;
                 conn.ErrorMessage += delegate { Interlocked.Increment(ref errorCount); };
@@ -219,9 +249,10 @@ namespace StackExchange.Redis.Tests
         }
 
         [Test]
-        public void TestBasicLockTaken()
+        [TestCaseSource("TestModes")]
+        public void TestBasicLockTaken(TestMode testMode)
         {
-            using (var conn = Create())
+            using (var conn = Create(testMode))
             {
                 var db = conn.GetDatabase(0);
                 db.KeyDelete("lock-exists");

@@ -30,6 +30,16 @@ namespace StackExchange.Redis
             return new RedisTransaction(this, asyncState);
         }
 
+        private ITransaction CreateTransactionIfAvailable(object asyncState)
+        {
+            var map = multiplexer.CommandMap;
+            if(!map.IsAvailable(RedisCommand.MULTI) || !map.IsAvailable(RedisCommand.EXEC))
+            {
+                return null;
+            }
+            return CreateTransaction(asyncState);
+        }
+
         public RedisValue DebugObject(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Db, flags, RedisCommand.DEBUG, RedisLiterals.OBJECT, key);
@@ -773,16 +783,24 @@ namespace StackExchange.Redis
 
         public bool LockExtend(RedisKey key, RedisValue value, TimeSpan expiry, CommandFlags flags = CommandFlags.None)
         {
+            if (value.IsNull) throw new ArgumentNullException("value");
             var tran = GetLockExtendTransaction(key, value, expiry);
-            return tran.Execute(flags);
+            if(tran != null) return tran.Execute(flags);
+
+            // without transactions (twemproxy etc), we can't enforce the "value" part
+            return KeyExpire(key, expiry, flags);
         }
 
         public Task<bool> LockExtendAsync(RedisKey key, RedisValue value, TimeSpan expiry, CommandFlags flags = CommandFlags.None)
         {
+            if (value.IsNull) throw new ArgumentNullException("value");
             var tran = GetLockExtendTransaction(key, value, expiry);
-            return tran.ExecuteAsync(flags);
-        }
+            if(tran != null) return tran.ExecuteAsync(flags);
 
+            // without transactions (twemproxy etc), we can't enforce the "value" part
+            return KeyExpireAsync(key, expiry, flags);
+        }
+        
         public RedisValue LockQuery(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             return StringGet(key, flags);
@@ -795,23 +813,33 @@ namespace StackExchange.Redis
 
         public bool LockRelease(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
         {
+            if (value.IsNull) throw new ArgumentNullException("value");
             var tran = GetLockReleaseTransaction(key, value);
-            return tran.Execute(flags);
+            if(tran != null) return tran.Execute(flags);
+
+            // without transactions (twemproxy etc), we can't enforce the "value" part
+            return KeyDelete(key, flags);
         }
 
         public Task<bool> LockReleaseAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
         {
+            if (value.IsNull) throw new ArgumentNullException("value");
             var tran = GetLockReleaseTransaction(key, value);
-            return tran.ExecuteAsync(flags);
+            if(tran != null) return tran.ExecuteAsync(flags);
+
+            // without transactions (twemproxy etc), we can't enforce the "value" part
+            return KeyDeleteAsync(key, flags);
         }
 
         public bool LockTake(RedisKey key, RedisValue value, TimeSpan expiry, CommandFlags flags = CommandFlags.None)
         {
+            if (value.IsNull) throw new ArgumentNullException("value");
             return StringSet(key, value, expiry, When.NotExists, flags);
         }
 
         public Task<bool> LockTakeAsync(RedisKey key, RedisValue value, TimeSpan expiry, CommandFlags flags = CommandFlags.None)
         {
+            if (value.IsNull) throw new ArgumentNullException("value");
             return StringSetAsync(key, value, expiry, When.NotExists, flags);
         }
 
@@ -1615,17 +1643,23 @@ namespace StackExchange.Redis
 
         ITransaction GetLockExtendTransaction(RedisKey key, RedisValue value, TimeSpan expiry)
         {
-            var tran = CreateTransaction(asyncState);
-            tran.AddCondition(Condition.StringEqual(key, value));
-            tran.KeyExpireAsync(key, expiry, CommandFlags.FireAndForget);
+            var tran = CreateTransactionIfAvailable(asyncState);
+            if (tran != null)
+            {
+                tran.AddCondition(Condition.StringEqual(key, value));
+                tran.KeyExpireAsync(key, expiry, CommandFlags.FireAndForget);
+            }
             return tran;
         }
 
         ITransaction GetLockReleaseTransaction(RedisKey key, RedisValue value)
         {
-            var tran = CreateTransaction(asyncState);
-            tran.AddCondition(Condition.StringEqual(key, value));
-            tran.KeyDeleteAsync(key, CommandFlags.FireAndForget);
+            var tran = CreateTransactionIfAvailable(asyncState);
+            if (tran != null)
+            {
+                tran.AddCondition(Condition.StringEqual(key, value));
+                tran.KeyDeleteAsync(key, CommandFlags.FireAndForget);
+            }
             return tran;
         }
 
