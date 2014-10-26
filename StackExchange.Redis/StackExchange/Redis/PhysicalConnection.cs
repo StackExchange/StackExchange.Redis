@@ -80,11 +80,15 @@ namespace StackExchange.Redis
             var endpoint = bridge.ServerEndPoint.EndPoint;
             physicalName = connectionType + "#" + Interlocked.Increment(ref totalCount) + "@" + Format.ToString(endpoint);
             this.bridge = bridge;
-            multiplexer.Trace("Connecting...", physicalName);
-
-            this.socketToken = multiplexer.SocketManager.BeginConnect(endpoint, this);
-            //socket.SendTimeout = socket.ReceiveTimeout = multiplexer.TimeoutMilliseconds;
             OnCreateEcho();
+        }
+
+        public void BeginConnect()
+        {
+            var endpoint = this.bridge.ServerEndPoint.EndPoint;
+
+            multiplexer.Trace("Connecting...", physicalName);
+            this.socketToken = multiplexer.SocketManager.BeginConnect(endpoint, this);
         }
 
         private enum ReadMode : byte

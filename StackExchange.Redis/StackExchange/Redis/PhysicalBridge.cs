@@ -388,7 +388,7 @@ namespace StackExchange.Redis
                 long newSampleCount = Interlocked.Read(ref operationCount);
                 Interlocked.Exchange(ref profileLog[index % ProfileLogSamples], newSampleCount);
                 Interlocked.Exchange(ref profileLastLog, newSampleCount);
-
+                Trace("OnHeartbeat: " + (State)state);
                 switch (state)
                 {
                     case (int)State.Connecting:
@@ -709,7 +709,10 @@ namespace StackExchange.Redis
                         {
                             Interlocked.Increment(ref socketCount);
                             Interlocked.Exchange(ref connectStartTicks, Environment.TickCount);
+                            // separate creation and connection for case when connection completes synchronously
+                            // in that case PhysicalConnection will call back to PhysicalBridge, and most of  PhysicalBridge methods assumes that physical is not null;
                             physical = new PhysicalConnection(this);
+                            physical.BeginConnect();
                         }
                     }
                     return null;
