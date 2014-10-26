@@ -44,6 +44,29 @@ namespace StackExchange.Redis.Tests
         }
 
         [TestCase]
+        public void ConnectsWhenBeginConnectCompletesSynchronously()
+        {
+            try
+            {
+                SocketManager.ConnectCompletionType = CompletionType.Sync;
+
+                using (var muxer = Create(keepAlive: 1, connectTimeout: 3000))
+                {
+                    var conn = muxer.GetDatabase();
+                    conn.Ping();
+
+                    Assert.IsTrue(muxer.IsConnected);
+                }
+
+                ClearAmbientFailures();
+            }
+            finally
+            {
+                SocketManager.ConnectCompletionType = CompletionType.Any;
+            }
+        }
+
+        [TestCase]
         public void FastNoticesFailOnConnectingAsync()
         {
             try
