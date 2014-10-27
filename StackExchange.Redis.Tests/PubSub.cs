@@ -12,6 +12,48 @@ namespace StackExchange.Redis.Tests
     {
 
         [Test]
+        public void ExplicitPublishMode()
+        {
+            using(var mx = Create(channelPrefix: "foo:"))
+            {
+                var pub = mx.GetSubscriber();
+                int a = 0, b = 0, c = 0, d = 0;
+                pub.Subscribe(new RedisChannel("*bcd", RedisChannel.PatternMode.Literal), (x, y) =>
+                {
+                    Interlocked.Increment(ref a);
+                });
+                pub.Subscribe(new RedisChannel("a*cd", RedisChannel.PatternMode.Pattern), (x, y) =>
+                {
+                    Interlocked.Increment(ref b);
+                });
+                pub.Subscribe(new RedisChannel("ab*d", RedisChannel.PatternMode.Auto), (x, y) =>
+                {
+                    Interlocked.Increment(ref c);
+                });
+                pub.Subscribe("abc*", (x, y) =>
+                {
+                    Interlocked.Increment(ref d);
+                });
+
+                Thread.Sleep(1000);
+                pub.Publish("abcd", "efg");
+                Thread.Sleep(500);
+                Assert.AreEqual(0, Thread.VolatileRead(ref a), "a1");
+                Assert.AreEqual(1, Thread.VolatileRead(ref b), "b1");
+                Assert.AreEqual(1, Thread.VolatileRead(ref c), "c1");
+                Assert.AreEqual(1, Thread.VolatileRead(ref d), "d1");
+
+                pub.Publish("*bcd", "efg");
+                Thread.Sleep(500);
+                Assert.AreEqual(1, Thread.VolatileRead(ref a), "a2");
+                //Assert.AreEqual(1, Thread.VolatileRead(ref b), "b2");
+                //Assert.AreEqual(1, Thread.VolatileRead(ref c), "c2");
+                //Assert.AreEqual(1, Thread.VolatileRead(ref d), "d2");
+
+            }
+        }
+
+        [Test]
         [TestCase(true, null, false)]
         [TestCase(false, null, false)]
         [TestCase(true, "", false)]

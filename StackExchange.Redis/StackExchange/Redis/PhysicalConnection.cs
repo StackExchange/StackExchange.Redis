@@ -740,7 +740,7 @@ namespace StackExchange.Redis
                     }
 
                     // invoke the handlers
-                    var channel = items[1].AsRedisChannel(ChannelPrefix);
+                    var channel = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.PatternMode.Literal);
                     multiplexer.Trace("MESSAGE: " + channel, physicalName);
                     if (!channel.IsNull)
                     {
@@ -750,11 +750,11 @@ namespace StackExchange.Redis
                 }
                 else if (items.Length >= 4 && items[0].IsEqual(pmessage))
                 {
-                    var channel = items[2].AsRedisChannel(ChannelPrefix);
+                    var channel = items[2].AsRedisChannel(ChannelPrefix, RedisChannel.PatternMode.Literal);
                     multiplexer.Trace("PMESSAGE: " + channel, physicalName);
                     if (!channel.IsNull)
                     {
-                        var sub = items[1].AsRedisChannel(ChannelPrefix);
+                        var sub = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.PatternMode.Pattern);
                         multiplexer.OnMessage(sub, channel, items[3].AsRedisValue());
                     }
                     return; // AND STOP PROCESSING!

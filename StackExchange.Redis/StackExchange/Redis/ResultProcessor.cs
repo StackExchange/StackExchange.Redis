@@ -50,7 +50,7 @@ namespace StackExchange.Redis
             NullableInt64 = new NullableInt64Processor();
 
         public static readonly ResultProcessor<RedisChannel[]>
-            RedisChannelArray = new RedisChannelArrayProcessor();
+            RedisChannelArrayLiteral = new RedisChannelArrayProcessor(RedisChannel.PatternMode.Literal);
 
         public static readonly ResultProcessor<RedisKey>
                     RedisKey = new RedisKeyProcessor();
@@ -971,6 +971,11 @@ namespace StackExchange.Redis
 
         sealed class RedisChannelArrayProcessor : ResultProcessor<RedisChannel[]>
         {
+            private readonly RedisChannel.PatternMode mode;
+            public RedisChannelArrayProcessor(RedisChannel.PatternMode mode)
+            {
+                this.mode = mode;
+            }
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
                 switch (result.Type)
@@ -988,7 +993,7 @@ namespace StackExchange.Redis
                             byte[] channelPrefix = connection.ChannelPrefix;
                             for (int i = 0; i < final.Length; i++)
                             {
-                                final[i] = arr[i].AsRedisChannel(channelPrefix);
+                                final[i] = arr[i].AsRedisChannel(channelPrefix, mode);
                             }
                         }
                         SetResult(message, final);

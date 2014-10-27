@@ -186,7 +186,7 @@ namespace StackExchange.Redis
             }
             public Task SubscribeToServer(ConnectionMultiplexer multiplexer, RedisChannel channel, CommandFlags flags, object asyncState, bool internalCall)
             {
-                var cmd = channel.Contains((byte)'*') ? RedisCommand.PSUBSCRIBE : RedisCommand.SUBSCRIBE;
+                var cmd = channel.IsPatternBased ? RedisCommand.PSUBSCRIBE : RedisCommand.SUBSCRIBE;
                 var selected = multiplexer.SelectServer(-1, cmd, CommandFlags.DemandMaster, default(RedisKey));
 
                 if (selected == null || Interlocked.CompareExchange(ref owner, selected, null) != null) return null;
@@ -201,7 +201,7 @@ namespace StackExchange.Redis
                 var oldOwner = Interlocked.Exchange(ref owner, null);
                 if (oldOwner == null) return null;
 
-                var cmd = channel.Contains((byte)'*') ? RedisCommand.PUNSUBSCRIBE : RedisCommand.UNSUBSCRIBE;
+                var cmd = channel.IsPatternBased ? RedisCommand.PUNSUBSCRIBE : RedisCommand.UNSUBSCRIBE;
                 var msg = Message.Create(-1, flags, cmd, channel);
                 if (internalCall) msg.SetInternalCall();
                 return oldOwner.QueueDirectAsync(msg, ResultProcessor.TrackSubscriptions, asyncState);
@@ -215,7 +215,7 @@ namespace StackExchange.Redis
             {
                 if (server != null && Interlocked.CompareExchange(ref owner, server, server) == server)
                 {
-                    var cmd = channel.Contains((byte)'*') ? RedisCommand.PSUBSCRIBE : RedisCommand.SUBSCRIBE;
+                    var cmd = channel.IsPatternBased ? RedisCommand.PSUBSCRIBE : RedisCommand.SUBSCRIBE;
                     var msg = Message.Create(-1, CommandFlags.FireAndForget, cmd, channel);
                     msg.SetInternalCall();
                     server.QueueDirectFireAndForget(msg, ResultProcessor.TrackSubscriptions);

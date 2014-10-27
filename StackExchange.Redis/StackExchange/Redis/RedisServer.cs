@@ -449,14 +449,14 @@ namespace StackExchange.Redis
         {
             var msg = pattern.IsNullOrEmpty ? Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.CHANNELS)
                 : Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.CHANNELS, pattern);
-            return ExecuteSync(msg, ResultProcessor.RedisChannelArray);
+            return ExecuteSync(msg, ResultProcessor.RedisChannelArrayLiteral);
         }
 
         public Task<RedisChannel[]> SubscriptionChannelsAsync(RedisChannel pattern = default(RedisChannel), CommandFlags flags = CommandFlags.None)
         {
             var msg = pattern.IsNullOrEmpty ? Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.CHANNELS)
                 : Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.CHANNELS, pattern);
-            return ExecuteAsync(msg, ResultProcessor.RedisChannelArray);
+            return ExecuteAsync(msg, ResultProcessor.RedisChannelArrayLiteral);
         }
 
         public long SubscriptionPatternCount(CommandFlags flags = CommandFlags.None)

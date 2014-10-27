@@ -13,9 +13,36 @@ namespace StackExchange.Redis
 
         private readonly byte[] value;
 
-        private RedisChannel(byte[] value)
+        /// <summary>
+        /// Create a new redis channel from a buffer, explicitly controlling the pattern mode
+        /// </summary>
+        public RedisChannel(byte[] value, PatternMode mode) : this(value, DeterminePatternBased(value, mode))
+        {   
+        }
+
+        /// <summary>
+        /// Create a new redis channel from a string, explicitly controlling the pattern mode
+        /// </summary>
+        public RedisChannel(string value, PatternMode mode) : this(value == null ? null : Encoding.UTF8.GetBytes(value), mode)
+        {
+        }
+        
+        private RedisChannel(byte[] value, bool isPatternBased)
         {
             this.value = value;
+            this.IsPatternBased = isPatternBased;
+        }
+        private static bool DeterminePatternBased(byte[] value, PatternMode mode)
+        {
+            switch (mode)
+            {
+                case PatternMode.Auto:
+                    return value != null && Array.IndexOf(value, (byte)'*') >= 0;
+                case PatternMode.Literal: return false;
+                case PatternMode.Pattern: return true;
+                default:
+                    throw new ArgumentOutOfRangeException("mode");
+            }
         }
 
         /// <summary>
@@ -81,7 +108,7 @@ namespace StackExchange.Redis
         /// </summary>
         public static bool operator ==(RedisChannel x, RedisChannel y)
         {
-            return RedisValue.Equals(x.value, y.value);
+            return x.IsPatternBased == y.IsPatternBased && RedisValue.Equals(x.value, y.value);
         }
 
         /// <summary>
@@ -141,7 +168,8 @@ namespace StackExchange.Redis
         /// </summary>
         public bool Equals(RedisChannel other)
         {
-            return RedisValue.Equals(this.value, other.value);
+            return this.IsPatternBased == other.IsPatternBased &&
+                RedisValue.Equals(this.value, other.value);
         }
 
         /// <summary>
@@ -149,7 +177,7 @@ namespace StackExchange.Redis
         /// </summary>
         public override int GetHashCode()
         {
-            return RedisValue.GetHashCode(this.value);
+            return RedisValue.GetHashCode(this.value) + (IsPatternBased ? 1 : 0);
         }
 
         /// <summary>
@@ -180,9 +208,25 @@ namespace StackExchange.Redis
             return clone;
         }
 
-        internal bool Contains(byte value)
+        internal readonly bool IsPatternBased;
+
+        /// <summary>
+        /// The matching pattern for this channel
+        /// </summary>
+        public enum PatternMode
         {
-            return this.value != null && Array.IndexOf(this.value, value) >= 0;
+            /// <summary>
+            /// Will be treated as a pattern if it includes *
+            /// </summary>
+            Auto = 0,
+            /// <summary>
+            /// Never a pattern
+            /// </summary>
+            Literal = 1,
+            /// <summary>
+            /// Always a pattern
+            /// </summary>
+            Pattern = 2
         }
         /// <summary>
         /// Create a channel name from a String
@@ -190,7 +234,7 @@ namespace StackExchange.Redis
         public static implicit operator RedisChannel(string key)
         {
             if (key == null) return default(RedisChannel);
-            return new RedisChannel(Encoding.UTF8.GetBytes(key));
+            return new RedisChannel(Encoding.UTF8.GetBytes(key), PatternMode.Auto);
         }
         /// <summary>
         /// Create a channel name from a Byte[]
@@ -198,7 +242,7 @@ namespace StackExchange.Redis
         public static implicit operator RedisChannel(byte[] key)
         {
             if (key == null) return default(RedisChannel);
-            return new RedisChannel(key);
+            return new RedisChannel(key, PatternMode.Auto);
         }
         /// <summary>
         /// Obtain the channel name as a Byte[]
