@@ -4,7 +4,8 @@ using System.Linq.Expressions;
 using System.Net;
 using Moq;
 using NUnit.Framework;
-using StackExchange.Redis.StackExchange.Redis.KeyspaceIsolation;
+using StackExchange.Redis.KeyspaceIsolation;
+using System.Text;
 
 namespace StackExchange.Redis.Tests
 {
@@ -18,7 +19,7 @@ namespace StackExchange.Redis.Tests
         public void Initialize()
         {
             mock = new Mock<IDatabase>();
-            wrapper = new DatabaseWrapper(mock.Object, "prefix:");
+            wrapper = new DatabaseWrapper(mock.Object, Encoding.UTF8.GetBytes("prefix:"));
         }
 
         [Test]
@@ -149,7 +150,7 @@ namespace StackExchange.Redis.Tests
         public void HashScan()
         {
             wrapper.HashScan("key", "pattern", 123, flags: CommandFlags.HighPriority);
-            mock.Verify(_ => _.HashScan("prefix:key", "pattern", 123, CommandFlags.HighPriority));
+            mock.Verify(_ => _.HashScan("prefix:key", "pattern", 123, 0, 0, CommandFlags.HighPriority));
         }
 
         [Test]
@@ -604,7 +605,7 @@ namespace StackExchange.Redis.Tests
         public void SetScan()
         {
             wrapper.SetScan("key", "pattern", 123, flags: CommandFlags.HighPriority);
-            mock.Verify(_ => _.SetScan("prefix:key", "pattern", 123, CommandFlags.HighPriority));
+            mock.Verify(_ => _.SetScan("prefix:key", "pattern", 123, 0, 0, CommandFlags.HighPriority));
         }
 
         [Test]
@@ -774,7 +775,7 @@ namespace StackExchange.Redis.Tests
         public void SortedSetScan()
         {
             wrapper.SortedSetScan("key", "pattern", 123, flags: CommandFlags.HighPriority);
-            mock.Verify(_ => _.SortedSetScan("prefix:key", "pattern", 123, CommandFlags.HighPriority));
+            mock.Verify(_ => _.SortedSetScan("prefix:key", "pattern", 123, 0, 0, CommandFlags.HighPriority));
         }
 
         [Test]

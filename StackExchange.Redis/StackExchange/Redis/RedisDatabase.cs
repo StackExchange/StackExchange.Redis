@@ -2322,7 +2322,7 @@ namespace StackExchange.Redis
             {
                 this.ttlCommand = ttlCommand;
             }
-            public override string CommandAndKey { get { return ttlCommand + "+" + RedisCommand.GET + " " + Key; } }
+            public override string CommandAndKey { get { return ttlCommand + "+" + RedisCommand.GET + " " + (string)Key; } }
 
             public IEnumerable<Message> GetMessages(PhysicalConnection connection)
             {

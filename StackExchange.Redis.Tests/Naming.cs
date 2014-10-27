@@ -73,6 +73,8 @@ namespace StackExchange.Redis.Tests
                 {
                     case "KeyRandom":
                     case "KeyRandomAsync":
+                    case "Publish":
+                    case "PublishAsync":
                         continue; // they're fine, but don't want to widen check to return type
                 }
 

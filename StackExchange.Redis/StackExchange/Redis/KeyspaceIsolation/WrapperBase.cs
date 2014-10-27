@@ -4,17 +4,17 @@ using System.Globalization;
 using System.Net;
 using System.Threading.Tasks;
 
-namespace StackExchange.Redis.StackExchange.Redis.KeyspaceIsolation
+namespace StackExchange.Redis.KeyspaceIsolation
 {
     internal class WrapperBase<TInner> : IDatabaseAsync where TInner : IDatabaseAsync
     {
         private readonly TInner _inner;
-        private readonly RedisKey _prefix;
+        private readonly byte[] _keyPrefix;
 
-        internal WrapperBase(TInner inner, RedisKey prefix)
+        internal WrapperBase(TInner inner, byte[] keyPrefix)
         {
             _inner = inner;
-            _prefix = prefix;
+            _keyPrefix = keyPrefix;
         }
 
         public ConnectionMultiplexer Multiplexer
@@ -27,9 +27,9 @@ namespace StackExchange.Redis.StackExchange.Redis.KeyspaceIsolation
             get { return _inner; }
         }
 
-        internal RedisKey Prefix
+        internal byte[] Prefix
         {
-            get { return _prefix; }
+            get { return _keyPrefix; }
         }
 
         public Task<RedisValue> DebugObjectAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -653,7 +653,7 @@ namespace StackExchange.Redis.StackExchange.Redis.KeyspaceIsolation
 
         protected internal RedisKey ToInner(RedisKey outer)
         {
-            return this.Prefix + outer;
+            return RedisKey.WithPrefix(_keyPrefix, outer);
         }
 
         protected RedisKey ToInnerOrDefault(RedisKey outer)
@@ -713,7 +713,7 @@ namespace StackExchange.Redis.StackExchange.Redis.KeyspaceIsolation
 
         protected RedisValue ToInner(RedisValue outer)
         {
-            return RedisKey.Concatenate(this.Prefix, outer);
+            return RedisKey.ConcatenateBytes(this.Prefix, null, (byte[])outer);
         }
 
         protected RedisValue SortByToInner(RedisValue outer)
@@ -761,7 +761,7 @@ namespace StackExchange.Redis.StackExchange.Redis.KeyspaceIsolation
 
         protected RedisChannel ToInner(RedisChannel outer)
         {
-            return RedisKey.Concatenate((byte[])Prefix, (byte[])outer);
+            return RedisKey.ConcatenateBytes(this.Prefix, null, (byte[])outer);
         }
 
         private Func<RedisKey, RedisKey> mapFunction;

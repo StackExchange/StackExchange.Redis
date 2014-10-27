@@ -1,5 +1,5 @@
 ﻿using NUnit.Framework;
-using StackExchange.Redis.StackExchange.Redis.KeyspaceIsolation;
+using StackExchange.Redis.KeyspaceIsolation;
 using System;
 
 namespace StackExchange.Redis.Tests

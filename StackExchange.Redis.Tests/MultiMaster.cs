@@ -14,7 +14,7 @@ namespace StackExchange.Redis.Tests
             return PrimaryServer + ":" + SecurePort + "," + PrimaryServer + ":" + PrimaryPort + ",password=" + SecurePassword;
         }
 
-        [Test, ExpectedException(typeof(RedisCommandException), ExpectedMessage = "FLUSHDB cannot be issued to a slave")]
+        [Test, ExpectedException(typeof(RedisCommandException), ExpectedMessage = "Command cannot be issued to a slave: FLUSHDB")]
         public void CannotFlushSlave()
         {
             ConfigurationOptions config = GetMasterSlaveConfig();
@@ -73,7 +73,7 @@ namespace StackExchange.Redis.Tests
                 }
                 catch (RedisConnectionException ex)
                 {
-                    Assert.AreEqual("No connection is available to service this operation: EXISTS", ex.Message);
+                    Assert.AreEqual("No connection is available to service this operation: EXISTS DeslaveGoesToPrimary", ex.Message);
                 }
 
                 primary.MakeMaster(ReplicationChangeOptions.Broadcast | ReplicationChangeOptions.EnslaveSubordinates | ReplicationChangeOptions.SetTiebreaker);

@@ -2,11 +2,11 @@
 using System.Collections.Generic;
 using System.Net;
 
-namespace StackExchange.Redis.StackExchange.Redis.KeyspaceIsolation
+namespace StackExchange.Redis.KeyspaceIsolation
 {
     internal sealed class DatabaseWrapper : WrapperBase<IDatabase>, IDatabase
     {
-        public DatabaseWrapper(IDatabase inner, RedisKey prefix)
+        public DatabaseWrapper(IDatabase inner, byte[] prefix)
             : base(inner, prefix)
         {
         }

@@ -33,9 +33,5 @@ namespace StackExchange.Redis.Tests
                 Assert.IsTrue(channels.Contains(channel));
             }
         }
-        protected override string GetConfiguration()
-        {
-            return "ubuntu";
-        }
     }
 }

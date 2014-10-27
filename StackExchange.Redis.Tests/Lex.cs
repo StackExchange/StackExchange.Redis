@@ -5,10 +5,6 @@ namespace StackExchange.Redis.Tests
     [TestFixture]
     public class Lex : TestBase
     {
-        protected override string GetConfiguration()
-        {
-            return "ubuntu";
-        }
 
         [Test]
         public void QueryRangeAndLengthByLex()
