@@ -124,13 +124,15 @@ namespace StackExchange.Redis
             socket.NoDelay = true;
             try
             {
-                var ar = socket.BeginConnect(endpoint, EndConnect, Tuple.Create(socket, callback));
-                if (ar.CompletedSynchronously)
-                {
-                    ConnectionMultiplexer.TraceWithoutContext("EndConnect (sync)");
-                    EndConnectImpl(ar);
-                }
-            } catch (NotImplementedException ex)
+                CompletionType connectCompletionType = CompletionType.Any;
+                this.ShouldForceConnectCompletionType(ref connectCompletionType);
+
+                CompletionTypeHelper.RunWithCompletionType(
+                    (cb) => socket.BeginConnect(endpoint, cb, Tuple.Create(socket, callback)),
+                    (ar) => EndConnectImpl(ar),
+                    CompletionType.Sync);
+            } 
+            catch (NotImplementedException ex)
             {
                 if (!(endpoint is IPEndPoint))
                 {
@@ -185,14 +187,6 @@ namespace StackExchange.Redis
             Shutdown(token.Socket);
         }
 
-        private void EndConnect(IAsyncResult ar)
-        {
-            if (!ar.CompletedSynchronously)
-            {
-                ConnectionMultiplexer.TraceWithoutContext("EndConnect (async)");
-                EndConnectImpl(ar);
-            }
-        }
         private void EndConnectImpl(IAsyncResult ar)
         {
             Tuple<Socket, ISocketCallback> tuple = null;
@@ -261,6 +255,8 @@ namespace StackExchange.Redis
         partial void OnShutdown(Socket socket);
 
         partial void ShouldIgnoreConnect(ISocketCallback callback, ref bool ignore);
+        
+        partial void ShouldForceConnectCompletionType(ref CompletionType completionType);
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")]
         private void Shutdown(Socket socket)
