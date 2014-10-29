@@ -114,6 +114,8 @@ namespace StackExchange.Redis
 
         public bool SlaveReadOnly { get { return slaveReadOnly; } set { SetConfig(ref slaveReadOnly, value); } }
 
+        public bool AllowSlaveWrites { get; set; }
+
         public Version Version { get { return version; } set { SetConfig(ref version, value); } }
 
         public int WriteEverySeconds { get { return writeEverySeconds; } set { SetConfig(ref writeEverySeconds, value); } }

@@ -37,6 +37,12 @@ namespace StackExchange.Redis
 
         public bool IsSlave { get { return server.IsSlave; } }
 
+        public bool AllowSlaveWrites
+        {
+            get { return server.AllowSlaveWrites; }
+            set { server.AllowSlaveWrites = value; }
+        }
+
         public ServerType ServerType { get { return server.ServerType; } }
 
         public Version Version { get { return server.Version; } }
