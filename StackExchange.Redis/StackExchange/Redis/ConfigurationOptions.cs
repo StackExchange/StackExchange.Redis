@@ -111,6 +111,8 @@ namespace StackExchange.Redis
 
         private Proxy? proxy;
 
+        private ConnectionMultiplexer sentinelConnection;
+
         /// <summary>
         /// A LocalCertificateSelectionCallback delegate responsible for selecting the certificate used for authentication; note
         /// that this cannot be specified in the configuration-string.
@@ -230,6 +232,11 @@ namespace StackExchange.Redis
         public bool ResolveDns { get { return resolveDns.GetValueOrDefault(); } set { resolveDns = value; } }
 
         /// <summary>
+        /// The the sentinel connection used to resolve a service.
+        /// </summary>
+        public ConnectionMultiplexer SentinelConnection { get { return sentinelConnection; } set { sentinelConnection = value; } }
+
+        /// <summary>
         /// The service name used to resolve a service via sentinel
         /// </summary>
         public string ServiceName { get { return serviceName; } set { serviceName = value; } }
@@ -320,7 +327,8 @@ namespace StackExchange.Redis
                 ChannelPrefix = ChannelPrefix.Clone(),
                 SocketManager = SocketManager,
                 connectRetry = connectRetry,
-                configCheckSeconds = configCheckSeconds
+                configCheckSeconds = configCheckSeconds,
+                sentinelConnection = sentinelConnection
             };
             foreach (var item in endpoints)
                 options.endpoints.Add(item);
