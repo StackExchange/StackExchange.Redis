@@ -64,7 +64,7 @@ or perhaps more simply, just use the provided `Nullable<T>` support:
 Hashes
 ---
 
-Since the field names in hashes do not affect command routing, they are not keys, but can take both text and binary names; thus they are treates as values for the purposes of the API.
+Since the field names in hashes do not affect command routing, they are not keys, but can take both text and binary names; thus they are treated as values for the purposes of the API.
 
 Channels
 ---
