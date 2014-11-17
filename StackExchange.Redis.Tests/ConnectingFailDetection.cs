@@ -8,7 +8,7 @@ namespace StackExchange.Redis.Tests
     public class ConnectingFailDetection : TestBase
     {
 #if DEBUG
-        [TestCase]
+        [Test]
         public void FastNoticesFailOnConnectingSync()
         {
             try
@@ -34,16 +34,15 @@ namespace StackExchange.Redis.Tests
 
                     Assert.IsTrue(muxer.IsConnected);
                 }
-
-                ClearAmbientFailures();
             }
             finally 
             {
                 SocketManager.ConnectCompletionType = CompletionType.Any;
+                ClearAmbientFailures();
             }
         }
 
-        [TestCase]
+        [Test]
         public void ConnectsWhenBeginConnectCompletesSynchronously()
         {
             try
@@ -57,16 +56,15 @@ namespace StackExchange.Redis.Tests
 
                     Assert.IsTrue(muxer.IsConnected);
                 }
-
-                ClearAmbientFailures();
             }
             finally
             {
                 SocketManager.ConnectCompletionType = CompletionType.Any;
+                ClearAmbientFailures();
             }
         }
 
-        [TestCase]
+        [Test]
         public void FastNoticesFailOnConnectingAsync()
         {
             try
@@ -92,13 +90,12 @@ namespace StackExchange.Redis.Tests
                     Thread.Sleep(2000);
 
                     Assert.IsTrue(muxer.IsConnected);
-                    ClearAmbientFailures();
-
                 }
             }
             finally
             {
                 SocketManager.ConnectCompletionType = CompletionType.Any;
+                ClearAmbientFailures();
             }
         }
 #endif
