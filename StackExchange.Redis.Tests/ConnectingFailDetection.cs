@@ -98,6 +98,35 @@ namespace StackExchange.Redis.Tests
                 ClearAmbientFailures();
             }
         }
+
+        [Test]
+        public void ReconnectsOnStaleConnection()
+        {
+            try
+            {
+                using (var muxer = Create(keepAlive: 1, connectTimeout: 3000))
+                {
+                    var conn = muxer.GetDatabase();
+                    conn.Ping();
+
+                    Assert.IsTrue(muxer.IsConnected);
+
+                    PhysicalConnection.EmulateStaleConnection = true;
+                    Thread.Sleep(500);
+                    Assert.IsFalse(muxer.IsConnected);
+
+                    PhysicalConnection.EmulateStaleConnection = false;
+                    Thread.Sleep(1000);
+                    Assert.IsTrue(muxer.IsConnected);
+                }
+            }
+            finally
+            {
+                PhysicalConnection.EmulateStaleConnection = false;
+                ClearAmbientFailures();
+            }
+        }
+
 #endif
     }
 }

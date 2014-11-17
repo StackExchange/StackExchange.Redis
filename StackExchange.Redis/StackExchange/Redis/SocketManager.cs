@@ -39,6 +39,9 @@ namespace StackExchange.Redis
         /// Indicates that we cannot know whether data is available, and that the consume should commence reading asynchronously
         /// </summary>
         void StartReading();
+
+        // check for write-read timeout
+        void CheckForStaleConnection();
     }
 
     internal struct SocketToken

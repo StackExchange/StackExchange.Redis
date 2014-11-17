@@ -953,5 +953,21 @@ namespace StackExchange.Redis
                     throw new InvalidOperationException("Unexpected response prefix: " + (char)resultType);
             }
         }
+
+        partial void DebugEmulateStaleConnection(ref int lastWrite);
+
+        public void CheckForStaleConnection()
+        {
+            int lastRead, lastWrite;
+            lastRead = Thread.VolatileRead(ref this.lastReadTickCount);
+            lastWrite = Thread.VolatileRead(ref this.lastWriteTickCount);
+
+            DebugEmulateStaleConnection(ref lastRead);
+
+            if ((lastWrite - lastRead) > this.multiplexer.RawConfig.SyncTimeout)
+            {
+                this.RecordConnectionFailed(ConnectionFailureType.SocketFailure, origin: "CheckForStaleConnection");
+            }
+        }
     }
 }
