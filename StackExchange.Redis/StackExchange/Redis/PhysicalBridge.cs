@@ -679,23 +679,6 @@ namespace StackExchange.Redis
             return result;
         }
 
-        private void Flush()
-        {
-            var tmp = physical;
-            if (tmp != null)
-            {
-                try
-                {
-                    Trace(connectionType + " flushed");
-                    tmp.Flush();
-                }
-                catch (Exception ex)
-                {
-                    OnInternalError(ex);
-                }
-            }
-        }
-
         private PhysicalConnection GetConnection()
         {
             if (state == (int)State.Disconnected)
