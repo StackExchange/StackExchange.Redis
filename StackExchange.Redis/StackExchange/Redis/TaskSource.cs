@@ -31,7 +31,7 @@ namespace StackExchange.Redis
                 {
                     var method = new DynamicMethod("IsSyncSafe", typeof(bool), new[] { typeof(Task) }, typeof(Task), true);
                     var il = method.GetILGenerator();
-                    var hasContinuation = il.DefineLabel();
+                    //var hasContinuation = il.DefineLabel();
                     il.Emit(OpCodes.Ldarg_0);
                     il.Emit(OpCodes.Ldfld, continuationField);
                     Label nonNull = il.DefineLabel(), goodReturn = il.DefineLabel();

@@ -5,6 +5,7 @@ using System.Linq;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace StackExchange.Redis
@@ -268,18 +269,24 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.String);
         }
 
-        public IEnumerable<RedisKey> Keys(int database = 0, RedisValue pattern = default(RedisValue), int pageSize = KeysScanIterator.DefaultPageSize, CommandFlags flags = CommandFlags.None)
+        IEnumerable<RedisKey> IServer.Keys(int database, RedisValue pattern, int pageSize, CommandFlags flags)
+        {
+            return Keys(database, pattern, pageSize, CursorUtils.Origin, 0, flags);
+        }
+
+        public IEnumerable<RedisKey> Keys(int database = 0, RedisValue pattern = default(RedisValue), int pageSize = CursorUtils.DefaultPageSize, long cursor = CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
         {
             if (pageSize <= 0) throw new ArgumentOutOfRangeException("pageSize");
-            if (KeysScanIterator.IsNil(pattern)) pattern = RedisLiterals.Wildcard;
+            if (CursorUtils.IsNil(pattern)) pattern = RedisLiterals.Wildcard;
 
             if (multiplexer.CommandMap.IsAvailable(RedisCommand.SCAN))
             {
                 var features = server.GetFeatures();
 
-                if (features.Scan) return new KeysScanIterator(this, database, pattern, pageSize, flags).Read();
+                if (features.Scan) return new KeysScanEnumerable(this, database, pattern, pageSize, cursor, pageOffset, flags);
             }
 
+            if (cursor != 0 || pageOffset != 0) throw ExceptionFactory.NoCursor(RedisCommand.KEYS);
             Message msg = Message.Create(database, flags, RedisCommand.KEYS, pattern);
             return ExecuteSync(msg, ResultProcessor.RedisKeyArray);
         }
@@ -442,14 +449,14 @@ namespace StackExchange.Redis
         {
             var msg = pattern.IsNullOrEmpty ? Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.CHANNELS)
                 : Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.CHANNELS, pattern);
-            return ExecuteSync(msg, ResultProcessor.RedisChannelArray);
+            return ExecuteSync(msg, ResultProcessor.RedisChannelArrayLiteral);
         }
 
         public Task<RedisChannel[]> SubscriptionChannelsAsync(RedisChannel pattern = default(RedisChannel), CommandFlags flags = CommandFlags.None)
         {
             var msg = pattern.IsNullOrEmpty ? Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.CHANNELS)
                 : Message.Create(-1, flags, RedisCommand.PUBSUB, RedisLiterals.CHANNELS, pattern);
-            return ExecuteAsync(msg, ResultProcessor.RedisChannelArray);
+            return ExecuteAsync(msg, ResultProcessor.RedisChannelArrayLiteral);
         }
 
         public long SubscriptionPatternCount(CommandFlags flags = CommandFlags.None)
@@ -590,6 +597,9 @@ namespace StackExchange.Redis
             {
                 case SaveType.BackgroundRewriteAppendOnlyFile: return Message.Create(-1, flags, RedisCommand.BGREWRITEAOF);
                 case SaveType.BackgroundSave: return Message.Create(-1, flags, RedisCommand.BGSAVE);
+#pragma warning disable 0618
+                case SaveType.ForegroundSave: return Message.Create(-1, flags, RedisCommand.SAVE);
+#pragma warning restore 0618
                 default:  throw new ArgumentOutOfRangeException("type");
             }
         }
@@ -600,39 +610,10 @@ namespace StackExchange.Redis
             {
                 case SaveType.BackgroundRewriteAppendOnlyFile: return ResultProcessor.DemandOK;
                 case SaveType.BackgroundSave: return ResultProcessor.BackgroundSaveStarted;
+#pragma warning disable 0618
+                case SaveType.ForegroundSave: return ResultProcessor.DemandOK;
+#pragma warning restore 0618
                 default: throw new ArgumentOutOfRangeException("type");
-            }
-        }
-
-        struct KeysScanResult
-        {
-            public static readonly ResultProcessor<KeysScanResult> Processor = new KeysResultProcessor();
-            public readonly long Cursor;
-            public readonly RedisKey[] Keys;
-            public KeysScanResult(long cursor, RedisKey[] keys)
-            {
-                this.Cursor = cursor;
-                this.Keys = keys;
-            }
-            private class KeysResultProcessor : ResultProcessor<KeysScanResult>
-            {
-                protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
-                {
-                    switch (result.Type)
-                    {
-                        case ResultType.MultiBulk:
-                            var arr = result.GetItems();
-                            long i64;
-                            if (arr.Length == 2 && arr[1].Type == ResultType.MultiBulk && arr[0].TryGetInt64(out i64))
-                            {
-                                var keysResult = new KeysScanResult(i64, arr[1].GetItemsAsKeys());
-                                SetResult(message, keysResult);
-                                return true;
-                            }
-                            break;
-                    }
-                    return false;
-                }
             }
         }
 
@@ -664,67 +645,22 @@ namespace StackExchange.Redis
                 }
             }
         }
-        sealed class KeysScanIterator
+
+        sealed class KeysScanEnumerable : CursorEnumerable<RedisKey>
         {
-            internal const int DefaultPageSize = 10;
-
-            private readonly int db;
-
-            private readonly CommandFlags flags;
-
-            private readonly int pageSize;
-
             private readonly RedisValue pattern;
 
-            private readonly RedisServer server;
-
-            public KeysScanIterator(RedisServer server, int db, RedisValue pattern, int pageSize, CommandFlags flags)
+            public KeysScanEnumerable(RedisServer server, int db, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
+                : base(server, server.server, db, pageSize, cursor, pageOffset, flags)
             {
-                this.pageSize = pageSize;
-                this.db = db;
                 this.pattern = pattern;
-                this.flags = flags;
-                this.server = server;
             }
 
-            public static bool IsNil(RedisValue pattern)
+            protected override Message CreateMessage(long cursor)
             {
-                if (pattern.IsNullOrEmpty) return true;
-                if (pattern.IsInteger) return false;
-                byte[] rawValue = pattern;
-                return rawValue.Length == 1 && rawValue[0] == '*';
-            }
-            public IEnumerable<RedisKey> Read()
-            {
-                var msg = CreateMessage(0, false);
-                KeysScanResult current = server.ExecuteSync(msg, KeysScanResult.Processor);
-                Task<KeysScanResult> pending;
-                do
+                if (CursorUtils.IsNil(pattern))
                 {
-                    // kick off the next immediately, but don't wait for it yet
-                    msg = CreateMessage(current.Cursor, true);
-                    pending = msg == null ? null : server.ExecuteAsync(msg, KeysScanResult.Processor);
-
-                    // now we can iterate the rows
-                    var keys = current.Keys;
-                    for (int i = 0; i < keys.Length; i++)
-                        yield return keys[i];
-
-                    // wait for the next, if any
-                    if (pending != null)
-                    {
-                        current = server.Wait(pending);
-                    }
-
-                } while (pending != null);
-            }
-
-            Message CreateMessage(long cursor, bool running)
-            {
-                if (cursor == 0 && running) return null; // end of the line
-                if (IsNil(pattern))
-                {
-                    if (pageSize == DefaultPageSize)
+                    if (pageSize == CursorUtils.DefaultPageSize)
                     {
                         return Message.Create(db, flags, RedisCommand.SCAN, cursor);
                     }
@@ -735,7 +671,7 @@ namespace StackExchange.Redis
                 }
                 else
                 {
-                    if (pageSize == DefaultPageSize)
+                    if (pageSize == CursorUtils.DefaultPageSize)
                     {
                         return Message.Create(db, flags, RedisCommand.SCAN, cursor, RedisLiterals.MATCH, pattern);
                     }
@@ -743,6 +679,32 @@ namespace StackExchange.Redis
                     {
                         return Message.Create(db, flags, RedisCommand.SCAN, cursor, RedisLiterals.MATCH, pattern, RedisLiterals.COUNT, pageSize);
                     }
+                }
+            }
+            protected override ResultProcessor<ScanResult> Processor
+            {
+                get { return processor; }
+            }
+
+            public static readonly ResultProcessor<ScanResult> processor = new KeysResultProcessor();
+            private class KeysResultProcessor : ResultProcessor<ScanResult>
+            {
+                protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+                {
+                    switch (result.Type)
+                    {
+                        case ResultType.MultiBulk:
+                            var arr = result.GetItems();
+                            long i64;
+                            if (arr.Length == 2 && arr[1].Type == ResultType.MultiBulk && arr[0].TryGetInt64(out i64))
+                            {
+                                var keysResult = new ScanResult(i64, arr[1].GetItemsAsKeys());
+                                SetResult(message, keysResult);
+                                return true;
+                            }
+                            break;
+                    }
+                    return false;
                 }
             }
         }

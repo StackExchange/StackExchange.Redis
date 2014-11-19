@@ -68,7 +68,7 @@ namespace StackExchange.Redis
                     return "(unknown)";
             }
         }
-        internal RedisChannel AsRedisChannel(byte[] channelPrefix)
+        internal RedisChannel AsRedisChannel(byte[] channelPrefix, RedisChannel.PatternMode mode)
         {
             switch (resultType)
             {
@@ -76,7 +76,7 @@ namespace StackExchange.Redis
                 case ResultType.BulkString:
                     if (channelPrefix == null)
                     {
-                        return (RedisChannel)GetBlob();
+                        return new RedisChannel(GetBlob(), mode);
                     }
                     if (AssertStarts(channelPrefix))
                     {
@@ -84,7 +84,7 @@ namespace StackExchange.Redis
 
                         byte[] copy = new byte[count - channelPrefix.Length];
                         Buffer.BlockCopy(src, offset + channelPrefix.Length, copy, 0, copy.Length);
-                        return (RedisChannel)copy;
+                        return new RedisChannel(copy, mode);
                     }
                     return default(RedisChannel);
                 default:

@@ -82,6 +82,12 @@ namespace StackExchange.Redis
             if (includeDetail) AddDetail(ex, null, null, s);
             return ex;
         }
+        internal static Exception NoCursor(RedisCommand command)
+        {
+            string s = GetLabel(false, command, null);
+            var ex = new RedisCommandException("Command cannot be used with a cursor: " + s);
+            return ex;
+        }
 
         internal static Exception Timeout(bool includeDetail, string errorMessage, Message message, ServerEndPoint server)
         {

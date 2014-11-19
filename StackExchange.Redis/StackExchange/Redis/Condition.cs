@@ -163,7 +163,7 @@ namespace StackExchange.Redis
 
             public override string ToString()
             {
-                return (hashField.IsNull ? key.ToString() : key + " > " + hashField)
+                return (hashField.IsNull ? key.ToString() : ((string)key) + " > " + hashField)
                     + (expectedResult ? " exists" : " does not exists");
             }
 
@@ -221,7 +221,7 @@ namespace StackExchange.Redis
 
             public override string ToString()
             {
-                return (hashField.IsNull ? key.ToString() : key + " > " + hashField)
+                return (hashField.IsNull ? key.ToString() : ((string)key) + " > " + hashField)
                     + (expectedEqual ? " == " : " != ")
                     + expectedValue;
             }

@@ -61,15 +61,16 @@ namespace StackExchange.Redis
         /// <summary>
         /// Computes the hash-slot that would be used by the given key
         /// </summary>
-        public unsafe int HashSlot(byte[] key)
+        public unsafe int HashSlot(RedisKey key)
         {
             //HASH_SLOT = CRC16(key) mod 16384
-            if (key == null) return NoSlot;
+            if (key.IsNull) return NoSlot;
             unchecked
             {
-                fixed (byte* ptr = key)
+                var blob = (byte[])key;
+                fixed (byte* ptr = blob)
                 {
-                    int offset = 0, count = key.Length, start, end;
+                    int offset = 0, count = blob.Length, start, end;
                     if ((start = IndexOf(ptr, (byte)'{', 0, count - 1)) >= 0
                         && (end = IndexOf(ptr, (byte)'}', start + 1, count)) >= 0
                         && --end != start)
@@ -183,10 +184,9 @@ namespace StackExchange.Redis
         }
         internal int CombineSlot(int oldSlot, RedisKey key)
         {
-            byte[] blob = key.Value;
-            if (oldSlot == MultipleSlots || (blob = key.Value) == null) return oldSlot;
+            if (oldSlot == MultipleSlots || key.IsNull) return oldSlot;
 
-            int newSlot = HashSlot(blob);                        
+            int newSlot = HashSlot(key);             
             if (oldSlot == NoSlot) return newSlot;
             return oldSlot == newSlot ? oldSlot : MultipleSlots;
         }

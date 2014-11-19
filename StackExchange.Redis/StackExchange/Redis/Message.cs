@@ -612,7 +612,7 @@ namespace StackExchange.Redis
                 this.Key = key;
             }
 
-            public override string CommandAndKey { get { return Command + " " + Key; } }
+            public override string CommandAndKey { get { return Command + " " + ((string)Key); } }
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
             {
                 return serverSelectionStrategy.HashSlot(Key);

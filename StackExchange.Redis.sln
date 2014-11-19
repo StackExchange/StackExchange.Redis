@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 2013
-VisualStudioVersion = 12.0.30501.0
+VisualStudioVersion = 12.0.30723.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StackExchange.Redis", "StackExchange.Redis\StackExchange.Redis.csproj", "{7CEC07F2-8C03-4C42-B048-738B215824C1}"
 EndProject
@@ -24,7 +24,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Redis Configs", "Redis Conf
 		Redis Configs\redis-cli master.cmd = Redis Configs\redis-cli master.cmd
 		Redis Configs\redis-cli secure.cmd = Redis Configs\redis-cli secure.cmd
 		Redis Configs\redis-cli slave.cmd = Redis Configs\redis-cli slave.cmd
-		Redis Configs\redis-server alll local.cmd = Redis Configs\redis-server alll local.cmd
+		Redis Configs\redis-server all local.cmd = Redis Configs\redis-server all local.cmd
 		Redis Configs\redis-server master.cmd = Redis Configs\redis-server master.cmd
 		Redis Configs\redis-server secure.cmd = Redis Configs\redis-server secure.cmd
 		Redis Configs\redis-server slave.cmd = Redis Configs\redis-server slave.cmd

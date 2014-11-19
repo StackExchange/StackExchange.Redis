@@ -77,6 +77,10 @@ namespace StackExchange.Redis.Tests
         [SetUp]
         public void Setup()
         {
+            ClearAmbientFailures();
+        }
+        public void ClearAmbientFailures()
+        {
             Collect();
             Interlocked.Exchange(ref failCount, 0);
             expectedFailCount = 0;

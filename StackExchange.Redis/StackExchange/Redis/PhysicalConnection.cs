@@ -80,11 +80,15 @@ namespace StackExchange.Redis
             var endpoint = bridge.ServerEndPoint.EndPoint;
             physicalName = connectionType + "#" + Interlocked.Increment(ref totalCount) + "@" + Format.ToString(endpoint);
             this.bridge = bridge;
-            multiplexer.Trace("Connecting...", physicalName);
-
-            this.socketToken = multiplexer.SocketManager.BeginConnect(endpoint, this);
-            //socket.SendTimeout = socket.ReceiveTimeout = multiplexer.TimeoutMilliseconds;
             OnCreateEcho();
+        }
+
+        public void BeginConnect()
+        {
+            var endpoint = this.bridge.ServerEndPoint.EndPoint;
+
+            multiplexer.Trace("Connecting...", physicalName);
+            this.socketToken = multiplexer.SocketManager.BeginConnect(endpoint, this);
         }
 
         private enum ReadMode : byte
@@ -350,7 +354,15 @@ namespace StackExchange.Redis
 
         internal void Write(RedisKey key)
         {
-            WriteUnified(outStream, key.Value);
+            var val = key.KeyValue;
+            if (val is string)
+            {
+                WriteUnified(outStream, key.KeyPrefix, (string)val);
+            }
+            else
+            {
+                WriteUnified(outStream, key.KeyPrefix, (byte[])val);
+            }
         }
 
         internal void Write(RedisChannel channel)
@@ -490,6 +502,61 @@ namespace StackExchange.Redis
             return value < 10 ? (byte)('0' + value) : (byte)('a' - 10 + value);
         }
 
+        void WriteUnified(Stream stream, byte[] prefix, string value)
+        {
+            stream.WriteByte((byte)'$');
+            if (value == null)
+            {
+                WriteRaw(stream, -1); // note that not many things like this...
+            }
+            else
+            {
+                int encodedLength = Encoding.UTF8.GetByteCount(value);
+                if (prefix == null)
+                {
+                    WriteRaw(stream, encodedLength);
+                    WriteRaw(stream, value, encodedLength);
+                    stream.Write(Crlf, 0, 2);
+                }
+                else
+                {
+                    WriteRaw(stream, prefix.Length + encodedLength);
+                    stream.Write(prefix, 0, prefix.Length);
+                    WriteRaw(stream, value, encodedLength);
+                    stream.Write(Crlf, 0, 2);
+                }
+            }
+
+        }
+        unsafe void WriteRaw(Stream stream, string value, int encodedLength)
+        {
+            if (encodedLength <= ScratchSize)
+            {
+                int bytes = Encoding.UTF8.GetBytes(value, 0, value.Length, outScratch, 0);
+                stream.Write(outScratch, 0, bytes);
+            }
+            else
+            {
+                fixed (char* c = value)
+                fixed (byte* b = outScratch)
+                {
+                    int charsRemaining = value.Length, charOffset = 0, bytesWritten;
+                    while (charsRemaining > Scratch_CharsPerBlock)
+                    {
+                        bytesWritten = outEncoder.GetBytes(c + charOffset, Scratch_CharsPerBlock, b, ScratchSize, false);
+                        stream.Write(outScratch, 0, bytesWritten);
+                        charOffset += Scratch_CharsPerBlock;
+                        charsRemaining -= Scratch_CharsPerBlock;
+                    }
+                    bytesWritten = outEncoder.GetBytes(c + charOffset, charsRemaining, b, ScratchSize, true);
+                    if (bytesWritten != 0) stream.Write(outScratch, 0, bytesWritten);
+                }
+            }
+        }
+        const int ScratchSize = 512;
+        static readonly int Scratch_CharsPerBlock = ScratchSize / Encoding.UTF8.GetMaxByteCount(1);
+        private readonly byte[] outScratch = new byte[ScratchSize];
+        private readonly Encoder outEncoder = Encoding.UTF8.GetEncoder();
         static void WriteUnified(Stream stream, byte[] prefix, byte[] value)
         {
             stream.WriteByte((byte)'$');
@@ -673,7 +740,7 @@ namespace StackExchange.Redis
                     }
 
                     // invoke the handlers
-                    var channel = items[1].AsRedisChannel(ChannelPrefix);
+                    var channel = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.PatternMode.Literal);
                     multiplexer.Trace("MESSAGE: " + channel, physicalName);
                     if (!channel.IsNull)
                     {
@@ -683,11 +750,11 @@ namespace StackExchange.Redis
                 }
                 else if (items.Length >= 4 && items[0].IsEqual(pmessage))
                 {
-                    var channel = items[2].AsRedisChannel(ChannelPrefix);
+                    var channel = items[2].AsRedisChannel(ChannelPrefix, RedisChannel.PatternMode.Literal);
                     multiplexer.Trace("PMESSAGE: " + channel, physicalName);
                     if (!channel.IsNull)
                     {
-                        var sub = items[1].AsRedisChannel(ChannelPrefix);
+                        var sub = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.PatternMode.Pattern);
                         multiplexer.OnMessage(sub, channel, items[3].AsRedisValue());
                     }
                     return; // AND STOP PROCESSING!

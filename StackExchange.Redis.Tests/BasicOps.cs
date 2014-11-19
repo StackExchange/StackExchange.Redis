@@ -4,7 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using BookSleeve;
 using NUnit.Framework;
-
+using StackExchange.Redis.KeyspaceIsolation;
 namespace StackExchange.Redis.Tests
 {
     [TestFixture]
@@ -663,6 +663,22 @@ namespace StackExchange.Redis.Tests
         {
             database.StringIncrement(key, delta, CommandFlags.FireAndForget);
             total += delta;
+        }
+
+        [Test]
+        public void WrappedDatabasePrefixIntegration()
+        {
+            using (var conn = Create())
+            {
+                var db = conn.GetDatabase().WithKeyPrefix("abc");
+                db.KeyDelete("count");
+                db.StringIncrement("count");
+                db.StringIncrement("count");
+                db.StringIncrement("count");
+
+                int count = (int)conn.GetDatabase().StringGet("abccount");
+                Assert.AreEqual(3, count);
+            }
         }
     }
 

@@ -138,7 +138,14 @@ namespace StackExchange.Redis
         /// </summary>
         /// <returns>yields all elements of the hash.</returns>
         /// <remarks>http://redis.io/commands/hscan</remarks>
-        IEnumerable<HashEntry> HashScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = RedisDatabase.ScanUtils.DefaultPageSize, CommandFlags flags = CommandFlags.None);
+        IEnumerable<HashEntry> HashScan(RedisKey key, RedisValue pattern, int pageSize, CommandFlags flags);
+
+        /// <summary>
+        /// The HSCAN command is used to incrementally iterate over a hash; note: to resume an iteration via <i>cursor</i>, cast the original enumerable or enumerator to <i>IScanningCursor</i>.
+        /// </summary>
+        /// <returns>yields all elements of the hash.</returns>
+        /// <remarks>http://redis.io/commands/hscan</remarks>
+        IEnumerable<HashEntry> HashScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = RedisBase.CursorUtils.DefaultPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Sets the specified fields to their respective values in the hash stored at key. This command overwrites any existing fields in the hash. If key does not exist, a new key holding a hash is created.
@@ -246,7 +253,7 @@ namespace StackExchange.Redis
         /// <remarks>http://redis.io/commands/persist</remarks>
         bool KeyExpire(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None);
 
-        /// <summary>C:\Dev\Redis\StackExchange.Redis\StackExchange\Redis\
+        /// <summary>
         /// Set a timeout on key. After the timeout has expired, the key will automatically be deleted. A key with an associated timeout is said to be volatile in Redis terminology.
         /// </summary>
         /// <remarks>If key is updated before the timeout has expired, then the timeout is removed as if the PERSIST command was invoked on key.
@@ -579,7 +586,14 @@ namespace StackExchange.Redis
         /// </summary>
         /// <returns>yields all elements of the set.</returns>
         /// <remarks>http://redis.io/commands/sscan</remarks>
-        IEnumerable<RedisValue> SetScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = RedisDatabase.ScanUtils.DefaultPageSize, CommandFlags flags = CommandFlags.None);
+        IEnumerable<RedisValue> SetScan(RedisKey key, RedisValue pattern, int pageSize, CommandFlags flags);
+
+        /// <summary>
+        /// The SSCAN command is used to incrementally iterate over set; note: to resume an iteration via <i>cursor</i>, cast the original enumerable or enumerator to <i>IScanningCursor</i>.
+        /// </summary>
+        /// <returns>yields all elements of the set.</returns>
+        /// <remarks>http://redis.io/commands/sscan</remarks>
+        IEnumerable<RedisValue> SetScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = RedisBase.CursorUtils.DefaultPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Sorts a list, set or sorted set (numerically or alphabetically, ascending by default); By default, the elements themselves are compared, but the values can also be
@@ -765,7 +779,14 @@ namespace StackExchange.Redis
         /// </summary>
         /// <returns>yields all elements of the sorted set.</returns>
         /// <remarks>http://redis.io/commands/zscan</remarks>
-        IEnumerable<SortedSetEntry> SortedSetScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = RedisDatabase.ScanUtils.DefaultPageSize, CommandFlags flags = CommandFlags.None);
+        IEnumerable<SortedSetEntry> SortedSetScan(RedisKey key, RedisValue pattern, int pageSize, CommandFlags flags);
+
+        /// <summary>
+        /// The ZSCAN command is used to incrementally iterate over a sorted set; note: to resume an iteration via <i>cursor</i>, cast the original enumerable or enumerator to <i>IScanningCursor</i>.
+        /// </summary>
+        /// <returns>yields all elements of the sorted set.</returns>
+        /// <remarks>http://redis.io/commands/zscan</remarks>
+        IEnumerable<SortedSetEntry> SortedSetScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = RedisBase.CursorUtils.DefaultPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None);
         /// <summary>
         /// Returns the score of member in the sorted set at key; If member does not exist in the sorted set, or key does not exist, nil is returned.
         /// </summary>

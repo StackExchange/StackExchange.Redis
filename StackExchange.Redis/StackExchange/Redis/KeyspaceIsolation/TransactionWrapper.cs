@@ -1,11 +1,11 @@
 ﻿using System;
 using System.Threading.Tasks;
 
-namespace StackExchange.Redis.StackExchange.Redis.KeyspaceIsolation
+namespace StackExchange.Redis.KeyspaceIsolation
 {
     internal sealed class TransactionWrapper : WrapperBase<ITransaction>, ITransaction
     {
-        public TransactionWrapper(ITransaction inner, RedisKey prefix)
+        public TransactionWrapper(ITransaction inner, byte[] prefix)
             : base(inner, prefix)
         {
         }

@@ -1,1 +1,1 @@
-@..\packages\Redis-64.2.8.12\redis-cli.exe -p 6380
+@..\packages\Redis-64.2.8.17\redis-cli.exe -p 6380

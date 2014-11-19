@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace StackExchange.Redis.StackExchange.Redis.KeyspaceIsolation
+namespace StackExchange.Redis.KeyspaceIsolation
 {
     /// <summary>
     ///     Provides the <see cref="WithKeyPrefix"/> extension method to <see cref="IDatabase"/>.
@@ -49,7 +49,7 @@ namespace StackExchange.Redis.StackExchange.Redis.KeyspaceIsolation
                 throw new ArgumentNullException("keyPrefix");
             }
 
-            if (keyPrefix.Value.Length == 0)
+            if (keyPrefix.IsEmpty)
             {
                 return database; // fine - you can keep using the original, then
             }
@@ -62,7 +62,7 @@ namespace StackExchange.Redis.StackExchange.Redis.KeyspaceIsolation
                 database = wrapper.Inner;
             }
 
-            return new DatabaseWrapper(database, keyPrefix);
+            return new DatabaseWrapper(database, keyPrefix.AsPrefix());
         }
     }
 }

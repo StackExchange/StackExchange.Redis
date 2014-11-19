@@ -1,7 +1,8 @@
 ﻿using System;
 using Moq;
 using NUnit.Framework;
-using StackExchange.Redis.StackExchange.Redis.KeyspaceIsolation;
+using StackExchange.Redis.KeyspaceIsolation;
+using System.Text;
 
 namespace StackExchange.Redis.Tests
 {
@@ -15,7 +16,7 @@ namespace StackExchange.Redis.Tests
         public void Initialize()
         {
             mock = new Mock<IBatch>();
-            wrapper = new BatchWrapper(mock.Object, "prefix:");
+            wrapper = new BatchWrapper(mock.Object, Encoding.UTF8.GetBytes("prefix:"));
         }
 
         [Test]
