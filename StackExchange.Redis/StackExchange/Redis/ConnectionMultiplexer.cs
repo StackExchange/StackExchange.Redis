@@ -732,7 +732,6 @@ namespace StackExchange.Redis
         private static ConnectionMultiplexer ConnectImpl(Func<ConnectionMultiplexer> multiplexerFactory, TextWriter log)
         {
             IDisposable killMe = null;
-            Stopwatch sw = Stopwatch.StartNew();
             try
             {
                 var muxer = multiplexerFactory();
