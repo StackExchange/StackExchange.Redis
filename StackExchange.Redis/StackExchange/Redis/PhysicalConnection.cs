@@ -64,6 +64,7 @@ namespace StackExchange.Redis
         int ioBufferBytes = 0;
 
         int lastWriteTickCount, lastReadTickCount, lastBeatTickCount;
+        int firstUnansweredWriteTickCount;
 
         private Stream netStream, outStream;
 
@@ -85,6 +86,7 @@ namespace StackExchange.Redis
 
         public void BeginConnect()
         {
+            Thread.VolatileWrite(ref firstUnansweredWriteTickCount, 0);
             var endpoint = this.bridge.ServerEndPoint.EndPoint;
 
             multiplexer.Trace("Connecting...", physicalName);
@@ -166,10 +168,13 @@ namespace StackExchange.Redis
             {
                 int now = Environment.TickCount, lastRead = Thread.VolatileRead(ref lastReadTickCount), lastWrite = Thread.VolatileRead(ref lastWriteTickCount),
                     lastBeat = Thread.VolatileRead(ref lastBeatTickCount);
+                int unansweredRead = Thread.VolatileRead(ref firstUnansweredWriteTickCount);
 
                 string message = failureType + " on " + Format.ToString(bridge.ServerEndPoint.EndPoint) + "/" + connectionType
                     + ", input-buffer: " + ioBufferBytes + ", outstanding: " + GetSentAwaitingResponseCount()
-                    + ", last-read: " + unchecked(now - lastRead) / 1000 + "s ago, last-write: " + unchecked(now - lastWrite) / 1000 + "s ago, keep-alive: " + bridge.ServerEndPoint.WriteEverySeconds + "s, pending: "
+                    + ", last-read: " + unchecked(now - lastRead) / 1000 + "s ago, last-write: " + unchecked(now - lastWrite) / 1000 + "s ago"
+                    + ", unanswered-write: " + unchecked(now - unansweredRead) / 1000 + "s ago"
+                    + ", keep-alive: " + bridge.ServerEndPoint.WriteEverySeconds + "s, pending: "
                     + bridge.GetPendingCount() + ", state: " + oldState + ", last-heartbeat: " + (lastBeat == 0 ? "never" : (unchecked(now - lastBeat) / 1000 + "s ago"))
                     + (bridge.IsBeating ? " (mid-beat)" : "") + ", last-mbeat: " + multiplexer.LastHeartbeatSecondsAgo + "s ago, global: "
                     + ConnectionMultiplexer.LastGlobalHeartbeatSecondsAgo + "s ago";
@@ -381,6 +386,10 @@ namespace StackExchange.Redis
                 throw ExceptionFactory.CommandDisabled(multiplexer.IncludeDetailInExceptions, command, null, bridge.ServerEndPoint);
             }
             outStream.WriteByte((byte)'*');
+
+            // remember the time of the first write that still not followed by read
+            Interlocked.CompareExchange(ref firstUnansweredWriteTickCount, Environment.TickCount, 0);
+
             WriteRaw(outStream, arguments + 1);
             WriteUnified(outStream, commandBytes);
         }
@@ -816,6 +825,10 @@ namespace StackExchange.Redis
             }
 
             Interlocked.Exchange(ref lastReadTickCount, Environment.TickCount);
+
+            // reset unanswered write timestamp
+            Thread.VolatileWrite(ref firstUnansweredWriteTickCount, 0);
+
             ioBufferBytes += bytesRead;
             multiplexer.Trace("More bytes available: " + bytesRead + " (" + ioBufferBytes + ")", physicalName);
             int offset = 0, count = ioBufferBytes;
@@ -954,17 +967,18 @@ namespace StackExchange.Redis
             }
         }
 
-        partial void DebugEmulateStaleConnection(ref int lastWrite);
+        partial void DebugEmulateStaleConnection(ref int firstUnansweredWrite);
 
         public void CheckForStaleConnection()
         {
-            int lastRead, lastWrite;
-            lastRead = Thread.VolatileRead(ref this.lastReadTickCount);
-            lastWrite = Thread.VolatileRead(ref this.lastWriteTickCount);
+            int firstUnansweredWrite;
+            firstUnansweredWrite = Thread.VolatileRead(ref firstUnansweredWriteTickCount);
 
-            DebugEmulateStaleConnection(ref lastRead);
+            DebugEmulateStaleConnection(ref firstUnansweredWrite);
 
-            if ((lastWrite - lastRead) > this.multiplexer.RawConfig.SyncTimeout)
+            int now = Environment.TickCount;
+
+            if (firstUnansweredWrite != 0 && (now - firstUnansweredWrite) > this.multiplexer.RawConfig.SyncTimeout)
             {
                 this.RecordConnectionFailed(ConnectionFailureType.SocketFailure, origin: "CheckForStaleConnection");
             }

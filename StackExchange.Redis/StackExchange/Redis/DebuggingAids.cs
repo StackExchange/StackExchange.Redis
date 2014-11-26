@@ -273,11 +273,11 @@ namespace StackExchange.Redis
             }
         }
 
-        partial void DebugEmulateStaleConnection(ref int lastRead)
+        partial void DebugEmulateStaleConnection(ref int firstUnansweredWrite)
         {
             if (emulateStaleConnection)
             {
-                lastRead -= 100500;
+                firstUnansweredWrite = Environment.TickCount - 100000;
             }
         }
     }
