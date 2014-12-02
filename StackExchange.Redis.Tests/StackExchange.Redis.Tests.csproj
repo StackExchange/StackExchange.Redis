@@ -68,6 +68,7 @@
     <Compile Include="BasicOps.cs" />
     <Compile Include="ConnectingFailDetection.cs" />
     <Compile Include="HyperLogLog.cs" />
+    <Compile Include="Issues\SO27258984.cs" />
     <Compile Include="WrapperBaseTests.cs" />
     <Compile Include="TransactionWrapperTests.cs" />
     <Compile Include="Bits.cs" />
