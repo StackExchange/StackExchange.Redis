@@ -10,11 +10,11 @@ namespace StackExchange.Redis
     {
         internal static readonly RedisValue[] EmptyArray = new RedisValue[0];
 
+        static readonly byte[] EmptyByteArr = new byte[0];
+
         private static readonly RedisValue
             @null = new RedisValue(0, null),
             emptyString = new RedisValue(0, EmptyByteArr);
-
-        static readonly byte[] EmptyByteArr = new byte[0];
 
         private static readonly byte[] IntegerSentinel = new byte[0];
 
