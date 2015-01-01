@@ -295,5 +295,27 @@ namespace StackExchange.Redis
             if (cLen != 0) Buffer.BlockCopy(c, 0, result, aLen + bLen, cLen);
             return result;
         }
+
+        /// <summary>
+        /// Prepends p to this RedisKey, returning a new RedisKey.
+        /// 
+        /// Avoids some allocations if possible, repeated Prepend/Appends make
+        /// it less possible.
+        /// </summary>
+        public RedisKey Prepend(RedisKey p)
+        {
+            return WithPrefix(p, this);
+        }
+
+        /// <summary>
+        /// Appends p to this RedisKey, returning a new RedisKey.
+        /// 
+        /// Avoids some allocations if possible, repeated Prepend/Appends make
+        /// it less possible.
+        /// </summary>
+        public RedisKey Append(RedisKey p)
+        {
+            return WithPrefix(this, p);
+        }
     }
 }
