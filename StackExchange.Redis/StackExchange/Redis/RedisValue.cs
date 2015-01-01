@@ -638,5 +638,70 @@ namespace StackExchange.Redis
         {
             return (ulong)this;
         }
+
+        /// <summary>
+        /// Convert to a long if possible, returning true.
+        /// 
+        /// Returns false otherwise.
+        /// </summary>
+        public bool TryParse(out long val)
+        {
+            var blob = valueBlob;
+            if (blob == IntegerSentinel)
+            {
+                val = valueInt64;
+                return true;
+            }
+
+            if (blob == null)
+            {
+                // in redis-land 0 approx. equal null; so roll with it
+                val = 0;
+                return true;
+            }
+
+            return TryParseInt64(blob, 0, blob.Length, out val);
+        }
+
+        /// <summary>
+        /// Convert to a int if possible, returning true.
+        /// 
+        /// Returns false otherwise.
+        /// </summary>
+        public bool TryParse(out int val)
+        {
+            long l;
+            if (!TryParse(out l) || l > int.MaxValue || l < int.MinValue)
+            {
+                val = 0;
+                return false;
+            }
+
+            val = (int)l;
+            return true;
+        }
+
+        /// <summary>
+        /// Convert to a double if possible, returning true.
+        /// 
+        /// Returns false otherwise.
+        /// </summary>
+        public bool TryParse(out double val)
+        {
+            var blob = valueBlob;
+            if (blob == IntegerSentinel)
+            {
+                val = valueInt64;
+                return true;
+            }
+            if (blob == null)
+            {
+                // in redis-land 0 approx. equal null; so roll with it
+                val = 0;
+                return true;
+            }
+
+            return TryParseDouble(blob, out val);
+        }
     }
 }
