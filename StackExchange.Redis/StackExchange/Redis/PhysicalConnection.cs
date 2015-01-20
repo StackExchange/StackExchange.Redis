@@ -624,10 +624,18 @@ namespace StackExchange.Redis
             {
                 var pfxPath = Environment.GetEnvironmentVariable("SERedis_ClientCertPfxPath");
                 var pfxPassword = Environment.GetEnvironmentVariable("SERedis_ClientCertPassword");
+                var pfxStorageFlags = Environment.GetEnvironmentVariable("SERedis_ClientCertStorageFlags");
+
+                X509KeyStorageFlags? flags = null;
+                if (!string.IsNullOrEmpty(pfxStorageFlags))
+                {
+                    flags = Enum.Parse(typeof(X509KeyStorageFlags), pfxStorageFlags) as X509KeyStorageFlags?;
+                }
+
                 if (!string.IsNullOrEmpty(pfxPath) && File.Exists(pfxPath))
                 {
-                    return delegate { return new X509Certificate2(pfxPath, pfxPassword ?? ""); };
-                }                
+                    return delegate { return new X509Certificate2(pfxPath, pfxPassword ?? "", flags ?? X509KeyStorageFlags.DefaultKeySet); };
+                }
             } catch
             { }
             return null;
