@@ -718,48 +718,34 @@ namespace StackExchange.Redis
         /// </summary>
         public static ConnectionMultiplexer Connect(string configuration, TextWriter log = null)
         {
-            IDisposable killMe = null;
-            try
-            {
-                var muxer = CreateMultiplexer(configuration);
-                killMe = muxer;
-                // note that task has timeouts internally, so it might take *just over* the reegular timeout
-                var task = muxer.ReconfigureAsync(true, false, log, null, "connect");
-                if (!task.Wait(muxer.SyncConnectTimeout(true)))
-                {
-                    task.ObserveErrors();
-                    if (muxer.RawConfig.AbortOnConnectFail)
-                    {
-                        throw new TimeoutException();
-                    }
-                }
-                if(!task.Result) throw ExceptionFactory.UnableToConnect(muxer.failureMessage);
-                killMe = null;
-                return muxer;
-            }
-            finally
-            {
-                if (killMe != null) try { killMe.Dispose(); } catch { }
-            }            
+            return ConnectImpl(() => CreateMultiplexer(configuration), log);
         }
+
         /// <summary>
         /// Create a new ConnectionMultiplexer instance
         /// </summary>
         public static ConnectionMultiplexer Connect(ConfigurationOptions configuration, TextWriter log = null)
         {
+            return ConnectImpl(() => CreateMultiplexer(configuration), log);
+        }
+
+        private static ConnectionMultiplexer ConnectImpl(Func<ConnectionMultiplexer> multiplexerFactory, TextWriter log)
+        {
             IDisposable killMe = null;
             try
             {
-                var muxer = CreateMultiplexer(configuration);
+                var muxer = multiplexerFactory();
                 killMe = muxer;
-                // note that task has timeouts internally, so it might take *just over* the reegular timeout
-                var task = muxer.ReconfigureAsync(true, false, log, null, "connect");
+                // note that task has timeouts internally, so it might take *just over* the regular timeout
+                // wrap into task to force async execution
+                var task = Task.Factory.StartNew(() => { return muxer.ReconfigureAsync(true, false, log, null, "connect").Result; });
+
                 if (!task.Wait(muxer.SyncConnectTimeout(true)))
                 {
                     task.ObserveErrors();
                     if (muxer.RawConfig.AbortOnConnectFail)
                     {
-                        throw new TimeoutException();
+                        throw ExceptionFactory.UnableToConnect("Timeout");
                     }
                 }
                 if (!task.Result) throw ExceptionFactory.UnableToConnect(muxer.failureMessage);

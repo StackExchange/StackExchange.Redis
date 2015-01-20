@@ -67,6 +67,7 @@
     <Compile Include="AsyncTests.cs" />
     <Compile Include="BasicOps.cs" />
     <Compile Include="ConnectingFailDetection.cs" />
+    <Compile Include="ConnectToUnexistingHost.cs" />
     <Compile Include="HyperLogLog.cs" />
     <Compile Include="WrapperBaseTests.cs" />
     <Compile Include="TransactionWrapperTests.cs" />

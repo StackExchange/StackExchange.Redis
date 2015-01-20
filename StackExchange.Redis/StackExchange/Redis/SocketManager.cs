@@ -130,7 +130,7 @@ namespace StackExchange.Redis
                 CompletionTypeHelper.RunWithCompletionType(
                     (cb) => socket.BeginConnect(endpoint, cb, Tuple.Create(socket, callback)),
                     (ar) => EndConnectImpl(ar),
-                    CompletionType.Sync);
+                    connectCompletionType);
             } 
             catch (NotImplementedException ex)
             {
