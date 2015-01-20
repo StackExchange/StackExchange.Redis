@@ -27,8 +27,15 @@ namespace StackExchange.Redis
         {
             PhysicalConnection physical;
             if (result.CompletedSynchronously || (physical = result.AsyncState as PhysicalConnection) == null) return;
-            physical.multiplexer.Trace("Completed synchronously: processing in callback", physical.physicalName);
-            if (physical.EndReading(result)) physical.BeginReading();
+            try
+            {
+                physical.multiplexer.Trace("Completed synchronously: processing in callback", physical.physicalName);
+                if (physical.EndReading(result)) physical.BeginReading();
+            }
+            catch (Exception ex)
+            {
+                physical.RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
+            }
         };
 
         private static readonly byte[] message = Encoding.UTF8.GetBytes("message"), pmessage = Encoding.UTF8.GetBytes("pmessage");
