@@ -753,7 +753,7 @@ namespace StackExchange.Redis
             {
                 var cmd = message.Command;
                 bool isMasterOnly = message.IsMasterOnly();
-                if (isMasterOnly && serverEndPoint.IsSlave)
+                if (isMasterOnly && serverEndPoint.IsSlave && (serverEndPoint.SlaveReadOnly || !serverEndPoint.AllowSlaveWrites))
                 {
                     throw ExceptionFactory.MasterOnly(multiplexer.IncludeDetailInExceptions, message.Command, message, ServerEndPoint);
                 }
