@@ -8,7 +8,7 @@ namespace StackExchange.Redis.Tests
     public class ConnectingFailDetection : TestBase
     {
 #if DEBUG
-        [TestCase]
+        [Test]
         public void FastNoticesFailOnConnectingSync()
         {
             try
@@ -34,16 +34,15 @@ namespace StackExchange.Redis.Tests
 
                     Assert.IsTrue(muxer.IsConnected);
                 }
-
-                ClearAmbientFailures();
             }
             finally 
             {
                 SocketManager.ConnectCompletionType = CompletionType.Any;
+                ClearAmbientFailures();
             }
         }
 
-        [TestCase]
+        [Test]
         public void ConnectsWhenBeginConnectCompletesSynchronously()
         {
             try
@@ -57,16 +56,15 @@ namespace StackExchange.Redis.Tests
 
                     Assert.IsTrue(muxer.IsConnected);
                 }
-
-                ClearAmbientFailures();
             }
             finally
             {
                 SocketManager.ConnectCompletionType = CompletionType.Any;
+                ClearAmbientFailures();
             }
         }
 
-        [TestCase]
+        [Test]
         public void FastNoticesFailOnConnectingAsync()
         {
             try
@@ -92,15 +90,43 @@ namespace StackExchange.Redis.Tests
                     Thread.Sleep(2000);
 
                     Assert.IsTrue(muxer.IsConnected);
-                    ClearAmbientFailures();
-
                 }
             }
             finally
             {
                 SocketManager.ConnectCompletionType = CompletionType.Any;
+                ClearAmbientFailures();
             }
         }
+
+        [Test]
+        public void ReconnectsOnStaleConnection()
+        {
+            try
+            {
+                using (var muxer = Create(keepAlive: 1, connectTimeout: 3000))
+                {
+                    var conn = muxer.GetDatabase();
+                    conn.Ping();
+
+                    Assert.IsTrue(muxer.IsConnected);
+
+                    PhysicalConnection.EmulateStaleConnection = true;
+                    Thread.Sleep(500);
+                    Assert.IsFalse(muxer.IsConnected);
+
+                    PhysicalConnection.EmulateStaleConnection = false;
+                    Thread.Sleep(1000);
+                    Assert.IsTrue(muxer.IsConnected);
+                }
+            }
+            finally
+            {
+                PhysicalConnection.EmulateStaleConnection = false;
+                ClearAmbientFailures();
+            }
+        }
+
 #endif
     }
 }

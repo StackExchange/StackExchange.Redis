@@ -260,6 +260,26 @@ namespace StackExchange.Redis
         {
             get { return multiplexer.IgnoreConnect; }
         }
+
+        private volatile static bool emulateStaleConnection;
+        public static bool EmulateStaleConnection 
+        { get
+            {
+                return emulateStaleConnection;
+            }
+            set
+            {
+                emulateStaleConnection = value;
+            }
+        }
+
+        partial void DebugEmulateStaleConnection(ref int firstUnansweredWrite)
+        {
+            if (emulateStaleConnection)
+            {
+                firstUnansweredWrite = Environment.TickCount - 100000;
+            }
+        }
     }
 #endif
 
