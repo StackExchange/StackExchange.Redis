@@ -679,23 +679,6 @@ namespace StackExchange.Redis
             return result;
         }
 
-        private void Flush()
-        {
-            var tmp = physical;
-            if (tmp != null)
-            {
-                try
-                {
-                    Trace(connectionType + " flushed");
-                    tmp.Flush();
-                }
-                catch (Exception ex)
-                {
-                    OnInternalError(ex);
-                }
-            }
-        }
-
         private PhysicalConnection GetConnection()
         {
             if (state == (int)State.Disconnected)
@@ -770,7 +753,7 @@ namespace StackExchange.Redis
             {
                 var cmd = message.Command;
                 bool isMasterOnly = message.IsMasterOnly();
-                if (isMasterOnly && serverEndPoint.IsSlave)
+                if (isMasterOnly && serverEndPoint.IsSlave && (serverEndPoint.SlaveReadOnly || !serverEndPoint.AllowSlaveWrites))
                 {
                     throw ExceptionFactory.MasterOnly(multiplexer.IncludeDetailInExceptions, message.Command, message, ServerEndPoint);
                 }

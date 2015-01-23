@@ -39,6 +39,9 @@ namespace StackExchange.Redis
         /// Indicates that we cannot know whether data is available, and that the consume should commence reading asynchronously
         /// </summary>
         void StartReading();
+
+        // check for write-read timeout
+        void CheckForStaleConnection();
     }
 
     internal struct SocketToken
@@ -130,7 +133,7 @@ namespace StackExchange.Redis
                 CompletionTypeHelper.RunWithCompletionType(
                     (cb) => socket.BeginConnect(endpoint, cb, Tuple.Create(socket, callback)),
                     (ar) => EndConnectImpl(ar),
-                    CompletionType.Sync);
+                    connectCompletionType);
             } 
             catch (NotImplementedException ex)
             {

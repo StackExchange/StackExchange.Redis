@@ -178,6 +178,7 @@ namespace StackExchange.Redis
         private void ReadImpl()
         {
             List<IntPtr> dead = null, active = new List<IntPtr>();
+            List<ISocketCallback> activeCallbacks = new List<ISocketCallback>();
             IntPtr[] readSockets = EmptyPointers, errorSockets = EmptyPointers;
             long lastHeartbeat = Environment.TickCount;
             SocketPair[] allSocketPairs = null;
@@ -185,6 +186,7 @@ namespace StackExchange.Redis
             {
                 managerState = ManagerState.CheckForHeartbeat;
                 active.Clear();
+                activeCallbacks.Clear();
                 if (dead != null) dead.Clear();
 
                 // this check is actually a pace-maker; sometimes the Timer callback stalls for
@@ -227,6 +229,7 @@ namespace StackExchange.Redis
                             if (pair.Value.Socket.Connected)
                             {
                                 active.Add(pair.Key);
+                                activeCallbacks.Add(pair.Value.Callback);
                             }
                             else
                             {
@@ -267,6 +270,13 @@ namespace StackExchange.Redis
                     ready = select(0, readSockets, null, errorSockets, ref timeout);
                     if (ready <= 0)
                     {
+                        if (ready == 0)
+                        {
+                            foreach (var s in activeCallbacks)
+                            {
+                                s.CheckForStaleConnection();
+                            }
+                        }
                         continue; // -ve typically means a socket was disposed just before; just retry
                     }
 

@@ -82,7 +82,7 @@ For maintenance purposes, it is sometimes necessary to issue server-specific com
 
     IServer server = redis.GetServer("localhost", 6379);
 
-The `GetServer` method will accept an [`EndPoint`](http://msdn.microsoft.com/en-us/library/system.net.endpoint(v=vs.110).aspx) or the name/value pair that uniquely identify the server. As before, the object returned from `GetServer` is a cheap pass-thru object that does not to be stored, and async-state can be optionally specified. Note that the set of available endpoints is also available:
+The `GetServer` method will accept an [`EndPoint`](http://msdn.microsoft.com/en-us/library/system.net.endpoint(v=vs.110).aspx) or the name/value pair that uniquely identify the server. As before, the object returned from `GetServer` is a cheap pass-thru object that does not need to be stored, and async-state can be optionally specified. Note that the set of available endpoints is also available:
 
     EndPoint[] endpoints = redis.GetEndPoints();
 

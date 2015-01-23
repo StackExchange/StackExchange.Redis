@@ -38,6 +38,11 @@ namespace StackExchange.Redis
         bool IsSlave { get; }
 
         /// <summary>
+        /// Explicitly opt in for slave writes on writable slaves
+        /// </summary>
+        bool AllowSlaveWrites { get; set; }
+
+        /// <summary>
         /// Gets the operating mode of the connected server
         /// </summary>
         ServerType ServerType { get; }
@@ -46,7 +51,7 @@ namespace StackExchange.Redis
         /// Gets the version of the connected server
         /// </summary>
         Version Version { get; }
-
+        
         /// <summary>
         /// The CLIENT KILL command closes a given client connection identified by ip:port.
         /// The ip:port should match a line returned by the CLIENT LIST command.
