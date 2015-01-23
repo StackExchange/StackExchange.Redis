@@ -530,14 +530,14 @@ namespace StackExchange.Redis
         {
             WhenAlwaysOrNotExists(when);
             var msg = Message.Create(Db, flags, when == When.Always ? RedisCommand.RENAME : RedisCommand.RENAMENX, key, newKey);
-            return ExecuteSync(msg, ResultProcessor.DemandOK);
+            return ExecuteSync(msg, ResultProcessor.Boolean);
         }
 
         public Task<bool> KeyRenameAsync(RedisKey key, RedisKey newKey, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
             WhenAlwaysOrNotExists(when);
             var msg = Message.Create(Db, flags, when == When.Always ? RedisCommand.RENAME : RedisCommand.RENAMENX, key, newKey);
-            return ExecuteAsync(msg, ResultProcessor.DemandOK);
+            return ExecuteAsync(msg, ResultProcessor.Boolean);
         }
 
         public void KeyRestore(RedisKey key, byte[] value, TimeSpan? expiry = null, CommandFlags flags = CommandFlags.None)
