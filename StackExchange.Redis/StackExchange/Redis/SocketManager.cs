@@ -120,6 +120,7 @@ namespace StackExchange.Redis
             }
             OnDispose();
         }
+
         internal SocketToken BeginConnect(EndPoint endpoint, ISocketCallback callback)
         {
             var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
@@ -130,10 +131,23 @@ namespace StackExchange.Redis
                 CompletionType connectCompletionType = CompletionType.Any;
                 this.ShouldForceConnectCompletionType(ref connectCompletionType);
 
-                CompletionTypeHelper.RunWithCompletionType(
-                    (cb) => socket.BeginConnect(endpoint, cb, Tuple.Create(socket, callback)),
-                    (ar) => EndConnectImpl(ar),
-                    connectCompletionType);
+                if (endpoint is DnsEndPoint)
+                {
+                    // A work-around for a Mono bug in BeginConnect(EndPoint endpoint, AsyncCallback callback, object state)
+                    DnsEndPoint dnsEndpoint = (DnsEndPoint)endpoint;
+
+                    CompletionTypeHelper.RunWithCompletionType(
+                        (cb) => socket.BeginConnect(dnsEndpoint.Host, dnsEndpoint.Port, cb, Tuple.Create(socket, callback)),
+                        (ar) => EndConnectImpl(ar),
+                        connectCompletionType);
+                }
+                else
+                {
+                    CompletionTypeHelper.RunWithCompletionType(
+                        (cb) => socket.BeginConnect(endpoint, cb, Tuple.Create(socket, callback)),
+                        (ar) => EndConnectImpl(ar),
+                        connectCompletionType);
+                }
             } 
             catch (NotImplementedException ex)
             {
