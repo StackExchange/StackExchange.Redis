@@ -51,6 +51,30 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed partial class ConnectionMultiplexer : IDisposable
     {
+        private static TaskFactory _factory = null;
+
+        /// <summary>
+        /// Provides a way of overriding the default Task Factory. If not set, it will use the default Task.Factory.
+        /// Useful when top level code sets it's own factory which may interfere with Redis queries.
+        /// </summary>
+        public static TaskFactory Factory
+        {
+            get
+            {
+                if (_factory != null)
+                {
+                    return _factory;
+                }
+
+                return Task.Factory;
+            }
+            set
+            {
+                _factory = value;
+                
+            }
+        }
+
         /// <summary>
         /// Get summary statistics associates with this server
         /// </summary>
@@ -738,7 +762,7 @@ namespace StackExchange.Redis
                 killMe = muxer;
                 // note that task has timeouts internally, so it might take *just over* the regular timeout
                 // wrap into task to force async execution
-                var task = Task.Factory.StartNew(() => { return muxer.ReconfigureAsync(true, false, log, null, "connect").Result; });
+                var task = Factory.StartNew(() => { return muxer.ReconfigureAsync(true, false, log, null, "connect").Result; });
 
                 if (!task.Wait(muxer.SyncConnectTimeout(true)))
                 {
@@ -1472,7 +1496,36 @@ namespace StackExchange.Redis
                     return servers[i];
             }
             LogLocked(log, "...but we couldn't find that");
+            var deDottedEndpoint = DeDotifyHost(endpoint);
+            for (int i = 0; i < servers.Length; i++)
+            {
+                if (string.Equals(DeDotifyHost(Format.ToString(servers[i].EndPoint)), deDottedEndpoint, StringComparison.OrdinalIgnoreCase))
+                {
+                    LogLocked(log, "...but we did find instead: {0}", deDottedEndpoint);
+                    return servers[i];
+                }
+            }
             return null;
+        }
+
+        static string DeDotifyHost(string input)
+        {
+            if (string.IsNullOrWhiteSpace(input)) return input; // GIGO
+
+            if (!char.IsLetter(input[0])) return input; // need first char to be alpha for this to work
+
+            int periodPosition = input.IndexOf('.');
+            if (periodPosition <= 0) return input; // no period or starts with a period? nothing useful to split
+
+            int colonPosition = input.IndexOf(':');
+            if (colonPosition > 0)
+            { // has a port specifier
+                return input.Substring(0, periodPosition) + input.Substring(colonPosition);
+            }
+            else
+            {
+                return input.Substring(0, periodPosition);
+            }
         }
 
         internal void UpdateClusterRange(ClusterConfiguration configuration)
@@ -1850,7 +1903,6 @@ namespace StackExchange.Redis
             if (channel == null) return CompletedTask<long>.Default(null);
 
             return GetSubscriber().PublishAsync(channel, RedisLiterals.Wildcard, flags);
-        }        
+        }
     }   
-
 }

@@ -317,7 +317,17 @@ namespace StackExchange.Redis
         /// <summary>
         /// Explicitly defines a script on the server
         /// </summary>
+        LoadedLuaScript ScriptLoad(LuaScript script, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Explicitly defines a script on the server
+        /// </summary>
         Task<byte[]> ScriptLoadAsync(string script, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Explicitly defines a script on the server
+        /// </summary>
+        Task<LoadedLuaScript> ScriptLoadAsync(LuaScript script, CommandFlags flags = CommandFlags.None);
 
         /// <summary>Asks the redis server to shutdown, killing all connections. Please FULLY read the notes on the SHUTDOWN command.</summary>
         /// <remarks>http://redis.io/commands/shutdown</remarks>

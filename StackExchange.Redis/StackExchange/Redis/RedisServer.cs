@@ -375,6 +375,16 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.ScriptLoad);
         }
 
+        public LoadedLuaScript ScriptLoad(LuaScript script, CommandFlags flags = CommandFlags.None)
+        {
+            return script.Load(this, flags);
+        }
+
+        public Task<LoadedLuaScript> ScriptLoadAsync(LuaScript script, CommandFlags flags = CommandFlags.None)
+        {
+            return script.LoadAsync(this, flags);
+        }
+
         public void Shutdown(ShutdownMode shutdownMode = ShutdownMode.Default, CommandFlags flags = CommandFlags.None)
         {
             Message msg;
@@ -563,12 +573,35 @@ namespace StackExchange.Redis
 
         public void SlaveOf(EndPoint endpoint, CommandFlags flags = CommandFlags.None)
         {
-            var msg = CreateSlaveOfMessage(endpoint, flags);
             if (endpoint == server.EndPoint)
             {
                 throw new ArgumentException("Cannot slave to self");
             }
-            ExecuteSync(msg, ResultProcessor.DemandOK);
+            // prepare the actual slaveof message (not sent yet)
+            var slaveofMsg = CreateSlaveOfMessage(endpoint, flags);
+
+            var configuration = this.multiplexer.RawConfig;
+
+
+            // attempt to cease having an opinion on the master; will resume that when replication completes
+            // (note that this may fail; we aren't depending on it)
+            if (!string.IsNullOrWhiteSpace(configuration.TieBreaker)
+                && this.multiplexer.CommandMap.IsAvailable(RedisCommand.DEL))
+            {
+                var del = Message.Create(0, CommandFlags.FireAndForget | CommandFlags.NoRedirect, RedisCommand.DEL, (RedisKey)configuration.TieBreaker);
+                del.SetInternalCall();
+                server.QueueDirectFireAndForget(del, ResultProcessor.Boolean);
+            }
+            ExecuteSync(slaveofMsg, ResultProcessor.DemandOK);
+
+            // attempt to broadcast a reconfigure message to anybody listening to this server
+            var channel = this.multiplexer.ConfigurationChangedChannel;
+            if (channel != null && this.multiplexer.CommandMap.IsAvailable(RedisCommand.PUBLISH))
+            {
+                var pub = Message.Create(-1, CommandFlags.FireAndForget | CommandFlags.NoRedirect, RedisCommand.PUBLISH, (RedisValue)channel, RedisLiterals.Wildcard);
+                pub.SetInternalCall();
+                server.QueueDirectFireAndForget(pub, ResultProcessor.Int64);
+            }
         }
 
         public Task SlaveOfAsync(EndPoint endpoint, CommandFlags flags = CommandFlags.None)
