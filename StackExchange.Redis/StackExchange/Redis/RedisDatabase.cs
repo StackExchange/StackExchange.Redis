@@ -2220,7 +2220,7 @@ namespace StackExchange.Redis
 
             public IEnumerable<Message> GetMessages(PhysicalConnection connection)
             {
-                if (script != null) // a script was provided (rather than a hash); check it is known
+               if (script != null && connection.Multiplexer.CommandMap.IsAvailable(RedisCommand.SCRIPT)) // a script was provided (rather than a hash); check it is known and supported
                 {
                     asciiHash = connection.Bridge.ServerEndPoint.GetScriptHash(script, command);
 
