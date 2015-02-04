@@ -563,10 +563,33 @@ namespace StackExchange.Redis
 
         public void SlaveOf(EndPoint endpoint, CommandFlags flags = CommandFlags.None)
         {
-            var msg = CreateSlaveOfMessage(endpoint, flags);
             if (endpoint == server.EndPoint)
             {
                 throw new ArgumentException("Cannot slave to self");
+            }
+            // prepare the actual slaveof message (not sent yet)
+            var msg = CreateSlaveOfMessage(endpoint, flags);
+
+            var configuration = this.multiplexer.RawConfig;
+
+
+            // attempt to cease having an opinion on the master; will resume that when replication completes
+            // (note that this may fail; we aren't depending on it)
+            if (!string.IsNullOrWhiteSpace(configuration.TieBreaker)
+                && this.multiplexer.CommandMap.IsAvailable(RedisCommand.DEL))
+            {
+                var del = Message.Create(0, CommandFlags.FireAndForget | CommandFlags.NoRedirect, RedisCommand.DEL, (RedisKey)configuration.TieBreaker);
+                del.SetInternalCall();
+                server.QueueDirectFireAndForget(del, ResultProcessor.Boolean);
+            }
+
+            // attempt to broadcast a reconfigure message to anybody listening to this server
+            var channel = this.multiplexer.ConfigurationChangedChannel;
+            if(channel != null && this.multiplexer.CommandMap.IsAvailable(RedisCommand.PUBLISH))
+            {
+                var pub = Message.Create(-1, CommandFlags.FireAndForget | CommandFlags.NoRedirect, RedisCommand.PUBLISH, (RedisValue)channel, RedisLiterals.Wildcard);
+                pub.SetInternalCall();
+                server.QueueDirectFireAndForget(msg, ResultProcessor.Int64);
             }
             ExecuteSync(msg, ResultProcessor.DemandOK);
         }
