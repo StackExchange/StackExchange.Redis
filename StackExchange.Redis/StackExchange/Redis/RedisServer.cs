@@ -568,7 +568,7 @@ namespace StackExchange.Redis
                 throw new ArgumentException("Cannot slave to self");
             }
             // prepare the actual slaveof message (not sent yet)
-            var msg = CreateSlaveOfMessage(endpoint, flags);
+            var slaveofMsg = CreateSlaveOfMessage(endpoint, flags);
 
             var configuration = this.multiplexer.RawConfig;
 
@@ -582,16 +582,16 @@ namespace StackExchange.Redis
                 del.SetInternalCall();
                 server.QueueDirectFireAndForget(del, ResultProcessor.Boolean);
             }
+            ExecuteSync(slaveofMsg, ResultProcessor.DemandOK);
 
             // attempt to broadcast a reconfigure message to anybody listening to this server
             var channel = this.multiplexer.ConfigurationChangedChannel;
-            if(channel != null && this.multiplexer.CommandMap.IsAvailable(RedisCommand.PUBLISH))
+            if (channel != null && this.multiplexer.CommandMap.IsAvailable(RedisCommand.PUBLISH))
             {
                 var pub = Message.Create(-1, CommandFlags.FireAndForget | CommandFlags.NoRedirect, RedisCommand.PUBLISH, (RedisValue)channel, RedisLiterals.Wildcard);
                 pub.SetInternalCall();
-                server.QueueDirectFireAndForget(msg, ResultProcessor.Int64);
+                server.QueueDirectFireAndForget(pub, ResultProcessor.Int64);
             }
-            ExecuteSync(msg, ResultProcessor.DemandOK);
         }
 
         public Task SlaveOfAsync(EndPoint endpoint, CommandFlags flags = CommandFlags.None)
