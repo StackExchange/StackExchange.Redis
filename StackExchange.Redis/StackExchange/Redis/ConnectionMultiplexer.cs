@@ -51,6 +51,30 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed partial class ConnectionMultiplexer : IDisposable
     {
+        private static TaskFactory _factory = null;
+
+        /// <summary>
+        /// Provides a way of overriding the default Task Factory. If not set, it will use the default Task.Factory.
+        /// Useful when top level code sets it's own factory which may interfere with Redis queries.
+        /// </summary>
+        public static TaskFactory Factory
+        {
+            get
+            {
+                if (_factory != null)
+                {
+                    return _factory;
+                }
+
+                return Task.Factory;
+            }
+            set
+            {
+                _factory = value;
+                
+            }
+        }
+
         /// <summary>
         /// Get summary statistics associates with this server
         /// </summary>
@@ -738,7 +762,7 @@ namespace StackExchange.Redis
                 killMe = muxer;
                 // note that task has timeouts internally, so it might take *just over* the regular timeout
                 // wrap into task to force async execution
-                var task = Task.Factory.StartNew(() => { return muxer.ReconfigureAsync(true, false, log, null, "connect").Result; });
+                var task = Factory.StartNew(() => { return muxer.ReconfigureAsync(true, false, log, null, "connect").Result; });
 
                 if (!task.Wait(muxer.SyncConnectTimeout(true)))
                 {
