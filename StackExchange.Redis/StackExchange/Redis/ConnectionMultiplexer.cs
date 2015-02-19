@@ -1496,7 +1496,36 @@ namespace StackExchange.Redis
                     return servers[i];
             }
             LogLocked(log, "...but we couldn't find that");
+            var deDottedEndpoint = DeDotifyHost(endpoint);
+            for (int i = 0; i < servers.Length; i++)
+            {
+                if (string.Equals(DeDotifyHost(Format.ToString(servers[i].EndPoint)), deDottedEndpoint, StringComparison.OrdinalIgnoreCase))
+                {
+                    LogLocked(log, "...but we did find instead: {0}", deDottedEndpoint);
+                    return servers[i];
+                }
+            }
             return null;
+        }
+
+        static string DeDotifyHost(string input)
+        {
+            if (string.IsNullOrWhiteSpace(input)) return input; // GIGO
+
+            if (!char.IsLetter(input[0])) return input; // need first char to be alpha for this to work
+
+            int periodPosition = input.IndexOf('.');
+            if (periodPosition <= 0) return input; // no period or starts with a period? nothing useful to split
+
+            int colonPosition = input.IndexOf(':');
+            if (colonPosition > 0)
+            { // has a port specifier
+                return input.Substring(0, periodPosition) + input.Substring(colonPosition);
+            }
+            else
+            {
+                return input.Substring(0, periodPosition);
+            }
         }
 
         internal void UpdateClusterRange(ClusterConfiguration configuration)
