@@ -1602,7 +1602,7 @@ namespace StackExchange.Redis
                 default:
                     throw new ArgumentException("Expiry time must be either Utc or Local", "expiry");
             }
-            long milliseconds = (when - RedisBase.UnixEpoch).Ticks / TimeSpan.TicksPerMillisecond;
+            long milliseconds = (when.ToUniversalTime() - RedisBase.UnixEpoch).Ticks / TimeSpan.TicksPerMillisecond;
 
             if ((milliseconds % 1000) != 0)
             {
