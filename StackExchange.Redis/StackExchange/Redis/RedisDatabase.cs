@@ -786,6 +786,7 @@ namespace StackExchange.Redis
         {
             if (value.IsNull) throw new ArgumentNullException("value");
             var tran = GetLockExtendTransaction(key, value, expiry);
+
             if (tran != null) return tran.Execute(flags);
 
             // without transactions (twemproxy etc), we can't enforce the "value" part
@@ -863,6 +864,7 @@ namespace StackExchange.Redis
             try
             {
                 return ExecuteSync(msg, ResultProcessor.ScriptResult);
+
             }
             catch (RedisServerException)
             {
@@ -876,6 +878,7 @@ namespace StackExchange.Redis
             var msg = new ScriptEvalMessage(Db, flags, hash, keys, values);
             return ExecuteSync(msg, ResultProcessor.ScriptResult);
         }
+
         public RedisResult ScriptEvaluate(LuaScript script, object parameters = null, CommandFlags flags = CommandFlags.None)
         {
             return script.Evaluate(this, parameters, null, flags);
@@ -884,6 +887,7 @@ namespace StackExchange.Redis
         {
             return script.Evaluate(this, parameters, null, flags);
         }
+
 
         public Task<RedisResult> ScriptEvaluateAsync(string script, RedisKey[] keys = null, RedisValue[] values = null, CommandFlags flags = CommandFlags.None)
         {
@@ -895,6 +899,7 @@ namespace StackExchange.Redis
             var msg = new ScriptEvalMessage(Db, flags, hash, keys, values);
             return ExecuteAsync(msg, ResultProcessor.ScriptResult);
         }
+
         public Task<RedisResult> ScriptEvaluateAsync(LuaScript script, object parameters = null, CommandFlags flags = CommandFlags.None)
         {
             return script.EvaluateAsync(this, parameters, null, flags);
