@@ -150,6 +150,7 @@ namespace StackExchange.Redis
             internal override void WriteImpl(PhysicalConnection physical)
             {
                 wrapped.WriteImpl(physical);
+                wrapped.SetRequestSent();
             }
         }
 

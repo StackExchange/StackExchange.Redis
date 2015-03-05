@@ -21,6 +21,7 @@ namespace StackExchange.Redis
             //    this.exception = caught;
             //}
         }
+
         public abstract bool TryComplete(bool isAsync);
 
         [Conditional("DEBUG")]
@@ -136,6 +137,7 @@ namespace StackExchange.Redis
         {
             value = default(T);
             exception = null;
+
             this.stateOrCompletionSource = stateOrCompletionSource;
         }
     }

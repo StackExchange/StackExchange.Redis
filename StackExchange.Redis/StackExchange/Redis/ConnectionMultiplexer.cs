@@ -9,6 +9,7 @@ using System.Net;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Collections.Concurrent;
 #if NET40
 using Microsoft.Runtime.CompilerServices;
 #else
@@ -1589,8 +1590,23 @@ namespace StackExchange.Redis
                     server = null;
                 }
             }
+            
             if (server != null)
             {
+                if (profiler != null)
+                {
+                    var profCtx = profiler.GetContext();
+
+                    if(profCtx != null)
+                    {
+                        ConcurrentProfileStorageCollection inFlightForCtx;
+                        if (profiledCommands.TryGetValue(profCtx, out inFlightForCtx))
+                        {
+                            message.SetProfileStorage(ProfileStorage.NewWithContext(inFlightForCtx, server));
+                        }
+                    }
+                }
+
                 if (message.Db >= 0)
                 {
                     int availableDatabases = server.Databases;
@@ -1732,6 +1748,7 @@ namespace StackExchange.Redis
             {
                 return CompletedTask<T>.Default(state);
             }
+            
             if (message.IsFireAndForget)
             {
                 TryPushMessageToBridge(message, processor, null, ref server);

@@ -137,6 +137,7 @@ namespace StackExchange.Redis
                     // you can go in the queue, but we won't be starting
                     // a worker, because the handshake has not completed
                     queue.Push(message);
+                    message.SetEnqueued();
                     return true;
                 }
                 else
@@ -147,6 +148,7 @@ namespace StackExchange.Redis
             }
 
             bool reqWrite = queue.Push(message);
+            message.SetEnqueued();
             LogNonPreferred(message.Flags, isSlave);
             Trace("Now pending: " + GetPendingCount());
 
@@ -548,6 +550,9 @@ namespace StackExchange.Redis
                         return false;
                     }
                 }
+
+                next.SetRequestSent();
+
                 return true;
             }
             else
@@ -741,6 +746,7 @@ namespace StackExchange.Redis
                 {
                     connection.Enqueue(sel);
                     sel.WriteImpl(connection);
+                    sel.SetRequestSent();
                     IncrementOpCount();
                 }
             }
@@ -767,6 +773,7 @@ namespace StackExchange.Redis
                     {
                         connection.Enqueue(readmode);
                         readmode.WriteTo(connection);
+                        readmode.SetRequestSent();
                         IncrementOpCount();
                     }
 
@@ -775,6 +782,7 @@ namespace StackExchange.Redis
                         var asking = ReusableAskingCommand;
                         connection.Enqueue(asking);
                         asking.WriteImpl(connection);
+                        asking.SetRequestSent();
                         IncrementOpCount();
                     }
                 }
@@ -793,6 +801,7 @@ namespace StackExchange.Redis
 
                 connection.Enqueue(message);
                 message.WriteImpl(connection);
+                message.SetRequestSent();
                 IncrementOpCount();
 
                 // some commands smash our ability to trust the database; some commands
