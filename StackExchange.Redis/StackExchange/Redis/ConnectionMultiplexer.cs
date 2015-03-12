@@ -1903,7 +1903,6 @@ namespace StackExchange.Redis
             if (channel == null) return CompletedTask<long>.Default(null);
 
             return GetSubscriber().PublishAsync(channel, RedisLiterals.Wildcard, flags);
-        }        
+        }
     }   
-
 }

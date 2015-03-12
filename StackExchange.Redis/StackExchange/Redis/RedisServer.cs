@@ -375,6 +375,16 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.ScriptLoad);
         }
 
+        public LoadedLuaScript ScriptLoad(LuaScript script, CommandFlags flags = CommandFlags.None)
+        {
+            return script.Load(this, flags);
+        }
+
+        public Task<LoadedLuaScript> ScriptLoadAsync(LuaScript script, CommandFlags flags = CommandFlags.None)
+        {
+            return script.LoadAsync(this, flags);
+        }
+
         public void Shutdown(ShutdownMode shutdownMode = ShutdownMode.Default, CommandFlags flags = CommandFlags.None)
         {
             Message msg;

@@ -9,7 +9,8 @@ namespace StackExchange.Redis
     {
         private readonly int Db;
 
-        internal RedisDatabase(ConnectionMultiplexer multiplexer, int db, object asyncState) : base(multiplexer, asyncState)
+        internal RedisDatabase(ConnectionMultiplexer multiplexer, int db, object asyncState)
+            : base(multiplexer, asyncState)
         {
             this.Db = db;
         }
@@ -33,7 +34,7 @@ namespace StackExchange.Redis
         private ITransaction CreateTransactionIfAvailable(object asyncState)
         {
             var map = multiplexer.CommandMap;
-            if(!map.IsAvailable(RedisCommand.MULTI) || !map.IsAvailable(RedisCommand.EXEC))
+            if (!map.IsAvailable(RedisCommand.MULTI) || !map.IsAvailable(RedisCommand.EXEC))
             {
                 return null;
             }
@@ -785,7 +786,8 @@ namespace StackExchange.Redis
         {
             if (value.IsNull) throw new ArgumentNullException("value");
             var tran = GetLockExtendTransaction(key, value, expiry);
-            if(tran != null) return tran.Execute(flags);
+
+            if (tran != null) return tran.Execute(flags);
 
             // without transactions (twemproxy etc), we can't enforce the "value" part
             return KeyExpire(key, expiry, flags);
@@ -795,12 +797,12 @@ namespace StackExchange.Redis
         {
             if (value.IsNull) throw new ArgumentNullException("value");
             var tran = GetLockExtendTransaction(key, value, expiry);
-            if(tran != null) return tran.ExecuteAsync(flags);
+            if (tran != null) return tran.ExecuteAsync(flags);
 
             // without transactions (twemproxy etc), we can't enforce the "value" part
             return KeyExpireAsync(key, expiry, flags);
         }
-        
+
         public RedisValue LockQuery(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             return StringGet(key, flags);
@@ -815,7 +817,7 @@ namespace StackExchange.Redis
         {
             if (value.IsNull) throw new ArgumentNullException("value");
             var tran = GetLockReleaseTransaction(key, value);
-            if(tran != null) return tran.Execute(flags);
+            if (tran != null) return tran.Execute(flags);
 
             // without transactions (twemproxy etc), we can't enforce the "value" part
             return KeyDelete(key, flags);
@@ -825,7 +827,7 @@ namespace StackExchange.Redis
         {
             if (value.IsNull) throw new ArgumentNullException("value");
             var tran = GetLockReleaseTransaction(key, value);
-            if(tran != null) return tran.ExecuteAsync(flags);
+            if (tran != null) return tran.ExecuteAsync(flags);
 
             // without transactions (twemproxy etc), we can't enforce the "value" part
             return KeyDeleteAsync(key, flags);
@@ -862,10 +864,12 @@ namespace StackExchange.Redis
             try
             {
                 return ExecuteSync(msg, ResultProcessor.ScriptResult);
-            } catch(RedisServerException)
+
+            }
+            catch (RedisServerException)
             {
                 // could be a NOSCRIPT; for a sync call, we can re-issue that without problem
-                if(msg.IsScriptUnavailable) return ExecuteSync(msg, ResultProcessor.ScriptResult);
+                if (msg.IsScriptUnavailable) return ExecuteSync(msg, ResultProcessor.ScriptResult);
                 throw;
             }
         }
@@ -874,6 +878,16 @@ namespace StackExchange.Redis
             var msg = new ScriptEvalMessage(Db, flags, hash, keys, values);
             return ExecuteSync(msg, ResultProcessor.ScriptResult);
         }
+
+        public RedisResult ScriptEvaluate(LuaScript script, object parameters = null, CommandFlags flags = CommandFlags.None)
+        {
+            return script.Evaluate(this, parameters, null, flags);
+        }
+        public RedisResult ScriptEvaluate(LoadedLuaScript script, object parameters = null, CommandFlags flags = CommandFlags.None)
+        {
+            return script.Evaluate(this, parameters, null, flags);
+        }
+
 
         public Task<RedisResult> ScriptEvaluateAsync(string script, RedisKey[] keys = null, RedisValue[] values = null, CommandFlags flags = CommandFlags.None)
         {
@@ -884,6 +898,15 @@ namespace StackExchange.Redis
         {
             var msg = new ScriptEvalMessage(Db, flags, hash, keys, values);
             return ExecuteAsync(msg, ResultProcessor.ScriptResult);
+        }
+
+        public Task<RedisResult> ScriptEvaluateAsync(LuaScript script, object parameters = null, CommandFlags flags = CommandFlags.None)
+        {
+            return script.EvaluateAsync(this, parameters, null, flags);
+        }
+        public Task<RedisResult> ScriptEvaluateAsync(LoadedLuaScript script, object parameters = null, CommandFlags flags = CommandFlags.None)
+        {
+            return script.EvaluateAsync(this, parameters, null, flags);
         }
 
         public bool SetAdd(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
@@ -1077,7 +1100,7 @@ namespace StackExchange.Redis
             var scan = TryScan<RedisValue>(key, pattern, pageSize, cursor, pageOffset, flags, RedisCommand.SSCAN, SetScanResultProcessor.Default);
             if (scan != null) return scan;
 
-            if(cursor != 0 || pageOffset != 0) throw ExceptionFactory.NoCursor(RedisCommand.SMEMBERS);
+            if (cursor != 0 || pageOffset != 0) throw ExceptionFactory.NoCursor(RedisCommand.SMEMBERS);
             if (pattern.IsNull) return SetMembers(key, flags);
             throw ExceptionFactory.NotSupported(true, RedisCommand.SSCAN);
         }
@@ -1665,16 +1688,16 @@ namespace StackExchange.Redis
 
         private RedisValue GetLexRange(RedisValue value, Exclude exclude, bool isStart)
         {
-            if(value.IsNull)
+            if (value.IsNull)
             {
-                return isStart? RedisLiterals.MinusSymbol : RedisLiterals.PlusSumbol;
+                return isStart ? RedisLiterals.MinusSymbol : RedisLiterals.PlusSumbol;
             }
             byte[] orig = value;
 
             byte[] result = new byte[orig.Length + 1];
             // no defaults here; must always explicitly specify [ / (
             result[0] = (exclude & (isStart ? Exclude.Start : Exclude.Stop)) == 0 ? (byte)'[' : (byte)'(';
-            Buffer.BlockCopy(orig, 0, result, 1, orig.Length);            
+            Buffer.BlockCopy(orig, 0, result, 1, orig.Length);
             return result;
         }
         private RedisValue GetRange(double value, Exclude exclude, bool isStart)
@@ -1857,7 +1880,7 @@ namespace StackExchange.Redis
                 var tmp = start;
                 start = stop;
                 stop = tmp;
-                switch(exclude)
+                switch (exclude)
                 {
                     case Exclude.Start: exclude = Exclude.Stop; break;
                     case Exclude.Stop: exclude = Exclude.Start; break;
@@ -2132,7 +2155,8 @@ namespace StackExchange.Redis
         internal sealed class ScriptLoadMessage : Message
         {
             internal readonly string Script;
-            public ScriptLoadMessage(CommandFlags flags, string script) : base(-1, flags, RedisCommand.SCRIPT)
+            public ScriptLoadMessage(CommandFlags flags, string script)
+                : base(-1, flags, RedisCommand.SCRIPT)
             {
                 if (script == null) throw new ArgumentNullException("script");
                 this.Script = script;
@@ -2195,7 +2219,8 @@ namespace StackExchange.Redis
                 if (hash == null) throw new ArgumentNullException("hash");
             }
 
-            private ScriptEvalMessage(int db, CommandFlags flags, RedisCommand command, string script, byte[] hexHash, RedisKey[] keys, RedisValue[] values) : base(db, flags, command)
+            private ScriptEvalMessage(int db, CommandFlags flags, RedisCommand command, string script, byte[] hexHash, RedisKey[] keys, RedisValue[] values)
+                : base(db, flags, command)
             {
                 this.script = script;
                 this.hexHash = hexHash;
@@ -2220,7 +2245,7 @@ namespace StackExchange.Redis
 
             public IEnumerable<Message> GetMessages(PhysicalConnection connection)
             {
-               if (script != null && connection.Multiplexer.CommandMap.IsAvailable(RedisCommand.SCRIPT)) // a script was provided (rather than a hash); check it is known and supported
+                if (script != null && connection.Multiplexer.CommandMap.IsAvailable(RedisCommand.SCRIPT)) // a script was provided (rather than a hash); check it is known and supported
                 {
                     asciiHash = connection.Bridge.ServerEndPoint.GetScriptHash(script, command);
 
@@ -2237,7 +2262,7 @@ namespace StackExchange.Redis
 
             internal override void WriteImpl(PhysicalConnection physical)
             {
-                if(hexHash != null)
+                if (hexHash != null)
                 {
                     physical.WriteHeader(RedisCommand.EVALSHA, 2 + keys.Length + values.Length);
                     physical.WriteAsHex(hexHash);
@@ -2273,7 +2298,8 @@ namespace StackExchange.Redis
         {
             private readonly RedisKey[] keys;
             private readonly RedisValue[] values;
-            public SortedSetCombineAndStoreCommandMessage(int db, CommandFlags flags, RedisCommand command, RedisKey destination, RedisKey[] keys, RedisValue[] values) : base(db, flags, command, destination)
+            public SortedSetCombineAndStoreCommandMessage(int db, CommandFlags flags, RedisCommand command, RedisKey destination, RedisKey[] keys, RedisValue[] values)
+                : base(db, flags, command, destination)
             {
                 for (int i = 0; i < keys.Length; i++)
                     keys[i].AssertNotNull();
@@ -2318,7 +2344,7 @@ namespace StackExchange.Redis
             private ResultBox<TimeSpan?> box;
 
             public StringGetWithExpiryMessage(int db, CommandFlags flags, RedisCommand ttlCommand, RedisKey key)
-                            : base(db, flags | CommandFlags.NoRedirect /* <== not implemented/tested */, RedisCommand.GET, key)
+                : base(db, flags | CommandFlags.NoRedirect /* <== not implemented/tested */, RedisCommand.GET, key)
             {
                 this.ttlCommand = ttlCommand;
             }
@@ -2357,9 +2383,9 @@ namespace StackExchange.Redis
         {
             public static readonly ResultProcessor<RedisValueWithExpiry> Default = new StringGetWithExpiryProcessor();
             private StringGetWithExpiryProcessor() { }
-            protected  override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
-                switch(result.Type)
+                switch (result.Type)
                 {
                     case ResultType.Integer:
                     case ResultType.SimpleString:

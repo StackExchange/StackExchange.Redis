@@ -334,6 +334,16 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return this.Inner.ScriptEvaluateAsync(script, this.ToInner(keys), values, flags);
         }
 
+        public Task<RedisResult> ScriptEvaluateAsync(LuaScript script, object parameters = null, CommandFlags flags = CommandFlags.None)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<RedisResult> ScriptEvaluateAsync(LoadedLuaScript script, object parameters = null, CommandFlags flags = CommandFlags.None)
+        {
+            throw new NotImplementedException();
+        }
+
         public Task<long> SetAddAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
         {
             return this.Inner.SetAddAsync(this.ToInner(key), values, flags);
