@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.Serialization;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -12,6 +13,7 @@ namespace StackExchange.Redis
     [Serializable]
     public sealed class RedisCommandException : Exception
     {
+        private RedisCommandException(SerializationInfo info, StreamingContext ctx) : base(info, ctx) { }
         internal RedisCommandException(string message) : base(message) { }
         internal RedisCommandException(string message, Exception innerException) : base(message, innerException) { }
     }
@@ -22,9 +24,21 @@ namespace StackExchange.Redis
     /// Indicates a connection fault when communicating with redis
     /// </summary>
     [Serializable]
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2240:ImplementISerializableCorrectly")]
     public sealed class RedisConnectionException : RedisException
     {
+        private RedisConnectionException(SerializationInfo info, StreamingContext ctx) : base(info, ctx)
+        {
+            this.FailureType = (ConnectionFailureType)info.GetInt32("failureType");
+        }
+        /// <summary>
+        /// Serialization implementation; not intended for general usage
+        /// </summary>
+        public override void GetObjectData(SerializationInfo info, StreamingContext context)
+        {
+            base.GetObjectData(info, context);
+            info.AddValue("failureType", (int)this.FailureType);
+        }
+
         internal RedisConnectionException(ConnectionFailureType failureType, string message) : base(message)
         {
             this.FailureType = failureType;
@@ -46,6 +60,11 @@ namespace StackExchange.Redis
     [Serializable]
     public class RedisException : Exception
     {
+        /// <summary>
+        /// Deserialization constructor; not intended for general usage
+        /// </summary>
+        protected RedisException(SerializationInfo info, StreamingContext ctx) : base(info, ctx) { }
+        
         internal RedisException(string message) : base(message) { }
         internal RedisException(string message, Exception innerException) : base(message, innerException) { }
     }
@@ -55,6 +74,8 @@ namespace StackExchange.Redis
     [Serializable]
     public sealed class RedisServerException : RedisException
     {
+        private RedisServerException(SerializationInfo info, StreamingContext ctx) : base(info, ctx) { }
+        
         internal RedisServerException(string message) : base(message) { }
     }
 
