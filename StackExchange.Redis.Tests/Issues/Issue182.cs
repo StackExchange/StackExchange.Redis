@@ -28,5 +28,35 @@ namespace StackExchange.Redis.Tests.Issues
                 Assert.AreEqual(count, task.Result.Length, "SMEMBERS result length");
             }
         }
+
+        [Test]
+        public void SetUnion()
+        {
+            using (var conn = Create())
+            {
+                var db = conn.GetDatabase();
+
+                var key1 = Me() + ":1";
+                var key2 = Me() + ":2";
+                var dstkey = Me() + ":dst";
+
+                db.KeyDeleteAsync(key1).Wait();
+                db.KeyDeleteAsync(key2).Wait();
+                db.KeyDeleteAsync(dstkey).Wait();
+
+                const int count = (int)5e6;
+                foreach (var _ in Enumerable.Range(0, count))
+                {
+                    db.SetAdd(key1, Guid.NewGuid().ToByteArray(), CommandFlags.FireAndForget);
+                    db.SetAdd(key2, Guid.NewGuid().ToByteArray(), CommandFlags.FireAndForget);
+                }
+                Assert.AreEqual(count, db.SetLengthAsync(key1).Result, "SCARD for set 1");
+                Assert.AreEqual(count, db.SetLengthAsync(key2).Result, "SCARD for set 2");
+
+                db.SetCombineAndStoreAsync(SetOperation.Union, dstkey, key1, key2).Wait();
+                var dstLen = db.SetLength(dstkey);
+                Assert.AreEqual(count * 2, dstLen, "SCARD for destination set");
+            }
+        }
     }
 }
