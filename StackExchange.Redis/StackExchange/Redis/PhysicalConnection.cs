@@ -178,6 +178,7 @@ namespace StackExchange.Redis
                 int unansweredRead = Thread.VolatileRead(ref firstUnansweredWriteTickCount);
 
                 string message = failureType + " on " + Format.ToString(bridge.ServerEndPoint.EndPoint) + "/" + connectionType
+                    + ", origin: " + origin
                     + ", input-buffer: " + ioBufferBytes + ", outstanding: " + GetSentAwaitingResponseCount()
                     + ", last-read: " + unchecked(now - lastRead) / 1000 + "s ago, last-write: " + unchecked(now - lastWrite) / 1000 + "s ago"
                     + ", unanswered-write: " + unchecked(now - unansweredRead) / 1000 + "s ago"
@@ -993,7 +994,7 @@ namespace StackExchange.Redis
 
             int now = Environment.TickCount;
 
-            if (firstUnansweredWrite != 0 && (now - firstUnansweredWrite) > this.multiplexer.RawConfig.SyncTimeout)
+            if (firstUnansweredWrite != 0 && (now - firstUnansweredWrite) > this.multiplexer.RawConfig.ResponseTimeout)
             {
                 this.RecordConnectionFailed(ConnectionFailureType.SocketFailure, origin: "CheckForStaleConnection");
             }

@@ -9,7 +9,7 @@ namespace StackExchange.Redis.Tests.Issues
     {
         protected override string GetConfiguration()
         {
-            return "127.0.0.1:6379,syncTimeout=10000";
+            return "127.0.0.1:6379,responseTimeout=10000";
         }
         [Test]
         public void SetMembers()
