@@ -9,13 +9,19 @@ namespace StackExchange.Redis.Tests.Issues
     {
         protected override string GetConfiguration()
         {
-            return "127.0.0.1:6379";
+            return "127.0.0.1:6379,syncTimeout=10000";
         }
         [Test]
         public void SetMembers()
         {
             using (var conn = Create())
             {
+                conn.ConnectionFailed += (s, a) =>
+                {
+                    Console.WriteLine(a.FailureType);
+                    Console.WriteLine(a.Exception.Message);
+                    Console.WriteLine(a.Exception.StackTrace);
+                };
                 var db = conn.GetDatabase();
 
                 var key = Me();
