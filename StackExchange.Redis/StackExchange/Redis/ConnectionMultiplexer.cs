@@ -897,12 +897,14 @@ namespace StackExchange.Redis
         /// <summary>
         /// Obtain an interactive connection to a database inside redis
         /// </summary>
-        public IDatabase GetDatabase(int? db = null, object asyncState = null)
+        public IDatabase GetDatabase(int db = -1, object asyncState = null)
         {
-            int dbId = db ?? configuration.DefaultDatabase ?? 0;
-            if (dbId < 0) throw new ArgumentOutOfRangeException("db");
-            if (dbId != 0 && RawConfig.Proxy == Proxy.Twemproxy) throw new NotSupportedException("Twemproxy only supports database 0");
-            return new RedisDatabase(this, dbId, asyncState);
+            if (db == -1)
+                db = configuration.DefaultDatabase ?? 0;
+
+            if (db < 0) throw new ArgumentOutOfRangeException("db");
+            if (db != 0 && RawConfig.Proxy == Proxy.Twemproxy) throw new NotSupportedException("Twemproxy only supports database 0");
+            return new RedisDatabase(this, db, asyncState);
         }
 
 
