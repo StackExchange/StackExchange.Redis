@@ -91,13 +91,13 @@ namespace StackExchange.Redis
             OnCreateEcho();
         }
 
-        public void BeginConnect()
+        public void BeginConnect(TextWriter log)
         {
             Thread.VolatileWrite(ref firstUnansweredWriteTickCount, 0);
             var endpoint = this.bridge.ServerEndPoint.EndPoint;
 
             multiplexer.Trace("Connecting...", physicalName);
-            this.socketToken = multiplexer.SocketManager.BeginConnect(endpoint, this);
+            this.socketToken = multiplexer.SocketManager.BeginConnect(endpoint, this, multiplexer, log);
         }
 
         private enum ReadMode : byte

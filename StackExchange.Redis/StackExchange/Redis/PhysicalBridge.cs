@@ -122,9 +122,9 @@ namespace StackExchange.Redis
             return connectionType + "/" + Format.ToString(serverEndPoint.EndPoint);
         }
 
-        public void TryConnect()
+        public void TryConnect(TextWriter log)
         {
-            GetConnection();
+            GetConnection(log);
         }
 
         public bool TryEnqueue(Message message, bool isSlave)
@@ -309,7 +309,7 @@ namespace StackExchange.Redis
             {
                 tmp.RecordConnectionFailed(ConnectionFailureType.UnableToConnect);
             }
-            GetConnection();
+            GetConnection(null);
         }
 
         internal void OnConnectionFailed(PhysicalConnection connection, ConnectionFailureType failureType, Exception innerException)
@@ -345,7 +345,7 @@ namespace StackExchange.Redis
 
                 if (!isDisposed && Interlocked.Increment(ref failConnectCount) == 1)
                 {
-                    GetConnection(); // try to connect immediately
+                    GetConnection(null); // try to connect immediately
                 }
             }
             else if (physical == null)
@@ -402,7 +402,7 @@ namespace StackExchange.Redis
                             State oldState;
                             OnDisconnected(ConnectionFailureType.UnableToConnect, snapshot, out isCurrent, out oldState);
                             using (snapshot) { } // dispose etc
-                            TryConnect();
+                            TryConnect(null);
                         }
                         if (!ifConnectedOnly)
                         {
@@ -456,7 +456,7 @@ namespace StackExchange.Redis
                         {
                             AbortUnsent();
                             multiplexer.Trace("Resurrecting " + this.ToString());
-                            GetConnection();
+                            GetConnection(null);
                         }
                         break;
                     default:
@@ -571,7 +571,7 @@ namespace StackExchange.Redis
                     return WriteResult.CompetingWriter;
                 }
 
-                conn = GetConnection();
+                conn = GetConnection(null);
                 if (conn == null)
                 {
                     AbortUnsent();
@@ -679,7 +679,7 @@ namespace StackExchange.Redis
             return result;
         }
 
-        private PhysicalConnection GetConnection()
+        private PhysicalConnection GetConnection(TextWriter log)
         {
             if (state == (int)State.Disconnected)
             {
@@ -687,6 +687,7 @@ namespace StackExchange.Redis
                 {
                     if (!multiplexer.IsDisposed)
                     {
+                        Multiplexer.LogLocked(log, "Connecting {0}...", Name);
                         Multiplexer.Trace("Connecting...", Name);
                         if (ChangeState(State.Disconnected, State.Connecting))
                         {
@@ -695,13 +696,14 @@ namespace StackExchange.Redis
                             // separate creation and connection for case when connection completes synchronously
                             // in that case PhysicalConnection will call back to PhysicalBridge, and most of  PhysicalBridge methods assumes that physical is not null;
                             physical = new PhysicalConnection(this);
-                            physical.BeginConnect();
+                            physical.BeginConnect(log);
                         }
                     }
                     return null;
                 }
                 catch (Exception ex)
                 {
+                    Multiplexer.LogLocked(log, "Connect {0} failed: {1}", Name, ex.Message);
                     Multiplexer.Trace("Connect failed: " + ex.Message, Name);
                     ChangeState(State.Disconnected);
                     OnInternalError(ex);

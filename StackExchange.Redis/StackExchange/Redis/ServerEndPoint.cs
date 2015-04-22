@@ -66,7 +66,7 @@ namespace StackExchange.Redis
             isSlave = false;
             databases = 0;
             writeEverySeconds = config.KeepAlive > 0 ? config.KeepAlive : 60;
-            interactive = CreateBridge(ConnectionType.Interactive);
+            interactive = CreateBridge(ConnectionType.Interactive, null);
             serverType = ServerType.Standalone;
 
             // overrides for twemproxy
@@ -147,15 +147,15 @@ namespace StackExchange.Redis
             if (tmp != null) tmp.Dispose();
         }
 
-        public PhysicalBridge GetBridge(ConnectionType type, bool create = true)
+        public PhysicalBridge GetBridge(ConnectionType type, bool create = true, TextWriter log = null)
         {
             if (isDisposed) return null;
             switch (type)
             {
                 case ConnectionType.Interactive:
-                    return interactive ?? (create ? interactive = CreateBridge(ConnectionType.Interactive) : null);
+                    return interactive ?? (create ? interactive = CreateBridge(ConnectionType.Interactive, log) : null);
                 case ConnectionType.Subscription:
-                    return subscription ?? (create ? subscription = CreateBridge(ConnectionType.Subscription) : null);
+                    return subscription ?? (create ? subscription = CreateBridge(ConnectionType.Subscription, log) : null);
             }
             return null;
         }
@@ -168,7 +168,7 @@ namespace StackExchange.Redis
                 case RedisCommand.UNSUBSCRIBE:
                 case RedisCommand.PSUBSCRIBE:
                 case RedisCommand.PUNSUBSCRIBE:
-                    return subscription ?? (create ? subscription = CreateBridge(ConnectionType.Subscription) : null);
+                    return subscription ?? (create ? subscription = CreateBridge(ConnectionType.Subscription, null) : null);
                 default:
                     return interactive;
             }
@@ -236,9 +236,9 @@ namespace StackExchange.Redis
             return bridge != null && bridge.TryEnqueue(message, isSlave);
         }
 
-        internal void Activate(ConnectionType type)
+        internal void Activate(ConnectionType type, TextWriter log)
         {
-            GetBridge(type, true);
+            GetBridge(type, true, log);
         }
 
         internal void AddScript(string script, byte[] hash)
@@ -614,11 +614,11 @@ namespace StackExchange.Redis
             }
         }
 
-        private PhysicalBridge CreateBridge(ConnectionType type)
+        private PhysicalBridge CreateBridge(ConnectionType type, TextWriter log)
         {
             multiplexer.Trace(type.ToString());
             var bridge = new PhysicalBridge(this, type);
-            bridge.TryConnect();
+            bridge.TryConnect(log);
             return bridge;
         }
         void Handshake(PhysicalConnection connection)

@@ -562,7 +562,13 @@ namespace StackExchange.Redis
         private async Task<bool> WaitAllIgnoreErrorsAsync(Task[] tasks, int timeoutMilliseconds, TextWriter log)
         {
             if (tasks == null) throw new ArgumentNullException("tasks");
-            if (tasks.Length == 0) return true;
+            if (tasks.Length == 0)
+            {
+                LogLocked(log, "No tasks to await");
+                return true;
+            }
+
+            LogLocked(log, "Awaiting task completion...");
             var watch = Stopwatch.StartNew();
 
             try
@@ -1131,10 +1137,10 @@ namespace StackExchange.Redis
                     }
                     foreach (var server in serverSnapshot)
                     {
-                        server.Activate(ConnectionType.Interactive);
+                        server.Activate(ConnectionType.Interactive, log);
                         if (this.CommandMap.IsAvailable(RedisCommand.SUBSCRIBE))
                         {
-                            server.Activate(ConnectionType.Subscription);
+                            server.Activate(ConnectionType.Subscription, log);
                         }
                     }
                 }

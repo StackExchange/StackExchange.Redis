@@ -121,7 +121,7 @@ namespace StackExchange.Redis
             OnDispose();
         }
 
-        internal SocketToken BeginConnect(EndPoint endpoint, ISocketCallback callback)
+        internal SocketToken BeginConnect(EndPoint endpoint, ISocketCallback callback, ConnectionMultiplexer multiplexer, TextWriter log)
         {
             var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             SetFastLoopbackOption(socket);
@@ -131,21 +131,37 @@ namespace StackExchange.Redis
                 CompletionType connectCompletionType = CompletionType.Any;
                 this.ShouldForceConnectCompletionType(ref connectCompletionType);
 
+                var formattedEndpoint = Format.ToString(endpoint);
                 if (endpoint is DnsEndPoint)
                 {
                     // A work-around for a Mono bug in BeginConnect(EndPoint endpoint, AsyncCallback callback, object state)
                     DnsEndPoint dnsEndpoint = (DnsEndPoint)endpoint;
-
                     CompletionTypeHelper.RunWithCompletionType(
-                        (cb) => socket.BeginConnect(dnsEndpoint.Host, dnsEndpoint.Port, cb, Tuple.Create(socket, callback)),
-                        (ar) => EndConnectImpl(ar),
+                        (cb) =>
+                        {
+                            multiplexer.LogLocked(log, "BeginConnect: {0}", formattedEndpoint);
+                            return socket.BeginConnect(dnsEndpoint.Host, dnsEndpoint.Port, cb, Tuple.Create(socket, callback));
+                        },
+                        (ar) =>
+                        {
+                            multiplexer.LogLocked(log, "EndConnect: {0}", formattedEndpoint);
+                            EndConnectImpl(ar);
+                            multiplexer.LogLocked(log, "Connect complete: {0}", formattedEndpoint);
+                        },
                         connectCompletionType);
                 }
                 else
                 {
                     CompletionTypeHelper.RunWithCompletionType(
-                        (cb) => socket.BeginConnect(endpoint, cb, Tuple.Create(socket, callback)),
-                        (ar) => EndConnectImpl(ar),
+                        (cb) => {
+                            multiplexer.LogLocked(log, "BeginConnect: {0}", formattedEndpoint);
+                            return socket.BeginConnect(endpoint, cb, Tuple.Create(socket, callback));
+                        },
+                        (ar) => {
+                            multiplexer.LogLocked(log, "EndConnect: {0}", formattedEndpoint);
+                            EndConnectImpl(ar);
+                            multiplexer.LogLocked(log, "Connect complete: {0}", formattedEndpoint);
+                        },
                         connectCompletionType);
                 }
             } 
