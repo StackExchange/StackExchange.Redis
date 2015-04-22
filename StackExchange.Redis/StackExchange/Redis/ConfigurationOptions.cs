@@ -73,7 +73,7 @@ namespace StackExchange.Redis
                         TieBreaker = "tiebreaker", WriteBuffer = "writeBuffer", Ssl = "ssl", SslHost = "sslHost",
                         ConfigChannel = "configChannel", AbortOnConnectFail = "abortConnect", ResolveDns = "resolveDns",
                         ChannelPrefix = "channelPrefix", Proxy = "proxy", ConnectRetry = "connectRetry",
-                        ConfigCheckSeconds = "configCheckSeconds", ResponseTimeout = "responseTimeout";
+                        ConfigCheckSeconds = "configCheckSeconds", ResponseTimeout = "responseTimeout", DefaultDatabase = "defaultDatabase";
             private static readonly Dictionary<string, string> normalizedOptions = new[]
             {
                 AllowAdmin, SyncTimeout,
@@ -82,7 +82,7 @@ namespace StackExchange.Redis
                 TieBreaker, WriteBuffer, Ssl, SslHost,
                 ConfigChannel, AbortOnConnectFail, ResolveDns,
                 ChannelPrefix, Proxy, ConnectRetry,
-                ConfigCheckSeconds
+                ConfigCheckSeconds, DefaultDatabase,
             }.ToDictionary(x => x, StringComparer.InvariantCultureIgnoreCase);
 
             public static string TryNormalize(string value)
@@ -107,7 +107,7 @@ namespace StackExchange.Redis
 
         private Version defaultVersion;
 
-        private int? keepAlive, syncTimeout, connectTimeout, responseTimeout, writeBuffer, connectRetry, configCheckSeconds;
+        private int? keepAlive, syncTimeout, connectTimeout, responseTimeout, writeBuffer, connectRetry, configCheckSeconds, defaultDatabase;
 
         private Proxy? proxy;
 
@@ -264,6 +264,11 @@ namespace StackExchange.Redis
         /// </summary>
         public int WriteBuffer { get { return writeBuffer.GetValueOrDefault(4096); } set { writeBuffer = value; } }
 
+        /// <summary>
+        /// Specifies the default database to be used when calling ConnectionMultiplexer.GetDatabase() without any parameters
+        /// </summary>
+        public int? DefaultDatabase { get { return defaultDatabase; } set { defaultDatabase = value; } }
+
         internal LocalCertificateSelectionCallback CertificateSelectionCallback { get { return CertificateSelection; } private set { CertificateSelection = value; } }
 
         // these just rip out the underlying handlers, bypassing the event accessors - needed when creating the SSL stream
@@ -327,7 +332,8 @@ namespace StackExchange.Redis
                 SocketManager = SocketManager,
                 connectRetry = connectRetry,
                 configCheckSeconds = configCheckSeconds,
-                responseTimeout = responseTimeout
+                responseTimeout = responseTimeout,
+				defaultDatabase = defaultDatabase,
             };
             foreach (var item in endpoints)
                 options.endpoints.Add(item);
@@ -373,6 +379,7 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.Proxy, proxy);
             Append(sb, OptionKeys.ConfigCheckSeconds, configCheckSeconds);
             Append(sb, OptionKeys.ResponseTimeout, responseTimeout);
+            Append(sb, OptionKeys.DefaultDatabase, defaultDatabase);
             if (commandMap != null) commandMap.AppendDeltas(sb);
             return sb.ToString();
         }
@@ -462,7 +469,7 @@ namespace StackExchange.Redis
         void Clear()
         {
             clientName = serviceName = password = tieBreaker = sslHost = configChannel = null;
-            keepAlive = syncTimeout = connectTimeout = writeBuffer = connectRetry = configCheckSeconds = null;
+            keepAlive = syncTimeout = connectTimeout = writeBuffer = connectRetry = configCheckSeconds = defaultDatabase = null;
             allowAdmin = abortOnConnectFail = resolveDns = ssl = null;
             defaultVersion = null;
             endpoints.Clear();
@@ -567,6 +574,9 @@ namespace StackExchange.Redis
                             break;
                         case OptionKeys.ResponseTimeout:
                             ResponseTimeout = OptionKeys.ParseInt32(key, value, minValue: 1);
+                            break;
+                        case OptionKeys.DefaultDatabase:
+                            defaultDatabase = OptionKeys.ParseInt32(key, value);
                             break;
                         default:
                             if (!string.IsNullOrEmpty(key) && key[0] == '$')
