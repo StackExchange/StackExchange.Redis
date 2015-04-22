@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Runtime.CompilerServices;
@@ -530,7 +531,8 @@ namespace StackExchange.Redis
             var tcs = TaskSource.CreateDenyExecSync<T>(asyncState);
             var source = ResultBox<T>.Get(tcs);
             message.SetSource(processor, source);
-            if(!(bridge ?? GetBridge(message.Command)).TryEnqueue(message, isSlave))
+            if (bridge == null) bridge = GetBridge(message.Command);
+            if (!bridge.TryEnqueue(message, isSlave))
             {
                 ConnectionMultiplexer.ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(multiplexer.IncludeDetailInExceptions, message.Command, message, this));
             }
@@ -555,9 +557,11 @@ namespace StackExchange.Redis
             if (tmp != null) tmp.ReportNextFailure();
         }
 
-        internal Task<bool> SendTracer()
+        internal Task<bool> SendTracer(TextWriter log = null)
         {
-            return QueueDirectAsync(GetTracerMessage(false), ResultProcessor.Tracer);
+            var msg = GetTracerMessage(false);
+            if (log != null) msg = new LoggingMessage(log, msg);
+            return QueueDirectAsync(msg, ResultProcessor.Tracer);
         }
 
         internal string Summary()

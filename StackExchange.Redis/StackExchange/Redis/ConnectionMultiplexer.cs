@@ -403,23 +403,23 @@ namespace StackExchange.Redis
 
         internal void LogLocked(TextWriter log, string line)
         {
-            lock (LogSyncLock) { log.WriteLine(line); }
+            if(log != null) lock (LogSyncLock) { log.WriteLine(line); }
         }
         internal void LogLocked(TextWriter log, string line, object arg)
         {
-            lock (LogSyncLock) { log.WriteLine(line, arg); }
+            if (log != null) lock (LogSyncLock) { log.WriteLine(line, arg); }
         }
         internal void LogLocked(TextWriter log, string line, object arg0, object arg1)
         {
-            lock (LogSyncLock) { log.WriteLine(line, arg0, arg1); }
+            if (log != null) lock (LogSyncLock) { log.WriteLine(line, arg0, arg1); }
         }
         internal void LogLocked(TextWriter log, string line, object arg0, object arg1, object arg2)
         {
-            lock (LogSyncLock) { log.WriteLine(line, arg0, arg1, arg2); }
+            if (log != null) lock (LogSyncLock) { log.WriteLine(line, arg0, arg1, arg2); }
         }
         internal void LogLocked(TextWriter log, string line, params object[] args)
         {
-            lock (LogSyncLock) { log.WriteLine(line, args); }
+            if (log != null) lock (LogSyncLock) { log.WriteLine(line, args); }
         }
 
         internal void CheckMessage(Message message)
@@ -559,7 +559,7 @@ namespace StackExchange.Redis
             }
             return false;
         }
-        private static async Task<bool> WaitAllIgnoreErrorsAsync(Task[] tasks, int timeoutMilliseconds)
+        private async Task<bool> WaitAllIgnoreErrorsAsync(Task[] tasks, int timeoutMilliseconds, TextWriter log)
         {
             if (tasks == null) throw new ArgumentNullException("tasks");
             if (tasks.Length == 0) return true;
@@ -576,7 +576,9 @@ namespace StackExchange.Redis
                 var allTasks = Task.WhenAll(tasks).ObserveErrors();
                 var any = Task.WhenAny(allTasks, Task.Delay(timeoutMilliseconds)).ObserveErrors();
 #endif
-                return await any.ForAwait() == allTasks;
+                bool all = await any.ForAwait() == allTasks;
+                LogLocked(log, all ? "All tasks completed cleanly" : "Not all tasks completed cleanly");
+                return all;
             }
             catch
             { }
@@ -589,7 +591,11 @@ namespace StackExchange.Redis
                 if (!task.IsCanceled && !task.IsCompleted && !task.IsFaulted)
                 {
                     var remaining = timeoutMilliseconds - checked((int)watch.ElapsedMilliseconds);
-                    if (remaining <= 0) return false;
+                    if (remaining <= 0)
+                    {
+                        LogLocked(log, "Timeout awaiting tasks");
+                        return false;
+                    }
                     try
                     {
 #if NET40
@@ -603,6 +609,7 @@ namespace StackExchange.Redis
                     { }
                 }
             }
+            LogLocked(log, "Finished awaiting tasks");
             return false;
         }
 
@@ -1073,6 +1080,7 @@ namespace StackExchange.Redis
         {
             if (isDisposed) throw new ObjectDisposedException(ToString());
             bool showStats = true;
+
             if (log == null)
             {
                 log = TextWriter.Null;
@@ -1167,20 +1175,20 @@ namespace StackExchange.Redis
                             // so we know that the configuration will be up to date if we see the tracer
                             server.AutoConfigure(null);
                         }
-                        available[i] = server.SendTracer();
-                        Message msg;
+                        available[i] = server.SendTracer(log);
                         if (useTieBreakers)
                         {
                             LogLocked(log, "Requesting tie-break from {0} > {1}...", Format.ToString(server.EndPoint), configuration.TieBreaker);
-                            msg = Message.Create(0, flags, RedisCommand.GET, tieBreakerKey);
+                            Message msg = Message.Create(0, flags, RedisCommand.GET, tieBreakerKey);
                             msg.SetInternalCall();
+                            msg = new LoggingMessage(log, msg);
                             tieBreakers[i] = server.QueueDirectAsync(msg, ResultProcessor.String);
                         }
                     }
 
                     LogLocked(log, "Allowing endpoints {0} to respond...", TimeSpan.FromMilliseconds(configuration.ConnectTimeout));
                     Trace("Allowing endpoints " + TimeSpan.FromMilliseconds(configuration.ConnectTimeout) + " to respond...");
-                    await WaitAllIgnoreErrorsAsync(available, configuration.ConnectTimeout).ForAwait();
+                    await WaitAllIgnoreErrorsAsync(available, configuration.ConnectTimeout, log).ForAwait();
                     List<ServerEndPoint> masters = new List<ServerEndPoint>(available.Length);
 
                     for (int i = 0; i < available.Length; i++)
@@ -1381,7 +1389,7 @@ namespace StackExchange.Redis
             if (useTieBreakers)
             {   // count the votes
                 uniques = new Dictionary<string, int>(StringComparer.InvariantCultureIgnoreCase);
-                await WaitAllIgnoreErrorsAsync(tieBreakers, 50).ForAwait();
+                await WaitAllIgnoreErrorsAsync(tieBreakers, 50, log).ForAwait();
                 for (int i = 0; i < tieBreakers.Length; i++)
                 {
                     var ep = servers[i].EndPoint;
@@ -1709,7 +1717,7 @@ namespace StackExchange.Redis
             if (allowCommandsToComplete)
             {
                 var quits = QuitAllServers();
-                await WaitAllIgnoreErrorsAsync(quits, configuration.SyncTimeout).ForAwait();
+                await WaitAllIgnoreErrorsAsync(quits, configuration.SyncTimeout, null).ForAwait();
             }
 
             DisposeAndClearServers();

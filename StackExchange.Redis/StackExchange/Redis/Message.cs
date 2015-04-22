@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Runtime.Serialization;
 using System.Text;
@@ -79,7 +80,43 @@ namespace StackExchange.Redis
         internal RedisServerException(string message) : base(message) { }
     }
 
+    sealed class LoggingMessage : Message
+    {
+        public readonly TextWriter log;
+        private readonly Message tail;
+        public LoggingMessage(TextWriter log, Message tail) : base(tail.Db, tail.Flags, tail.Command)
+        {
+            this.log = log;
+            this.tail = tail;
+            this.FlagsRaw = tail.FlagsRaw;
+        }
+        public override string CommandAndKey
+        {
+            get
+            {
+                return tail.CommandAndKey;
+            }
+        }
+        public override void AppendStormLog(StringBuilder sb)
+        {
+            tail.AppendStormLog(sb);
+        }
+        public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
+        {
+            return tail.GetHashSlot(serverSelectionStrategy);
+        }
+        internal override void WriteImpl(PhysicalConnection physical)
+        {
+            try
+            {
+                physical.Multiplexer.LogLocked(log, "Writing to {0}: {1}", physical, tail.CommandAndKey);
+            }
+            catch { }
+            tail.WriteImpl(physical);
+        }
 
+        public TextWriter Log { get { return log; } }
+    }
     abstract class Message : ICompletable
     {
 
@@ -100,7 +137,7 @@ namespace StackExchange.Redis
             | CommandFlags.HighPriority | CommandFlags.FireAndForget | CommandFlags.NoRedirect;
 
         private CommandFlags flags;
-
+        internal CommandFlags FlagsRaw { get { return flags; } set { flags = value; } }
         private ResultBox resultBox;
 
         private ResultProcessor resultProcessor;
