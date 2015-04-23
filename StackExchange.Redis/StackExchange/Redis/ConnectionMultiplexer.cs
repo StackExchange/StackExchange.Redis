@@ -596,6 +596,7 @@ namespace StackExchange.Redis
 
             // try and allow them to finish without needing to await; re-acquiring the thread can be massively problematic
             int delay = 1;
+            LogLockedWithThreadPoolStats(log, "Incremental wait loop for tasks");
             var watch = Stopwatch.StartNew();
             for (int i = 0; i < 10; i++)
             {
