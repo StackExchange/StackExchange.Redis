@@ -559,6 +559,26 @@ namespace StackExchange.Redis
             }
             return false;
         }
+        private void LogLockedWithThreadPoolStats(TextWriter log, string message)
+        {
+            if(log != null)
+            {
+                var sb = new StringBuilder();
+                sb.Append(message);
+                AppendThreadPoolStats(sb);
+                LogLocked(log, sb.ToString());
+            }
+        }
+        static bool AllComplete(Task[] tasks)
+        {
+            for(int i = 0 ; i < tasks.Length ; i++)
+            {
+                var task = tasks[i];
+                if (!task.IsCanceled && !task.IsCompleted && !task.IsFaulted)
+                    return false;
+            }
+            return true;
+        }
         private async Task<bool> WaitAllIgnoreErrorsAsync(Task[] tasks, int timeoutMilliseconds, TextWriter log)
         {
             if (tasks == null) throw new ArgumentNullException("tasks");
@@ -568,8 +588,36 @@ namespace StackExchange.Redis
                 return true;
             }
 
-            LogLocked(log, "Awaiting task completion...");
+            if (AllComplete(tasks))
+            {
+                LogLocked(log, "All tasks are already complete");
+                return true;
+            }
+
+            // try and allow them to finish without needing to await; re-acquiring the thread can be massively problematic
+            int delay = 1;
             var watch = Stopwatch.StartNew();
+            for (int i = 0; i < 10; i++)
+            {
+                var remaining = timeoutMilliseconds - checked((int)watch.ElapsedMilliseconds);
+                if(remaining <= 0)
+                {
+                    LogLockedWithThreadPoolStats(log, "Timeout waiting for tasks");
+                    return false;
+                }
+                if (delay > remaining) delay = remaining;
+
+                Thread.Sleep(delay);
+                if (AllComplete(tasks))
+                {
+                    LogLocked(log, "Tasks completed in sleep-loop");
+                    return true;
+                }
+                delay = (delay * 3) >> 1;
+                if (delay == 1) delay = 2;
+            }
+
+            LogLockedWithThreadPoolStats(log, "Awaiting task completion");
 
             try
             {
@@ -583,7 +631,7 @@ namespace StackExchange.Redis
                 var any = Task.WhenAny(allTasks, Task.Delay(timeoutMilliseconds)).ObserveErrors();
 #endif
                 bool all = await any.ForAwait() == allTasks;
-                LogLocked(log, all ? "All tasks completed cleanly" : "Not all tasks completed cleanly");
+                LogLockedWithThreadPoolStats(log, all ? "All tasks completed cleanly" : "Not all tasks completed cleanly");
                 return all;
             }
             catch
@@ -599,7 +647,7 @@ namespace StackExchange.Redis
                     var remaining = timeoutMilliseconds - checked((int)watch.ElapsedMilliseconds);
                     if (remaining <= 0)
                     {
-                        LogLocked(log, "Timeout awaiting tasks");
+                        LogLockedWithThreadPoolStats(log, "Timeout awaiting tasks");
                         return false;
                     }
                     try
@@ -615,7 +663,7 @@ namespace StackExchange.Redis
                     { }
                 }
             }
-            LogLocked(log, "Finished awaiting tasks");
+            LogLockedWithThreadPoolStats(log, "Finished awaiting tasks");
             return false;
         }
 
@@ -1854,7 +1902,6 @@ namespace StackExchange.Redis
                 return val;
             }
         }
-
         private static void AppendThreadPoolStats(StringBuilder errorMessage)
         {
             //BusyThreads =  TP.GetMaxThreads() –TP.GetAVailable();
@@ -1872,8 +1919,8 @@ namespace StackExchange.Redis
             int busyIoThreads = maxIoThreads - freeIoThreads;
             int busyWorkerThreads = maxWorkerThreads - freeWorkerThreads;
 
-            errorMessage.AppendFormat(", IOCP:(Busy={0},Min={1},Max={2})", busyIoThreads, minIoThreads, maxIoThreads);
-            errorMessage.AppendFormat(", WORKER:(Busy={0},Min={1},Max={2})", busyWorkerThreads, minWorkerThreads, maxWorkerThreads);
+            errorMessage.AppendFormat(", IOCP:(Busy={0},Free={1},Min={2},Max={3})", busyIoThreads, freeIoThreads, minIoThreads, maxIoThreads);
+            errorMessage.AppendFormat(", WORKER:(Busy={0},Free={1},Min={2},Max={3})", busyWorkerThreads, freeWorkerThreads, minWorkerThreads, maxWorkerThreads);
         }
 
         /// <summary>
