@@ -622,13 +622,19 @@ namespace StackExchange.Redis
             try
             {
                 // if none error, great
+                var remaining = timeoutMilliseconds - checked((int)watch.ElapsedMilliseconds);
+                if (remaining <= 0)
+                {
+                    LogLockedWithThreadPoolStats(log, "Timeout before awaiting for tasks");
+                    return false;
+                }
 
 #if NET40
                 var allTasks = TaskEx.WhenAll(tasks).ObserveErrors();
-                var any = TaskEx.WhenAny(allTasks, TaskEx.Delay(timeoutMilliseconds)).ObserveErrors();
+                var any = TaskEx.WhenAny(allTasks, TaskEx.Delay(remaining)).ObserveErrors();
 #else
                 var allTasks = Task.WhenAll(tasks).ObserveErrors();
-                var any = Task.WhenAny(allTasks, Task.Delay(timeoutMilliseconds)).ObserveErrors();
+                var any = Task.WhenAny(allTasks, Task.Delay(remaining)).ObserveErrors();
 #endif
                 bool all = await any.ForAwait() == allTasks;
                 LogLockedWithThreadPoolStats(log, all ? "All tasks completed cleanly" : "Not all tasks completed cleanly");
