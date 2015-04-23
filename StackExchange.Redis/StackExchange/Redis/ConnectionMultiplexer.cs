@@ -610,7 +610,7 @@ namespace StackExchange.Redis
                 Thread.Sleep(delay);
                 if (AllComplete(tasks))
                 {
-                    LogLocked(log, "Tasks completed in sleep-loop");
+                    LogLockedWithThreadPoolStats(log, "Tasks completed in sleep-loop");
                     return true;
                 }
                 delay = (delay * 3) >> 1;
