@@ -594,29 +594,7 @@ namespace StackExchange.Redis
                 return true;
             }
 
-            // try and allow them to finish without needing to await; re-acquiring the thread can be massively problematic
-            int delay = 1;
-            LogLockedWithThreadPoolStats(log, "Incremental wait loop for tasks");
             var watch = Stopwatch.StartNew();
-            for (int i = 0; i < 10; i++)
-            {
-                var remaining = timeoutMilliseconds - checked((int)watch.ElapsedMilliseconds);
-                if(remaining <= 0)
-                {
-                    LogLockedWithThreadPoolStats(log, "Timeout waiting for tasks");
-                    return false;
-                }
-                if (delay > remaining) delay = remaining;
-
-                Thread.Sleep(delay);
-                if (AllComplete(tasks))
-                {
-                    LogLockedWithThreadPoolStats(log, "Tasks completed in sleep-loop");
-                    return true;
-                }
-                delay = (delay * 3) >> 1;
-                if (delay == 1) delay = 2;
-            }
 
             LogLockedWithThreadPoolStats(log, "Awaiting task completion");
 
