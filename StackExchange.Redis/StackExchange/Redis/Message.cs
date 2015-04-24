@@ -84,7 +84,12 @@ namespace StackExchange.Redis
     {
         public readonly TextWriter log;
         private readonly Message tail;
-        public LoggingMessage(TextWriter log, Message tail) : base(tail.Db, tail.Flags, tail.Command)
+
+        public static Message Create(TextWriter log, Message tail)
+        {
+            return log == null ? tail : new LoggingMessage(log, tail);
+        }
+        private LoggingMessage(TextWriter log, Message tail) : base(tail.Db, tail.Flags, tail.Command)
         {
             this.log = log;
             this.tail = tail;
@@ -109,7 +114,7 @@ namespace StackExchange.Redis
         {
             try
             {
-                physical.Multiplexer.LogLocked(log, "Writing to {0}: {1}", physical, tail.CommandAndKey);
+                physical.Multiplexer.LogLocked(log, "Writing to {0}: {1}", physical.Bridge, tail.CommandAndKey);
             }
             catch { }
             tail.WriteImpl(physical);

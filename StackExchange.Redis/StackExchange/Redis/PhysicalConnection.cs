@@ -648,7 +648,7 @@ namespace StackExchange.Redis
             { }
             return null;
         }
-        SocketMode ISocketCallback.Connected(Stream stream)
+        SocketMode ISocketCallback.Connected(Stream stream, TextWriter log)
         {
             try
             {
@@ -663,6 +663,7 @@ namespace StackExchange.Redis
 
                 if(config.Ssl)
                 {
+                    multiplexer.LogLocked(log, "Configuring SSL");
                     var host = config.SslHost;
                     if (string.IsNullOrWhiteSpace(host)) host = Format.ToStringHostOnly(bridge.ServerEndPoint.EndPoint);
 
@@ -687,9 +688,9 @@ namespace StackExchange.Redis
                 int bufferSize = config.WriteBuffer;
                 this.netStream = stream;
                 this.outStream = bufferSize <= 0 ? stream : new BufferedStream(stream, bufferSize);
-                multiplexer.Trace("Connected", physicalName);
+                multiplexer.LogLocked(log, "Connected {0}", bridge);
 
-                bridge.OnConnected(this);
+                bridge.OnConnected(this, log);
                 return socketMode;
             }
             catch (Exception ex)

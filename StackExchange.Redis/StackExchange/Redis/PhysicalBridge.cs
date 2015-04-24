@@ -283,12 +283,12 @@ namespace StackExchange.Redis
             }
         }
 
-        internal void OnConnected(PhysicalConnection connection)
+        internal void OnConnected(PhysicalConnection connection, TextWriter log)
         {
             Trace("OnConnected");
             if (physical == connection && !isDisposed && ChangeState(State.Connecting, State.ConnectedEstablishing))
             {
-                serverEndPoint.OnEstablishing(connection);
+                serverEndPoint.OnEstablishing(connection, log);
             }
             else
             {

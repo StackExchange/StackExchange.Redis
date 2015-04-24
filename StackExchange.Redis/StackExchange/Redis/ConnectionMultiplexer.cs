@@ -847,7 +847,7 @@ namespace StackExchange.Redis
                     {
                         if (isDisposed) throw new ObjectDisposedException(ToString());
 
-                        server = new ServerEndPoint(this, endpoint);
+                        server = new ServerEndPoint(this, endpoint, null);
                         servers.Add(endpoint, server);
 
                         var newSnapshot = serverSnapshot;
@@ -1163,7 +1163,7 @@ namespace StackExchange.Redis
                         serverSnapshot = new ServerEndPoint[configuration.EndPoints.Count];
                         foreach (var endpoint in configuration.EndPoints)
                         {
-                            var server = new ServerEndPoint(this, endpoint);
+                            var server = new ServerEndPoint(this, endpoint, log);
                             serverSnapshot[index++] = server;
                             this.servers.Add(endpoint, server);
                         }
@@ -1173,7 +1173,7 @@ namespace StackExchange.Redis
                         server.Activate(ConnectionType.Interactive, log);
                         if (this.CommandMap.IsAvailable(RedisCommand.SUBSCRIBE))
                         {
-                            server.Activate(ConnectionType.Subscription, log);
+                            server.Activate(ConnectionType.Subscription, null); // no need to log the SUB stuff
                         }
                     }
                 }
@@ -1220,7 +1220,7 @@ namespace StackExchange.Redis
                             LogLocked(log, "Requesting tie-break from {0} > {1}...", Format.ToString(server.EndPoint), configuration.TieBreaker);
                             Message msg = Message.Create(0, flags, RedisCommand.GET, tieBreakerKey);
                             msg.SetInternalCall();
-                            msg = new LoggingMessage(log, msg);
+                            msg = LoggingMessage.Create(log, msg);
                             tieBreakers[i] = server.QueueDirectAsync(msg, ResultProcessor.String);
                         }
                     }

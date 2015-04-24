@@ -22,7 +22,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Indicates that a socket has connected
         /// </summary>
-        SocketMode Connected(Stream stream);
+        SocketMode Connected(Stream stream, TextWriter log);
         /// <summary>
         /// Indicates that the socket has signalled an error condition
         /// </summary>
@@ -144,7 +144,7 @@ namespace StackExchange.Redis
                         (ar) =>
                         {
                             multiplexer.LogLocked(log, "EndConnect: {0}", formattedEndpoint);
-                            EndConnectImpl(ar);
+                            EndConnectImpl(ar, multiplexer, log);
                             multiplexer.LogLocked(log, "Connect complete: {0}", formattedEndpoint);
                         },
                         connectCompletionType);
@@ -158,7 +158,7 @@ namespace StackExchange.Redis
                         },
                         (ar) => {
                             multiplexer.LogLocked(log, "EndConnect: {0}", formattedEndpoint);
-                            EndConnectImpl(ar);
+                            EndConnectImpl(ar, multiplexer, log);
                             multiplexer.LogLocked(log, "Connect complete: {0}", formattedEndpoint);
                         },
                         connectCompletionType);
@@ -219,7 +219,7 @@ namespace StackExchange.Redis
             Shutdown(token.Socket);
         }
 
-        private void EndConnectImpl(IAsyncResult ar)
+        private void EndConnectImpl(IAsyncResult ar, ConnectionMultiplexer multiplexer, TextWriter log)
         {
             Tuple<Socket, ISocketCallback> tuple = null;
             try
@@ -232,15 +232,15 @@ namespace StackExchange.Redis
                 var callback = tuple.Item2;
                 socket.EndConnect(ar);
                 var netStream = new NetworkStream(socket, false);
-                var socketMode = callback == null ? SocketMode.Abort : callback.Connected(netStream);
+                var socketMode = callback == null ? SocketMode.Abort : callback.Connected(netStream, log);
                 switch (socketMode)
                 {
                     case SocketMode.Poll:
-                        ConnectionMultiplexer.TraceWithoutContext("Starting poll");
+                        multiplexer.LogLocked(log, "Starting poll");
                         OnAddRead(socket, callback);
                         break;
                     case SocketMode.Async:
-                        ConnectionMultiplexer.TraceWithoutContext("Starting read");
+                        multiplexer.LogLocked(log, "Starting read");
                         try
                         { callback.StartReading(); }
                         catch (Exception ex)
@@ -257,7 +257,7 @@ namespace StackExchange.Redis
             }
             catch(ObjectDisposedException)
             {
-                ConnectionMultiplexer.TraceWithoutContext("(socket shutdown)");
+                multiplexer.LogLocked(log, "(socket shutdown)");
                 if (tuple != null)
                 {
                     try

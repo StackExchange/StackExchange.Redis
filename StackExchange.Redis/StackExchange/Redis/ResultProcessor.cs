@@ -131,7 +131,7 @@ namespace StackExchange.Redis
             {
                 try
                 {
-                    connection.Multiplexer.LogLocked(logging.Log, "Response from {0} / {1}: {2}", connection, message.CommandAndKey, result);
+                    connection.Multiplexer.LogLocked(logging.Log, "Response from {0} / {1}: {2}", connection.Bridge, message.CommandAndKey, result);
                 }
                 catch { }
             }
