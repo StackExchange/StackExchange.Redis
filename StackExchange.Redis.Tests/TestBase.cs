@@ -10,6 +10,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using BookSleeve;
 using NUnit.Framework;
+
 namespace StackExchange.Redis.Tests
 {
 

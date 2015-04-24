@@ -1,6 +1,6 @@
-﻿using NUnit.Framework;
-using System;
+﻿using System;
 using System.Threading;
+using NUnit.Framework;
 
 namespace StackExchange.Redis.Tests.Issues
 {

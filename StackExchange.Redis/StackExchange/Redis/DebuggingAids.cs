@@ -1,10 +1,8 @@
 ﻿using System;
-using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Diagnostics;
-using System.Text.RegularExpressions;
+
 namespace StackExchange.Redis
 {
 #if DEBUG

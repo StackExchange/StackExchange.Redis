@@ -1,6 +1,6 @@
-﻿using NUnit.Framework;
+﻿using System;
+using NUnit.Framework;
 using StackExchange.Redis.KeyspaceIsolation;
-using System;
 
 namespace StackExchange.Redis.Tests
 {

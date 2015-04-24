@@ -1,8 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
-using NUnit.Framework;
 using System.Linq;
-using System.IO;
+using NUnit.Framework;
 
 namespace StackExchange.Redis.Tests
 {
