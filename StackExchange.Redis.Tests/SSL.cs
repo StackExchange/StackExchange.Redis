@@ -2,11 +2,9 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Net;
-using NUnit.Framework;
 using System.Linq;
 using System.Security.Cryptography.X509Certificates;
-using System.Net.Security;
+using NUnit.Framework;
 
 namespace StackExchange.Redis.Tests
 {

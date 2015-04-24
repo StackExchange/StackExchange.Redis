@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace StackExchange.Redis.KeyspaceIsolation
+﻿namespace StackExchange.Redis.KeyspaceIsolation
 {
     internal sealed class BatchWrapper : WrapperBase<IBatch>, IBatch
     {

@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Threading;
-
-namespace StackExchange.Redis
+﻿namespace StackExchange.Redis
 {
     partial class ConnectionMultiplexer
     {

@@ -1,8 +1,6 @@
-﻿using System.Collections.Generic;
-using NUnit.Framework;
+﻿using System.Linq;
 using System.Text;
-using System;
-using System.Linq;
+using NUnit.Framework;
 using StackExchange.Redis;
 
 namespace Tests

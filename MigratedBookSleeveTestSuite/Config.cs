@@ -1,12 +1,10 @@
 ﻿using System;
-using System.Net.Sockets;
-using NUnit.Framework;
-using System.Threading;
 using System.Diagnostics;
-using System.Threading.Tasks;
 using System.IO;
-using StackExchange.Redis;
 using System.Linq;
+using System.Threading.Tasks;
+using NUnit.Framework;
+using StackExchange.Redis;
 
 namespace Tests
 {
