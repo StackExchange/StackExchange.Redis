@@ -2,10 +2,10 @@
 using System.Collections.Generic;
 using System.Linq.Expressions;
 using System.Net;
+using System.Text;
 using Moq;
 using NUnit.Framework;
 using StackExchange.Redis.KeyspaceIsolation;
-using System.Text;
 
 namespace StackExchange.Redis.Tests
 {

@@ -126,6 +126,15 @@ namespace StackExchange.Redis
         // true if ready to be completed (i.e. false if re-issued to another server)
         public virtual bool SetResult(PhysicalConnection connection, Message message, RawResult result)
         {
+            var logging = message as LoggingMessage;
+            if (logging != null)
+            {
+                try
+                {
+                    connection.Multiplexer.LogLocked(logging.Log, "Response from {0} / {1}: {2}", connection.Bridge, message.CommandAndKey, result);
+                }
+                catch { }
+            }
             if (result.IsError)
             {
                 var bridge = connection.Bridge;

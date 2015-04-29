@@ -5,7 +5,6 @@ using System.Linq;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace StackExchange.Redis
@@ -373,6 +372,16 @@ namespace StackExchange.Redis
         {
             var msg = new RedisDatabase.ScriptLoadMessage(flags, script);
             return ExecuteAsync(msg, ResultProcessor.ScriptLoad);
+        }
+
+        public LoadedLuaScript ScriptLoad(LuaScript script, CommandFlags flags = CommandFlags.None)
+        {
+            return script.Load(this, flags);
+        }
+
+        public Task<LoadedLuaScript> ScriptLoadAsync(LuaScript script, CommandFlags flags = CommandFlags.None)
+        {
+            return script.LoadAsync(this, flags);
         }
 
         public void Shutdown(ShutdownMode shutdownMode = ShutdownMode.Default, CommandFlags flags = CommandFlags.None)

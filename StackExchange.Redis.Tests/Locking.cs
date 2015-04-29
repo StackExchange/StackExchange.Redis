@@ -1,8 +1,8 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using NUnit.Framework;
-using System.Collections.Generic;
 
 namespace StackExchange.Redis.Tests
 {

@@ -1,6 +1,6 @@
-﻿using NUnit.Framework;
-using System.Linq;
+﻿using System.Linq;
 using System.Net;
+using NUnit.Framework;
 
 namespace StackExchange.Redis.Tests
 {

@@ -2,11 +2,12 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Security;
 using System.Text;
 using System.Threading.Tasks;
-using System.Linq;
+
 namespace StackExchange.Redis
 {
 
@@ -73,7 +74,7 @@ namespace StackExchange.Redis
                         TieBreaker = "tiebreaker", WriteBuffer = "writeBuffer", Ssl = "ssl", SslHost = "sslHost",
                         ConfigChannel = "configChannel", AbortOnConnectFail = "abortConnect", ResolveDns = "resolveDns",
                         ChannelPrefix = "channelPrefix", Proxy = "proxy", ConnectRetry = "connectRetry",
-                        ConfigCheckSeconds = "configCheckSeconds";
+                        ConfigCheckSeconds = "configCheckSeconds", ResponseTimeout = "responseTimeout";
             private static readonly Dictionary<string, string> normalizedOptions = new[]
             {
                 AllowAdmin, SyncTimeout,
@@ -107,7 +108,7 @@ namespace StackExchange.Redis
 
         private Version defaultVersion;
 
-        private int? keepAlive, syncTimeout, connectTimeout, writeBuffer, connectRetry, configCheckSeconds;
+        private int? keepAlive, syncTimeout, connectTimeout, responseTimeout, writeBuffer, connectRetry, configCheckSeconds;
 
         private Proxy? proxy;
 
@@ -245,9 +246,15 @@ namespace StackExchange.Redis
         public string SslHost { get { return sslHost; } set { sslHost = value; } }
 
         /// <summary>
-        /// Specifies the time in milliseconds that the system should allow for synchronous operations
+        /// Specifies the time in milliseconds that the system should allow for synchronous operations (defaults to 1 second)
         /// </summary>
         public int SyncTimeout { get { return syncTimeout.GetValueOrDefault(1000); } set { syncTimeout = value; } }
+
+        /// <summary>
+        /// Specifies the time in milliseconds that the system should allow for responses before concluding that the socket is unhealthy
+        /// (defaults to SyncTimeout)
+        /// </summary>
+        public int ResponseTimeout { get { return responseTimeout ?? SyncTimeout; } set { responseTimeout = value; } }
 
         /// <summary>
         /// Tie-breaker used to choose between masters (must match the endpoint exactly)
@@ -320,7 +327,8 @@ namespace StackExchange.Redis
                 ChannelPrefix = ChannelPrefix.Clone(),
                 SocketManager = SocketManager,
                 connectRetry = connectRetry,
-                configCheckSeconds = configCheckSeconds
+                configCheckSeconds = configCheckSeconds,
+                responseTimeout = responseTimeout
             };
             foreach (var item in endpoints)
                 options.endpoints.Add(item);
@@ -365,6 +373,7 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.ConnectRetry, connectRetry);
             Append(sb, OptionKeys.Proxy, proxy);
             Append(sb, OptionKeys.ConfigCheckSeconds, configCheckSeconds);
+            Append(sb, OptionKeys.ResponseTimeout, responseTimeout);
             if (commandMap != null) commandMap.AppendDeltas(sb);
             return sb.ToString();
         }
@@ -556,6 +565,9 @@ namespace StackExchange.Redis
                             break;
                         case OptionKeys.Proxy:
                             Proxy = OptionKeys.ParseProxy(key, value);
+                            break;
+                        case OptionKeys.ResponseTimeout:
+                            ResponseTimeout = OptionKeys.ParseInt32(key, value, minValue: 1);
                             break;
                         default:
                             if (!string.IsNullOrEmpty(key) && key[0] == '$')

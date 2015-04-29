@@ -180,6 +180,11 @@ namespace Tests
                 var set2 = conn.HashSetAsync("hashkey", "field-blob", Encoding.UTF8.GetBytes("value3"));
                 var val3 = conn.HashGetAsync("hashkey", "field-blob");
 
+                var set3 = conn.HashSetAsync("hashkey", "empty_type1", "");
+                var val4 = conn.HashGetAsync("hashkey", "empty_type1");
+                var set4 = conn.HashSetAsync("hashkey", "empty_type2", RedisValue.EmptyString);
+                var val5 = conn.HashGetAsync("hashkey", "empty_type2");
+
                 Assert.AreEqual(null, (string)val0.Result);
                 Assert.AreEqual(true, set0.Result);
                 Assert.AreEqual("value1", (string)val1.Result);
@@ -189,6 +194,10 @@ namespace Tests
                 Assert.AreEqual(true, set2.Result);
                 Assert.AreEqual("value3", (string)val3.Result);
 
+                Assert.AreEqual(true, set3.Result);
+                Assert.AreEqual("", (string)val4.Result);
+                Assert.AreEqual(true, set4.Result);
+                Assert.AreEqual("", (string)val5.Result);
             }
         }
         [Test]

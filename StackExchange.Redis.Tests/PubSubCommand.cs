@@ -1,10 +1,6 @@
-﻿using NUnit.Framework;
-using System;
-using System.Collections.Generic;
+﻿using System;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.IO;
+using NUnit.Framework;
 
 namespace StackExchange.Redis.Tests
 {

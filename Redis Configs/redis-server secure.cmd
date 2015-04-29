@@ -1,1 +1,1 @@
-@..\packages\Redis-64.2.8.17\redis-server.exe secure.conf
+@..\packages\Redis-64.2.8.19\redis-server.exe secure.conf

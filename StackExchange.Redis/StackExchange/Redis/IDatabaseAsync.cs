@@ -440,6 +440,19 @@ namespace StackExchange.Redis
         Task<RedisResult> ScriptEvaluateAsync(byte[] hash, RedisKey[] keys = null, RedisValue[] values = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Execute a lua script against the server, using previously prepared script.
+        /// Named parameters, if any, are provided by the `parameters` object.
+        /// </summary>
+        Task<RedisResult> ScriptEvaluateAsync(LuaScript script, object parameters = null, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Execute a lua script against the server, using previously prepared and loaded script.
+        /// This method sends only the SHA1 hash of the lua script to Redis.
+        /// Named parameters, if any, are provided by the `parameters` object.
+        /// </summary>
+        Task<RedisResult> ScriptEvaluateAsync(LoadedLuaScript script, object parameters = null, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Add the specified member to the set stored at key. Specified members that are already a member of this set are ignored. If key does not exist, a new set is created before adding the specified members.
         /// </summary>
         /// <returns>True if the specified member was not already present in the set, else False</returns>

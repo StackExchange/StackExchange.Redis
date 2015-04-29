@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Net;
 using System.Threading.Tasks;
 
@@ -332,6 +331,16 @@ namespace StackExchange.Redis.KeyspaceIsolation
         {
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
             return this.Inner.ScriptEvaluateAsync(script, this.ToInner(keys), values, flags);
+        }
+
+        public Task<RedisResult> ScriptEvaluateAsync(LuaScript script, object parameters = null, CommandFlags flags = CommandFlags.None)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<RedisResult> ScriptEvaluateAsync(LoadedLuaScript script, object parameters = null, CommandFlags flags = CommandFlags.None)
+        {
+            throw new NotImplementedException();
         }
 
         public Task<long> SetAddAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)

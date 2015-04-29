@@ -91,13 +91,13 @@ namespace StackExchange.Redis
             OnCreateEcho();
         }
 
-        public void BeginConnect()
+        public void BeginConnect(TextWriter log)
         {
             Thread.VolatileWrite(ref firstUnansweredWriteTickCount, 0);
             var endpoint = this.bridge.ServerEndPoint.EndPoint;
 
             multiplexer.Trace("Connecting...", physicalName);
-            this.socketToken = multiplexer.SocketManager.BeginConnect(endpoint, this);
+            this.socketToken = multiplexer.SocketManager.BeginConnect(endpoint, this, multiplexer, log);
         }
 
         private enum ReadMode : byte
@@ -178,6 +178,7 @@ namespace StackExchange.Redis
                 int unansweredRead = Thread.VolatileRead(ref firstUnansweredWriteTickCount);
 
                 string message = failureType + " on " + Format.ToString(bridge.ServerEndPoint.EndPoint) + "/" + connectionType
+                    + ", origin: " + origin
                     + ", input-buffer: " + ioBufferBytes + ", outstanding: " + GetSentAwaitingResponseCount()
                     + ", last-read: " + unchecked(now - lastRead) / 1000 + "s ago, last-write: " + unchecked(now - lastWrite) / 1000 + "s ago"
                     + ", unanswered-write: " + unchecked(now - unansweredRead) / 1000 + "s ago"
@@ -647,7 +648,7 @@ namespace StackExchange.Redis
             { }
             return null;
         }
-        SocketMode ISocketCallback.Connected(Stream stream)
+        SocketMode ISocketCallback.Connected(Stream stream, TextWriter log)
         {
             try
             {
@@ -662,6 +663,7 @@ namespace StackExchange.Redis
 
                 if(config.Ssl)
                 {
+                    multiplexer.LogLocked(log, "Configuring SSL");
                     var host = config.SslHost;
                     if (string.IsNullOrWhiteSpace(host)) host = Format.ToStringHostOnly(bridge.ServerEndPoint.EndPoint);
 
@@ -686,9 +688,9 @@ namespace StackExchange.Redis
                 int bufferSize = config.WriteBuffer;
                 this.netStream = stream;
                 this.outStream = bufferSize <= 0 ? stream : new BufferedStream(stream, bufferSize);
-                multiplexer.Trace("Connected", physicalName);
+                multiplexer.LogLocked(log, "Connected {0}", bridge);
 
-                bridge.OnConnected(this);
+                bridge.OnConnected(this, log);
                 return socketMode;
             }
             catch (Exception ex)
@@ -993,7 +995,7 @@ namespace StackExchange.Redis
 
             int now = Environment.TickCount;
 
-            if (firstUnansweredWrite != 0 && (now - firstUnansweredWrite) > this.multiplexer.RawConfig.SyncTimeout)
+            if (firstUnansweredWrite != 0 && (now - firstUnansweredWrite) > this.multiplexer.RawConfig.ResponseTimeout)
             {
                 this.RecordConnectionFailed(ConnectionFailureType.SocketFailure, origin: "CheckForStaleConnection");
             }

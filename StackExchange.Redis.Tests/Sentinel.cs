@@ -1,8 +1,8 @@
-﻿using System.Linq;
+﻿using System;
+using System.Linq;
 using System.Net;
-using NUnit.Framework;
-using System;
 using System.Threading;
+using NUnit.Framework;
 
 namespace StackExchange.Redis.Tests
 {

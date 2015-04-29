@@ -61,7 +61,7 @@ namespace StackExchange.Redis.Tests
                 var conn = muxer.GetDatabase();
                 conn.KeyDelete(key, CommandFlags.FireAndForget);
 
-                var now = utc ? DateTime.UtcNow : DateTime.Now;
+                var now = utc ? DateTime.UtcNow : new DateTime(DateTime.UtcNow.Ticks + TimeZoneInfo.FindSystemTimeZoneById("Tokyo Standard Time").BaseUtcOffset.Ticks, DateTimeKind.Local);
                 conn.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
                 var a = conn.KeyTimeToLiveAsync(key);
                 conn.KeyExpire(key, now.AddHours(1), CommandFlags.FireAndForget);

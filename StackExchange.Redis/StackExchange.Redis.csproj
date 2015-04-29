@@ -75,6 +75,7 @@
     <Compile Include="StackExchange\Redis\MigrateOptions.cs" />
     <Compile Include="StackExchange\Redis\ProfileContextTracker.cs" />
     <Compile Include="StackExchange\Redis\ProfileStorage.cs" />
+    <Compile Include="StackExchange\Redis\LuaScript.cs" />
     <Compile Include="StackExchange\Redis\RedisChannel.cs" />
     <Compile Include="StackExchange\Redis\Bitwise.cs" />
     <Compile Include="StackExchange\Redis\ClientFlags.cs" />
@@ -140,6 +141,7 @@
     <Compile Include="StackExchange\Redis\ResultProcessor.cs" />
     <Compile Include="StackExchange\Redis\RedisSubscriber.cs" />
     <Compile Include="StackExchange\Redis\ResultType.cs" />
+    <Compile Include="StackExchange\Redis\ScriptParameterMapper.cs" />
     <Compile Include="StackExchange\Redis\ServerCounters.cs" />
     <Compile Include="StackExchange\Redis\ServerEndPoint.cs" />
     <Compile Include="StackExchange\Redis\ServerSelectionStrategy.cs" />

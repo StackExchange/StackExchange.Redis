@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Runtime.Serialization;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -12,6 +14,7 @@ namespace StackExchange.Redis
     [Serializable]
     public sealed class RedisCommandException : Exception
     {
+        private RedisCommandException(SerializationInfo info, StreamingContext ctx) : base(info, ctx) { }
         internal RedisCommandException(string message) : base(message) { }
         internal RedisCommandException(string message, Exception innerException) : base(message, innerException) { }
     }
@@ -22,9 +25,21 @@ namespace StackExchange.Redis
     /// Indicates a connection fault when communicating with redis
     /// </summary>
     [Serializable]
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2240:ImplementISerializableCorrectly")]
     public sealed class RedisConnectionException : RedisException
     {
+        private RedisConnectionException(SerializationInfo info, StreamingContext ctx) : base(info, ctx)
+        {
+            this.FailureType = (ConnectionFailureType)info.GetInt32("failureType");
+        }
+        /// <summary>
+        /// Serialization implementation; not intended for general usage
+        /// </summary>
+        public override void GetObjectData(SerializationInfo info, StreamingContext context)
+        {
+            base.GetObjectData(info, context);
+            info.AddValue("failureType", (int)this.FailureType);
+        }
+
         internal RedisConnectionException(ConnectionFailureType failureType, string message) : base(message)
         {
             this.FailureType = failureType;
@@ -46,6 +61,11 @@ namespace StackExchange.Redis
     [Serializable]
     public class RedisException : Exception
     {
+        /// <summary>
+        /// Deserialization constructor; not intended for general usage
+        /// </summary>
+        protected RedisException(SerializationInfo info, StreamingContext ctx) : base(info, ctx) { }
+        
         internal RedisException(string message) : base(message) { }
         internal RedisException(string message, Exception innerException) : base(message, innerException) { }
     }
@@ -55,7 +75,52 @@ namespace StackExchange.Redis
     [Serializable]
     public sealed class RedisServerException : RedisException
     {
+        private RedisServerException(SerializationInfo info, StreamingContext ctx) : base(info, ctx) { }
+        
         internal RedisServerException(string message) : base(message) { }
+    }
+
+    sealed class LoggingMessage : Message
+    {
+        public readonly TextWriter log;
+        private readonly Message tail;
+
+        public static Message Create(TextWriter log, Message tail)
+        {
+            return log == null ? tail : new LoggingMessage(log, tail);
+        }
+        private LoggingMessage(TextWriter log, Message tail) : base(tail.Db, tail.Flags, tail.Command)
+        {
+            this.log = log;
+            this.tail = tail;
+            this.FlagsRaw = tail.FlagsRaw;
+        }
+        public override string CommandAndKey
+        {
+            get
+            {
+                return tail.CommandAndKey;
+            }
+        }
+        public override void AppendStormLog(StringBuilder sb)
+        {
+            tail.AppendStormLog(sb);
+        }
+        public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
+        {
+            return tail.GetHashSlot(serverSelectionStrategy);
+        }
+        internal override void WriteImpl(PhysicalConnection physical)
+        {
+            try
+            {
+                physical.Multiplexer.LogLocked(log, "Writing to {0}: {1}", physical.Bridge, tail.CommandAndKey);
+            }
+            catch { }
+            tail.WriteImpl(physical);
+        }
+
+        public TextWriter Log { get { return log; } }
     }
 
     abstract class Message : ICompletable
@@ -78,7 +143,7 @@ namespace StackExchange.Redis
             | CommandFlags.HighPriority | CommandFlags.FireAndForget | CommandFlags.NoRedirect;
 
         private CommandFlags flags;
-
+        internal CommandFlags FlagsRaw { get { return flags; } set { flags = value; } }
         private ResultBox resultBox;
 
         private ResultProcessor resultProcessor;

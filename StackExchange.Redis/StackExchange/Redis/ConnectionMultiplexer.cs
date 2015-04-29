@@ -404,23 +404,23 @@ namespace StackExchange.Redis
 
         internal void LogLocked(TextWriter log, string line)
         {
-            lock (LogSyncLock) { log.WriteLine(line); }
+            if(log != null) lock (LogSyncLock) { log.WriteLine(line); }
         }
         internal void LogLocked(TextWriter log, string line, object arg)
         {
-            lock (LogSyncLock) { log.WriteLine(line, arg); }
+            if (log != null) lock (LogSyncLock) { log.WriteLine(line, arg); }
         }
         internal void LogLocked(TextWriter log, string line, object arg0, object arg1)
         {
-            lock (LogSyncLock) { log.WriteLine(line, arg0, arg1); }
+            if (log != null) lock (LogSyncLock) { log.WriteLine(line, arg0, arg1); }
         }
         internal void LogLocked(TextWriter log, string line, object arg0, object arg1, object arg2)
         {
-            lock (LogSyncLock) { log.WriteLine(line, arg0, arg1, arg2); }
+            if (log != null) lock (LogSyncLock) { log.WriteLine(line, arg0, arg1, arg2); }
         }
         internal void LogLocked(TextWriter log, string line, params object[] args)
         {
-            lock (LogSyncLock) { log.WriteLine(line, args); }
+            if (log != null) lock (LogSyncLock) { log.WriteLine(line, args); }
         }
 
         internal void CheckMessage(Message message)
@@ -560,24 +560,65 @@ namespace StackExchange.Redis
             }
             return false;
         }
-        private static async Task<bool> WaitAllIgnoreErrorsAsync(Task[] tasks, int timeoutMilliseconds)
+        private void LogLockedWithThreadPoolStats(TextWriter log, string message)
+        {
+            if(log != null)
+            {
+                var sb = new StringBuilder();
+                sb.Append(message);
+                AppendThreadPoolStats(sb);
+                LogLocked(log, sb.ToString());
+            }
+        }
+        static bool AllComplete(Task[] tasks)
+        {
+            for(int i = 0 ; i < tasks.Length ; i++)
+            {
+                var task = tasks[i];
+                if (!task.IsCanceled && !task.IsCompleted && !task.IsFaulted)
+                    return false;
+            }
+            return true;
+        }
+        private async Task<bool> WaitAllIgnoreErrorsAsync(Task[] tasks, int timeoutMilliseconds, TextWriter log)
         {
             if (tasks == null) throw new ArgumentNullException("tasks");
-            if (tasks.Length == 0) return true;
+            if (tasks.Length == 0)
+            {
+                LogLocked(log, "No tasks to await");
+                return true;
+            }
+
+            if (AllComplete(tasks))
+            {
+                LogLocked(log, "All tasks are already complete");
+                return true;
+            }
+
             var watch = Stopwatch.StartNew();
+
+            LogLockedWithThreadPoolStats(log, "Awaiting task completion");
 
             try
             {
                 // if none error, great
+                var remaining = timeoutMilliseconds - checked((int)watch.ElapsedMilliseconds);
+                if (remaining <= 0)
+                {
+                    LogLockedWithThreadPoolStats(log, "Timeout before awaiting for tasks");
+                    return false;
+                }
 
 #if NET40
                 var allTasks = TaskEx.WhenAll(tasks).ObserveErrors();
-                var any = TaskEx.WhenAny(allTasks, TaskEx.Delay(timeoutMilliseconds)).ObserveErrors();
+                var any = TaskEx.WhenAny(allTasks, TaskEx.Delay(remaining)).ObserveErrors();
 #else
                 var allTasks = Task.WhenAll(tasks).ObserveErrors();
-                var any = Task.WhenAny(allTasks, Task.Delay(timeoutMilliseconds)).ObserveErrors();
+                var any = Task.WhenAny(allTasks, Task.Delay(remaining)).ObserveErrors();
 #endif
-                return await any.ForAwait() == allTasks;
+                bool all = await any.ForAwait() == allTasks;
+                LogLockedWithThreadPoolStats(log, all ? "All tasks completed cleanly" : "Not all tasks completed cleanly");
+                return all;
             }
             catch
             { }
@@ -590,7 +631,11 @@ namespace StackExchange.Redis
                 if (!task.IsCanceled && !task.IsCompleted && !task.IsFaulted)
                 {
                     var remaining = timeoutMilliseconds - checked((int)watch.ElapsedMilliseconds);
-                    if (remaining <= 0) return false;
+                    if (remaining <= 0)
+                    {
+                        LogLockedWithThreadPoolStats(log, "Timeout awaiting tasks");
+                        return false;
+                    }
                     try
                     {
 #if NET40
@@ -604,6 +649,7 @@ namespace StackExchange.Redis
                     { }
                 }
             }
+            LogLockedWithThreadPoolStats(log, "Finished awaiting tasks");
             return false;
         }
 
@@ -802,7 +848,7 @@ namespace StackExchange.Redis
                     {
                         if (isDisposed) throw new ObjectDisposedException(ToString());
 
-                        server = new ServerEndPoint(this, endpoint);
+                        server = new ServerEndPoint(this, endpoint, null);
                         servers.Add(endpoint, server);
 
                         var newSnapshot = serverSnapshot;
@@ -1074,6 +1120,7 @@ namespace StackExchange.Redis
         {
             if (isDisposed) throw new ObjectDisposedException(ToString());
             bool showStats = true;
+
             if (log == null)
             {
                 log = TextWriter.Null;
@@ -1117,17 +1164,17 @@ namespace StackExchange.Redis
                         serverSnapshot = new ServerEndPoint[configuration.EndPoints.Count];
                         foreach (var endpoint in configuration.EndPoints)
                         {
-                            var server = new ServerEndPoint(this, endpoint);
+                            var server = new ServerEndPoint(this, endpoint, log);
                             serverSnapshot[index++] = server;
                             this.servers.Add(endpoint, server);
                         }
                     }
                     foreach (var server in serverSnapshot)
                     {
-                        server.Activate(ConnectionType.Interactive);
+                        server.Activate(ConnectionType.Interactive, log);
                         if (this.CommandMap.IsAvailable(RedisCommand.SUBSCRIBE))
                         {
-                            server.Activate(ConnectionType.Subscription);
+                            server.Activate(ConnectionType.Subscription, null); // no need to log the SUB stuff
                         }
                     }
                 }
@@ -1168,20 +1215,20 @@ namespace StackExchange.Redis
                             // so we know that the configuration will be up to date if we see the tracer
                             server.AutoConfigure(null);
                         }
-                        available[i] = server.SendTracer();
-                        Message msg;
+                        available[i] = server.SendTracer(log);
                         if (useTieBreakers)
                         {
                             LogLocked(log, "Requesting tie-break from {0} > {1}...", Format.ToString(server.EndPoint), configuration.TieBreaker);
-                            msg = Message.Create(0, flags, RedisCommand.GET, tieBreakerKey);
+                            Message msg = Message.Create(0, flags, RedisCommand.GET, tieBreakerKey);
                             msg.SetInternalCall();
+                            msg = LoggingMessage.Create(log, msg);
                             tieBreakers[i] = server.QueueDirectAsync(msg, ResultProcessor.String);
                         }
                     }
 
                     LogLocked(log, "Allowing endpoints {0} to respond...", TimeSpan.FromMilliseconds(configuration.ConnectTimeout));
                     Trace("Allowing endpoints " + TimeSpan.FromMilliseconds(configuration.ConnectTimeout) + " to respond...");
-                    await WaitAllIgnoreErrorsAsync(available, configuration.ConnectTimeout).ForAwait();
+                    await WaitAllIgnoreErrorsAsync(available, configuration.ConnectTimeout, log).ForAwait();
                     List<ServerEndPoint> masters = new List<ServerEndPoint>(available.Length);
 
                     for (int i = 0; i < available.Length; i++)
@@ -1382,7 +1429,7 @@ namespace StackExchange.Redis
             if (useTieBreakers)
             {   // count the votes
                 uniques = new Dictionary<string, int>(StringComparer.InvariantCultureIgnoreCase);
-                await WaitAllIgnoreErrorsAsync(tieBreakers, 50).ForAwait();
+                await WaitAllIgnoreErrorsAsync(tieBreakers, 50, log).ForAwait();
                 for (int i = 0; i < tieBreakers.Length; i++)
                 {
                     var ep = servers[i].EndPoint;
@@ -1725,7 +1772,7 @@ namespace StackExchange.Redis
             if (allowCommandsToComplete)
             {
                 var quits = QuitAllServers();
-                await WaitAllIgnoreErrorsAsync(quits, configuration.SyncTimeout).ForAwait();
+                await WaitAllIgnoreErrorsAsync(quits, configuration.SyncTimeout, null).ForAwait();
             }
 
             DisposeAndClearServers();
@@ -1834,6 +1881,8 @@ namespace StackExchange.Redis
                                 .Append(", wr=").Append(wr).Append("/").Append(wq)
                                 .Append(", in=").Append(@in).Append("/").Append(ar);
 
+                            AppendThreadPoolStats(sb);
+
                             errMessage = sb.ToString();
                             if (stormLogThreshold >= 0 && queue >= stormLogThreshold && Interlocked.CompareExchange(ref haveStormLog, 1, 0) == 0)
                             {
@@ -1854,6 +1903,26 @@ namespace StackExchange.Redis
                 Trace(message + " received " + val);
                 return val;
             }
+        }
+        private static void AppendThreadPoolStats(StringBuilder errorMessage)
+        {
+            //BusyThreads =  TP.GetMaxThreads() –TP.GetAVailable();
+            //If BusyThreads >= TP.GetMinThreads(), then threadpool growth throttling is possible.
+
+            int maxIoThreads, maxWorkerThreads;
+            ThreadPool.GetMaxThreads(out maxWorkerThreads, out maxIoThreads);
+
+            int freeIoThreads, freeWorkerThreads;
+            ThreadPool.GetAvailableThreads(out freeWorkerThreads, out freeIoThreads);
+
+            int minIoThreads, minWorkerThreads;
+            ThreadPool.GetMinThreads(out minWorkerThreads, out minIoThreads);
+
+            int busyIoThreads = maxIoThreads - freeIoThreads;
+            int busyWorkerThreads = maxWorkerThreads - freeWorkerThreads;
+
+            errorMessage.AppendFormat(", IOCP:(Busy={0},Free={1},Min={2},Max={3})", busyIoThreads, freeIoThreads, minIoThreads, maxIoThreads);
+            errorMessage.AppendFormat(", WORKER:(Busy={0},Free={1},Min={2},Max={3})", busyWorkerThreads, freeWorkerThreads, minWorkerThreads, maxWorkerThreads);
         }
 
         /// <summary>
@@ -1920,7 +1989,6 @@ namespace StackExchange.Redis
             if (channel == null) return CompletedTask<long>.Default(null);
 
             return GetSubscriber().PublishAsync(channel, RedisLiterals.Wildcard, flags);
-        }        
+        }
     }   
-
 }

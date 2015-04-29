@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
-using System.Runtime.InteropServices;
 using System.Threading;
 
 namespace StackExchange.Redis
@@ -23,7 +22,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Indicates that a socket has connected
         /// </summary>
-        SocketMode Connected(Stream stream);
+        SocketMode Connected(Stream stream, TextWriter log);
         /// <summary>
         /// Indicates that the socket has signalled an error condition
         /// </summary>
@@ -120,7 +119,8 @@ namespace StackExchange.Redis
             }
             OnDispose();
         }
-        internal SocketToken BeginConnect(EndPoint endpoint, ISocketCallback callback)
+
+        internal SocketToken BeginConnect(EndPoint endpoint, ISocketCallback callback, ConnectionMultiplexer multiplexer, TextWriter log)
         {
             var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             SetFastLoopbackOption(socket);
@@ -130,10 +130,39 @@ namespace StackExchange.Redis
                 CompletionType connectCompletionType = CompletionType.Any;
                 this.ShouldForceConnectCompletionType(ref connectCompletionType);
 
-                CompletionTypeHelper.RunWithCompletionType(
-                    (cb) => socket.BeginConnect(endpoint, cb, Tuple.Create(socket, callback)),
-                    (ar) => EndConnectImpl(ar),
-                    connectCompletionType);
+                var formattedEndpoint = Format.ToString(endpoint);
+                if (endpoint is DnsEndPoint)
+                {
+                    // A work-around for a Mono bug in BeginConnect(EndPoint endpoint, AsyncCallback callback, object state)
+                    DnsEndPoint dnsEndpoint = (DnsEndPoint)endpoint;
+                    CompletionTypeHelper.RunWithCompletionType(
+                        (cb) =>
+                        {
+                            multiplexer.LogLocked(log, "BeginConnect: {0}", formattedEndpoint);
+                            return socket.BeginConnect(dnsEndpoint.Host, dnsEndpoint.Port, cb, Tuple.Create(socket, callback));
+                        },
+                        (ar) =>
+                        {
+                            multiplexer.LogLocked(log, "EndConnect: {0}", formattedEndpoint);
+                            EndConnectImpl(ar, multiplexer, log);
+                            multiplexer.LogLocked(log, "Connect complete: {0}", formattedEndpoint);
+                        },
+                        connectCompletionType);
+                }
+                else
+                {
+                    CompletionTypeHelper.RunWithCompletionType(
+                        (cb) => {
+                            multiplexer.LogLocked(log, "BeginConnect: {0}", formattedEndpoint);
+                            return socket.BeginConnect(endpoint, cb, Tuple.Create(socket, callback));
+                        },
+                        (ar) => {
+                            multiplexer.LogLocked(log, "EndConnect: {0}", formattedEndpoint);
+                            EndConnectImpl(ar, multiplexer, log);
+                            multiplexer.LogLocked(log, "Connect complete: {0}", formattedEndpoint);
+                        },
+                        connectCompletionType);
+                }
             } 
             catch (NotImplementedException ex)
             {
@@ -190,7 +219,7 @@ namespace StackExchange.Redis
             Shutdown(token.Socket);
         }
 
-        private void EndConnectImpl(IAsyncResult ar)
+        private void EndConnectImpl(IAsyncResult ar, ConnectionMultiplexer multiplexer, TextWriter log)
         {
             Tuple<Socket, ISocketCallback> tuple = null;
             try
@@ -203,15 +232,15 @@ namespace StackExchange.Redis
                 var callback = tuple.Item2;
                 socket.EndConnect(ar);
                 var netStream = new NetworkStream(socket, false);
-                var socketMode = callback == null ? SocketMode.Abort : callback.Connected(netStream);
+                var socketMode = callback == null ? SocketMode.Abort : callback.Connected(netStream, log);
                 switch (socketMode)
                 {
                     case SocketMode.Poll:
-                        ConnectionMultiplexer.TraceWithoutContext("Starting poll");
+                        multiplexer.LogLocked(log, "Starting poll");
                         OnAddRead(socket, callback);
                         break;
                     case SocketMode.Async:
-                        ConnectionMultiplexer.TraceWithoutContext("Starting read");
+                        multiplexer.LogLocked(log, "Starting read");
                         try
                         { callback.StartReading(); }
                         catch (Exception ex)
@@ -228,7 +257,7 @@ namespace StackExchange.Redis
             }
             catch(ObjectDisposedException)
             {
-                ConnectionMultiplexer.TraceWithoutContext("(socket shutdown)");
+                multiplexer.LogLocked(log, "(socket shutdown)");
                 if (tuple != null)
                 {
                     try
