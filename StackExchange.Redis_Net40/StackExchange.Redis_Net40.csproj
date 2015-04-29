@@ -70,6 +70,10 @@
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ClientType.cs">
       <Link>ClientType.cs</Link>
     </Compile>
+    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ConcurrentProfileStorageCollection.cs" />
+    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ConnectionMultiplexer.Profiling.cs">
+      <DependentUpon>ConnectionMultiplexer.cs</DependentUpon>
+    </Compile>
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ClusterConfiguration.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\CommandFlags.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\CommandMap.cs" />
@@ -100,6 +104,7 @@
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IDatabaseAsync.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IMultiMessage.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\InternalErrorEventArgs.cs" />
+    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IProfiler.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IRedis.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IRedisAsync.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IServer.cs" />
@@ -110,6 +115,8 @@
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\MessageCompletable.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\MessageQueue.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\MigrateOptions.cs" />
+    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ProfileContextTracker.cs" />
+    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ProfileStorage.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\LuaScript.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\Order.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\PhysicalBridge.cs" />

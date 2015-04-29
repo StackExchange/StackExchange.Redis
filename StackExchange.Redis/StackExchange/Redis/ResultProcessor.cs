@@ -143,6 +143,8 @@ namespace StackExchange.Redis
                 bool isMoved = result.AssertStarts(MOVED);
                 if (isMoved || result.AssertStarts(ASK))
                 {
+                    message.SetResponseReceived();
+
                     log = false;
                     string[] parts = result.GetString().Split(StringSplits.Space, 3);
                     int hashSlot;
@@ -1281,6 +1283,8 @@ namespace StackExchange.Redis
         {
             if (message == null) return;
             var box = message.ResultBox as ResultBox<T>;
+            message.SetResponseReceived();
+
             if (box != null) box.SetResult(value);            
         }
     }
