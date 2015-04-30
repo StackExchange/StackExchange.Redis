@@ -565,7 +565,9 @@ namespace StackExchange.Redis
             {
                 var sb = new StringBuilder();
                 sb.Append(message);
-                AppendThreadPoolStats(sb);
+                string iocp, worker;
+                GetThreadPoolStats(out iocp, out worker);
+                sb.Append(", IOCP: ").Append(iocp).Append(", WORKER: ").Append(worker);
                 LogLocked(log, sb.ToString());
             }
         }
@@ -1843,6 +1845,7 @@ namespace StackExchange.Redis
                         Trace("Timeout performing " + message.ToString());
                         Interlocked.Increment(ref syncTimeouts);
                         string errMessage;
+                        List<Tuple<string, string>> data = null;
                         if (server == null || !IncludeDetailInExceptions)
                         {
                             errMessage = "Timeout performing " + message.Command.ToString();
@@ -1850,21 +1853,35 @@ namespace StackExchange.Redis
                         else
                         {
                             int inst, qu, qs, qc, wr, wq, @in, ar;
+                            string iocp, worker;
 #if !__MonoCS__
                             var mgrState = socketManager.State;
 #endif
-                            int queue = server.GetOutstandingCount(message.Command, out inst, out qu, out qs, out qc, out wr, out wq, out @in, out ar);
-                            var sb = new StringBuilder("Timeout performing ").Append(message.CommandAndKey)
-                                .Append(", inst: ").Append(inst)
-#if !__MonoCS__
-                                .Append(", mgr: ").Append(mgrState)
-#endif
-                                .Append(", queue: ").Append(queue).Append(", qu=").Append(qu)
-                                .Append(", qs=").Append(qs).Append(", qc=").Append(qc)
-                                .Append(", wr=").Append(wr).Append("/").Append(wq)
-                                .Append(", in=").Append(@in).Append("/").Append(ar);
+                            var sb = new StringBuilder("Timeout performing ").Append(message.CommandAndKey);
+                            data = new List<Tuple<string, string>> {Tuple.Create("Message", message.CommandAndKey)};
+                            Action<string, string, string> add = (lk, sk, v) =>
+                            {
+                                data.Add(Tuple.Create(lk, v));
+                                sb.Append(", " + sk + ": " + v);
+                            };
 
-                            AppendThreadPoolStats(sb);
+                            int queue = server.GetOutstandingCount(message.Command, out inst, out qu, out qs, out qc, out wr, out wq, out @in, out ar);
+                            GetThreadPoolStats(out iocp, out worker);
+                            add("Instantaneous", "inst", inst.ToString());
+#if !__MonoCS__
+                            add("Manager-State", "mgr", mgrState.ToString());
+#endif
+                            add("Queue-Length", "queue", queue.ToString());
+                            add("Queue-Outstanding", "qu", qu.ToString());
+                            add("Queue-Awaiting-Response", "qs", qs.ToString());
+                            add("Queue-Completion-Outstanding", "qc", qc.ToString());
+                            add("Active-Writers", "wr", wr.ToString());
+                            add("Write-Queue", "wq", wq.ToString());
+                            add("Inbound-Bytes", "in", @in.ToString());
+                            add("Active-Readers", "ar", ar.ToString());
+
+                            add("ThreadPool-IO-Completion", "IOCP", iocp);
+                            add("ThreadPool-Workers", "WORKER", worker);
 
                             errMessage = sb.ToString();
                             if (stormLogThreshold >= 0 && queue >= stormLogThreshold && Interlocked.CompareExchange(ref haveStormLog, 1, 0) == 0)
@@ -1874,7 +1891,15 @@ namespace StackExchange.Redis
                                 else Interlocked.Exchange(ref stormLogSnapshot, log);
                             }
                         }
-                        throw ExceptionFactory.Timeout(IncludeDetailInExceptions, errMessage, message, server);
+                        var timeoutEx = ExceptionFactory.Timeout(IncludeDetailInExceptions, errMessage, message, server);
+                        if (data != null)
+                        {
+                            foreach (var kv in data)
+                            {
+                                timeoutEx.Data["Redis-" + kv.Item1] = kv.Item2;
+                            }
+                        }
+                        throw timeoutEx;
                         // very important not to return "source" to the pool here
                     }
                 }
@@ -1887,7 +1912,7 @@ namespace StackExchange.Redis
                 return val;
             }
         }
-        private static void AppendThreadPoolStats(StringBuilder errorMessage)
+        private static void GetThreadPoolStats(out string iocp, out string worker)
         {
             //BusyThreads =  TP.GetMaxThreads() –TP.GetAVailable();
             //If BusyThreads >= TP.GetMinThreads(), then threadpool growth throttling is possible.
@@ -1904,8 +1929,8 @@ namespace StackExchange.Redis
             int busyIoThreads = maxIoThreads - freeIoThreads;
             int busyWorkerThreads = maxWorkerThreads - freeWorkerThreads;
 
-            errorMessage.AppendFormat(", IOCP:(Busy={0},Free={1},Min={2},Max={3})", busyIoThreads, freeIoThreads, minIoThreads, maxIoThreads);
-            errorMessage.AppendFormat(", WORKER:(Busy={0},Free={1},Min={2},Max={3})", busyWorkerThreads, freeWorkerThreads, minWorkerThreads, maxWorkerThreads);
+            iocp = string.Format("(Busy={0},Free={1},Min={2},Max={3})", busyIoThreads, freeIoThreads, minIoThreads, maxIoThreads);
+            worker = string.Format("(Busy={0},Free={1},Min={2},Max={3})", busyWorkerThreads, freeWorkerThreads, minWorkerThreads, maxWorkerThreads);
         }
 
         /// <summary>
