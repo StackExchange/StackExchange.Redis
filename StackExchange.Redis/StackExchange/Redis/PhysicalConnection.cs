@@ -185,7 +185,11 @@ namespace StackExchange.Redis
                     + ", keep-alive: " + bridge.ServerEndPoint.WriteEverySeconds + "s, pending: "
                     + bridge.GetPendingCount() + ", state: " + oldState + ", last-heartbeat: " + (lastBeat == 0 ? "never" : (unchecked(now - lastBeat) / 1000 + "s ago"))
                     + (bridge.IsBeating ? " (mid-beat)" : "") + ", last-mbeat: " + multiplexer.LastHeartbeatSecondsAgo + "s ago, global: "
-                    + ConnectionMultiplexer.LastGlobalHeartbeatSecondsAgo + "s ago";
+                    + ConnectionMultiplexer.LastGlobalHeartbeatSecondsAgo + "s ago"
+#if !__MonoCS__
+                    + ", mgr: "+ bridge.Multiplexer.SocketManager.State
+#endif
+                    ;
 
                 var ex = innerException == null
                     ? new RedisConnectionException(failureType, message)
