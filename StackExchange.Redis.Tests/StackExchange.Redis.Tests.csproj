@@ -72,6 +72,7 @@
     <Compile Include="ConnectToUnexistingHost.cs" />
     <Compile Include="HyperLogLog.cs" />
     <Compile Include="Issues\DefaultDatabase.cs" />
+	<Compile Include="Profiling.cs" />
     <Compile Include="Issues\Issue182.cs" />
     <Compile Include="WrapperBaseTests.cs" />
     <Compile Include="TransactionWrapperTests.cs" />
@@ -133,6 +134,9 @@
       <Project>{7cec07f2-8c03-4c42-b048-738b215824c1}</Project>
       <Name>StackExchange.Redis</Name>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Service Include="{82A7F48D-3B50-4B1E-B82E-3ADA8210C358}" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

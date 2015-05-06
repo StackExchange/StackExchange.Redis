@@ -122,6 +122,7 @@ namespace StackExchange.Redis
 
         public TextWriter Log { get { return log; } }
     }
+
     abstract class Message : ICompletable
     {
 
@@ -146,6 +147,11 @@ namespace StackExchange.Redis
         private ResultBox resultBox;
 
         private ResultProcessor resultProcessor;
+
+        // All for profiling purposes
+        private ProfileStorage performance;
+        internal DateTime createdDateTime;
+        internal long createdTimestamp;
 
         protected Message(int db, CommandFlags flags, RedisCommand command)
         {
@@ -184,6 +190,30 @@ namespace StackExchange.Redis
             this.Db = db;
             this.command = command;
             this.flags = flags & UserSelectableFlags;
+
+            createdDateTime = DateTime.UtcNow;
+            createdTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+        }
+
+        internal void SetProfileStorage(ProfileStorage storage)
+        {
+            performance = storage;
+            performance.SetMessage(this);
+        }
+
+        internal void PrepareToResend(ServerEndPoint resendTo, bool isMoved)
+        {
+            if (performance == null) return;
+
+            var oldPerformance = performance;
+
+            oldPerformance.SetCompleted();
+            performance = null;
+
+            createdDateTime = DateTime.UtcNow;
+            createdTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+            performance = ProfileStorage.NewAttachedToSameContext(oldPerformance, resendTo, isMoved);
+            performance.SetMessage(this);
         }
 
         public RedisCommand Command { get { return command; } }
@@ -458,15 +488,32 @@ namespace StackExchange.Redis
                 resultProcessor == null ? "(n/a)" : resultProcessor.GetType().Name);
         }
 
+        public void SetResponseReceived()
+        {
+            if (performance != null)
+            {
+                performance.SetResponseReceived();
+            }
+        }
+
         public bool TryComplete(bool isAsync)
         {
             if (resultBox != null)
             {
-                return resultBox.TryComplete(isAsync);
+                var ret = resultBox.TryComplete(isAsync);
+                if (performance != null)
+                {
+                    performance.SetCompleted();
+                }
+                return ret;
             }
             else
             {
                 ConnectionMultiplexer.TraceWithoutContext("No result-box to complete for " + Command, "Message");
+                if (performance != null)
+                {
+                    performance.SetCompleted();
+                }
                 return true;
             }
         }
@@ -599,6 +646,22 @@ namespace StackExchange.Redis
             if (resultProcessor != null)
             {
                 resultProcessor.ConnectionFail(this, failure, innerException);
+            }
+        }
+
+        internal void SetEnqueued()
+        {
+            if(performance != null)
+            {
+                performance.SetEnqueued();
+            }
+        }
+
+        internal void SetRequestSent()
+        {
+            if (performance != null)
+            {
+                performance.SetRequestSent();
             }
         }
 
