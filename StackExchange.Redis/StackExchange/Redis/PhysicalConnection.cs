@@ -177,23 +177,42 @@ namespace StackExchange.Redis
                     lastBeat = Thread.VolatileRead(ref lastBeatTickCount);
                 int unansweredRead = Thread.VolatileRead(ref firstUnansweredWriteTickCount);
 
-                string message = failureType + " on " + Format.ToString(bridge.ServerEndPoint.EndPoint) + "/" + connectionType
-                    + ", origin: " + origin
-                    + ", input-buffer: " + ioBufferBytes + ", outstanding: " + GetSentAwaitingResponseCount()
-                    + ", last-read: " + unchecked(now - lastRead) / 1000 + "s ago, last-write: " + unchecked(now - lastWrite) / 1000 + "s ago"
-                    + ", unanswered-write: " + unchecked(now - unansweredRead) / 1000 + "s ago"
-                    + ", keep-alive: " + bridge.ServerEndPoint.WriteEverySeconds + "s, pending: "
-                    + bridge.GetPendingCount() + ", state: " + oldState + ", last-heartbeat: " + (lastBeat == 0 ? "never" : (unchecked(now - lastBeat) / 1000 + "s ago"))
-                    + (bridge.IsBeating ? " (mid-beat)" : "") + ", last-mbeat: " + multiplexer.LastHeartbeatSecondsAgo + "s ago, global: "
-                    + ConnectionMultiplexer.LastGlobalHeartbeatSecondsAgo + "s ago"
-#if !__MonoCS__
-                    + ", mgr: "+ bridge.Multiplexer.SocketManager.State
-#endif
-                    ;
+                var exMessage = new StringBuilder(failureType + " on " + Format.ToString(bridge.ServerEndPoint.EndPoint) + "/" + connectionType);
+                var data = new List<Tuple<string, string>>
+                {
+                    Tuple.Create("FailureType", failureType.ToString()),
+                    Tuple.Create("EndPoint", Format.ToString(bridge.ServerEndPoint.EndPoint))
+                };
+                Action<string, string, string> add = (lk, sk, v) =>
+                {
+                    data.Add(Tuple.Create(lk, v));
+                    exMessage.Append(", " + sk + ": " + v);
+                };
 
+                add("Origin", "origin", origin);
+                add("Input-Buffer", "input-buffer", ioBufferBytes.ToString());
+                add("Outstanding-Responses", "outstanding", GetSentAwaitingResponseCount().ToString());
+                add("Last-Read", "last-read", unchecked(now - lastRead) / 1000 + "s ago");
+                add("Last-Write", "last-write", unchecked(now - lastWrite) / 1000 + "s ago");
+                add("Unanswered-Write", "unanswered-write", unchecked(now - unansweredRead) / 1000 + "s ago");
+                add("Keep-Alive", "keep-alive", bridge.ServerEndPoint.WriteEverySeconds + "s");
+                add("Pending", "pending", bridge.GetPendingCount().ToString());
+                add("Previous-Physical-State", "state", oldState.ToString());
+                add("Last-Heartbeat", "last-heartbeat", (lastBeat == 0 ? "never" : (unchecked(now - lastBeat)/1000 + "s ago"))+ (bridge.IsBeating ? " (mid-beat)" : "") );
+                add("Last-Multiplexer-Heartbeat", "last-mbeat", multiplexer.LastHeartbeatSecondsAgo + "s ago");
+                add("Last-Global-Heartbeat", "global", ConnectionMultiplexer.LastGlobalHeartbeatSecondsAgo + "s ago");
+#if !__MonoCS__
+                add("SocketManager-State", "mgr", bridge.Multiplexer.SocketManager.State.ToString());
+#endif
+                
                 var ex = innerException == null
-                    ? new RedisConnectionException(failureType, message)
-                    : new RedisConnectionException(failureType, message, innerException);
+                    ? new RedisConnectionException(failureType, exMessage.ToString())
+                    : new RedisConnectionException(failureType, exMessage.ToString(), innerException);
+
+                foreach (var kv in data)
+                {
+                    ex.Data["Redis-" + kv.Item1] = kv.Item2;
+                }
 
                 bridge.OnConnectionFailed(this, failureType, ex);
             }
