@@ -64,10 +64,17 @@
   <ItemGroup>
     <Compile Include="StackExchange\Redis\Aggregate.cs" />
     <Compile Include="StackExchange\Redis\ClientType.cs" />
+    <Compile Include="StackExchange\Redis\ConcurrentProfileStorageCollection.cs" />
+    <Compile Include="StackExchange\Redis\ConnectionMultiplexer.Profiling.cs">
+      <DependentUpon>ConnectionMultiplexer.cs</DependentUpon>
+    </Compile>
     <Compile Include="StackExchange\Redis\ExtensionMethods.cs" />
     <Compile Include="StackExchange\Redis\HashEntry.cs" />
     <Compile Include="StackExchange\Redis\InternalErrorEventArgs.cs" />
+    <Compile Include="StackExchange\Redis\IProfiler.cs" />
     <Compile Include="StackExchange\Redis\MigrateOptions.cs" />
+    <Compile Include="StackExchange\Redis\ProfileContextTracker.cs" />
+    <Compile Include="StackExchange\Redis\ProfileStorage.cs" />
     <Compile Include="StackExchange\Redis\LuaScript.cs" />
     <Compile Include="StackExchange\Redis\RedisChannel.cs" />
     <Compile Include="StackExchange\Redis\Bitwise.cs" />

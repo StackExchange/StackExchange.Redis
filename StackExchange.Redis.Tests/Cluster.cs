@@ -13,7 +13,8 @@ namespace StackExchange.Redis.Tests
     [TestFixture]
     public class Cluster : TestBase
     {
-        private const string ClusterIp = "192.168.0.15";
+        //private const string ClusterIp = "192.168.0.15";  // marc
+        private const string ClusterIp = "10.110.11.102";   // kmontrose
         private const int ServerCount = 6, FirstPort = 7000;
 
         protected override string GetConfiguration()
@@ -546,5 +547,121 @@ namespace StackExchange.Redis.Tests
         {
             return endpoint == null ? "(unknown)" : endpoint.ToString();
         }
+
+        class TestProfiler : IProfiler
+        {
+            public object MyContext = new object();
+
+            public object GetContext()
+            {
+                return MyContext;
+            }
+        }
+
+        [Test]
+        public void SimpleProfiling()
+        {
+            using (var conn = Create())
+            {
+                var profiler = new TestProfiler();
+
+                conn.RegisterProfiler(profiler);
+                conn.BeginProfiling(profiler.MyContext);
+                var db = conn.GetDatabase();
+                db.StringSet("hello", "world");
+                var val = db.StringGet("hello");
+                Assert.AreEqual("world", (string)val);
+
+                var msgs = conn.FinishProfiling(profiler.MyContext);
+                Assert.AreEqual(2, msgs.Count());
+                Assert.IsTrue(msgs.Any(m => m.Command == "GET"));
+                Assert.IsTrue(msgs.Any(m => m.Command == "SET"));
+            }
+        }
+
+#if DEBUG
+        [Test]
+        public void MovedProfiling()
+        {
+            const string Key = "redirected-key";
+            const string Value = "redirected-value";
+
+            var profiler = new TestProfiler();
+
+            using (var conn = Create())
+            {
+                conn.RegisterProfiler(profiler);
+
+                var endpoints = conn.GetEndPoints();
+                var servers = Array.ConvertAll(endpoints, e => conn.GetServer(e));
+
+                conn.BeginProfiling(profiler.MyContext);
+                var db = conn.GetDatabase();
+                db.KeyDelete(Key);
+                db.StringSet(Key, Value);
+                var config = servers.First().ClusterConfiguration;
+                Assert.IsNotNull(config);
+
+                int slot = conn.HashSlot(Key);
+                var rightMasterNode = config.GetBySlot(Key);
+                Assert.IsNotNull(rightMasterNode);
+
+                string a = conn.GetServer(rightMasterNode.EndPoint).StringGet(db.Database, Key);
+                Assert.AreEqual(Value, a, "right master");
+
+                var wrongMasterNode = config.Nodes.FirstOrDefault(x => !x.IsSlave && x.NodeId != rightMasterNode.NodeId);
+                Assert.IsNotNull(wrongMasterNode);
+
+                string b = conn.GetServer(wrongMasterNode.EndPoint).StringGet(db.Database, Key);
+                Assert.AreEqual(Value, b, "wrong master, allow redirect");
+
+                var msgs = conn.FinishProfiling(profiler.MyContext).ToList();
+                
+                // verify that things actually got recorded properly, and the retransmission profilings are connected as expected
+                {
+                    // expect 1 DEL, 1 SET, 1 GET (to right master), 1 GET (to wrong master) that was responded to by an ASK, and 1 GET (to right master or a slave of it)
+                    Assert.AreEqual(5, msgs.Count);
+                    Assert.AreEqual(1, msgs.Count(c => c.Command == "DEL"));
+                    Assert.AreEqual(1, msgs.Count(c => c.Command == "SET"));
+                    Assert.AreEqual(3, msgs.Count(c => c.Command == "GET"));
+
+                    var toRightMasterNotRetransmission = msgs.Where(m => m.Command == "GET" && m.EndPoint.Equals(rightMasterNode.EndPoint) && m.RetransmissionOf == null);
+                    Assert.AreEqual(1, toRightMasterNotRetransmission.Count());
+
+                    var toWrongMasterWithoutRetransmission = msgs.Where(m => m.Command == "GET" && m.EndPoint.Equals(wrongMasterNode.EndPoint) && m.RetransmissionOf == null);
+                    Assert.AreEqual(1, toWrongMasterWithoutRetransmission.Count());
+
+                    var toRightMasterOrSlaveAsRetransmission = msgs.Where(m => m.Command == "GET" && (m.EndPoint.Equals(rightMasterNode.EndPoint) || rightMasterNode.Children.Any(c => m.EndPoint.Equals(c.EndPoint))) && m.RetransmissionOf != null);
+                    Assert.AreEqual(1, toRightMasterOrSlaveAsRetransmission.Count());
+
+                    var originalWrongMaster = toWrongMasterWithoutRetransmission.Single();
+                    var retransmissionToRight = toRightMasterOrSlaveAsRetransmission.Single();
+
+                    Assert.IsTrue(object.ReferenceEquals(originalWrongMaster, retransmissionToRight.RetransmissionOf));
+                }
+
+                foreach(var msg in msgs)
+                {
+                    Assert.IsTrue(msg.CommandCreated != default(DateTime));
+                    Assert.IsTrue(msg.CreationToEnqueued > TimeSpan.Zero);
+                    Assert.IsTrue(msg.EnqueuedToSending > TimeSpan.Zero);
+                    Assert.IsTrue(msg.SentToResponse > TimeSpan.Zero);
+                    Assert.IsTrue(msg.ResponseToCompletion > TimeSpan.Zero);
+                    Assert.IsTrue(msg.ElapsedTime > TimeSpan.Zero);
+
+                    if (msg.RetransmissionOf != null)
+                    {
+                        // imprecision of DateTime.UtcNow makes this pretty approximate
+                        Assert.IsTrue(msg.RetransmissionOf.CommandCreated <= msg.CommandCreated);
+                        Assert.AreEqual(RetransmissionReasonType.Moved, msg.RetransmissionReason.Value);
+                    }
+                    else
+                    {
+                        Assert.IsFalse(msg.RetransmissionReason.HasValue);
+                    }
+                }
+            }
+        }
+#endif
     }
 }

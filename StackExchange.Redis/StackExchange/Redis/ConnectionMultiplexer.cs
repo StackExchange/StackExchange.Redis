@@ -9,6 +9,7 @@ using System.Net;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Collections.Concurrent;
 #if NET40
 using Microsoft.Runtime.CompilerServices;
 #else
@@ -943,8 +944,11 @@ namespace StackExchange.Redis
         /// <summary>
         /// Obtain an interactive connection to a database inside redis
         /// </summary>
-        public IDatabase GetDatabase(int db = 0, object asyncState = null)
+        public IDatabase GetDatabase(int db = -1, object asyncState = null)
         {
+            if (db == -1)
+                db = configuration.DefaultDatabase ?? 0;
+
             if (db < 0) throw new ArgumentOutOfRangeException("db");
             if (db != 0 && RawConfig.Proxy == Proxy.Twemproxy) throw new NotSupportedException("Twemproxy only supports database 0");
             return new RedisDatabase(this, db, asyncState);
@@ -1636,8 +1640,23 @@ namespace StackExchange.Redis
                     server = null;
                 }
             }
+            
             if (server != null)
             {
+                if (profiler != null)
+                {
+                    var profCtx = profiler.GetContext();
+
+                    if(profCtx != null)
+                    {
+                        ConcurrentProfileStorageCollection inFlightForCtx;
+                        if (profiledCommands.TryGetValue(profCtx, out inFlightForCtx))
+                        {
+                            message.SetProfileStorage(ProfileStorage.NewWithContext(inFlightForCtx, server));
+                        }
+                    }
+                }
+
                 if (message.Db >= 0)
                 {
                     int availableDatabases = server.Databases;
@@ -1779,6 +1798,7 @@ namespace StackExchange.Redis
             {
                 return CompletedTask<T>.Default(state);
             }
+            
             if (message.IsFireAndForget)
             {
                 TryPushMessageToBridge(message, processor, null, ref server);
