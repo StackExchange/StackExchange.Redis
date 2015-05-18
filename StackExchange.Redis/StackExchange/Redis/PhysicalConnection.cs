@@ -169,7 +169,16 @@ namespace StackExchange.Redis
             bridge.Trace("Failed: " + failureType);
             bool isCurrent;
             PhysicalBridge.State oldState;
+            int @in = -1, ar = -1;
             bridge.OnDisconnected(failureType, this, out isCurrent, out oldState);
+            if(oldState == PhysicalBridge.State.ConnectedEstablished)
+            {
+                try
+                {
+                    @in = GetAvailableInboundBytes(out ar);
+                }
+                catch { /* best effort only */ }
+            }
 
             if (isCurrent && Interlocked.CompareExchange(ref failureReported, 1, 0) == 0)
             {
@@ -198,6 +207,13 @@ namespace StackExchange.Redis
                 add("Keep-Alive", "keep-alive", bridge.ServerEndPoint.WriteEverySeconds + "s");
                 add("Pending", "pending", bridge.GetPendingCount().ToString());
                 add("Previous-Physical-State", "state", oldState.ToString());
+
+                if(@in >= 0)
+                {
+                    add("Inbound-Bytes", "in", @in.ToString());
+                    add("Active-Readers", "ar", ar.ToString());
+                }
+
                 add("Last-Heartbeat", "last-heartbeat", (lastBeat == 0 ? "never" : (unchecked(now - lastBeat)/1000 + "s ago"))+ (bridge.IsBeating ? " (mid-beat)" : "") );
                 add("Last-Multiplexer-Heartbeat", "last-mbeat", multiplexer.LastHeartbeatSecondsAgo + "s ago");
                 add("Last-Global-Heartbeat", "global", ConnectionMultiplexer.LastGlobalHeartbeatSecondsAgo + "s ago");
