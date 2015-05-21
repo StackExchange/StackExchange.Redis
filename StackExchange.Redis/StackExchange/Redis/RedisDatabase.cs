@@ -1433,6 +1433,8 @@ namespace StackExchange.Redis
 
         public RedisValue[] StringGet(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
         {
+            if (keys == null) throw new ArgumentNullException("keys");
+            if (keys.Length == 0) return new RedisValue[0];
             var msg = Message.Create(Db, flags, RedisCommand.MGET, keys);
             return ExecuteSync(msg, ResultProcessor.RedisValueArray);
         }
@@ -1445,6 +1447,8 @@ namespace StackExchange.Redis
 
         public Task<RedisValue[]> StringGetAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
         {
+            if (keys == null) throw new ArgumentNullException("keys");
+            if (keys.Length == 0) return CompletedTask<RedisValue[]>.FromResult(new RedisValue[0], asyncState);
             var msg = Message.Create(Db, flags, RedisCommand.MGET, keys);
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray);
         }
