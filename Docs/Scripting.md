@@ -55,3 +55,5 @@ An example use of `LoadedLuaScript`:
 		loaded.Evaluate(db, new { key = (RedisKey)"mykey", value = 123 });
 	}
 ```
+
+All methods on both `LuaScript` and `LoadedLuaScript` have Async alternatives, and expose the actual script submitted to redis as the `ExecutableScript` property.
