@@ -43,7 +43,7 @@ Due to StackExchange.Redis's asynchronous interface, profiling requires outside 
 by providing context objects when you start and end profiling (via the `BeginProfiling(object)` & `FinishProfiling(object)` methods), and when a
 command is sent (via the `IProfiler` interface's `GetContext()` method).
 
-A toy example of assocating commands issued from many different threads together
+A toy example of associating commands issued from many different threads together
 
 ```
 class ToyProfiler : IProfiler

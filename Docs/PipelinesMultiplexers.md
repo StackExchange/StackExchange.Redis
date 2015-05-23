@@ -76,7 +76,7 @@ For this reason, the only redis features that StackExchange.Redis does not offer
 This achieves the same intent without requiring blocking operations. Notes:
 
 - the *data* is not sent via pub/sub; the pub/sub API is only used to notify workers to check for more work
-- if there are no workers, the new items remain buffered in the lsit; work does not fall on the floor
+- if there are no workers, the new items remain buffered in the list; work does not fall on the floor
 - only one worker can pop a single value; when there are more consumers than producers, some consumers will be notified and then find there is nothing to do
 - when you restart a worker, you should *assume* there is work so that you process any backlog
 - but other than that, the semantic is identical to blocking pops
