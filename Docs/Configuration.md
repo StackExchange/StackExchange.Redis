@@ -10,7 +10,7 @@ The `configuration` here can be either:
 - a `ConfigurationOptions` instance
 - a `string` representing the configuration
 
-The latter is *basically* a tokenized form of the former. 
+The latter is *basically* a tokenized form of the former.
 
 Basic Configuration Strings
 -
@@ -56,7 +56,7 @@ The `ConfigurationOptions` object has a wide range of properties, all of which a
 | name={string}          | `ClientName`           | Identification for the connection within redis                                  |
 | password={string}      | `Password`             | Password for the redis server                                                   |
 | proxy={proxy type}     | `Proxy`                | Type of proxy in use (if any); for example "twemproxy"                          |
-| resolveDns={bool}      | `ResolveDns`           | Specifies that DNS resolution should be explict and eager, rather than implicit |
+| resolveDns={bool}      | `ResolveDns`           | Specifies that DNS resolution should be explicit and eager, rather than implicit |
 | serviceName={string}   | `ServiceName`          | Not currently implemented (intended for use with sentinel)                      |
 | ssl={bool}             | `Ssl`                  | Specifies that SSL encryption should be used                                    |
 | sslHost={string}       | `SslHost`              | Enforces a particular SSL host identity on the server's certificate             |

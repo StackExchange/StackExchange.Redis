@@ -93,4 +93,4 @@ The response uses the `RedisResult` type (this is unique to scripting; usually t
 Conclusion
 ---
 
-The types used in the API are very deliberately chosen to distinguish redis *keys* from *values*. However, in virtually all cases you will not need to directly refer to the unerlying types involved, as conversion operations are provided.
+The types used in the API are very deliberately chosen to distinguish redis *keys* from *values*. However, in virtually all cases you will not need to directly refer to the underlying types involved, as conversion operations are provided.
