@@ -162,6 +162,8 @@ namespace StackExchange.Redis
             GrowingSocketArray,
             CopyingPointersForSelect,
             ExecuteSelect,
+            ExecuteSelectComplete,
+            CheckForStaleConnections,
             EnqueueRead,
             EnqueueError,
             RequestAssistance,
@@ -174,7 +176,13 @@ namespace StackExchange.Redis
             get { return managerState; }
         }
         private volatile ManagerState managerState;
-
+        private volatile int lastErrorTicks;
+        internal string LastErrorTimeRelative()
+        {
+            var tmp = lastErrorTicks;
+            if (tmp == 0) return "never";
+            return unchecked(Environment.TickCount - tmp) + "ms ago";
+        }
         private void ReadImpl()
         {
             List<IntPtr> dead = null, active = new List<IntPtr>();
@@ -268,14 +276,20 @@ namespace StackExchange.Redis
                     var timeout = new TimeValue(1000);
                     managerState = ManagerState.ExecuteSelect;
                     ready = select(0, readSockets, null, errorSockets, ref timeout);
+                    managerState = ManagerState.ExecuteSelectComplete;
                     if (ready <= 0)
                     {
                         if (ready == 0)
                         {
+                            managerState = ManagerState.CheckForStaleConnections;
                             foreach (var s in activeCallbacks)
                             {
                                 s.CheckForStaleConnection();
                             }
+                        }
+                        else
+                        {
+                            lastErrorTicks = Environment.TickCount;
                         }
                         continue; // -ve typically means a socket was disposed just before; just retry
                     }

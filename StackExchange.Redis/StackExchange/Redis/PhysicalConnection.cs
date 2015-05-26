@@ -218,7 +218,9 @@ namespace StackExchange.Redis
                 add("Last-Multiplexer-Heartbeat", "last-mbeat", multiplexer.LastHeartbeatSecondsAgo + "s ago");
                 add("Last-Global-Heartbeat", "global", ConnectionMultiplexer.LastGlobalHeartbeatSecondsAgo + "s ago");
 #if !__MonoCS__
-                add("SocketManager-State", "mgr", bridge.Multiplexer.SocketManager.State.ToString());
+                var mgr = bridge.Multiplexer.SocketManager;
+                add("SocketManager-State", "mgr", mgr.State.ToString());
+                add("Last-Error", "err", mgr.LastErrorTimeRelative());
 #endif
                 
                 var ex = innerException == null
