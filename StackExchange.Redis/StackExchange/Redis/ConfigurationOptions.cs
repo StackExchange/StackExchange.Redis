@@ -243,7 +243,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The target-host to use when validating SSL certificate; setting a value here enables SSL mode
         /// </summary>
-        public string SslHost { get { return sslHost; } set { sslHost = value; } }
+        public string SslHost { get { return sslHost ?? InferSslHostFromEndpoints(); } set { sslHost = value; } }
 
         /// <summary>
         /// Specifies the time in milliseconds that the system should allow for synchronous operations (defaults to 1 second)
@@ -607,6 +607,16 @@ namespace StackExchange.Redis
             {
                 this.CommandMap = CommandMap.Create(map);
             }
+        }
+
+        private string InferSslHostFromEndpoints() {
+            var dnsEndpoints = endpoints.Select(endpoint => endpoint as DnsEndPoint);
+            string dnsHost = dnsEndpoints.First() != null ? dnsEndpoints.First().Host : null;
+            if (dnsEndpoints.All(dnsEndpoint => (dnsEndpoint != null && dnsEndpoint.Host == dnsHost))) {
+                return dnsHost;
+            }
+
+            return null;
         }
     }
 }
