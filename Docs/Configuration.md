@@ -39,6 +39,11 @@ A common usage is to store the *basic* details in a string, and then apply speci
     options.AllowAdmin = true;
     conn = ConnectionMultiplexer.Connect(options);
 
+Microsoft Azure Redis example with password
+
+    var conn = ConnectionMultiplexer.Connect("contoso5.redis.cache.windows.net,ssl=true,password=...");
+
+
 Configuration Options
 ---
 
