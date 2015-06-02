@@ -41,6 +41,8 @@ namespace StackExchange.Redis
 
         // check for write-read timeout
         void CheckForStaleConnection();
+
+        bool IsDataAvailable { get; }
     }
 
     internal struct SocketToken

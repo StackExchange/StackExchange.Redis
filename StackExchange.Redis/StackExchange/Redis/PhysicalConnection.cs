@@ -931,6 +931,15 @@ namespace StackExchange.Redis
                 Interlocked.Decrement(ref haveReader);
             }
         }
+
+        bool ISocketCallback.IsDataAvailable
+        {
+            get
+            {
+                try { return socketToken.Available > 0; }
+                catch { return false; }
+            }
+        }
         private RawResult ReadArray(byte[] buffer, ref int offset, ref int count)
         {
             var itemCount = ReadLineTerminatedString(ResultType.Integer, buffer, ref offset, ref count);
