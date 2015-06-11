@@ -152,7 +152,7 @@ namespace StackExchange.Redis
         /// </summary>
         public RedisChannel ChannelPrefix { get;set; }
         /// <summary>
-        /// The client name to user for all connections
+        /// The client name to use for all connections
         /// </summary>
         public string ClientName { get { return clientName; } set { clientName = value; } }
 
