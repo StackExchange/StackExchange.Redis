@@ -1876,6 +1876,8 @@ namespace StackExchange.Redis
                             string iocp, worker;
 #if !__MonoCS__
                             var mgrState = socketManager.State;
+                            var lastError = socketManager.LastErrorTimeRelative();
+
 #endif
                             var sb = new StringBuilder("Timeout performing ").Append(message.CommandAndKey);
                             data = new List<Tuple<string, string>> {Tuple.Create("Message", message.CommandAndKey)};
@@ -1890,6 +1892,7 @@ namespace StackExchange.Redis
                             add("Instantaneous", "inst", inst.ToString());
 #if !__MonoCS__
                             add("Manager-State", "mgr", mgrState.ToString());
+                            add("Last-Error", "err", lastError);
 #endif
                             add("Queue-Length", "queue", queue.ToString());
                             add("Queue-Outstanding", "qu", qu.ToString());
