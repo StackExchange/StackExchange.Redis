@@ -103,6 +103,9 @@
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\HashSlotMovedEventArgs.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IBatch.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ICompletable.cs" />
+    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IConnectionMultiplexer.cs">
+      <Link>IConnectionMultiplexer.cs</Link>
+    </Compile>
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IDatabase.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IDatabaseAsync.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IMultiMessage.cs" />

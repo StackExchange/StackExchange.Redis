@@ -50,7 +50,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// Represents an inter-related group of connections to redis servers
     /// </summary>
-    public sealed partial class ConnectionMultiplexer : IDisposable
+    public sealed partial class ConnectionMultiplexer : IConnectionMultiplexer, IDisposable
     {
         private static TaskFactory _factory = null;
 
