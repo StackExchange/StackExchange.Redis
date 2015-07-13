@@ -57,6 +57,7 @@ The `ConfigurationOptions` object has a wide range of properties, all of which a
 | connectRetry={int}     | `ConnectRetry`         | The number of times to repeat connect attempts during initial `Connect`         |
 | connectTimeout={int}   | `ConnectTimeout`       | Timeout (ms) for connect operations                                             |
 | configChannel={string} | `ConfigurationChannel` | Broadcast channel name for communicating configuration changes                  |
+| defaultDatabase={int}  | `DefaultDatabase`      | Default database index, from `0` to `databases - 1`
 | keepAlive={int}        | `KeepAlive`            | Time (seconds) at which to send a message to help keep sockets alive            |
 | name={string}          | `ClientName`           | Identification for the connection within redis                                  |
 | password={string}      | `Password`             | Password for the redis server                                                   |
