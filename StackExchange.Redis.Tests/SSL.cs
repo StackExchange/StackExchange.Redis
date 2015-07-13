@@ -271,5 +271,24 @@ namespace StackExchange.Redis.Tests
 
         }
 
+        [Test]
+        public void SSLHostInferredFromEndpoints() {
+            var options = new ConfigurationOptions() {
+                EndPoints = { 
+                              { "mycache.rediscache.windows.net", 15000},
+                              { "mycache.rediscache.windows.net", 15001 },
+                              { "mycache.rediscache.windows.net", 15002 },
+                            }
+                };
+            options.Ssl = true;
+            Assert.True(options.SslHost == "mycache.rediscache.windows.net");
+            options = new ConfigurationOptions() {
+                EndPoints = { 
+                              { "121.23.23.45", 15000},
+                            }
+            };
+            Assert.True(options.SslHost == null);
+        }
+
     }
 }
