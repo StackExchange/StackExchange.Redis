@@ -5,8 +5,13 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
+    /// <summary>
+    /// Represents the abstract multiplexer API
+    /// </summary>
     public interface IConnectionMultiplexer
     {
+
+#if DEBUG
         /// <summary>
         /// For debugging; when not enabled, servers cannot connect
         /// </summary>
@@ -16,7 +21,7 @@ namespace StackExchange.Redis
         /// For debugging; when not enabled, end-connect is silently ignored (to simulate a long-running connect)
         /// </summary>
         bool IgnoreConnect { get; set; }
-
+#endif
         /// <summary>
         /// Gets the client-name that will be used on all new connections
         /// </summary>
