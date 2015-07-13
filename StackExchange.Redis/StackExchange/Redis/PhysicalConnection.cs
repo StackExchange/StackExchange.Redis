@@ -949,7 +949,16 @@ namespace StackExchange.Redis
                 if (!itemCount.TryGetInt64(out i64)) throw ExceptionFactory.ConnectionFailure(multiplexer.IncludeDetailInExceptions, ConnectionFailureType.ProtocolFailure, "Invalid array length", bridge.ServerEndPoint);
                 int itemCountActual = checked((int)i64);
 
-                if (itemCountActual <= 0) return RawResult.EmptyArray;
+                if (itemCountActual < 0)
+                {
+                    //for null response by command like EXEC, RESP array: *-1\r\n
+                    return new RawResult(ResultType.SimpleString, null, 0, 0); 
+                }
+                else if (itemCountActual == 0)
+                {
+                    //for zero array response by command like SCAN, Resp array: *0\r\n 
+                    return RawResult.EmptyArray; 
+                }
 
                 var arr = new RawResult[itemCountActual];
                 for (int i = 0; i < itemCountActual; i++)
