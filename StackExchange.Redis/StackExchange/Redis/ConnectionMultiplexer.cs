@@ -1906,6 +1906,7 @@ namespace StackExchange.Redis
 
                             add("ThreadPool-IO-Completion", "IOCP", iocp);
                             add("ThreadPool-Workers", "WORKER", worker);
+                            add("Client-Name", "clientName", ClientName);
                             data.Add(Tuple.Create("Busy-Workers", busyWorkerCount.ToString()));
                             errMessage = sb.ToString();
                             if (stormLogThreshold >= 0 && queue >= stormLogThreshold && Interlocked.CompareExchange(ref haveStormLog, 1, 0) == 0)
