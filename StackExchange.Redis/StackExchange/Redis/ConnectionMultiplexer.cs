@@ -838,9 +838,10 @@ namespace StackExchange.Redis
 
         private static readonly ServerEndPoint[] NilServers = new ServerEndPoint[0];
 
-        internal ServerEndPoint GetServerEndPoint(EndPoint endpoint)
+        internal ServerEndPoint GetServerEndPoint(EndPoint inputEndpoint)
         {
-            if (endpoint == null) return null;
+            if (inputEndpoint == null) return null;
+            EndPoint endpoint = GetConfigurationCompatibleEndpoint(inputEndpoint);
             var server = (ServerEndPoint)servers[endpoint];
             if (server == null)
             {
@@ -863,6 +864,54 @@ namespace StackExchange.Redis
                 }
             }
             return server;
+        }
+
+        /// <summary>
+        /// Gets configuration compatible endpoint for a given endpoint i.e. if
+        /// user has specified DnsEndpoints returns a dns endpoint, returns an IPEndpoint
+        /// otherwise
+        /// </summary>
+        /// <remarks>
+        /// If a user has specified endpoints in the multiplexer configuration using
+        /// Dns endpoints, Stackexchange.redis returns the ConnectionMultiplexer object successfully 
+        /// after connecting to all the nodes in the connection string (using their host names).
+        /// Also, before returning the multiplexer object it updates the mapping of nodes to their clusterslots 
+        /// and this mapping is of the format “DNS hostname:port” : “clusterSlotNumber”.
+        /// However at the same time, the client also issues “CLUSTER NODES” command to each of the nodes in the above list
+        /// As a result of this it ends up adding the ipaddress:port nodes to the 'serverSnapShot'
+        /// (to determine master and slave configuration) and re-updates the cluster mapping with the output of the clusternodes command 
+        /// which now is going to contain IP addresses (redis-server itself does not understand host names). 
+        /// So the cluster mapping is now updated to the format: “IP Address” : “clusterSlotNumber”
+        /// If the StackExchange.Redis has not been able to connect to all the nodes using their IP addresses by the time the first command (GET,SET) 
+        /// is issued to the cluster, it results in failure to connect to that particular node resulting in the “MOVED ERROR” 
+        /// (since it tries to hit a random node in the list subsequently).       
+        /// To avoid these problems, we only add multiplexer configuration compatible endpoints to the 'serversnapshot'
+        /// </remarks>
+        /// <param name="inputEndpoint"></param>
+        /// <returns></returns>
+        private EndPoint GetConfigurationCompatibleEndpoint(EndPoint inputEndpoint) {
+            int endPointPort = GetPort(inputEndpoint);
+            if (configuration.HasAllDnsEndPoints()) {
+                DnsEndPoint dnsEndpoint = configuration.EndPoints.First() as DnsEndPoint;
+                return new DnsEndPoint(dnsEndpoint.Host, endPointPort);
+            } else {
+                IPEndPoint ipEndPoint = configuration.EndPoints.First() as IPEndPoint;
+                return new IPEndPoint(ipEndPoint.Address, endPointPort);
+            }
+        }
+
+        private int GetPort(EndPoint inputEndpoint) {
+            IPEndPoint ipEndpoint = inputEndpoint as IPEndPoint;
+            if (ipEndpoint != null) {
+                return ipEndpoint.Port;
+            }
+
+            DnsEndPoint dnsEndpoint = inputEndpoint as DnsEndPoint;
+            if (dnsEndpoint != null) {
+                return dnsEndpoint.Port;
+            }
+
+            throw new InvalidDataException("InputEndpoint can be either DnsEndpoint or IPEndpoint");
         }
 
         internal readonly CommandMap CommandMap;
