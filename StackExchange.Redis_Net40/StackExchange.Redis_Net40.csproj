@@ -99,6 +99,9 @@
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\HashEntry.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\HashSlotMovedEventArgs.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IBatch.cs" />
+    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ICommandInvolvingKeys.cs">
+      <Link>ICommandInvolvingKeys.cs</Link>
+    </Compile>
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ICompletable.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IConnectionMultiplexer.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IDatabase.cs" />
@@ -108,6 +111,12 @@
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IProfiler.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IRedis.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IRedisAsync.cs" />
+    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IRedisCommandHandler.cs">
+      <Link>IRedisCommandHandler.cs</Link>
+    </Compile>
+    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IRedisCommandHandlerExtensions.cs">
+      <Link>IRedisCommandHandlerExtensions.cs</Link>
+    </Compile>
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IServer.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ISubscriber.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ITransaction.cs" />
@@ -127,6 +136,9 @@
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\RedisBatch.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\RedisChannel.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\RedisCommand.cs" />
+    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\RedisCommandHandlerConfiguration.cs">
+      <Link>RedisCommandHandlerConfiguration.cs</Link>
+    </Compile>
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\RedisDatabase.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\RedisErrorEventArgs.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\RedisFeatures.cs" />
@@ -134,6 +146,9 @@
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\RedisLiterals.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\RedisResult.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\RedisServer.cs" />
+    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\RedisServiceFactory.cs">
+      <Link>RedisServiceFactory.cs</Link>
+    </Compile>
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\RedisSubscriber.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\RedisTransaction.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\RedisType.cs" />

@@ -1,6 +1,6 @@
 ﻿namespace StackExchange.Redis
 {
-    enum RedisCommand
+    public enum RedisCommand
     {
         APPEND,
         ASKING,
