@@ -1,0 +1,68 @@
+﻿using NUnit.Framework;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace StackExchange.Redis.Tests
+{
+    [TestFixture]
+    public sealed class RedisCommandHandlerTest : TestBase
+    {
+        public class TestCommandHandler : IRedisCommandHandler
+        {
+            public delegate void OnExecutingHandler(RedisCommand command, RedisKey[] involvedKeys = null, RedisValue[] involvedValues = null);
+            public delegate void OnExecutedHandler(RedisCommand command, ref object result, RedisKey[] involvedKeys = null);
+
+            public OnExecutingHandler onExecuting;
+            public OnExecutedHandler onExecuted;
+
+            public void OnExecuting(RedisCommand command, RedisKey[] involvedKeys = null, RedisValue[] involvedValues = null)
+            {
+                onExecuting(command, involvedKeys, involvedValues);
+            }
+
+            public void OnExecuted<TResult>(RedisCommand command, ref TResult result, RedisKey[] involvedKeys = null)
+            {
+                object testResult = result;
+                onExecuted(command, ref testResult, involvedKeys);
+                result = (TResult)testResult;
+            }
+        }
+
+        [Test]
+        public void CanHandleCommands()
+        {
+            RedisServiceFactory.Register<IRedisCommandHandler, TestCommandHandler>();
+            TestCommandHandler cmdHandler = (TestCommandHandler)RedisServiceFactory.CommandHandlers.First();
+
+            bool onExecutingDone = false;
+            bool onExecutedDone = false;
+            RedisKey[] testKeys = new RedisKey[] { "test" };
+            RedisValue[] testValues = new RedisValue[] { "test value" };
+            RedisValue testResult = "hello world";
+
+            cmdHandler.onExecuting = (command, involvedKeys, involvedValues) =>
+            {
+                Assert.AreEqual(RedisCommand.SET, command);
+                Assert.AreEqual(1, testKeys.Intersect(involvedKeys).Count());
+                Assert.AreEqual(1, testValues.Intersect(involvedValues).Count());
+                onExecutingDone = true;
+            };
+            cmdHandler.onExecuted = (RedisCommand command, ref object result, RedisKey[] involvedKeys) =>
+            {
+                Assert.AreEqual(RedisCommand.HMSET, command);
+                Assert.AreEqual(1, testKeys.Intersect(involvedKeys).Count());
+                Assert.AreEqual(testResult, result);
+                onExecutedDone = true;
+            };
+
+            RedisServiceFactory.CommandHandlers.ExecuteBeforeHandlers(RedisCommand.SET, new RedisKey[] { "test" }, new RedisValue[] { "test value" });
+            RedisServiceFactory.CommandHandlers.ExecuteAfterHandlers(RedisCommand.HMSET, new RedisKey[] { "test" }, ref testResult);
+
+            Assert.IsTrue(onExecutingDone);
+            Assert.IsTrue(onExecutedDone);
+        }
+    }
+}

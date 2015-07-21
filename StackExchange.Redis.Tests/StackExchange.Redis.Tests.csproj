@@ -74,6 +74,7 @@
     <Compile Include="Issues\DefaultDatabase.cs" />
     <Compile Include="Profiling.cs" />
     <Compile Include="Issues\Issue182.cs" />
+    <Compile Include="RedisCommandHandlerTest.cs" />
     <Compile Include="RedisServiceFactoryTest.cs" />
     <Compile Include="WrapperBaseTests.cs" />
     <Compile Include="TransactionWrapperTests.cs" />
