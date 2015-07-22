@@ -1842,9 +1842,11 @@ namespace StackExchange.Redis
                         if (commandWithKeys != null)
                             involvedKeys = commandWithKeys.InvolvedKeys;
 
-                        RedisServiceFactory.CommandHandlers.ExecuteAfterHandlers(message.Command, involvedKeys, ref val);
+                        object rewritableVal = val;
 
-                        return val;
+                        RedisServiceFactory.CommandHandlers.ExecuteAfterHandlers(message.Command, involvedKeys, ref rewritableVal);
+
+                        return (T)rewritableVal;
                     }
                 );
             }
@@ -1973,9 +1975,10 @@ namespace StackExchange.Redis
                 if (commandWithKeys != null)
                     involvedKeys = commandWithKeys.InvolvedKeys;
 
-                RedisServiceFactory.CommandHandlers.ExecuteAfterHandlers(message.Command, involvedKeys, ref val);
+                object rewritableVal = val;
+                RedisServiceFactory.CommandHandlers.ExecuteAfterHandlers(message.Command, involvedKeys, ref rewritableVal);
 
-                return val;
+                return (T)rewritableVal;
             }
         }
         private static int GetThreadPoolStats(out string iocp, out string worker)

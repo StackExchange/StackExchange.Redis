@@ -19,10 +19,9 @@
         /// Defines behavior to be executed after a Redis command has been already executed. Command's result value can be altered
         /// prior to be returned to the Redis command's caller by re-assigning the reference since the result is passed by reference.
         /// </summary>
-        /// <typeparam name="TResult">The type of Redis command result</typeparam>
         /// <param name="command">The Redis command that has been already executed</param>
         /// <param name="result">The result</param>
         /// <param name="involvedKeys">The Redis keys involved in the Redis command execution</param>
-        void OnExecuted<TResult>(RedisCommand command,  ref TResult result, RedisKey[] involvedKeys = null);
+        void OnExecuted(RedisCommand command, ref object result, RedisKey[] involvedKeys = null);
     }
 }

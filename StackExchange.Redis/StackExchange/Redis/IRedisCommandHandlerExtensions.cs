@@ -52,7 +52,7 @@ namespace StackExchange.Redis
         /// <param name="involvedKeys">An array of involved Redis keys in the command</param>
         /// <param name="result">The result of the Redis command execution</param>
         /// <returns>True if handlers could be executed. Otherwise, false.</returns>
-        public static bool ExecuteAfterHandlers<TResult>(this IEnumerable<IRedisCommandHandler> handlers, RedisCommand command, RedisKey[] involvedKeys, ref TResult result)
+        public static bool ExecuteAfterHandlers(this IEnumerable<IRedisCommandHandler> handlers, RedisCommand command, RedisKey[] involvedKeys, ref object result)
         {
             bool canExecute = CanExecuteHandlers(handlers, command);
 

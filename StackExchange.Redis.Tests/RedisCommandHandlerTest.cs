@@ -23,11 +23,9 @@ namespace StackExchange.Redis.Tests
                 onExecuting(command, involvedKeys, involvedValues);
             }
 
-            public void OnExecuted<TResult>(RedisCommand command, ref TResult result, RedisKey[] involvedKeys = null)
+            public void OnExecuted(RedisCommand command, ref object result, RedisKey[] involvedKeys = null)
             {
-                object testResult = result;
-                onExecuted(command, ref testResult, involvedKeys);
-                result = (TResult)testResult;
+                onExecuted(command, ref result, involvedKeys);
             }
         }
 
@@ -41,7 +39,7 @@ namespace StackExchange.Redis.Tests
             bool onExecutedDone = false;
             RedisKey[] testKeys = new RedisKey[] { "test" };
             RedisValue[] testValues = new RedisValue[] { "test value" };
-            RedisValue testResult = "hello world";
+            object testResult = (RedisValue)"hello world";
 
             cmdHandler.onExecuting = (command, involvedKeys, involvedValues) =>
             {
@@ -70,7 +68,7 @@ namespace StackExchange.Redis.Tests
         {
             RedisKey[] testKeys = new RedisKey[] { "test" };
             RedisValue[] testValues = new RedisValue[] { "test value" };
-            RedisValue testResult = "hello world";
+            object testResult = (RedisValue)"hello world";
 
             Assert.DoesNotThrow
             (
@@ -95,7 +93,7 @@ namespace StackExchange.Redis.Tests
             bool onExecutedDone = false;
             RedisKey[] testKeys = new RedisKey[] { "test" };
             RedisValue[] testValues = new RedisValue[] { "test value" };
-            RedisValue testResult = "hello world";
+            object testResult = (RedisValue)"hello world";
 
             cmdHandler.onExecuting = (command, involvedKeys, involvedValues) =>
             {
