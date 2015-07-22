@@ -22,6 +22,7 @@
     /// </remarks>
     public static class RedisServiceFactory
     {
+        private readonly static HashSet<Type> supportedServices = new HashSet<Type> { typeof(IRedisCommandHandler) };
         private readonly static Dictionary<Type, HashSet<Type>> services = new Dictionary<Type, HashSet<Type>>();
 
         private readonly static Lazy<IEnumerable<IRedisCommandHandler>> lazyCommandHandlers = new Lazy<IEnumerable<IRedisCommandHandler>>(() => GetImplementations<IRedisCommandHandler>());
@@ -42,6 +43,11 @@
         public static bool Register<TService, TImpl>()
             where TImpl : class, TService, new()
         {
+            if (!supportedServices.Contains(typeof(TService)))
+            {
+                throw new ArgumentException("Cannot register an implementation of an unsupported service type");
+            }
+
             if (!Services.ContainsKey(typeof(TService)))
             {
                 HashSet<Type> implementations = new HashSet<Type>();
@@ -64,6 +70,11 @@
         public static bool Unregister<TService, TImpl>()
             where TImpl : class, TService, new()
         {
+            if (!supportedServices.Contains(typeof(TService)))
+            {
+                throw new ArgumentException("Cannot unregister an implementation of an unsupported service type");
+            }
+
             return Services.ContainsKey(typeof(TService)) && Services[typeof(TService)].Remove(typeof(TImpl));
         }
 
