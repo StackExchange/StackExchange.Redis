@@ -64,5 +64,73 @@ namespace StackExchange.Redis.Tests
             Assert.IsTrue(onExecutingDone);
             Assert.IsTrue(onExecutedDone);
         }
+
+        [Test]
+        public void NoErrorWhenNoHandlerIsConfigured()
+        {
+            RedisKey[] testKeys = new RedisKey[] { "test" };
+            RedisValue[] testValues = new RedisValue[] { "test value" };
+            RedisValue testResult = "hello world";
+
+            Assert.DoesNotThrow
+            (
+                () =>
+                {
+                    Assert.IsFalse(RedisServiceFactory.CommandHandlers.ExecuteBeforeHandlers(RedisCommand.SET, new RedisKey[] { "test" }, new RedisValue[] { "test value" }));
+                    Assert.IsFalse(RedisServiceFactory.CommandHandlers.ExecuteAfterHandlers(RedisCommand.HMSET, new RedisKey[] { "test" }, ref testResult));
+                }
+            );
+        }
+
+        [Test]
+        public void CanActivateCommandHandlerToSpecificCommand()
+        {
+            RedisCommandHandlerConfiguration config = new RedisCommandHandlerConfiguration();
+            config.ActivateForCommands(RedisCommand.HSET, RedisCommand.HDEL, RedisCommand.ZRANGE);
+
+            RedisServiceFactory.Register<IRedisCommandHandler, TestCommandHandler>();
+            TestCommandHandler cmdHandler = (TestCommandHandler)RedisServiceFactory.CommandHandlers.First();
+
+            bool onExecutingDone = false;
+            bool onExecutedDone = false;
+            RedisKey[] testKeys = new RedisKey[] { "test" };
+            RedisValue[] testValues = new RedisValue[] { "test value" };
+            RedisValue testResult = "hello world";
+
+            cmdHandler.onExecuting = (command, involvedKeys, involvedValues) =>
+            {
+                onExecutingDone = true;
+            };
+            cmdHandler.onExecuted = (RedisCommand command, ref object result, RedisKey[] involvedKeys) =>
+            {
+                onExecutedDone = true;
+            };
+
+            Assert.IsFalse(RedisServiceFactory.CommandHandlers.ExecuteBeforeHandlers(RedisCommand.SET, new RedisKey[] { "test" }, new RedisValue[] { "test value" }));
+            Assert.IsFalse(RedisServiceFactory.CommandHandlers.ExecuteAfterHandlers(RedisCommand.GET, new RedisKey[] { "test" }, ref testResult));
+            Assert.IsFalse(onExecutingDone);
+            Assert.IsFalse(onExecutedDone);
+
+            onExecutingDone = false;
+            onExecutedDone = false;
+
+            cmdHandler.onExecuting = (command, involvedKeys, involvedValues) =>
+            {
+                onExecutingDone = true;
+                Assert.AreEqual(RedisCommand.SET, command);
+            };
+            cmdHandler.onExecuted = (RedisCommand command, ref object result, RedisKey[] involvedKeys) =>
+            {
+                onExecutedDone = true;
+                Assert.AreEqual(RedisCommand.SET, command);
+            };
+
+            config.ActivateForCommands(RedisCommand.SET);
+
+            Assert.IsTrue(RedisServiceFactory.CommandHandlers.ExecuteBeforeHandlers(RedisCommand.SET, new RedisKey[] { "test" }, new RedisValue[] { "test value" }));
+            Assert.IsTrue(RedisServiceFactory.CommandHandlers.ExecuteAfterHandlers(RedisCommand.SET, new RedisKey[] { "test" }, ref testResult));
+            Assert.IsTrue(onExecutingDone);
+            Assert.IsTrue(onExecutedDone);
+        }
     }
 }

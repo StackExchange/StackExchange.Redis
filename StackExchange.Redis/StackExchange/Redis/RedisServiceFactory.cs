@@ -16,6 +16,9 @@
     /// needs to obtain service implementation instances. For example, setting a LifeTimeHandler can force this factory to retain per-OWIN context instances until an HTTP request ends.
     ///
     /// The so-called <code>LifeTimeHandler</code> must be set before registering and obtaining service implementations.
+    /// 
+    /// Also, service implementation registrations must be done before calling <see cref="GetImplementations"/> method or this factory will not
+    /// take any service implementation registration in account.
     /// </remarks>
     public static class RedisServiceFactory
     {
@@ -88,7 +91,7 @@
         }
 
         /// <summary>
-        /// Gets all command handler implementations.
+        /// Gets all command handler implementations. If there is no implementation, it returns null.
         /// </summary>
         internal static IEnumerable<IRedisCommandHandler> CommandHandlers
         {

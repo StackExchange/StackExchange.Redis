@@ -185,5 +185,11 @@ namespace StackExchange.Redis.Tests
             Assert.AreEqual(3, impls2Hash.Count);
             Assert.AreEqual(3, impls3Hash.Count);
         }
+
+        [Test]
+        public void NoServiceImplementationMustNotFail()
+        {
+            Assert.DoesNotThrow(() => RedisServiceFactory.GetImplementations<ICustomService>());
+        }
     }
 }
