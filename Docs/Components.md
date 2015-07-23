@@ -1,16 +1,25 @@
-# Redis inversion of control components
+## *Quick links*
+> - [Inversion of control components](#ioc)
+> - [Redis command handlers](#handlers)
 
-*StackExchange.Redis* provides extensibility points to allow third-party developers to implement library's pipeline customizations.
+# StackExchange.Redis inversion of control components <a name="ioc"></a>
 
-Basically this is done using `RedisServiceFactory` class. For example:
+*StackExchange.Redis* provides extensibility points to allow third-party developers to implement execution pipeline customizations.
+
+Basically this is done by using `RedisServiceFactory` class. For example:
 
 	RedisServiceFactory.Register<ISomeService, SomeServiceImplementation>();
 
-While this basic inversion of control container can host any service and its implementations, it can't be used for other purpose than own library extensibility (*you should look for inversion of control/dependency injection frameworks*)! If you try to register an unsupported service implementation, `RedisServiceFactory.Register<TService, TImpl>()` will throw a `System.ArgumentException`. 
+If you try to provide an implementation to an unsupported service, `RedisServiceFactory.Register<TService, TImpl>()` will throw a `System.ArgumentException`. 
 
-Thus, you should only register implementations for already supported *StackExchange.Redis* service (for example, an `IRedisCommandHandler` implementation).
+Thus, you should only register implementations for already supported *StackExchange.Redis* service (for example, an [`IRedisCommandHandler`](#handlers) implementation).
 
-### Handling implementation life-cycle
+Service implementations can be also unregistered:
+
+	RedisServiceFactory.Unregister<ISomeService, SomeServiceImplementation>();
+
+
+### Handling service implementation object life-cycle
 
 When execution pipeline gets a set of some service implementations, these implementations are instances created everytime they're needed. This may work in some scenarios while in others implementation instances life-cycle should be handled in other ways.
 
@@ -40,11 +49,11 @@ Implementation instance life-cycle can be customized by setting `RedisServiceFac
             return implInstance;
         };
 
-## Redis command handlers
+## Redis command handlers <a name="handlers"></a>
 
 Redis command execution can be intercepted by defining *redis command handlers*, which are implementations of `IRedisCommandHandler` interface.
 
-A *Redis command handler* can intercept a command when it's about to be executed and when its execution has been already finished and Redis command pipeline is about to return the value to the command's caller.
+A *Redis command handler* can intercept a command when is about to be executed and when its execution has been already finished.
 
 For example, a sample implementation may look like as follows:
 
@@ -85,7 +94,7 @@ Furthermore, `SET` result can be rewritten:
 		result = (RedisValue)((string)result).ToLowerInvarant();
 	}
 
-### Activating command handlers for specific Redis commands.
+### Activating handlers for specific Redis commands.
 
 In order to optimize Redis command execution pipeline, command handlers can be activated for a subset of commands.
 
