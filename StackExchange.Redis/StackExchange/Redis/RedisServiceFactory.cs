@@ -27,6 +27,8 @@
 
         private readonly static Lazy<IEnumerable<IRedisCommandHandler>> lazyCommandHandlers = new Lazy<IEnumerable<IRedisCommandHandler>>(() => GetImplementations<IRedisCommandHandler>());
 
+        internal static HashSet<Type> SupportedService { get { return supportedServices; } }
+
         private static Dictionary<Type, HashSet<Type>> Services { get { return services; } }
 
         /// <summary>
