@@ -26,7 +26,7 @@ namespace StackExchange.Redis
             if (task != null) GC.KeepAlive(task.Exception);
         }
 
-        public  static Task ObserveErrors(this Task task)
+        public static Task ObserveErrors(this Task task)
         {
             if (task != null) task.ContinueWith(observeErrors, TaskContinuationOptions.OnlyOnFaulted);
             return task;
@@ -72,7 +72,7 @@ namespace StackExchange.Redis
             set
             {
                 _factory = value;
-                
+
             }
         }
 
@@ -196,9 +196,9 @@ namespace StackExchange.Redis
 #if __MonoCS__
                 CompressionLevel.Fastest
 #else
-                CompressionLevel.Optimal
+ CompressionLevel.Optimal
 #endif
-                );
+);
             using (var stream = entry.Open())
             using (var writer = new StreamWriter(stream))
             {
@@ -316,7 +316,8 @@ namespace StackExchange.Redis
             try
             {
                 srv.Ping(flags); // if it isn't happy, we're not happy
-            } catch (Exception ex)
+            }
+            catch (Exception ex)
             {
                 LogLocked(log, "Operation failed on {0}, aborting: {1}", Format.ToString(srv.EndPoint), ex.Message);
                 throw;
@@ -346,7 +347,8 @@ namespace StackExchange.Redis
             try
             {
                 srv.SlaveOf(null, flags);
-            } catch (Exception ex)
+            }
+            catch (Exception ex)
             {
                 LogLocked(log, "Operation failed on {0}, aborting: {1}", Format.ToString(srv.EndPoint), ex.Message);
                 throw;
@@ -404,7 +406,7 @@ namespace StackExchange.Redis
 
         internal void LogLocked(TextWriter log, string line)
         {
-            if(log != null) lock (LogSyncLock) { log.WriteLine(line); }
+            if (log != null) lock (LogSyncLock) { log.WriteLine(line); }
         }
         internal void LogLocked(TextWriter log, string line, object arg)
         {
@@ -563,7 +565,7 @@ namespace StackExchange.Redis
         private void LogLockedWithThreadPoolStats(TextWriter log, string message, out int busyWorkerCount)
         {
             busyWorkerCount = 0;
-            if(log != null)
+            if (log != null)
             {
                 var sb = new StringBuilder();
                 sb.Append(message);
@@ -575,7 +577,7 @@ namespace StackExchange.Redis
         }
         static bool AllComplete(Task[] tasks)
         {
-            for(int i = 0 ; i < tasks.Length ; i++)
+            for (int i = 0; i < tasks.Length; i++)
             {
                 var task = tasks[i];
                 if (!task.IsCanceled && !task.IsCompleted && !task.IsFaulted)
@@ -704,7 +706,8 @@ namespace StackExchange.Redis
                                 fallback = server;
                                 break;
                         }
-                    } else
+                    }
+                    else
                     {
                         switch (flags)
                         {
@@ -740,9 +743,11 @@ namespace StackExchange.Redis
                 }
                 killMe = null;
                 return muxer;
-            } finally
+            }
+            finally
             {
-                if (killMe != null) try { killMe.Dispose(); } catch { }
+                if (killMe != null) try { killMe.Dispose(); }
+                    catch { }
             }
         }
 
@@ -763,9 +768,11 @@ namespace StackExchange.Redis
                 }
                 killMe = null;
                 return muxer;
-            } finally
+            }
+            finally
             {
-                if (killMe != null) try { killMe.Dispose(); } catch { }
+                if (killMe != null) try { killMe.Dispose(); }
+                    catch { }
             }
         }
 
@@ -776,10 +783,12 @@ namespace StackExchange.Redis
             if (configuration is string)
             {
                 config = ConfigurationOptions.Parse((string)configuration);
-            } else if (configuration is ConfigurationOptions)
+            }
+            else if (configuration is ConfigurationOptions)
             {
                 config = ((ConfigurationOptions)configuration).Clone();
-            } else
+            }
+            else
             {
                 throw new ArgumentException("configuration");
             }
@@ -828,7 +837,8 @@ namespace StackExchange.Redis
             }
             finally
             {
-                if (killMe != null) try { killMe.Dispose(); } catch { }
+                if (killMe != null) try { killMe.Dispose(); }
+                    catch { }
             }
         }
 
@@ -870,13 +880,13 @@ namespace StackExchange.Redis
         {
             if (configuration == null) throw new ArgumentNullException("configuration");
             IncludeDetailInExceptions = true;
-            
+
             this.configuration = configuration;
-            
+
             var map = this.CommandMap = configuration.CommandMap;
             if (!string.IsNullOrWhiteSpace(configuration.Password)) map.AssertAvailable(RedisCommand.AUTH);
 
-            if(!map.IsAvailable(RedisCommand.ECHO) && !map.IsAvailable(RedisCommand.PING) && !map.IsAvailable(RedisCommand.TIME))
+            if (!map.IsAvailable(RedisCommand.ECHO) && !map.IsAvailable(RedisCommand.PING) && !map.IsAvailable(RedisCommand.TIME))
             { // I mean really, give me a CHANCE! I need *something* to check the server is available to me...
                 // see also: SendTracer (matching logic)
                 map.AssertAvailable(RedisCommand.EXISTS);
@@ -917,7 +927,8 @@ namespace StackExchange.Redis
                 var tmp = serverSnapshot;
                 for (int i = 0; i < tmp.Length; i++)
                     tmp[i].OnHeartbeat();
-            } catch(Exception ex)
+            }
+            catch (Exception ex)
             {
                 OnInternalError(ex);
             }
@@ -925,8 +936,10 @@ namespace StackExchange.Redis
 
         private int lastHeartbeatTicks;
         private static int lastGlobalHeartbeatTicks = Environment.TickCount;
-        internal long LastHeartbeatSecondsAgo {
-            get {
+        internal long LastHeartbeatSecondsAgo
+        {
+            get
+            {
                 if (pulse == null) return -1;
                 return unchecked(Environment.TickCount - Thread.VolatileRead(ref lastHeartbeatTicks)) / 1000;
             }
@@ -1015,7 +1028,7 @@ namespace StackExchange.Redis
         [Conditional("VERBOSE")]
         internal static void TraceWithoutContext(bool condition, string message, [System.Runtime.CompilerServices.CallerMemberName] string category = null)
         {
-            if(condition) OnTraceWithoutContext(message, category);
+            if (condition) OnTraceWithoutContext(message, category);
         }
 
         private readonly CompletionManager unprocessableCompletionManager;
@@ -1023,7 +1036,8 @@ namespace StackExchange.Redis
         /// <summary>
         /// The number of operations that have been performed on all connections
         /// </summary>
-        public long OperationCount {
+        public long OperationCount
+        {
             get
             {
                 long total = 0;
@@ -1048,7 +1062,8 @@ namespace StackExchange.Redis
                 Trace("Configuration change detected; checking nodes", "Configuration");
                 ReconfigureAsync(false, reconfigureAll, null, blame, cause, publishReconfigure, flags).ObserveErrors();
                 return true;
-            } else
+            }
+            else
             {
                 Trace("Configuration change skipped; already in progress via " + activeCause, "Configuration");
                 return false;
@@ -1087,7 +1102,7 @@ namespace StackExchange.Redis
             int retryCount = forConnect ? RawConfig.ConnectRetry : 1;
             if (retryCount <= 0) retryCount = 1;
 
-            int timeout = configuration.ConnectTimeout;            
+            int timeout = configuration.ConnectTimeout;
             if (timeout >= int.MaxValue / retryCount) return int.MaxValue;
 
             timeout *= retryCount;
@@ -1099,7 +1114,7 @@ namespace StackExchange.Redis
         /// </summary>
         public string GetStatus()
         {
-            using(var sw = new StringWriter())
+            using (var sw = new StringWriter())
             {
                 GetStatus(sw);
                 return sw.ToString();
@@ -1265,7 +1280,7 @@ namespace StackExchange.Redis
                                 LogLocked(log, "{0} returned with success", Format.ToString(endpoints[i]));
 
                                 // count the server types
-                                switch (server.ServerType) 
+                                switch (server.ServerType)
                                 {
                                     case ServerType.Twemproxy:
                                     case ServerType.Standalone:
@@ -1280,18 +1295,18 @@ namespace StackExchange.Redis
                                 }
 
                                 // set the server UnselectableFlags and update masters list
-                                switch (server.ServerType) 
+                                switch (server.ServerType)
                                 {
                                     case ServerType.Twemproxy:
                                     case ServerType.Sentinel:
                                     case ServerType.Standalone:
                                     case ServerType.Cluster:
                                         servers[i].ClearUnselectable(UnselectableFlags.ServerType);
-                                        if (server.IsSlave) 
+                                        if (server.IsSlave)
                                         {
                                             servers[i].ClearUnselectable(UnselectableFlags.RedundantMaster);
-                                        } 
-                                        else 
+                                        }
+                                        else
                                         {
                                             masters.Add(server);
                                         }
@@ -1317,15 +1332,15 @@ namespace StackExchange.Redis
                     if (clusterCount == 0)
                     {
                         // set the serverSelectionStrategy
-                        if (RawConfig.Proxy == Proxy.Twemproxy) 
+                        if (RawConfig.Proxy == Proxy.Twemproxy)
                         {
                             this.serverSelectionStrategy.ServerType = ServerType.Twemproxy;
-                        } 
-                        else if (standaloneCount == 0 && sentinelCount > 0) 
+                        }
+                        else if (standaloneCount == 0 && sentinelCount > 0)
                         {
                             this.serverSelectionStrategy.ServerType = ServerType.Sentinel;
-                        } 
-                        else 
+                        }
+                        else
                         {
                             this.serverSelectionStrategy.ServerType = ServerType.Standalone;
                         }
@@ -1383,7 +1398,7 @@ namespace StackExchange.Redis
                     //WTF("?: " + attempts);
                 } while (first && !healthy && attemptsLeft > 0);
 
-                if(first && configuration.AbortOnConnectFail && !healthy)
+                if (first && configuration.AbortOnConnectFail && !healthy)
                 {
                     return false;
                 }
@@ -1392,7 +1407,7 @@ namespace StackExchange.Redis
                     LogLocked(log, "Starting heartbeat...");
                     pulse = new Timer(heartbeat, this, MillisecondsPerHeartbeat, MillisecondsPerHeartbeat);
                 }
-                if(publishReconfigure)
+                if (publishReconfigure)
                 {
                     try
                     {
@@ -1404,7 +1419,8 @@ namespace StackExchange.Redis
                 }
                 return true;
 
-            } catch (Exception ex)
+            }
+            catch (Exception ex)
             {
                 Trace(ex.Message);
                 throw;
@@ -1422,7 +1438,7 @@ namespace StackExchange.Redis
         private void ResetAllNonConnected()
         {
             var snapshot = serverSnapshot;
-            foreach(var server in snapshot)
+            foreach (var server in snapshot)
             {
                 server.ResetNonConnected();
             }
@@ -1626,11 +1642,11 @@ namespace StackExchange.Redis
                     throw ExceptionFactory.MasterOnly(IncludeDetailInExceptions, message.Command, message, server);
                 }
 
-                switch(server.ServerType)
+                switch (server.ServerType)
                 {
                     case ServerType.Cluster:
                     case ServerType.Twemproxy: // strictly speaking twemproxy uses a different hashing algo, but the hash-tag behavior is
-                                               // the same, so this does a pretty good job of spotting illegal commands before sending them
+                        // the same, so this does a pretty good job of spotting illegal commands before sending them
                         if (message.GetHashSlot(ServerSelectionStrategy) == ServerSelectionStrategy.MultipleSlots)
                         {
                             throw ExceptionFactory.MultiSlot(IncludeDetailInExceptions, message);
@@ -1643,14 +1659,14 @@ namespace StackExchange.Redis
                     server = null;
                 }
             }
-            
+
             if (server != null)
             {
                 if (profiler != null)
                 {
                     var profCtx = profiler.GetContext();
 
-                    if(profCtx != null)
+                    if (profCtx != null)
                     {
                         ConcurrentProfileStorageCollection inFlightForCtx;
                         if (profiledCommands.TryGetValue(profCtx, out inFlightForCtx))
@@ -1801,7 +1817,7 @@ namespace StackExchange.Redis
             {
                 return CompletedTask<T>.Default(state);
             }
-            
+
             if (message.IsFireAndForget)
             {
                 TryPushMessageToBridge(message, processor, null, ref server);
@@ -1815,7 +1831,24 @@ namespace StackExchange.Redis
                 {
                     ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(IncludeDetailInExceptions, message.Command, message, server));
                 }
-                return tcs.Task;
+                return tcs.Task.ContinueWith
+                (
+                    t =>
+                    {
+                        T val = t.Result;
+                        RedisKey[] involvedKeys = null;
+                        ICommandInvolvingKeys commandWithKeys = message as ICommandInvolvingKeys;
+
+                        if (commandWithKeys != null)
+                            involvedKeys = commandWithKeys.InvolvedKeys;
+
+                        object rewritableVal = val;
+
+                        RedisServiceFactory.CommandHandlers.ExecuteAfterHandlers(message.Command, involvedKeys, ref rewritableVal);
+
+                        return (T)rewritableVal;
+                    }
+                );
             }
         }
 
@@ -1824,7 +1857,8 @@ namespace StackExchange.Redis
             try
             {
                 throw unthrownException;
-            } catch (Exception ex)
+            }
+            catch (Exception ex)
             {
                 source.TrySetException(ex);
                 GC.KeepAlive(source.Task.Exception);
@@ -1881,7 +1915,7 @@ namespace StackExchange.Redis
 
 #endif
                             var sb = new StringBuilder("Timeout performing ").Append(message.CommandAndKey);
-                            data = new List<Tuple<string, string>> {Tuple.Create("Message", message.CommandAndKey)};
+                            data = new List<Tuple<string, string>> { Tuple.Create("Message", message.CommandAndKey) };
                             Action<string, string, string> add = (lk, sk, v) =>
                             {
                                 data.Add(Tuple.Create(lk, v));
@@ -1934,7 +1968,17 @@ namespace StackExchange.Redis
                 ResultBox<T>.UnwrapAndRecycle(source, out val, out ex); // now that we aren't locking it...
                 if (ex != null) throw ex;
                 Trace(message + " received " + val);
-                return val;
+
+                RedisKey[] involvedKeys = null;
+                ICommandInvolvingKeys commandWithKeys = message as ICommandInvolvingKeys;
+
+                if (commandWithKeys != null)
+                    involvedKeys = commandWithKeys.InvolvedKeys;
+
+                object rewritableVal = val;
+                RedisServiceFactory.CommandHandlers.ExecuteAfterHandlers(message.Command, involvedKeys, ref rewritableVal);
+
+                return (T)rewritableVal;
             }
         }
         private static int GetThreadPoolStats(out string iocp, out string worker)
@@ -2024,5 +2068,5 @@ namespace StackExchange.Redis
 
             return GetSubscriber().PublishAsync(channel, RedisLiterals.Wildcard, flags);
         }
-    }   
+    }
 }

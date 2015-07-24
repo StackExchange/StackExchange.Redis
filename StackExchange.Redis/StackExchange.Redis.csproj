@@ -62,6 +62,7 @@
     <Reference Include="System.IO.Compression" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="StackExchange\Redis\RedisCommandHandlerConfiguration.cs" />
     <Compile Include="StackExchange\Redis\Aggregate.cs" />
     <Compile Include="StackExchange\Redis\ClientType.cs" />
     <Compile Include="StackExchange\Redis\ConcurrentProfileStorageCollection.cs" />
@@ -70,9 +71,12 @@
     </Compile>
     <Compile Include="StackExchange\Redis\ExtensionMethods.cs" />
     <Compile Include="StackExchange\Redis\HashEntry.cs" />
+    <Compile Include="StackExchange\Redis\ICommandInvolvingKeys.cs" />
     <Compile Include="StackExchange\Redis\IConnectionMultiplexer.cs" />
     <Compile Include="StackExchange\Redis\InternalErrorEventArgs.cs" />
     <Compile Include="StackExchange\Redis\IProfiler.cs" />
+    <Compile Include="StackExchange\Redis\IRedisCommandHandler.cs" />
+    <Compile Include="StackExchange\Redis\IRedisCommandHandlerExtensions.cs" />
     <Compile Include="StackExchange\Redis\MigrateOptions.cs" />
     <Compile Include="StackExchange\Redis\ProfileContextTracker.cs" />
     <Compile Include="StackExchange\Redis\ProfileStorage.cs" />
@@ -128,6 +132,7 @@
     <Compile Include="StackExchange\Redis\PhysicalConnection.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="StackExchange\Redis\RedisResult.cs" />
+    <Compile Include="StackExchange\Redis\RedisServiceFactory.cs" />
     <Compile Include="StackExchange\Redis\RedisTransaction.cs" />
     <Compile Include="StackExchange\Redis\RedisDatabase.cs" />
     <Compile Include="StackExchange\Redis\RedisFeatures.cs" />

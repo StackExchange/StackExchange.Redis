@@ -89,7 +89,7 @@ namespace StackExchange.Redis
             public static string TryNormalize(string value)
             {
                 string tmp;
-                if(value != null && normalizedOptions.TryGetValue(value, out tmp))
+                if (value != null && normalizedOptions.TryGetValue(value, out tmp))
                 {
                     return tmp ?? "";
                 }
@@ -98,6 +98,7 @@ namespace StackExchange.Redis
         }
 
 
+        private readonly RedisCommandHandlerConfiguration commandHandler = new RedisCommandHandlerConfiguration();
         private readonly EndPointCollection endpoints = new EndPointCollection();
 
         private bool? allowAdmin, abortOnConnectFail, resolveDns, ssl;
@@ -126,6 +127,8 @@ namespace StackExchange.Redis
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1009:DeclareEventHandlersCorrectly")]
         public event RemoteCertificateValidationCallback CertificateValidation;
 
+        public RedisCommandHandlerConfiguration CommandHandler { get { return commandHandler; } }
+
         /// <summary>
         /// Gets or sets whether connect/configuration timeouts should be explicitly notified via a TimeoutException
         /// </summary>
@@ -150,7 +153,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Automatically encodes and decodes channels
         /// </summary>
-        public RedisChannel ChannelPrefix { get;set; }
+        public RedisChannel ChannelPrefix { get; set; }
         /// <summary>
         /// The client name to use for all connections
         /// </summary>
@@ -192,8 +195,10 @@ namespace StackExchange.Redis
         /// <summary>
         /// Specifies the time in milliseconds that should be allowed for connection
         /// </summary>
-        public int ConnectTimeout {
-            get {
+        public int ConnectTimeout
+        {
+            get
+            {
                 if (connectTimeout.HasValue) return connectTimeout.GetValueOrDefault();
                 return Math.Max(5000, SyncTimeout); // default of 5 seconds unless SyncTimeout is higher
             }
@@ -239,7 +244,7 @@ namespace StackExchange.Redis
         /// Gets or sets the SocketManager instance to be used with these options; if this is null a per-multiplexer
         /// SocketManager is created automatically.
         /// </summary>
-        public SocketManager SocketManager {  get;set; }
+        public SocketManager SocketManager { get; set; }
         /// <summary>
         /// The target-host to use when validating SSL certificate; setting a value here enables SSL mode
         /// </summary>
@@ -286,7 +291,7 @@ namespace StackExchange.Redis
         /// <exception cref="ArgumentNullException"><paramref name="configuration"/> is <c>null</c>.</exception>
         /// <exception cref="ArgumentException"><paramref name="configuration"/> is empty.</exception>
         public static ConfigurationOptions Parse(string configuration)
-        {    
+        {
             var options = new ConfigurationOptions();
             options.DoParse(configuration, false);
             return options;
@@ -334,7 +339,7 @@ namespace StackExchange.Redis
                 connectRetry = connectRetry,
                 configCheckSeconds = configCheckSeconds,
                 responseTimeout = responseTimeout,
-				defaultDatabase = defaultDatabase,
+                defaultDatabase = defaultDatabase,
             };
             foreach (var item in endpoints)
                 options.endpoints.Add(item);
@@ -371,7 +376,7 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.TieBreaker, tieBreaker);
             Append(sb, OptionKeys.WriteBuffer, writeBuffer);
             Append(sb, OptionKeys.Ssl, ssl);
-            Append(sb, OptionKeys.SslHost, sslHost);            
+            Append(sb, OptionKeys.SslHost, sslHost);
             Append(sb, OptionKeys.ConfigChannel, configChannel);
             Append(sb, OptionKeys.AbortOnConnectFail, abortOnConnectFail);
             Append(sb, OptionKeys.ResolveDns, resolveDns);
@@ -455,7 +460,7 @@ namespace StackExchange.Redis
             if (!string.IsNullOrWhiteSpace(s))
             {
                 if (sb.Length != 0) sb.Append(',');
-                if(!string.IsNullOrEmpty(prefix))
+                if (!string.IsNullOrEmpty(prefix))
                 {
                     sb.Append(prefix).Append('=');
                 }
@@ -477,7 +482,7 @@ namespace StackExchange.Redis
             commandMap = null;
 
             CertificateSelection = null;
-            CertificateValidation = null;            
+            CertificateValidation = null;
             ChannelPrefix = default(RedisChannel);
             SocketManager = null;
         }
@@ -511,7 +516,7 @@ namespace StackExchange.Redis
                 int idx = option.IndexOf('=');
                 if (idx > 0)
                 {
-                    var key = option.Substring(0, idx).Trim();                        
+                    var key = option.Substring(0, idx).Trim();
                     var value = option.Substring(idx + 1).Trim();
 
                     switch (OptionKeys.TryNormalize(key))
@@ -592,7 +597,7 @@ namespace StackExchange.Redis
                             }
                             else
                             {
-                                if(!ignoreUnknown) OptionKeys.Unknown(key);
+                                if (!ignoreUnknown) OptionKeys.Unknown(key);
                             }
                             break;
                     }
@@ -609,10 +614,12 @@ namespace StackExchange.Redis
             }
         }
 
-        private string InferSslHostFromEndpoints() {
+        private string InferSslHostFromEndpoints()
+        {
             var dnsEndpoints = endpoints.Select(endpoint => endpoint as DnsEndPoint);
             string dnsHost = dnsEndpoints.First() != null ? dnsEndpoints.First().Host : null;
-            if (dnsEndpoints.All(dnsEndpoint => (dnsEndpoint != null && dnsEndpoint.Host == dnsHost))) {
+            if (dnsEndpoints.All(dnsEndpoint => (dnsEndpoint != null && dnsEndpoint.Host == dnsHost)))
+            {
                 return dnsHost;
             }
 
