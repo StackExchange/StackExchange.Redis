@@ -24,17 +24,33 @@
     {
         private readonly static HashSet<Type> supportedServices = new HashSet<Type> { typeof(IRedisCommandHandler) };
         private readonly static Dictionary<Type, HashSet<Type>> services = new Dictionary<Type, HashSet<Type>>();
-
         private readonly static Lazy<IEnumerable<IRedisCommandHandler>> lazyCommandHandlers = new Lazy<IEnumerable<IRedisCommandHandler>>(() => GetImplementations<IRedisCommandHandler>());
 
-        internal static HashSet<Type> SupportedService { get { return supportedServices; } }
+        /// <summary>
+        /// Gets supported services by this factory. USE IT ON TESTS ONLY (because supported services shouldn't change excepting in test for test purposes!).
+        /// </summary>
+        internal static HashSet<Type> SupportedServices { get { return supportedServices; } }
 
+        /// <summary>
+        /// Gets configured implementations' dictionary by type.
+        /// </summary>
         private static Dictionary<Type, HashSet<Type>> Services { get { return services; } }
 
         /// <summary>
         /// Gets or sets a delegate which implements how service implementations are obtained.
         /// </summary>
         public static Func<Type, Type, object> LifeTimeHandler { get; set; }
+
+        /// <summary>
+        /// Gets all command handler implementations. If there is no implementation, it returns null.
+        /// </summary>
+        internal static IEnumerable<IRedisCommandHandler> CommandHandlers
+        {
+            get
+            {
+                return lazyCommandHandlers.Value;
+            }
+        }
 
         /// <summary>
         /// Registers an implementation for the given service. Calling this method more than once will result in a many configured implementations for the same service.
@@ -45,7 +61,7 @@
         public static bool Register<TService, TImpl>()
             where TImpl : class, TService, new()
         {
-            if (!supportedServices.Contains(typeof(TService)))
+            if (!SupportedServices.Contains(typeof(TService)))
             {
                 throw new ArgumentException("Cannot register an implementation of an unsupported service type");
             }
@@ -72,7 +88,7 @@
         public static bool Unregister<TService, TImpl>()
             where TImpl : class, TService, new()
         {
-            if (!supportedServices.Contains(typeof(TService)))
+            if (!SupportedServices.Contains(typeof(TService)))
             {
                 throw new ArgumentException("Cannot unregister an implementation of an unsupported service type");
             }
@@ -88,6 +104,11 @@
         internal static IEnumerable<TService> GetImplementations<TService>()
             where TService : class
         {
+            if (!SupportedServices.Contains(typeof(TService)))
+            {
+                throw new ArgumentException("Cannot obtain implementations of an unsupported service type");
+            }
+
             if (Services.ContainsKey(typeof(TService)))
             {
                 return Services[typeof(TService)].Select
@@ -101,17 +122,6 @@
                 ).ToList();
             }
             else return null;
-        }
-
-        /// <summary>
-        /// Gets all command handler implementations. If there is no implementation, it returns null.
-        /// </summary>
-        internal static IEnumerable<IRedisCommandHandler> CommandHandlers
-        {
-            get
-            {
-                return lazyCommandHandlers.Value;
-            }
         }
     }
 }

@@ -53,9 +53,9 @@ namespace StackExchange.Redis.Tests
         [Test]
         public void CanRegisterSomeServiceWithImplementations()
         {
-            RedisServiceFactory.SupportedService.Add(typeof(ICustomService));
-            RedisServiceFactory.SupportedService.Add(typeof(ICustomService2));
-            RedisServiceFactory.SupportedService.Add(typeof(ICustomService3));
+            RedisServiceFactory.SupportedServices.Add(typeof(ICustomService));
+            RedisServiceFactory.SupportedServices.Add(typeof(ICustomService2));
+            RedisServiceFactory.SupportedServices.Add(typeof(ICustomService3));
 
             RedisServiceFactory.Register<ICustomService, CustomServiceImplementation>();
             RedisServiceFactory.Register<ICustomService, CustomServiceImplementation2>();
@@ -97,9 +97,9 @@ namespace StackExchange.Redis.Tests
         [Test]
         public void CanUnregisterSomeServiceImplementations()
         {
-            RedisServiceFactory.SupportedService.Add(typeof(ICustomService));
-            RedisServiceFactory.SupportedService.Add(typeof(ICustomService2));
-            RedisServiceFactory.SupportedService.Add(typeof(ICustomService3));
+            RedisServiceFactory.SupportedServices.Add(typeof(ICustomService));
+            RedisServiceFactory.SupportedServices.Add(typeof(ICustomService2));
+            RedisServiceFactory.SupportedServices.Add(typeof(ICustomService3));
 
             RedisServiceFactory.Register<ICustomService, CustomServiceImplementation>();
             RedisServiceFactory.Register<ICustomService, CustomServiceImplementation2>();
@@ -138,9 +138,9 @@ namespace StackExchange.Redis.Tests
         [Test]
         public void CustomObjectLifeTimeHandling()
         {
-            RedisServiceFactory.SupportedService.Add(typeof(ICustomService));
-            RedisServiceFactory.SupportedService.Add(typeof(ICustomService2));
-            RedisServiceFactory.SupportedService.Add(typeof(ICustomService3));
+            RedisServiceFactory.SupportedServices.Add(typeof(ICustomService));
+            RedisServiceFactory.SupportedServices.Add(typeof(ICustomService2));
+            RedisServiceFactory.SupportedServices.Add(typeof(ICustomService3));
 
             HashSet<Type> implTypes = new HashSet<Type>();
             Dictionary<Type, object> implInstances = new Dictionary<Type, object>();
@@ -201,7 +201,7 @@ namespace StackExchange.Redis.Tests
         [Test]
         public void NoServiceImplementationMustNotFail()
         {
-            RedisServiceFactory.SupportedService.Add(typeof(ICustomService));
+            RedisServiceFactory.SupportedServices.Add(typeof(ICustomService));
 
             Assert.DoesNotThrow(() => RedisServiceFactory.GetImplementations<ICustomService>());
         }
