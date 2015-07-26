@@ -40,6 +40,8 @@ Documentation
 - [Where are `KEYS` / `SCAN` / `FLUSH*`?](https://github.com/StackExchange/StackExchange.Redis/blob/master/Docs/KeysScan.md) - how to use server-based commands
 - [Profiling](https://github.com/StackExchange/StackExchange.Redis/blob/master/Docs/Profiling.md) - profiling interfaces, as well as how to profile in an `async` world
 - [Scripting](https://github.com/StackExchange/StackExchange.Redis/blob/master/Docs/Scripting.md) - running Lua scripts with convenient named parameter replacement 
+- [Components](https://github.com/StackExchange/StackExchange.Redis/blob/master/Docs/Components.md#ioc) - introduces how to extend this library using a basic built-in inversion of control container.
+- [Command handlers](https://github.com/StackExchange/StackExchange.Redis/blob/master/Docs/Components.md#handlers) - explains how to intercept Redis commands and modify their inputs and outputs.
 
 Questions and Contributions
 ---
