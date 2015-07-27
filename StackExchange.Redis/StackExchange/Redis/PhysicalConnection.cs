@@ -128,14 +128,18 @@ namespace StackExchange.Redis
             if (outStream != null)
             {
                 multiplexer.Trace("Disconnecting...", physicalName);
-                try { outStream.Close(); } catch { }
-                try { outStream.Dispose(); } catch { }
+                try { outStream.Close(); }
+                catch { }
+                try { outStream.Dispose(); }
+                catch { }
                 outStream = null;
             }
             if (netStream != null)
             {
-                try { netStream.Close(); } catch { }
-                try { netStream.Dispose(); } catch { }
+                try { netStream.Close(); }
+                catch { }
+                try { netStream.Dispose(); }
+                catch { }
                 netStream = null;
             }
             if (socketToken.HasValue)
@@ -171,7 +175,7 @@ namespace StackExchange.Redis
             PhysicalBridge.State oldState;
             int @in = -1, ar = -1;
             bridge.OnDisconnected(failureType, this, out isCurrent, out oldState);
-            if(oldState == PhysicalBridge.State.ConnectedEstablished)
+            if (oldState == PhysicalBridge.State.ConnectedEstablished)
             {
                 try
                 {
@@ -208,13 +212,13 @@ namespace StackExchange.Redis
                 add("Pending", "pending", bridge.GetPendingCount().ToString());
                 add("Previous-Physical-State", "state", oldState.ToString());
 
-                if(@in >= 0)
+                if (@in >= 0)
                 {
                     add("Inbound-Bytes", "in", @in.ToString());
                     add("Active-Readers", "ar", ar.ToString());
                 }
 
-                add("Last-Heartbeat", "last-heartbeat", (lastBeat == 0 ? "never" : (unchecked(now - lastBeat)/1000 + "s ago"))+ (bridge.IsBeating ? " (mid-beat)" : "") );
+                add("Last-Heartbeat", "last-heartbeat", (lastBeat == 0 ? "never" : (unchecked(now - lastBeat) / 1000 + "s ago")) + (bridge.IsBeating ? " (mid-beat)" : ""));
                 add("Last-Multiplexer-Heartbeat", "last-mbeat", multiplexer.LastHeartbeatSecondsAgo + "s ago");
                 add("Last-Global-Heartbeat", "global", ConnectionMultiplexer.LastGlobalHeartbeatSecondsAgo + "s ago");
 #if !__MonoCS__
@@ -222,7 +226,7 @@ namespace StackExchange.Redis
                 add("SocketManager-State", "mgr", mgr.State.ToString());
                 add("Last-Error", "err", mgr.LastErrorTimeRelative());
 #endif
-                
+
                 var ex = innerException == null
                     ? new RedisConnectionException(failureType, exMessage.ToString())
                     : new RedisConnectionException(failureType, exMessage.ToString(), innerException);
@@ -328,7 +332,7 @@ namespace StackExchange.Redis
                     return null;
                 }
 
-                if(message.Command == RedisCommand.SELECT)
+                if (message.Command == RedisCommand.SELECT)
                 {
                     // this could come from an EVAL/EVALSHA inside a transaction, for example; we'll accept it
                     bridge.Trace("Switching database: " + targetDatabase);
@@ -415,6 +419,13 @@ namespace StackExchange.Redis
             WriteUnified(outStream, ChannelPrefix, channel.Value);
         }
 
+        internal static bool AssertExpectedValues(int expectedLength, RedisValue[] values)
+        {
+            if (values == null && expectedLength > 0 || values.Length != expectedLength)
+                throw new InvalidOperationException("Unexpected number of values to write to physical connection");
+            else return true;
+        }
+
         internal void Write(RedisValue value)
         {
             if (value.IsInteger)
@@ -425,6 +436,13 @@ namespace StackExchange.Redis
             {
                 WriteUnified(outStream, (byte[])value);
             }
+        }
+
+        internal void Write(RedisValue[] values)
+        {
+            if (values != null && values.Length > 0)
+                for (int valueIndex = 0; valueIndex < values.Length; valueIndex++)
+                    Write(values[valueIndex]);
         }
 
         internal void WriteHeader(RedisCommand command, int arguments)
@@ -535,10 +553,11 @@ namespace StackExchange.Redis
             if (value == null)
             {
                 WriteRaw(stream, -1);
-            } else
+            }
+            else
             {
                 WriteRaw(stream, value.Length * 2);
-                for(int i = 0; i < value.Length; i++)
+                for (int i = 0; i < value.Length; i++)
                 {
                     stream.WriteByte(ToHexNibble(value[i] >> 4));
                     stream.WriteByte(ToHexNibble(value[i] & 15));
@@ -654,7 +673,7 @@ namespace StackExchange.Redis
                     }
                 } while (keepReading);
             }
-            catch(System.IO.IOException ex)
+            catch (System.IO.IOException ex)
             {
                 multiplexer.Trace("Could not connect: " + ex.Message, physicalName);
             }
@@ -685,7 +704,8 @@ namespace StackExchange.Redis
                 {
                     return delegate { return new X509Certificate2(pfxPath, pfxPassword ?? "", flags ?? X509KeyStorageFlags.DefaultKeySet); };
                 }
-            } catch
+            }
+            catch
             { }
             return null;
         }
@@ -702,7 +722,7 @@ namespace StackExchange.Redis
                 // [network]<==[ssl]<==[logging]<==[buffered]
                 var config = multiplexer.RawConfig;
 
-                if(config.Ssl)
+                if (config.Ssl)
                 {
                     multiplexer.LogLocked(log, "Configuring SSL");
                     var host = config.SslHost;
@@ -711,9 +731,9 @@ namespace StackExchange.Redis
                     var ssl = new SslStream(stream, false, config.CertificateValidationCallback,
                         config.CertificateSelectionCallback ?? GetAmbientCertificateCallback()
 #if !__MonoCS__
-                        , EncryptionPolicy.RequireEncryption
+, EncryptionPolicy.RequireEncryption
 #endif
-                        );
+);
                     ssl.AuthenticateAsClient(host);
                     if (!ssl.IsEncrypted)
                     {
@@ -926,7 +946,8 @@ namespace StackExchange.Redis
             catch (Exception ex)
             {
                 RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
-            }finally
+            }
+            finally
             {
                 Interlocked.Decrement(ref haveReader);
             }
@@ -952,12 +973,12 @@ namespace StackExchange.Redis
                 if (itemCountActual < 0)
                 {
                     //for null response by command like EXEC, RESP array: *-1\r\n
-                    return new RawResult(ResultType.SimpleString, null, 0, 0); 
+                    return new RawResult(ResultType.SimpleString, null, 0, 0);
                 }
                 else if (itemCountActual == 0)
                 {
                     //for zero array response by command like SCAN, Resp array: *0\r\n 
-                    return RawResult.EmptyArray; 
+                    return RawResult.EmptyArray;
                 }
 
                 var arr = new RawResult[itemCountActual];
@@ -1022,11 +1043,11 @@ namespace StackExchange.Redis
         }
         RawResult TryParseResult(byte[] buffer, ref int offset, ref int count)
         {
-            if(count == 0) return RawResult.Nil;
+            if (count == 0) return RawResult.Nil;
 
             char resultType = (char)buffer[offset++];
             count--;
-            switch(resultType)
+            switch (resultType)
             {
                 case '+': // simple string
                     return ReadLineTerminatedString(ResultType.SimpleString, buffer, ref offset, ref count);
