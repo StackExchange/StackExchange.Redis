@@ -72,8 +72,10 @@
     <Compile Include="ConnectToUnexistingHost.cs" />
     <Compile Include="HyperLogLog.cs" />
     <Compile Include="Issues\DefaultDatabase.cs" />
-	<Compile Include="Profiling.cs" />
+    <Compile Include="Profiling.cs" />
     <Compile Include="Issues\Issue182.cs" />
+    <Compile Include="RedisCommandHandlerTest.cs" />
+    <Compile Include="RedisServiceFactoryTest.cs" />
     <Compile Include="WrapperBaseTests.cs" />
     <Compile Include="TransactionWrapperTests.cs" />
     <Compile Include="Bits.cs" />
