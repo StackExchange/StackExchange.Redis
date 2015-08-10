@@ -80,19 +80,21 @@ namespace StackExchange.Redis
         private readonly Queue<PhysicalBridge> writeQueue = new Queue<PhysicalBridge>();
 
         bool isDisposed;
+        private bool useHighPrioritySocketThreads = true;
 
         /// <summary>
         /// Creates a new (optionally named) SocketManager instance
         /// </summary>
-        public SocketManager(string name = null)
+        public SocketManager(string name = null, bool useHighPrioritySocketThreads = true)
         {
             if (string.IsNullOrWhiteSpace(name)) name = GetType().Name;
             this.name = name;
+            this.useHighPrioritySocketThreads = useHighPrioritySocketThreads;
 
             // we need a dedicated writer, because when under heavy ambient load
             // (a busy asp.net site, for example), workers are not reliable enough
             Thread dedicatedWriter = new Thread(writeAllQueues, 32 * 1024); // don't need a huge stack;
-            dedicatedWriter.Priority = ThreadPriority.AboveNormal; // time critical
+            dedicatedWriter.Priority = useHighPrioritySocketThreads ? ThreadPriority.AboveNormal : ThreadPriority.Normal; 
             dedicatedWriter.Name = name + ":Write";
             dedicatedWriter.IsBackground = true; // should not keep process alive
             dedicatedWriter.Start(this); // will self-exit when disposed

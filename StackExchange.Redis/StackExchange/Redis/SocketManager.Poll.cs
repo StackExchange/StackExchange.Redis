@@ -400,7 +400,7 @@ namespace StackExchange.Redis
             var thread = new Thread(read, 32 * 1024); // don't need a huge stack
             thread.Name = name + ":Read";
             thread.IsBackground = true;
-            thread.Priority = ThreadPriority.AboveNormal; // time critical
+            thread.Priority = useHighPrioritySocketThreads ? ThreadPriority.AboveNormal : ThreadPriority.Normal; 
             thread.Start(this);
         }
         [StructLayout(LayoutKind.Sequential)]
