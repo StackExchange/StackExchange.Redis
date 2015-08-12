@@ -53,11 +53,13 @@
     <Reference Include="BookSleeve">
       <HintPath>..\packages\BookSleeve.1.3.41\lib\BookSleeve.dll</HintPath>
     </Reference>
-    <Reference Include="Moq">
-      <HintPath>..\packages\Moq.4.2.1409.1722\lib\net40\Moq.dll</HintPath>
+    <Reference Include="Moq, Version=4.2.1502.911, Culture=neutral, PublicKeyToken=69f491c39445e920, processorArchitecture=MSIL">
+      <HintPath>..\packages\Moq.4.2.1502.0911\lib\net40\Moq.dll</HintPath>
+      <Private>True</Private>
     </Reference>
-    <Reference Include="nunit.framework">
-      <HintPath>..\StackExchange.Redis\packages\NUnit.2.6.3\lib\nunit.framework.dll</HintPath>
+    <Reference Include="nunit.framework, Version=2.6.4.14350, Culture=neutral, PublicKeyToken=96d09a1eb7f44a77, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\packages\NUnit.2.6.4\lib\nunit.framework.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -67,8 +69,12 @@
     <Compile Include="AsyncTests.cs" />
     <Compile Include="BasicOps.cs" />
     <Compile Include="ConnectingFailDetection.cs" />
+    <Compile Include="ConnectToUnexistingHost.cs" />
     <Compile Include="HyperLogLog.cs" />
     <Compile Include="SentinelMasterSwitching.cs" />
+    <Compile Include="Issues\DefaultDatabase.cs" />
+    <Compile Include="Profiling.cs" />
+    <Compile Include="Issues\Issue182.cs" />
     <Compile Include="WrapperBaseTests.cs" />
     <Compile Include="TransactionWrapperTests.cs" />
     <Compile Include="Bits.cs" />

@@ -38,6 +38,11 @@ namespace StackExchange.Redis
         bool IsSlave { get; }
 
         /// <summary>
+        /// Explicitly opt in for slave writes on writable slaves
+        /// </summary>
+        bool AllowSlaveWrites { get; set; }
+
+        /// <summary>
         /// Gets the operating mode of the connected server
         /// </summary>
         ServerType ServerType { get; }
@@ -46,7 +51,7 @@ namespace StackExchange.Redis
         /// Gets the version of the connected server
         /// </summary>
         Version Version { get; }
-
+        
         /// <summary>
         /// The CLIENT KILL command closes a given client connection identified by ip:port.
         /// The ip:port should match a line returned by the CLIENT LIST command.
@@ -312,7 +317,17 @@ namespace StackExchange.Redis
         /// <summary>
         /// Explicitly defines a script on the server
         /// </summary>
+        LoadedLuaScript ScriptLoad(LuaScript script, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Explicitly defines a script on the server
+        /// </summary>
         Task<byte[]> ScriptLoadAsync(string script, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Explicitly defines a script on the server
+        /// </summary>
+        Task<LoadedLuaScript> ScriptLoadAsync(LuaScript script, CommandFlags flags = CommandFlags.None);
 
         /// <summary>Asks the redis server to shutdown, killing all connections. Please FULLY read the notes on the SHUTDOWN command.</summary>
         /// <remarks>http://redis.io/commands/shutdown</remarks>

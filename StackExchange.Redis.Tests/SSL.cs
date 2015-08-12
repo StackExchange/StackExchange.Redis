@@ -2,11 +2,9 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Net;
-using NUnit.Framework;
 using System.Linq;
 using System.Security.Cryptography.X509Certificates;
-using System.Net.Security;
+using NUnit.Framework;
 
 namespace StackExchange.Redis.Tests
 {
@@ -271,6 +269,25 @@ namespace StackExchange.Redis.Tests
                 Environment.SetEnvironmentVariable("SERedis_ClientCertPfxPath", null);
             }
 
+        }
+
+        [Test]
+        public void SSLHostInferredFromEndpoints() {
+            var options = new ConfigurationOptions() {
+                EndPoints = { 
+                              { "mycache.rediscache.windows.net", 15000},
+                              { "mycache.rediscache.windows.net", 15001 },
+                              { "mycache.rediscache.windows.net", 15002 },
+                            }
+                };
+            options.Ssl = true;
+            Assert.True(options.SslHost == "mycache.rediscache.windows.net");
+            options = new ConfigurationOptions() {
+                EndPoints = { 
+                              { "121.23.23.45", 15000},
+                            }
+            };
+            Assert.True(options.SslHost == null);
         }
 
     }

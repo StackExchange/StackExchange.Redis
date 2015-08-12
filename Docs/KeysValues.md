@@ -64,7 +64,7 @@ or perhaps more simply, just use the provided `Nullable<T>` support:
 Hashes
 ---
 
-Since the field names in hashes do not affect command routing, they are not keys, but can take both text and binary names; thus they are treates as values for the purposes of the API.
+Since the field names in hashes do not affect command routing, they are not keys, but can take both text and binary names; thus they are treated as values for the purposes of the API.
 
 Channels
 ---
@@ -93,4 +93,4 @@ The response uses the `RedisResult` type (this is unique to scripting; usually t
 Conclusion
 ---
 
-The types used in the API are very deliberately chosen to distinguish redis *keys* from *values*. However, in virtually all cases you will not need to directly refer to the unerlying types involved, as conversion operations are provided.
+The types used in the API are very deliberately chosen to distinguish redis *keys* from *values*. However, in virtually all cases you will not need to directly refer to the underlying types involved, as conversion operations are provided.

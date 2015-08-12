@@ -35,7 +35,7 @@ The object returned from `GetDatabase` is a cheap pass-thru object, and does not
     object asyncState = ...
     IDatabase db = redis.GetDatabase(databaseNumber, asyncState);
 
-Once you have the `IDatabase`, it is simply a case of using the [redis API](http://redis.io/commands). Note that all methods have both synchronous and asynchronous implementaions. In line with Microsoft's naming guidance, the asynchronous methods all end `...Async(...)`, and are fully `await`-able etc.
+Once you have the `IDatabase`, it is simply a case of using the [redis API](http://redis.io/commands). Note that all methods have both synchronous and asynchronous implementations. In line with Microsoft's naming guidance, the asynchronous methods all end `...Async(...)`, and are fully `await`-able etc.
 
 The simplest operation would be to store and retrieve a value:
 
@@ -82,7 +82,7 @@ For maintenance purposes, it is sometimes necessary to issue server-specific com
 
     IServer server = redis.GetServer("localhost", 6379);
 
-The `GetServer` method will accept an [`EndPoint`](http://msdn.microsoft.com/en-us/library/system.net.endpoint(v=vs.110).aspx) or the name/value pair that uniquely identify the server. As before, the object returned from `GetServer` is a cheap pass-thru object that does not to be stored, and async-state can be optionally specified. Note that the set of available endpoints is also available:
+The `GetServer` method will accept an [`EndPoint`](http://msdn.microsoft.com/en-us/library/system.net.endpoint(v=vs.110).aspx) or the name/value pair that uniquely identify the server. As before, the object returned from `GetServer` is a cheap pass-thru object that does not need to be stored, and async-state can be optionally specified. Note that the set of available endpoints is also available:
 
     EndPoint[] endpoints = redis.GetEndPoints();
 
@@ -100,12 +100,12 @@ There are 3 primary usage mechanisms with StackExchange.Redis:
 - Asynchronous - where the operation completes some time in the future, and a `Task` or `Task<T>` is returned immediately, which can later:
  - be `.Wait()`ed (blocking the current thread until the response is available)
  - have a continuation callback added ([`ContinueWith`](http://msdn.microsoft.com/en-us/library/system.threading.tasks.task.continuewith(v=vs.110).aspx) in the TPL)
- - be *awaited* (which is a language-level feature that simplfies the latter, while also continuing immediately if the reply is already known)
+ - be *awaited* (which is a language-level feature that simplifies the latter, while also continuing immediately if the reply is already known)
 - Fire-and-Forget - where you really aren't interested in the reply, and are happy to continue irrespective of the response
 
 The synchronous usage is already shown in the examples above. This is the simplest usage, and does not involve the [TPL][1].
 
-For asynchronous uage, the key difference is the `Async` suffix on methods, and (typically) the use of the `await` language feature. For example:
+For asynchronous usage, the key difference is the `Async` suffix on methods, and (typically) the use of the `await` language feature. For example:
 
     string value = "abcdefg";
     await db.StringSetAsync("mykey", value);

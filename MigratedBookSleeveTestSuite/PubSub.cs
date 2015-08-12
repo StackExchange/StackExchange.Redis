@@ -1,10 +1,10 @@
-﻿using NUnit.Framework;
-using System.Threading;
-using System.Text;
-using System;
-using System.Diagnostics;
-using System.Threading.Tasks;
+﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using NUnit.Framework;
 using StackExchange.Redis;
 
 namespace Tests

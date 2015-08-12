@@ -27,8 +27,15 @@ namespace StackExchange.Redis
         {
             PhysicalConnection physical;
             if (result.CompletedSynchronously || (physical = result.AsyncState as PhysicalConnection) == null) return;
-            physical.multiplexer.Trace("Completed synchronously: processing in callback", physical.physicalName);
-            if (physical.EndReading(result)) physical.BeginReading();
+            try
+            {
+                physical.multiplexer.Trace("Completed synchronously: processing in callback", physical.physicalName);
+                if (physical.EndReading(result)) physical.BeginReading();
+            }
+            catch (Exception ex)
+            {
+                physical.RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
+            }
         };
 
         private static readonly byte[] message = Encoding.UTF8.GetBytes("message"), pmessage = Encoding.UTF8.GetBytes("pmessage");
@@ -64,6 +71,7 @@ namespace StackExchange.Redis
         int ioBufferBytes = 0;
 
         int lastWriteTickCount, lastReadTickCount, lastBeatTickCount;
+        int firstUnansweredWriteTickCount;
 
         private Stream netStream, outStream;
 
@@ -83,12 +91,13 @@ namespace StackExchange.Redis
             OnCreateEcho();
         }
 
-        public void BeginConnect()
+        public void BeginConnect(TextWriter log)
         {
+            Thread.VolatileWrite(ref firstUnansweredWriteTickCount, 0);
             var endpoint = this.bridge.ServerEndPoint.EndPoint;
 
             multiplexer.Trace("Connecting...", physicalName);
-            this.socketToken = multiplexer.SocketManager.BeginConnect(endpoint, this);
+            this.socketToken = multiplexer.SocketManager.BeginConnect(endpoint, this, multiplexer, log);
         }
 
         private enum ReadMode : byte
@@ -160,34 +169,70 @@ namespace StackExchange.Redis
             bridge.Trace("Failed: " + failureType);
             bool isCurrent;
             PhysicalBridge.State oldState;
+            int @in = -1, ar = -1;
             bridge.OnDisconnected(failureType, this, out isCurrent, out oldState);
+            if(oldState == PhysicalBridge.State.ConnectedEstablished)
+            {
+                try
+                {
+                    @in = GetAvailableInboundBytes(out ar);
+                }
+                catch { /* best effort only */ }
+            }
 
             if (isCurrent && Interlocked.CompareExchange(ref failureReported, 1, 0) == 0)
             {
-                //try
-                //{
                 int now = Environment.TickCount, lastRead = Thread.VolatileRead(ref lastReadTickCount), lastWrite = Thread.VolatileRead(ref lastWriteTickCount),
                     lastBeat = Thread.VolatileRead(ref lastBeatTickCount);
+                int unansweredRead = Thread.VolatileRead(ref firstUnansweredWriteTickCount);
 
-                string message = failureType + " on " + Format.ToString(bridge.ServerEndPoint.EndPoint) + "/" + connectionType
-                    + ", input-buffer: " + ioBufferBytes + ", outstanding: " + GetSentAwaitingResponseCount()
-                    + ", last-read: " + unchecked(now - lastRead) / 1000 + "s ago, last-write: " + unchecked(now - lastWrite) / 1000 + "s ago, keep-alive: " + bridge.ServerEndPoint.WriteEverySeconds + "s, pending: "
-                    + bridge.GetPendingCount() + ", state: " + oldState + ", last-heartbeat: " + (lastBeat == 0 ? "never" : (unchecked(now - lastBeat) / 1000 + "s ago"))
-                    + (bridge.IsBeating ? " (mid-beat)" : "") + ", last-mbeat: " + multiplexer.LastHeartbeatSecondsAgo + "s ago, global: "
-                    + ConnectionMultiplexer.LastGlobalHeartbeatSecondsAgo + "s ago";
+                var exMessage = new StringBuilder(failureType + " on " + Format.ToString(bridge.ServerEndPoint.EndPoint) + "/" + connectionType);
+                var data = new List<Tuple<string, string>>
+                {
+                    Tuple.Create("FailureType", failureType.ToString()),
+                    Tuple.Create("EndPoint", Format.ToString(bridge.ServerEndPoint.EndPoint))
+                };
+                Action<string, string, string> add = (lk, sk, v) =>
+                {
+                    data.Add(Tuple.Create(lk, v));
+                    exMessage.Append(", " + sk + ": " + v);
+                };
 
+                add("Origin", "origin", origin);
+                add("Input-Buffer", "input-buffer", ioBufferBytes.ToString());
+                add("Outstanding-Responses", "outstanding", GetSentAwaitingResponseCount().ToString());
+                add("Last-Read", "last-read", unchecked(now - lastRead) / 1000 + "s ago");
+                add("Last-Write", "last-write", unchecked(now - lastWrite) / 1000 + "s ago");
+                add("Unanswered-Write", "unanswered-write", unchecked(now - unansweredRead) / 1000 + "s ago");
+                add("Keep-Alive", "keep-alive", bridge.ServerEndPoint.WriteEverySeconds + "s");
+                add("Pending", "pending", bridge.GetPendingCount().ToString());
+                add("Previous-Physical-State", "state", oldState.ToString());
+
+                if(@in >= 0)
+                {
+                    add("Inbound-Bytes", "in", @in.ToString());
+                    add("Active-Readers", "ar", ar.ToString());
+                }
+
+                add("Last-Heartbeat", "last-heartbeat", (lastBeat == 0 ? "never" : (unchecked(now - lastBeat)/1000 + "s ago"))+ (bridge.IsBeating ? " (mid-beat)" : "") );
+                add("Last-Multiplexer-Heartbeat", "last-mbeat", multiplexer.LastHeartbeatSecondsAgo + "s ago");
+                add("Last-Global-Heartbeat", "global", ConnectionMultiplexer.LastGlobalHeartbeatSecondsAgo + "s ago");
+#if !__MonoCS__
+                var mgr = bridge.Multiplexer.SocketManager;
+                add("SocketManager-State", "mgr", mgr.State.ToString());
+                add("Last-Error", "err", mgr.LastErrorTimeRelative());
+#endif
+                
                 var ex = innerException == null
-                    ? new RedisConnectionException(failureType, message)
-                    : new RedisConnectionException(failureType, message, innerException);
+                    ? new RedisConnectionException(failureType, exMessage.ToString())
+                    : new RedisConnectionException(failureType, exMessage.ToString(), innerException);
+
+                foreach (var kv in data)
+                {
+                    ex.Data["Redis-" + kv.Item1] = kv.Item2;
+                }
 
                 bridge.OnConnectionFailed(this, failureType, ex);
-                //    throw ex;
-                //}
-                //catch (Exception caught)
-                //{
-                //    bridge.OnConnectionFailed(this, failureType, caught);
-                //}
-
             }
 
             // cleanup
@@ -390,6 +435,10 @@ namespace StackExchange.Redis
                 throw ExceptionFactory.CommandDisabled(multiplexer.IncludeDetailInExceptions, command, null, bridge.ServerEndPoint);
             }
             outStream.WriteByte((byte)'*');
+
+            // remember the time of the first write that still not followed by read
+            Interlocked.CompareExchange(ref firstUnansweredWriteTickCount, Environment.TickCount, 0);
+
             WriteRaw(outStream, arguments + 1);
             WriteUnified(outStream, commandBytes);
         }
@@ -624,15 +673,23 @@ namespace StackExchange.Redis
             {
                 var pfxPath = Environment.GetEnvironmentVariable("SERedis_ClientCertPfxPath");
                 var pfxPassword = Environment.GetEnvironmentVariable("SERedis_ClientCertPassword");
+                var pfxStorageFlags = Environment.GetEnvironmentVariable("SERedis_ClientCertStorageFlags");
+
+                X509KeyStorageFlags? flags = null;
+                if (!string.IsNullOrEmpty(pfxStorageFlags))
+                {
+                    flags = Enum.Parse(typeof(X509KeyStorageFlags), pfxStorageFlags) as X509KeyStorageFlags?;
+                }
+
                 if (!string.IsNullOrEmpty(pfxPath) && File.Exists(pfxPath))
                 {
-                    return delegate { return new X509Certificate2(pfxPath, pfxPassword ?? ""); };
-                }                
+                    return delegate { return new X509Certificate2(pfxPath, pfxPassword ?? "", flags ?? X509KeyStorageFlags.DefaultKeySet); };
+                }
             } catch
             { }
             return null;
         }
-        SocketMode ISocketCallback.Connected(Stream stream)
+        SocketMode ISocketCallback.Connected(Stream stream, TextWriter log)
         {
             try
             {
@@ -647,6 +704,7 @@ namespace StackExchange.Redis
 
                 if(config.Ssl)
                 {
+                    multiplexer.LogLocked(log, "Configuring SSL");
                     var host = config.SslHost;
                     if (string.IsNullOrWhiteSpace(host)) host = Format.ToStringHostOnly(bridge.ServerEndPoint.EndPoint);
 
@@ -671,9 +729,9 @@ namespace StackExchange.Redis
                 int bufferSize = config.WriteBuffer;
                 this.netStream = stream;
                 this.outStream = bufferSize <= 0 ? stream : new BufferedStream(stream, bufferSize);
-                multiplexer.Trace("Connected", physicalName);
+                multiplexer.LogLocked(log, "Connected {0}", bridge);
 
-                bridge.OnConnected(this);
+                bridge.OnConnected(this, log);
                 return socketMode;
             }
             catch (Exception ex)
@@ -825,6 +883,10 @@ namespace StackExchange.Redis
             }
 
             Interlocked.Exchange(ref lastReadTickCount, Environment.TickCount);
+
+            // reset unanswered write timestamp
+            Thread.VolatileWrite(ref firstUnansweredWriteTickCount, 0);
+
             ioBufferBytes += bytesRead;
             multiplexer.Trace("More bytes available: " + bytesRead + " (" + ioBufferBytes + ")", physicalName);
             int offset = 0, count = ioBufferBytes;
@@ -869,6 +931,15 @@ namespace StackExchange.Redis
                 Interlocked.Decrement(ref haveReader);
             }
         }
+
+        bool ISocketCallback.IsDataAvailable
+        {
+            get
+            {
+                try { return socketToken.Available > 0; }
+                catch { return false; }
+            }
+        }
         private RawResult ReadArray(byte[] buffer, ref int offset, ref int count)
         {
             var itemCount = ReadLineTerminatedString(ResultType.Integer, buffer, ref offset, ref count);
@@ -878,7 +949,16 @@ namespace StackExchange.Redis
                 if (!itemCount.TryGetInt64(out i64)) throw ExceptionFactory.ConnectionFailure(multiplexer.IncludeDetailInExceptions, ConnectionFailureType.ProtocolFailure, "Invalid array length", bridge.ServerEndPoint);
                 int itemCountActual = checked((int)i64);
 
-                if (itemCountActual <= 0) return RawResult.EmptyArray;
+                if (itemCountActual < 0)
+                {
+                    //for null response by command like EXEC, RESP array: *-1\r\n
+                    return new RawResult(ResultType.SimpleString, null, 0, 0); 
+                }
+                else if (itemCountActual == 0)
+                {
+                    //for zero array response by command like SCAN, Resp array: *0\r\n 
+                    return RawResult.EmptyArray; 
+                }
 
                 var arr = new RawResult[itemCountActual];
                 for (int i = 0; i < itemCountActual; i++)
@@ -960,6 +1040,23 @@ namespace StackExchange.Redis
                     return ReadArray(buffer, ref offset, ref count);
                 default:
                     throw new InvalidOperationException("Unexpected response prefix: " + (char)resultType);
+            }
+        }
+
+        partial void DebugEmulateStaleConnection(ref int firstUnansweredWrite);
+
+        public void CheckForStaleConnection()
+        {
+            int firstUnansweredWrite;
+            firstUnansweredWrite = Thread.VolatileRead(ref firstUnansweredWriteTickCount);
+
+            DebugEmulateStaleConnection(ref firstUnansweredWrite);
+
+            int now = Environment.TickCount;
+
+            if (firstUnansweredWrite != 0 && (now - firstUnansweredWrite) > this.multiplexer.RawConfig.ResponseTimeout)
+            {
+                this.RecordConnectionFailed(ConnectionFailureType.SocketFailure, origin: "CheckForStaleConnection");
             }
         }
     }

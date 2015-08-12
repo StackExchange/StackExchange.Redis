@@ -1,10 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using NUnit.Framework;
 using System.Globalization;
+using NUnit.Framework;
 
 namespace StackExchange.Redis.Tests
 {
@@ -160,6 +156,53 @@ namespace StackExchange.Redis.Tests
             Assert.AreEqual((byte)'a', blob[0]);
             Assert.AreEqual((byte)'b', blob[1]);
             Assert.AreEqual((byte)'c', blob[2]);
+        }
+
+        [Test]
+        public void TryParse()
+        {
+            {
+                RedisValue val = "1";
+                int i;
+                Assert.IsTrue(val.TryParse(out i));
+                Assert.AreEqual(1, i);
+                long l;
+                Assert.IsTrue(val.TryParse(out l));
+                Assert.AreEqual(1L, l);
+                double d;
+                Assert.IsTrue(val.TryParse(out d));
+                Assert.AreEqual(1.0, l);
+            }
+
+            {
+                RedisValue val = "8675309";
+                int i;
+                Assert.IsTrue(val.TryParse(out i));
+                Assert.AreEqual(8675309, i);
+                long l;
+                Assert.IsTrue(val.TryParse(out l));
+                Assert.AreEqual(8675309L, l);
+                double d;
+                Assert.IsTrue(val.TryParse(out d));
+                Assert.AreEqual(8675309.0, l);
+            }
+
+            {
+                RedisValue val = "3.14159";
+                double d;
+                Assert.IsTrue(val.TryParse(out d));
+                Assert.AreEqual(3.14159, d);
+            }
+
+            {
+                RedisValue val = "not a real number";
+                int i;
+                Assert.IsFalse(val.TryParse(out i));
+                long l;
+                Assert.IsFalse(val.TryParse(out l));
+                double d;
+                Assert.IsFalse(val.TryParse(out d));
+            }
         }
     }
 }

@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Runtime.Serialization;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -12,6 +14,7 @@ namespace StackExchange.Redis
     [Serializable]
     public sealed class RedisCommandException : Exception
     {
+        private RedisCommandException(SerializationInfo info, StreamingContext ctx) : base(info, ctx) { }
         internal RedisCommandException(string message) : base(message) { }
         internal RedisCommandException(string message, Exception innerException) : base(message, innerException) { }
     }
@@ -22,9 +25,21 @@ namespace StackExchange.Redis
     /// Indicates a connection fault when communicating with redis
     /// </summary>
     [Serializable]
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2240:ImplementISerializableCorrectly")]
     public sealed class RedisConnectionException : RedisException
     {
+        private RedisConnectionException(SerializationInfo info, StreamingContext ctx) : base(info, ctx)
+        {
+            this.FailureType = (ConnectionFailureType)info.GetInt32("failureType");
+        }
+        /// <summary>
+        /// Serialization implementation; not intended for general usage
+        /// </summary>
+        public override void GetObjectData(SerializationInfo info, StreamingContext context)
+        {
+            base.GetObjectData(info, context);
+            info.AddValue("failureType", (int)this.FailureType);
+        }
+
         internal RedisConnectionException(ConnectionFailureType failureType, string message) : base(message)
         {
             this.FailureType = failureType;
@@ -46,6 +61,11 @@ namespace StackExchange.Redis
     [Serializable]
     public class RedisException : Exception
     {
+        /// <summary>
+        /// Deserialization constructor; not intended for general usage
+        /// </summary>
+        protected RedisException(SerializationInfo info, StreamingContext ctx) : base(info, ctx) { }
+        
         internal RedisException(string message) : base(message) { }
         internal RedisException(string message, Exception innerException) : base(message, innerException) { }
     }
@@ -55,9 +75,53 @@ namespace StackExchange.Redis
     [Serializable]
     public sealed class RedisServerException : RedisException
     {
+        private RedisServerException(SerializationInfo info, StreamingContext ctx) : base(info, ctx) { }
+        
         internal RedisServerException(string message) : base(message) { }
     }
 
+    sealed class LoggingMessage : Message
+    {
+        public readonly TextWriter log;
+        private readonly Message tail;
+
+        public static Message Create(TextWriter log, Message tail)
+        {
+            return log == null ? tail : new LoggingMessage(log, tail);
+        }
+        private LoggingMessage(TextWriter log, Message tail) : base(tail.Db, tail.Flags, tail.Command)
+        {
+            this.log = log;
+            this.tail = tail;
+            this.FlagsRaw = tail.FlagsRaw;
+        }
+        public override string CommandAndKey
+        {
+            get
+            {
+                return tail.CommandAndKey;
+            }
+        }
+        public override void AppendStormLog(StringBuilder sb)
+        {
+            tail.AppendStormLog(sb);
+        }
+        public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
+        {
+            return tail.GetHashSlot(serverSelectionStrategy);
+        }
+        internal override void WriteImpl(PhysicalConnection physical)
+        {
+            try
+            {
+                physical.Multiplexer.LogLocked(log, "Writing to {0}: {1}", physical.Bridge, tail.CommandAndKey);
+            }
+            catch { }
+            tail.WriteImpl(physical);
+        }
+
+        public TextWriter Log { get { return log; } }
+    }
 
     abstract class Message : ICompletable
     {
@@ -79,10 +143,15 @@ namespace StackExchange.Redis
             | CommandFlags.HighPriority | CommandFlags.FireAndForget | CommandFlags.NoRedirect;
 
         private CommandFlags flags;
-
+        internal CommandFlags FlagsRaw { get { return flags; } set { flags = value; } }
         private ResultBox resultBox;
 
         private ResultProcessor resultProcessor;
+
+        // All for profiling purposes
+        private ProfileStorage performance;
+        internal DateTime createdDateTime;
+        internal long createdTimestamp;
 
         protected Message(int db, CommandFlags flags, RedisCommand command)
         {
@@ -121,6 +190,30 @@ namespace StackExchange.Redis
             this.Db = db;
             this.command = command;
             this.flags = flags & UserSelectableFlags;
+
+            createdDateTime = DateTime.UtcNow;
+            createdTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+        }
+
+        internal void SetProfileStorage(ProfileStorage storage)
+        {
+            performance = storage;
+            performance.SetMessage(this);
+        }
+
+        internal void PrepareToResend(ServerEndPoint resendTo, bool isMoved)
+        {
+            if (performance == null) return;
+
+            var oldPerformance = performance;
+
+            oldPerformance.SetCompleted();
+            performance = null;
+
+            createdDateTime = DateTime.UtcNow;
+            createdTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+            performance = ProfileStorage.NewAttachedToSameContext(oldPerformance, resendTo, isMoved);
+            performance.SetMessage(this);
         }
 
         public RedisCommand Command { get { return command; } }
@@ -395,15 +488,32 @@ namespace StackExchange.Redis
                 resultProcessor == null ? "(n/a)" : resultProcessor.GetType().Name);
         }
 
+        public void SetResponseReceived()
+        {
+            if (performance != null)
+            {
+                performance.SetResponseReceived();
+            }
+        }
+
         public bool TryComplete(bool isAsync)
         {
             if (resultBox != null)
             {
-                return resultBox.TryComplete(isAsync);
+                var ret = resultBox.TryComplete(isAsync);
+                if (performance != null)
+                {
+                    performance.SetCompleted();
+                }
+                return ret;
             }
             else
             {
                 ConnectionMultiplexer.TraceWithoutContext("No result-box to complete for " + Command, "Message");
+                if (performance != null)
+                {
+                    performance.SetCompleted();
+                }
                 return true;
             }
         }
@@ -536,6 +646,22 @@ namespace StackExchange.Redis
             if (resultProcessor != null)
             {
                 resultProcessor.ConnectionFail(this, failure, innerException);
+            }
+        }
+
+        internal void SetEnqueued()
+        {
+            if(performance != null)
+            {
+                performance.SetEnqueued();
+            }
+        }
+
+        internal void SetRequestSent()
+        {
+            if (performance != null)
+            {
+                performance.SetRequestSent();
             }
         }
 

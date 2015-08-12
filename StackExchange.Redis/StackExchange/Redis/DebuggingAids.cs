@@ -1,10 +1,8 @@
 ﻿using System;
-using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Diagnostics;
-using System.Text.RegularExpressions;
+
 namespace StackExchange.Redis
 {
 #if DEBUG
@@ -259,6 +257,26 @@ namespace StackExchange.Redis
         bool ISocketCallback.IgnoreConnect
         {
             get { return multiplexer.IgnoreConnect; }
+        }
+
+        private volatile static bool emulateStaleConnection;
+        public static bool EmulateStaleConnection 
+        { get
+            {
+                return emulateStaleConnection;
+            }
+            set
+            {
+                emulateStaleConnection = value;
+            }
+        }
+
+        partial void DebugEmulateStaleConnection(ref int firstUnansweredWrite)
+        {
+            if (emulateStaleConnection)
+            {
+                firstUnansweredWrite = Environment.TickCount - 100000;
+            }
         }
     }
 #endif

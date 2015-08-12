@@ -150,6 +150,7 @@ namespace StackExchange.Redis
             internal override void WriteImpl(PhysicalConnection physical)
             {
                 wrapped.WriteImpl(physical);
+                wrapped.SetRequestSent();
             }
         }
 
@@ -413,6 +414,19 @@ namespace StackExchange.Redis
                             if (tran.IsAborted && result.IsEqual(RedisLiterals.BytesOK))
                             {
                                 connection.Multiplexer.Trace("Acknowledging UNWATCH (aborted electively)");
+                                SetResult(message, false);
+                                return true;
+                            }
+                            //EXEC returned with a NULL
+                            if (!tran.IsAborted && result.IsNull)
+                            {
+                                connection.Multiplexer.Trace("Server aborted due to failed EXEC");
+                                //cancel the commands in the transaction and mark them as complete with the completion manager
+                                foreach (var op in wrapped)
+                                {
+                                    op.Wrapped.Cancel();
+                                    bridge.CompleteSyncOrAsync(op.Wrapped);
+                                }
                                 SetResult(message, false);
                                 return true;
                             }

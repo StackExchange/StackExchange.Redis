@@ -47,15 +47,18 @@
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
-    <Reference Include="System.IO">
-      <HintPath>..\packages\Microsoft.Bcl.1.1.9\lib\net40\System.IO.dll</HintPath>
+    <Reference Include="System.IO, Version=2.6.10.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.Bcl.1.1.10\lib\net40\System.IO.dll</HintPath>
+      <Private>True</Private>
     </Reference>
     <Reference Include="System.Net" />
-    <Reference Include="System.Runtime">
-      <HintPath>..\packages\Microsoft.Bcl.1.1.9\lib\net40\System.Runtime.dll</HintPath>
+    <Reference Include="System.Runtime, Version=2.6.10.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.Bcl.1.1.10\lib\net40\System.Runtime.dll</HintPath>
+      <Private>True</Private>
     </Reference>
-    <Reference Include="System.Threading.Tasks">
-      <HintPath>..\packages\Microsoft.Bcl.1.1.9\lib\net40\System.Threading.Tasks.dll</HintPath>
+    <Reference Include="System.Threading.Tasks, Version=2.6.10.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.Bcl.1.1.10\lib\net40\System.Threading.Tasks.dll</HintPath>
+      <Private>True</Private>
     </Reference>
   </ItemGroup>
   <ItemGroup>
@@ -66,6 +69,10 @@
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ClientInfo.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ClientType.cs">
       <Link>ClientType.cs</Link>
+    </Compile>
+    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ConcurrentProfileStorageCollection.cs" />
+    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ConnectionMultiplexer.Profiling.cs">
+      <DependentUpon>ConnectionMultiplexer.cs</DependentUpon>
     </Compile>
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ClusterConfiguration.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\CommandFlags.cs" />
@@ -93,10 +100,12 @@
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\HashSlotMovedEventArgs.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IBatch.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ICompletable.cs" />
+    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IConnectionMultiplexer.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IDatabase.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IDatabaseAsync.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IMultiMessage.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\InternalErrorEventArgs.cs" />
+    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IProfiler.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IRedis.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IRedisAsync.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IServer.cs" />
@@ -107,6 +116,9 @@
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\MessageCompletable.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\MessageQueue.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\MigrateOptions.cs" />
+    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ProfileContextTracker.cs" />
+    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ProfileStorage.cs" />
+    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\LuaScript.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\Order.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\PhysicalBridge.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\PhysicalConnection.cs" />
@@ -130,6 +142,7 @@
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ResultBox.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ResultProcessor.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ResultType.cs" />
+    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ScriptParameterMapper.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\SaveType.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ServerCounters.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ServerEndPoint.cs" />

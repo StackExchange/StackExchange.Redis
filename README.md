@@ -38,6 +38,8 @@ Documentation
 - [Events](https://github.com/StackExchange/StackExchange.Redis/blob/master/Docs/Events.md) - the events available for logging / information purposes
 - [Pub/Sub Message Order](https://github.com/StackExchange/StackExchange.Redis/blob/master/Docs/PubSubOrder.md) - advice on sequential and concurrent processing
 - [Where are `KEYS` / `SCAN` / `FLUSH*`?](https://github.com/StackExchange/StackExchange.Redis/blob/master/Docs/KeysScan.md) - how to use server-based commands
+- [Profiling](https://github.com/StackExchange/StackExchange.Redis/blob/master/Docs/Profiling.md) - profiling interfaces, as well as how to profile in an `async` world
+- [Scripting](https://github.com/StackExchange/StackExchange.Redis/blob/master/Docs/Scripting.md) - running Lua scripts with convenient named parameter replacement 
 
 Questions and Contributions
 ---

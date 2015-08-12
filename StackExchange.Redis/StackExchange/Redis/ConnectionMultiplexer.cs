@@ -9,6 +9,7 @@ using System.Net;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Collections.Concurrent;
 #if NET40
 using Microsoft.Runtime.CompilerServices;
 #else
@@ -49,8 +50,32 @@ namespace StackExchange.Redis
     /// <summary>
     /// Represents an inter-related group of connections to redis servers
     /// </summary>
-    public sealed partial class ConnectionMultiplexer : IDisposable
+    public sealed partial class ConnectionMultiplexer : IConnectionMultiplexer, IDisposable
     {
+        private static TaskFactory _factory = null;
+
+        /// <summary>
+        /// Provides a way of overriding the default Task Factory. If not set, it will use the default Task.Factory.
+        /// Useful when top level code sets it's own factory which may interfere with Redis queries.
+        /// </summary>
+        public static TaskFactory Factory
+        {
+            get
+            {
+                if (_factory != null)
+                {
+                    return _factory;
+                }
+
+                return Task.Factory;
+            }
+            set
+            {
+                _factory = value;
+                
+            }
+        }
+
         /// <summary>
         /// Get summary statistics associates with this server
         /// </summary>
@@ -379,23 +404,23 @@ namespace StackExchange.Redis
 
         internal void LogLocked(TextWriter log, string line)
         {
-            lock (LogSyncLock) { log.WriteLine(line); }
+            if(log != null) lock (LogSyncLock) { log.WriteLine(line); }
         }
         internal void LogLocked(TextWriter log, string line, object arg)
         {
-            lock (LogSyncLock) { log.WriteLine(line, arg); }
+            if (log != null) lock (LogSyncLock) { log.WriteLine(line, arg); }
         }
         internal void LogLocked(TextWriter log, string line, object arg0, object arg1)
         {
-            lock (LogSyncLock) { log.WriteLine(line, arg0, arg1); }
+            if (log != null) lock (LogSyncLock) { log.WriteLine(line, arg0, arg1); }
         }
         internal void LogLocked(TextWriter log, string line, object arg0, object arg1, object arg2)
         {
-            lock (LogSyncLock) { log.WriteLine(line, arg0, arg1, arg2); }
+            if (log != null) lock (LogSyncLock) { log.WriteLine(line, arg0, arg1, arg2); }
         }
         internal void LogLocked(TextWriter log, string line, params object[] args)
         {
-            lock (LogSyncLock) { log.WriteLine(line, args); }
+            if (log != null) lock (LogSyncLock) { log.WriteLine(line, args); }
         }
 
         internal void CheckMessage(Message message)
@@ -535,24 +560,68 @@ namespace StackExchange.Redis
             }
             return false;
         }
-        private static async Task<bool> WaitAllIgnoreErrorsAsync(Task[] tasks, int timeoutMilliseconds)
+        private void LogLockedWithThreadPoolStats(TextWriter log, string message, out int busyWorkerCount)
+        {
+            busyWorkerCount = 0;
+            if(log != null)
+            {
+                var sb = new StringBuilder();
+                sb.Append(message);
+                string iocp, worker;
+                busyWorkerCount = GetThreadPoolStats(out iocp, out worker);
+                sb.Append(", IOCP: ").Append(iocp).Append(", WORKER: ").Append(worker);
+                LogLocked(log, sb.ToString());
+            }
+        }
+        static bool AllComplete(Task[] tasks)
+        {
+            for(int i = 0 ; i < tasks.Length ; i++)
+            {
+                var task = tasks[i];
+                if (!task.IsCanceled && !task.IsCompleted && !task.IsFaulted)
+                    return false;
+            }
+            return true;
+        }
+        private async Task<bool> WaitAllIgnoreErrorsAsync(Task[] tasks, int timeoutMilliseconds, TextWriter log)
         {
             if (tasks == null) throw new ArgumentNullException("tasks");
-            if (tasks.Length == 0) return true;
+            if (tasks.Length == 0)
+            {
+                LogLocked(log, "No tasks to await");
+                return true;
+            }
+
+            if (AllComplete(tasks))
+            {
+                LogLocked(log, "All tasks are already complete");
+                return true;
+            }
+
             var watch = Stopwatch.StartNew();
+            int busyWorkerCount;
+            LogLockedWithThreadPoolStats(log, "Awaiting task completion", out busyWorkerCount);
 
             try
             {
                 // if none error, great
+                var remaining = timeoutMilliseconds - checked((int)watch.ElapsedMilliseconds);
+                if (remaining <= 0)
+                {
+                    LogLockedWithThreadPoolStats(log, "Timeout before awaiting for tasks", out busyWorkerCount);
+                    return false;
+                }
 
 #if NET40
                 var allTasks = TaskEx.WhenAll(tasks).ObserveErrors();
-                var any = TaskEx.WhenAny(allTasks, TaskEx.Delay(timeoutMilliseconds)).ObserveErrors();
+                var any = TaskEx.WhenAny(allTasks, TaskEx.Delay(remaining)).ObserveErrors();
 #else
                 var allTasks = Task.WhenAll(tasks).ObserveErrors();
-                var any = Task.WhenAny(allTasks, Task.Delay(timeoutMilliseconds)).ObserveErrors();
+                var any = Task.WhenAny(allTasks, Task.Delay(remaining)).ObserveErrors();
 #endif
-                return await any.ForAwait() == allTasks;
+                bool all = await any.ForAwait() == allTasks;
+                LogLockedWithThreadPoolStats(log, all ? "All tasks completed cleanly" : "Not all tasks completed cleanly", out busyWorkerCount);
+                return all;
             }
             catch
             { }
@@ -565,7 +634,11 @@ namespace StackExchange.Redis
                 if (!task.IsCanceled && !task.IsCompleted && !task.IsFaulted)
                 {
                     var remaining = timeoutMilliseconds - checked((int)watch.ElapsedMilliseconds);
-                    if (remaining <= 0) return false;
+                    if (remaining <= 0)
+                    {
+                        LogLockedWithThreadPoolStats(log, "Timeout awaiting tasks", out busyWorkerCount);
+                        return false;
+                    }
                     try
                     {
 #if NET40
@@ -579,6 +652,7 @@ namespace StackExchange.Redis
                     { }
                 }
             }
+            LogLockedWithThreadPoolStats(log, "Finished awaiting tasks", out busyWorkerCount);
             return false;
         }
 
@@ -747,48 +821,35 @@ namespace StackExchange.Redis
         /// </summary>
         public static ConnectionMultiplexer Connect(string configuration, TextWriter log = null)
         {
-            IDisposable killMe = null;
-            try
-            {
-                var muxer = CreateMultiplexer(configuration);
-                killMe = muxer;
-                // note that task has timeouts internally, so it might take *just over* the reegular timeout
-                var task = muxer.ReconfigureAsync(true, false, log, null, "connect");
-                if (!task.Wait(muxer.SyncConnectTimeout(true)))
-                {
-                    task.ObserveErrors();
-                    if (muxer.RawConfig.AbortOnConnectFail)
-                    {
-                        throw new TimeoutException();
-                    }
-                }
-                if(!task.Result) throw ExceptionFactory.UnableToConnect(muxer.failureMessage);
-                killMe = null;
-                return muxer;
-            }
-            finally
-            {
-                if (killMe != null) try { killMe.Dispose(); } catch { }
-            }            
+            return ConnectImpl(() => CreateMultiplexer(configuration), log);
         }
+
         /// <summary>
         /// Create a new ConnectionMultiplexer instance
         /// </summary>
         public static ConnectionMultiplexer Connect(ConfigurationOptions configuration, TextWriter log = null)
         {
+            return ConnectImpl(() => CreateMultiplexer(configuration), log);
+        }
+
+        private static ConnectionMultiplexer ConnectImpl(Func<ConnectionMultiplexer> multiplexerFactory, TextWriter log)
+        {
             IDisposable killMe = null;
             try
             {
-                var muxer = CreateMultiplexer(configuration);
+                var muxer = multiplexerFactory();
                 killMe = muxer;
+
                 // note that task has timeouts internally and 500ms are allowed for sentinel query if used, so it might take *just over* the regular timeout
-                var task = muxer.ReconfigureAsync(true, false, log, null, "connect");
+                // wrap into task to force async execution
+                var task = Factory.StartNew(() => { return muxer.ReconfigureAsync(true, false, log, null, "connect").Result; });
+
                 if (!task.Wait(muxer.SyncConnectTimeout(true)))
                 {
                     task.ObserveErrors();
                     if (muxer.RawConfig.AbortOnConnectFail)
                     {
-                        throw new TimeoutException();
+                        throw ExceptionFactory.UnableToConnect("Timeout");
                     }
                 }
                 if (!task.Result) throw ExceptionFactory.UnableToConnect(muxer.failureMessage);
@@ -820,7 +881,7 @@ namespace StackExchange.Redis
                     {
                         if (isDisposed) throw new ObjectDisposedException(ToString());
 
-                        server = new ServerEndPoint(this, endpoint);
+                        server = new ServerEndPoint(this, endpoint, null);
                         servers.Add(endpoint, server);
 
                         var newSnapshot = serverSnapshot;
@@ -932,8 +993,11 @@ namespace StackExchange.Redis
         /// <summary>
         /// Obtain an interactive connection to a database inside redis
         /// </summary>
-        public IDatabase GetDatabase(int db = 0, object asyncState = null)
+        public IDatabase GetDatabase(int db = -1, object asyncState = null)
         {
+            if (db == -1)
+                db = configuration.DefaultDatabase ?? 0;
+
             if (db < 0) throw new ArgumentOutOfRangeException("db");
             if (db != 0 && RawConfig.Proxy == Proxy.Twemproxy) throw new NotSupportedException("Twemproxy only supports database 0");
             return new RedisDatabase(this, db, asyncState);
@@ -1108,6 +1172,7 @@ namespace StackExchange.Redis
         {
             if (isDisposed) throw new ObjectDisposedException(ToString());
             bool showStats = true;
+
             if (log == null)
             {
                 log = TextWriter.Null;
@@ -1178,17 +1243,17 @@ namespace StackExchange.Redis
                         serverSnapshot = new ServerEndPoint[configuration.EndPoints.Count];
                         foreach (var endpoint in configuration.EndPoints)
                         {
-                            var server = new ServerEndPoint(this, endpoint);
+                            var server = new ServerEndPoint(this, endpoint, log);
                             serverSnapshot[index++] = server;
                             this.servers.Add(endpoint, server);
                         }
                     }
                     foreach (var server in serverSnapshot)
                     {
-                        server.Activate(ConnectionType.Interactive);
+                        server.Activate(ConnectionType.Interactive, log);
                         if (this.CommandMap.IsAvailable(RedisCommand.SUBSCRIBE))
                         {
-                            server.Activate(ConnectionType.Subscription);
+                            server.Activate(ConnectionType.Subscription, null); // no need to log the SUB stuff
                         }
                     }
                 }
@@ -1229,20 +1294,20 @@ namespace StackExchange.Redis
                             // so we know that the configuration will be up to date if we see the tracer
                             server.AutoConfigure(null);
                         }
-                        available[i] = server.SendTracer();
-                        Message msg;
+                        available[i] = server.SendTracer(log);
                         if (useTieBreakers)
                         {
                             LogLocked(log, "Requesting tie-break from {0} > {1}...", Format.ToString(server.EndPoint), configuration.TieBreaker);
-                            msg = Message.Create(0, flags, RedisCommand.GET, tieBreakerKey);
+                            Message msg = Message.Create(0, flags, RedisCommand.GET, tieBreakerKey);
                             msg.SetInternalCall();
+                            msg = LoggingMessage.Create(log, msg);
                             tieBreakers[i] = server.QueueDirectAsync(msg, ResultProcessor.String);
                         }
                     }
 
                     LogLocked(log, "Allowing endpoints {0} to respond...", TimeSpan.FromMilliseconds(configuration.ConnectTimeout));
                     Trace("Allowing endpoints " + TimeSpan.FromMilliseconds(configuration.ConnectTimeout) + " to respond...");
-                    await WaitAllIgnoreErrorsAsync(available, configuration.ConnectTimeout).ForAwait();
+                    await WaitAllIgnoreErrorsAsync(available, configuration.ConnectTimeout, log).ForAwait();
                     List<ServerEndPoint> masters = new List<ServerEndPoint>(available.Length);
 
                     for (int i = 0; i < available.Length; i++)
@@ -1443,7 +1508,7 @@ namespace StackExchange.Redis
             if (useTieBreakers)
             {   // count the votes
                 uniques = new Dictionary<string, int>(StringComparer.InvariantCultureIgnoreCase);
-                await WaitAllIgnoreErrorsAsync(tieBreakers, 50).ForAwait();
+                await WaitAllIgnoreErrorsAsync(tieBreakers, 50, log).ForAwait();
                 for (int i = 0; i < tieBreakers.Length; i++)
                 {
                     var ep = servers[i].EndPoint;
@@ -1558,7 +1623,36 @@ namespace StackExchange.Redis
                     return servers[i];
             }
             LogLocked(log, "...but we couldn't find that");
+            var deDottedEndpoint = DeDotifyHost(endpoint);
+            for (int i = 0; i < servers.Length; i++)
+            {
+                if (string.Equals(DeDotifyHost(Format.ToString(servers[i].EndPoint)), deDottedEndpoint, StringComparison.OrdinalIgnoreCase))
+                {
+                    LogLocked(log, "...but we did find instead: {0}", deDottedEndpoint);
+                    return servers[i];
+                }
+            }
             return null;
+        }
+
+        static string DeDotifyHost(string input)
+        {
+            if (string.IsNullOrWhiteSpace(input)) return input; // GIGO
+
+            if (!char.IsLetter(input[0])) return input; // need first char to be alpha for this to work
+
+            int periodPosition = input.IndexOf('.');
+            if (periodPosition <= 0) return input; // no period or starts with a period? nothing useful to split
+
+            int colonPosition = input.IndexOf(':');
+            if (colonPosition > 0)
+            { // has a port specifier
+                return input.Substring(0, periodPosition) + input.Substring(colonPosition);
+            }
+            else
+            {
+                return input.Substring(0, periodPosition);
+            }
         }
 
         internal void UpdateClusterRange(ClusterConfiguration configuration)
@@ -1622,8 +1716,23 @@ namespace StackExchange.Redis
                     server = null;
                 }
             }
+            
             if (server != null)
             {
+                if (profiler != null)
+                {
+                    var profCtx = profiler.GetContext();
+
+                    if(profCtx != null)
+                    {
+                        ConcurrentProfileStorageCollection inFlightForCtx;
+                        if (profiledCommands.TryGetValue(profCtx, out inFlightForCtx))
+                        {
+                            message.SetProfileStorage(ProfileStorage.NewWithContext(inFlightForCtx, server));
+                        }
+                    }
+                }
+
                 if (message.Db >= 0)
                 {
                     int availableDatabases = server.Databases;
@@ -1742,7 +1851,7 @@ namespace StackExchange.Redis
             if (allowCommandsToComplete)
             {
                 var quits = QuitAllServers();
-                await WaitAllIgnoreErrorsAsync(quits, configuration.SyncTimeout).ForAwait();
+                await WaitAllIgnoreErrorsAsync(quits, configuration.SyncTimeout, null).ForAwait();
             }
 
             DisposeAndClearServers();
@@ -1765,6 +1874,7 @@ namespace StackExchange.Redis
             {
                 return CompletedTask<T>.Default(state);
             }
+            
             if (message.IsFireAndForget)
             {
                 TryPushMessageToBridge(message, processor, null, ref server);
@@ -1829,6 +1939,7 @@ namespace StackExchange.Redis
                         Trace("Timeout performing " + message.ToString());
                         Interlocked.Increment(ref syncTimeouts);
                         string errMessage;
+                        List<Tuple<string, string>> data = null;
                         if (server == null || !IncludeDetailInExceptions)
                         {
                             errMessage = "Timeout performing " + message.Command.ToString();
@@ -1836,20 +1947,40 @@ namespace StackExchange.Redis
                         else
                         {
                             int inst, qu, qs, qc, wr, wq, @in, ar;
+                            string iocp, worker;
 #if !__MonoCS__
                             var mgrState = socketManager.State;
-#endif
-                            int queue = server.GetOutstandingCount(message.Command, out inst, out qu, out qs, out qc, out wr, out wq, out @in, out ar);
-                            var sb = new StringBuilder("Timeout performing ").Append(message.CommandAndKey)
-                                .Append(", inst: ").Append(inst)
-#if !__MonoCS__
-                                .Append(", mgr: ").Append(mgrState)
-#endif
-                                .Append(", queue: ").Append(queue).Append(", qu=").Append(qu)
-                                .Append(", qs=").Append(qs).Append(", qc=").Append(qc)
-                                .Append(", wr=").Append(wr).Append("/").Append(wq)
-                                .Append(", in=").Append(@in).Append("/").Append(ar);
+                            var lastError = socketManager.LastErrorTimeRelative();
 
+#endif
+                            var sb = new StringBuilder("Timeout performing ").Append(message.CommandAndKey);
+                            data = new List<Tuple<string, string>> {Tuple.Create("Message", message.CommandAndKey)};
+                            Action<string, string, string> add = (lk, sk, v) =>
+                            {
+                                data.Add(Tuple.Create(lk, v));
+                                sb.Append(", " + sk + ": " + v);
+                            };
+
+                            int queue = server.GetOutstandingCount(message.Command, out inst, out qu, out qs, out qc, out wr, out wq, out @in, out ar);
+                            int busyWorkerCount = GetThreadPoolStats(out iocp, out worker);
+                            add("Instantaneous", "inst", inst.ToString());
+#if !__MonoCS__
+                            add("Manager-State", "mgr", mgrState.ToString());
+                            add("Last-Error", "err", lastError);
+#endif
+                            add("Queue-Length", "queue", queue.ToString());
+                            add("Queue-Outstanding", "qu", qu.ToString());
+                            add("Queue-Awaiting-Response", "qs", qs.ToString());
+                            add("Queue-Completion-Outstanding", "qc", qc.ToString());
+                            add("Active-Writers", "wr", wr.ToString());
+                            add("Write-Queue", "wq", wq.ToString());
+                            add("Inbound-Bytes", "in", @in.ToString());
+                            add("Active-Readers", "ar", ar.ToString());
+
+                            add("ThreadPool-IO-Completion", "IOCP", iocp);
+                            add("ThreadPool-Workers", "WORKER", worker);
+                            add("Client-Name", "clientName", ClientName);
+                            data.Add(Tuple.Create("Busy-Workers", busyWorkerCount.ToString()));
                             errMessage = sb.ToString();
                             if (stormLogThreshold >= 0 && queue >= stormLogThreshold && Interlocked.CompareExchange(ref haveStormLog, 1, 0) == 0)
                             {
@@ -1858,7 +1989,15 @@ namespace StackExchange.Redis
                                 else Interlocked.Exchange(ref stormLogSnapshot, log);
                             }
                         }
-                        throw ExceptionFactory.Timeout(IncludeDetailInExceptions, errMessage, message, server);
+                        var timeoutEx = ExceptionFactory.Timeout(IncludeDetailInExceptions, errMessage, message, server);
+                        if (data != null)
+                        {
+                            foreach (var kv in data)
+                            {
+                                timeoutEx.Data["Redis-" + kv.Item1] = kv.Item2;
+                            }
+                        }
+                        throw timeoutEx;
                         // very important not to return "source" to the pool here
                     }
                 }
@@ -1870,6 +2009,27 @@ namespace StackExchange.Redis
                 Trace(message + " received " + val);
                 return val;
             }
+        }
+        private static int GetThreadPoolStats(out string iocp, out string worker)
+        {
+            //BusyThreads =  TP.GetMaxThreads() –TP.GetAVailable();
+            //If BusyThreads >= TP.GetMinThreads(), then threadpool growth throttling is possible.
+
+            int maxIoThreads, maxWorkerThreads;
+            ThreadPool.GetMaxThreads(out maxWorkerThreads, out maxIoThreads);
+
+            int freeIoThreads, freeWorkerThreads;
+            ThreadPool.GetAvailableThreads(out freeWorkerThreads, out freeIoThreads);
+
+            int minIoThreads, minWorkerThreads;
+            ThreadPool.GetMinThreads(out minWorkerThreads, out minIoThreads);
+
+            int busyIoThreads = maxIoThreads - freeIoThreads;
+            int busyWorkerThreads = maxWorkerThreads - freeWorkerThreads;
+
+            iocp = string.Format("(Busy={0},Free={1},Min={2},Max={3})", busyIoThreads, freeIoThreads, minIoThreads, maxIoThreads);
+            worker = string.Format("(Busy={0},Free={1},Min={2},Max={3})", busyWorkerThreads, freeWorkerThreads, minWorkerThreads, maxWorkerThreads);
+            return busyWorkerThreads;
         }
 
         /// <summary>
@@ -1936,7 +2096,6 @@ namespace StackExchange.Redis
             if (channel == null) return CompletedTask<long>.Default(null);
 
             return GetSubscriber().PublishAsync(channel, RedisLiterals.Wildcard, flags);
-        }        
+        }
     }   
-
 }

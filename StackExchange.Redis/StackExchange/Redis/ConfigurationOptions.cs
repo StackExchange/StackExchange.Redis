@@ -2,11 +2,12 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Security;
 using System.Text;
 using System.Threading.Tasks;
-using System.Linq;
+
 namespace StackExchange.Redis
 {
 
@@ -73,7 +74,7 @@ namespace StackExchange.Redis
                         TieBreaker = "tiebreaker", WriteBuffer = "writeBuffer", Ssl = "ssl", SslHost = "sslHost",
                         ConfigChannel = "configChannel", AbortOnConnectFail = "abortConnect", ResolveDns = "resolveDns",
                         ChannelPrefix = "channelPrefix", Proxy = "proxy", ConnectRetry = "connectRetry",
-                        ConfigCheckSeconds = "configCheckSeconds";
+                        ConfigCheckSeconds = "configCheckSeconds", ResponseTimeout = "responseTimeout", DefaultDatabase = "defaultDatabase";
             private static readonly Dictionary<string, string> normalizedOptions = new[]
             {
                 AllowAdmin, SyncTimeout,
@@ -82,7 +83,7 @@ namespace StackExchange.Redis
                 TieBreaker, WriteBuffer, Ssl, SslHost,
                 ConfigChannel, AbortOnConnectFail, ResolveDns,
                 ChannelPrefix, Proxy, ConnectRetry,
-                ConfigCheckSeconds
+                ConfigCheckSeconds, DefaultDatabase,
             }.ToDictionary(x => x, StringComparer.InvariantCultureIgnoreCase);
 
             public static string TryNormalize(string value)
@@ -107,7 +108,7 @@ namespace StackExchange.Redis
 
         private Version defaultVersion;
 
-        private int? keepAlive, syncTimeout, connectTimeout, writeBuffer, connectRetry, configCheckSeconds;
+        private int? keepAlive, syncTimeout, connectTimeout, responseTimeout, writeBuffer, connectRetry, configCheckSeconds, defaultDatabase;
 
         private Proxy? proxy;
 
@@ -153,7 +154,7 @@ namespace StackExchange.Redis
         /// </summary>
         public RedisChannel ChannelPrefix { get;set; }
         /// <summary>
-        /// The client name to user for all connections
+        /// The client name to use for all connections
         /// </summary>
         public string ClientName { get { return clientName; } set { clientName = value; } }
 
@@ -249,12 +250,18 @@ namespace StackExchange.Redis
         /// <summary>
         /// The target-host to use when validating SSL certificate; setting a value here enables SSL mode
         /// </summary>
-        public string SslHost { get { return sslHost; } set { sslHost = value; } }
+        public string SslHost { get { return sslHost ?? InferSslHostFromEndpoints(); } set { sslHost = value; } }
 
         /// <summary>
-        /// Specifies the time in milliseconds that the system should allow for synchronous operations
+        /// Specifies the time in milliseconds that the system should allow for synchronous operations (defaults to 1 second)
         /// </summary>
         public int SyncTimeout { get { return syncTimeout.GetValueOrDefault(1000); } set { syncTimeout = value; } }
+
+        /// <summary>
+        /// Specifies the time in milliseconds that the system should allow for responses before concluding that the socket is unhealthy
+        /// (defaults to SyncTimeout)
+        /// </summary>
+        public int ResponseTimeout { get { return responseTimeout ?? SyncTimeout; } set { responseTimeout = value; } }
 
         /// <summary>
         /// Tie-breaker used to choose between masters (must match the endpoint exactly)
@@ -264,6 +271,11 @@ namespace StackExchange.Redis
         /// The size of the output buffer to use
         /// </summary>
         public int WriteBuffer { get { return writeBuffer.GetValueOrDefault(4096); } set { writeBuffer = value; } }
+
+        /// <summary>
+        /// Specifies the default database to be used when calling ConnectionMultiplexer.GetDatabase() without any parameters
+        /// </summary>
+        public int? DefaultDatabase { get { return defaultDatabase; } set { defaultDatabase = value; } }
 
         internal LocalCertificateSelectionCallback CertificateSelectionCallback { get { return CertificateSelection; } private set { CertificateSelection = value; } }
 
@@ -328,7 +340,9 @@ namespace StackExchange.Redis
                 SocketManager = SocketManager,
                 connectRetry = connectRetry,
                 configCheckSeconds = configCheckSeconds,
-                sentinelConnection = sentinelConnection
+                sentinelConnection = sentinelConnection,
+                responseTimeout = responseTimeout,
+				defaultDatabase = defaultDatabase,
             };
             foreach (var item in endpoints)
                 options.endpoints.Add(item);
@@ -373,6 +387,8 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.ConnectRetry, connectRetry);
             Append(sb, OptionKeys.Proxy, proxy);
             Append(sb, OptionKeys.ConfigCheckSeconds, configCheckSeconds);
+            Append(sb, OptionKeys.ResponseTimeout, responseTimeout);
+            Append(sb, OptionKeys.DefaultDatabase, defaultDatabase);
             if (commandMap != null) commandMap.AppendDeltas(sb);
             return sb.ToString();
         }
@@ -462,7 +478,7 @@ namespace StackExchange.Redis
         void Clear()
         {
             clientName = serviceName = password = tieBreaker = sslHost = configChannel = null;
-            keepAlive = syncTimeout = connectTimeout = writeBuffer = connectRetry = configCheckSeconds = null;
+            keepAlive = syncTimeout = connectTimeout = writeBuffer = connectRetry = configCheckSeconds = defaultDatabase = null;
             allowAdmin = abortOnConnectFail = resolveDns = ssl = null;
             defaultVersion = null;
             endpoints.Clear();
@@ -565,6 +581,12 @@ namespace StackExchange.Redis
                         case OptionKeys.Proxy:
                             Proxy = OptionKeys.ParseProxy(key, value);
                             break;
+                        case OptionKeys.ResponseTimeout:
+                            ResponseTimeout = OptionKeys.ParseInt32(key, value, minValue: 1);
+                            break;
+                        case OptionKeys.DefaultDatabase:
+                            defaultDatabase = OptionKeys.ParseInt32(key, value);
+                            break;
                         default:
                             if (!string.IsNullOrEmpty(key) && key[0] == '$')
                             {
@@ -593,6 +615,16 @@ namespace StackExchange.Redis
             {
                 this.CommandMap = CommandMap.Create(map);
             }
+        }
+
+        private string InferSslHostFromEndpoints() {
+            var dnsEndpoints = endpoints.Select(endpoint => endpoint as DnsEndPoint);
+            string dnsHost = dnsEndpoints.First() != null ? dnsEndpoints.First().Host : null;
+            if (dnsEndpoints.All(dnsEndpoint => (dnsEndpoint != null && dnsEndpoint.Host == dnsHost))) {
+                return dnsHost;
+            }
+
+            return null;
         }
     }
 }

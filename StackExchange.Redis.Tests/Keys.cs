@@ -1,8 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 using NUnit.Framework;
 
 namespace StackExchange.Redis.Tests
@@ -64,6 +61,41 @@ namespace StackExchange.Redis.Tests
                 int? value = (int?)db.StringGet("abc");
                 Assert.IsFalse(value.HasValue);
 
+            }
+        }
+
+        [Test]
+        public void PrependAppend()
+        {
+            {
+                // simple
+                RedisKey key = "world";
+                var ret = key.Prepend("hello");
+                Assert.AreEqual("helloworld", (string)ret);
+            }
+
+            {
+                RedisKey key1 = "world";
+                RedisKey key2 = Encoding.UTF8.GetBytes("hello");
+                var key3 = key1.Prepend(key2);
+                Assert.IsTrue(object.ReferenceEquals(key1.KeyValue, key3.KeyValue));
+                Assert.IsTrue(object.ReferenceEquals(key2.KeyValue, key3.KeyPrefix));
+                Assert.AreEqual("helloworld", (string)key3);
+            }
+
+            {
+                RedisKey key = "hello";
+                var ret = key.Append("world");
+                Assert.AreEqual("helloworld", (string)ret);
+            }
+
+            {
+                RedisKey key1 = Encoding.UTF8.GetBytes("hello");
+                RedisKey key2 = "world";
+                var key3 = key1.Append(key2);
+                Assert.IsTrue(object.ReferenceEquals(key2.KeyValue, key3.KeyValue));
+                Assert.IsTrue(object.ReferenceEquals(key1.KeyValue, key3.KeyPrefix));
+                Assert.AreEqual("helloworld", (string)key3);
             }
         }
     }
