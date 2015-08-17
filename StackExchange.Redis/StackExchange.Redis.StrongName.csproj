@@ -161,6 +161,7 @@
     <Compile Include="StackExchange\Redis\SortedSetEntry.cs" />
     <Compile Include="StackExchange\Redis\SortType.cs" />
     <Compile Include="StackExchange\Redis\StringSplits.cs" />
+    <Compile Include="StackExchange\Redis\TaskManager.cs" />
     <Compile Include="StackExchange\Redis\TaskSource.cs" />
     <Compile Include="StackExchange\Redis\When.cs" />
     <Compile Include="StackExchange\Redis\ShutdownMode.cs" />

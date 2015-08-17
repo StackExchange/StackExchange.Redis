@@ -37,13 +37,16 @@ namespace StackExchange.Redis
             return task;
         }
 
+        [ThreadStatic]
+        public static bool ContinueOnCapturedContext;
+
         public static ConfiguredTaskAwaitable ForAwait(this Task task)
         {
-            return task.ConfigureAwait(false);
+            return task.ConfigureAwait(ContinueOnCapturedContext);
         }
         public static ConfiguredTaskAwaitable<T> ForAwait<T>(this Task<T> task)
         {
-            return task.ConfigureAwait(false);
+            return task.ConfigureAwait(ContinueOnCapturedContext);
         }
     }
 
@@ -812,8 +815,8 @@ namespace StackExchange.Redis
                 killMe = muxer;
                 // note that task has timeouts internally, so it might take *just over* the regular timeout
                 // wrap into task to force async execution
+#if NET40
                 var task = Factory.StartNew(() => { return muxer.ReconfigureAsync(true, false, log, null, "connect").Result; });
-
                 if (!task.Wait(muxer.SyncConnectTimeout(true)))
                 {
                     task.ObserveErrors();
@@ -823,6 +826,13 @@ namespace StackExchange.Redis
                     }
                 }
                 if (!task.Result) throw ExceptionFactory.UnableToConnect(muxer.failureMessage);
+#else
+                bool success = false;
+                var completed = TaskManager.Execute(async () => { success = await muxer.ReconfigureAsync(true, false, log, null, "connect"); }, muxer.SyncConnectTimeout(true));
+                if (!completed) throw ExceptionFactory.UnableToConnect("Timeout");
+                if (!success) throw ExceptionFactory.UnableToConnect(muxer.failureMessage);
+#endif
+
                 killMe = null;
                 return muxer;
             }
