@@ -158,13 +158,23 @@ namespace StackExchange.Redis
             ExecuteSelect,
             ExecuteSelectComplete,
             CheckForStaleConnections,
+
+            RecordConnectionFailed_OnInternalError,
+            RecordConnectionFailed_OnDisconnected,
+            RecordConnectionFailed_ReportFailure,
+            RecordConnectionFailed_OnConnectionFailed,
+            RecordConnectionFailed_FailOutstanding,
+            RecordConnectionFailed_ShutdownSocket,
+
+            CheckForStaleConnectionsDone,
             EnqueueRead,
             EnqueueError,
             EnqueueReadFallback,
             RequestAssistance,
             ProcessQueues,
             ProcessReadQueue,
-            ProcessErrorQueue,            
+            ProcessErrorQueue,
+
         }
         internal ManagerState State
         {
@@ -294,9 +304,10 @@ namespace StackExchange.Redis
                                 }
                                 else
                                 {
-                                    s.CheckForStaleConnection();
+                                    s.CheckForStaleConnection(ref managerState);
                                 }
                             }
+                            managerState = ManagerState.CheckForStaleConnectionsDone;
                         }
                         else
                         {

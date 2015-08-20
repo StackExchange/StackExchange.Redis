@@ -40,7 +40,7 @@ namespace StackExchange.Redis
         void StartReading();
 
         // check for write-read timeout
-        void CheckForStaleConnection();
+        void CheckForStaleConnection(ref SocketManager.ManagerState state);
 
         bool IsDataAvailable { get; }
     }
