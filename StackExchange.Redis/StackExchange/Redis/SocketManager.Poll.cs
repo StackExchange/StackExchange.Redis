@@ -141,41 +141,7 @@ namespace StackExchange.Redis
                 if (weAreReader) Interlocked.Exchange(ref readerCount, 0);
             }
         }
-        internal enum ManagerState
-        {
-            Inactive,
-            Preparing,
-            Faulted,
-            CheckForHeartbeat,
-            ExecuteHeartbeat,
-            LocateActiveSockets,
-            NoSocketsPause,
-            PrepareActiveSockets,
-            CullDeadSockets,
-            NoActiveSocketsPause,
-            GrowingSocketArray,
-            CopyingPointersForSelect,
-            ExecuteSelect,
-            ExecuteSelectComplete,
-            CheckForStaleConnections,
 
-            RecordConnectionFailed_OnInternalError,
-            RecordConnectionFailed_OnDisconnected,
-            RecordConnectionFailed_ReportFailure,
-            RecordConnectionFailed_OnConnectionFailed,
-            RecordConnectionFailed_FailOutstanding,
-            RecordConnectionFailed_ShutdownSocket,
-
-            CheckForStaleConnectionsDone,
-            EnqueueRead,
-            EnqueueError,
-            EnqueueReadFallback,
-            RequestAssistance,
-            ProcessQueues,
-            ProcessReadQueue,
-            ProcessErrorQueue,
-
-        }
         internal ManagerState State
         {
             get { return managerState; }
@@ -304,7 +270,9 @@ namespace StackExchange.Redis
                                 }
                                 else
                                 {
+#pragma warning disable 0420
                                     s.CheckForStaleConnection(ref managerState);
+#pragma warning restore 0420
                                 }
                             }
                             managerState = ManagerState.CheckForStaleConnectionsDone;
