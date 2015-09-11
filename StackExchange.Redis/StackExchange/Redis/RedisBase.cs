@@ -16,7 +16,7 @@ namespace StackExchange.Redis
             this.asyncState = asyncState;
         }
 
-        ConnectionMultiplexer IRedisAsync.Multiplexer { get { return multiplexer; } }
+        IConnectionMultiplexer IRedisAsync.Multiplexer { get { return multiplexer; } }
         public virtual TimeSpan Ping(CommandFlags flags = CommandFlags.None)
         {
             var msg = GetTimerMessage(flags);
