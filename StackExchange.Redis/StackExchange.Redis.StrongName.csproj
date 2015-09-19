@@ -17,7 +17,7 @@
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
     <OutputPath>bin.snk\Debug\</OutputPath>
-    <DefineConstants>TRACE;DEBUG;STRONG_NAME</DefineConstants>
+    <DefineConstants>TRACE;DEBUG;STRONG_NAME FEATURE_SERIALIZATION;</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -27,7 +27,7 @@
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin.snk\Release\</OutputPath>
-    <DefineConstants>TRACE;STRONG_NAME</DefineConstants>
+    <DefineConstants>TRACE;STRONG_NAME FEATURE_SERIALIZATION</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
