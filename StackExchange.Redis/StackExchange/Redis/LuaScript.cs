@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace StackExchange.Redis
@@ -39,7 +40,7 @@ namespace StackExchange.Redis
 
         bool HasArguments { get { return Arguments != null && Arguments.Length > 0; } }
 
-        Hashtable ParameterMappers;
+        Dictionary<Type, Func<object, RedisKey?, ScriptParameterMapper.ScriptParameters>> ParameterMappers;
 
         internal LuaScript(string originalScript, string executableScript, string[] arguments)
         {
@@ -49,7 +50,7 @@ namespace StackExchange.Redis
 
             if (HasArguments)
             {
-                ParameterMappers = new Hashtable();
+                ParameterMappers = new Dictionary<Type, Func<object, RedisKey?, ScriptParameterMapper.ScriptParameters>>();
             }
         }
 
@@ -109,12 +110,12 @@ namespace StackExchange.Redis
                 if (ps == null) throw new ArgumentNullException("ps", "Script requires parameters");
 
                 var psType = ps.GetType();
-                var mapper = (Func<object, RedisKey?, ScriptParameterMapper.ScriptParameters>)ParameterMappers[psType];
+                var mapper = ParameterMappers[psType];
                 if (ps != null && mapper == null)
                 {
                     lock (ParameterMappers)
                     {
-                        mapper = (Func<object, RedisKey?, ScriptParameterMapper.ScriptParameters>)ParameterMappers[psType];
+                        mapper = ParameterMappers[psType];
                         if (mapper == null)
                         {
                             string missingMember;

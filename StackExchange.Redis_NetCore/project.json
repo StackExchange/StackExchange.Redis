@@ -5,7 +5,9 @@
   },
   "dependencies": {
     "Microsoft.NETCore": "5.0.0",
-    "Microsoft.NETCore.Portable.Compatibility": "1.0.0"
+    "Microsoft.NETCore.Portable.Compatibility": "1.0.0",
+    "System.Collections": "4.0.10",
+    "System.Reflection.Emit": "4.0.0"
   },
   "frameworks": {
     "dotnet": {
