@@ -126,8 +126,12 @@ namespace StackExchange.Redis
 
             // we need a dedicated writer, because when under heavy ambient load
             // (a busy asp.net site, for example), workers are not reliable enough
+#if !NETCORE
             Thread dedicatedWriter = new Thread(writeAllQueues, 32 * 1024); // don't need a huge stack;
             dedicatedWriter.Priority = ThreadPriority.AboveNormal; // time critical
+#else
+            Thread dedicatedWriter = new Thread(writeAllQueues);
+#endif
             dedicatedWriter.Name = name + ":Write";
             dedicatedWriter.IsBackground = true; // should not keep process alive
             dedicatedWriter.Start(this); // will self-exit when disposed
@@ -334,7 +338,9 @@ namespace StackExchange.Redis
             {
                 OnShutdown(socket);
                 try { socket.Shutdown(SocketShutdown.Both); } catch { }
+#if !NETCORE
                 try { socket.Close(); } catch { }
+#endif
                 try { socket.Dispose(); } catch { }
             }
         }

@@ -2,7 +2,9 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+#if FEATURE_SERIALIZATION
 using System.Runtime.Serialization;
+#endif
 using System.Text;
 using System.Threading.Tasks;
 

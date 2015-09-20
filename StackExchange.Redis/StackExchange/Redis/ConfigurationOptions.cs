@@ -139,7 +139,11 @@ namespace StackExchange.Redis
         /// <summary>
         /// Indicates whether the connection should be encrypted
         /// </summary>
-        [Obsolete("Please use .Ssl instead of .UseSsl"), Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+        [Obsolete("Please use .Ssl instead of .UseSsl"),
+#if !NETCORE
+            Browsable(false),
+#endif
+            EditorBrowsable(EditorBrowsableState.Never)]
         public bool UseSsl { get { return Ssl; } set { Ssl = value; } }
 
         /// <summary>
