@@ -482,7 +482,7 @@ namespace StackExchange.Redis
         {
             if (configuredOnly) return configuration.EndPoints.ToArray();
 
-            return Array.ConvertAll(serverSnapshot, x => x.EndPoint);
+            return serverSnapshot.Select(x => x.EndPoint).ToArray();
         }
 
         private readonly int timeoutMilliseconds;
