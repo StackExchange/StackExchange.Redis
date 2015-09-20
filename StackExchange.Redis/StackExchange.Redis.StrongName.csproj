@@ -89,6 +89,7 @@
     <Compile Include="StackExchange\Redis\HashEntry.cs" />
     <Compile Include="StackExchange\Redis\IConnectionMultiplexer.cs" />
     <Compile Include="StackExchange\Redis\InternalErrorEventArgs.cs" />
+    <Compile Include="StackExchange\Redis\InternalRegexCompiledOption.cs" />
     <Compile Include="StackExchange\Redis\IProfiler.cs" />
     <Compile Include="StackExchange\Redis\MigrateOptions.cs" />
     <Compile Include="StackExchange\Redis\ProfileContextTracker.cs" />

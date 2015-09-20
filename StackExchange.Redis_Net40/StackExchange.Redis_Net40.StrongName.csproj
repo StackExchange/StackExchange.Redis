@@ -120,6 +120,7 @@
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IDatabaseAsync.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IMultiMessage.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\InternalErrorEventArgs.cs" />
+    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\InternalRegexCompiledOption.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IProfiler.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IRedis.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IRedisAsync.cs" />
