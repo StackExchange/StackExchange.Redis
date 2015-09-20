@@ -560,6 +560,8 @@ namespace StackExchange.Redis
             }
             return false;
         }
+
+#if !NETCORE
         private void LogLockedWithThreadPoolStats(TextWriter log, string message, out int busyWorkerCount)
         {
             busyWorkerCount = 0;
@@ -573,6 +575,8 @@ namespace StackExchange.Redis
                 LogLocked(log, sb.ToString());
             }
         }
+#endif
+
         static bool AllComplete(Task[] tasks)
         {
             for(int i = 0 ; i < tasks.Length ; i++)
@@ -599,16 +603,19 @@ namespace StackExchange.Redis
             }
 
             var watch = Stopwatch.StartNew();
+#if !NETCORE
             int busyWorkerCount;
             LogLockedWithThreadPoolStats(log, "Awaiting task completion", out busyWorkerCount);
-
+#endif
             try
             {
                 // if none error, great
                 var remaining = timeoutMilliseconds - checked((int)watch.ElapsedMilliseconds);
                 if (remaining <= 0)
                 {
+#if !NETCORE
                     LogLockedWithThreadPoolStats(log, "Timeout before awaiting for tasks", out busyWorkerCount);
+#endif
                     return false;
                 }
 
@@ -620,7 +627,9 @@ namespace StackExchange.Redis
                 var any = Task.WhenAny(allTasks, Task.Delay(remaining)).ObserveErrors();
 #endif
                 bool all = await any.ForAwait() == allTasks;
+#if !NETCORE
                 LogLockedWithThreadPoolStats(log, all ? "All tasks completed cleanly" : "Not all tasks completed cleanly", out busyWorkerCount);
+#endif
                 return all;
             }
             catch
@@ -636,7 +645,9 @@ namespace StackExchange.Redis
                     var remaining = timeoutMilliseconds - checked((int)watch.ElapsedMilliseconds);
                     if (remaining <= 0)
                     {
+#if !NETCORE
                         LogLockedWithThreadPoolStats(log, "Timeout awaiting tasks", out busyWorkerCount);
+#endif
                         return false;
                     }
                     try
@@ -652,7 +663,9 @@ namespace StackExchange.Redis
                     { }
                 }
             }
+#if !NETCORE
             LogLockedWithThreadPoolStats(log, "Finished awaiting tasks", out busyWorkerCount);
+#endif
             return false;
         }
 
@@ -1889,7 +1902,6 @@ namespace StackExchange.Redis
                             };
 
                             int queue = server.GetOutstandingCount(message.Command, out inst, out qu, out qs, out qc, out wr, out wq, out @in, out ar);
-                            int busyWorkerCount = GetThreadPoolStats(out iocp, out worker);
                             add("Instantaneous", "inst", inst.ToString());
 #if !__MonoCS__
                             add("Manager-State", "mgr", mgrState.ToString());
@@ -1904,10 +1916,13 @@ namespace StackExchange.Redis
                             add("Inbound-Bytes", "in", @in.ToString());
                             add("Active-Readers", "ar", ar.ToString());
 
+                            add("Client-Name", "clientName", ClientName);
+#if !NETCORE
+                            int busyWorkerCount = GetThreadPoolStats(out iocp, out worker);
                             add("ThreadPool-IO-Completion", "IOCP", iocp);
                             add("ThreadPool-Workers", "WORKER", worker);
-                            add("Client-Name", "clientName", ClientName);
                             data.Add(Tuple.Create("Busy-Workers", busyWorkerCount.ToString()));
+#endif
                             errMessage = sb.ToString();
                             if (stormLogThreshold >= 0 && queue >= stormLogThreshold && Interlocked.CompareExchange(ref haveStormLog, 1, 0) == 0)
                             {
@@ -1937,6 +1952,8 @@ namespace StackExchange.Redis
                 return val;
             }
         }
+
+#if !NETCORE
         private static int GetThreadPoolStats(out string iocp, out string worker)
         {
             //BusyThreads =  TP.GetMaxThreads() –TP.GetAVailable();
@@ -1958,6 +1975,7 @@ namespace StackExchange.Redis
             worker = string.Format("(Busy={0},Free={1},Min={2},Max={3})", busyWorkerThreads, freeWorkerThreads, minWorkerThreads, maxWorkerThreads);
             return busyWorkerThreads;
         }
+#endif
 
         /// <summary>
         /// Should exceptions include identifiable details? (key names, additional .Data annotations)
