@@ -29,7 +29,10 @@ namespace StackExchange.Redis
     /// <summary>
     /// The options relevant to a set of redis connections
     /// </summary>
-    public sealed class ConfigurationOptions : ICloneable
+    public sealed class ConfigurationOptions
+#if !NETCORE
+        : ICloneable
+#endif
     {
         internal const string DefaultTieBreaker = "__Booksleeve_TieBreak", DefaultConfigurationChannel = "__Booksleeve_MasterChanged";
 
@@ -467,10 +470,13 @@ namespace StackExchange.Redis
             }
         }
 
+#if !NETCORE
         static bool IsOption(string option, string prefix)
         {
             return option.StartsWith(prefix, StringComparison.InvariantCultureIgnoreCase);
         }
+#endif
+
         void Clear()
         {
             clientName = serviceName = password = tieBreaker = sslHost = configChannel = null;
@@ -486,7 +492,9 @@ namespace StackExchange.Redis
             SocketManager = null;
         }
 
+#if !NETCORE
         object ICloneable.Clone() { return Clone(); }
+#endif
 
         private void DoParse(string configuration, bool ignoreUnknown)
         {

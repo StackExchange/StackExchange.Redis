@@ -1887,7 +1887,6 @@ namespace StackExchange.Redis
                         else
                         {
                             int inst, qu, qs, qc, wr, wq, @in, ar;
-                            string iocp, worker;
 #if !__MonoCS__
                             var mgrState = socketManager.State;
                             var lastError = socketManager.LastErrorTimeRelative();
@@ -1918,6 +1917,7 @@ namespace StackExchange.Redis
 
                             add("Client-Name", "clientName", ClientName);
 #if !NETCORE
+                            string iocp, worker;
                             int busyWorkerCount = GetThreadPoolStats(out iocp, out worker);
                             add("ThreadPool-IO-Completion", "IOCP", iocp);
                             add("ThreadPool-Workers", "WORKER", worker);
