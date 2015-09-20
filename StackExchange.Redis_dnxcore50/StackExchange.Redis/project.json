@@ -21,11 +21,11 @@
         "warningsAsErrors": false
       },
       "dependencies": {
-        "System.ComponentModel.Primitives": "4.0.0",
         "System.Diagnostics.Debug": "4.0.0",
         "System.Diagnostics.TraceSource": "4.0.0-beta-*",
-        "System.Diagnostics.Tracing": "4.0.20",
+        "System.Diagnostics.Tools": "4.0.0-beta-*",
         "System.IO.Compression": "4.0.0",
+        "System.Globalization": "4.0.10",
         "System.Linq": "4.0.0",
         "System.Net.Primitives": "4.0.10",
         "System.Net.Sockets": "4.1.0-beta-*",
@@ -37,7 +37,6 @@
         "System.Reflection.Primitives": "4.0.0",
         "System.Reflection.Emit.Lightweight": "4.0.0",
         "System.Security.Cryptography.Algorithms": "4.0.0-beta-*",
-        "System.Security.Cryptography.Hashing": "4.0.0-beta-*",
         "System.Security.Cryptography.Hashing.Algorithms": "4.0.0-beta-*",
         "System.Security.Cryptography.X509Certificates": "4.0.0-beta-*",
         "System.Text.RegularExpressions": "4.0.0",

@@ -742,7 +742,11 @@ namespace StackExchange.Redis
 
                 int bufferSize = config.WriteBuffer;
                 this.netStream = stream;
+#if !NETCORE
                 this.outStream = bufferSize <= 0 ? stream : new BufferedStream(stream, bufferSize);
+#else
+                this.outStream = stream;
+#endif
                 multiplexer.LogLocked(log, "Connected {0}", bridge);
 
                 bridge.OnConnected(this, log);

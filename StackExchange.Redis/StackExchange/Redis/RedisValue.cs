@@ -301,8 +301,13 @@ namespace StackExchange.Redis
                     if (otherType == CompareType.Int64) return thisDouble.CompareTo((double)otherInt64);
                     if (otherType == CompareType.Double) return thisDouble.CompareTo(otherDouble);
                 }
-                // otherwise, compare as strings            
+                // otherwise, compare as strings
+#if !NETCORE
                 return StringComparer.InvariantCulture.Compare((string)this, (string)other);
+#else
+                var compareInfo = System.Globalization.CultureInfo.InvariantCulture.CompareInfo;
+                return compareInfo.Compare((string)this, (string)other, System.Globalization.CompareOptions.IgnoreCase);
+#endif
             }
             catch(Exception ex)
             {
