@@ -93,7 +93,7 @@ namespace StackExchange.Redis
 
         public void BeginConnect(TextWriter log)
         {
-            Thread.VolatileWrite(ref firstUnansweredWriteTickCount, 0);
+            Volatile.Write(ref firstUnansweredWriteTickCount, 0);
             var endpoint = this.bridge.ServerEndPoint.EndPoint;
 
             multiplexer.Trace("Connecting...", physicalName);
@@ -113,7 +113,7 @@ namespace StackExchange.Redis
         {
             get
             {
-                return unchecked(Environment.TickCount - Thread.VolatileRead(ref lastWriteTickCount)) / 1000;
+                return unchecked(Environment.TickCount - Volatile.Read(ref lastWriteTickCount)) / 1000;
             }
         }
 
@@ -193,9 +193,9 @@ namespace StackExchange.Redis
             if (isCurrent && Interlocked.CompareExchange(ref failureReported, 1, 0) == 0)
             {
                 managerState = SocketManager.ManagerState.RecordConnectionFailed_ReportFailure;
-                int now = Environment.TickCount, lastRead = Thread.VolatileRead(ref lastReadTickCount), lastWrite = Thread.VolatileRead(ref lastWriteTickCount),
-                    lastBeat = Thread.VolatileRead(ref lastBeatTickCount);
-                int unansweredRead = Thread.VolatileRead(ref firstUnansweredWriteTickCount);
+                int now = Environment.TickCount, lastRead = Volatile.Read(ref lastReadTickCount), lastWrite = Volatile.Read(ref lastWriteTickCount),
+                    lastBeat = Volatile.Read(ref lastBeatTickCount);
+                int unansweredRead = Volatile.Read(ref firstUnansweredWriteTickCount);
 
                 var exMessage = new StringBuilder(failureType + " on " + Format.ToString(bridge.ServerEndPoint.EndPoint) + "/" + connectionType);
                 var data = new List<Tuple<string, string>>
@@ -903,7 +903,7 @@ namespace StackExchange.Redis
             Interlocked.Exchange(ref lastReadTickCount, Environment.TickCount);
 
             // reset unanswered write timestamp
-            Thread.VolatileWrite(ref firstUnansweredWriteTickCount, 0);
+            Volatile.Write(ref firstUnansweredWriteTickCount, 0);
 
             ioBufferBytes += bytesRead;
             multiplexer.Trace("More bytes available: " + bytesRead + " (" + ioBufferBytes + ")", physicalName);
@@ -1066,7 +1066,7 @@ namespace StackExchange.Redis
         public void CheckForStaleConnection(ref SocketManager.ManagerState managerState)
         {
             int firstUnansweredWrite;
-            firstUnansweredWrite = Thread.VolatileRead(ref firstUnansweredWriteTickCount);
+            firstUnansweredWrite = Volatile.Read(ref firstUnansweredWriteTickCount);
 
             DebugEmulateStaleConnection(ref firstUnansweredWrite);
 

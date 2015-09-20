@@ -484,7 +484,7 @@ namespace StackExchange.Redis
         
         internal int LastInfoReplicationCheckSecondsAgo
         {
-            get { return unchecked(Environment.TickCount - Thread.VolatileRead(ref lastInfoReplicationCheckTicks)) / 1000; }
+            get { return unchecked(Environment.TickCount - Volatile.Read(ref lastInfoReplicationCheckTicks)) / 1000; }
         }
 
         private EndPoint masterEndPoint;

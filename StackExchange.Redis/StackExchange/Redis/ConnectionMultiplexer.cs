@@ -941,11 +941,11 @@ namespace StackExchange.Redis
         internal long LastHeartbeatSecondsAgo {
             get {
                 if (pulse == null) return -1;
-                return unchecked(Environment.TickCount - Thread.VolatileRead(ref lastHeartbeatTicks)) / 1000;
+                return unchecked(Environment.TickCount - Volatile.Read(ref lastHeartbeatTicks)) / 1000;
             }
         }
         internal static long LastGlobalHeartbeatSecondsAgo
-        { get { return unchecked(Environment.TickCount - Thread.VolatileRead(ref lastGlobalHeartbeatTicks)) / 1000; } }
+        { get { return unchecked(Environment.TickCount - Volatile.Read(ref lastGlobalHeartbeatTicks)) / 1000; } }
 
         internal CompletionManager UnprocessableCompletionManager { get { return unprocessableCompletionManager; } }
 
