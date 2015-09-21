@@ -87,7 +87,7 @@ namespace StackExchange.Redis
                 ConfigChannel, AbortOnConnectFail, ResolveDns,
                 ChannelPrefix, Proxy, ConnectRetry,
                 ConfigCheckSeconds, DefaultDatabase,
-            }.ToDictionary(x => x, StringComparer.InvariantCultureIgnoreCase);
+            }.ToDictionary(x => x, StringComparer.OrdinalIgnoreCase);
 
             public static string TryNormalize(string value)
             {
@@ -401,7 +401,7 @@ namespace StackExchange.Redis
 #pragma warning disable 1998 // NET40 is sync, not async, currently
         internal async Task ResolveEndPointsAsync(ConnectionMultiplexer multiplexer, TextWriter log)
         {
-            Dictionary<string, IPAddress> cache = new Dictionary<string, IPAddress>(StringComparer.InvariantCultureIgnoreCase);
+            Dictionary<string, IPAddress> cache = new Dictionary<string, IPAddress>(StringComparer.OrdinalIgnoreCase);
             for (int i = 0; i < endpoints.Count; i++)
             {
                 var dns = endpoints[i] as DnsEndPoint;
@@ -598,7 +598,7 @@ namespace StackExchange.Redis
                                 var cmdName = option.Substring(1, idx - 1);
                                 if (Enum.TryParse(cmdName, true, out cmd))
                                 {
-                                    if (map == null) map = new Dictionary<string, string>(StringComparer.InvariantCultureIgnoreCase);
+                                    if (map == null) map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                                     map[cmdName] = value;
                                 }
                             }
