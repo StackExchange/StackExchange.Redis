@@ -40,7 +40,7 @@ namespace StackExchange.Redis
         void StartReading();
 
         // check for write-read timeout
-        void CheckForStaleConnection();
+        void CheckForStaleConnection(ref SocketManager.ManagerState state);
 
         bool IsDataAvailable { get; }
     }
@@ -64,6 +64,41 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed partial class SocketManager : IDisposable
     {
+        internal enum ManagerState
+        {
+            Inactive,
+            Preparing,
+            Faulted,
+            CheckForHeartbeat,
+            ExecuteHeartbeat,
+            LocateActiveSockets,
+            NoSocketsPause,
+            PrepareActiveSockets,
+            CullDeadSockets,
+            NoActiveSocketsPause,
+            GrowingSocketArray,
+            CopyingPointersForSelect,
+            ExecuteSelect,
+            ExecuteSelectComplete,
+            CheckForStaleConnections,
+
+            RecordConnectionFailed_OnInternalError,
+            RecordConnectionFailed_OnDisconnected,
+            RecordConnectionFailed_ReportFailure,
+            RecordConnectionFailed_OnConnectionFailed,
+            RecordConnectionFailed_FailOutstanding,
+            RecordConnectionFailed_ShutdownSocket,
+
+            CheckForStaleConnectionsDone,
+            EnqueueRead,
+            EnqueueError,
+            EnqueueReadFallback,
+            RequestAssistance,
+            ProcessQueues,
+            ProcessReadQueue,
+            ProcessErrorQueue,
+
+        }
         private static readonly ParameterizedThreadStart writeAllQueues = context =>
         {
             try { ((SocketManager)context).WriteAllQueues(); } catch { }

@@ -133,13 +133,13 @@ namespace StackExchange.Redis
                         switch (Message.GetMasterSlaveFlags(message.Flags))
                         {
                             case CommandFlags.DemandMaster:
-                                resendVia = server.IsSelectable(command) ? null : server;
+                                resendVia = server.IsSelectable(command) ? server : null;
                                 break;
                             case CommandFlags.PreferMaster:
-                                resendVia = server.IsSelectable(command) ? FindSlave(server, command) : server;
+                                resendVia = server.IsSelectable(command) ? server : FindSlave(server, command);
                                 break;
                             case CommandFlags.PreferSlave:
-                                resendVia = FindSlave(server, command) ?? (server.IsSelectable(command) ? null : server);
+                                resendVia = FindSlave(server, command) ?? (server.IsSelectable(command) ? server : null);
                                 break;
                             case CommandFlags.DemandSlave:
                                 resendVia = FindSlave(server, command);
