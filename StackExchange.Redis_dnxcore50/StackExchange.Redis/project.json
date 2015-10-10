@@ -43,6 +43,7 @@
         "System.Threading": "4.0.0",
         "System.Threading.Thread": "4.0.0-*",
         "System.Threading.ThreadPool": "4.0.10-beta-*",
+        "System.Threading.Timer": "4.0.1-beta-*",
         "System.Threading.Tasks": "4.0.0"
       }
     }
