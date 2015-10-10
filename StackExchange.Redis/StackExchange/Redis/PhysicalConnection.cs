@@ -10,6 +10,7 @@ using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
@@ -1078,4 +1079,22 @@ namespace StackExchange.Redis
             }
         }
     }
+
+#if DNXCORE50
+    internal static class StreamExtensions
+    {
+        internal static IAsyncResult BeginRead(this Stream stream, byte[] buffer, int offset, int count, AsyncCallback ac, object state)
+        {
+            Task<int> f = stream.ReadAsync(buffer, offset, count);
+            if (ac != null) f.ContinueWith(res => ac(f));
+            f.Start();
+            return f;
+        }
+
+        internal static int EndRead(this Stream stream, IAsyncResult ar)
+        {
+            return ((Task<int>)ar).Result;
+        }
+    }
+#endif
 }
