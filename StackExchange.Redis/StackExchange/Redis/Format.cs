@@ -144,7 +144,7 @@ namespace StackExchange.Redis
                 return true;
             }
             // need to handle these
-            if(string.Equals("+inf", s, StringComparison.OrdinalIgnoreCase))
+            if(string.Equals("+inf", s, StringComparison.OrdinalIgnoreCase) || string.Equals("inf", s, StringComparison.OrdinalIgnoreCase))
             {
                 value = double.PositiveInfinity;
                 return true;
