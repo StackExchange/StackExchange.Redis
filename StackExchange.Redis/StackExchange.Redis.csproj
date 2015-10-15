@@ -75,6 +75,7 @@
   <ItemGroup>
     <Compile Include="StackExchange\Redis\Aggregate.cs" />
     <Compile Include="StackExchange\Redis\ClientType.cs" />
+    <Compile Include="StackExchange\Redis\Compat\VolatileWrapper.cs" />
     <Compile Include="StackExchange\Redis\ConcurrentProfileStorageCollection.cs" />
     <Compile Include="StackExchange\Redis\ConnectionMultiplexer.Profiling.cs">
       <DependentUpon>ConnectionMultiplexer.cs</DependentUpon>

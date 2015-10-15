@@ -714,9 +714,9 @@ namespace StackExchange.Redis
         }
     }
 
-#if DNXCORE50
     internal static class ReflectionExtensions
     {
+#if DNXCORE50
         internal static TypeCode GetTypeCode(this Type type)
         {
             if (type == null) return TypeCode.Empty;
@@ -750,11 +750,11 @@ namespace StackExchange.Redis
             {typeof(uint), TypeCode.UInt32 },
             {typeof(ulong), TypeCode.UInt64 },
         };
-    }
 #else
-    internal static TypeCode GetTypeCode(this Type type)
-    {
-        return type.GetTypeCode();
-    }
+        internal static TypeCode GetTypeCode(this Type type)
+        {
+            return type.GetTypeCode();
+        }
 #endif
+    }
 }

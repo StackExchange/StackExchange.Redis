@@ -394,7 +394,7 @@ namespace StackExchange.Redis
                 switch (state)
                 {
                     case (int)State.Connecting:
-                        int connectTimeMilliseconds = unchecked(Environment.TickCount - Volatile.Read(ref connectStartTicks));
+                        int connectTimeMilliseconds = unchecked(Environment.TickCount - VolatileWrapper.Read(ref connectStartTicks));
                         if (connectTimeMilliseconds >= multiplexer.RawConfig.ConnectTimeout)
                         {
                             Trace("Aborting connect");
