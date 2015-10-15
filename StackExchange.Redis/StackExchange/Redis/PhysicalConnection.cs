@@ -729,8 +729,11 @@ namespace StackExchange.Redis
                         , EncryptionPolicy.RequireEncryption
 #endif
                         );
-                    ssl.AuthenticateAsClient(host);
-                    if (!ssl.IsEncrypted)
+                    try
+                    {
+                        ssl.AuthenticateAsClient(host);
+                    }
+                    catch (AuthenticationException)
                     {
                         RecordConnectionFailed(ConnectionFailureType.AuthenticationFailure);
                         multiplexer.Trace("Encryption failure");
