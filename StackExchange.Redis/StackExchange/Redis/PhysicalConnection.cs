@@ -601,20 +601,17 @@ namespace StackExchange.Redis
             }
             else
             {
-                fixed (char* c = value)
-                fixed (byte* b = outScratch)
+                int charsRemaining = value.Length, charOffset = 0, bytesWritten;
+                var valueCharArray = value.ToCharArray();
+                while (charsRemaining > Scratch_CharsPerBlock)
                 {
-                    int charsRemaining = value.Length, charOffset = 0, bytesWritten;
-                    while (charsRemaining > Scratch_CharsPerBlock)
-                    {
-                        bytesWritten = outEncoder.GetBytes(c + charOffset, Scratch_CharsPerBlock, b, ScratchSize, false);
-                        stream.Write(outScratch, 0, bytesWritten);
-                        charOffset += Scratch_CharsPerBlock;
-                        charsRemaining -= Scratch_CharsPerBlock;
-                    }
-                    bytesWritten = outEncoder.GetBytes(c + charOffset, charsRemaining, b, ScratchSize, true);
-                    if (bytesWritten != 0) stream.Write(outScratch, 0, bytesWritten);
+                    bytesWritten = outEncoder.GetBytes(valueCharArray, charOffset, Scratch_CharsPerBlock, outScratch, 0, false);
+                    stream.Write(outScratch, 0, bytesWritten);
+                    charOffset += Scratch_CharsPerBlock;
+                    charsRemaining -= Scratch_CharsPerBlock;
                 }
+                bytesWritten = outEncoder.GetBytes(valueCharArray, charOffset, charsRemaining, outScratch, 0, true);
+                if (bytesWritten != 0) stream.Write(outScratch, 0, bytesWritten);
             }
         }
         const int ScratchSize = 512;
