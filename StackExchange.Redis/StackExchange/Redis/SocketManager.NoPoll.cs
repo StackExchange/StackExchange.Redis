@@ -1,4 +1,4 @@
-﻿#if __MonoCS__
+﻿#if __MonoCS__ || NETCORE
 
 namespace StackExchange.Redis
 {

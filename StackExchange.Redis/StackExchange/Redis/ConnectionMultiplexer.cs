@@ -1887,7 +1887,7 @@ namespace StackExchange.Redis
                         else
                         {
                             int inst, qu, qs, qc, wr, wq, @in, ar;
-#if !__MonoCS__
+#if !__MonoCS__ && !NETCORE
                             var mgrState = socketManager.State;
                             var lastError = socketManager.LastErrorTimeRelative();
 
@@ -1902,7 +1902,7 @@ namespace StackExchange.Redis
 
                             int queue = server.GetOutstandingCount(message.Command, out inst, out qu, out qs, out qc, out wr, out wq, out @in, out ar);
                             add("Instantaneous", "inst", inst.ToString());
-#if !__MonoCS__
+#if !__MonoCS__ && !NETCORE
                             add("Manager-State", "mgr", mgrState.ToString());
                             add("Last-Error", "err", lastError);
 #endif

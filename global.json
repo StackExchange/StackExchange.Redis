@@ -1,7 +1,8 @@
 {
-    "sdk": {
-        "version": "1.0.0-beta7",
-        "runtime": "coreclr",
-        "architecture": "x86"
-    }
+  "sdk": {
+    "version": "1.0.0-beta7",
+    "runtime": "coreclr",
+    "architecture": "x86"
+  },
+  "projects": [ "StackExchange.Redis_dnxcore50" ]
 }
