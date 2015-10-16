@@ -294,30 +294,50 @@ namespace StackExchange.Redis
 
         public long HyperLogLogLength(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
+            ServerEndPoint server;
+            var features = GetFeatures(Db, key, flags, out server);
             var cmd = Message.Create(Db, flags, RedisCommand.PFCOUNT, key);
-            return ExecuteSync(cmd, ResultProcessor.Int64);
+            // technically a write / master-only command until 2.8.18
+            if (server != null && !features.HyperLogLogCountSlaveSafe) cmd.SetMasterOnly();
+            return ExecuteSync(cmd, ResultProcessor.Int64, server);
         }
 
         public long HyperLogLogLength(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
         {
             if (keys == null) throw new ArgumentNullException("keys");
-
+            ServerEndPoint server = null;
             var cmd = Message.Create(Db, flags, RedisCommand.PFCOUNT, keys);
-            return ExecuteSync(cmd, ResultProcessor.Int64);
+            if (keys.Length != 0)
+            {
+                var features = GetFeatures(Db, keys[0], flags, out server);
+                // technically a write / master-only command until 2.8.18
+                if (server != null && !features.HyperLogLogCountSlaveSafe) cmd.SetMasterOnly();
+            }            
+            return ExecuteSync(cmd, ResultProcessor.Int64, server);
         }
 
         public Task<long> HyperLogLogLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
+            ServerEndPoint server;
+            var features = GetFeatures(Db, key, flags, out server);
             var cmd = Message.Create(Db, flags, RedisCommand.PFCOUNT, key);
-            return ExecuteAsync(cmd, ResultProcessor.Int64);
+            // technically a write / master-only command until 2.8.18
+            if (server != null && !features.HyperLogLogCountSlaveSafe) cmd.SetMasterOnly();
+            return ExecuteAsync(cmd, ResultProcessor.Int64, server);
         }
 
         public Task<long> HyperLogLogLengthAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
         {
             if (keys == null) throw new ArgumentNullException("keys");
-
+            ServerEndPoint server = null;
             var cmd = Message.Create(Db, flags, RedisCommand.PFCOUNT, keys);
-            return ExecuteAsync(cmd, ResultProcessor.Int64);
+            if (keys.Length != 0)
+            {
+                var features = GetFeatures(Db, keys[0], flags, out server);
+                // technically a write / master-only command until 2.8.18
+                if (server != null && !features.HyperLogLogCountSlaveSafe) cmd.SetMasterOnly();
+            }
+            return ExecuteAsync(cmd, ResultProcessor.Int64, server);
         }
 
         public void HyperLogLogMerge(RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None)
@@ -561,7 +581,7 @@ namespace StackExchange.Redis
             if (server != null && features.MillisecondExpiry && multiplexer.CommandMap.IsAvailable(RedisCommand.PTTL))
             {
                 msg = Message.Create(Db, flags, RedisCommand.PTTL, key);
-                return ExecuteSync(msg, ResultProcessor.TimeSpanFromMilliseconds);
+                return ExecuteSync(msg, ResultProcessor.TimeSpanFromMilliseconds, server);
             }
             msg = Message.Create(Db, flags, RedisCommand.TTL, key);
             return ExecuteSync(msg, ResultProcessor.TimeSpanFromSeconds);
@@ -575,7 +595,7 @@ namespace StackExchange.Redis
             if (server != null && features.MillisecondExpiry && multiplexer.CommandMap.IsAvailable(RedisCommand.PTTL))
             {
                 msg = Message.Create(Db, flags, RedisCommand.PTTL, key);
-                return ExecuteAsync(msg, ResultProcessor.TimeSpanFromMilliseconds);
+                return ExecuteAsync(msg, ResultProcessor.TimeSpanFromMilliseconds, server);
             }
             msg = Message.Create(Db, flags, RedisCommand.TTL, key);
             return ExecuteAsync(msg, ResultProcessor.TimeSpanFromSeconds);
