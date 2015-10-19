@@ -1085,9 +1085,8 @@ namespace StackExchange.Redis
     {
         internal static IAsyncResult BeginRead(this Stream stream, byte[] buffer, int offset, int count, AsyncCallback ac, object state)
         {
-            Task<int> f = stream.ReadAsync(buffer, offset, count);
+            Task<int> f = Task<int>.Factory.StartNew(_ => stream.Read(buffer, offset, count), state);
             if (ac != null) f.ContinueWith(res => ac(f));
-            f.Start();
             return f;
         }
 

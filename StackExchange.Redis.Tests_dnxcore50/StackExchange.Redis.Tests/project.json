@@ -11,7 +11,7 @@
   ],
 
   "dependencies": {
-    "StackExchange.Redis": "1.0.0-*"
+    "StackExchange.Redis": "1.1.0-*"
   },
 
   "frameworks": {
