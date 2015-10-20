@@ -72,26 +72,31 @@ namespace StackExchange.Redis.Tests
         }
 
         [Test]
-        [ExpectedException(typeof(ArgumentException), ExpectedMessage = @"A null key is not valid in this context")]
+        // [ExpectedException(typeof(ArgumentException), ExpectedMessage = @"A null key is not valid in this context")]
         public void GetWithNullKey()
         {
             using (var muxer = Create())
             {
                 var db = muxer.GetDatabase();
                 string key = null;
-                db.StringGet(key);
-            }
+                //db.StringGet(key);
+                ArgumentException ex = Assert.Throws(typeof(ArgumentException), delegate { db.StringGet(key); }) as ArgumentException;
+                Assert.That(ex.Message.Equals( @"A null key is not valid in this context"));
+            }            
         }
 
         [Test]
-        [ExpectedException(typeof(ArgumentException), ExpectedMessage = @"A null key is not valid in this context")]
+        // [ExpectedException(typeof(ArgumentException), ExpectedMessage = @"A null key is not valid in this context")]
         public void SetWithNullKey()
         {
             using (var muxer = Create())
             {
                 var db = muxer.GetDatabase();
                 string key = null, value = "abc";
-                db.StringSet(key, value);
+                // db.StringSet(key, value);
+                ArgumentException ex = Assert.Throws(typeof(ArgumentException), delegate { db.StringSet(key, value); }) as ArgumentException;
+                Assert.That(ex.Message.Equals(@"A null key is not valid in this context"));
+
             }
         }
 
@@ -293,7 +298,7 @@ namespace StackExchange.Redis.Tests
             }
         }
         [Test]
-        [ExpectedException(typeof(RedisServerException), ExpectedMessage = "WRONGTYPE Operation against a key holding the wrong kind of value")]
+        // [ExpectedException(typeof(RedisServerException), ExpectedMessage = @"A null key is not valid in this context")]
         public void GetWithExpiryWrongTypeAsync()
         {
             using (var conn = Create())
@@ -308,25 +313,31 @@ namespace StackExchange.Redis.Tests
                 }
                 catch(AggregateException ex)
                 {
-                    throw ex.InnerExceptions[0];
+                    //throw ex.InnerExceptions[0];
+                    Assert.That(ex.GetType().Equals(typeof(RedisServerException)));
+                    Assert.That(ex.InnerExceptions[0].Equals(@"A null key is not valid in this context"));
                 }                
                 Assert.Fail();
             }
         }
 
         [Test]
-        [ExpectedException(typeof(RedisServerException), ExpectedMessage = "WRONGTYPE Operation against a key holding the wrong kind of value")]
+        // [ExpectedException(typeof(RedisServerException), ExpectedMessage = "WRONGTYPE Operation against a key holding the wrong kind of value")]
         public void GetWithExpiryWrongTypeSync()
         {
-            using (var conn = Create())
+            Exception ex = Assert.Throws(typeof(RedisServerException), delegate
             {
-                var db = conn.GetDatabase();
-                RedisKey key = Me();
-                db.KeyDelete(key);
-                db.SetAdd(key, "abc");
-                db.StringGetWithExpiry(key);
-                Assert.Fail();
-            }
+                using (var conn = Create())
+                {
+                    var db = conn.GetDatabase();
+                    RedisKey key = Me();
+                    db.KeyDelete(key);
+                    db.SetAdd(key, "abc");
+                    db.StringGetWithExpiry(key);
+                    Assert.Fail();
+                }
+            });
+            Assert.That(ex.Message.Equals("WRONGTYPE Operation against a key holding the wrong kind of value"));
         }
 
         [Test]

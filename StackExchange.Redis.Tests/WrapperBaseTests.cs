@@ -15,7 +15,8 @@ namespace StackExchange.Redis.Tests
         private Mock<IDatabaseAsync> mock;
         private WrapperBase<IDatabaseAsync> wrapper;
 
-        [TestFixtureSetUp]
+        //[TestFixtureSetUp]
+        [OneTimeSetUp]
         public void Initialize()
         {
             mock = new Mock<IDatabaseAsync>();
@@ -258,10 +259,12 @@ namespace StackExchange.Redis.Tests
         }
 
         [Test]
-        [ExpectedException(typeof(NotSupportedException))]
+        //[ExpectedException(typeof(NotSupportedException))]
         public void KeyRandomAsync()
         {
-            wrapper.KeyRandomAsync();
+            Assert.Throws(typeof(NotSupportedException), delegate {
+                wrapper.KeyRandomAsync();
+            });
         }
 
         [Test]

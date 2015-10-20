@@ -15,7 +15,8 @@ namespace StackExchange.Redis.Tests
         private Mock<IDatabase> mock;
         private DatabaseWrapper wrapper;
 
-        [TestFixtureSetUp]
+        //[TestFixtureSetUp]
+        [OneTimeSetUp]
         public void Initialize()
         {
             mock = new Mock<IDatabase>();
@@ -289,10 +290,10 @@ namespace StackExchange.Redis.Tests
         }
 
         [Test]
-        [ExpectedException(typeof(NotSupportedException))]
+        //[ExpectedException(typeof(NotSupportedException))]
         public void KeyRandom()
         {
-            wrapper.KeyRandom();
+            Assert.Throws(typeof(NotSupportedException), delegate { wrapper.KeyRandom(); });
         }
 
         [Test]

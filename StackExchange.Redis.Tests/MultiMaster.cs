@@ -14,16 +14,21 @@ namespace StackExchange.Redis.Tests
             return PrimaryServer + ":" + SecurePort + "," + PrimaryServer + ":" + PrimaryPort + ",password=" + SecurePassword;
         }
 
-        [Test, ExpectedException(typeof(RedisCommandException), ExpectedMessage = "Command cannot be issued to a slave: FLUSHDB")]
+        [Test]
+        //, ExpectedException(typeof(RedisCommandException), ExpectedMessage = "Command cannot be issued to a slave: FLUSHDB")]
         public void CannotFlushSlave()
         {
-            ConfigurationOptions config = GetMasterSlaveConfig();
-            using (var conn = ConnectionMultiplexer.Connect(config))
-            {
-                var servers = Array.ConvertAll(conn.GetEndPoints(), e => conn.GetServer(e));
-                var slave = servers.First(x => x.IsSlave);
-                slave.FlushDatabase();
-            }
+            Exception ex = Assert.Throws(typeof(RedisCommandException), delegate {
+                ConfigurationOptions config = GetMasterSlaveConfig();
+                using (var conn = ConnectionMultiplexer.Connect(config))
+                {
+                    var servers = Array.ConvertAll(conn.GetEndPoints(), e => conn.GetServer(e));
+                    var slave = servers.First(x => x.IsSlave);
+                    slave.FlushDatabase();
+                }
+            });
+            Assert.That(ex.Message.Equals("Command cannot be issued to a slave: FLUSHDB"));
+
         }
 
         [Test]

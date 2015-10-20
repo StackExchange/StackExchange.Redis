@@ -6,7 +6,7 @@ using NUnit.Framework;
 
 namespace StackExchange.Redis.Tests
 {
-    [TestFixture, Ignore]
+    [TestFixture, Ignore("reason?")]
     public class Sentinel
     {
         // TODO fill in these constants before running tests
@@ -100,7 +100,7 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [Test, Ignore]
+        [Test, Ignore("reason?")]
         public void SentinelFailoverTest()
         {
             Server.SentinelFailover(ServiceName);
