@@ -25,6 +25,7 @@ namespace StackExchange.Redis
                                          v2_6_12 = new Version(2, 6, 12),
                                          v2_8_0 = new Version(2, 8, 0),
                                          v2_8_12 = new Version(2, 8, 12),
+                                         v2_8_18 = new Version(2, 8, 18),
                                          v2_9_5 = new Version(2, 9, 5);
 
         private readonly Version version;
@@ -136,6 +137,11 @@ namespace StackExchange.Redis
         /// Are Lua changes to the calling database transparent to the calling client?
         /// </summary>
         public bool ScriptingDatabaseSafe { get { return Version >= v2_8_12; } }
+
+        /// <summary>
+        /// Is PFCOUNT supported on slaves?
+        /// </summary>
+        public bool HyperLogLogCountSlaveSafe { get { return Version >= v2_8_18; } }
 
         /// <summary>
         /// The Redis version of the server

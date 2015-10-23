@@ -12,7 +12,8 @@ namespace StackExchange.Redis.Tests
         private Mock<IBatch> mock;
         private BatchWrapper wrapper;
 
-        [TestFixtureSetUp]
+        //[TestFixtureSetUp]
+        [OneTimeSetUpAttribute]
         public void Initialize()
         {
             mock = new Mock<IBatch>();

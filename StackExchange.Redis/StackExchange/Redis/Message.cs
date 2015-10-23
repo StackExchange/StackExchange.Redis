@@ -189,28 +189,31 @@ namespace StackExchange.Redis
                 }
             }
 
-            if (IsMasterOnly(command))
-            {
-                switch (GetMasterSlaveFlags(flags))
-                {
-                    case CommandFlags.DemandSlave:
-                        throw ExceptionFactory.MasterOnly(false, command, null, null);
-                    case CommandFlags.DemandMaster:
-                        // already fine as-is
-                        break;
-                    case CommandFlags.PreferMaster:
-                    case CommandFlags.PreferSlave:
-                    default: // we will run this on the master, then
-                        flags = SetMasterSlaveFlags(flags, CommandFlags.DemandMaster);
-                        break;
-                }
-            }
+            bool masterOnly = IsMasterOnly(command);
             this.Db = db;
             this.command = command;
             this.flags = flags & UserSelectableFlags;
+            if (masterOnly) SetMasterOnly();
 
             createdDateTime = DateTime.UtcNow;
             createdTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+        }
+
+        internal void SetMasterOnly()
+        {
+            switch (GetMasterSlaveFlags(this.flags))
+            {
+                case CommandFlags.DemandSlave:
+                    throw ExceptionFactory.MasterOnly(false, this.command, null, null);
+                case CommandFlags.DemandMaster:
+                    // already fine as-is
+                    break;
+                case CommandFlags.PreferMaster:
+                case CommandFlags.PreferSlave:
+                default: // we will run this on the master, then
+                    this.flags = SetMasterSlaveFlags(this.flags, CommandFlags.DemandMaster);
+                    break;
+            }
         }
 
         internal void SetProfileStorage(ProfileStorage storage)
@@ -436,7 +439,6 @@ namespace StackExchange.Redis
                 case RedisCommand.PEXPIRE:
                 case RedisCommand.PEXPIREAT:
                 case RedisCommand.PFADD:
-                case RedisCommand.PFCOUNT: // technically a write command
                 case RedisCommand.PFMERGE:
                 case RedisCommand.PSETEX:
                 case RedisCommand.RENAME:
