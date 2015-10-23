@@ -285,11 +285,13 @@ namespace StackExchange.Redis.Tests
             }
             if (!allDone.WaitOne(timeout))
             {
-                for(int i = 0; i < threads; i++)
+#if !NETCORE
+                for (int i = 0; i < threads; i++)
                 {
                     var thd = threadArr[i];
                     if (thd.IsAlive) thd.Abort();
                 }
+#endif
                 throw new TimeoutException();
             }
 
