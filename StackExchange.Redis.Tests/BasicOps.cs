@@ -2,7 +2,9 @@
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
+#if FEATURE_BOOKSLEEVE
 using BookSleeve;
+#endif
 using NUnit.Framework;
 using StackExchange.Redis.KeyspaceIsolation;
 namespace StackExchange.Redis.Tests
@@ -340,6 +342,7 @@ namespace StackExchange.Redis.Tests
             Assert.That(ex.Message.Equals("WRONGTYPE Operation against a key holding the wrong kind of value"));
         }
 
+#if FEATURE_BOOKSLEEVE
         [Test]
         [TestCase(true, true, ResultCompletionMode.ConcurrentIfContinuation)]
         [TestCase(true, false, ResultCompletionMode.ConcurrentIfContinuation)]
@@ -389,7 +392,7 @@ namespace StackExchange.Redis.Tests
                     completionMode, AsyncOpsQty / watch.Elapsed.TotalSeconds);
             }
         }
-
+#endif
 
         [Test]
         [TestCase(true, 1)]
@@ -434,6 +437,8 @@ namespace StackExchange.Redis.Tests
 #endif
             }
         }
+
+#if FEATURE_BOOKSLEEVE
         [Test]
         [TestCase(ResultCompletionMode.Concurrent, 1)]
         [TestCase(ResultCompletionMode.ConcurrentIfContinuation, 1)]
@@ -473,6 +478,7 @@ namespace StackExchange.Redis.Tests
                     completionMode, threads, (workPerThread * threads) / timeTaken.TotalSeconds);
             }
         }
+#endif
 
         [Test]
         [TestCase(true, 1)]

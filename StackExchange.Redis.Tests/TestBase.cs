@@ -8,7 +8,9 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+#if FEATURE_BOOKSLEEVE
 using BookSleeve;
+#endif
 using NUnit.Framework;
 
 namespace StackExchange.Redis.Tests
@@ -221,6 +223,7 @@ namespace StackExchange.Redis.Tests
             return caller;
         }
 
+#if FEATURE_BOOKSLEEVE
         protected static RedisConnection GetOldStyleConnection(bool open = true, bool allowAdmin = false, bool waitForOpen = false, int syncTimeout = 5000, int ioTimeout = 5000)
         {
             return GetOldStyleConnection(PrimaryServer, PrimaryPort, open, allowAdmin, waitForOpen, syncTimeout, ioTimeout);
@@ -239,7 +242,7 @@ namespace StackExchange.Redis.Tests
             }
             return conn;
         }
-
+#endif
         protected static TimeSpan RunConcurrent(Action work, int threads, int timeout = 10000, [CallerMemberName] string caller = null)
         {
             if (work == null) throw new ArgumentNullException("work");
