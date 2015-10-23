@@ -130,7 +130,7 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create())
             {
                 var endpoints = conn.GetEndPoints();
-                var servers = Array.ConvertAll(endpoints, e => conn.GetServer(e));
+                var servers = endpoints.Select(e => conn.GetServer(e));
 
                 var key = Me();
                 const string value = "abc";
@@ -368,7 +368,7 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create(allowAdmin: true))
             {
                 var cluster = conn.GetDatabase();
-                var server = Array.ConvertAll(conn.GetEndPoints(), x => conn.GetServer(x)).First(x => !x.IsSlave);
+                var server = conn.GetEndPoints().Select(x => conn.GetServer(x)).First(x => !x.IsSlave);
                 server.FlushAllDatabases();
                 try
                 {
@@ -474,7 +474,7 @@ namespace StackExchange.Redis.Tests
                 Task[] send = new Task[COUNT];
                 int index = 0;
 
-                var servers = Array.ConvertAll(conn.GetEndPoints(), x => conn.GetServer(x));
+                var servers = conn.GetEndPoints().Select(x => conn.GetServer(x));
                 foreach (var server in servers)
                 {
                     if (!server.IsSlave)
@@ -600,7 +600,7 @@ namespace StackExchange.Redis.Tests
                 conn.RegisterProfiler(profiler);
 
                 var endpoints = conn.GetEndPoints();
-                var servers = Array.ConvertAll(endpoints, e => conn.GetServer(e));
+                var servers = endpoints.Select(e => conn.GetServer(e));
 
                 conn.BeginProfiling(profiler.MyContext);
                 var db = conn.GetDatabase();

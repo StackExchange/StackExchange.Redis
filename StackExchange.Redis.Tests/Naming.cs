@@ -148,7 +148,7 @@ namespace StackExchange.Redis.Tests
                     huntType = typeof(Task<>).MakeGenericType(method.ReturnType);
                 }
                 var pFrom = method.GetParameters();
-                Type[] args = Array.ConvertAll(pFrom, x => x.ParameterType);
+                Type[] args = pFrom.Select(x => x.ParameterType).ToArray();
                 Assert.AreEqual(typeof(CommandFlags), args.Last());
                 var found = to.GetMethod(huntName, flags, null, method.CallingConvention, args, null);
                 Assert.IsNotNull(found, "Found " + name + ", no " + huntName);

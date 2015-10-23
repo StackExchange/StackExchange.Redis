@@ -22,7 +22,7 @@ namespace StackExchange.Redis.Tests
                 ConfigurationOptions config = GetMasterSlaveConfig();
                 using (var conn = ConnectionMultiplexer.Connect(config))
                 {
-                    var servers = Array.ConvertAll(conn.GetEndPoints(), e => conn.GetServer(e));
+                    var servers = conn.GetEndPoints().Select(e => conn.GetServer(e));
                     var slave = servers.First(x => x.IsSlave);
                     slave.FlushDatabase();
                 }
