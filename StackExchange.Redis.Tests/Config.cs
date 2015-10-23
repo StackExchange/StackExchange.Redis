@@ -144,7 +144,11 @@ namespace StackExchange.Redis.Tests
                 var all = conn.ConfigGet();
                 Assert.IsTrue(all.Length > 0, "any");
 
+#if !NETCORE
                 var pairs = all.ToDictionary(x => (string)x.Key, x => (string)x.Value, StringComparer.InvariantCultureIgnoreCase);
+#else
+                var pairs = all.ToDictionary(x => (string)x.Key, x => (string)x.Value, StringComparer.OrdinalIgnoreCase);
+#endif
 
                 Assert.AreEqual(all.Length, pairs.Count);
                 Assert.IsTrue(pairs.ContainsKey("timeout"), "timeout");
