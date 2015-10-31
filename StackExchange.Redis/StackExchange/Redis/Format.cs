@@ -133,7 +133,7 @@ namespace StackExchange.Redis
 
         internal static bool TryParseDouble(string s, out double value)
         {
-            if(s == null || s.Length == 0)
+            if(string.IsNullOrEmpty(s))
             {
                 value = 0;
                 return false;

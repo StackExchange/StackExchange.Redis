@@ -484,7 +484,7 @@ namespace StackExchange.Redis
             public KeyMigrateCommandMessage(int db, RedisKey key, EndPoint toServer, int toDatabase, int timeoutMilliseconds, MigrateOptions migrateOptions, CommandFlags flags)
                 : base(db, flags, RedisCommand.MIGRATE, key)
             {
-                if (toServer == null) throw new ArgumentNullException("server");
+                if (toServer == null) throw new ArgumentNullException("toServer");
                 string toHost;
                 int toPort;
                 if (!Format.TryGetHostPort(toServer, out toHost, out toPort)) throw new ArgumentException("toServer");
