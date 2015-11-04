@@ -239,7 +239,7 @@ namespace StackExchange.Redis.Tests
 
                 Action<Task> nonTrivial = delegate
                 {
-#if !NETCORE
+#if !DNXCORE50
                     Thread.SpinWait(5);
 #else
                     var spinWait = new SpinWait();
@@ -488,14 +488,17 @@ namespace StackExchange.Redis.Tests
         }
 #endif
 
+//TODO: Ignore("dnxcore crash")
+#if !DNXCORE50
         [Test]
         [TestCase(true, 1)]
         [TestCase(false, 1)]
         [TestCase(true, 5)]
         [TestCase(false, 5)]
+#endif
         public void MassiveBulkOpsFireAndForget(bool preserveOrder, int threads)
         {
-            using (var muxer = Create())
+            using (var muxer = Create(syncTimeout:20000))
             {
                 muxer.PreserveAsyncOrder = preserveOrder;
 #if DEBUG

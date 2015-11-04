@@ -150,7 +150,7 @@ namespace StackExchange.Redis.Tests
                 var pFrom = method.GetParameters();
                 Type[] args = pFrom.Select(x => x.ParameterType).ToArray();
                 Assert.AreEqual(typeof(CommandFlags), args.Last());
-#if !NETCORE
+#if !DNXCORE50
                 var found = to.GetMethod(huntName, flags, null, method.CallingConvention, args, null);
 #else
                 var found = to.GetMethods(flags)
@@ -176,14 +176,14 @@ namespace StackExchange.Redis.Tests
         {
 
 #if DEBUG
-#if !NETCORE
+#if !DNXCORE50
             bool ignorePrefix = ignoreType != null && Attribute.IsDefined(method, ignoreType);
 #else
             bool ignorePrefix = ignoreType != null && method.IsDefined(ignoreType);
 #endif
             if (ignorePrefix)
             {
-#if !NETCORE
+#if !DNXCORE50
                 Attribute attrib = Attribute.GetCustomAttribute(method, ignoreType);
 #else
                 Attribute attrib = method.GetCustomAttribute(ignoreType);
@@ -228,7 +228,7 @@ namespace StackExchange.Redis.Tests
 
     public static class ReflectionExtensions
     {
-#if !NETCORE
+#if !DNXCORE50
         public static Type GetTypeInfo(this Type type)
         {
             return type;

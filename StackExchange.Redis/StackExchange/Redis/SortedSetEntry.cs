@@ -33,7 +33,7 @@ namespace StackExchange.Redis
         /// The score against the element
         /// </summary>
         [
-#if !NETCORE
+#if !DNXCORE50
             Browsable(false),
 #endif
             EditorBrowsable(EditorBrowsableState.Never), Obsolete("Please use Score", false)]
@@ -43,7 +43,7 @@ namespace StackExchange.Redis
         /// The unique element stored in the sorted set
         /// </summary>
         [
-#if !NETCORE
+#if !DNXCORE50
             Browsable(false),
 #endif
             EditorBrowsable(EditorBrowsableState.Never), Obsolete("Please use Element", false)]

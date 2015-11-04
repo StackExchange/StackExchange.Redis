@@ -20,7 +20,7 @@ namespace StackExchange.Redis.Tests
         protected override string GetConfiguration()
         {
             var server = ClusterIp;
-#if !NETCORE
+#if !DNXCORE50
             if (string.Equals(Environment.MachineName, "MARC-LAPTOP", StringComparison.InvariantCultureIgnoreCase))
 #else
             if (string.Equals(Environment.GetEnvironmentVariable("COMPUTERNAME"), "MARC-LAPTOP", StringComparison.OrdinalIgnoreCase))

@@ -1,4 +1,4 @@
-﻿#if __MonoCS__ || NETCORE
+﻿#if __MonoCS__ || DNXCORE50
 
 namespace StackExchange.Redis
 {

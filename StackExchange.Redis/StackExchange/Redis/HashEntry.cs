@@ -32,7 +32,7 @@ namespace StackExchange.Redis
         /// The name of the hash field
         /// </summary>
         [
-#if !NETCORE
+#if !DNXCORE50
             Browsable(false),
 #endif
             EditorBrowsable(EditorBrowsableState.Never), Obsolete("Please use Name", false)]

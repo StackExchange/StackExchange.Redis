@@ -21,7 +21,6 @@
   "frameworks": {
     "dnxcore50": {
       "compilationOptions": {
-        "define": [ "NETCORE" ],
         "warningsAsErrors": false
       },
       "dependencies": {
