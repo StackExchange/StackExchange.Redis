@@ -16,75 +16,85 @@ namespace StackExchange.Redis
 #endif
     static class TaskSource
     {
+#if !PLAT_SAFE_CONTINUATIONS
+        // on .NET < 4.6, it was possible to have threads hijacked; this is no longer a problem in 4.6 and core-clr 5,
+        // thanks to the new TaskCreationOptions.RunContinuationsAsynchronously, however we still need to be a little
+        // "test and react", as we could be targeting 4.5 but running on a 4.6 machine, in which case *it can still
+        // work the magic* (thanks to over-the-top install)
+
         /// <summary>
         /// Indicates whether the specified task will not hijack threads when results are set
         /// </summary>
         public static readonly Func<Task, bool> IsSyncSafe;
-        static TaskSource()
-        {
+		static TaskSource()
+		{
             try
-            {
-                Type taskType = typeof(Task);
-                FieldInfo continuationField = taskType.GetField("m_continuationObject", BindingFlags.Instance | BindingFlags.NonPublic);
-                Type safeScenario = taskType.GetNestedType("SetOnInvokeMres", BindingFlags.NonPublic);
-                if (continuationField != null && continuationField.FieldType == typeof(object) && safeScenario != null)
-                {
-                    var method = new DynamicMethod("IsSyncSafe", typeof(bool), new[] { typeof(Task) }, typeof(Task), true);
-                    var il = method.GetILGenerator();
-                    //var hasContinuation = il.DefineLabel();
-                    il.Emit(OpCodes.Ldarg_0);
-                    il.Emit(OpCodes.Ldfld, continuationField);
-                    Label nonNull = il.DefineLabel(), goodReturn = il.DefineLabel();
-                    // check if null
-                    il.Emit(OpCodes.Brtrue_S, nonNull);
-                    il.MarkLabel(goodReturn);
-                    il.Emit(OpCodes.Ldc_I4_1);
-                    il.Emit(OpCodes.Ret);
+			{
+				Type taskType = typeof(Task);
+				FieldInfo continuationField = taskType.GetField("m_continuationObject", BindingFlags.Instance | BindingFlags.NonPublic);
+				Type safeScenario = taskType.GetNestedType("SetOnInvokeMres", BindingFlags.NonPublic);
+				if (continuationField != null && continuationField.FieldType == typeof(object) && safeScenario != null)
+				{
+					var method = new DynamicMethod("IsSyncSafe", typeof(bool), new[] { typeof(Task) }, typeof(Task), true);
+					var il = method.GetILGenerator();
+					//var hasContinuation = il.DefineLabel();
+					il.Emit(OpCodes.Ldarg_0);
+					il.Emit(OpCodes.Ldfld, continuationField);
+					Label nonNull = il.DefineLabel(), goodReturn = il.DefineLabel();
+					// check if null
+					il.Emit(OpCodes.Brtrue_S, nonNull);
+					il.MarkLabel(goodReturn);
+					il.Emit(OpCodes.Ldc_I4_1);
+					il.Emit(OpCodes.Ret);
 
-                    // check if is a SetOnInvokeMres - if so, we're OK
-                    il.MarkLabel(nonNull);
-                    il.Emit(OpCodes.Ldarg_0);
-                    il.Emit(OpCodes.Ldfld, continuationField);
-                    il.Emit(OpCodes.Isinst, safeScenario);
-                    il.Emit(OpCodes.Brtrue_S, goodReturn);
+					// check if is a SetOnInvokeMres - if so, we're OK
+					il.MarkLabel(nonNull);
+					il.Emit(OpCodes.Ldarg_0);
+					il.Emit(OpCodes.Ldfld, continuationField);
+					il.Emit(OpCodes.Isinst, safeScenario);
+					il.Emit(OpCodes.Brtrue_S, goodReturn);
 
-                    il.Emit(OpCodes.Ldc_I4_0);
-                    il.Emit(OpCodes.Ret);
+					il.Emit(OpCodes.Ldc_I4_0);
+					il.Emit(OpCodes.Ret);
 
-                    IsSyncSafe = (Func<Task, bool>)method.CreateDelegate(typeof(Func<Task, bool>));
+					IsSyncSafe = (Func<Task, bool>)method.CreateDelegate(typeof(Func<Task, bool>));
 
-                    // and test them (check for an exception etc)
-                    var tcs = new TaskCompletionSource<int>();
-                    bool expectTrue = IsSyncSafe(tcs.Task);
-                    tcs.Task.ContinueWith(delegate { });
-                    bool expectFalse = IsSyncSafe(tcs.Task);
-                    tcs.SetResult(0);
-                    if(!expectTrue || expectFalse)
-                    {
-                        Debug.WriteLine("IsSyncSafe reported incorrectly!");
-                        Trace.WriteLine("IsSyncSafe reported incorrectly!");
-                        // revert to not trusting /them
-                        IsSyncSafe = null;
-                    }
-                }
-            }
-            catch(Exception ex)
-            {
-                Debug.WriteLine(ex.Message);
-                Trace.WriteLine(ex.Message);
-                IsSyncSafe = null;
-            }
+					// and test them (check for an exception etc)
+					var tcs = new TaskCompletionSource<int>();
+					bool expectTrue = IsSyncSafe(tcs.Task);
+					tcs.Task.ContinueWith(delegate { });
+					bool expectFalse = IsSyncSafe(tcs.Task);
+					tcs.SetResult(0);
+					if (!expectTrue || expectFalse)
+					{
+						Debug.WriteLine("IsSyncSafe reported incorrectly!");
+						Trace.WriteLine("IsSyncSafe reported incorrectly!");
+						// revert to not trusting /them
+						IsSyncSafe = null;
+					}
+				}
+			}
+			catch (Exception ex)
+			{
+				Debug.WriteLine(ex.Message);
+				Trace.WriteLine(ex.Message);
+				IsSyncSafe = null;
+			}
             if (IsSyncSafe == null)
                 IsSyncSafe = t => false; // assume: not
         }
-
+#endif
         /// <summary>
         /// Create a new TaskCompletion source
         /// </summary>
         public static TaskCompletionSource<T> Create<T>(object asyncState)
         {
-            return new TaskCompletionSource<T>(asyncState);
-        }
+#if PLAT_SAFE_CONTINUATIONS
+            return new TaskCompletionSource<T>(asyncState, TaskCreationOptions.RunContinuationsAsynchronously);
+#else
+            return new TaskCompletionSource<T>(asyncState, TaskCreationOptions.None);
+#endif
+        }        
 
         /// <summary>
         /// Create a new TaskCompletionSource that will not allow result-setting threads to be hijacked

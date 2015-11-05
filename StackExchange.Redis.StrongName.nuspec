@@ -20,9 +20,12 @@
       </group>
       <group targetFramework="net45">
       </group>
+      <group targetFramework="net46">
+      </group>
     </dependencies>
   </metadata>
   <files>
+    <file src="StackExchange.Redis_Net46\bin.snk\Release\StackExchange.Redis*.*" target="lib\net46" />
     <file src="StackExchange.Redis\bin.snk\Release\StackExchange.Redis*.*" target="lib\net45" />
     <file src="StackExchange.Redis_Net40\bin.snk\Release\StackExchange.Redis*.*" target="lib\net40" />
   </files>
