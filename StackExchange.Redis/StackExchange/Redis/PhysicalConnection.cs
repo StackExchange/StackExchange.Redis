@@ -659,14 +659,28 @@ namespace StackExchange.Redis
                     int space = EnsureSpaceAndComputeBytesToRead();
                     multiplexer.Trace("Beginning async read...", physicalName);
                     var result = netStream.BeginRead(ioBuffer, ioBufferBytes, space, endRead, this);
-                    if (result.CompletedSynchronously)
+#if DNXCORE50
+                    Task<int> t = (Task<int>)result;
+                    if (t.Result == -1)
+                    {
+                        multiplexer.Trace("Could not connect: ", physicalName);
+                        return;
+                    }
+#endif
+                        if (result.CompletedSynchronously)
                     {
                         multiplexer.Trace("Completed synchronously: processing immediately", physicalName);
                         keepReading = EndReading(result);
                     }
                 } while (keepReading);
             }
-            catch(System.IO.IOException ex)
+#if DNXCORE50
+            catch (AggregateException ex)
+            {
+                throw ex.InnerException;
+            }
+#endif
+            catch (System.IO.IOException ex)
             {
                 multiplexer.Trace("Could not connect: " + ex.Message, physicalName);
             }
@@ -1085,14 +1099,31 @@ namespace StackExchange.Redis
     {
         internal static IAsyncResult BeginRead(this Stream stream, byte[] buffer, int offset, int count, AsyncCallback ac, object state)
         {
-            Task<int> f = Task<int>.Factory.StartNew(_ => stream.Read(buffer, offset, count), state);
+            Task<int> f = Task<int>.Factory.StartNew(_ => {
+                try
+                {
+                    return stream.Read(buffer, offset, count);
+                }
+                catch (IOException ex)
+                {
+                    System.Diagnostics.Trace.WriteLine("Could not connect: " + ex.InnerException.Message);
+                    return -1;
+                }
+            }, state);
             if (ac != null) f.ContinueWith(res => ac(f));
             return f;
         }
 
         internal static int EndRead(this Stream stream, IAsyncResult ar)
         {
-            return ((Task<int>)ar).Result;
+            try
+            {
+                return ((Task<int>)ar).Result;
+            }
+            catch (AggregateException ex)
+            {
+                throw ex.InnerException;
+            }
         }
     }
 #endif
