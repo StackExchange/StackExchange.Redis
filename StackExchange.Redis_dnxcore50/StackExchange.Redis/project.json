@@ -16,7 +16,7 @@
   "frameworks": {
     "dnxcore50": {
       "compilationOptions": {
-        "define": [ "NETCORE" ],
+        "define": [ "PLAT_SAFE_CONTINUATIONS" ],
         "allowUnsafe": true,
         "warningsAsErrors": false
       },

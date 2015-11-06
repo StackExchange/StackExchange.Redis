@@ -129,7 +129,7 @@ namespace StackExchange.Redis
             if (outStream != null)
             {
                 multiplexer.Trace("Disconnecting...", physicalName);
-#if !NETCORE
+#if !DNXCORE50
                 try { outStream.Close(); } catch { }
 #endif
                 try { outStream.Dispose(); } catch { }
@@ -137,7 +137,7 @@ namespace StackExchange.Redis
             }
             if (netStream != null)
             {
-#if !NETCORE
+#if !DNXCORE50
                 try { netStream.Close(); } catch { }
 #endif
                 try { netStream.Dispose(); } catch { }
@@ -229,7 +229,7 @@ namespace StackExchange.Redis
                 add("Last-Heartbeat", "last-heartbeat", (lastBeat == 0 ? "never" : (unchecked(now - lastBeat)/1000 + "s ago"))+ (bridge.IsBeating ? " (mid-beat)" : "") );
                 add("Last-Multiplexer-Heartbeat", "last-mbeat", multiplexer.LastHeartbeatSecondsAgo + "s ago");
                 add("Last-Global-Heartbeat", "global", ConnectionMultiplexer.LastGlobalHeartbeatSecondsAgo + "s ago");
-#if !__MonoCS__ && !NETCORE
+#if !__MonoCS__ && !DNXCORE50
                 var mgr = bridge.Multiplexer.SocketManager;
                 add("SocketManager-State", "mgr", mgr.State.ToString());
                 add("Last-Error", "err", mgr.LastErrorTimeRelative());
@@ -757,7 +757,7 @@ namespace StackExchange.Redis
 
                 int bufferSize = config.WriteBuffer;
                 this.netStream = stream;
-#if !NETCORE
+#if !DNXCORE50
                 this.outStream = bufferSize <= 0 ? stream : new BufferedStream(stream, bufferSize);
 #else
                 this.outStream = stream;

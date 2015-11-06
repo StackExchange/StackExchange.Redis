@@ -21,6 +21,7 @@
   "frameworks": {
     "dnxcore50": {
       "compilationOptions": {
+        "define": [ "PLAT_SAFE_CONTINUATIONS" ],
         "warningsAsErrors": false
       },
       "dependencies": {
