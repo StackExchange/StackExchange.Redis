@@ -259,10 +259,9 @@ namespace StackExchange.Redis.Tests
         }
 
         [Test]
-        //[ExpectedException(typeof(NotSupportedException))]
         public void KeyRandomAsync()
         {
-            Assert.Throws(typeof(NotSupportedException), delegate {
+            Assert.Throws<NotSupportedException>(() => {
                 wrapper.KeyRandomAsync();
             });
         }

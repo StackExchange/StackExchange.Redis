@@ -125,13 +125,16 @@ namespace StackExchange.Redis.Tests
         }
 
         [Test]
-       // [ExpectedException(typeof(RedisCommandException), ExpectedMessage = "This operation has been disabled in the command-map and cannot be used: CONFIG")]
         public void ReadConfigWithConfigDisabled()
         {
             using (var muxer = Create(allowAdmin: true, disabledCommands: new[] { "config", "info" }))
             {
                 var conn = GetServer(muxer);
-                var all = conn.ConfigGet();
+                Assert.Throws<RedisCommandException>(() =>
+                {
+                    var all = conn.ConfigGet();
+                },
+                "This operation has been disabled in the command-map and cannot be used: CONFIG");
             }
         }
         [Test]
@@ -161,7 +164,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Test]
-        public async void TestConfigureAsync()
+        public async System.Threading.Tasks.Task TestConfigureAsync()
         {
             using(var muxer = Create())
             {

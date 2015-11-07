@@ -202,10 +202,10 @@ namespace StackExchange.Redis.Tests
         }
 
         [Test]
-        //[ExpectedException(typeof(RedisCommandException), ExpectedMessage = "Multi-key operations must involve a single slot; keys can use 'hash tags' to help this, i.e. '{/users/12345}/account' and '{/users/12345}/contacts' will always be in the same slot")]
         public void TransactionWithMultiServerKeys()
         {
-            Exception ex = Assert.Throws(typeof(RedisCommandException), delegate {
+            Assert.Throws<RedisCommandException>(() =>
+            {
                 using (var muxer = Create())
                 {
                     // connect
@@ -254,15 +254,14 @@ namespace StackExchange.Redis.Tests
                     //Assert.IsFalse(cluster.Wait(existsX), "x exists");
                     //Assert.IsFalse(cluster.Wait(existsY), "y exists");
                 }
-            });
-            Assert.That(ex.Message.Equals("Multi-key operations must involve a single slot; keys can use 'hash tags' to help this, i.e. '{/users/12345}/account' and '{/users/12345}/contacts' will always be in the same slot"));
+            },
+            "Multi-key operations must involve a single slot; keys can use 'hash tags' to help this, i.e. '{/users/12345}/account' and '{/users/12345}/contacts' will always be in the same slot");
         }
 
         [Test]
-        //[ExpectedException(typeof(RedisCommandException), ExpectedMessage = "Multi-key operations must involve a single slot; keys can use 'hash tags' to help this, i.e. '{/users/12345}/account' and '{/users/12345}/contacts' will always be in the same slot")]
         public void TransactionWithSameServerKeys()
         {
-            Exception ex = Assert.Throws(typeof(RedisCommandException), delegate
+            Assert.Throws<RedisCommandException>(() =>
             {
                 using (var muxer = Create())
                 {
@@ -311,8 +310,8 @@ namespace StackExchange.Redis.Tests
                     //Assert.IsTrue(cluster.Wait(existsX), "x exists");
                     //Assert.IsTrue(cluster.Wait(existsY), "y exists");
                 }
-            });
-            Assert.That(ex.Message.Equals("Multi-key operations must involve a single slot; keys can use 'hash tags' to help this, i.e. '{/users/12345}/account' and '{/users/12345}/contacts' will always be in the same slot"));
+            },
+            "Multi-key operations must involve a single slot; keys can use 'hash tags' to help this, i.e. '{/users/12345}/account' and '{/users/12345}/contacts' will always be in the same slot");
         }
 
         [Test]

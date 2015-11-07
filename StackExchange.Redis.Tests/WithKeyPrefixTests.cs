@@ -29,10 +29,9 @@ namespace StackExchange.Redis.Tests
             }
         }
         [Test]
-        //, ExpectedException(typeof(ArgumentNullException))]
         public void NullPrefixIsError_Bytes()
         {
-            Assert.Throws(typeof(ArgumentNullException), delegate { 
+            Assert.Throws<ArgumentNullException>(() => {
                 using (var conn = Create())
                 {
                     var raw = conn.GetDatabase(1);
@@ -41,10 +40,9 @@ namespace StackExchange.Redis.Tests
             });
         }
         [Test]
-        //, ExpectedException(typeof(ArgumentNullException))]
         public void NullPrefixIsError_String()
         {
-            Assert.Throws(typeof(ArgumentNullException), delegate {
+            Assert.Throws<ArgumentNullException>(() => {
                 using (var conn = Create())
                 {
                     var raw = conn.GetDatabase(1);
@@ -54,13 +52,12 @@ namespace StackExchange.Redis.Tests
         }
 
         [Test]
-        //, ExpectedException(typeof(ArgumentNullException))]
         [TestCase("abc")]
         [TestCase("")]
         [TestCase(null)]
         public void NullDatabaseIsError(string prefix)
         {
-            Assert.Throws(typeof(ArgumentNullException), delegate {
+            Assert.Throws<ArgumentNullException>(() => {
                 IDatabase raw = null;
                 var prefixed = raw.WithKeyPrefix(prefix);
             });

@@ -15,10 +15,9 @@ namespace StackExchange.Redis.Tests
         }
 
         [Test]
-        //, ExpectedException(typeof(RedisCommandException), ExpectedMessage = "Command cannot be issued to a slave: FLUSHDB")]
         public void CannotFlushSlave()
         {
-            Exception ex = Assert.Throws(typeof(RedisCommandException), delegate {
+            Assert.Throws<RedisCommandException>(() => {
                 ConfigurationOptions config = GetMasterSlaveConfig();
                 using (var conn = ConnectionMultiplexer.Connect(config))
                 {
@@ -26,9 +25,8 @@ namespace StackExchange.Redis.Tests
                     var slave = servers.First(x => x.IsSlave);
                     slave.FlushDatabase();
                 }
-            });
-            Assert.That(ex.Message.Equals("Command cannot be issued to a slave: FLUSHDB"));
-
+            },
+            "Command cannot be issued to a slave: FLUSHDB");
         }
 
         [Test]

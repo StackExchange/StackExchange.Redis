@@ -68,17 +68,16 @@ namespace StackExchange.Redis.Tests
         [Test]
         [TestCase("wrong")]
         [TestCase("")]
-        //[ExpectedException(typeof(RedisConnectionException), ExpectedMessage = "No connection is available to service this operation: PING")]
         public void ConnectWithWrongPassword(string password)
         {
-            Exception ex = Assert.Throws(typeof(RedisConnectionException), delegate {
+            Assert.Throws<RedisConnectionException>(() => {
                 SetExpectedAmbientFailureCount(-1);
                 using (var server = Create(password: password, checkConnect: false))
                 {
                     server.GetDatabase().Ping();
                 }
-            });
-            Assert.That(ex.Message.Equals("No connection is available to service this operation: PING"));
+            },
+            "No connection is available to service this operation: PING");
         }
     }
 }

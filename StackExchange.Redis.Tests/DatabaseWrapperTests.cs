@@ -290,10 +290,9 @@ namespace StackExchange.Redis.Tests
         }
 
         [Test]
-        //[ExpectedException(typeof(NotSupportedException))]
         public void KeyRandom()
         {
-            Assert.Throws(typeof(NotSupportedException), delegate { wrapper.KeyRandom(); });
+            Assert.Throws<NotSupportedException>(() => wrapper.KeyRandom());
         }
 
         [Test]
