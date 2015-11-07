@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace StackExchange.Redis
@@ -40,7 +39,7 @@ namespace StackExchange.Redis
 
         bool HasArguments { get { return Arguments != null && Arguments.Length > 0; } }
 
-        Dictionary<Type, Func<object, RedisKey?, ScriptParameterMapper.ScriptParameters>> ParameterMappers;
+        Hashtable ParameterMappers;
 
         internal LuaScript(string originalScript, string executableScript, string[] arguments)
         {
@@ -50,7 +49,7 @@ namespace StackExchange.Redis
 
             if (HasArguments)
             {
-                ParameterMappers = new Dictionary<Type, Func<object, RedisKey?, ScriptParameterMapper.ScriptParameters>>();
+                ParameterMappers = new Hashtable();
             }
         }
 
@@ -110,17 +109,17 @@ namespace StackExchange.Redis
                 if (ps == null) throw new ArgumentNullException("ps", "Script requires parameters");
 
                 var psType = ps.GetType();
-                var mapper = ParameterMappers[psType];
+                var mapper = (Func<object, RedisKey?, ScriptParameterMapper.ScriptParameters>)ParameterMappers[psType];
                 if (ps != null && mapper == null)
                 {
                     lock (ParameterMappers)
                     {
-                        mapper = ParameterMappers[psType];
+                        mapper = (Func<object, RedisKey?, ScriptParameterMapper.ScriptParameters>)ParameterMappers[psType];
                         if (mapper == null)
                         {
                             string missingMember;
                             string badMemberType;
-                            if(!ScriptParameterMapper.IsValidParameterHash(psType, this, out missingMember, out badMemberType))
+                            if (!ScriptParameterMapper.IsValidParameterHash(psType, this, out missingMember, out badMemberType))
                             {
                                 if (missingMember != null)
                                 {
