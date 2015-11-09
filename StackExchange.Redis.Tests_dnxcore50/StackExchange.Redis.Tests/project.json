@@ -30,7 +30,7 @@
         "System.Reflection.Extensions": "4.0.1-beta-*",
         "System.Threading.Tasks.Parallel": "4.0.1-beta-*",
         "Microsoft.CSharp": "4.0.0-beta-*",
-        "moq.netcore": "4.3.0.0",
+        "moq.netcore": "4.4.0",
         "nunit": "3.0.1-beta-5",
         "nunitlite": "3.0.1-beta-5"
       }

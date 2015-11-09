@@ -8,7 +8,7 @@ namespace StackExchange.Redis.Tests
     {
         public int Main(string[] args)
         {
-            return new AutoRun().Execute(typeof(AsyncTests).GetTypeInfo().Assembly, Console.Out, Console.In, args);
+            return new AutoRun().Execute(typeof(TestBase).GetTypeInfo().Assembly, Console.Out, Console.In, args);
         }
     }
 }

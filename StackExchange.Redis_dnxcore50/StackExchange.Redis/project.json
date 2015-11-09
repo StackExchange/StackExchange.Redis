@@ -23,7 +23,7 @@
       "dependencies": {
         "System.Diagnostics.Debug": "4.0.0",
         "System.Diagnostics.TraceSource": "4.0.0-beta-*",
-        "System.Diagnostics.Tools": "4.0.0-beta-*",
+        "System.Diagnostics.Tools": "4.0.0",
         "System.IO.Compression": "4.0.0",
         "System.Globalization": "4.0.10",
         "System.Linq": "4.0.0",
@@ -39,7 +39,7 @@
         "System.Security.Cryptography.Algorithms": "4.0.0-beta-*",
         "System.Security.Cryptography.Hashing.Algorithms": "4.0.0-beta-*",
         "System.Security.Cryptography.X509Certificates": "4.0.0-beta-*",
-        "System.Text.RegularExpressions": "4.0.0",
+        "System.Text.RegularExpressions": "4.0.10",
         "System.Threading": "4.0.0",
         "System.Threading.Thread": "4.0.0-*",
         "System.Threading.ThreadPool": "4.0.10-beta-*",
