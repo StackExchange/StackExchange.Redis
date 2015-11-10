@@ -37,7 +37,15 @@ namespace BasicTest
 
                 Action<Task> nonTrivial = delegate
                 {
+#if !DNXCORE50
                     Thread.SpinWait(5);
+#else
+                    var spinWait = new SpinWait();
+                    for (int i = 0; i < 5; i++)
+                    {
+                        spinWait.SpinOnce();
+                    }
+#endif
                 };
                 var watch = Stopwatch.StartNew();
                 for (int i = 0; i <= AsyncOpsQty; i++)
