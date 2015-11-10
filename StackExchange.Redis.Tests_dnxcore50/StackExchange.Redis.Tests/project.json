@@ -7,7 +7,8 @@
   "licenseUrl": "",
 
   "compile": [
-    "../../StackExchange.Redis.Tests/**/*.cs"
+    "../../StackExchange.Redis.Tests/TestBase.cs",
+    "../../StackExchange.Redis.Tests/Locking.cs"
   ],
 
   "dependencies": {
