@@ -9,6 +9,8 @@ namespace StackExchange.Redis.Tests
     public class TaskTests
     {
 #if DEBUG
+
+#if !PLAT_SAFE_CONTINUATIONS // IsSyncSafe doesn't exist if PLAT_SAFE_CONTINUATIONS is defined
         [Test]
         [TestCase(SourceOrign.NewTCS, false)]
         [TestCase(SourceOrign.Create, false)]
@@ -18,7 +20,7 @@ namespace StackExchange.Redis.Tests
             var source = Create<int>(origin);
             Assert.AreEqual(expected, TaskSource.IsSyncSafe(source.Task));
         }
-
+#endif
         static TaskCompletionSource<T> Create<T>(SourceOrign origin)
         {
             switch (origin)

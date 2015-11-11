@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
-VisualStudioVersion = 14.0.23107.0
+VisualStudioVersion = 14.0.24606.1
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StackExchange.Redis", "StackExchange.Redis\StackExchange.Redis.csproj", "{7CEC07F2-8C03-4C42-B048-738B215824C1}"
 EndProject
@@ -55,6 +55,10 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StackExchange.Redis.StrongName", "StackExchange.Redis\StackExchange.Redis.StrongName.csproj", "{EBF46088-E318-4D32-9EFB-01EF130A4554}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StackExchange.Redis_Net40.StrongName", "StackExchange.Redis_Net40\StackExchange.Redis_Net40.StrongName.csproj", "{75CED009-AAC6-4AC1-9C38-A0530619062D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StackExchange.Redis_Net46", "StackExchange.Redis_Net46\StackExchange.Redis_Net46.csproj", "{8C473A6F-B0DE-4ADD-88F8-C41B441E407C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StackExchange.Redis_Net46.StrongName", "StackExchange.Redis_Net46\StackExchange.Redis_Net46.StrongName.csproj", "{8CE5D027-E332-42DD-BA54-16310DCD529C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -155,6 +159,26 @@ Global
 		{75CED009-AAC6-4AC1-9C38-A0530619062D}.Release|Any CPU.Build.0 = Release|Any CPU
 		{75CED009-AAC6-4AC1-9C38-A0530619062D}.Verbose|Any CPU.ActiveCfg = Release|Any CPU
 		{75CED009-AAC6-4AC1-9C38-A0530619062D}.Verbose|Any CPU.Build.0 = Release|Any CPU
+		{8C473A6F-B0DE-4ADD-88F8-C41B441E407C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8C473A6F-B0DE-4ADD-88F8-C41B441E407C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8C473A6F-B0DE-4ADD-88F8-C41B441E407C}.Log Output|Any CPU.ActiveCfg = Mono|Any CPU
+		{8C473A6F-B0DE-4ADD-88F8-C41B441E407C}.Log Output|Any CPU.Build.0 = Mono|Any CPU
+		{8C473A6F-B0DE-4ADD-88F8-C41B441E407C}.Mono|Any CPU.ActiveCfg = Mono|Any CPU
+		{8C473A6F-B0DE-4ADD-88F8-C41B441E407C}.Mono|Any CPU.Build.0 = Mono|Any CPU
+		{8C473A6F-B0DE-4ADD-88F8-C41B441E407C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8C473A6F-B0DE-4ADD-88F8-C41B441E407C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8C473A6F-B0DE-4ADD-88F8-C41B441E407C}.Verbose|Any CPU.ActiveCfg = Mono|Any CPU
+		{8C473A6F-B0DE-4ADD-88F8-C41B441E407C}.Verbose|Any CPU.Build.0 = Mono|Any CPU
+		{8CE5D027-E332-42DD-BA54-16310DCD529C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8CE5D027-E332-42DD-BA54-16310DCD529C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8CE5D027-E332-42DD-BA54-16310DCD529C}.Log Output|Any CPU.ActiveCfg = Mono|Any CPU
+		{8CE5D027-E332-42DD-BA54-16310DCD529C}.Log Output|Any CPU.Build.0 = Mono|Any CPU
+		{8CE5D027-E332-42DD-BA54-16310DCD529C}.Mono|Any CPU.ActiveCfg = Mono|Any CPU
+		{8CE5D027-E332-42DD-BA54-16310DCD529C}.Mono|Any CPU.Build.0 = Mono|Any CPU
+		{8CE5D027-E332-42DD-BA54-16310DCD529C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8CE5D027-E332-42DD-BA54-16310DCD529C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8CE5D027-E332-42DD-BA54-16310DCD529C}.Verbose|Any CPU.ActiveCfg = Mono|Any CPU
+		{8CE5D027-E332-42DD-BA54-16310DCD529C}.Verbose|Any CPU.Build.0 = Mono|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

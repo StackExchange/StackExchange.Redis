@@ -100,7 +100,9 @@ namespace StackExchange.Redis
             if (stateOrCompletionSource is TaskCompletionSource<T>)
             {
                 var tcs = (TaskCompletionSource<T>)stateOrCompletionSource;
+#if !PLAT_SAFE_CONTINUATIONS // we don't need to check in this scenario
                 if (isAsync || TaskSource.IsSyncSafe(tcs.Task))
+#endif
                 {
                     T val;
                     Exception ex;
@@ -117,10 +119,12 @@ namespace StackExchange.Redis
                     }
                     return true;
                 }
+#if !PLAT_SAFE_CONTINUATIONS
                 else
                 { // looks like continuations; push to async to preserve the reader thread
                     return false;
                 }
+#endif
             }
             else
             {

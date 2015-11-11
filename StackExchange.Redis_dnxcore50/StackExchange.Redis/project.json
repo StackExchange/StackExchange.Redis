@@ -16,13 +16,13 @@
   "configurations": {
     "Debug": {
       "compilationOptions": {
-        "define": [ "DEBUG", "TRACE", "PLAT_SAFE_CONTINUATIONS" ],
+        "define": [ "DEBUG", "TRACE" ],
         "allowUnsafe": true
       }
     },
     "Release": {
       "compilationOptions": {
-        "define": [ "TRACE", "PLAT_SAFE_CONTINUATIONS" ],
+        "define": [ "TRACE" ],
         "allowUnsafe": true
       }
     }
