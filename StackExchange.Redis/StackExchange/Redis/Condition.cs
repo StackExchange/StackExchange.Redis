@@ -68,6 +68,38 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// Enforces that the given list index must have the specified value 
+        /// </summary>
+        public static Condition ListIndexEqual(RedisKey key, long index, RedisValue value)
+        {
+            return new ListCondition(key, index, true, value);
+        }
+
+        /// <summary>
+        /// Enforces that the given list index must exist
+        /// </summary>
+        public static Condition ListIndexExists(RedisKey key, long index)
+        {
+            return new ListCondition(key, index, true, null);
+        }
+
+        /// <summary>
+        /// Enforces that the given list index must not have the specified value 
+        /// </summary>
+        public static Condition ListIndexNotEqual(RedisKey key, long index, RedisValue value)
+        {
+            return new ListCondition(key, index, false, value);
+        }
+
+        /// <summary>
+        /// Enforces that the given list index must not exist
+        /// </summary>
+        public static Condition ListIndexNotExists(RedisKey key, long index)
+        {
+            return new ListCondition(key, index, false, null);
+        }
+
+        /// <summary>
         /// Enforces that the given key must have the specified value
         /// </summary>
         public static Condition StringEqual(RedisKey key, RedisValue value)
@@ -262,6 +294,76 @@ namespace StackExchange.Redis
                 return false;
             }
         }
+
+        internal class ListCondition : Condition
+        {
+            internal override Condition MapKeys(Func<RedisKey,RedisKey> map)
+            {
+                return new ListCondition(map(key), index, expectedResult, expectedValue);
+            }
+            private readonly bool expectedResult;
+            private readonly long index;
+            private readonly RedisValue? expectedValue;
+            private readonly RedisKey key;
+            public ListCondition(RedisKey key, long index, bool expectedResult, RedisValue? expectedValue)
+            {
+                if (key.IsNull) throw new ArgumentException("key");
+                this.key = key;
+                this.index = index;
+                this.expectedResult = expectedResult;
+                this.expectedValue = expectedValue;
+            }
+
+            public override string ToString()
+            {
+                return ((string)key) + "[" + index.ToString() + "]"
+                    + (expectedValue.HasValue ? (expectedResult ? " == " : " != ") + expectedValue.Value : (expectedResult ? " exists" : " does not exist"));
+            }
+
+            internal override void CheckCommands(CommandMap commandMap)
+            {
+                commandMap.AssertAvailable(RedisCommand.LINDEX);
+            }
+
+            internal sealed override IEnumerable<Message> CreateMessages(int db, ResultBox resultBox)
+            {
+                yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key);
+
+                var message = ConditionProcessor.CreateMessage(this, db, CommandFlags.None, RedisCommand.LINDEX, key, index);
+                message.SetSource(ConditionProcessor.Default, resultBox);
+                yield return message;
+            }
+
+            internal override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
+            {
+                return serverSelectionStrategy.HashSlot(key);
+            }
+            internal override bool TryValidate(RawResult result, out bool value)
+            {
+                switch (result.Type)
+                {
+                    case ResultType.BulkString:
+                    case ResultType.SimpleString:
+                    case ResultType.Integer:
+                        var parsed = result.AsRedisValue();
+                        if (expectedValue.HasValue)
+                        {
+                            value = (parsed == expectedValue.Value) == expectedResult;
+                            ConnectionMultiplexer.TraceWithoutContext("actual: " + (string)parsed + "; expected: " + (string)expectedValue.Value +
+                                "; wanted: " + (expectedResult ? "==" : "!=") + "; voting: " + value);
+                        }
+                        else
+                        {
+                            value = (parsed.IsNull != expectedResult);
+                            ConnectionMultiplexer.TraceWithoutContext("exists: " + parsed + "; expected: " + expectedResult + "; voting: " + value);
+                        }
+                        return true;
+                }
+                value = false;
+                return false;
+            }
+        }
+
     }
 
     /// <summary>
