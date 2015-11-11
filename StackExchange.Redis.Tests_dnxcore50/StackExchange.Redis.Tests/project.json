@@ -21,12 +21,12 @@
   "configurations": {
     "Debug": {
       "compilationOptions": {
-        "define": [ "DEBUG", "TRACE", "PLAT_SAFE_CONTINUATIONS", "VERBOSE" ]
+        "define": [ "DEBUG", "TRACE", "PLAT_SAFE_CONTINUATIONS" ]
       }
     },
     "Release": {
       "compilationOptions": {
-        "define": [ "TRACE", "PLAT_SAFE_CONTINUATIONS", "VERBOSE" ]
+        "define": [ "TRACE", "PLAT_SAFE_CONTINUATIONS" ]
       }
     }
   },
