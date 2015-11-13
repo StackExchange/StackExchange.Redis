@@ -10,7 +10,9 @@ using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
+#if DNXCORE50
 using System.Threading.Tasks;
+#endif
 
 namespace StackExchange.Redis
 {
@@ -661,13 +663,13 @@ namespace StackExchange.Redis
                     var result = netStream.BeginRead(ioBuffer, ioBufferBytes, space, endRead, this);
 #if DNXCORE50
                     Task<int> t = (Task<int>)result;
-                    if (t.Result == -1)
+                    if (t.Status == TaskStatus.RanToCompletion && t.Result == -1)
                     {
                         multiplexer.Trace("Could not connect: ", physicalName);
                         return;
                     }
 #endif
-                        if (result.CompletedSynchronously)
+                    if (result.CompletedSynchronously)
                     {
                         multiplexer.Trace("Completed synchronously: processing immediately", physicalName);
                         keepReading = EndReading(result);
