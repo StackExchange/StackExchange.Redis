@@ -231,7 +231,7 @@ namespace StackExchange.Redis
                 add("Last-Heartbeat", "last-heartbeat", (lastBeat == 0 ? "never" : (unchecked(now - lastBeat)/1000 + "s ago"))+ (bridge.IsBeating ? " (mid-beat)" : "") );
                 add("Last-Multiplexer-Heartbeat", "last-mbeat", multiplexer.LastHeartbeatSecondsAgo + "s ago");
                 add("Last-Global-Heartbeat", "global", ConnectionMultiplexer.LastGlobalHeartbeatSecondsAgo + "s ago");
-#if !__MonoCS__ && !DNXCORE50
+#if FEATURE_SOCKET_MODE_POLL
                 var mgr = bridge.Multiplexer.SocketManager;
                 add("SocketManager-State", "mgr", mgr.State.ToString());
                 add("Last-Error", "err", mgr.LastErrorTimeRelative());

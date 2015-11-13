@@ -1,11 +1,11 @@
-﻿using System;
+﻿#if FEATURE_SOCKET_MODE_POLL
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Threading;
 
-#if !__MonoCS__ && !DNXCORE50
 namespace StackExchange.Redis
 {
     
