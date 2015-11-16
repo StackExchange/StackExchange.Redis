@@ -182,6 +182,9 @@ namespace StackExchange.Redis
                     if (string.IsNullOrWhiteSpace(line)) continue;
 
                     var node = new ClusterNode(this, line, origin);
+                    // Be resilient to ":0 {master,slave},fail,noaddr" nodes
+                    if (node.IsNoAddr)
+                        continue;
                     nodeLookup.Add(node.EndPoint, node);
                 }
             }
@@ -262,6 +265,8 @@ namespace StackExchange.Redis
 
         private readonly bool isSlave;
 
+        private readonly bool isNoAddr;
+
         private readonly string nodeId, parentNodeId, raw;
 
         private readonly IList<SlotRange> slots;
@@ -291,6 +296,7 @@ namespace StackExchange.Redis
             }
             nodeId = parts[0];
             isSlave = flags.Contains("slave");
+            isNoAddr = flags.Contains("noaddr");
             parentNodeId = string.IsNullOrWhiteSpace(parts[3]) ? null : parts[3];
 
             List<SlotRange> slots = null;
@@ -338,6 +344,11 @@ namespace StackExchange.Redis
         /// Gets whether this node is a slave
         /// </summary>
         public bool IsSlave { get { return isSlave; } }
+
+        /// <summary>
+        /// Gets whether this node is flagged as noaddr
+        /// </summary>
+        public bool IsNoAddr { get { return isNoAddr; } }
 
         /// <summary>
         /// Gets the unique node-id of the current node
