@@ -12,7 +12,6 @@ namespace StackExchange.Redis.Tests
         private Mock<ITransaction> mock;
         private TransactionWrapper wrapper;
 
-        //[TestFixtureSetUp]
         [OneTimeSetUp]
         public void Initialize()
         {

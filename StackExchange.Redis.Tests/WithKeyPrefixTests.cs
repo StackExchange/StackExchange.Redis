@@ -39,6 +39,7 @@ namespace StackExchange.Redis.Tests
                 }
             });
         }
+
         [Test]
         public void NullPrefixIsError_String()
         {
@@ -62,6 +63,7 @@ namespace StackExchange.Redis.Tests
                 var prefixed = raw.WithKeyPrefix(prefix);
             });
         }
+
         [Test]
         public void BasicSmokeTest()
         {

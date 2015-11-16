@@ -234,7 +234,9 @@ namespace StackExchange.Redis.Tests
                 var conn = muxer.GetDatabase();
                 muxer.Wait(conn.PingAsync());
 
+#if DNXCORE50
                 int number = 0;
+#endif
                 Action<Task> nonTrivial = delegate
                 {
 #if !DNXCORE50
@@ -485,17 +487,14 @@ namespace StackExchange.Redis.Tests
         }
 #endif
 
-//TODO: Ignore("dnxcore crash")
-#if !DNXCORE50
         [Test]
         [TestCase(true, 1)]
         [TestCase(false, 1)]
         [TestCase(true, 5)]
         [TestCase(false, 5)]
-#endif
         public void MassiveBulkOpsFireAndForget(bool preserveOrder, int threads)
         {
-            using (var muxer = Create(syncTimeout:20000))
+            using (var muxer = Create())
             {
                 muxer.PreserveAsyncOrder = preserveOrder;
 #if DEBUG
