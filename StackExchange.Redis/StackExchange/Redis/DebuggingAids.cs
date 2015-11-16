@@ -136,7 +136,7 @@ namespace StackExchange.Redis
         }
         void IServer.Hang(TimeSpan duration, CommandFlags flags)
         {
-            var msg = Message.Create(0, flags, RedisCommand.CLIENT, RedisLiterals.PAUSE, (long)duration.TotalMilliseconds);
+            var msg = Message.Create(-1, flags, RedisCommand.CLIENT, RedisLiterals.PAUSE, (long)duration.TotalMilliseconds);
             ExecuteSync(msg, ResultProcessor.DemandOK);
         }
     }
