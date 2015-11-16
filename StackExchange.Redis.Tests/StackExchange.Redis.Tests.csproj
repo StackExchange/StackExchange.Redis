@@ -35,7 +35,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Verbose|AnyCPU'">
     <DebugSymbols>true</DebugSymbols>
     <OutputPath>bin\Verbose\</OutputPath>
-    <DefineConstants>TRACE;DEBUG;FEATURE_BOOKSLEEVE;FEATURE_MOQ</DefineConstants>
+    <DefineConstants>TRACE;DEBUG;VERBOSE;FEATURE_BOOKSLEEVE;FEATURE_MOQ</DefineConstants>
     <DebugType>full</DebugType>
     <PlatformTarget>AnyCPU</PlatformTarget>
     <ErrorReport>prompt</ErrorReport>
@@ -45,7 +45,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Log Output|AnyCPU'">
     <DebugSymbols>true</DebugSymbols>
     <OutputPath>bin\Log Output\</OutputPath>
-    <DefineConstants>TRACE;DEBUG;FEATURE_BOOKSLEEVE;FEATURE_MOQ</DefineConstants>
+    <DefineConstants>TRACE;DEBUG;LOGOUTPUT;FEATURE_BOOKSLEEVE;FEATURE_MOQ</DefineConstants>
     <DebugType>full</DebugType>
     <PlatformTarget>AnyCPU</PlatformTarget>
     <ErrorReport>prompt</ErrorReport>
