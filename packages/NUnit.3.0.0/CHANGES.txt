@@ -1,4 +1,25 @@
-﻿NUnit 3.0.0 Release Candidate 2 - November 8, 2015
+﻿NUnit 3.0.0 Final Release - November 15, 2015
+
+Issues Resolved
+
+ * 635 Mono 4.0 Support
+
+NUnit 3.0.0 Release Candidate 3 - November 13, 2015
+
+Engine
+
+ * The engine now only sets the config file for project.nunit to project.config if project.config exists. Otherwise, each assembly uses its own config, provided it is run in a separate AppDomain by itself. 
+
+   NOTE: It is not possible for multiple assemblies in the same AppDomain to use different configs. This is not an NUnit limitation, it's just how configs work!
+
+Issues Resolved
+
+ * 856 Extensions support for third party runners in NUnit 3.0
+ * 1003 Delete TeamCityEventHandler as it is not used
+ * 1015 Specifying .nunit project and --framework on command line causes crash
+ * 1017 Remove Assert.Multiple from framework
+
+NUnit 3.0.0 Release Candidate 2 - November 8, 2015
 
 Engine
 
