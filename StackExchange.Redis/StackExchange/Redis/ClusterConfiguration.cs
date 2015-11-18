@@ -172,6 +172,7 @@ namespace StackExchange.Redis
         private readonly ServerSelectionStrategy serverSelectionStrategy;
         internal ClusterConfiguration(ServerSelectionStrategy serverSelectionStrategy, string nodes, EndPoint origin)
         {
+            // Beware: Any exception thrown here will wreak silent havoc like inability to connect to cluster nodes or non returning calls
             this.serverSelectionStrategy = serverSelectionStrategy;
             this.origin = origin;
             using (var reader = new StringReader(nodes))
@@ -180,12 +181,36 @@ namespace StackExchange.Redis
                 while ((line = reader.ReadLine()) != null)
                 {
                     if (string.IsNullOrWhiteSpace(line)) continue;
-
                     var node = new ClusterNode(this, line, origin);
                     // Be resilient to ":0 {master,slave},fail,noaddr" nodes
                     if (node.IsNoAddr)
                         continue;
-                    nodeLookup.Add(node.EndPoint, node);
+                    if (nodeLookup.ContainsKey(node.EndPoint))
+                    {
+                        // Deal with conflicting node entries for the same endpoint
+                        // This can happen in dynamic environments when a node goes down and a new one is created
+                        // to replace it.
+                        if (!node.IsConnected)
+                        {
+                            // The node we're trying to add is probably about to become stale. Ignore it.
+                            continue;
+                        }
+                        else if (!nodeLookup[node.EndPoint].IsConnected)
+                        {
+                            // The node we registered previously is probably stale. Replace it with a known good node.
+                            nodeLookup[node.EndPoint] = node;
+                        }
+                        else
+                        {
+                            // We have conflicting connected nodes. There's nothing much we can do other than
+                            // wait for the cluster state to converge and refresh on the next pass.
+                            // The same is true if we have multiple disconnected nodes.
+                        }
+                    }
+                    else
+                    {
+                        nodeLookup.Add(node.EndPoint, node);
+                    }
                 }
             }
         }
@@ -267,6 +292,8 @@ namespace StackExchange.Redis
 
         private readonly bool isNoAddr;
 
+        private readonly bool isConnected;
+
         private readonly string nodeId, parentNodeId, raw;
 
         private readonly IList<SlotRange> slots;
@@ -280,6 +307,7 @@ namespace StackExchange.Redis
         internal ClusterNode() { }
         internal ClusterNode(ClusterConfiguration configuration, string raw, EndPoint origin)
         {
+            // http://redis.io/commands/cluster-nodes
             this.configuration = configuration;
             this.raw = raw;
             var parts = raw.Split(StringSplits.Space);
@@ -311,6 +339,7 @@ namespace StackExchange.Redis
                 }
             }
             this.slots = slots == null ? NoSlots : slots.AsReadOnly();
+            this.isConnected = parts[7] == "connected"; // Can be "connected" or "disconnected"
         }
         /// <summary>
         /// Gets all child nodes of the current node
@@ -349,6 +378,11 @@ namespace StackExchange.Redis
         /// Gets whether this node is flagged as noaddr
         /// </summary>
         public bool IsNoAddr { get { return isNoAddr; } }
+
+        /// <summary>
+        /// Gets the node's connection status
+        /// </summary>
+        public bool IsConnected { get { return isConnected; } }
 
         /// <summary>
         /// Gets the unique node-id of the current node
