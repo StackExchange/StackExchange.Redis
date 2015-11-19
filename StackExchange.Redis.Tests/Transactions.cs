@@ -208,6 +208,96 @@ namespace StackExchange.Redis.Tests
         }
 
         [Test]
+        [TestCase(false, false, true)]
+        [TestCase(false, true, false)]
+        [TestCase(true, false, false)]
+        [TestCase(true, true, true)]
+        public void BasicTranWithListExistsCondition(bool demandKeyExists, bool keyExists, bool expectTran)
+        {
+            using (var muxer = Create(disabledCommands: new[] { "info", "config" }))
+            {
+                RedisKey key = Me(), key2 = Me() + "2";
+                var db = muxer.GetDatabase();
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.KeyDelete(key2, CommandFlags.FireAndForget);
+                if (keyExists) db.ListRightPush(key2, "any value", flags:  CommandFlags.FireAndForget);
+                Assert.IsFalse(db.KeyExists(key));
+                Assert.AreEqual(keyExists, db.KeyExists(key2));
+
+                var tran = db.CreateTransaction();
+                var cond = tran.AddCondition(demandKeyExists ? Condition.ListIndexExists(key2, 0) : Condition.ListIndexNotExists(key2, 0));
+                var push = tran.ListRightPushAsync(key, "any value");
+                var exec = tran.ExecuteAsync();
+                var get = db.ListGetByIndex(key, 0);
+
+                Assert.AreEqual(expectTran, db.Wait(exec), "expected tran result");
+                if (demandKeyExists == keyExists)
+                {
+                    Assert.IsTrue(db.Wait(exec), "eq: exec");
+                    Assert.IsTrue(cond.WasSatisfied, "eq: was satisfied");
+                    Assert.AreEqual(1, db.Wait(push), "eq: push");
+                    Assert.AreEqual("any value", (string)get, "eq: get");
+                }
+                else
+                {
+                    Assert.IsFalse(db.Wait(exec), "neq: exec");
+                    Assert.False(cond.WasSatisfied, "neq: was satisfied");
+                    Assert.AreEqual(TaskStatus.Canceled, push.Status, "neq: push");
+                    Assert.AreEqual(null, (string)get, "neq: get");
+                }
+            }
+        }
+
+        [Test]
+        [TestCase("same", "same", true, true)]
+        [TestCase("x", "y", true, false)]
+        [TestCase("x", null, true, false)]
+        [TestCase(null, "y", true, false)]
+        [TestCase(null, null, true, true)]
+
+        [TestCase("same", "same", false, false)]
+        [TestCase("x", "y", false, true)]
+        [TestCase("x", null, false, true)]
+        [TestCase(null, "y", false, true)]
+        [TestCase(null, null, false, false)]
+        public void BasicTranWithListEqualsCondition(string expected, string value, bool expectEqual, bool expectTran)
+        {
+            using (var muxer = Create())
+            {
+                RedisKey key = Me(), key2 = Me() + "2";
+                var db = muxer.GetDatabase();
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.KeyDelete(key2, CommandFlags.FireAndForget);
+
+                if (value != null) db.ListRightPush(key2, value, flags: CommandFlags.FireAndForget);
+                Assert.IsFalse(db.KeyExists(key));
+                Assert.AreEqual(value, (string)db.ListGetByIndex(key2, 0));
+
+                var tran = db.CreateTransaction();
+                var cond = tran.AddCondition(expectEqual ? Condition.ListIndexEqual(key2, 0, expected) : Condition.ListIndexNotEqual(key2, 0, expected));
+                var push = tran.ListRightPushAsync(key, "any value");
+                var exec = tran.ExecuteAsync();
+                var get = db.ListGetByIndex(key, 0);
+
+                Assert.AreEqual(expectTran, db.Wait(exec), "expected tran result");
+                if (expectEqual == (value == expected))
+                {
+                    Assert.IsTrue(db.Wait(exec), "eq: exec");
+                    Assert.IsTrue(cond.WasSatisfied, "eq: was satisfied");
+                    Assert.AreEqual(1, db.Wait(push), "eq: push");
+                    Assert.AreEqual("any value", (string)get, "eq: get");
+                }
+                else
+                {
+                    Assert.IsFalse(db.Wait(exec), "neq: exec");
+                    Assert.False(cond.WasSatisfied, "neq: was satisfied");
+                    Assert.AreEqual(TaskStatus.Canceled, push.Status, "neq: push");
+                    Assert.AreEqual(null, (string)get, "neq: get");
+                }
+            }
+        }
+
+        [Test]
         public async void BasicTran()
         {
             using (var muxer = Create())
