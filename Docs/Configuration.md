@@ -41,7 +41,7 @@ A common usage is to store the *basic* details in a string, and then apply speci
 
 Microsoft Azure Redis example with password
 
-    var conn = ConnectionMultiplexer.Connect("contoso5.redis.cache.windows.net,ssl=true,password=...");
+    var conn = ConnectionMultiplexer.Connect("contoso5.redis.cache.windows.net,ssl=true,abortConnect=false,password=...");
 
 
 Configuration Options
