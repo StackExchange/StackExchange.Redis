@@ -31,7 +31,10 @@ namespace StackExchange.Redis
         /// <summary>
         /// The name of the hash field
         /// </summary>
-        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never), Obsolete("Please use Name", false)]
+#if !DNXCORE50
+        [Browsable(false)]
+#endif
+        [EditorBrowsable(EditorBrowsableState.Never), Obsolete("Please use Name", false)]
         public RedisValue Key { get { return name; } }
 
         /// <summary>

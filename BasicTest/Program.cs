@@ -35,9 +35,17 @@ namespace BasicTest
                 var conn = muxer.GetDatabase();
                 muxer.Wait(conn.PingAsync());
 
+                int number = 0;
                 Action<Task> nonTrivial = delegate
                 {
+#if !DNXCORE50
                     Thread.SpinWait(5);
+#else
+                    for (int i = 0; i < 50; i++)
+                    {
+                        number++;
+                    }
+#endif
                 };
                 var watch = Stopwatch.StartNew();
                 for (int i = 0; i <= AsyncOpsQty; i++)

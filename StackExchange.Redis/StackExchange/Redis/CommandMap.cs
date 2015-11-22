@@ -85,8 +85,7 @@ namespace StackExchange.Redis
         {
             if (overrides == null || overrides.Count == 0) return Default;
 
-            if (ReferenceEquals(overrides.Comparer, StringComparer.OrdinalIgnoreCase) ||
-                ReferenceEquals(overrides.Comparer, StringComparer.InvariantCultureIgnoreCase))
+            if (ReferenceEquals(overrides.Comparer, StringComparer.OrdinalIgnoreCase))
             {
                 // that's ok; we're happy with ordinal/invariant case-insensitive
                 // (but not culture-specific insensitive; completely untested)

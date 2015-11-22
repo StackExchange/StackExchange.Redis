@@ -264,21 +264,26 @@ return timeTaken
             }
         }
 
-        [Test, ExpectedException(typeof(RedisServerException), ExpectedMessage = "oops")]
+        [Test]
         public void ScriptThrowsError()
         {
-            using (var muxer = GetScriptConn())
+            Assert.Throws<RedisServerException>(() =>
             {
-                var conn = muxer.GetDatabase(0);
-                var result = conn.ScriptEvaluateAsync("return redis.error_reply('oops')", null, null);
-                try
+                using (var muxer = GetScriptConn())
                 {
-                    conn.Wait(result);
-                } catch(AggregateException ex)
-                {
-                    throw ex.InnerExceptions[0];
+                    var conn = muxer.GetDatabase(0);
+                    var result = conn.ScriptEvaluateAsync("return redis.error_reply('oops')", null, null);
+                    try
+                    {
+                        conn.Wait(result);
+                    }
+                    catch (AggregateException ex)
+                    {
+                        throw ex.InnerExceptions[0];
+                    }
                 }
-            }
+            },
+            message: "oops");
         }
 
         [Test]

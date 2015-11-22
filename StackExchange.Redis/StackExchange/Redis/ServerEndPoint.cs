@@ -26,7 +26,7 @@ namespace StackExchange.Redis
     {
         internal volatile ServerEndPoint Master;
         internal volatile ServerEndPoint[] Slaves = NoSlaves;
-        private static readonly Regex nameSanitizer = new Regex("[^!-~]", RegexOptions.Compiled);
+        private static readonly Regex nameSanitizer = new Regex("[^!-~]", InternalRegexCompiledOption.Default);
         private static readonly ServerEndPoint[] NoSlaves = new ServerEndPoint[0];
         private readonly EndPoint endpoint;
 
@@ -484,7 +484,7 @@ namespace StackExchange.Redis
         
         internal int LastInfoReplicationCheckSecondsAgo
         {
-            get { return unchecked(Environment.TickCount - Thread.VolatileRead(ref lastInfoReplicationCheckTicks)) / 1000; }
+            get { return unchecked(Environment.TickCount - VolatileWrapper.Read(ref lastInfoReplicationCheckTicks)) / 1000; }
         }
 
         private EndPoint masterEndPoint;

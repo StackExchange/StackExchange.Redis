@@ -10,6 +10,9 @@ using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
+#if DNXCORE50
+using System.Threading.Tasks;
+#endif
 
 namespace StackExchange.Redis
 {
@@ -93,7 +96,7 @@ namespace StackExchange.Redis
 
         public void BeginConnect(TextWriter log)
         {
-            Thread.VolatileWrite(ref firstUnansweredWriteTickCount, 0);
+            VolatileWrapper.Write(ref firstUnansweredWriteTickCount, 0);
             var endpoint = this.bridge.ServerEndPoint.EndPoint;
 
             multiplexer.Trace("Connecting...", physicalName);
@@ -113,7 +116,7 @@ namespace StackExchange.Redis
         {
             get
             {
-                return unchecked(Environment.TickCount - Thread.VolatileRead(ref lastWriteTickCount)) / 1000;
+                return unchecked(Environment.TickCount - VolatileWrapper.Read(ref lastWriteTickCount)) / 1000;
             }
         }
 
@@ -128,13 +131,17 @@ namespace StackExchange.Redis
             if (outStream != null)
             {
                 multiplexer.Trace("Disconnecting...", physicalName);
+#if !DNXCORE50
                 try { outStream.Close(); } catch { }
+#endif
                 try { outStream.Dispose(); } catch { }
                 outStream = null;
             }
             if (netStream != null)
             {
+#if !DNXCORE50
                 try { netStream.Close(); } catch { }
+#endif
                 try { netStream.Dispose(); } catch { }
                 netStream = null;
             }
@@ -189,9 +196,9 @@ namespace StackExchange.Redis
             if (isCurrent && Interlocked.CompareExchange(ref failureReported, 1, 0) == 0)
             {
                 managerState = SocketManager.ManagerState.RecordConnectionFailed_ReportFailure;
-                int now = Environment.TickCount, lastRead = Thread.VolatileRead(ref lastReadTickCount), lastWrite = Thread.VolatileRead(ref lastWriteTickCount),
-                    lastBeat = Thread.VolatileRead(ref lastBeatTickCount);
-                int unansweredRead = Thread.VolatileRead(ref firstUnansweredWriteTickCount);
+                int now = Environment.TickCount, lastRead = VolatileWrapper.Read(ref lastReadTickCount), lastWrite = VolatileWrapper.Read(ref lastWriteTickCount),
+                    lastBeat = VolatileWrapper.Read(ref lastBeatTickCount);
+                int unansweredRead = VolatileWrapper.Read(ref firstUnansweredWriteTickCount);
 
                 var exMessage = new StringBuilder(failureType + " on " + Format.ToString(bridge.ServerEndPoint.EndPoint) + "/" + connectionType);
                 var data = new List<Tuple<string, string>>
@@ -224,12 +231,12 @@ namespace StackExchange.Redis
                 add("Last-Heartbeat", "last-heartbeat", (lastBeat == 0 ? "never" : (unchecked(now - lastBeat)/1000 + "s ago"))+ (bridge.IsBeating ? " (mid-beat)" : "") );
                 add("Last-Multiplexer-Heartbeat", "last-mbeat", multiplexer.LastHeartbeatSecondsAgo + "s ago");
                 add("Last-Global-Heartbeat", "global", ConnectionMultiplexer.LastGlobalHeartbeatSecondsAgo + "s ago");
-#if !__MonoCS__
+#if FEATURE_SOCKET_MODE_POLL
                 var mgr = bridge.Multiplexer.SocketManager;
                 add("SocketManager-State", "mgr", mgr.State.ToString());
                 add("Last-Error", "err", mgr.LastErrorTimeRelative());
 #endif
-                
+
                 var ex = innerException == null
                     ? new RedisConnectionException(failureType, exMessage.ToString())
                     : new RedisConnectionException(failureType, exMessage.ToString(), innerException);
@@ -596,20 +603,17 @@ namespace StackExchange.Redis
             }
             else
             {
-                fixed (char* c = value)
-                fixed (byte* b = outScratch)
+                int charsRemaining = value.Length, charOffset = 0, bytesWritten;
+                var valueCharArray = value.ToCharArray();
+                while (charsRemaining > Scratch_CharsPerBlock)
                 {
-                    int charsRemaining = value.Length, charOffset = 0, bytesWritten;
-                    while (charsRemaining > Scratch_CharsPerBlock)
-                    {
-                        bytesWritten = outEncoder.GetBytes(c + charOffset, Scratch_CharsPerBlock, b, ScratchSize, false);
-                        stream.Write(outScratch, 0, bytesWritten);
-                        charOffset += Scratch_CharsPerBlock;
-                        charsRemaining -= Scratch_CharsPerBlock;
-                    }
-                    bytesWritten = outEncoder.GetBytes(c + charOffset, charsRemaining, b, ScratchSize, true);
-                    if (bytesWritten != 0) stream.Write(outScratch, 0, bytesWritten);
+                    bytesWritten = outEncoder.GetBytes(valueCharArray, charOffset, Scratch_CharsPerBlock, outScratch, 0, false);
+                    stream.Write(outScratch, 0, bytesWritten);
+                    charOffset += Scratch_CharsPerBlock;
+                    charsRemaining -= Scratch_CharsPerBlock;
                 }
+                bytesWritten = outEncoder.GetBytes(valueCharArray, charOffset, charsRemaining, outScratch, 0, true);
+                if (bytesWritten != 0) stream.Write(outScratch, 0, bytesWritten);
             }
         }
         const int ScratchSize = 512;
@@ -657,6 +661,14 @@ namespace StackExchange.Redis
                     int space = EnsureSpaceAndComputeBytesToRead();
                     multiplexer.Trace("Beginning async read...", physicalName);
                     var result = netStream.BeginRead(ioBuffer, ioBufferBytes, space, endRead, this);
+#if DNXCORE50
+                    Task<int> t = (Task<int>)result;
+                    if (t.Status == TaskStatus.RanToCompletion && t.Result == -1)
+                    {
+                        multiplexer.Trace("Could not connect: ", physicalName);
+                        return;
+                    }
+#endif
                     if (result.CompletedSynchronously)
                     {
                         multiplexer.Trace("Completed synchronously: processing immediately", physicalName);
@@ -664,7 +676,13 @@ namespace StackExchange.Redis
                     }
                 } while (keepReading);
             }
-            catch(System.IO.IOException ex)
+#if DNXCORE50
+            catch (AggregateException ex)
+            {
+                throw ex.InnerException;
+            }
+#endif
+            catch (System.IO.IOException ex)
             {
                 multiplexer.Trace("Could not connect: " + ex.Message, physicalName);
             }
@@ -724,8 +742,11 @@ namespace StackExchange.Redis
                         , EncryptionPolicy.RequireEncryption
 #endif
                         );
-                    ssl.AuthenticateAsClient(host);
-                    if (!ssl.IsEncrypted)
+                    try
+                    {
+                        ssl.AuthenticateAsClient(host);
+                    }
+                    catch (AuthenticationException)
                     {
                         RecordConnectionFailed(ConnectionFailureType.AuthenticationFailure);
                         multiplexer.Trace("Encryption failure");
@@ -738,7 +759,11 @@ namespace StackExchange.Redis
 
                 int bufferSize = config.WriteBuffer;
                 this.netStream = stream;
+#if !DNXCORE50
                 this.outStream = bufferSize <= 0 ? stream : new BufferedStream(stream, bufferSize);
+#else
+                this.outStream = stream;
+#endif
                 multiplexer.LogLocked(log, "Connected {0}", bridge);
 
                 bridge.OnConnected(this, log);
@@ -895,7 +920,7 @@ namespace StackExchange.Redis
             Interlocked.Exchange(ref lastReadTickCount, Environment.TickCount);
 
             // reset unanswered write timestamp
-            Thread.VolatileWrite(ref firstUnansweredWriteTickCount, 0);
+            VolatileWrapper.Write(ref firstUnansweredWriteTickCount, 0);
 
             ioBufferBytes += bytesRead;
             multiplexer.Trace("More bytes available: " + bytesRead + " (" + ioBufferBytes + ")", physicalName);
@@ -1058,7 +1083,7 @@ namespace StackExchange.Redis
         public void CheckForStaleConnection(ref SocketManager.ManagerState managerState)
         {
             int firstUnansweredWrite;
-            firstUnansweredWrite = Thread.VolatileRead(ref firstUnansweredWriteTickCount);
+            firstUnansweredWrite = VolatileWrapper.Read(ref firstUnansweredWriteTickCount);
 
             DebugEmulateStaleConnection(ref firstUnansweredWrite);
 
@@ -1070,4 +1095,38 @@ namespace StackExchange.Redis
             }
         }
     }
+
+#if DNXCORE50
+    internal static class StreamExtensions
+    {
+        internal static IAsyncResult BeginRead(this Stream stream, byte[] buffer, int offset, int count, AsyncCallback ac, object state)
+        {
+            Task<int> f = Task<int>.Factory.StartNew(_ => {
+                try
+                {
+                    return stream.Read(buffer, offset, count);
+                }
+                catch (IOException ex)
+                {
+                    System.Diagnostics.Trace.WriteLine("Could not connect: " + ex.InnerException.Message);
+                    return -1;
+                }
+            }, state);
+            if (ac != null) f.ContinueWith(res => ac(f));
+            return f;
+        }
+
+        internal static int EndRead(this Stream stream, IAsyncResult ar)
+        {
+            try
+            {
+                return ((Task<int>)ar).Result;
+            }
+            catch (AggregateException ex)
+            {
+                throw ex.InnerException;
+            }
+        }
+    }
+#endif
 }

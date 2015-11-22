@@ -1,4 +1,5 @@
-﻿using System;
+﻿#if FEATURE_MOQ
+using System;
 using System.Collections.Generic;
 using System.Linq.Expressions;
 using System.Net;
@@ -15,7 +16,8 @@ namespace StackExchange.Redis.Tests
         private Mock<IDatabaseAsync> mock;
         private WrapperBase<IDatabaseAsync> wrapper;
 
-        [TestFixtureSetUp]
+        //[TestFixtureSetUp]
+        [OneTimeSetUp]
         public void Initialize()
         {
             mock = new Mock<IDatabaseAsync>();
@@ -258,10 +260,11 @@ namespace StackExchange.Redis.Tests
         }
 
         [Test]
-        [ExpectedException(typeof(NotSupportedException))]
         public void KeyRandomAsync()
         {
-            wrapper.KeyRandomAsync();
+            Assert.Throws<NotSupportedException>(() => {
+                wrapper.KeyRandomAsync();
+            });
         }
 
         [Test]
@@ -888,3 +891,4 @@ namespace StackExchange.Redis.Tests
         }
     }
 }
+#endif

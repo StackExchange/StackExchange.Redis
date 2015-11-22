@@ -145,7 +145,7 @@ namespace StackExchange.Redis
                         // give it a moment and try again, noting that we might lose the battle
                         // when we pause
                         Interlocked.CompareExchange(ref activeAsyncWorkerThread, 0, currentThread);
-                        if (Thread.Yield() && Interlocked.CompareExchange(ref activeAsyncWorkerThread, currentThread, 0) == 0)
+                        if (SpinWait() && Interlocked.CompareExchange(ref activeAsyncWorkerThread, currentThread, 0) == 0)
                         {
                             // we paused, and we got the lock back; anything else?
                             lock (asyncCompletionQueue)
@@ -175,6 +175,21 @@ namespace StackExchange.Redis
             {
                 Interlocked.CompareExchange(ref activeAsyncWorkerThread, 0, currentThread);
             }
+        }
+
+        private bool SpinWait()
+        {
+            var sw = new SpinWait();
+            byte maxSpins = 128;
+            do
+            {
+                if (sw.NextSpinWillYield)
+                    return true;
+                maxSpins--;
+            }
+            while (maxSpins > 0);
+
+            return false;
         }
     }
 }

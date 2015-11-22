@@ -29,7 +29,10 @@ namespace StackExchange.Redis
     /// <summary>
     /// The options relevant to a set of redis connections
     /// </summary>
-    public sealed class ConfigurationOptions : ICloneable
+    public sealed class ConfigurationOptions
+#if !DNXCORE50
+        : ICloneable
+#endif
     {
         internal const string DefaultTieBreaker = "__Booksleeve_TieBreak", DefaultConfigurationChannel = "__Booksleeve_MasterChanged";
 
@@ -84,7 +87,7 @@ namespace StackExchange.Redis
                 ConfigChannel, AbortOnConnectFail, ResolveDns,
                 ChannelPrefix, Proxy, ConnectRetry,
                 ConfigCheckSeconds, DefaultDatabase,
-            }.ToDictionary(x => x, StringComparer.InvariantCultureIgnoreCase);
+            }.ToDictionary(x => x, StringComparer.OrdinalIgnoreCase);
 
             public static string TryNormalize(string value)
             {
@@ -139,7 +142,11 @@ namespace StackExchange.Redis
         /// <summary>
         /// Indicates whether the connection should be encrypted
         /// </summary>
-        [Obsolete("Please use .Ssl instead of .UseSsl"), Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+        [Obsolete("Please use .Ssl instead of .UseSsl"),
+#if !DNXCORE50
+            Browsable(false),
+#endif
+            EditorBrowsable(EditorBrowsableState.Never)]
         public bool UseSsl { get { return Ssl; } set { Ssl = value; } }
 
         /// <summary>
@@ -248,7 +255,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Specifies the time in milliseconds that the system should allow for synchronous operations (defaults to 1 second)
         /// </summary>
-        public int SyncTimeout { get { return syncTimeout.GetValueOrDefault(1000); } set { syncTimeout = value; } }
+        public int SyncTimeout { get { return syncTimeout.GetValueOrDefault(20000); } set { syncTimeout = value; } }
 
         /// <summary>
         /// Specifies the time in milliseconds that the system should allow for responses before concluding that the socket is unhealthy
@@ -394,7 +401,7 @@ namespace StackExchange.Redis
 #pragma warning disable 1998 // NET40 is sync, not async, currently
         internal async Task ResolveEndPointsAsync(ConnectionMultiplexer multiplexer, TextWriter log)
         {
-            Dictionary<string, IPAddress> cache = new Dictionary<string, IPAddress>(StringComparer.InvariantCultureIgnoreCase);
+            Dictionary<string, IPAddress> cache = new Dictionary<string, IPAddress>(StringComparer.OrdinalIgnoreCase);
             for (int i = 0; i < endpoints.Count; i++)
             {
                 var dns = endpoints[i] as DnsEndPoint;
@@ -463,10 +470,13 @@ namespace StackExchange.Redis
             }
         }
 
+#if !DNXCORE50
         static bool IsOption(string option, string prefix)
         {
             return option.StartsWith(prefix, StringComparison.InvariantCultureIgnoreCase);
         }
+#endif
+
         void Clear()
         {
             clientName = serviceName = password = tieBreaker = sslHost = configChannel = null;
@@ -482,7 +492,9 @@ namespace StackExchange.Redis
             SocketManager = null;
         }
 
+#if !DNXCORE50
         object ICloneable.Clone() { return Clone(); }
+#endif
 
         private void DoParse(string configuration, bool ignoreUnknown)
         {
@@ -586,7 +598,7 @@ namespace StackExchange.Redis
                                 var cmdName = option.Substring(1, idx - 1);
                                 if (Enum.TryParse(cmdName, true, out cmd))
                                 {
-                                    if (map == null) map = new Dictionary<string, string>(StringComparer.InvariantCultureIgnoreCase);
+                                    if (map == null) map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                                     map[cmdName] = value;
                                 }
                             }
