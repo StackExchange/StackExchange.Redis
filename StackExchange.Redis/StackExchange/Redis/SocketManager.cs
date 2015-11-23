@@ -221,9 +221,9 @@ namespace StackExchange.Redis
             // SIO_LOOPBACK_FAST_PATH (http://msdn.microsoft.com/en-us/library/windows/desktop/jj841212%28v=vs.85%29.aspx)
             // Speeds up localhost operations significantly. OK to apply to a socket that will not be hooked up to localhost, 
             // or will be subject to WFP filtering.
-#if !DNXCORE50
             const int SIO_LOOPBACK_FAST_PATH = -1744830448;
 
+#if !DNXCORE50
             // windows only
             if (Environment.OSVersion.Platform == PlatformID.Win32NT)
             {
@@ -231,8 +231,11 @@ namespace StackExchange.Redis
                 var osVersion = Environment.OSVersion.Version;
                 if (osVersion.Major > 6 || osVersion.Major == 6 && osVersion.Minor >= 2)
                 {
+#endif
                     byte[] optionInValue = BitConverter.GetBytes(1);
                     socket.IOControl(SIO_LOOPBACK_FAST_PATH, optionInValue, null);
+
+#if !DNXCORE50
                 }
             }
 #endif
