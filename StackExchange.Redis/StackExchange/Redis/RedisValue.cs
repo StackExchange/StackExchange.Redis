@@ -310,7 +310,7 @@ namespace StackExchange.Redis
                 return StringComparer.InvariantCulture.Compare((string)this, (string)other);
 #else
                 var compareInfo = System.Globalization.CultureInfo.InvariantCulture.CompareInfo;
-                return compareInfo.Compare((string)this, (string)other, System.Globalization.CompareOptions.IgnoreCase);
+                return compareInfo.Compare((string)this, (string)other, System.Globalization.CompareOptions.Ordinal);
 #endif
             }
             catch(Exception ex)
