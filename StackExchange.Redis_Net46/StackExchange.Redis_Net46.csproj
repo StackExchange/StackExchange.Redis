@@ -65,6 +65,9 @@
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ClientType.cs">
       <Link>ClientType.cs</Link>
     </Compile>
+    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\Compat\ConvertHelper.cs">
+      <Link>ConvertHelper.cs</Link>
+    </Compile>
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\Compat\VolatileWrapper.cs">
       <Link>VolatileWrapper.cs</Link>
     </Compile>

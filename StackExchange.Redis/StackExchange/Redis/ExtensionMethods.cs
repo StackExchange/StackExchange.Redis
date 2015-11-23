@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace StackExchange.Redis
 {
@@ -121,7 +120,7 @@ namespace StackExchange.Redis
         {
             if (values == null) return null;
             if (values.Length == 0) return nix;
-            return values.Select(x => (string)x).ToArray();
+            return ConvertHelper.ConvertAll(values, x => (string)x);
         }
     }
 }
