@@ -1263,7 +1263,7 @@ namespace StackExchange.Redis
                             {
                                 servers[i].ClearUnselectable(UnselectableFlags.DidNotRespond);
                                 LogLocked(log, "{0} returned with success", Format.ToString(endpoints[i]));
-
+                                UpdateClusterConfigIfNeeded(server, log);
                                 // count the server types
                                 switch (server.ServerType) 
                                 {
@@ -1416,6 +1416,33 @@ namespace StackExchange.Redis
                 if (ranThisCall) Interlocked.Exchange(ref activeConfigCause, null);
                 if (!first) OnConfigurationChanged(blame);
                 Trace("Reconfiguration exited");
+            }
+        }
+
+        private void UpdateClusterConfigIfNeeded(ServerEndPoint server, TextWriter log) 
+        {
+            var message = Message.Create(-1, CommandFlags.None, RedisCommand.CLUSTER, RedisLiterals.NODES);
+            ClusterConfiguration clusterConfig = null;
+            try 
+            {
+                clusterConfig = this.ExecuteSyncImpl(message, ResultProcessor.ClusterNodes, server);
+            } 
+            catch (Exception ex) 
+            {
+                if (ex.Message.Contains("ERR This instance has cluster support disabled")) 
+                {
+                    LogLocked(log, "Cluster support disabled. Continuing without updating cluster config...");
+                    return;
+                }
+
+                LogLocked(log, "Encountered error while updating cluster config: " + ex.Message);
+            }
+
+            if (clusterConfig != null) 
+            {
+                this.UpdateClusterRange(clusterConfig);
+                LogLocked(log, "Updated cluster config");
+
             }
         }
 

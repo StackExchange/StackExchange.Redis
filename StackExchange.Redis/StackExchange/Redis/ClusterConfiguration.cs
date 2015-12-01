@@ -281,14 +281,8 @@ namespace StackExchange.Redis
 
             var flags = parts[2].Split(StringSplits.Comma);
             
-            if (flags.Contains("myself"))
-            {
-                endpoint = origin;
-            }
-            else
-            {
-                endpoint = Format.TryParseEndPoint(parts[1]);
-            }
+            endpoint = Format.TryParseEndPoint(parts[1]);
+            
             nodeId = parts[0];
             isSlave = flags.Contains("slave");
             parentNodeId = string.IsNullOrWhiteSpace(parts[3]) ? null : parts[3];
