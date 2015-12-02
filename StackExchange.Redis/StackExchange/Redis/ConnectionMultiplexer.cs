@@ -1208,7 +1208,7 @@ namespace StackExchange.Redis
                     
                     ServerEndPoint[] servers = null;
                     Task<string>[] tieBreakers = null;
-                    bool encounteredConnectedServer = false;
+                    bool encounteredConnectedClusterServer = false;
                     Stopwatch watch = null;
 
                     int iterCount = first ? 2 : 1;
@@ -1258,7 +1258,7 @@ namespace StackExchange.Redis
                         Trace("Allowing endpoints " + TimeSpan.FromMilliseconds(remaining) + " to respond...");
                         await WaitAllIgnoreErrorsAsync(available, remaining, log).ForAwait();
 
-                        EndPointCollection updatedEndpointCollection = null;
+                        EndPointCollection updatedClusterEndpointCollection = null;
                         for (int i = 0; i < available.Length; i++)
                         {
                             var task = available[i];
@@ -1285,14 +1285,7 @@ namespace StackExchange.Redis
                                 {
                                     servers[i].ClearUnselectable(UnselectableFlags.DidNotRespond);
                                     LogLocked(log, "{0} returned with success", Format.ToString(endpoints[i]));
-                                    if (!encounteredConnectedServer)
-                                    {
-                                        // we have encountered a connected server for the first time. 
-                                        // so we will get list of other nodes from this server using "CLUSTER NODES" command
-                                        // and try to connect to these other nodes in the next iteration
-                                        encounteredConnectedServer = true;
-                                        updatedEndpointCollection = GetEndpointsFromClusterNodes(server, log);
-                                    }
+                                    
                                     // count the server types
                                     switch (server.ServerType)
                                     {
@@ -1306,6 +1299,15 @@ namespace StackExchange.Redis
                                         case ServerType.Cluster:
                                             clusterCount++;
                                             break;
+                                    }
+
+                                    if (clusterCount > 0 && !encounteredConnectedClusterServer)
+                                    {
+                                        // we have encountered a connected server with clustertype for the first time. 
+                                        // so we will get list of other nodes from this server using "CLUSTER NODES" command
+                                        // and try to connect to these other nodes in the next iteration
+                                        encounteredConnectedClusterServer = true;
+                                        updatedClusterEndpointCollection = GetEndpointsFromClusterNodes(server, log);
                                     }
 
                                     // set the server UnselectableFlags and update masters list
@@ -1343,13 +1345,13 @@ namespace StackExchange.Redis
                             }
                         }
 
-                        if (encounteredConnectedServer)
+                        if (encounteredConnectedClusterServer)
                         {
-                            endpoints = updatedEndpointCollection;
+                            endpoints = updatedClusterEndpointCollection;
                         }
                         else
                         {
-                            break; // will be retried by the outer do while loop
+                            break; // we do not want to repeat the second iteration
                         }
                     }
 
