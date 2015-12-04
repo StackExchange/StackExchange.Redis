@@ -67,6 +67,8 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed partial class SocketManager : IDisposable
     {
+        internal static readonly SocketMode DefaultSocketMode = MonoHelper.RunninOnUnix ? SocketMode.Async : SocketMode.Poll;
+
         internal enum ManagerState
         {
             Inactive,
@@ -325,7 +327,7 @@ namespace StackExchange.Redis
                 {
                     case SocketMode.Poll:
                         multiplexer.LogLocked(log, "Starting poll");
-                        OnAddRead(socket, callback);
+                        OnAddPollingRead(socket, callback);
                         break;
                     case SocketMode.Async:
                         multiplexer.LogLocked(log, "Starting read");

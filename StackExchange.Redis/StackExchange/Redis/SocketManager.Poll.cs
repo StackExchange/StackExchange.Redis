@@ -1,5 +1,4 @@
-﻿#if FEATURE_SOCKET_MODE_POLL
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net.Sockets;
@@ -10,7 +9,6 @@ namespace StackExchange.Redis
 {
     partial class SocketManager
     {
-        internal const SocketMode DefaultSocketMode = SocketMode.Poll;
         static readonly IntPtr[] EmptyPointers = new IntPtr[0];
         static readonly WaitCallback HelpProcessItems = state =>
         {
@@ -66,7 +64,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private void OnAddRead(Socket socket, ISocketCallback callback)
+        private void OnAddPollingRead(Socket socket, ISocketCallback callback)
         {
             if (socket == null) throw new ArgumentNullException(nameof(socket));
             if (callback == null) throw new ArgumentNullException(nameof(callback));
@@ -425,4 +423,3 @@ namespace StackExchange.Redis
         }
     }
 }
-#endif

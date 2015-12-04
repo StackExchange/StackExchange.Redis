@@ -18,7 +18,7 @@
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
     <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>TRACE;DEBUG;NET46 FEATURE_SERIALIZATION;FEATURE_SOCKET_MODE_POLL</DefineConstants>
+    <DefineConstants>TRACE;DEBUG;NET46 FEATURE_SERIALIZATION</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -30,7 +30,7 @@
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin\Release\</OutputPath>
-    <DefineConstants>TRACE;NET46 PLAT_SAFE_CONTINUATIONS FEATURE_SERIALIZATION FEATURE_SOCKET_MODE_POLL</DefineConstants>
+    <DefineConstants>TRACE;NET46 PLAT_SAFE_CONTINUATIONS FEATURE_SERIALIZATION </DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <UseVSHostingProcess>false</UseVSHostingProcess>
