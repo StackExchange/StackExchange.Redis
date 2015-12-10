@@ -180,7 +180,11 @@ namespace StackExchange.Redis
                         (cb) =>
                         {
                             multiplexer.LogLocked(log, "BeginConnect: {0}", formattedEndpoint);
+#if CORE_CLR
+                            throw new NotImplementedException("TODO CORE CLR");
+#else
                             return socket.BeginConnect(dnsEndpoint.Host, dnsEndpoint.Port, cb, Tuple.Create(socket, callback));
+#endif
                         },
                         (ar) =>
                         {
@@ -195,7 +199,11 @@ namespace StackExchange.Redis
                     CompletionTypeHelper.RunWithCompletionType(
                         (cb) => {
                             multiplexer.LogLocked(log, "BeginConnect: {0}", formattedEndpoint);
+#if CORE_CLR
+                            throw new NotImplementedException("TODO CORE CLR");
+#else
                             return socket.BeginConnect(endpoint, cb, Tuple.Create(socket, callback));
+#endif
                         },
                         (ar) => {
                             multiplexer.LogLocked(log, "EndConnect: {0}", formattedEndpoint);
@@ -276,7 +284,11 @@ namespace StackExchange.Redis
                 if (ignoreConnect) return;
                 var socket = tuple.Item1;
                 var callback = tuple.Item2;
+#if CORE_CLR
+                throw new NotImplementedException("TODO CORE CLR");
+#else
                 socket.EndConnect(ar);
+
                 var netStream = new NetworkStream(socket, false);
                 var socketMode = callback == null ? SocketMode.Abort : callback.Connected(netStream, log);
                 switch (socketMode)
@@ -300,8 +312,9 @@ namespace StackExchange.Redis
                         Shutdown(socket);
                         break;
                 }
+#endif
             }
-            catch(ObjectDisposedException)
+            catch (ObjectDisposedException)
             {
                 multiplexer.LogLocked(log, "(socket shutdown)");
                 if (tuple != null)

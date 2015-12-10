@@ -1,6 +1,4 @@
-﻿#if DNXCORE50
-using System;
-#endif
+﻿using System;
 using System.Text.RegularExpressions;
 
 namespace StackExchange.Redis
@@ -14,7 +12,7 @@ namespace StackExchange.Redis
 
         static InternalRegexCompiledOption()
         {
-#if DNXCORE50
+#if CORE_CLR
             if (!Enum.TryParse("Compiled", out RegexCompiledOption))
                 RegexCompiledOption = RegexOptions.None;
 #else

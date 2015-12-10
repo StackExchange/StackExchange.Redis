@@ -285,7 +285,7 @@ namespace StackExchange.Redis.Tests
             }
             if (!allDone.WaitOne(timeout))
             {
-#if !DNXCORE50
+#if !CORE_CLR
                 for (int i = 0; i < threads; i++)
                 {
                     var thd = threadArr[i];

@@ -10,7 +10,7 @@ using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
-#if DNXCORE50
+#if CORE_CLR
 using System.Threading.Tasks;
 #endif
 
@@ -1113,7 +1113,7 @@ namespace StackExchange.Redis
         }
     }
 
-#if DNXCORE50
+#if CORE_CLR
     internal static class StreamExtensions
     {
         internal static IAsyncResult BeginRead(this Stream stream, byte[] buffer, int offset, int count, AsyncCallback ac, object state)

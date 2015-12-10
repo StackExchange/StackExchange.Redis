@@ -1,5 +1,5 @@
 ﻿using System;
-#if DNXCORE50
+#if CORE_CLR
 using System.Collections.Generic;
 using System.Reflection;
 #endif
@@ -716,7 +716,7 @@ namespace StackExchange.Redis
 
     internal static class ReflectionExtensions
     {
-#if DNXCORE50
+#if CORE_CLR
         internal static TypeCode GetTypeCode(this Type type)
         {
             if (type == null) return TypeCode.Empty;

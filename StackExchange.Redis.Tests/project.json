@@ -5,36 +5,21 @@
   "tags": [ "" ],
   "projectUrl": "",
   "licenseUrl": "",
-
-  "compile": [
-    "../../StackExchange.Redis.Tests/**/*.cs"
-  ],
-
   "dependencies": {
-    "StackExchange.Redis": "1.1.0-*"
+    "StackExchange.Redis": {
+      "version": "1.1.0-alpha1",
+      "target": "project"
+    }
   },
-
   "commands": {
     "run": "StackExchange.Redis.Tests"
   },
-
-  "configurations": {
-    "Debug": {
-      "compilationOptions": {
-        "define": [ "DEBUG", "TRACE", "PLAT_SAFE_CONTINUATIONS" ]
-      }
-    },
-    "Release": {
-      "compilationOptions": {
-        "define": [ "TRACE", "PLAT_SAFE_CONTINUATIONS" ]
-      }
-    }
-  },
-
+  "compilationOptions": { "define": [ "NUNITLITE" ] },
   "frameworks": {
     "dnxcore50": {
+      "compilationOptions": { "define": [ "PLAT_SAFE_CONTINUATIONS", "CORE_CLR" ] },
       "dependencies": {
-        "System.Console": "4.0.0-beta-*",
+        "System.Console": "4.0.0-beta-23516",
         "System.Linq.Expressions": "4.0.11-beta-23516",
         "System.Reflection.Extensions": "4.0.1-beta-23516",
         "System.Threading.Tasks.Parallel": "4.0.1-beta-23516",

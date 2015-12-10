@@ -147,7 +147,7 @@ namespace StackExchange.Redis.Tests
                 var all = conn.ConfigGet();
                 Assert.IsTrue(all.Length > 0, "any");
 
-#if !DNXCORE50
+#if !CORE_CLR
                 var pairs = all.ToDictionary(x => (string)x.Key, x => (string)x.Value, StringComparer.InvariantCultureIgnoreCase);
 #else
                 var pairs = all.ToDictionary(x => (string)x.Key, x => (string)x.Value, StringComparer.OrdinalIgnoreCase);
