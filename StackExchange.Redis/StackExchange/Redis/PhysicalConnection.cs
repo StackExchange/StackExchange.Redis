@@ -10,7 +10,7 @@ using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
-#if DNXCORE50
+#if CORE_CLR
 using System.Threading.Tasks;
 #endif
 
@@ -131,7 +131,7 @@ namespace StackExchange.Redis
             if (outStream != null)
             {
                 multiplexer.Trace("Disconnecting...", physicalName);
-#if !DNXCORE50
+#if !CORE_CLR
                 try { outStream.Close(); } catch { }
 #endif
                 try { outStream.Dispose(); } catch { }
@@ -139,7 +139,7 @@ namespace StackExchange.Redis
             }
             if (netStream != null)
             {
-#if !DNXCORE50
+#if !CORE_CLR
                 try { netStream.Close(); } catch { }
 #endif
                 try { netStream.Dispose(); } catch { }
@@ -603,6 +603,22 @@ namespace StackExchange.Redis
             }
             else
             {
+#if !CORE_CLR
+                fixed (char* c = value)
+                fixed (byte* b = outScratch)
+                {
+                    int charsRemaining = value.Length, charOffset = 0, bytesWritten;
+                    while (charsRemaining > Scratch_CharsPerBlock)
+                    {
+                        bytesWritten = outEncoder.GetBytes(c + charOffset, Scratch_CharsPerBlock, b, ScratchSize, false);
+                        stream.Write(outScratch, 0, bytesWritten);
+                        charOffset += Scratch_CharsPerBlock;
+                        charsRemaining -= Scratch_CharsPerBlock;
+                    }
+                    bytesWritten = outEncoder.GetBytes(c + charOffset, charsRemaining, b, ScratchSize, true);
+                    if (bytesWritten != 0) stream.Write(outScratch, 0, bytesWritten);
+                }
+#else
                 int charsRemaining = value.Length, charOffset = 0, bytesWritten;
                 var valueCharArray = value.ToCharArray();
                 while (charsRemaining > Scratch_CharsPerBlock)
@@ -614,6 +630,7 @@ namespace StackExchange.Redis
                 }
                 bytesWritten = outEncoder.GetBytes(valueCharArray, charOffset, charsRemaining, outScratch, 0, true);
                 if (bytesWritten != 0) stream.Write(outScratch, 0, bytesWritten);
+#endif
             }
         }
         const int ScratchSize = 512;
@@ -661,7 +678,7 @@ namespace StackExchange.Redis
                     int space = EnsureSpaceAndComputeBytesToRead();
                     multiplexer.Trace("Beginning async read...", physicalName);
                     var result = netStream.BeginRead(ioBuffer, ioBufferBytes, space, endRead, this);
-#if DNXCORE50
+#if CORE_CLR
                     Task<int> t = (Task<int>)result;
                     if (t.Status == TaskStatus.RanToCompletion && t.Result == -1)
                     {
@@ -676,7 +693,7 @@ namespace StackExchange.Redis
                     }
                 } while (keepReading);
             }
-#if DNXCORE50
+#if CORE_CLR
             catch (AggregateException ex)
             {
                 throw ex.InnerException;
@@ -759,7 +776,7 @@ namespace StackExchange.Redis
 
                 int bufferSize = config.WriteBuffer;
                 this.netStream = stream;
-#if !DNXCORE50
+#if !CORE_CLR
                 this.outStream = bufferSize <= 0 ? stream : new BufferedStream(stream, bufferSize);
 #else
                 this.outStream = stream;
@@ -1096,7 +1113,7 @@ namespace StackExchange.Redis
         }
     }
 
-#if DNXCORE50
+#if CORE_CLR
     internal static class StreamExtensions
     {
         internal static IAsyncResult BeginRead(this Stream stream, byte[] buffer, int offset, int count, AsyncCallback ac, object state)

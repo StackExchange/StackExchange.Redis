@@ -246,7 +246,7 @@ namespace StackExchange.Redis.Tests
         protected static TimeSpan RunConcurrent(Action work, int threads, int timeout = 10000, [CallerMemberName] string caller = null)
         {
             if (work == null) throw new ArgumentNullException("work");
-            if (threads < 1) throw new ArgumentOutOfRangeException("theads");
+            if (threads < 1) throw new ArgumentOutOfRangeException("threads");
             if(string.IsNullOrWhiteSpace(caller)) caller = Me();
             Stopwatch watch = null;
             ManualResetEvent allDone = new ManualResetEvent(false);
@@ -285,7 +285,7 @@ namespace StackExchange.Redis.Tests
             }
             if (!allDone.WaitOne(timeout))
             {
-#if !DNXCORE50
+#if !CORE_CLR
                 for (int i = 0; i < threads; i++)
                 {
                     var thd = threadArr[i];

@@ -234,12 +234,12 @@ namespace StackExchange.Redis.Tests
                 var conn = muxer.GetDatabase();
                 muxer.Wait(conn.PingAsync());
 
-#if DNXCORE50
+#if CORE_CLR
                 int number = 0;
 #endif
                 Action<Task> nonTrivial = delegate
                 {
-#if !DNXCORE50
+#if !CORE_CLR
                     Thread.SpinWait(5);
 #else
                     for (int i = 0; i < 50; i++)

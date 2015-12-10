@@ -16,7 +16,6 @@ namespace StackExchange.Redis.Tests
         private Mock<IDatabaseAsync> mock;
         private WrapperBase<IDatabaseAsync> wrapper;
 
-        //[TestFixtureSetUp]
         [OneTimeSetUp]
         public void Initialize()
         {

@@ -1,12 +1,8 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
-VisualStudioVersion = 14.0.24606.1
+VisualStudioVersion = 14.0.24720.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StackExchange.Redis", "StackExchange.Redis\StackExchange.Redis.csproj", "{7CEC07F2-8C03-4C42-B048-738B215824C1}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StackExchange.Redis.Tests", "StackExchange.Redis.Tests\StackExchange.Redis.Tests.csproj", "{19C00111-1328-4089-8565-94920B5B47F2}"
-EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".nuget", ".nuget", "{D3090DF1-8760-4FE2-A595-4C8AC12854ED}"
 	ProjectSection(SolutionItems) = preProject
 		.nuget\packages.config = .nuget\packages.config
@@ -52,13 +48,17 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MigratedBookSleeveTestSuite
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StackExchange.Redis_Net40", "StackExchange.Redis_Net40\StackExchange.Redis_Net40.csproj", "{36CAC6B6-2B88-447F-AA35-D4DAA5E4F2C7}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StackExchange.Redis.StrongName", "StackExchange.Redis\StackExchange.Redis.StrongName.csproj", "{EBF46088-E318-4D32-9EFB-01EF130A4554}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StackExchange.Redis_Net40.StrongName", "StackExchange.Redis_Net40\StackExchange.Redis_Net40.StrongName.csproj", "{75CED009-AAC6-4AC1-9C38-A0530619062D}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StackExchange.Redis_Net46", "StackExchange.Redis_Net46\StackExchange.Redis_Net46.csproj", "{8C473A6F-B0DE-4ADD-88F8-C41B441E407C}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StackExchange.Redis_Net46.StrongName", "StackExchange.Redis_Net46\StackExchange.Redis_Net46.StrongName.csproj", "{8CE5D027-E332-42DD-BA54-16310DCD529C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StackExchange.Redis_Net45", "StackExchange.Redis_Net45\StackExchange.Redis_Net45.csproj", "{7CEC07F2-8C03-4C42-B048-738B215824C1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StackExchange.Redis_Net45.StrongName", "StackExchange.Redis_Net45\StackExchange.Redis_Net45.StrongName.csproj", "{EBF46088-E318-4D32-9EFB-01EF130A4554}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StackExchange.Redis.Tests_Net46", "StackExchange.Redis.Tests_Net46\StackExchange.Redis.Tests_Net46.csproj", "{19C00111-1328-4089-8565-94920B5B47F2}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -69,26 +69,6 @@ Global
 		Verbose|Any CPU = Verbose|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{7CEC07F2-8C03-4C42-B048-738B215824C1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{7CEC07F2-8C03-4C42-B048-738B215824C1}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{7CEC07F2-8C03-4C42-B048-738B215824C1}.Log Output|Any CPU.ActiveCfg = Log Output|Any CPU
-		{7CEC07F2-8C03-4C42-B048-738B215824C1}.Log Output|Any CPU.Build.0 = Log Output|Any CPU
-		{7CEC07F2-8C03-4C42-B048-738B215824C1}.Mono|Any CPU.ActiveCfg = Mono|Any CPU
-		{7CEC07F2-8C03-4C42-B048-738B215824C1}.Mono|Any CPU.Build.0 = Mono|Any CPU
-		{7CEC07F2-8C03-4C42-B048-738B215824C1}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{7CEC07F2-8C03-4C42-B048-738B215824C1}.Release|Any CPU.Build.0 = Release|Any CPU
-		{7CEC07F2-8C03-4C42-B048-738B215824C1}.Verbose|Any CPU.ActiveCfg = Verbose|Any CPU
-		{7CEC07F2-8C03-4C42-B048-738B215824C1}.Verbose|Any CPU.Build.0 = Verbose|Any CPU
-		{19C00111-1328-4089-8565-94920B5B47F2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{19C00111-1328-4089-8565-94920B5B47F2}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{19C00111-1328-4089-8565-94920B5B47F2}.Log Output|Any CPU.ActiveCfg = Log Output|Any CPU
-		{19C00111-1328-4089-8565-94920B5B47F2}.Log Output|Any CPU.Build.0 = Log Output|Any CPU
-		{19C00111-1328-4089-8565-94920B5B47F2}.Mono|Any CPU.ActiveCfg = Mono|Any CPU
-		{19C00111-1328-4089-8565-94920B5B47F2}.Mono|Any CPU.Build.0 = Mono|Any CPU
-		{19C00111-1328-4089-8565-94920B5B47F2}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{19C00111-1328-4089-8565-94920B5B47F2}.Release|Any CPU.Build.0 = Release|Any CPU
-		{19C00111-1328-4089-8565-94920B5B47F2}.Verbose|Any CPU.ActiveCfg = Verbose|Any CPU
-		{19C00111-1328-4089-8565-94920B5B47F2}.Verbose|Any CPU.Build.0 = Verbose|Any CPU
 		{6756F911-BD09-4226-B597-67871DEB8ED5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{6756F911-BD09-4226-B597-67871DEB8ED5}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6756F911-BD09-4226-B597-67871DEB8ED5}.Log Output|Any CPU.ActiveCfg = Log Output|Any CPU
@@ -139,16 +119,6 @@ Global
 		{36CAC6B6-2B88-447F-AA35-D4DAA5E4F2C7}.Release|Any CPU.Build.0 = Release|Any CPU
 		{36CAC6B6-2B88-447F-AA35-D4DAA5E4F2C7}.Verbose|Any CPU.ActiveCfg = Release|Any CPU
 		{36CAC6B6-2B88-447F-AA35-D4DAA5E4F2C7}.Verbose|Any CPU.Build.0 = Release|Any CPU
-		{EBF46088-E318-4D32-9EFB-01EF130A4554}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{EBF46088-E318-4D32-9EFB-01EF130A4554}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{EBF46088-E318-4D32-9EFB-01EF130A4554}.Log Output|Any CPU.ActiveCfg = Log Output|Any CPU
-		{EBF46088-E318-4D32-9EFB-01EF130A4554}.Log Output|Any CPU.Build.0 = Log Output|Any CPU
-		{EBF46088-E318-4D32-9EFB-01EF130A4554}.Mono|Any CPU.ActiveCfg = Mono|Any CPU
-		{EBF46088-E318-4D32-9EFB-01EF130A4554}.Mono|Any CPU.Build.0 = Mono|Any CPU
-		{EBF46088-E318-4D32-9EFB-01EF130A4554}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{EBF46088-E318-4D32-9EFB-01EF130A4554}.Release|Any CPU.Build.0 = Release|Any CPU
-		{EBF46088-E318-4D32-9EFB-01EF130A4554}.Verbose|Any CPU.ActiveCfg = Verbose|Any CPU
-		{EBF46088-E318-4D32-9EFB-01EF130A4554}.Verbose|Any CPU.Build.0 = Verbose|Any CPU
 		{75CED009-AAC6-4AC1-9C38-A0530619062D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{75CED009-AAC6-4AC1-9C38-A0530619062D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{75CED009-AAC6-4AC1-9C38-A0530619062D}.Log Output|Any CPU.ActiveCfg = Release|Any CPU
@@ -179,6 +149,36 @@ Global
 		{8CE5D027-E332-42DD-BA54-16310DCD529C}.Release|Any CPU.Build.0 = Release|Any CPU
 		{8CE5D027-E332-42DD-BA54-16310DCD529C}.Verbose|Any CPU.ActiveCfg = Mono|Any CPU
 		{8CE5D027-E332-42DD-BA54-16310DCD529C}.Verbose|Any CPU.Build.0 = Mono|Any CPU
+		{7CEC07F2-8C03-4C42-B048-738B215824C1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7CEC07F2-8C03-4C42-B048-738B215824C1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7CEC07F2-8C03-4C42-B048-738B215824C1}.Log Output|Any CPU.ActiveCfg = Log Output|Any CPU
+		{7CEC07F2-8C03-4C42-B048-738B215824C1}.Log Output|Any CPU.Build.0 = Log Output|Any CPU
+		{7CEC07F2-8C03-4C42-B048-738B215824C1}.Mono|Any CPU.ActiveCfg = Mono|Any CPU
+		{7CEC07F2-8C03-4C42-B048-738B215824C1}.Mono|Any CPU.Build.0 = Mono|Any CPU
+		{7CEC07F2-8C03-4C42-B048-738B215824C1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7CEC07F2-8C03-4C42-B048-738B215824C1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7CEC07F2-8C03-4C42-B048-738B215824C1}.Verbose|Any CPU.ActiveCfg = Verbose|Any CPU
+		{7CEC07F2-8C03-4C42-B048-738B215824C1}.Verbose|Any CPU.Build.0 = Verbose|Any CPU
+		{EBF46088-E318-4D32-9EFB-01EF130A4554}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EBF46088-E318-4D32-9EFB-01EF130A4554}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EBF46088-E318-4D32-9EFB-01EF130A4554}.Log Output|Any CPU.ActiveCfg = Log Output|Any CPU
+		{EBF46088-E318-4D32-9EFB-01EF130A4554}.Log Output|Any CPU.Build.0 = Log Output|Any CPU
+		{EBF46088-E318-4D32-9EFB-01EF130A4554}.Mono|Any CPU.ActiveCfg = Mono|Any CPU
+		{EBF46088-E318-4D32-9EFB-01EF130A4554}.Mono|Any CPU.Build.0 = Mono|Any CPU
+		{EBF46088-E318-4D32-9EFB-01EF130A4554}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EBF46088-E318-4D32-9EFB-01EF130A4554}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EBF46088-E318-4D32-9EFB-01EF130A4554}.Verbose|Any CPU.ActiveCfg = Verbose|Any CPU
+		{EBF46088-E318-4D32-9EFB-01EF130A4554}.Verbose|Any CPU.Build.0 = Verbose|Any CPU
+		{19C00111-1328-4089-8565-94920B5B47F2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{19C00111-1328-4089-8565-94920B5B47F2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{19C00111-1328-4089-8565-94920B5B47F2}.Log Output|Any CPU.ActiveCfg = Log Output|Any CPU
+		{19C00111-1328-4089-8565-94920B5B47F2}.Log Output|Any CPU.Build.0 = Log Output|Any CPU
+		{19C00111-1328-4089-8565-94920B5B47F2}.Mono|Any CPU.ActiveCfg = Mono|Any CPU
+		{19C00111-1328-4089-8565-94920B5B47F2}.Mono|Any CPU.Build.0 = Mono|Any CPU
+		{19C00111-1328-4089-8565-94920B5B47F2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{19C00111-1328-4089-8565-94920B5B47F2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{19C00111-1328-4089-8565-94920B5B47F2}.Verbose|Any CPU.ActiveCfg = Verbose|Any CPU
+		{19C00111-1328-4089-8565-94920B5B47F2}.Verbose|Any CPU.Build.0 = Verbose|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

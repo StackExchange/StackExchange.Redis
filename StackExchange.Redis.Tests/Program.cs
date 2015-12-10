@@ -1,3 +1,4 @@
+#if NUNITLITE
 using System;
 using System.Reflection;
 using NUnitLite;
@@ -12,3 +13,4 @@ namespace StackExchange.Redis.Tests
         }
     }
 }
+#endif

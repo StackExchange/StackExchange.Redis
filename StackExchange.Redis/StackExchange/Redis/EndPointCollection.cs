@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Net;
 
@@ -9,6 +10,14 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed class EndPointCollection : Collection<EndPoint>
     {
+        public EndPointCollection() : base()
+        {
+        }
+
+        public EndPointCollection(IList<EndPoint> endpoints) : base(endpoints)
+        {
+        }
+
         /// <summary>
         /// Format an endpoint
         /// </summary>
