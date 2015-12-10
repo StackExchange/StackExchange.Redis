@@ -313,7 +313,7 @@ namespace StackExchange.Redis
             LocalBuilder redisKeyLoc = null;
             var loc = il.DeclareLocal(t);
             il.Emit(OpCodes.Ldarg_0);               // object
-#if !DNXCORE50
+#if !CORE_CLR
             if (t.IsValueType)
 #else
             if (t.GetTypeInfo().IsValueType)
@@ -348,7 +348,7 @@ namespace StackExchange.Redis
             {
                 il.Emit(OpCodes.Dup);                       // RedisKey[] RedisKey[]
                 il.Emit(OpCodes.Ldc_I4, i);                 // RedisKey[] RedisKey[] int
-#if !DNXCORE50
+#if !CORE_CLR
                 if (t.IsValueType)
 #else
                 if (t.GetTypeInfo().IsValueType)
@@ -380,7 +380,7 @@ namespace StackExchange.Redis
             {
                 il.Emit(OpCodes.Dup);                       // RedisKey[] RedisValue[] RedisValue[]
                 il.Emit(OpCodes.Ldc_I4, i);                 // RedisKey[] RedisValue[] RedisValue[] int
-#if !DNXCORE50
+#if !CORE_CLR
                 if (t.IsValueType)
 #else
                 if (t.GetTypeInfo().IsValueType)

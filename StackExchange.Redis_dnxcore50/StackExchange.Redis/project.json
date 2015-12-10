@@ -1,64 +1,56 @@
 {
-  "version": "1.1.0-*",
-  "description": "StackExchange.Redis",
-  "authors": [ "jeremymeng" ],
-  "tags": [ "" ],
-  "projectUrl": "",
-  "licenseUrl": "",
-
+  "version": "1.1.0-alpha1",
+  "description": "High performance Redis client, incorporating both synchronous and asynchronous usage.",
+  "authors": [ "Stack Exchange inc., marc.gravell" ],
+  "owners": [ "marc.gravell" ],
+  "tags": [ "Async", "Redis", "Cache", "PubSub", "Messaging" ],
+  "projectUrl": "https://github.com/StackExchange/StackExchange.Redis",
+  "licenseUrl": "https://raw.github.com/StackExchange/StackExchange.Redis/master/LICENSE",
+  "copyright": "Stack Exchange inc. 2014-",
+  "requireLicenseAcceptance": false,
+  "summary": "Redis client library",
   "compile": [
     "../../StackExchange.Redis/**/*.cs"
   ],
-
   "dependencies": {
   },
-
-  "configurations": {
-    "Debug": {
-      "compilationOptions": {
-        "define": [ "DEBUG", "TRACE", "PLAT_SAFE_CONTINUATIONS" ],
-        "allowUnsafe": true
-      }
-    },
-    "Release": {
-      "compilationOptions": {
-        "define": [ "TRACE", "PLAT_SAFE_CONTINUATIONS" ],
-        "allowUnsafe": true
-      }
-    }
+  "compilationOptions": {
+    "allowUnsafe": true    
   },
-
   "frameworks": {
     "dnxcore50": {
+      "compilationOptions": {
+        "define": [ "PLAT_SAFE_CONTINUATIONS", "CORE_CLR" ]
+      },
       "dependencies": {
-        "System.Collections.Concurrent": "4.0.11-beta-23409",
-        "System.Collections.NonGeneric": "4.0.0",
-        "System.Diagnostics.Debug": "4.0.11-beta-23409",
-        "System.Diagnostics.Tools": "4.0.1-beta-23409",
-        "System.Diagnostics.TraceSource": "4.0.0-beta-23409",
-        "System.Globalization": "4.0.10",
-        "System.IO": "4.0.11-beta-23409",
-        "System.IO.Compression": "4.0.1-beta-23409",
-        "System.IO.FileSystem": "4.0.1-beta-23409",
-        "System.Linq": "4.0.1-beta-23409",
-        "System.Net.NameResolution": "4.0.0-beta-23409",
-        "System.Net.Primitives": "4.0.11-beta-23409",
-        "System.Net.Security": "4.0.0-beta-23409",
-        "System.Net.Sockets": "4.1.0-beta-23409",
-        "System.Reflection": "4.0.0",
-        "System.Reflection.Emit": "4.0.0",
-        "System.Reflection.Emit.Lightweight": "4.0.0",
-        "System.Reflection.Primitives": "4.0.0",
-        "System.Reflection.TypeExtensions": "4.0.0",
-        "System.Security.Cryptography.Algorithms": "4.0.0-beta-23409",
-        "System.Security.Cryptography.X509Certificates": "4.0.0-beta-23409",
-        "System.Text.Encoding": "4.0.11-beta-23409",
-        "System.Text.RegularExpressions": "4.0.11-beta-23409",
-        "System.Threading": "4.0.11-beta-23409",
-        "System.Threading.Tasks": "4.0.11-beta-23409",
-        "System.Threading.Thread": "4.0.0-beta-23409",
-        "System.Threading.ThreadPool": "4.0.10-beta-23409",
-        "System.Threading.Timer": "4.0.1-beta-23409"
+        "System.Collections.Concurrent": "4.0.11-beta-23516",
+        "System.Collections.NonGeneric": "4.0.1-beta-23516",
+        "System.Diagnostics.Debug": "4.0.11-beta-23516",
+        "System.Diagnostics.Tools": "4.0.1-beta-23516",
+        "System.Diagnostics.TraceSource": "4.0.0-beta-23516",
+        "System.Globalization": "4.0.11-beta-23516",
+        "System.IO": "4.0.11-beta-23516",
+        "System.IO.Compression": "4.1.0-beta-23516",
+        "System.IO.FileSystem": "4.0.1-beta-23516",
+        "System.Linq": "4.0.1-beta-23516",
+        "System.Net.NameResolution": "4.0.0-beta-23516",
+        "System.Net.Primitives": "4.0.11-beta-23516",
+        "System.Net.Security": "4.0.0-beta-23516",
+        "System.Net.Sockets": "4.1.0-beta-23516",
+        "System.Reflection": "4.1.0-beta-23516",
+        "System.Reflection.Emit": "4.0.1-beta-23516",
+        "System.Reflection.Emit.Lightweight": "4.0.1-beta-23516",
+        "System.Reflection.Primitives": "4.0.1-beta-23516",
+        "System.Reflection.TypeExtensions": "4.1.0-beta-23516",
+        "System.Security.Cryptography.Algorithms": "4.0.0-beta-23516",
+        "System.Security.Cryptography.X509Certificates": "4.0.0-beta-23516",
+        "System.Text.Encoding": "4.0.11-beta-23516",
+        "System.Text.RegularExpressions": "4.0.11-beta-23516",
+        "System.Threading": "4.0.11-beta-23516",
+        "System.Threading.Tasks": "4.0.11-beta-23516",
+        "System.Threading.Thread": "4.0.0-beta-23516",
+        "System.Threading.ThreadPool": "4.0.10-beta-23516",
+        "System.Threading.Timer": "4.0.1-beta-23516"
       }
     }
   }

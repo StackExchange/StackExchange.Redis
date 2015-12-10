@@ -131,7 +131,7 @@ namespace StackExchange.Redis
             if (outStream != null)
             {
                 multiplexer.Trace("Disconnecting...", physicalName);
-#if !DNXCORE50
+#if !CORE_CLR
                 try { outStream.Close(); } catch { }
 #endif
                 try { outStream.Dispose(); } catch { }
@@ -139,7 +139,7 @@ namespace StackExchange.Redis
             }
             if (netStream != null)
             {
-#if !DNXCORE50
+#if !CORE_CLR
                 try { netStream.Close(); } catch { }
 #endif
                 try { netStream.Dispose(); } catch { }
@@ -603,7 +603,7 @@ namespace StackExchange.Redis
             }
             else
             {
-#if !DNXCORE50
+#if !CORE_CLR
                 fixed (char* c = value)
                 fixed (byte* b = outScratch)
                 {
@@ -678,7 +678,7 @@ namespace StackExchange.Redis
                     int space = EnsureSpaceAndComputeBytesToRead();
                     multiplexer.Trace("Beginning async read...", physicalName);
                     var result = netStream.BeginRead(ioBuffer, ioBufferBytes, space, endRead, this);
-#if DNXCORE50
+#if CORE_CLR
                     Task<int> t = (Task<int>)result;
                     if (t.Status == TaskStatus.RanToCompletion && t.Result == -1)
                     {
@@ -693,7 +693,7 @@ namespace StackExchange.Redis
                     }
                 } while (keepReading);
             }
-#if DNXCORE50
+#if CORE_CLR
             catch (AggregateException ex)
             {
                 throw ex.InnerException;
@@ -776,7 +776,7 @@ namespace StackExchange.Redis
 
                 int bufferSize = config.WriteBuffer;
                 this.netStream = stream;
-#if !DNXCORE50
+#if !CORE_CLR
                 this.outStream = bufferSize <= 0 ? stream : new BufferedStream(stream, bufferSize);
 #else
                 this.outStream = stream;

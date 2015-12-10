@@ -306,7 +306,7 @@ namespace StackExchange.Redis
                     if (otherType == CompareType.Double) return thisDouble.CompareTo(otherDouble);
                 }
                 // otherwise, compare as strings
-#if !DNXCORE50
+#if !CORE_CLR
                 return StringComparer.InvariantCulture.Compare((string)this, (string)other);
 #else
                 var compareInfo = System.Globalization.CultureInfo.InvariantCulture.CompareInfo;

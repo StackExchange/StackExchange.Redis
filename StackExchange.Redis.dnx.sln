@@ -1,13 +1,18 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
-VisualStudioVersion = 14.0.24709.0
+VisualStudioVersion = 14.0.24720.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "StackExchange.Redis", "StackExchange.Redis_dnxcore50\StackExchange.Redis\StackExchange.Redis.xproj", "{86526B5C-1163-4481-A5E2-A303A0BB1535}"
 EndProject
 Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "StackExchange.Redis.Tests", "StackExchange.Redis.Tests_dnxcore50\StackExchange.Redis.Tests\StackExchange.Redis.Tests.xproj", "{A51DCA17-E8F1-44E1-9A37-328FAB14D2CE}"
 EndProject
 Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "BasicTest_dnxcore50", "BasicTest_dnxcore50\BasicTest_dnxcore50.xproj", "{9D83BABA-A92E-495F-BF63-DEB4F6B09355}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{647CB8F7-A025-4B90-8295-6FE5C61A780D}"
+	ProjectSection(SolutionItems) = preProject
+		StackExchange.Redis.nuspec = StackExchange.Redis.nuspec
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

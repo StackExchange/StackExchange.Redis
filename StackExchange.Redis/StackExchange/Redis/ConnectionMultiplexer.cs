@@ -561,7 +561,7 @@ namespace StackExchange.Redis
             return false;
         }
 
-#if !DNXCORE50
+#if !CORE_CLR
         private void LogLockedWithThreadPoolStats(TextWriter log, string message, out int busyWorkerCount)
         {
             busyWorkerCount = 0;
@@ -603,7 +603,7 @@ namespace StackExchange.Redis
             }
 
             var watch = Stopwatch.StartNew();
-#if !DNXCORE50
+#if !CORE_CLR
             int busyWorkerCount;
             LogLockedWithThreadPoolStats(log, "Awaiting task completion", out busyWorkerCount);
 #endif
@@ -613,7 +613,7 @@ namespace StackExchange.Redis
                 var remaining = timeoutMilliseconds - checked((int)watch.ElapsedMilliseconds);
                 if (remaining <= 0)
                 {
-#if !DNXCORE50
+#if !CORE_CLR
                     LogLockedWithThreadPoolStats(log, "Timeout before awaiting for tasks", out busyWorkerCount);
 #endif
                     return false;
@@ -627,7 +627,7 @@ namespace StackExchange.Redis
                 var any = Task.WhenAny(allTasks, Task.Delay(remaining)).ObserveErrors();
 #endif
                 bool all = await any.ForAwait() == allTasks;
-#if !DNXCORE50
+#if !CORE_CLR
                 LogLockedWithThreadPoolStats(log, all ? "All tasks completed cleanly" : "Not all tasks completed cleanly", out busyWorkerCount);
 #endif
                 return all;
@@ -645,7 +645,7 @@ namespace StackExchange.Redis
                     var remaining = timeoutMilliseconds - checked((int)watch.ElapsedMilliseconds);
                     if (remaining <= 0)
                     {
-#if !DNXCORE50
+#if !CORE_CLR
                         LogLockedWithThreadPoolStats(log, "Timeout awaiting tasks", out busyWorkerCount);
 #endif
                         return false;
@@ -663,7 +663,7 @@ namespace StackExchange.Redis
                     { }
                 }
             }
-#if !DNXCORE50
+#if !CORE_CLR
             LogLockedWithThreadPoolStats(log, "Finished awaiting tasks", out busyWorkerCount);
 #endif
             return false;
@@ -1916,7 +1916,7 @@ namespace StackExchange.Redis
                             add("Active-Readers", "ar", ar.ToString());
 
                             add("Client-Name", "clientName", ClientName);
-#if !DNXCORE50
+#if !CORE_CLR
                             string iocp, worker;
                             int busyWorkerCount = GetThreadPoolStats(out iocp, out worker);
                             add("ThreadPool-IO-Completion", "IOCP", iocp);
@@ -1953,7 +1953,7 @@ namespace StackExchange.Redis
             }
         }
 
-#if !DNXCORE50
+#if !CORE_CLR
         private static int GetThreadPoolStats(out string iocp, out string worker)
         {
             //BusyThreads =  TP.GetMaxThreads() –TP.GetAVailable();
