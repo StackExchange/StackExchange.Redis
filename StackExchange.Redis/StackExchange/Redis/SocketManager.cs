@@ -298,7 +298,7 @@ namespace StackExchange.Redis
                 multiplexer.Wait((Task)ar); // make it explode if invalid (note: already complete at this point)
 #else
                 socket.EndConnect(ar);
-
+#endif
                 var netStream = new NetworkStream(socket, false);
                 var socketMode = callback == null ? SocketMode.Abort : callback.Connected(netStream, log);
                 switch (socketMode)
@@ -322,7 +322,6 @@ namespace StackExchange.Redis
                         Shutdown(socket);
                         break;
                 }
-#endif
             }
             catch (ObjectDisposedException)
             {
