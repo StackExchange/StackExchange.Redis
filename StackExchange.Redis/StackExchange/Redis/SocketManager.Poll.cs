@@ -1,11 +1,11 @@
-﻿using System;
+﻿#if FEATURE_SOCKET_MODE_POLL
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Threading;
 
-#if !__MonoCS__
 namespace StackExchange.Redis
 {
     
@@ -377,9 +377,9 @@ namespace StackExchange.Redis
         private void StartReader()
         {
             var thread = new Thread(read, 32 * 1024); // don't need a huge stack
+            thread.Priority = ThreadPriority.AboveNormal; // time critical
             thread.Name = name + ":Read";
             thread.IsBackground = true;
-            thread.Priority = ThreadPriority.AboveNormal; // time critical
             thread.Start(this);
         }
         [StructLayout(LayoutKind.Sequential)]

@@ -347,7 +347,7 @@ namespace StackExchange.Redis
 
         internal sealed class ScriptLoadProcessor : ResultProcessor<byte[]>
         {
-            static readonly Regex sha1 = new Regex("^[0-9a-f]{40}$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+            static readonly Regex sha1 = new Regex("^[0-9a-f]{40}$", InternalRegexCompiledOption.Default | RegexOptions.IgnoreCase);
 
             internal static bool IsSHA1(string script)
             {

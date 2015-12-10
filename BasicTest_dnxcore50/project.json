@@ -1,0 +1,41 @@
+{
+  "version": "1.0.0-*",
+  "description": "StackExchange.Redis.BasicTest dnxcore50",
+  "authors": [ "jeremymeng" ],
+  "tags": [ "" ],
+  "projectUrl": "",
+  "licenseUrl": "",
+
+  "compile": [
+    "../BasicTest/Program.cs"
+  ],
+
+  "dependencies": {
+    "StackExchange.Redis": "1.1.0-*"
+  },
+
+  "commands": {
+    "run": "BasicTest_dnxcore50"
+  },
+
+  "configurations": {
+    "Debug": {
+      "compilationOptions": {
+        "define": [ "DEBUG", "TRACE" ]
+      }
+    },
+    "Release": {
+      "compilationOptions": {
+        "define": [ "TRACE" ]
+      }
+    }
+  },
+  
+  "frameworks": {
+    "dnxcore50": {
+      "dependencies": {
+        "System.Console": "4.0.0-beta-23409"
+      }
+    }
+  }
+}

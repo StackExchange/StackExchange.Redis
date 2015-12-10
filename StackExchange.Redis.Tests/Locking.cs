@@ -127,7 +127,7 @@ namespace StackExchange.Redis.Tests
             NoMultiExec,
             Twemproxy
         }
-        public IEnumerable<TestMode> TestModes()
+        public static IEnumerable<TestMode> TestModes()
         {
             return (TestMode[])Enum.GetValues(typeof(TestMode));
         }

@@ -18,7 +18,7 @@
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
     <OutputPath>bin.snk\Debug\</OutputPath>
-    <DefineConstants>TRACE;DEBUG;NET46 PLAT_SAFE_CONTINUATIONS STRONG_NAME</DefineConstants>
+    <DefineConstants>TRACE;DEBUG;NET46 PLAT_SAFE_CONTINUATIONS STRONG_NAME FEATURE_SERIALIZATION FEATURE_SOCKET_MODE_POLL</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -30,7 +30,7 @@
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin.snk\Release\</OutputPath>
-    <DefineConstants>TRACE;NET46 PLAT_SAFE_CONTINUATIONS STRONG_NAME</DefineConstants>
+    <DefineConstants>TRACE;NET46 PLAT_SAFE_CONTINUATIONS STRONG_NAME FEATURE_SERIALIZATION FEATURE_SOCKET_MODE_POLL</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <UseVSHostingProcess>false</UseVSHostingProcess>
@@ -46,7 +46,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Mono|AnyCPU'">
     <OutputPath>bin\Mono\</OutputPath>
-    <DefineConstants>TRACE;NET46 PLAT_SAFE_CONTINUATIONS STRONG_NAME</DefineConstants>
+    <DefineConstants>TRACE;NET46 PLAT_SAFE_CONTINUATIONS STRONG_NAME FEATURE_SERIALIZATION</DefineConstants>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <DocumentationFile>bin.snk\Release\StackExchange.Redis.StrongName.xml</DocumentationFile>
     <Optimize>true</Optimize>
@@ -70,6 +70,12 @@
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ClientInfo.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ClientType.cs">
       <Link>ClientType.cs</Link>
+    </Compile>
+    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\Compat\ConvertHelper.cs">
+      <Link>ConvertHelper.cs</Link>
+    </Compile>
+    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\Compat\VolatileWrapper.cs">
+      <Link>VolatileWrapper.cs</Link>
     </Compile>
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ConcurrentProfileStorageCollection.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ConnectionMultiplexer.Profiling.cs">
@@ -106,6 +112,7 @@
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IDatabaseAsync.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IMultiMessage.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\InternalErrorEventArgs.cs" />
+    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\InternalRegexCompiledOption.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IProfiler.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IRedis.cs" />
     <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IRedisAsync.cs" />

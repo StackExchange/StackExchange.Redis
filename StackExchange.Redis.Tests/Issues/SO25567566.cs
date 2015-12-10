@@ -9,7 +9,7 @@ namespace StackExchange.Redis.Tests.Issues
     {
         protected override string GetConfiguration()
         {
-            return "127.0.0.1";
+            return "127.0.0.1:6379";
         }
         [Test]
         public async void Execute()

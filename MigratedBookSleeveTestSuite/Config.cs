@@ -122,25 +122,36 @@ namespace Tests
             }
         }
 
-        [Test, ExpectedException(typeof(RedisConnectionException))]
+        [Test]
         public void CanNotOpenNonsenseConnection_IP()
         {
-            var log = new StringWriter();
-            try {
-                using (var conn = ConnectionMultiplexer.Connect(Config.LocalHost + ":6500")) { }
-            } finally {
-                Console.WriteLine(log);
-            }
+            Assert.Throws<RedisConnectionException>(() =>
+            {
+                var log = new StringWriter();
+                try {
+                    using (var conn = ConnectionMultiplexer.Connect(Config.LocalHost + ":6500")) { }
+                }
+                finally {
+                    Console.WriteLine(log);
+                }
+            });
         }
-        [Test, ExpectedException(typeof(RedisConnectionException))]
+
+        [Test]
         public void CanNotOpenNonsenseConnection_DNS()
         {
-            var log = new StringWriter();
-            try {
-                using (var conn = ConnectionMultiplexer.Connect("doesnot.exist.ds.aasd981230d.com:6500", log)) { }
-            } finally {
-                Console.WriteLine(log);
-            }
+            Assert.Throws<RedisConnectionException>(() =>
+            {
+                var log = new StringWriter();
+                try
+                {
+                    using (var conn = ConnectionMultiplexer.Connect("doesnot.exist.ds.aasd981230d.com:6500", log)) { }
+                }
+                finally
+                {
+                    Console.WriteLine(log);
+                }
+            });
         }
 
         [Test]

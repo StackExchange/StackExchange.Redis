@@ -23,15 +23,21 @@ namespace StackExchange.Redis.Tests.Issues
         {
             var options = ConfigurationOptions.Parse("ssl2=true", true);
         }
-        [Test, ExpectedException(typeof(ArgumentException), ExpectedMessage = "Keyword 'ssl2' is not supported")]
+        [Test] 
         public void UnkonwnKeywordHandling_ExplicitFail()
         {
-            var options = ConfigurationOptions.Parse("ssl2=true", false);
+            Assert.Throws<ArgumentException>(() => {
+                var options = ConfigurationOptions.Parse("ssl2=true", false);
+            },
+            "Keyword 'ssl2' is not supported");
         }
-        [Test, ExpectedException(typeof(ArgumentException), ExpectedMessage = "Keyword 'ssl2' is not supported")]
+        [Test]
         public void UnkonwnKeywordHandling_ImplicitFail()
         {
-            var options = ConfigurationOptions.Parse("ssl2=true");
+            Assert.Throws<ArgumentException>(() => {
+                var options = ConfigurationOptions.Parse("ssl2=true");
+            },
+            "Keyword 'ssl2' is not supported");
         }
     }
 }

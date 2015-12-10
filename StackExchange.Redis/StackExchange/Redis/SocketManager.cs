@@ -126,8 +126,12 @@ namespace StackExchange.Redis
 
             // we need a dedicated writer, because when under heavy ambient load
             // (a busy asp.net site, for example), workers are not reliable enough
+#if !DNXCORE50
             Thread dedicatedWriter = new Thread(writeAllQueues, 32 * 1024); // don't need a huge stack;
             dedicatedWriter.Priority = ThreadPriority.AboveNormal; // time critical
+#else
+            Thread dedicatedWriter = new Thread(writeAllQueues);
+#endif
             dedicatedWriter.Name = name + ":Write";
             dedicatedWriter.IsBackground = true; // should not keep process alive
             dedicatedWriter.Start(this); // will self-exit when disposed
@@ -219,6 +223,7 @@ namespace StackExchange.Redis
             // or will be subject to WFP filtering.
             const int SIO_LOOPBACK_FAST_PATH = -1744830448;
 
+#if !DNXCORE50
             // windows only
             if (Environment.OSVersion.Platform == PlatformID.Win32NT)
             {
@@ -226,10 +231,14 @@ namespace StackExchange.Redis
                 var osVersion = Environment.OSVersion.Version;
                 if (osVersion.Major > 6 || osVersion.Major == 6 && osVersion.Minor >= 2)
                 {
+#endif
                     byte[] optionInValue = BitConverter.GetBytes(1);
                     socket.IOControl(SIO_LOOPBACK_FAST_PATH, optionInValue, null);
+
+#if !DNXCORE50
                 }
             }
+#endif
         }
 
         internal void RequestWrite(PhysicalBridge bridge, bool forced)
@@ -334,7 +343,9 @@ namespace StackExchange.Redis
             {
                 OnShutdown(socket);
                 try { socket.Shutdown(SocketShutdown.Both); } catch { }
+#if !DNXCORE50
                 try { socket.Close(); } catch { }
+#endif
                 try { socket.Dispose(); } catch { }
             }
         }

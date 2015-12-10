@@ -158,7 +158,7 @@ namespace StackExchange.Redis.Tests
                 var db = conn.GetDatabase();
                 RedisKey[] keys = { Me() };
 
-                string hexHash = string.Concat(Array.ConvertAll(hash, x => x.ToString("X2")));
+                string hexHash = string.Concat(hash.Select(x => x.ToString("X2")));
                 Assert.AreEqual("2BAB3B661081DB58BD2341920E0BA7CF5DC77B25", hexHash);
 
                 db.ScriptEvaluate(hexHash, keys);

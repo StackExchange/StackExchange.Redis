@@ -32,13 +32,19 @@ namespace StackExchange.Redis
         /// <summary>
         /// The score against the element
         /// </summary>
-        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never), Obsolete("Please use Score", false)]
+#if !DNXCORE50
+        [Browsable(false)]
+#endif
+        [EditorBrowsable(EditorBrowsableState.Never), Obsolete("Please use Score", false)]
         public double Value { get { return score; } }
 
         /// <summary>
         /// The unique element stored in the sorted set
         /// </summary>
-        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never), Obsolete("Please use Element", false)]
+#if !DNXCORE50
+        [Browsable(false)]
+#endif
+        [EditorBrowsable(EditorBrowsableState.Never), Obsolete("Please use Element", false)]
         public RedisValue Key { get { return element; } }
 
         /// <summary>

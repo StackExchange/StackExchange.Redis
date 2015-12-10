@@ -55,28 +55,33 @@ namespace Tests.Issues
             }
         }
 
-        [Test, ExpectedException(typeof(RedisServerException), ExpectedMessage = "WRONGTYPE Operation against a key holding the wrong kind of value")]
+        [Test]
         public void ExecuteWithNonHashStartingPoint()
         {
-            using (var muxer = Config.GetUnsecuredConnection())
+            Assert.Throws<RedisConnectionException>(() =>
             {
-                var conn = muxer.GetDatabase(0);
-                var task = new { priority = 3 };
-                conn.KeyDeleteAsync("item:1");
-                conn.StringSetAsync("item:1", "not a hash");
-                conn.HashSetAsync("item:1", "priority", task.priority.ToString());
-
-                var taskResult = conn.HashGetAsync("item:1", "priority");
-
-                try
+                using (var muxer = Config.GetUnsecuredConnection())
                 {
-                    conn.Wait(taskResult);
-                    Assert.Fail();
-                } catch(AggregateException ex)
-                {
-                    throw ex.InnerExceptions[0];
+                    var conn = muxer.GetDatabase(0);
+                    var task = new { priority = 3 };
+                    conn.KeyDeleteAsync("item:1");
+                    conn.StringSetAsync("item:1", "not a hash");
+                    conn.HashSetAsync("item:1", "priority", task.priority.ToString());
+
+                    var taskResult = conn.HashGetAsync("item:1", "priority");
+
+                    try
+                    {
+                        conn.Wait(taskResult);
+                        Assert.Fail();
+                    }
+                    catch (AggregateException ex)
+                    {
+                        throw ex.InnerExceptions[0];
+                    }
                 }
-            }
+            },
+            message: "WRONGTYPE Operation against a key holding the wrong kind of value");
         }
     }
 }
