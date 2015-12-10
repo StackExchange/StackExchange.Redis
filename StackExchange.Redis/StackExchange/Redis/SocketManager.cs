@@ -5,6 +5,7 @@ using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
@@ -172,45 +173,56 @@ namespace StackExchange.Redis
                 this.ShouldForceConnectCompletionType(ref connectCompletionType);
 
                 var formattedEndpoint = Format.ToString(endpoint);
+                var tuple = Tuple.Create(socket, callback);
                 if (endpoint is DnsEndPoint)
                 {
                     // A work-around for a Mono bug in BeginConnect(EndPoint endpoint, AsyncCallback callback, object state)
                     DnsEndPoint dnsEndpoint = (DnsEndPoint)endpoint;
-                    CompletionTypeHelper.RunWithCompletionType(
-                        (cb) =>
-                        {
-                            multiplexer.LogLocked(log, "BeginConnect: {0}", formattedEndpoint);
+
 #if CORE_CLR
-                            throw new NotImplementedException("TODO CORE CLR");
+                    multiplexer.LogLocked(log, "BeginConnect: {0}", formattedEndpoint);
+                    socket.ConnectAsync(dnsEndpoint.Host, dnsEndpoint.Port).ContinueWith(t =>
+                    {
+                        multiplexer.LogLocked(log, "EndConnect: {0}", formattedEndpoint);
+                        EndConnectImpl(t, multiplexer, log, tuple);
+                        multiplexer.LogLocked(log, "Connect complete: {0}", formattedEndpoint);
+                    });
 #else
-                            return socket.BeginConnect(dnsEndpoint.Host, dnsEndpoint.Port, cb, Tuple.Create(socket, callback));
-#endif
-                        },
-                        (ar) =>
-                        {
-                            multiplexer.LogLocked(log, "EndConnect: {0}", formattedEndpoint);
-                            EndConnectImpl(ar, multiplexer, log);
-                            multiplexer.LogLocked(log, "Connect complete: {0}", formattedEndpoint);
-                        },
-                        connectCompletionType);
-                }
-                else
-                {
                     CompletionTypeHelper.RunWithCompletionType(
                         (cb) => {
                             multiplexer.LogLocked(log, "BeginConnect: {0}", formattedEndpoint);
-#if CORE_CLR
-                            throw new NotImplementedException("TODO CORE CLR");
-#else
-                            return socket.BeginConnect(endpoint, cb, Tuple.Create(socket, callback));
-#endif
+                            return socket.BeginConnect(dnsEndpoint.Host, dnsEndpoint.Port, cb, tuple);
                         },
                         (ar) => {
-                            multiplexer.LogLocked(log, "EndConnect: {0}", formattedEndpoint);
-                            EndConnectImpl(ar, multiplexer, log);
+                            multiplexer.LogLocked(log, "EndConnect: {0}", formattedEndpoint);                            
+                            EndConnectImpl(ar, multiplexer, log, tuple);
                             multiplexer.LogLocked(log, "Connect complete: {0}", formattedEndpoint);
                         },
                         connectCompletionType);
+#endif
+                }
+                else
+                {
+#if CORE_CLR
+                    multiplexer.LogLocked(log, "BeginConnect: {0}", formattedEndpoint);
+                    socket.ConnectAsync(endpoint).ContinueWith(t =>
+                    {
+                        multiplexer.LogLocked(log, "EndConnect: {0}", formattedEndpoint);
+                        EndConnectImpl(t, multiplexer, log, tuple);
+                    });
+#else
+                    CompletionTypeHelper.RunWithCompletionType(
+                        (cb) => {
+                            multiplexer.LogLocked(log, "BeginConnect: {0}", formattedEndpoint);
+                            return socket.BeginConnect(endpoint, cb, tuple);
+                        },
+                        (ar) => {
+                            multiplexer.LogLocked(log, "EndConnect: {0}", formattedEndpoint);
+                            EndConnectImpl(ar, multiplexer, log, tuple);
+                            multiplexer.LogLocked(log, "Connect complete: {0}", formattedEndpoint);
+                        },
+                        connectCompletionType);
+#endif
                 }
             } 
             catch (NotImplementedException ex)
@@ -273,19 +285,17 @@ namespace StackExchange.Redis
             Shutdown(token.Socket);
         }
 
-        private void EndConnectImpl(IAsyncResult ar, ConnectionMultiplexer multiplexer, TextWriter log)
+        private void EndConnectImpl(IAsyncResult ar, ConnectionMultiplexer multiplexer, TextWriter log, Tuple<Socket, ISocketCallback> tuple)
         {
-            Tuple<Socket, ISocketCallback> tuple = null;
             try
             {
-                tuple = (Tuple<Socket, ISocketCallback>)ar.AsyncState;
                 bool ignoreConnect = false;
                 ShouldIgnoreConnect(tuple.Item2, ref ignoreConnect);
                 if (ignoreConnect) return;
                 var socket = tuple.Item1;
                 var callback = tuple.Item2;
 #if CORE_CLR
-                throw new NotImplementedException("TODO CORE CLR");
+                multiplexer.Wait((Task)ar); // make it explode if invalid (note: already complete at this point)
 #else
                 socket.EndConnect(ar);
 

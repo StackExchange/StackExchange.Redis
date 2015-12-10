@@ -299,9 +299,10 @@ namespace StackExchange.Redis
         /// </summary>
         Async = 2
     }
-
+#if !CORE_CLR
     internal class CompletionTypeHelper
     {
+
         public static void RunWithCompletionType(Func<AsyncCallback, IAsyncResult> beginAsync, AsyncCallback callback, CompletionType completionType)
         { 
             AsyncCallback proxyCallback;
@@ -343,6 +344,7 @@ namespace StackExchange.Redis
             return;
         }
     }
+#endif
 
 #if VERBOSE
 
