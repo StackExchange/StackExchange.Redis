@@ -9,6 +9,7 @@
   "copyright": "Stack Exchange inc. 2014-",
   "requireLicenseAcceptance": false,
   "summary": "Redis client library",
+  "releaseNotes": "Alpha for core-clr; if you aren't doing core-clr, you probably don't want this",
   "compile": [
     "../StackExchange.Redis/**/*.cs"
   ],

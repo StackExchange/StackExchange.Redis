@@ -19,24 +19,14 @@
     "run": "BasicTest_dnxcore50"
   },
 
-  "configurations": {
-    "Debug": {
-      "compilationOptions": {
-        "define": [ "DEBUG", "TRACE" ]
-      }
-    },
-    "Release": {
-      "compilationOptions": {
-        "define": [ "TRACE" ]
-      }
-    }
-  },
   
   "frameworks": {
     "dnxcore50": {
       "dependencies": {
         "System.Console": "4.0.0-beta-23516"
       }
+    },
+    "dnx451": {
     }
   }
 }
