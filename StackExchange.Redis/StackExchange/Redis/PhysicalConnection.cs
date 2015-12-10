@@ -26,13 +26,31 @@ namespace StackExchange.Redis
 
         private static readonly byte[] Crlf = Encoding.ASCII.GetBytes("\r\n");
 
+#if CORE_CLR
+        readonly Action<Task<int>> endRead;
+        private static Action<Task<int>> EndReadFactory(PhysicalConnection physical)
+        {
+            return result =>
+            {   // can't capture AsyncState on SocketRead, so we'll do it once per physical instead
+                try
+                {
+                    physical.multiplexer.Trace("Completed asynchronously: processing in callback", physical.physicalName);
+                    if (physical.EndReading(result)) physical.BeginReading();
+                }
+                catch (Exception ex)
+                {
+                    physical.RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
+                }
+            };
+        }
+#else
         static readonly AsyncCallback endRead = result =>
         {
             PhysicalConnection physical;
             if (result.CompletedSynchronously || (physical = result.AsyncState as PhysicalConnection) == null) return;
             try
             {
-                physical.multiplexer.Trace("Completed synchronously: processing in callback", physical.physicalName);
+                physical.multiplexer.Trace("Completed asynchronously: processing in callback", physical.physicalName);
                 if (physical.EndReading(result)) physical.BeginReading();
             }
             catch (Exception ex)
@@ -40,6 +58,7 @@ namespace StackExchange.Redis
                 physical.RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
             }
         };
+#endif
 
         private static readonly byte[] message = Encoding.UTF8.GetBytes("message"), pmessage = Encoding.UTF8.GetBytes("pmessage");
 
@@ -91,6 +110,9 @@ namespace StackExchange.Redis
             var endpoint = bridge.ServerEndPoint.EndPoint;
             physicalName = connectionType + "#" + Interlocked.Increment(ref totalCount) + "@" + Format.ToString(endpoint);
             this.bridge = bridge;
+#if CORE_CLR
+            endRead = EndReadFactory(this);
+#endif
             OnCreateEcho();
         }
 
@@ -279,6 +301,7 @@ namespace StackExchange.Redis
         {
             if (exception != null && failureType == ConnectionFailureType.InternalFailure)
             {
+                if (exception is AggregateException) exception = exception.InnerException ?? exception;
                 if (exception is AuthenticationException) failureType = ConnectionFailureType.AuthenticationFailure;
                 else if (exception is SocketException || exception is IOException) failureType = ConnectionFailureType.SocketFailure;
                 else if (exception is EndOfStreamException) failureType = ConnectionFailureType.SocketClosed;
@@ -677,20 +700,27 @@ namespace StackExchange.Redis
                     keepReading = false;
                     int space = EnsureSpaceAndComputeBytesToRead();
                     multiplexer.Trace("Beginning async read...", physicalName);
-                    var result = netStream.BeginRead(ioBuffer, ioBufferBytes, space, endRead, this);
 #if CORE_CLR
-                    Task<int> t = (Task<int>)result;
-                    if (t.Status == TaskStatus.RanToCompletion && t.Result == -1)
+                    var result = netStream.ReadAsync(ioBuffer, ioBufferBytes, space);
+                    switch(result.Status)
                     {
-                        multiplexer.Trace("Could not connect: ", physicalName);
-                        return;
+                        case TaskStatus.RanToCompletion:
+                        case TaskStatus.Faulted:
+                            multiplexer.Trace("Completed synchronously: processing immediately", physicalName);
+                            keepReading = EndReading(result);
+                            break;
+                        default:
+                            result.ContinueWith(endRead);
+                            break;
                     }
-#endif
+#else
+                    var result = netStream.BeginRead(ioBuffer, ioBufferBytes, space, endRead, this);
                     if (result.CompletedSynchronously)
                     {
                         multiplexer.Trace("Completed synchronously: processing immediately", physicalName);
                         keepReading = EndReading(result);
                     }
+#endif
                 } while (keepReading);
             }
 #if CORE_CLR
@@ -794,6 +824,22 @@ namespace StackExchange.Redis
             }
         }
 
+#if CORE_CLR
+        private bool EndReading(Task<int> result)
+        {
+            try
+            {
+                var tmp = netStream;
+                int bytesRead = tmp == null ? 0 : result.Result; // note we expect this to be completed
+                return ProcessReadBytes(bytesRead);
+            }
+            catch (Exception ex)
+            {
+                RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
+                return false;
+            }
+        }
+#else
         private bool EndReading(IAsyncResult result)
         {
             try
@@ -808,7 +854,7 @@ namespace StackExchange.Redis
                 return false;
             }
         }
-
+#endif
         int EnsureSpaceAndComputeBytesToRead()
         {
             int space = ioBuffer.Length - ioBufferBytes;
@@ -1113,37 +1159,5 @@ namespace StackExchange.Redis
         }
     }
 
-#if CORE_CLR
-    internal static class StreamExtensions
-    {
-        internal static IAsyncResult BeginRead(this Stream stream, byte[] buffer, int offset, int count, AsyncCallback ac, object state)
-        {
-            Task<int> f = Task<int>.Factory.StartNew(_ => {
-                try
-                {
-                    return stream.Read(buffer, offset, count);
-                }
-                catch (IOException ex)
-                {
-                    System.Diagnostics.Trace.WriteLine("Could not connect: " + ex.InnerException.Message);
-                    return -1;
-                }
-            }, state);
-            if (ac != null) f.ContinueWith(res => ac(f));
-            return f;
-        }
 
-        internal static int EndRead(this Stream stream, IAsyncResult ar)
-        {
-            try
-            {
-                return ((Task<int>)ar).Result;
-            }
-            catch (AggregateException ex)
-            {
-                throw ex.InnerException;
-            }
-        }
-    }
-#endif
 }
