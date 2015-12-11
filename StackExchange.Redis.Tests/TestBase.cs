@@ -50,6 +50,9 @@ namespace StackExchange.Redis.Tests
             {
                 Console.WriteLine("Unobserved: " + args.Exception);
                 args.SetObserved();
+#if CORE_CLR
+                if (IgnorableExceptionPredicates.Any(predicate => predicate(args.Exception.InnerException))) return;
+#endif
                 Interlocked.Increment(ref failCount);
                 lock (exceptions)
                 {
@@ -57,6 +60,15 @@ namespace StackExchange.Redis.Tests
                 }
             };
         }
+
+#if CORE_CLR
+        static Func<Exception, bool>[] IgnorableExceptionPredicates = new Func<Exception, bool>[]
+        {
+            e => e != null && e is ObjectDisposedException && e.Message.Equals("Cannot access a disposed object.\r\nObject name: 'System.Net.Sockets.NetworkStream'."),
+            e => e != null && e is IOException && e.Message.StartsWith("Unable to read data from the transport connection:")
+        };
+#endif
+
         protected void OnConnectionFailed(object sender, ConnectionFailedEventArgs e)
         {
             Interlocked.Increment(ref failCount);
