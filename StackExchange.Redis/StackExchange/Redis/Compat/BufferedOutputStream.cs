@@ -14,7 +14,7 @@ namespace StackExchange.Redis
 
         public BufferedOutputStream(Stream inner, int bufferSize)
         {
-            if (inner == null) throw new ArgumentOutOfRangeException(nameof(inner));
+            if (inner == null) throw new ArgumentNullException(nameof(inner));
             if (bufferSize <= 0) throw new ArgumentOutOfRangeException(nameof(bufferSize));
             if (!inner.CanWrite) throw new InvalidOperationException("Inner stream is not writeable");
             this.inner = inner;
