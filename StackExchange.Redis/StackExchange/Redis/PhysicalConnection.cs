@@ -806,10 +806,10 @@ namespace StackExchange.Redis
 
                 int bufferSize = config.WriteBuffer;
                 this.netStream = stream;
-#if !CORE_CLR
-                this.outStream = bufferSize <= 0 ? stream : new BufferedStream(stream, bufferSize);
+#if CORE_CLR
+                this.outStream = bufferSize <= 0 ? stream : new BufferedOutputStream(stream, bufferSize);
 #else
-                this.outStream = stream;
+                this.outStream = bufferSize <= 0 ? stream : new BufferedStream(stream, bufferSize);
 #endif
                 multiplexer.LogLocked(log, "Connected {0}", bridge);
 
