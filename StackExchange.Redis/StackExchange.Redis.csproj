@@ -17,7 +17,7 @@
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
     <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>TRACE;DEBUG</DefineConstants>
+    <DefineConstants>TRACE;DEBUG;FEATURE_SERIALIZATION FEATURE_SOCKET_MODE_POLL</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -27,7 +27,7 @@
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin\Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
+    <DefineConstants>TRACE;FEATURE_SERIALIZATION FEATURE_SOCKET_MODE_POLL</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -36,7 +36,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Verbose|AnyCPU'">
     <DebugSymbols>true</DebugSymbols>
     <OutputPath>bin\Verbose\</OutputPath>
-    <DefineConstants>TRACE;DEBUG;VERBOSE</DefineConstants>
+    <DefineConstants>TRACE;DEBUG;VERBOSE;FEATURE_SERIALIZATION FEATURE_SOCKET_MODE_POLL</DefineConstants>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <DocumentationFile>bin\Debug\StackExchange.Redis.xml</DocumentationFile>
     <DebugType>full</DebugType>
@@ -48,7 +48,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Log Output|AnyCPU'">
     <DebugSymbols>true</DebugSymbols>
     <OutputPath>bin\Log Output\</OutputPath>
-    <DefineConstants>TRACE;DEBUG;LOGOUTPUT</DefineConstants>
+    <DefineConstants>TRACE;DEBUG;LOGOUTPUT FEATURE_SERIALIZATION FEATURE_SOCKET_MODE_POLL</DefineConstants>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <DocumentationFile>bin\Debug\StackExchange.Redis.xml</DocumentationFile>
     <DebugType>full</DebugType>
@@ -58,7 +58,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Mono|AnyCPU'">
     <OutputPath>bin\Mono\</OutputPath>
-    <DefineConstants>TRACE;__MonoCS__</DefineConstants>
+    <DefineConstants>TRACE;__MonoCS__ FEATURE_SERIALIZATION</DefineConstants>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <DocumentationFile>bin\Release\StackExchange.Redis.xml</DocumentationFile>
     <Optimize>true</Optimize>
@@ -75,6 +75,8 @@
   <ItemGroup>
     <Compile Include="StackExchange\Redis\Aggregate.cs" />
     <Compile Include="StackExchange\Redis\ClientType.cs" />
+    <Compile Include="StackExchange\Redis\Compat\ConvertHelper.cs" />
+    <Compile Include="StackExchange\Redis\Compat\VolatileWrapper.cs" />
     <Compile Include="StackExchange\Redis\ConcurrentProfileStorageCollection.cs" />
     <Compile Include="StackExchange\Redis\ConnectionMultiplexer.Profiling.cs">
       <DependentUpon>ConnectionMultiplexer.cs</DependentUpon>
@@ -83,6 +85,7 @@
     <Compile Include="StackExchange\Redis\HashEntry.cs" />
     <Compile Include="StackExchange\Redis\IConnectionMultiplexer.cs" />
     <Compile Include="StackExchange\Redis\InternalErrorEventArgs.cs" />
+    <Compile Include="StackExchange\Redis\InternalRegexCompiledOption.cs" />
     <Compile Include="StackExchange\Redis\IProfiler.cs" />
     <Compile Include="StackExchange\Redis\MigrateOptions.cs" />
     <Compile Include="StackExchange\Redis\ProfileContextTracker.cs" />

@@ -28,33 +28,39 @@ namespace StackExchange.Redis.Tests
                 Assert.AreSame(raw, prefixed);
             }
         }
-        [Test, ExpectedException(typeof(ArgumentNullException))]
+        [Test]
         public void NullPrefixIsError_Bytes()
         {
-            using (var conn = Create())
-            {
-                var raw = conn.GetDatabase(1);
-                var prefixed = raw.WithKeyPrefix((byte[])null);
-            }
+            Assert.Throws<ArgumentNullException>(() => {
+                using (var conn = Create())
+                {
+                    var raw = conn.GetDatabase(1);
+                    var prefixed = raw.WithKeyPrefix((byte[])null);
+                }
+            });
         }
-        [Test, ExpectedException(typeof(ArgumentNullException))]
+        [Test]
         public void NullPrefixIsError_String()
         {
-            using (var conn = Create())
-            {
-                var raw = conn.GetDatabase(1);
-                var prefixed = raw.WithKeyPrefix((string)null);
-            }
+            Assert.Throws<ArgumentNullException>(() => {
+                using (var conn = Create())
+                {
+                    var raw = conn.GetDatabase(1);
+                    var prefixed = raw.WithKeyPrefix((string)null);
+                }
+            });
         }
 
-        [Test, ExpectedException(typeof(ArgumentNullException))]
+        [Test]
         [TestCase("abc")]
         [TestCase("")]
         [TestCase(null)]
         public void NullDatabaseIsError(string prefix)
         {
-            IDatabase raw = null;
-            var prefixed = raw.WithKeyPrefix(prefix);
+            Assert.Throws<ArgumentNullException>(() => {
+                IDatabase raw = null;
+                var prefixed = raw.WithKeyPrefix(prefix);
+            });
         }
         [Test]
         public void BasicSmokeTest()

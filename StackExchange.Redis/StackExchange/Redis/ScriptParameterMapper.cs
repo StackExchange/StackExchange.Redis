@@ -23,7 +23,7 @@ namespace StackExchange.Redis
             }
         }
 
-        static readonly Regex ParameterExtractor = new Regex(@"@(?<paramName> ([a-z]|_) ([a-z]|_|\d)*)", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace);
+        static readonly Regex ParameterExtractor = new Regex(@"@(?<paramName> ([a-z]|_) ([a-z]|_|\d)*)", InternalRegexCompiledOption.Default | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace);
         static string[] ExtractParameters(string script)
         {
             var ps = ParameterExtractor.Matches(script);
@@ -313,7 +313,11 @@ namespace StackExchange.Redis
             LocalBuilder redisKeyLoc = null;
             var loc = il.DeclareLocal(t);
             il.Emit(OpCodes.Ldarg_0);               // object
+#if !DNXCORE50
             if (t.IsValueType)
+#else
+            if (t.GetTypeInfo().IsValueType)
+#endif
             {
                 il.Emit(OpCodes.Unbox_Any, t);      // T
             }
@@ -344,7 +348,11 @@ namespace StackExchange.Redis
             {
                 il.Emit(OpCodes.Dup);                       // RedisKey[] RedisKey[]
                 il.Emit(OpCodes.Ldc_I4, i);                 // RedisKey[] RedisKey[] int
+#if !DNXCORE50
                 if (t.IsValueType)
+#else
+                if (t.GetTypeInfo().IsValueType)
+#endif
                 {
                     il.Emit(OpCodes.Ldloca, loc);           // RedisKey[] RedisKey[] int T*
                 }
@@ -372,7 +380,11 @@ namespace StackExchange.Redis
             {
                 il.Emit(OpCodes.Dup);                       // RedisKey[] RedisValue[] RedisValue[]
                 il.Emit(OpCodes.Ldc_I4, i);                 // RedisKey[] RedisValue[] RedisValue[] int
+#if !DNXCORE50
                 if (t.IsValueType)
+#else
+                if (t.GetTypeInfo().IsValueType)
+#endif
                 {
                     il.Emit(OpCodes.Ldloca, loc);           // RedisKey[] RedisValue[] RedisValue[] int T*
                 }

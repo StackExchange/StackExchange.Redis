@@ -1,4 +1,5 @@
-﻿using System;
+﻿#if FEATURE_MOQ
+using System;
 using Moq;
 using NUnit.Framework;
 using StackExchange.Redis.KeyspaceIsolation;
@@ -12,7 +13,8 @@ namespace StackExchange.Redis.Tests
         private Mock<IBatch> mock;
         private BatchWrapper wrapper;
 
-        [TestFixtureSetUp]
+        //[TestFixtureSetUp]
+        [OneTimeSetUpAttribute]
         public void Initialize()
         {
             mock = new Mock<IBatch>();
@@ -27,3 +29,4 @@ namespace StackExchange.Redis.Tests
         }
     }
 }
+#endif

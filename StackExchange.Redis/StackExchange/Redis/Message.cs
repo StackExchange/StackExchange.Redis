@@ -2,7 +2,9 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+#if FEATURE_SERIALIZATION
 using System.Runtime.Serialization;
+#endif
 using System.Text;
 using System.Threading.Tasks;
 
@@ -11,22 +13,29 @@ namespace StackExchange.Redis
     /// <summary>
     /// Indicates that a command was illegal and was not sent to the server
     /// </summary>
+#if FEATURE_SERIALIZATION
     [Serializable]
+#endif
     public sealed class RedisCommandException : Exception
     {
+#if FEATURE_SERIALIZATION
         private RedisCommandException(SerializationInfo info, StreamingContext ctx) : base(info, ctx) { }
+#endif
         internal RedisCommandException(string message) : base(message) { }
         internal RedisCommandException(string message, Exception innerException) : base(message, innerException) { }
     }
 
-    
+
 
     /// <summary>
     /// Indicates a connection fault when communicating with redis
     /// </summary>
+#if FEATURE_SERIALIZATION
     [Serializable]
+#endif
     public sealed class RedisConnectionException : RedisException
     {
+#if FEATURE_SERIALIZATION
         private RedisConnectionException(SerializationInfo info, StreamingContext ctx) : base(info, ctx)
         {
             this.FailureType = (ConnectionFailureType)info.GetInt32("failureType");
@@ -39,6 +48,7 @@ namespace StackExchange.Redis
             base.GetObjectData(info, context);
             info.AddValue("failureType", (int)this.FailureType);
         }
+#endif
 
         internal RedisConnectionException(ConnectionFailureType failureType, string message) : base(message)
         {
@@ -58,24 +68,32 @@ namespace StackExchange.Redis
     /// <summary>
     /// Indicates an issue communicating with redis
     /// </summary>
+#if FEATURE_SERIALIZATION
     [Serializable]
+#endif
     public class RedisException : Exception
     {
         /// <summary>
         /// Deserialization constructor; not intended for general usage
         /// </summary>
+#if FEATURE_SERIALIZATION
         protected RedisException(SerializationInfo info, StreamingContext ctx) : base(info, ctx) { }
-        
+#endif
+
         internal RedisException(string message) : base(message) { }
         internal RedisException(string message, Exception innerException) : base(message, innerException) { }
     }
     /// <summary>
     /// Indicates an exception raised by a redis server
     /// </summary>
+#if FEATURE_SERIALIZATION
     [Serializable]
+#endif
     public sealed class RedisServerException : RedisException
     {
+#if FEATURE_SERIALIZATION
         private RedisServerException(SerializationInfo info, StreamingContext ctx) : base(info, ctx) { }
+#endif
         
         internal RedisServerException(string message) : base(message) { }
     }

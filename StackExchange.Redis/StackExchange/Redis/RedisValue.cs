@@ -1,4 +1,8 @@
 ﻿using System;
+#if DNXCORE50
+using System.Collections.Generic;
+using System.Reflection;
+#endif
 using System.Text;
 
 namespace StackExchange.Redis
@@ -301,8 +305,13 @@ namespace StackExchange.Redis
                     if (otherType == CompareType.Int64) return thisDouble.CompareTo((double)otherInt64);
                     if (otherType == CompareType.Double) return thisDouble.CompareTo(otherDouble);
                 }
-                // otherwise, compare as strings            
+                // otherwise, compare as strings
+#if !DNXCORE50
                 return StringComparer.InvariantCulture.Compare((string)this, (string)other);
+#else
+                var compareInfo = System.Globalization.CultureInfo.InvariantCulture.CompareInfo;
+                return compareInfo.Compare((string)this, (string)other, System.Globalization.CompareOptions.Ordinal);
+#endif
             }
             catch(Exception ex)
             {
@@ -601,7 +610,7 @@ namespace StackExchange.Redis
             if (conversionType== null) throw new ArgumentNullException("conversionType");
             if (conversionType== typeof(byte[])) return (byte[])this;
             if (conversionType == typeof(RedisValue)) return this;
-            switch(Type.GetTypeCode(conversionType))
+            switch(conversionType.GetTypeCode())
             {
                 case TypeCode.Boolean: return (bool)this;
                 case TypeCode.Byte: return (byte)this;
@@ -703,5 +712,49 @@ namespace StackExchange.Redis
 
             return TryParseDouble(blob, out val);
         }
+    }
+
+    internal static class ReflectionExtensions
+    {
+#if DNXCORE50
+        internal static TypeCode GetTypeCode(this Type type)
+        {
+            if (type == null) return TypeCode.Empty;
+            TypeCode result;
+            if (typeCodeLookup.TryGetValue(type, out result)) return result;
+
+            if (type.GetTypeInfo().IsEnum)
+            {
+                type = Enum.GetUnderlyingType(type);
+                if (typeCodeLookup.TryGetValue(type, out result)) return result;
+            }
+            return TypeCode.Object;
+        }
+
+        static readonly Dictionary<Type, TypeCode> typeCodeLookup = new Dictionary<Type, TypeCode>
+        {
+            {typeof(bool), TypeCode.Boolean },
+            {typeof(byte), TypeCode.Byte },
+            {typeof(char), TypeCode.Char},
+            {typeof(DateTime), TypeCode.DateTime},
+            {typeof(decimal), TypeCode.Decimal},
+            {typeof(double), TypeCode.Double },
+            {typeof(short), TypeCode.Int16 },
+            {typeof(int), TypeCode.Int32 },
+            {typeof(long), TypeCode.Int64 },
+            {typeof(object), TypeCode.Object},
+            {typeof(sbyte), TypeCode.SByte },
+            {typeof(float), TypeCode.Single },
+            {typeof(string), TypeCode.String },
+            {typeof(ushort), TypeCode.UInt16 },
+            {typeof(uint), TypeCode.UInt32 },
+            {typeof(ulong), TypeCode.UInt64 },
+        };
+#else
+        internal static TypeCode GetTypeCode(this Type type)
+        {
+            return type.GetTypeCode();
+        }
+#endif
     }
 }

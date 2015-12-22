@@ -95,7 +95,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets the client-name that will be used on all new connections
         /// </summary>
-        public string ClientName { get { return configuration.ClientName ?? Environment.MachineName; } }
+        public string ClientName { get { return configuration.ClientName ?? Environment.GetEnvironmentVariable("ComputerName"); } }
 
         /// <summary>
         /// Gets the configuration of the connection
@@ -482,7 +482,7 @@ namespace StackExchange.Redis
         {
             if (configuredOnly) return configuration.EndPoints.ToArray();
 
-            return Array.ConvertAll(serverSnapshot, x => x.EndPoint);
+            return ConvertHelper.ConvertAll(serverSnapshot, x => x.EndPoint);
         }
 
         private readonly int timeoutMilliseconds;
@@ -560,6 +560,8 @@ namespace StackExchange.Redis
             }
             return false;
         }
+
+#if !DNXCORE50
         private void LogLockedWithThreadPoolStats(TextWriter log, string message, out int busyWorkerCount)
         {
             busyWorkerCount = 0;
@@ -573,6 +575,8 @@ namespace StackExchange.Redis
                 LogLocked(log, sb.ToString());
             }
         }
+#endif
+
         static bool AllComplete(Task[] tasks)
         {
             for(int i = 0 ; i < tasks.Length ; i++)
@@ -599,16 +603,19 @@ namespace StackExchange.Redis
             }
 
             var watch = Stopwatch.StartNew();
+#if !DNXCORE50
             int busyWorkerCount;
             LogLockedWithThreadPoolStats(log, "Awaiting task completion", out busyWorkerCount);
-
+#endif
             try
             {
                 // if none error, great
                 var remaining = timeoutMilliseconds - checked((int)watch.ElapsedMilliseconds);
                 if (remaining <= 0)
                 {
+#if !DNXCORE50
                     LogLockedWithThreadPoolStats(log, "Timeout before awaiting for tasks", out busyWorkerCount);
+#endif
                     return false;
                 }
 
@@ -620,7 +627,9 @@ namespace StackExchange.Redis
                 var any = Task.WhenAny(allTasks, Task.Delay(remaining)).ObserveErrors();
 #endif
                 bool all = await any.ForAwait() == allTasks;
+#if !DNXCORE50
                 LogLockedWithThreadPoolStats(log, all ? "All tasks completed cleanly" : "Not all tasks completed cleanly", out busyWorkerCount);
+#endif
                 return all;
             }
             catch
@@ -636,7 +645,9 @@ namespace StackExchange.Redis
                     var remaining = timeoutMilliseconds - checked((int)watch.ElapsedMilliseconds);
                     if (remaining <= 0)
                     {
+#if !DNXCORE50
                         LogLockedWithThreadPoolStats(log, "Timeout awaiting tasks", out busyWorkerCount);
+#endif
                         return false;
                     }
                     try
@@ -652,7 +663,9 @@ namespace StackExchange.Redis
                     { }
                 }
             }
+#if !DNXCORE50
             LogLockedWithThreadPoolStats(log, "Finished awaiting tasks", out busyWorkerCount);
+#endif
             return false;
         }
 
@@ -928,11 +941,11 @@ namespace StackExchange.Redis
         internal long LastHeartbeatSecondsAgo {
             get {
                 if (pulse == null) return -1;
-                return unchecked(Environment.TickCount - Thread.VolatileRead(ref lastHeartbeatTicks)) / 1000;
+                return unchecked(Environment.TickCount - VolatileWrapper.Read(ref lastHeartbeatTicks)) / 1000;
             }
         }
         internal static long LastGlobalHeartbeatSecondsAgo
-        { get { return unchecked(Environment.TickCount - Thread.VolatileRead(ref lastGlobalHeartbeatTicks)) / 1000; } }
+        { get { return unchecked(Environment.TickCount - VolatileWrapper.Read(ref lastGlobalHeartbeatTicks)) / 1000; } }
 
         internal CompletionManager UnprocessableCompletionManager { get { return unprocessableCompletionManager; } }
 
@@ -1492,7 +1505,7 @@ namespace StackExchange.Redis
             Dictionary<string, int> uniques = null;
             if (useTieBreakers)
             {   // count the votes
-                uniques = new Dictionary<string, int>(StringComparer.InvariantCultureIgnoreCase);
+                uniques = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
                 await WaitAllIgnoreErrorsAsync(tieBreakers, 50, log).ForAwait();
                 for (int i = 0; i < tieBreakers.Length; i++)
                 {
@@ -1932,8 +1945,7 @@ namespace StackExchange.Redis
                         else
                         {
                             int inst, qu, qs, qc, wr, wq, @in, ar;
-                            string iocp, worker;
-#if !__MonoCS__
+#if FEATURE_SOCKET_MODE_POLL
                             var mgrState = socketManager.State;
                             var lastError = socketManager.LastErrorTimeRelative();
 
@@ -1947,9 +1959,8 @@ namespace StackExchange.Redis
                             };
 
                             int queue = server.GetOutstandingCount(message.Command, out inst, out qu, out qs, out qc, out wr, out wq, out @in, out ar);
-                            int busyWorkerCount = GetThreadPoolStats(out iocp, out worker);
                             add("Instantaneous", "inst", inst.ToString());
-#if !__MonoCS__
+#if FEATURE_SOCKET_MODE_POLL
                             add("Manager-State", "mgr", mgrState.ToString());
                             add("Last-Error", "err", lastError);
 #endif
@@ -1962,10 +1973,14 @@ namespace StackExchange.Redis
                             add("Inbound-Bytes", "in", @in.ToString());
                             add("Active-Readers", "ar", ar.ToString());
 
+                            add("Client-Name", "clientName", ClientName);
+#if !DNXCORE50
+                            string iocp, worker;
+                            int busyWorkerCount = GetThreadPoolStats(out iocp, out worker);
                             add("ThreadPool-IO-Completion", "IOCP", iocp);
                             add("ThreadPool-Workers", "WORKER", worker);
-                            add("Client-Name", "clientName", ClientName);
                             data.Add(Tuple.Create("Busy-Workers", busyWorkerCount.ToString()));
+#endif
                             errMessage = sb.ToString();
                             if (stormLogThreshold >= 0 && queue >= stormLogThreshold && Interlocked.CompareExchange(ref haveStormLog, 1, 0) == 0)
                             {
@@ -1995,6 +2010,8 @@ namespace StackExchange.Redis
                 return val;
             }
         }
+
+#if !DNXCORE50
         private static int GetThreadPoolStats(out string iocp, out string worker)
         {
             //BusyThreads =  TP.GetMaxThreads() –TP.GetAVailable();
@@ -2016,6 +2033,7 @@ namespace StackExchange.Redis
             worker = string.Format("(Busy={0},Free={1},Min={2},Max={3})", busyWorkerThreads, freeWorkerThreads, minWorkerThreads, maxWorkerThreads);
             return busyWorkerThreads;
         }
+#endif
 
         /// <summary>
         /// Should exceptions include identifiable details? (key names, additional .Data annotations)

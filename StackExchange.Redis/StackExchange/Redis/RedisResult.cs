@@ -194,14 +194,14 @@ namespace StackExchange.Redis
                 throw new InvalidCastException();
             }
 
-            internal override bool[] AsBooleanArray() { return Array.ConvertAll(value, x => x.AsBoolean()); }
+            internal override bool[] AsBooleanArray() { return ConvertHelper.ConvertAll(value, x => x.AsBoolean()); }
 
             internal override byte[] AsByteArray()
             {
                 if (value.Length == 1) return value[0].AsByteArray();
                 throw new InvalidCastException();
             }
-            internal override byte[][] AsByteArrayArray() { return Array.ConvertAll(value, x => x.AsByteArray()); }
+            internal override byte[][] AsByteArrayArray() { return ConvertHelper.ConvertAll(value, x => x.AsByteArray()); }
 
             internal override double AsDouble()
             {
@@ -209,7 +209,7 @@ namespace StackExchange.Redis
                 throw new InvalidCastException();
             }
 
-            internal override double[] AsDoubleArray() { return Array.ConvertAll(value, x => x.AsDouble()); }
+            internal override double[] AsDoubleArray() { return ConvertHelper.ConvertAll(value, x => x.AsDouble()); }
 
             internal override int AsInt32()
             {
@@ -217,7 +217,7 @@ namespace StackExchange.Redis
                 throw new InvalidCastException();
             }
 
-            internal override int[] AsInt32Array() { return Array.ConvertAll(value, x => x.AsInt32()); }
+            internal override int[] AsInt32Array() { return ConvertHelper.ConvertAll(value, x => x.AsInt32()); }
 
             internal override long AsInt64()
             {
@@ -225,7 +225,7 @@ namespace StackExchange.Redis
                 throw new InvalidCastException();
             }
 
-            internal override long[] AsInt64Array() { return Array.ConvertAll(value, x => x.AsInt64()); }
+            internal override long[] AsInt64Array() { return ConvertHelper.ConvertAll(value, x => x.AsInt64()); }
 
             internal override bool? AsNullableBoolean()
             {
@@ -257,7 +257,7 @@ namespace StackExchange.Redis
                 throw new InvalidCastException();
             }
 
-            internal override RedisKey[] AsRedisKeyArray() { return Array.ConvertAll(value, x => x.AsRedisKey()); }
+            internal override RedisKey[] AsRedisKeyArray() { return ConvertHelper.ConvertAll(value, x => x.AsRedisKey()); }
 
             internal override RedisResult[] AsRedisResultArray() { return value; }
 
@@ -267,14 +267,14 @@ namespace StackExchange.Redis
                 throw new InvalidCastException();
             }
 
-            internal override RedisValue[] AsRedisValueArray() { return Array.ConvertAll(value, x => x.AsRedisValue()); }
+            internal override RedisValue[] AsRedisValueArray() { return ConvertHelper.ConvertAll(value, x => x.AsRedisValue()); }
 
             internal override string AsString()
             {
                 if (value.Length == 1) return value[0].AsString();
                 throw new InvalidCastException();
             }
-            internal override string[] AsStringArray() { return Array.ConvertAll(value, x => x.AsString()); }
+            internal override string[] AsStringArray() { return ConvertHelper.ConvertAll(value, x => x.AsString()); }
         }
 
         private sealed class ErrorRedisResult : RedisResult

@@ -119,7 +119,7 @@ namespace StackExchange.Redis
                         {
                             string missingMember;
                             string badMemberType;
-                            if(!ScriptParameterMapper.IsValidParameterHash(psType, this, out missingMember, out badMemberType))
+                            if (!ScriptParameterMapper.IsValidParameterHash(psType, this, out missingMember, out badMemberType))
                             {
                                 if (missingMember != null)
                                 {
