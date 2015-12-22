@@ -3,7 +3,9 @@
 
 Because there are lots of different ways to configure redis, StackExchange.Redis offers a rich configuration model, which is invoked when calling `Connect` (or `ConnectAsync`):
 
-    var conn = ConnectionMultiplexer.Connect(configuration);
+```C#
+var conn = ConnectionMultiplexer.Connect(configuration);
+```
 
 The `configuration` here can be either:
 
@@ -17,32 +19,43 @@ Basic Configuration Strings
 
 The *simplest* configuration example is just the host name:
 
-    var conn = ConnectionMultiplexer.Connect("localhost");
+```C#
+var conn = ConnectionMultiplexer.Connect("localhost");
+```
 
 This will connect to a single server on the local machine using the default redis port (6379). Additional options are simply appended (comma-delimited). Ports are represented with a colon (`:`) as is usual. Configuration *options* include an `=` after the name. For example:
 
-    var conn = ConnectionMultiplexer.Connect("redis0:6380,redis1:6380,allowAdmin=true");
+```C#
+var conn = ConnectionMultiplexer.Connect("redis0:6380,redis1:6380,allowAdmin=true");
+```
 
 An overview of mapping between the `string` and `ConfigurationOptions` representation is shown below, but you can switch between them trivially:
 
-    ConfigurationOptions options = ConfigurationOptions.Parse(configString);
+```C#
+ConfigurationOptions options = ConfigurationOptions.Parse(configString);
+```
 
 or:
 
-    string configString = options.ToString();
+```C#
+string configString = options.ToString();
+```
 
 A common usage is to store the *basic* details in a string, and then apply specific details at runtime:
 
-    string configString = GetRedisConfiguration();
-    var options = ConfigurationOptions.Parse(configString);
-    options.ClientName = GetAppName(); // only known at runtime
-    options.AllowAdmin = true;
-    conn = ConnectionMultiplexer.Connect(options);
+```C#
+string configString = GetRedisConfiguration();
+var options = ConfigurationOptions.Parse(configString);
+options.ClientName = GetAppName(); // only known at runtime
+options.AllowAdmin = true;
+conn = ConnectionMultiplexer.Connect(options);
+```
 
 Microsoft Azure Redis example with password
 
-    var conn = ConnectionMultiplexer.Connect("contoso5.redis.cache.windows.net,ssl=true,password=...");
-
+```C#
+var conn = ConnectionMultiplexer.Connect("contoso5.redis.cache.windows.net,ssl=true,password=...");
+```
 
 Configuration Options
 ---
@@ -79,56 +92,65 @@ Automatic and Manual Configuration
 
 In many common scenarios, StackExchange.Redis will automatically configure a lot of settings, including the server type and version, connection timeouts, and master/slave relationships. Sometimes, though, the commands for this have been disabled on the redis server. In this case, it is useful to provide more information:
 
-    ConfigurationOptions config = new ConfigurationOptions
+```C#
+ConfigurationOptions config = new ConfigurationOptions
+{
+    EndPoints =
     {
-        EndPoints =
-        {
-            { "redis0", 6379 },
-            { "redis1", 6380 }
-        },
-        CommandMap = CommandMap.Create(new HashSet<string>
-        { // EXCLUDE a few commands
-            "INFO", "CONFIG", "CLUSTER",
-            "PING", "ECHO", "CLIENT"
-        }, available: false),
-        KeepAlive = 180,
-        DefaultVersion = new Version(2, 8, 8),
-        Password = "changeme"
-    };
+        { "redis0", 6379 },
+        { "redis1", 6380 }
+    },
+    CommandMap = CommandMap.Create(new HashSet<string>
+    { // EXCLUDE a few commands
+        "INFO", "CONFIG", "CLUSTER",
+        "PING", "ECHO", "CLIENT"
+    }, available: false),
+    KeepAlive = 180,
+    DefaultVersion = new Version(2, 8, 8),
+    Password = "changeme"
+};
+```
 
 Which is equivalent to the command string:
 
-    redis0:6379,redis1:6380,keepAlive=180,version=2.8.8,$CLIENT=,$CLUSTER=,$CONFIG=,$ECHO=,$INFO=,$PING=
-
+```config
+redis0:6379,redis1:6380,keepAlive=180,version=2.8.8,$CLIENT=,$CLUSTER=,$CONFIG=,$ECHO=,$INFO=,$PING=
+```
 Renaming Commands
 ---
 
 A slightly unusual feature of redis is that you can disable and/or rename individual commands. As per the previous example, this is done via the `CommandMap`, but instead of passing a `HashSet<string>` to `Create()` (to indicate the available or unavailable commands), you pass a `Dictionary<string,string>`. All commands not mentioned in the dictionary are assumed to be enabled and not renamed. A `null` or blank value records that the command is disabled. For example:
 
-    var commands = new Dictionary<string,string> {
-         { "info", null }, // disabled
-         { "select", "use" }, // renamed to SQL equivalent for some reason
-    };
-    var options = new ConfigurationOptions {
-        // ...
-        CommandMap = CommandMap.Create(commands),
-        // ...
-    }
+```C#
+var commands = new Dictionary<string,string> {
+        { "info", null }, // disabled
+        { "select", "use" }, // renamed to SQL equivalent for some reason
+};
+var options = new ConfigurationOptions {
+    // ...
+    CommandMap = CommandMap.Create(commands),
+    // ...
+}
+```
 
 The above is equivalent to (in the connection string):
 
-    $INFO=,$SELECT=use
+```config
+$INFO=,$SELECT=use
+```
 
 Twemproxy
 ---
 
 [Twemproxy](https://github.com/twitter/twemproxy) is a tool that allows multiple redis instances to be used as though it were a single server, with inbuilt sharding and fault tolerance (much like redis cluster, but implemented separately). The feature-set available to Twemproxy is reduced. To avoid having to configure this manually, the `Proxy` option can be used:
 
-    var options = new ConfigurationOptions
-    {
-        EndPoints = { "my-server" },
-        Proxy = Proxy.Twemproxy
-    };
+```C#
+var options = new ConfigurationOptions
+{
+    EndPoints = { "my-server" },
+    Proxy = Proxy.Twemproxy
+};
+```
 
 Tiebreakers and Configuration Change Announcements
 ---

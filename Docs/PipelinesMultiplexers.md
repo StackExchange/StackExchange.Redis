@@ -3,8 +3,10 @@
 
 Latency sucks. Modern computers can churn data at an alarming rate, and high speed networking (often with multiple parallel links between important servers) provides enormous bandwidth, but... that damned latency means that computers spend an awful lot of time *waiting for data* (one of the several reasons that continuation-based programming is becoming increasingly popular. Let's consider some regular procedural code:
 
-    string a = db.StringGet("a");
-    string b = db.StringGet("b");
+```C#
+string a = db.StringGet("a");
+string b = db.StringGet("b");
+```
 
 In terms of steps involved, this looks like:
 
@@ -40,10 +42,12 @@ Because of this, many redis clients allow you to make use of *pipelining*; this 
 
 For example, to pipeline the two gets using procedural (blocking) code, we could use:
 
-    var aPending = db.StringGetAsync("a");
-    var bPending = db.StringGetAsync("b");
-    var a = db.Wait(aPending);
-    var b = db.Wait(bPending);
+```C#
+var aPending = db.StringGetAsync("a");
+var bPending = db.StringGetAsync("b");
+var a = db.Wait(aPending);
+var b = db.Wait(bPending);
+```
 
 Note that I'm using `db.Wait` here because it will automatically apply the configured synchronous timeout, but you can use `aPending.Wait()` or `Task.WaitAll(aPending, bPending);` if you prefer. Using pipelining allows us to get both requests onto the network immediately, eliminating most of the latency. Additionally, it also helps reduce packet fragmentation: 20 requests sent individually (waiting for each response) will require at least 20 packets, but 20 requests sent in a pipeline could fit into much fewer packets (perhaps even just one).
 
@@ -52,9 +56,11 @@ Fire and Forget
 
 A special-case of pipelining is when we expressly don't care about the response from a particular operation, which allows our code to continue immediately while the enqueued operation proceeds in the background. Often, this means that we can put concurrent work on the connection from a single caller. This is achieved using the `flags` parameter:
 
-    // sliding expiration
-    db.KeyExpire(key, TimeSpan.FromMinutes(5), flags: CommandFlags.FireAndForget);
-    var value = (string)db.StringGet(key);
+```C#
+// sliding expiration
+db.KeyExpire(key, TimeSpan.FromMinutes(5), flags: CommandFlags.FireAndForget);
+var value = (string)db.StringGet(key);
+```
 
 The `FireAndForget` flag causes the client library to queue the work as normal, but immediately return a default value (since `KeyExpire` returns a `bool`, this will return `false`, because `default(bool)` is `false` - however the return value is meaningless and should be ignored). This works for `*Async` methods too: an already-completed `Task<T>` is returned with the default value (or an already-completed `Task` is returned for `void` methods).
 
@@ -65,13 +71,15 @@ Pipelining is all well and good, but often any single block of code only want a 
 
 For this reason, the only redis features that StackExchange.Redis does not offer (and *will not ever offer*) are the "blocking pops" ([BLPOP](http://redis.io/commands/blpop), [BRPOP](http://redis.io/commands/brpop) and [BRPOPLPUSH](http://redis.io/commands/brpoplpush)) - because this would allow a single caller to stall the entire multiplexer, blocking all other callers. The only other time that StackExchange.Redis needs to hold work is when verifying pre-conditions for a transaction, which is why StackExchange.Redis encapsulates such conditions into internally managed `Condition` instances. [Read more about transactions here](https://github.com/StackExchange/StackExchange.Redis/blob/master/Docs/Transactions.md). If you feel you want "blocking pops", then I strongly suggest you consider pub/sub instead:
 
-    sub.Subscribe(channel, delegate {
-        string work = db.ListRightPop(key);
-        if (work != null) Process(work);
-    });
-    //...
-    db.ListLeftPush(key, newWork, flags: CommandFlags.FireAndForget);
-    sub.Publish(channel, "");
+```C#
+sub.Subscribe(channel, delegate {
+    string work = db.ListRightPop(key);
+    if (work != null) Process(work);
+});
+//...
+db.ListLeftPush(key, newWork, flags: CommandFlags.FireAndForget);
+sub.Publish(channel, "");
+```
 
 This achieves the same intent without requiring blocking operations. Notes:
 
@@ -88,12 +96,14 @@ Concurrency
 
 It should be noted that the pipeline / multiplexer / future-value approach also plays very nicely with continuation-based asynchronous code; for example you could write:
 
-    string value = await db.StringGet(key);
-    if (value == null) {
-        value = await ComputeValueFromDatabase(...);
-        db.StringSet(key, value, flags: CommandFlags.FireAndForget);
-    }
-    return value;
+```C#
+string value = await db.StringGet(key);
+if (value == null) {
+    value = await ComputeValueFromDatabase(...);
+    db.StringSet(key, value, flags: CommandFlags.FireAndForget);
+}
+return value;
+```
 
   [1]: http://msdn.microsoft.com/en-us/library/dd460717(v=vs.110).aspx
   [2]: http://msdn.microsoft.com/en-us/library/system.threading.tasks.task(v=vs.110).aspx
