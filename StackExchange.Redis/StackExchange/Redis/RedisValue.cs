@@ -753,7 +753,7 @@ namespace StackExchange.Redis
 #else
         internal static TypeCode GetTypeCode(this Type type)
         {
-            return type.GetTypeCode();
+            return Type.GetTypeCode(type);
         }
 #endif
     }
