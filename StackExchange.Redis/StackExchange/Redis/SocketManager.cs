@@ -251,12 +251,18 @@ namespace StackExchange.Redis
                 var osVersion = Environment.OSVersion.Version;
                 if (osVersion.Major > 6 || osVersion.Major == 6 && osVersion.Minor >= 2)
                 {
-#endif
-            byte[] optionInValue = BitConverter.GetBytes(1);
+                    byte[] optionInValue = BitConverter.GetBytes(1);
                     socket.IOControl(SIO_LOOPBACK_FAST_PATH, optionInValue, null);
-
-#if !CORE_CLR
                 }
+            }
+#else
+            try
+            {
+                byte[] optionInValue = BitConverter.GetBytes(1);
+                socket.IOControl(SIO_LOOPBACK_FAST_PATH, optionInValue, null);
+            }
+            catch (PlatformNotSupportedException)
+            {
             }
 #endif
         }
