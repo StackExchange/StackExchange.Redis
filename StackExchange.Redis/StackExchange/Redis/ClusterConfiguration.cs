@@ -315,7 +315,13 @@ namespace StackExchange.Redis
             var flags = parts[2].Split(StringSplits.Comma);
             
             endpoint = Format.TryParseEndPoint(parts[1]);
-            
+            if (endpoint == null && flags.Contains("myself"))
+            {
+                // Unconfigured cluster nodes might report themselves as endpoint ":{port}",
+                // hence the origin fallback value to make sure that we can address them
+                endpoint = origin;
+            }
+
             nodeId = parts[0];
             isSlave = flags.Contains("slave");
             isNoAddr = flags.Contains("noaddr");
