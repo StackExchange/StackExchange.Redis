@@ -264,6 +264,9 @@ namespace StackExchange.Redis
             catch (PlatformNotSupportedException)
             {
             }
+            catch (SocketException)
+            {
+            }
 #endif
         }
 
