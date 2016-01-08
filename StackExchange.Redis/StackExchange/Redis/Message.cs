@@ -503,6 +503,12 @@ namespace StackExchange.Redis
             if (resultBox != null)
             {
                 var ret = resultBox.TryComplete(isAsync);
+
+                if (ret && isAsync)
+                {
+                    resultBox = null; // in async mode TryComplete will have unwrapped and recycled resultBox; ensure we no longer reference it via this message
+                }
+
                 if (performance != null)
                 {
                     performance.SetCompleted();
