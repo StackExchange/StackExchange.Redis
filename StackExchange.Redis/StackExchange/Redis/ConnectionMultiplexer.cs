@@ -656,6 +656,35 @@ namespace StackExchange.Redis
             return false;
         }
 
+        private static async Task<Task<T>> WaitFirstNonNullIgnoreErrorsAsync<T>(Task<T>[] tasks)
+        {
+            if (tasks == null) throw new ArgumentNullException("tasks");
+            if (tasks.Length == 0) return null;
+            var typeNullable = (Nullable.GetUnderlyingType(typeof(T)) != null);
+            var taskList = tasks.Cast<Task>().ToList();
+
+            try
+            {
+                while (taskList.Count() > 0)
+                {
+#if NET40
+                    var allTasksAwaitingAny = TaskEx.WhenAny(taskList).ObserveErrors();
+#else
+                    var allTasksAwaitingAny = Task.WhenAny(taskList).ObserveErrors();
+#endif
+                    var result = await allTasksAwaitingAny.ForAwait();
+                    taskList.Remove((Task<T>)result);
+                    if (((Task<T>)result).IsFaulted) continue;
+                    if ((!typeNullable) || ((Task<T>)result).Result != null)
+                        return (Task<T>)result;
+                }
+            }
+            catch
+            { }
+
+            return null;
+        }
+
 
         /// <summary>
         /// Raised when a hash-slot has been relocated
@@ -783,7 +812,7 @@ namespace StackExchange.Redis
             {
                 throw new ArgumentException("configuration");
             }
-            if (config.EndPoints.Count == 0) throw new ArgumentException("No endpoints specified", "configuration");
+            if ((config.EndPoints.Count == 0) && (config.SentinelConnection == null)) throw new ArgumentException("No endpoints specified", "configuration");
             config.SetDefaultPorts();
             return new ConnectionMultiplexer(config);
         }
@@ -810,7 +839,8 @@ namespace StackExchange.Redis
             {
                 var muxer = multiplexerFactory();
                 killMe = muxer;
-                // note that task has timeouts internally, so it might take *just over* the regular timeout
+
+                // note that task has timeouts internally and 500ms are allowed for sentinel query if used, so it might take *just over* the regular timeout
                 // wrap into task to force async execution
                 var task = Factory.StartNew(() => { return muxer.ReconfigureAsync(true, false, log, null, "connect").Result; });
 
@@ -935,6 +965,22 @@ namespace StackExchange.Redis
         { get { return unchecked(Environment.TickCount - Thread.VolatileRead(ref lastGlobalHeartbeatTicks)) / 1000; } }
 
         internal CompletionManager UnprocessableCompletionManager { get { return unprocessableCompletionManager; } }
+
+        internal EndPoint GetConfiguredMasterForService(int timeoutmillis = -1)
+        {
+            Task<EndPoint>[] sentinelMasters = this.serverSnapshot
+                        .Where(s => s.ServerType == ServerType.Sentinel)
+                        .Select(s => this.GetServer(s.EndPoint).SentinelGetMasterAddressByNameAsync(RawConfig.ServiceName))
+                        .ToArray();
+
+            Task<Task<EndPoint>> firstCompleteRequest = WaitFirstNonNullIgnoreErrorsAsync(sentinelMasters);
+            if (!firstCompleteRequest.Wait(timeoutmillis))
+                throw new TimeoutException("Timeout resolving master for service");
+            if (firstCompleteRequest.Result.Result == null)
+                throw new Exception("Unable to determine master");
+
+            return firstCompleteRequest.Result.Result;
+        }
 
         /// <summary>
         /// Obtain a pub/sub subscriber connection to the specified server
@@ -1091,8 +1137,8 @@ namespace StackExchange.Redis
             if (timeout >= int.MaxValue / retryCount) return int.MaxValue;
 
             timeout *= retryCount;
-            if (timeout >= int.MaxValue - 500) return int.MaxValue;
-            return timeout + Math.Min(500, timeout);
+            if (timeout >= int.MaxValue - 1000) return int.MaxValue;
+            return timeout + Math.Min(1000, timeout);
         }
         /// <summary>
         /// Provides a text overview of the status of all connections
@@ -1144,6 +1190,33 @@ namespace StackExchange.Redis
                 }
                 Trace("Starting reconfiguration...");
                 Trace(blame != null, "Blaming: " + Format.ToString(blame));
+
+                if (configuration.SentinelConnection != null)
+                {
+                    ISubscriber sub = configuration.SentinelConnection.GetSubscriber();
+                    if (sub.SubscribedEndpoint("+switch-master") == null)
+                    {
+                        sub.Subscribe("+switch-master", (channel, message) =>
+                        {
+                            string[] messageParts = ((string)message).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                            EndPoint switchBlame = Format.TryParseEndPoint(string.Format("{0}:{1}", messageParts[1], messageParts[2]));
+                            ReconfigureAsync(false, false, log, switchBlame, "master switch", false, CommandFlags.PreferMaster).Wait();
+                        });
+                    }
+
+                    EndPoint masterEndPoint = null;
+                    while (masterEndPoint == null)
+                    {
+                            masterEndPoint = this.configuration.SentinelConnection.GetConfiguredMasterForService();
+                    }
+                    if (!this.servers.Contains(masterEndPoint))
+                    {
+                        this.configuration.EndPoints.Clear();
+                        this.servers.Clear();
+                        this.configuration.EndPoints.Add(masterEndPoint);
+                        Trace(string.Format("Switching master to {0}", masterEndPoint));
+                    }
+                }
 
                 LogLocked(log, Configuration);
                 LogLocked(log, "");

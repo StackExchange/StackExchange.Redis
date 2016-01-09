@@ -82,6 +82,7 @@
     <Compile Include="ConnectingFailDetection.cs" />
     <Compile Include="ConnectToUnexistingHost.cs" />
     <Compile Include="HyperLogLog.cs" />
+    <Compile Include="SentinelMasterSwitching.cs" />
     <Compile Include="Issues\DefaultDatabase.cs" />
     <Compile Include="Profiling.cs" />
     <Compile Include="Issues\Issue182.cs" />
