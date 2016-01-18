@@ -715,7 +715,7 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Returns the specified range of elements in the sorted set stored at key. By default the elements are considered to be ordered from the lowest to the highest score. Lexicographical order is used for elements with equal score.
-        /// Both start and stop are zero-based indexes, where 0 is the first element, 1 is the next element and so on. They can also be negative numbers indicating offsets from the end of the sorted set, with -1 being the last element of the sorted set, -2 the penultimate element and so on.
+        /// Start and stop are used to specify the min and max range for score values. Similar to other range methods the values are inclusive.
         /// </summary>
         /// <returns>list of elements in the specified score range</returns>
         /// <remarks>http://redis.io/commands/zrangebyscore</remarks>
@@ -727,7 +727,7 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Returns the specified range of elements in the sorted set stored at key. By default the elements are considered to be ordered from the lowest to the highest score. Lexicographical order is used for elements with equal score.
-        /// Both start and stop are zero-based indexes, where 0 is the first element, 1 is the next element and so on. They can also be negative numbers indicating offsets from the end of the sorted set, with -1 being the last element of the sorted set, -2 the penultimate element and so on.
+        /// Start and stop are used to specify the min and max range for score values. Similar to other range methods the values are inclusive.
         /// </summary>
         /// <returns>list of elements in the specified score range</returns>
         /// <remarks>http://redis.io/commands/zrangebyscore</remarks>
