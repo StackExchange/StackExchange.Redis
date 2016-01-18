@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -265,11 +266,12 @@ namespace StackExchange.Redis
 #else
             try
             {
-                byte[] optionInValue = BitConverter.GetBytes(1);
-                socket.IOControl(SIO_LOOPBACK_FAST_PATH, optionInValue, null);
-            }
-            catch (PlatformNotSupportedException)
-            {
+                // Ioctl is not supported on other platforms at the moment
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                {
+                    byte[] optionInValue = BitConverter.GetBytes(1);
+                    socket.IOControl(SIO_LOOPBACK_FAST_PATH, optionInValue, null);
+                }
             }
             catch (SocketException)
             {
