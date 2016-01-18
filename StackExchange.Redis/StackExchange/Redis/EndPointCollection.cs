@@ -10,10 +10,15 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed class EndPointCollection : Collection<EndPoint>
     {
+        /// <summary>
+        /// Create a new EndPointCollection
+        /// </summary>
         public EndPointCollection() : base()
         {
         }
-
+        /// <summary>
+        /// Create a new EndPointCollection
+        /// </summary>
         public EndPointCollection(IList<EndPoint> endpoints) : base(endpoints)
         {
         }

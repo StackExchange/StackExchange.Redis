@@ -35,7 +35,9 @@ namespace BasicTest
                 var conn = muxer.GetDatabase();
                 muxer.Wait(conn.PingAsync());
 
+#if DNXCORE50
                 int number = 0;
+#endif
                 Action<Task> nonTrivial = delegate
                 {
 #if !DNXCORE50
