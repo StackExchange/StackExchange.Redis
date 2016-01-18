@@ -233,7 +233,9 @@ namespace StackExchange.Redis
         public Proxy Proxy { get { return proxy.GetValueOrDefault(); } set { proxy = value; } }
 
         /// <summary>
-        /// Indicates whether endpoints should be resolved via DNS before connecting
+        /// Indicates whether endpoints should be resolved via DNS before connecting.
+        /// If enabled the ConnectionMultiplexer will not re-resolve DNS
+        /// when attempting to re-connect after a connection failure.
         /// </summary>
         public bool ResolveDns { get { return resolveDns.GetValueOrDefault(); } set { resolveDns = value; } }
 
