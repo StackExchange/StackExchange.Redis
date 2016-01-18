@@ -197,12 +197,12 @@ namespace StackExchange.Redis
         public string ConfigurationChannel { get { return configChannel ?? DefaultConfigurationChannel; } set { configChannel = value; } }
 
         /// <summary>
-        /// Specifies the time in milliseconds that should be allowed for connection
+        /// Specifies the time in milliseconds that should be allowed for connection (defaults to 5 seconds unless SyncTimeout is higher)
         /// </summary>
         public int ConnectTimeout {
             get {
                 if (connectTimeout.HasValue) return connectTimeout.GetValueOrDefault();
-                return Math.Max(5000, SyncTimeout); // default of 5 seconds unless SyncTimeout is higher
+                return Math.Max(5000, SyncTimeout);
             }
             set { connectTimeout = value; }
         }
@@ -238,7 +238,9 @@ namespace StackExchange.Redis
         public Proxy Proxy { get { return proxy.GetValueOrDefault(); } set { proxy = value; } }
 
         /// <summary>
-        /// Indicates whether endpoints should be resolved via DNS before connecting
+        /// Indicates whether endpoints should be resolved via DNS before connecting.
+        /// If enabled the ConnectionMultiplexer will not re-resolve DNS
+        /// when attempting to re-connect after a connection failure.
         /// </summary>
         public bool ResolveDns { get { return resolveDns.GetValueOrDefault(); } set { resolveDns = value; } }
 
