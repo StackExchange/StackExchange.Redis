@@ -74,7 +74,7 @@ namespace StackExchange.Redis
             internal const string AllowAdmin = "allowAdmin", SyncTimeout = "syncTimeout",
                                 ServiceName = "serviceName", ClientName = "name", KeepAlive = "keepAlive",
                         Version = "version", ConnectTimeout = "connectTimeout", Password = "password",
-                        TieBreaker = "tiebreaker", WriteBuffer = "writeBuffer", Ssl = "ssl", SslHost = "sslHost",
+                        TieBreaker = "tiebreaker", WriteBuffer = "writeBuffer", Ssl = "ssl", SslHost = "sslHost", HighPrioritySocketThreads = "highPriorityThreads",
                         ConfigChannel = "configChannel", AbortOnConnectFail = "abortConnect", ResolveDns = "resolveDns",
                         ChannelPrefix = "channelPrefix", Proxy = "proxy", ConnectRetry = "connectRetry",
                         ConfigCheckSeconds = "configCheckSeconds", ResponseTimeout = "responseTimeout", DefaultDatabase = "defaultDatabase";
@@ -83,7 +83,7 @@ namespace StackExchange.Redis
                 AllowAdmin, SyncTimeout,
                 ServiceName, ClientName, KeepAlive,
                 Version, ConnectTimeout, Password,
-                TieBreaker, WriteBuffer, Ssl, SslHost,
+                TieBreaker, WriteBuffer, Ssl, SslHost, HighPrioritySocketThreads,
                 ConfigChannel, AbortOnConnectFail, ResolveDns,
                 ChannelPrefix, Proxy, ConnectRetry,
                 ConfigCheckSeconds, DefaultDatabase,
@@ -103,7 +103,7 @@ namespace StackExchange.Redis
 
         private readonly EndPointCollection endpoints = new EndPointCollection();
 
-        private bool? allowAdmin, abortOnConnectFail, resolveDns, ssl;
+        private bool? allowAdmin, abortOnConnectFail, highPrioritySocketThreads, resolveDns, ssl;
 
         private string clientName, serviceName, password, tieBreaker, sslHost, configChannel;
 
@@ -218,6 +218,11 @@ namespace StackExchange.Redis
         public EndPointCollection EndPoints { get { return endpoints; } }
 
         /// <summary>
+        /// Use ThreadPriority.AboveNormal for SocketManager reader and writer threads (true by default). If false, ThreadPriority.Normal will be used.
+        /// </summary>
+        public bool HighPrioritySocketThreads { get { return highPrioritySocketThreads ?? true; } set { highPrioritySocketThreads = value; } }
+
+        /// <summary>
         /// Specifies the time in seconds at which connections should be pinged to ensure validity
         /// </summary>
         public int KeepAlive { get { return keepAlive.GetValueOrDefault(-1); } set { keepAlive = value; } }
@@ -329,6 +334,7 @@ namespace StackExchange.Redis
                 writeBuffer = writeBuffer,
                 ssl = ssl,
                 sslHost = sslHost,
+                highPrioritySocketThreads = highPrioritySocketThreads,
                 configChannel = configChannel,
                 abortOnConnectFail = abortOnConnectFail,
                 resolveDns = resolveDns,
@@ -378,7 +384,8 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.TieBreaker, tieBreaker);
             Append(sb, OptionKeys.WriteBuffer, writeBuffer);
             Append(sb, OptionKeys.Ssl, ssl);
-            Append(sb, OptionKeys.SslHost, sslHost);            
+            Append(sb, OptionKeys.SslHost, sslHost); 
+            Append(sb, OptionKeys.HighPrioritySocketThreads, highPrioritySocketThreads);
             Append(sb, OptionKeys.ConfigChannel, configChannel);
             Append(sb, OptionKeys.AbortOnConnectFail, abortOnConnectFail);
             Append(sb, OptionKeys.ResolveDns, resolveDns);
@@ -481,7 +488,7 @@ namespace StackExchange.Redis
         {
             clientName = serviceName = password = tieBreaker = sslHost = configChannel = null;
             keepAlive = syncTimeout = connectTimeout = writeBuffer = connectRetry = configCheckSeconds = defaultDatabase = null;
-            allowAdmin = abortOnConnectFail = resolveDns = ssl = null;
+            allowAdmin = abortOnConnectFail = highPrioritySocketThreads = resolveDns = ssl = null;
             defaultVersion = null;
             endpoints.Clear();
             commandMap = null;
@@ -578,6 +585,9 @@ namespace StackExchange.Redis
                             break;
                         case OptionKeys.SslHost:
                             SslHost = value;
+                            break;
+                        case OptionKeys.HighPrioritySocketThreads:
+                            HighPrioritySocketThreads = OptionKeys.ParseBoolean(key, value);
                             break;
                         case OptionKeys.WriteBuffer:
                             WriteBuffer = OptionKeys.ParseInt32(key, value);
