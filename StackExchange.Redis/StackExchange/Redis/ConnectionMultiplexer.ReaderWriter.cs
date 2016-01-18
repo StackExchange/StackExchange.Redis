@@ -10,7 +10,7 @@
         partial void OnCreateReaderWriter(ConfigurationOptions configuration)
         {
             this.ownsSocketManager = configuration.SocketManager == null;
-            this.socketManager = configuration.SocketManager ?? new SocketManager(ClientName);
+            this.socketManager = configuration.SocketManager ?? new SocketManager(ClientName, configuration.HighPrioritySocketThreads);
         }
 
         partial void OnCloseReaderWriter()
