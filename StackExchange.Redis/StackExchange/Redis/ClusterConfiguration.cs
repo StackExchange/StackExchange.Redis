@@ -182,9 +182,17 @@ namespace StackExchange.Redis
                 {
                     if (string.IsNullOrWhiteSpace(line)) continue;
                     var node = new ClusterNode(this, line, origin);
+                    
                     // Be resilient to ":0 {master,slave},fail,noaddr" nodes
                     if (node.IsNoAddr)
                         continue;
+
+                    // Override the origin value with the endpoint advertised with the target node to
+                    // make sure that things like clusterConfiguration[clusterConfiguration.Origin]
+                    // will work as expected.
+                    if (node.IsMyself)
+                        this.origin = node.EndPoint;
+
                     if (nodeLookup.ContainsKey(node.EndPoint))
                     {
                         // Deal with conflicting node entries for the same endpoint
@@ -288,6 +296,8 @@ namespace StackExchange.Redis
 
         private readonly EndPoint endpoint;
 
+        private readonly bool isMyself;
+
         private readonly bool isSlave;
 
         private readonly bool isNoAddr;
@@ -315,7 +325,17 @@ namespace StackExchange.Redis
             var flags = parts[2].Split(StringSplits.Comma);
             
             endpoint = Format.TryParseEndPoint(parts[1]);
-            
+            if (flags.Contains("myself"))
+            {
+                isMyself = true;
+                if (endpoint == null)
+                {
+                    // Unconfigured cluster nodes might report themselves as endpoint ":{port}",
+                    // hence the origin fallback value to make sure that we can address them
+                    endpoint = origin;
+                }
+            }
+
             nodeId = parts[0];
             isSlave = flags.Contains("slave");
             isNoAddr = flags.Contains("noaddr");
@@ -362,6 +382,11 @@ namespace StackExchange.Redis
         /// Gets the endpoint of the current node
         /// </summary>
         public EndPoint EndPoint { get { return endpoint; } }
+
+        /// <summary>
+        /// Gets whether this is the node which responded to the CLUSTER NODES request
+        /// </summary>
+        public bool IsMyself { get { return isMyself; } }
 
         /// <summary>
         /// Gets whether this node is a slave
