@@ -413,7 +413,7 @@ namespace StackExchange.Redis
             return value == null ? @null : (RedisValue)value.GetValueOrDefault();
         }
         /// <summary>
-        /// Creates a new RedisValue from a Boolean
+        /// Converts the value to a Boolean
         /// </summary>
         public static explicit operator bool (RedisValue value)
         {

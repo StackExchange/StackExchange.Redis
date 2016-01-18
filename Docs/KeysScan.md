@@ -38,16 +38,18 @@ So how do I use them?
 
 Simple: start from a server, not a database.
 
-    // get the target server
-    var server = conn.GetServer(someServer);
+```C#
+// get the target server
+var server = conn.GetServer(someServer);
 
-	// show all keys in database 0 that include "foo" in their name
-    foreach(var key in server.Keys(pattern: "*foo*")) {
-        Console.WriteLine(key);
-    }
+// show all keys in database 0 that include "foo" in their name
+foreach(var key in server.Keys(pattern: "*foo*")) {
+    Console.WriteLine(key);
+}
 
-	// completely wipe ALL keys from database 0
-    server.FlushDatabase();
+// completely wipe ALL keys from database 0
+server.FlushDatabase();
+```
 
 Note that unlike the `IDatabase` API (where the target database has already been selected in the `GetDatabase()` call), these methods take an optional parameter for the database, or it defaults to `0`.
 

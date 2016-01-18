@@ -132,7 +132,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets or sets whether connect/configuration timeouts should be explicitly notified via a TimeoutException
         /// </summary>
-        public bool AbortOnConnectFail { get { return abortOnConnectFail ?? true; } set { abortOnConnectFail = value; } }
+        public bool AbortOnConnectFail { get { return abortOnConnectFail ?? GetDefaultAbortOnConnectFailSetting(); } set { abortOnConnectFail = value; } }
 
         /// <summary>
         /// Indicates whether admin operations should be allowed
@@ -619,6 +619,38 @@ namespace StackExchange.Redis
             {
                 this.CommandMap = CommandMap.Create(map);
             }
+        }
+
+        private bool GetDefaultAbortOnConnectFailSetting()
+        {
+            // Microsoft Azure team wants abortConnect=false by default
+            if (IsAzureEndpoint())
+                return false;
+
+            return true;
+        }
+
+        private bool IsAzureEndpoint()
+        {
+            var result = false; 
+            var dnsEndpoints = endpoints.Select(endpoint => endpoint as DnsEndPoint).Where(ep => ep != null);
+            foreach(var ep in dnsEndpoints)
+            {
+                int firstDot = ep.Host.IndexOf('.');
+                if (firstDot >= 0)
+                {
+                    var domain = ep.Host.Substring(firstDot).ToLowerInvariant();
+                    switch(domain)
+                    {
+                        case ".redis.cache.windows.net":
+                        case ".redis.cache.chinacloudapi.cn":
+                        case ".redis.cache.usgovcloudapi.net":
+                            return true;
+                    }
+                }
+            }
+
+            return result; 
         }
 
         private string InferSslHostFromEndpoints() {
