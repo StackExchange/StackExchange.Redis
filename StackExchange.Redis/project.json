@@ -13,7 +13,7 @@
   "dependencies": {
   },
   "compilationOptions": {
-    "allowUnsafe": true    
+    "allowUnsafe": true
   },
   "frameworks": {
     "net40": {
