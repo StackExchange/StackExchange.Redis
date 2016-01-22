@@ -10,11 +10,11 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Concurrent;
+using System.Runtime;
 #if NET40
 using Microsoft.Runtime.CompilerServices;
 #else
 using System.Runtime.CompilerServices;
-using System.Runtime;
 #endif
 
 namespace StackExchange.Redis
