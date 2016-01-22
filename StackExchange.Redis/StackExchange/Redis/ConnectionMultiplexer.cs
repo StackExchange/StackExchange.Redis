@@ -10,6 +10,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Concurrent;
+using System.Runtime;
 #if NET40
 using Microsoft.Runtime.CompilerServices;
 #else
@@ -1974,6 +1975,7 @@ namespace StackExchange.Redis
                             add("Active-Readers", "ar", ar.ToString());
 
                             add("Client-Name", "clientName", ClientName);
+                            add("Server-GC", "serverGC", GCSettings.IsServerGC.ToString());
 #if !CORE_CLR
                             string iocp, worker;
                             int busyWorkerCount = GetThreadPoolStats(out iocp, out worker);
