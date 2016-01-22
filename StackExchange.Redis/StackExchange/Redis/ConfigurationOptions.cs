@@ -262,7 +262,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Specifies the time in milliseconds that the system should allow for synchronous operations (defaults to 1 second)
         /// </summary>
-        public int SyncTimeout { get { return syncTimeout.GetValueOrDefault(20000); } set { syncTimeout = value; } }
+        public int SyncTimeout { get { return syncTimeout.GetValueOrDefault(1000); } set { syncTimeout = value; } }
 
         /// <summary>
         /// Specifies the time in milliseconds that the system should allow for responses before concluding that the socket is unhealthy
