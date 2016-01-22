@@ -14,7 +14,6 @@ using System.Collections.Concurrent;
 using Microsoft.Runtime.CompilerServices;
 #else
 using System.Runtime.CompilerServices;
-using System.Runtime;
 #endif
 
 namespace StackExchange.Redis
@@ -1975,7 +1974,6 @@ namespace StackExchange.Redis
                             add("Active-Readers", "ar", ar.ToString());
 
                             add("Client-Name", "clientName", ClientName);
-                            add("Server-GC", "serverGC", GCSettings.IsServerGC.ToString());
 #if !CORE_CLR
                             string iocp, worker;
                             int busyWorkerCount = GetThreadPoolStats(out iocp, out worker);
