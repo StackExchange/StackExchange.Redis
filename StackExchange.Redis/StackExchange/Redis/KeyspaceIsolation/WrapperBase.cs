@@ -16,7 +16,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
             _keyPrefix = keyPrefix;
         }
 
-        public ConnectionMultiplexer Multiplexer
+        public IConnectionMultiplexer Multiplexer
         {
             get { return this.Inner.Multiplexer; }
         }
