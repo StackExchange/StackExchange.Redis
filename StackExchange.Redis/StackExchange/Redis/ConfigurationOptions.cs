@@ -667,7 +667,7 @@ namespace StackExchange.Redis
 
         private string InferSslHostFromEndpoints() {
             var dnsEndpoints = endpoints.Select(endpoint => endpoint as DnsEndPoint);
-            string dnsHost = dnsEndpoints.First() != null ? dnsEndpoints.First().Host : null;
+            string dnsHost = dnsEndpoints.FirstOrDefault()?.Host;
             if (dnsEndpoints.All(dnsEndpoint => (dnsEndpoint != null && dnsEndpoint.Host == dnsHost))) {
                 return dnsHost;
             }
