@@ -1320,7 +1320,7 @@ namespace StackExchange.Redis
                                         // so we will get list of other nodes from this server using "CLUSTER NODES" command
                                         // and try to connect to these other nodes in the next iteration
                                         encounteredConnectedClusterServer = true;
-                                        updatedClusterEndpointCollection = GetEndpointsFromClusterNodes(server, log);
+                                        updatedClusterEndpointCollection = await GetEndpointsFromClusterNodes(server, log);
                                     }
 
                                     // set the server UnselectableFlags and update masters list
@@ -1473,13 +1473,12 @@ namespace StackExchange.Redis
             }
         }
 
-        private EndPointCollection GetEndpointsFromClusterNodes(ServerEndPoint server, TextWriter log)
+        private async Task<EndPointCollection> GetEndpointsFromClusterNodes(ServerEndPoint server, TextWriter log)
         {
             var message = Message.Create(-1, CommandFlags.None, RedisCommand.CLUSTER, RedisLiterals.NODES);
-            ClusterConfiguration clusterConfig = null;
             try
             {
-                clusterConfig = this.ExecuteSyncImpl(message, ResultProcessor.ClusterNodes, server);
+                var clusterConfig = await ExecuteAsyncImpl(message, ResultProcessor.ClusterNodes, null, server);
                 return new EndPointCollection(clusterConfig.Nodes.Select(node => node.EndPoint).ToList());
             }
             catch (Exception ex)
