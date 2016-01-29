@@ -1,5 +1,7 @@
-﻿using System;
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
+#if CORE_CLR
+using System;
+#endif
 
 namespace StackExchange.Redis
 {

@@ -102,7 +102,7 @@ namespace StackExchange.Redis
                 case Bitwise.Or: return OR;
                 case Bitwise.Xor: return XOR;
                 case Bitwise.Not: return NOT;
-                default: throw new ArgumentOutOfRangeException("operation");
+                default: throw new ArgumentOutOfRangeException(nameof(operation));
             }
         }
     }

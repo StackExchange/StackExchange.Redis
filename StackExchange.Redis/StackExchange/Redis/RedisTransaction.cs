@@ -23,7 +23,7 @@ namespace StackExchange.Redis
 
         public ConditionResult AddCondition(Condition condition)
         {
-            if (condition == null) throw new ArgumentNullException("condition");
+            if (condition == null) throw new ArgumentNullException(nameof(condition));
 
             var commandMap = multiplexer.CommandMap;
             if (conditions == null)
@@ -146,7 +146,8 @@ namespace StackExchange.Redis
                 set { wasQueued = value; }
             }
 
-            public Message Wrapped { get { return wrapped; } }
+            public Message Wrapped => wrapped;
+
             internal override void WriteImpl(PhysicalConnection physical)
             {
                 wrapped.WriteImpl(physical);
@@ -189,12 +190,9 @@ namespace StackExchange.Redis
                 this.conditions = (conditions == null || conditions.Count == 0) ? NixConditions : conditions.ToArray();
             }
 
-            public QueuedMessage[] InnerOperations { get { return operations; } }
+            public QueuedMessage[] InnerOperations => operations;
 
-            public bool IsAborted
-            {
-                get { return command != RedisCommand.EXEC; }
-            }
+            public bool IsAborted => command != RedisCommand.EXEC;
 
             public override void AppendStormLog(StringBuilder sb)
             {

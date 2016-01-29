@@ -31,11 +31,8 @@ namespace StackExchange.Redis
                                            ReusableAskingCommand = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.ASKING);
 
         private readonly CompletionManager completionManager;
-        private readonly ConnectionType connectionType;
-        private readonly ConnectionMultiplexer multiplexer;
         readonly long[] profileLog = new long[ProfileLogSamples];
         private readonly MessageQueue queue = new MessageQueue();
-        private readonly ServerEndPoint serverEndPoint;
         int activeWriters = 0;
         private int beating;
         int failConnectCount = 0;
@@ -53,11 +50,11 @@ namespace StackExchange.Redis
         private volatile int state = (int)State.Disconnected;
         public PhysicalBridge(ServerEndPoint serverEndPoint, ConnectionType type)
         {
-            this.serverEndPoint = serverEndPoint;
-            this.connectionType = type;
-            this.multiplexer = serverEndPoint.Multiplexer;
-            this.Name = Format.ToString(serverEndPoint.EndPoint) + "/" + connectionType.ToString();
-            this.completionManager = new CompletionManager(multiplexer, Name);
+            ServerEndPoint = serverEndPoint;
+            ConnectionType = type;
+            Multiplexer = serverEndPoint.Multiplexer;
+            Name = Format.ToString(serverEndPoint.EndPoint) + "/" + ConnectionType.ToString();
+            completionManager = new CompletionManager(Multiplexer, Name);
         }
 
         public enum State : byte
@@ -68,19 +65,13 @@ namespace StackExchange.Redis
             Disconnected
         }
 
-        public ConnectionType ConnectionType { get { return connectionType; } }
+        public ConnectionType ConnectionType { get; }
 
-        public bool IsConnected
-        {
-            get
-            {
-                return state == (int)State.ConnectedEstablished;
-            }
-        }
+        public bool IsConnected => state == (int)State.ConnectedEstablished;
 
-        public ConnectionMultiplexer Multiplexer { get { return multiplexer; } }
+        public ConnectionMultiplexer Multiplexer { get; }
 
-        public ServerEndPoint ServerEndPoint { get { return serverEndPoint; } }
+        public ServerEndPoint ServerEndPoint { get; }
 
         public long SubscriptionCount
         {
@@ -91,13 +82,11 @@ namespace StackExchange.Redis
             }
         }
 
-        internal State ConnectionState { get { return (State)state; } }
-        internal bool IsBeating { get { return Interlocked.CompareExchange(ref beating, 0, 0) == 1; } }
+        internal State ConnectionState => (State)state;
+        internal bool IsBeating => Interlocked.CompareExchange(ref beating, 0, 0) == 1;
 
-        internal long OperationCount
-        {
-            get { return Interlocked.Read(ref operationCount); }
-        }
+        internal long OperationCount => Interlocked.Read(ref operationCount);
+
         public void CompleteSyncOrAsync(ICompletable operation)
         {
             completionManager.CompleteSyncOrAsync(operation);
@@ -119,7 +108,7 @@ namespace StackExchange.Redis
 
         public override string ToString()
         {
-            return connectionType + "/" + Format.ToString(serverEndPoint.EndPoint);
+            return ConnectionType + "/" + Format.ToString(ServerEndPoint.EndPoint);
         }
 
         public void TryConnect(TextWriter log)
@@ -154,7 +143,7 @@ namespace StackExchange.Redis
 
             if (reqWrite)
             {
-                multiplexer.RequestWrite(this, false);
+                Multiplexer.RequestWrite(this, false);
             }
             return true;
         }
@@ -204,11 +193,7 @@ namespace StackExchange.Redis
             counters.WriterCount = Interlocked.CompareExchange(ref activeWriters, 0, 0);
             counters.NonPreferredEndpointCount = Interlocked.Read(ref nonPreferredEndpointCount);
             completionManager.GetCounters(counters);
-            var tmp = physical;
-            if (tmp != null)
-            {
-                tmp.GetCounters(counters);
-            }
+            physical?.GetCounters(counters);
         }
 
         internal int GetOutstandingCount(out int inst, out int qu, out int qs, out int qc, out int wr, out int wq, out int @in, out int ar)
@@ -237,12 +222,11 @@ namespace StackExchange.Redis
 
         internal string GetStormLog()
         {
-            var sb = new StringBuilder("Storm log for ").Append(Format.ToString(serverEndPoint.EndPoint)).Append(" / ").Append(connectionType)
+            var sb = new StringBuilder("Storm log for ").Append(Format.ToString(ServerEndPoint.EndPoint)).Append(" / ").Append(ConnectionType)
                 .Append(" at ").Append(DateTime.UtcNow)
                 .AppendLine().AppendLine();
             queue.GetStormLog(sb);
-            var tmp = physical;
-            if (tmp != null) tmp.GetStormLog(sb);
+            physical?.GetStormLog(sb);
             completionManager.GetStormLog(sb);
             sb.Append("Circular op-count snapshot:");
             AppendProfile(sb);
@@ -257,12 +241,12 @@ namespace StackExchange.Redis
 
         internal void KeepAlive()
         {
-            var commandMap = multiplexer.CommandMap;
+            var commandMap = Multiplexer.CommandMap;
             Message msg = null;
-            switch (connectionType)
+            switch (ConnectionType)
             {
                 case ConnectionType.Interactive:
-                    msg = serverEndPoint.GetTracerMessage(false);
+                    msg = ServerEndPoint.GetTracerMessage(false);
                     msg.SetSource(ResultProcessor.Tracer, null);
                     break;
                 case ConnectionType.Subscription:
@@ -277,10 +261,10 @@ namespace StackExchange.Redis
             if (msg != null)
             {
                 msg.SetInternalCall();
-                multiplexer.Trace("Enqueue: " + msg);
-                if (!TryEnqueue(msg, serverEndPoint.IsSlave))
+                Multiplexer.Trace("Enqueue: " + msg);
+                if (!TryEnqueue(msg, ServerEndPoint.IsSlave))
                 {
-                    OnInternalError(ExceptionFactory.NoConnectionAvailable(multiplexer.IncludeDetailInExceptions, msg.Command, msg, serverEndPoint));
+                    OnInternalError(ExceptionFactory.NoConnectionAvailable(Multiplexer.IncludeDetailInExceptions, msg.Command, msg, ServerEndPoint));
                 }
             }
         }
@@ -290,7 +274,7 @@ namespace StackExchange.Redis
             Trace("OnConnected");
             if (physical == connection && !isDisposed && ChangeState(State.Connecting, State.ConnectedEstablishing))
             {
-                serverEndPoint.OnEstablishing(connection, log);
+                ServerEndPoint.OnEstablishing(connection, log);
             }
             else
             {
@@ -319,8 +303,8 @@ namespace StackExchange.Redis
             if (reportNextFailure)
             {
                 reportNextFailure = false; // until it is restored
-                var endpoint = serverEndPoint.EndPoint;
-                multiplexer.OnConnectionFailed(endpoint, connectionType, failureType, innerException, reconfigureNextFailure);
+                var endpoint = ServerEndPoint.EndPoint;
+                Multiplexer.OnConnectionFailed(endpoint, ConnectionType, failureType, innerException, reconfigureNextFailure);
             }
         }
 
@@ -367,9 +351,9 @@ namespace StackExchange.Redis
             {
                 reportNextFailure = reconfigureNextFailure = true;
                 Interlocked.Exchange(ref failConnectCount, 0);
-                serverEndPoint.OnFullyEstablished(connection);
-                multiplexer.RequestWrite(this, true);
-                if(connectionType == ConnectionType.Interactive) serverEndPoint.CheckInfoReplication();
+                ServerEndPoint.OnFullyEstablished(connection);
+                Multiplexer.RequestWrite(this, true);
+                if(ConnectionType == ConnectionType.Interactive) ServerEndPoint.CheckInfoReplication();
             }
             else
             {
@@ -395,7 +379,7 @@ namespace StackExchange.Redis
                 {
                     case (int)State.Connecting:
                         int connectTimeMilliseconds = unchecked(Environment.TickCount - VolatileWrapper.Read(ref connectStartTicks));
-                        if (connectTimeMilliseconds >= multiplexer.RawConfig.ConnectTimeout)
+                        if (connectTimeMilliseconds >= Multiplexer.RawConfig.ConnectTimeout)
                         {
                             Trace("Aborting connect");
                             // abort and reconnect
@@ -421,12 +405,12 @@ namespace StackExchange.Redis
                                 tmp.Bridge.ServerEndPoint.ClearUnselectable(UnselectableFlags.DidNotRespond);
                             }
                             tmp.OnHeartbeat();
-                            int writeEverySeconds = serverEndPoint.WriteEverySeconds,
-                                checkConfigSeconds = multiplexer.RawConfig.ConfigCheckSeconds;
+                            int writeEverySeconds = ServerEndPoint.WriteEverySeconds,
+                                checkConfigSeconds = Multiplexer.RawConfig.ConfigCheckSeconds;
 
-                            if(state == (int)State.ConnectedEstablished && connectionType == ConnectionType.Interactive
-                                && checkConfigSeconds > 0 && serverEndPoint.LastInfoReplicationCheckSecondsAgo >= checkConfigSeconds
-                                && serverEndPoint.CheckInfoReplication())
+                            if(state == (int)State.ConnectedEstablished && ConnectionType == ConnectionType.Interactive
+                                && checkConfigSeconds > 0 && ServerEndPoint.LastInfoReplicationCheckSecondsAgo >= checkConfigSeconds
+                                && ServerEndPoint.CheckInfoReplication())
                             {
                                 // that serves as a keep-alive, if it is accepted
                             }
@@ -457,7 +441,7 @@ namespace StackExchange.Redis
                         if (!ifConnectedOnly)
                         {
                             AbortUnsent();
-                            multiplexer.Trace("Resurrecting " + this.ToString());
+                            Multiplexer.Trace("Resurrecting " + this.ToString());
                             GetConnection(null);
                         }
                         break;
@@ -490,13 +474,13 @@ namespace StackExchange.Redis
         [Conditional("VERBOSE")]
         internal void Trace(string message)
         {
-            multiplexer.Trace(message, ToString());
+            Multiplexer.Trace(message, ToString());
         }
 
         [Conditional("VERBOSE")]
         internal void Trace(bool condition, string message)
         {
-            if (condition) multiplexer.Trace(message, ToString());
+            if (condition) Multiplexer.Trace(message, ToString());
         }
 
         internal bool TryEnqueue(List<Message> messages, bool isSlave)
@@ -520,7 +504,7 @@ namespace StackExchange.Redis
             Trace("Now pending: " + GetPendingCount());
             if (reqWrite) // was empty before
             {
-                multiplexer.RequestWrite(this, false);
+                Multiplexer.RequestWrite(this, false);
             }
             return true;
         }
@@ -584,7 +568,7 @@ namespace StackExchange.Redis
                     return WriteResult.NoConnection;
                 }
 
-                Message last = null;
+                Message last;
                 int count = 0;
                 while (true)
                 {
@@ -662,7 +646,7 @@ namespace StackExchange.Redis
 #pragma warning restore 0420
             if (oldState != newState)
             {
-                multiplexer.Trace(connectionType + " state changed from " + oldState + " to " + newState);
+                Multiplexer.Trace(ConnectionType + " state changed from " + oldState + " to " + newState);
 
                 if (newState == State.Disconnected)
                 {
@@ -679,7 +663,7 @@ namespace StackExchange.Redis
 #pragma warning restore 0420
             if (result)
             {
-                multiplexer.Trace(connectionType + " state changed from " + oldState + " to " + newState);
+                Multiplexer.Trace(ConnectionType + " state changed from " + oldState + " to " + newState);
             }
             return result;
         }
@@ -690,7 +674,7 @@ namespace StackExchange.Redis
             {
                 try
                 {
-                    if (!multiplexer.IsDisposed)
+                    if (!Multiplexer.IsDisposed)
                     {
                         Multiplexer.LogLocked(log, "Connecting {0}...", Name);
                         Multiplexer.Trace("Connecting...", Name);
@@ -736,7 +720,7 @@ namespace StackExchange.Redis
         }
         private void OnInternalError(Exception exception, [CallerMemberName] string origin = null)
         {
-            multiplexer.OnInternalError(exception, serverEndPoint.EndPoint, connectionType, origin);
+            Multiplexer.OnInternalError(exception, ServerEndPoint.EndPoint, ConnectionType, origin);
         }
         private void SelectDatabase(PhysicalConnection connection, Message message)
         {
@@ -761,9 +745,9 @@ namespace StackExchange.Redis
             {
                 var cmd = message.Command;
                 bool isMasterOnly = message.IsMasterOnly();
-                if (isMasterOnly && serverEndPoint.IsSlave && (serverEndPoint.SlaveReadOnly || !serverEndPoint.AllowSlaveWrites))
+                if (isMasterOnly && ServerEndPoint.IsSlave && (ServerEndPoint.SlaveReadOnly || !ServerEndPoint.AllowSlaveWrites))
                 {
-                    throw ExceptionFactory.MasterOnly(multiplexer.IncludeDetailInExceptions, message.Command, message, ServerEndPoint);
+                    throw ExceptionFactory.MasterOnly(Multiplexer.IncludeDetailInExceptions, message.Command, message, ServerEndPoint);
                 }
 
                 SelectDatabase(connection, message);
@@ -812,7 +796,7 @@ namespace StackExchange.Redis
                 {
                     case RedisCommand.EVAL:
                     case RedisCommand.EVALSHA:
-                        if(!serverEndPoint.GetFeatures().ScriptingDatabaseSafe)
+                        if(!ServerEndPoint.GetFeatures().ScriptingDatabaseSafe)
                         {
                             connection.SetUnknownDatabase();
                         }
@@ -846,7 +830,7 @@ namespace StackExchange.Redis
                 CompleteSyncOrAsync(message);
 
                 // we're not sure *what* happened here; probably an IOException; kill the connection
-                if(connection != null) connection.RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
+                connection?.RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
                 return false;
             }
         }

@@ -9,7 +9,7 @@ namespace StackExchange.Redis
             regular = new Queue<Message>(),
             high = new Queue<Message>();
 
-        public object SyncLock { get { return regular; } }
+        public object SyncLock => regular;
 
         public Message Dequeue()
         {

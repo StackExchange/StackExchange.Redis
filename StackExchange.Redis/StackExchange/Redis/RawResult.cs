@@ -11,7 +11,6 @@ namespace StackExchange.Redis
         public static readonly RawResult Nil = new RawResult();
         private static readonly byte[] emptyBlob = new byte[0];
         private readonly int offset, count;
-        private readonly ResultType resultType;
         private Array arr;
         public RawResult(ResultType resultType, byte[] buffer, int offset, int count)
         {
@@ -23,29 +22,30 @@ namespace StackExchange.Redis
                 case ResultType.BulkString:
                     break;
                 default:
-                    throw new ArgumentOutOfRangeException("resultType");
+                    throw new ArgumentOutOfRangeException(nameof(resultType));
             }
-            this.resultType = resultType;
-            this.arr = buffer;
+            Type = resultType;
+            arr = buffer;
             this.offset = offset;
             this.count = count;
         }
 
         public RawResult(RawResult[] arr)
         {
-            if (arr == null) throw new ArgumentNullException("arr");
-            this.resultType = ResultType.MultiBulk;
-            this.offset = 0;
-            this.count = arr.Length;
+            if (arr == null) throw new ArgumentNullException(nameof(arr));
+            Type = ResultType.MultiBulk;
+            offset = 0;
+            count = arr.Length;
             this.arr = arr;
         }
 
-        public bool HasValue { get { return resultType != ResultType.None; } }
+        public bool HasValue => Type != ResultType.None;
 
-        public bool IsError { get { return resultType == ResultType.Error; } }
+        public bool IsError => Type == ResultType.Error;
 
-        public ResultType Type { get { return resultType; } }
-        internal bool IsNull { get { return arr == null; } }
+        public ResultType Type { get; }
+
+        internal bool IsNull => arr == null;
 
         public override string ToString()
         {
@@ -53,23 +53,23 @@ namespace StackExchange.Redis
             {
                 return "(null)";
             }
-            switch (resultType)
+            switch (Type)
             {
                 case ResultType.SimpleString:
                 case ResultType.Integer:
                 case ResultType.Error:
-                    return string.Format("{0}: {1}", resultType, GetString());
+                    return $"{Type}: {GetString()}";
                 case ResultType.BulkString:
-                    return string.Format("{0}: {1} bytes", resultType, count);
+                    return $"{Type}: {count} bytes";
                 case ResultType.MultiBulk:
-                    return string.Format("{0}: {1} items", resultType, count);
+                    return $"{Type}: {count} items";
                 default:
                     return "(unknown)";
             }
         }
         internal RedisChannel AsRedisChannel(byte[] channelPrefix, RedisChannel.PatternMode mode)
         {
-            switch (resultType)
+            switch (Type)
             {
                 case ResultType.SimpleString:
                 case ResultType.BulkString:
@@ -87,24 +87,24 @@ namespace StackExchange.Redis
                     }
                     return default(RedisChannel);
                 default:
-                    throw new InvalidCastException("Cannot convert to RedisChannel: " + resultType);
+                    throw new InvalidCastException("Cannot convert to RedisChannel: " + Type);
             }
         }
 
         internal RedisKey AsRedisKey()
         {
-            switch (resultType)
+            switch (Type)
             {
                 case ResultType.SimpleString:
                 case ResultType.BulkString:
                     return (RedisKey)GetBlob();
                 default:
-                    throw new InvalidCastException("Cannot convert to RedisKey: " + resultType);
+                    throw new InvalidCastException("Cannot convert to RedisKey: " + Type);
             }
         }
         internal RedisValue AsRedisValue()
         {
-            switch (resultType)
+            switch (Type)
             {
                 case ResultType.Integer:
                     long i64;
@@ -114,12 +114,12 @@ namespace StackExchange.Redis
                 case ResultType.BulkString:
                     return (RedisValue)GetBlob();
             }
-            throw new InvalidCastException("Cannot convert to RedisValue: " + resultType);
+            throw new InvalidCastException("Cannot convert to RedisValue: " + Type);
         }
 
         internal unsafe bool IsEqual(byte[] expected)
         {
-            if (expected == null) throw new ArgumentNullException("expected");
+            if (expected == null) throw new ArgumentNullException(nameof(expected));
             if (expected.Length != count) return false;
             var actual = arr as byte[];
             if (actual == null) return false;
@@ -146,7 +146,7 @@ namespace StackExchange.Redis
 
         internal bool AssertStarts(byte[] expected)
         {
-            if (expected == null) throw new ArgumentNullException("expected");
+            if (expected == null) throw new ArgumentNullException(nameof(expected));
             if (expected.Length > count) return false;
             var actual = arr as byte[];
             if (actual == null) return false;
@@ -171,7 +171,7 @@ namespace StackExchange.Redis
 
         internal bool GetBoolean()
         {
-            if (this.count != 1) throw new InvalidCastException();
+            if (count != 1) throw new InvalidCastException();
             byte[] actual = arr as byte[];
             if (actual == null) throw new InvalidCastException();
             switch (actual[offset])

@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -555,7 +554,7 @@ namespace StackExchange.Redis.Tests
 
         private static string Describe(EndPoint endpoint)
         {
-            return endpoint == null ? "(unknown)" : endpoint.ToString();
+            return endpoint?.ToString() ?? "(unknown)";
         }
 
         class TestProfiler : IProfiler

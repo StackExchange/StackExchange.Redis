@@ -226,7 +226,7 @@ namespace StackExchange.Redis
             for (var i = 0; i < script.Arguments.Length; i++)
             {
                 var argName = script.Arguments[i];
-                var member = t.GetMember(argName).Where(m => m is PropertyInfo || m is FieldInfo).SingleOrDefault();
+                var member = t.GetMember(argName).SingleOrDefault(m => m is PropertyInfo || m is FieldInfo);
                 if (member == null)
                 {
                     missingMember = argName;
@@ -292,7 +292,7 @@ namespace StackExchange.Redis
             for (var i = 0; i < script.Arguments.Length; i++)
             {
                 var argName = script.Arguments[i];
-                var member = t.GetMember(argName).Where(m => m is PropertyInfo || m is FieldInfo).SingleOrDefault();
+                var member = t.GetMember(argName).SingleOrDefault(m => m is PropertyInfo || m is FieldInfo);
 
                 var memberType = member is FieldInfo ? ((FieldInfo)member).FieldType : ((PropertyInfo)member).PropertyType;
 

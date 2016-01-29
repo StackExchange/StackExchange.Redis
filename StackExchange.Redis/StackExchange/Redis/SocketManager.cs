@@ -1,12 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
-using System.Runtime.InteropServices;
 using System.Threading;
+#if CORE_CLR
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
+#endif
 
 namespace StackExchange.Redis
 {
@@ -52,11 +53,11 @@ namespace StackExchange.Redis
         internal readonly Socket Socket;
         public SocketToken(Socket socket)
         {
-            this.Socket = socket;
+            Socket = socket;
         }
-        public int Available { get { return Socket == null ? 0 : Socket.Available; } }
+        public int Available => Socket?.Available ?? 0;
 
-        public bool HasValue { get { return Socket != null; } }
+        public bool HasValue => Socket != null;
     }
 
     /// <summary>
@@ -155,7 +156,8 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets the name of this SocketManager instance
         /// </summary>
-        public string Name { get { return name; } }
+        public string Name => name;
+
         /// <summary>
         /// Releases all resources associated with this instance
         /// </summary>
@@ -197,11 +199,11 @@ namespace StackExchange.Redis
                     });
 #else
                     CompletionTypeHelper.RunWithCompletionType(
-                        (cb) => {
+                        cb => {
                             multiplexer.LogLocked(log, "BeginConnect: {0}", formattedEndpoint);
                             return socket.BeginConnect(dnsEndpoint.Host, dnsEndpoint.Port, cb, tuple);
                         },
-                        (ar) => {
+                        ar => {
                             multiplexer.LogLocked(log, "EndConnect: {0}", formattedEndpoint);                            
                             EndConnectImpl(ar, multiplexer, log, tuple);
                             multiplexer.LogLocked(log, "Connect complete: {0}", formattedEndpoint);
@@ -220,11 +222,11 @@ namespace StackExchange.Redis
                     });
 #else
                     CompletionTypeHelper.RunWithCompletionType(
-                        (cb) => {
+                        cb => {
                             multiplexer.LogLocked(log, "BeginConnect: {0}", formattedEndpoint);
                             return socket.BeginConnect(endpoint, cb, tuple);
                         },
-                        (ar) => {
+                        ar => {
                             multiplexer.LogLocked(log, "EndConnect: {0}", formattedEndpoint);
                             EndConnectImpl(ar, multiplexer, log, tuple);
                             multiplexer.LogLocked(log, "Connect complete: {0}", formattedEndpoint);
@@ -318,7 +320,7 @@ namespace StackExchange.Redis
                 socket.EndConnect(ar);
 #endif
                 var netStream = new NetworkStream(socket, false);
-                var socketMode = callback == null ? SocketMode.Abort : callback.Connected(netStream, log);
+                var socketMode = callback?.Connected(netStream, log) ?? SocketMode.Abort;
                 switch (socketMode)
                 {
                     case SocketMode.Poll:

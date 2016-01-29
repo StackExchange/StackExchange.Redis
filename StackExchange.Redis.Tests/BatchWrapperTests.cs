@@ -1,5 +1,4 @@
 ﻿#if FEATURE_MOQ
-using System;
 using Moq;
 using NUnit.Framework;
 using StackExchange.Redis.KeyspaceIsolation;

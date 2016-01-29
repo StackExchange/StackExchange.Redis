@@ -7,11 +7,9 @@ namespace StackExchange.Redis
     /// </summary>
     public class ConnectionCounters
     {
-        private readonly ConnectionType connectionType;
-
         internal ConnectionCounters(ConnectionType connectionType)
         {
-            this.connectionType = connectionType;
+            ConnectionType = connectionType;
         }
 
         /// <summary>
@@ -27,7 +25,8 @@ namespace StackExchange.Redis
         /// <summary>
         /// The type of this connection
         /// </summary>
-        public ConnectionType ConnectionType {  get {  return connectionType; } }
+        public ConnectionType ConnectionType { get; }
+
         /// <summary>
         /// The number of operations that failed to complete asynchronously
         /// </summary>
@@ -36,10 +35,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Indicates if there are any pending items or failures on this connection
         /// </summary>
-        public bool IsEmpty
-        {
-            get { return PendingUnsentItems == 0 && SentItemsAwaitingResponse == 0 && ResponsesAwaitingAsyncCompletion == 0 && FailedAsynchronously == 0; }
-        }
+        public bool IsEmpty => PendingUnsentItems == 0 && SentItemsAwaitingResponse == 0 && ResponsesAwaitingAsyncCompletion == 0 && FailedAsynchronously == 0;
 
         /// <summary>
         /// Indicates the total number of messages despatched to a non-preferred endpoint, for example sent to a master
@@ -80,7 +76,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Indicates the total number of outstanding items against this connection
         /// </summary>
-        public int TotalOutstanding { get { return PendingUnsentItems + SentItemsAwaitingResponse + ResponsesAwaitingAsyncCompletion; } }
+        public int TotalOutstanding => PendingUnsentItems + SentItemsAwaitingResponse + ResponsesAwaitingAsyncCompletion;
 
         /// <summary>
         /// Indicates the total number of writers items against this connection
@@ -100,17 +96,17 @@ namespace StackExchange.Redis
         internal void Add(ConnectionCounters other)
         {
             if (other == null) return;
-            this.CompletedAsynchronously += other.CompletedAsynchronously;
-            this.CompletedSynchronously += other.CompletedSynchronously;
-            this.FailedAsynchronously += other.FailedAsynchronously;
-            this.OperationCount += other.OperationCount;
-            this.PendingUnsentItems += other.PendingUnsentItems;
-            this.ResponsesAwaitingAsyncCompletion += other.ResponsesAwaitingAsyncCompletion;
-            this.SentItemsAwaitingResponse += other.SentItemsAwaitingResponse;
-            this.SocketCount += other.SocketCount;
-            this.Subscriptions += other.Subscriptions;
-            this.WriterCount += other.WriterCount;
-            this.NonPreferredEndpointCount += other.NonPreferredEndpointCount;
+            CompletedAsynchronously += other.CompletedAsynchronously;
+            CompletedSynchronously += other.CompletedSynchronously;
+            FailedAsynchronously += other.FailedAsynchronously;
+            OperationCount += other.OperationCount;
+            PendingUnsentItems += other.PendingUnsentItems;
+            ResponsesAwaitingAsyncCompletion += other.ResponsesAwaitingAsyncCompletion;
+            SentItemsAwaitingResponse += other.SentItemsAwaitingResponse;
+            SocketCount += other.SocketCount;
+            Subscriptions += other.Subscriptions;
+            WriterCount += other.WriterCount;
+            NonPreferredEndpointCount += other.NonPreferredEndpointCount;
         }
 
         internal bool Any()
@@ -135,5 +131,4 @@ namespace StackExchange.Redis
             if (NonPreferredEndpointCount != 0) sb.Append(", non-pref=").Append(NonPreferredEndpointCount);
         }
     }
-
 }

@@ -9,9 +9,7 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed class RedisErrorEventArgs : EventArgs, ICompletable
     {
-        private readonly EndPoint endpoint;
         private readonly EventHandler<RedisErrorEventArgs> handler;
-        private readonly string message;
         private readonly object sender;
         internal RedisErrorEventArgs(
             EventHandler<RedisErrorEventArgs> handler, object sender,
@@ -19,29 +17,28 @@ namespace StackExchange.Redis
         {
             this.handler = handler;
             this.sender = sender;
-            this.message = message;
-            this.endpoint = endpoint;
+            Message = message;
+            EndPoint = endpoint;
         }
 
         /// <summary>
         /// The origin of the message
         /// </summary>
-        public EndPoint EndPoint { get { return endpoint; } }
+        public EndPoint EndPoint { get; }
 
         /// <summary>
         /// The message from the server
         /// </summary>
-        public string Message { get { return message; } }
+        public string Message { get; }
 
         void ICompletable.AppendStormLog(StringBuilder sb)
         {
-            sb.Append("event, error: ").Append(message);
+            sb.Append("event, error: ").Append(Message);
         }
 
         bool ICompletable.TryComplete(bool isAsync)
         {
             return ConnectionMultiplexer.TryCompleteHandler(handler, sender, this, isAsync);
         }
-
     }
 }
