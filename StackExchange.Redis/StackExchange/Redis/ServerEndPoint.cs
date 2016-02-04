@@ -122,6 +122,15 @@ namespace StackExchange.Redis
         public int WriteEverySeconds { get { return writeEverySeconds; } set { SetConfig(ref writeEverySeconds, value); } }
         internal ConnectionMultiplexer Multiplexer { get { return multiplexer; } }
 
+        internal PhysicalBridge.State ConnectionState
+        {
+            get
+            {
+                var tmp = interactive;
+                return tmp.ConnectionState;
+            }
+        }
+
         public void ClearUnselectable(UnselectableFlags flags)
         {
             var oldFlags = unselectableReasons;
@@ -534,7 +543,7 @@ namespace StackExchange.Redis
             if (bridge == null) bridge = GetBridge(message.Command);
             if (!bridge.TryEnqueue(message, isSlave))
             {
-                ConnectionMultiplexer.ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(multiplexer.IncludeDetailInExceptions, message.Command, message, this));
+                ConnectionMultiplexer.ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(multiplexer.IncludeDetailInExceptions, message.Command, message, this, multiplexer.GetServerSnapshotsConnectionStateSummary()));
             }
             return tcs.Task;
         }
