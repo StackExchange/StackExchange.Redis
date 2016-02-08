@@ -9,31 +9,31 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed class HashSlotMovedEventArgs : EventArgs, ICompletable
     {
-        private readonly int hashSlot;
-        private readonly EndPoint old, @new;
         private readonly object sender;
         private readonly EventHandler<HashSlotMovedEventArgs> handler;
         /// <summary>
         /// The hash-slot that was relocated
         /// </summary>
-        public int HashSlot {  get {  return hashSlot; } }
+        public int HashSlot { get; }
+
         /// <summary>
         /// The old endpoint for this hash-slot (if known)
         /// </summary>
-        public EndPoint OldEndPoint { get { return old; } }
+        public EndPoint OldEndPoint { get; }
+
         /// <summary>
         /// The new endpoint for this hash-slot (if known)
         /// </summary>
-        public EndPoint NewEndPoint { get { return @new; } }
+        public EndPoint NewEndPoint { get; }
 
         internal HashSlotMovedEventArgs(EventHandler<HashSlotMovedEventArgs> handler, object sender,
             int hashSlot, EndPoint old, EndPoint @new)
         {
             this.handler = handler;
             this.sender = sender;
-            this.hashSlot = hashSlot;
-            this.old = old;
-            this.@new = @new;
+            HashSlot = hashSlot;
+            OldEndPoint = old;
+            NewEndPoint = @new;
         }
 
         bool ICompletable.TryComplete(bool isAsync)
@@ -43,7 +43,7 @@ namespace StackExchange.Redis
 
         void ICompletable.AppendStormLog(StringBuilder sb)
         {
-            sb.Append("event, slot-moved: ").Append(hashSlot);
+            sb.Append("event, slot-moved: ").Append(HashSlot);
         }
     }
 }

@@ -178,7 +178,7 @@ namespace StackExchange.Redis
                 if (commandMap != null) return commandMap;
                 switch (Proxy)
                 {
-                    case Redis.Proxy.Twemproxy:
+                    case Proxy.Twemproxy:
                         return CommandMap.Twemproxy;
                     default:
                         return CommandMap.Default;
@@ -186,7 +186,7 @@ namespace StackExchange.Redis
             }
             set
             {
-                if (value == null) throw new ArgumentNullException("value");
+                if (value == null) throw new ArgumentNullException(nameof(value));
                 commandMap = value;
             }
         }
@@ -215,7 +215,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The endpoints defined for this configuration
         /// </summary>
-        public EndPointCollection EndPoints { get { return endpoints; } }
+        public EndPointCollection EndPoints => endpoints;
 
         /// <summary>
         /// Use ThreadPriority.AboveNormal for SocketManager reader and writer threads (true by default). If false, ThreadPriority.Normal will be used.
@@ -397,7 +397,7 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.ConfigCheckSeconds, configCheckSeconds);
             Append(sb, OptionKeys.ResponseTimeout, responseTimeout);
             Append(sb, OptionKeys.DefaultDatabase, defaultDatabase);
-            if (commandMap != null) commandMap.AppendDeltas(sb);
+            commandMap?.AppendDeltas(sb);
             return sb.ToString();
         }
 
@@ -466,8 +466,7 @@ namespace StackExchange.Redis
 
         static void Append(StringBuilder sb, string prefix, object value)
         {
-            if (value == null) return;
-            string s = value.ToString();
+            string s = value?.ToString();
             if (!string.IsNullOrWhiteSpace(s))
             {
                 if (sb.Length != 0) sb.Append(',');
@@ -509,7 +508,7 @@ namespace StackExchange.Redis
         {
             if (configuration == null)
             {
-                throw new ArgumentNullException("configuration");
+                throw new ArgumentNullException(nameof(configuration));
             }
 
             if (string.IsNullOrWhiteSpace(configuration))
@@ -629,7 +628,7 @@ namespace StackExchange.Redis
             }
             if (map != null && map.Count != 0)
             {
-                this.CommandMap = CommandMap.Create(map);
+                CommandMap = CommandMap.Create(map);
             }
         }
 
@@ -667,7 +666,7 @@ namespace StackExchange.Redis
 
         private string InferSslHostFromEndpoints() {
             var dnsEndpoints = endpoints.Select(endpoint => endpoint as DnsEndPoint);
-            string dnsHost = dnsEndpoints.First() != null ? dnsEndpoints.First().Host : null;
+            string dnsHost = dnsEndpoints.FirstOrDefault()?.Host;
             if (dnsEndpoints.All(dnsEndpoint => (dnsEndpoint != null && dnsEndpoint.Host == dnsHost))) {
                 return dnsHost;
             }

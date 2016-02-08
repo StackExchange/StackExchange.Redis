@@ -1,77 +1,37 @@
 ﻿using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Net;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
     class ProfileStorage : IProfiledCommand
     {
         #region IProfiledCommand Impl
-        public EndPoint EndPoint
-        {
-            get { return Server.EndPoint; }
-        }
+        public EndPoint EndPoint => Server.EndPoint;
 
-        public int Db
-        {
-            get { return Message.Db; }
-        }
+        public int Db => Message.Db;
 
-        public string Command
-        {
-            get { return Message.Command.ToString(); }
-        }
+        public string Command => Message.Command.ToString();
 
-        public CommandFlags Flags
-        {
-            get { return Message.Flags; }
-        }
+        public CommandFlags Flags => Message.Flags;
 
-        public DateTime CommandCreated
-        {
-            get { return MessageCreatedDateTime; }
-        }
+        public DateTime CommandCreated => MessageCreatedDateTime;
 
-        public TimeSpan CreationToEnqueued
-        {
-            get { return TimeSpan.FromTicks(EnqueuedTimeStamp - MessageCreatedTimeStamp); }
-        }
+        public TimeSpan CreationToEnqueued => TimeSpan.FromTicks(EnqueuedTimeStamp - MessageCreatedTimeStamp);
 
-        public TimeSpan EnqueuedToSending
-        {
-            get { return TimeSpan.FromTicks(RequestSentTimeStamp - EnqueuedTimeStamp); }
-        }
+        public TimeSpan EnqueuedToSending => TimeSpan.FromTicks(RequestSentTimeStamp - EnqueuedTimeStamp);
 
-        public TimeSpan SentToResponse
-        {
-            get { return TimeSpan.FromTicks(ResponseReceivedTimeStamp - RequestSentTimeStamp); }
-        }
+        public TimeSpan SentToResponse => TimeSpan.FromTicks(ResponseReceivedTimeStamp - RequestSentTimeStamp);
 
-        public TimeSpan ResponseToCompletion
-        {
-            get { return TimeSpan.FromTicks(CompletedTimeStamp - ResponseReceivedTimeStamp); }
-        }
+        public TimeSpan ResponseToCompletion => TimeSpan.FromTicks(CompletedTimeStamp - ResponseReceivedTimeStamp);
 
-        public TimeSpan ElapsedTime
-        {
-            get { return TimeSpan.FromTicks(CompletedTimeStamp - MessageCreatedTimeStamp); }
-        }
+        public TimeSpan ElapsedTime => TimeSpan.FromTicks(CompletedTimeStamp - MessageCreatedTimeStamp);
 
-        public IProfiledCommand RetransmissionOf
-        {
-            get { return OriginalProfiling; }
-        }
+        public IProfiledCommand RetransmissionOf => OriginalProfiling;
 
-        public RetransmissionReasonType? RetransmissionReason
-        {
-            get { return Reason; }
-        }
+        public RetransmissionReasonType? RetransmissionReason { get; }
+
         #endregion
 
         public ProfileStorage NextElement { get; set; }
@@ -79,7 +39,6 @@ namespace StackExchange.Redis
         private Message Message;
         private ServerEndPoint Server;
         private ProfileStorage OriginalProfiling;
-        private RetransmissionReasonType? Reason;
 
         private DateTime MessageCreatedDateTime;
         private long MessageCreatedTimeStamp;
@@ -95,7 +54,7 @@ namespace StackExchange.Redis
             PushToWhenFinished = pushTo;
             OriginalProfiling = resentFor;
             Server = server;
-            Reason = reason;
+            RetransmissionReason = reason;
         }
 
         public static ProfileStorage NewWithContext(ConcurrentProfileStorageCollection pushTo, ServerEndPoint server)
@@ -159,30 +118,17 @@ namespace StackExchange.Redis
         public override string ToString()
         {
             return
-                string.Format(
-@"EndPoint = {0}
-Db = {1}
-Command = {2}
-CommandCreated = {3:u}
-CreationToEnqueued = {4}
-EnqueuedToSending = {5}
-SentToResponse = {6}
-ResponseToCompletion = {7}
-ElapsedTime = {8}
-Flags = {9}
-RetransmissionOf = ({10})",
-                  EndPoint,
-                  Db,
-                  Command,
-                  CommandCreated,
-                  CreationToEnqueued,
-                  EnqueuedToSending,
-                  SentToResponse,
-                  ResponseToCompletion,
-                  ElapsedTime,
-                  Flags,
-                  RetransmissionOf
-                );
+                $@"EndPoint = {EndPoint}
+Db = {Db}
+Command = {Command}
+CommandCreated = {CommandCreated:u}
+CreationToEnqueued = {CreationToEnqueued}
+EnqueuedToSending = {EnqueuedToSending}
+SentToResponse = {SentToResponse}
+ResponseToCompletion = {ResponseToCompletion}
+ElapsedTime = {ElapsedTime}
+Flags = {Flags}
+RetransmissionOf = ({RetransmissionOf})";
         }
     }
 }

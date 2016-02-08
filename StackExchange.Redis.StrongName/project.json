@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0-alpha2",
+  "version": "1.1.572-alpha",
   "description": "High performance Redis client, incorporating both synchronous and asynchronous usage.",
   "authors": [ "Stack Exchange inc., marc.gravell" ],
   "owners": [ "marc.gravell" ],
@@ -68,6 +68,7 @@
         "System.Reflection.Emit.Lightweight": "4.0.1-beta-23516",
         "System.Reflection.Primitives": "4.0.1-beta-23516",
         "System.Reflection.TypeExtensions": "4.1.0-beta-23516",
+        "System.Runtime.InteropServices.RuntimeInformation": "4.0.0-beta-23516",
         "System.Security.Cryptography.Algorithms": "4.0.0-beta-23516",
         "System.Security.Cryptography.X509Certificates": "4.0.0-beta-23516",
         "System.Text.Encoding": "4.0.11-beta-23516",
@@ -103,6 +104,7 @@
         "System.Reflection.Emit.Lightweight": "4.0.1-beta-23516",
         "System.Reflection.Primitives": "4.0.1-beta-23516",
         "System.Reflection.TypeExtensions": "4.1.0-beta-23516",
+        "System.Runtime.InteropServices.RuntimeInformation": "4.0.0-beta-23516",
         "System.Security.Cryptography.Algorithms": "4.0.0-beta-23516",
         "System.Security.Cryptography.X509Certificates": "4.0.0-beta-23516",
         "System.Text.Encoding": "4.0.11-beta-23516",

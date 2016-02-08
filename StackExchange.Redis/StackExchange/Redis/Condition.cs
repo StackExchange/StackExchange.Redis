@@ -18,7 +18,7 @@ namespace StackExchange.Redis
         /// </summary>
         public static Condition HashEqual(RedisKey key, RedisValue hashField, RedisValue value)
         {
-            if (hashField.IsNull) throw new ArgumentNullException("hashField");
+            if (hashField.IsNull) throw new ArgumentNullException(nameof(hashField));
             if (value.IsNull) return HashNotExists(key, hashField);
             return new EqualsCondition(key, hashField, true, value);
         }
@@ -28,7 +28,7 @@ namespace StackExchange.Redis
         /// </summary>
         public static Condition HashExists(RedisKey key, RedisValue hashField)
         {
-            if (hashField.IsNull) throw new ArgumentNullException("hashField");
+            if (hashField.IsNull) throw new ArgumentNullException(nameof(hashField));
             return new ExistsCondition(key, hashField, true);
         }
 
@@ -37,7 +37,7 @@ namespace StackExchange.Redis
         /// </summary>
         public static Condition HashNotEqual(RedisKey key, RedisValue hashField, RedisValue value)
         {
-            if (hashField.IsNull) throw new ArgumentNullException("hashField");
+            if (hashField.IsNull) throw new ArgumentNullException(nameof(hashField));
             if (value.IsNull) return HashExists(key, hashField);
             return new EqualsCondition(key, hashField, false, value);
         }
@@ -47,7 +47,7 @@ namespace StackExchange.Redis
         /// </summary>
         public static Condition HashNotExists(RedisKey key, RedisValue hashField)
         {
-            if (hashField.IsNull) throw new ArgumentNullException("hashField");
+            if (hashField.IsNull) throw new ArgumentNullException(nameof(hashField));
             return new ExistsCondition(key, hashField, false);
         }
 
@@ -136,7 +136,7 @@ namespace StackExchange.Redis
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
                 var msg = message as ConditionMessage;
-                var condition = msg == null ? null : msg.Condition;
+                var condition = msg?.Condition;
                 bool final;
                 if (condition != null && condition.TryValidate(result, out final))
                 {
@@ -307,7 +307,7 @@ namespace StackExchange.Redis
             private readonly RedisKey key;
             public ListCondition(RedisKey key, long index, bool expectedResult, RedisValue? expectedValue)
             {
-                if (key.IsNull) throw new ArgumentException("key");
+                if (key.IsNull) throw new ArgumentException(nameof(key));
                 this.key = key;
                 this.index = index;
                 this.expectedResult = expectedResult;
@@ -371,7 +371,7 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed class ConditionResult
     {
-internal readonly Condition Condition;
+        internal readonly Condition Condition;
 
         private ResultBox<bool> resultBox;
 
@@ -386,7 +386,8 @@ internal readonly Condition Condition;
         /// <summary>
         /// Indicates whether the condition was satisfied
         /// </summary>
-        public bool WasSatisfied { get { return wasSatisfied; } }
+        public bool WasSatisfied => wasSatisfied;
+
         internal IEnumerable<Message> CreateMessages(int db)
         {
             return Condition.CreateMessages(db, resultBox);

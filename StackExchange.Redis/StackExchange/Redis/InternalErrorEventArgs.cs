@@ -9,55 +9,41 @@ namespace StackExchange.Redis
     /// </summary>
     public class InternalErrorEventArgs : EventArgs, ICompletable
     {
-        private readonly ConnectionType connectionType;
-        private readonly EndPoint endpoint;
-        private readonly Exception exception;
         private readonly EventHandler<InternalErrorEventArgs> handler;
-        private readonly string origin;
         private readonly object sender;
         internal InternalErrorEventArgs(EventHandler<InternalErrorEventArgs> handler, object sender, EndPoint endpoint, ConnectionType connectionType, Exception exception, string origin)
         {
             this.handler = handler;
             this.sender = sender;
-            this.endpoint = endpoint;
-            this.connectionType = connectionType;
-            this.exception = exception;
-            this.origin = origin;
+            EndPoint = endpoint;
+            ConnectionType = connectionType;
+            Exception = exception;
+            Origin = origin;
         }
         /// <summary>
         /// Gets the connection-type of the failing connection
         /// </summary>
-        public ConnectionType ConnectionType
-        {
-            get { return connectionType; }
-        }
+        public ConnectionType ConnectionType { get; }
 
         /// <summary>
         /// Gets the failing server-endpoint (this can be null)
         /// </summary>
-        public EndPoint EndPoint
-        {
-            get { return endpoint; }
-        }
+        public EndPoint EndPoint { get; }
+
         /// <summary>
         /// Gets the exception if available (this can be null)
         /// </summary>
-        public Exception Exception
-        {
-            get { return exception; }
-        }
+        public Exception Exception { get; }
 
         /// <summary>
         /// The underlying origin of the error
         /// </summary>
-        public string Origin
-        {
-            get { return origin; }
-        }
+        public string Origin { get; }
+
         void ICompletable.AppendStormLog(StringBuilder sb)
         {
-            sb.Append("event, internal-error: ").Append(origin);
-            if (endpoint != null) sb.Append(", ").Append(Format.ToString(endpoint));
+            sb.Append("event, internal-error: ").Append(Origin);
+            if (EndPoint != null) sb.Append(", ").Append(Format.ToString(EndPoint));
         }
 
         bool ICompletable.TryComplete(bool isAsync)

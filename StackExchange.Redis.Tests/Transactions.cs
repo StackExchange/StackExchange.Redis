@@ -333,12 +333,12 @@ namespace StackExchange.Redis.Tests
                 var g = db.KeyExists(key);
                 
 
-                Assert.AreEqual(10, await a);
-                Assert.AreEqual(15, await b);
-                Assert.AreEqual(15, (long)await c);
-                Assert.IsTrue(await d);
-                Assert.IsTrue(await e);
-                Assert.IsFalse(await f);
+                Assert.AreEqual(10, await a.ConfigureAwait(false));
+                Assert.AreEqual(15, await b.ConfigureAwait(false));
+                Assert.AreEqual(15, (long)await c.ConfigureAwait(false));
+                Assert.IsTrue(await d.ConfigureAwait(false));
+                Assert.IsTrue(await e.ConfigureAwait(false));
+                Assert.IsFalse(await f.ConfigureAwait(false));
                 Assert.IsFalse(g);
             }
         }

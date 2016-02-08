@@ -11,13 +11,13 @@ namespace StackExchange.Redis
 
         internal CommandTrace(long uniqueId, long time, long duration, RedisValue[] arguments)
         {
-            this.UniqueId = uniqueId;
-            this.Time = RedisBase.UnixEpoch.AddSeconds(time);
+            UniqueId = uniqueId;
+            Time = RedisBase.UnixEpoch.AddSeconds(time);
             // duration = The amount of time needed for its execution, in microseconds.
             // A tick is equal to 100 nanoseconds, or one ten-millionth of a second. 
             // So 1 microsecond = 10 ticks
-            this.Duration = TimeSpan.FromTicks(duration * 10);
-            this.Arguments = arguments;
+            Duration = TimeSpan.FromTicks(duration * 10);
+            Arguments = arguments;
         }
 
         /// <summary>

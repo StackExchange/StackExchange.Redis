@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 #if CORE_CLR
 using System.Reflection;
 #endif
@@ -448,7 +447,7 @@ namespace StackExchange.Redis.Tests
                           .ContinueWith(
                             async _ =>
                             {
-                                return (string)(await db.StringGetAsync("foo" + i));
+                                return (string)(await db.StringGetAsync("foo" + i).ConfigureAwait(false));
                             }
                           );
 

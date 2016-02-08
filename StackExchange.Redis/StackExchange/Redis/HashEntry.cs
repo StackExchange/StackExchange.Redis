@@ -22,11 +22,12 @@ namespace StackExchange.Redis
         /// <summary>
         /// The name of the hash field
         /// </summary>
-        public RedisValue Name { get { return name; } }
+        public RedisValue Name => name;
+
         /// <summary>
         /// The value of the hash field
         /// </summary>
-        public RedisValue Value{ get { return value; } }
+        public RedisValue Value => value;
 
         /// <summary>
         /// The name of the hash field
@@ -79,7 +80,7 @@ namespace StackExchange.Redis
         /// </summary>
         public bool Equals(HashEntry value)
         {
-            return this.name == value.name && this.value == value.value;
+            return name == value.name && this.value == value.value;
         }
         /// <summary>
         /// Compares two values for equality

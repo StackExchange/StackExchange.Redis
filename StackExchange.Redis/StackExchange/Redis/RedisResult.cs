@@ -38,7 +38,7 @@ namespace StackExchange.Redis
                 }
             } catch(Exception ex)
             {
-                if(connection != null) connection.OnInternalError(ex);
+                connection?.OnInternalError(ex);
                 return null; // will be logged as a protocol fail by the processor
             }
         }
@@ -174,14 +174,11 @@ namespace StackExchange.Redis
         internal abstract string[] AsStringArray();
         private sealed class ArrayRedisResult : RedisResult
         {
-            public override bool IsNull
-            {
-                get { return value == null; }
-            }
+            public override bool IsNull => value == null;
             private readonly RedisResult[] value;
             public ArrayRedisResult(RedisResult[] value)
             {
-                if (value == null) throw new ArgumentNullException("value");
+                if (value == null) throw new ArgumentNullException(nameof(value));
                 this.value = value;
             }
             public override string ToString()
@@ -282,13 +279,10 @@ namespace StackExchange.Redis
             private readonly string value;
             public ErrorRedisResult(string value)
             {
-                if (value == null) throw new ArgumentNullException("value");
+                if (value == null) throw new ArgumentNullException(nameof(value));
                 this.value = value;
             }
-            public override bool IsNull
-            {
-                get { return value == null; }
-            }
+            public override bool IsNull => value == null;
             public override string ToString() { return value; }
             internal override bool AsBoolean() { throw new RedisServerException(value); }
 
@@ -340,10 +334,7 @@ namespace StackExchange.Redis
                 this.value = value;
             }
 
-            public override bool IsNull
-            {
-                get { return value.IsNull; }
-            }
+            public override bool IsNull => value.IsNull;
 
             public override string ToString() { return value.ToString(); }
             internal override bool AsBoolean() { return (bool)value; }

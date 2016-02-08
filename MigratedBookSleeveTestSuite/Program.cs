@@ -170,8 +170,7 @@ namespace Tests
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false, Inherited = false)]
 public sealed class ActiveTestAttribute : Attribute
 {
-    private readonly int count;
-    public int Count { get { return count; } }
+    public int Count { get; }
     public ActiveTestAttribute() : this(1) { }
-    public ActiveTestAttribute(int count) { this.count = count; }
+    public ActiveTestAttribute(int count) { this.Count = count; }
 }

@@ -17,7 +17,7 @@ namespace StackExchange.Redis
         }
         static partial void OnAllocated()
         {
-            Interlocked.Increment(ref ResultBox.allocations);
+            Interlocked.Increment(ref allocations);
         }
     }
     partial interface IServer
@@ -103,17 +103,17 @@ namespace StackExchange.Redis
         internal void SimulateConnectionFailure()
         {
             var tmp = interactive;
-            if (tmp != null) tmp.SimulateConnectionFailure();
+            tmp?.SimulateConnectionFailure();
             tmp = subscription;
-            if (tmp != null) tmp.SimulateConnectionFailure();
+            tmp?.SimulateConnectionFailure();
         }
         internal string ListPending(int maxCount)
         {
             var sb = new StringBuilder();
             var tmp = interactive;
-            if (tmp != null) tmp.ListPending(sb, maxCount);
+            tmp?.ListPending(sb, maxCount);
             tmp = subscription;
-            if (tmp != null) tmp.ListPending(sb, maxCount);
+            tmp?.ListPending(sb, maxCount);
             return sb.ToString();
         }
     }
@@ -231,12 +231,11 @@ namespace StackExchange.Redis
     {
         internal void SimulateConnectionFailure()
         {
-            if (!multiplexer.RawConfig.AllowAdmin)
+            if (!Multiplexer.RawConfig.AllowAdmin)
             {
-                throw ExceptionFactory.AdminModeNotEnabled(multiplexer.IncludeDetailInExceptions, RedisCommand.DEBUG, null, serverEndPoint); // close enough
+                throw ExceptionFactory.AdminModeNotEnabled(Multiplexer.IncludeDetailInExceptions, RedisCommand.DEBUG, null, ServerEndPoint); // close enough
             }
-            var tmp = physical;
-            if (tmp != null) tmp.RecordConnectionFailed(ConnectionFailureType.SocketFailure);
+            physical?.RecordConnectionFailed(ConnectionFailureType.SocketFailure);
         }
         internal void ListPending(StringBuilder sb, int maxCount)
         {
@@ -248,20 +247,18 @@ namespace StackExchange.Redis
     {
         partial void OnDebugAbort()
         {
-            if (!multiplexer.AllowConnect)
+            if (!Multiplexer.AllowConnect)
             {
                 throw new RedisConnectionException(ConnectionFailureType.InternalFailure, "debugging");
             }
         }
 
-        bool ISocketCallback.IgnoreConnect
-        {
-            get { return multiplexer.IgnoreConnect; }
-        }
+        bool ISocketCallback.IgnoreConnect => Multiplexer.IgnoreConnect;
 
-        private volatile static bool emulateStaleConnection;
+        private static volatile bool emulateStaleConnection;
         public static bool EmulateStaleConnection 
-        { get
+        {
+            get
             {
                 return emulateStaleConnection;
             }

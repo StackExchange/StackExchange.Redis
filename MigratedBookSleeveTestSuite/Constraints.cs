@@ -35,7 +35,7 @@ namespace Tests
 
         public async Task<long?> ManualIncr(IDatabase connection, string key)
         {
-            var oldVal = (long?)await connection.StringGetAsync(key);
+            var oldVal = (long?)await connection.StringGetAsync(key).ConfigureAwait(false);
             var newVal = (oldVal ?? 0) + 1;
             var tran = connection.CreateTransaction();
             { // check hasn't changed
@@ -44,7 +44,7 @@ namespace Tests
                 tran.AddCondition(Condition.StringEqual(key, oldVal));
                 tran.StringSetAsync(key, newVal);
 #pragma warning restore 4014
-                if (!await tran.ExecuteAsync()) return null; // aborted
+                if (!await tran.ExecuteAsync().ConfigureAwait(false)) return null; // aborted
                 return newVal;
             }
         }

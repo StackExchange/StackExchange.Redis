@@ -41,12 +41,12 @@ namespace StackExchange.Redis.KeyspaceIsolation
         {
             if (database == null)
             {
-                throw new ArgumentNullException("database");
+                throw new ArgumentNullException(nameof(database));
             }
 
             if (keyPrefix.IsNull)
             {
-                throw new ArgumentNullException("keyPrefix");
+                throw new ArgumentNullException(nameof(keyPrefix));
             }
 
             if (keyPrefix.IsEmpty)

@@ -1,10 +1,4 @@
 ﻿using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
@@ -24,7 +18,7 @@ namespace StackExchange.Redis
         /// </summary>
         public void RegisterProfiler(IProfiler profiler)
         {
-            if (profiler == null) throw new ArgumentNullException("profiler");
+            if (profiler == null) throw new ArgumentNullException(nameof(profiler));
             if (this.profiler != null) throw new InvalidOperationException("IProfiler already registered for this ConnectionMultiplexer");
 
             this.profiler = profiler;
@@ -44,8 +38,8 @@ namespace StackExchange.Redis
         public void BeginProfiling(object forContext)
         {
             if (profiler == null) throw new InvalidOperationException("Cannot begin profiling if no IProfiler has been registered with RegisterProfiler");
-            if (forContext == null) throw new ArgumentNullException("forContext");
-            if (forContext is WeakReference) throw new ArgumentException("Context object cannot be a WeakReference", "forContext");
+            if (forContext == null) throw new ArgumentNullException(nameof(forContext));
+            if (forContext is WeakReference) throw new ArgumentException("Context object cannot be a WeakReference", nameof(forContext));
 
             if (!profiledCommands.TryCreate(forContext))
             {
@@ -61,7 +55,7 @@ namespace StackExchange.Redis
         public ProfiledCommandEnumerable FinishProfiling(object forContext, bool allowCleanupSweep = true)
         {
             if (profiler == null) throw new InvalidOperationException("Cannot begin profiling if no IProfiler has been registered with RegisterProfiler");
-            if (forContext == null) throw new ArgumentNullException("forContext");
+            if (forContext == null) throw new ArgumentNullException(nameof(forContext));
 
             ProfiledCommandEnumerable ret;
             if (!profiledCommands.TryRemove(forContext, out ret))

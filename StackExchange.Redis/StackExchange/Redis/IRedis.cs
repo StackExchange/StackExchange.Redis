@@ -43,7 +43,7 @@ namespace StackExchange.Redis
     {
         public IgnoreNamePrefixAttribute(bool ignoreEntireMethod = false)
         {
-            this.IgnoreEntireMethod = ignoreEntireMethod;
+            IgnoreEntireMethod = ignoreEntireMethod;
         }
 
         public bool IgnoreEntireMethod { get; private set; }

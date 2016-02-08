@@ -909,21 +909,20 @@ namespace StackExchange.Redis
     /// </summary>
     public struct RedisValueWithExpiry
     {
-        private readonly TimeSpan? expiry;
-        private readonly RedisValue value;
         internal RedisValueWithExpiry(RedisValue value, TimeSpan? expiry)
         {
-            this.value = value;
-            this.expiry = expiry;
+            Value = value;
+            Expiry = expiry;
         }
+
         /// <summary>
         /// The expiry of this record
         /// </summary>
-        public TimeSpan? Expiry { get { return expiry; } }
+        public TimeSpan? Expiry { get; }
 
         /// <summary>
         /// The value of this record
         /// </summary>
-        public RedisValue Value {  get {  return value; } }
+        public RedisValue Value { get; }
     }
 }

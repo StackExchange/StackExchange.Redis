@@ -34,12 +34,12 @@ namespace StackExchange.Redis
         /// <summary>
         /// The start of the range (inclusive)
         /// </summary>
-        public int From { get { return from; } }
+        public int From => from;
 
         /// <summary>
         /// The end of the range (inclusive)
         /// </summary>
-        public int To { get { return to; } }
+        public int To => to;
 
         /// <summary>
         /// Indicates whether two ranges are not equal
@@ -168,13 +168,12 @@ namespace StackExchange.Redis
     {
         private readonly Dictionary<EndPoint, ClusterNode> nodeLookup = new Dictionary<EndPoint, ClusterNode>();
 
-        private readonly EndPoint origin;
         private readonly ServerSelectionStrategy serverSelectionStrategy;
         internal ClusterConfiguration(ServerSelectionStrategy serverSelectionStrategy, string nodes, EndPoint origin)
         {
             // Beware: Any exception thrown here will wreak silent havoc like inability to connect to cluster nodes or non returning calls
             this.serverSelectionStrategy = serverSelectionStrategy;
-            this.origin = origin;
+            this.Origin = origin;
             using (var reader = new StringReader(nodes))
             {
                 string line;
@@ -191,7 +190,7 @@ namespace StackExchange.Redis
                     // make sure that things like clusterConfiguration[clusterConfiguration.Origin]
                     // will work as expected.
                     if (node.IsMyself)
-                        this.origin = node.EndPoint;
+                        this.Origin = node.EndPoint;
 
                     if (nodeLookup.ContainsKey(node.EndPoint))
                     {
@@ -227,12 +226,12 @@ namespace StackExchange.Redis
         /// Gets all nodes contained in the configuration
         /// </summary>
         /// <returns></returns>
-        public ICollection<ClusterNode> Nodes { get { return nodeLookup.Values; } }
+        public ICollection<ClusterNode> Nodes => nodeLookup.Values;
 
         /// <summary>
         /// The node that was asked for the configuration
         /// </summary>
-        public EndPoint Origin { get { return origin; } }
+        public EndPoint Origin { get; }
 
         /// <summary>
         /// Obtain the node relating to a specified endpoint
@@ -294,20 +293,6 @@ namespace StackExchange.Redis
 
         private readonly ClusterConfiguration configuration;
 
-        private readonly EndPoint endpoint;
-
-        private readonly bool isMyself;
-
-        private readonly bool isSlave;
-
-        private readonly bool isNoAddr;
-
-        private readonly bool isConnected;
-
-        private readonly string nodeId, parentNodeId, raw;
-
-        private readonly IList<SlotRange> slots;
-
         private IList<ClusterNode> children;
 
         private ClusterNode parent;
@@ -319,27 +304,27 @@ namespace StackExchange.Redis
         {
             // http://redis.io/commands/cluster-nodes
             this.configuration = configuration;
-            this.raw = raw;
+            this.Raw = raw;
             var parts = raw.Split(StringSplits.Space);
 
             var flags = parts[2].Split(StringSplits.Comma);
             
-            endpoint = Format.TryParseEndPoint(parts[1]);
+            EndPoint = Format.TryParseEndPoint(parts[1]);
             if (flags.Contains("myself"))
             {
-                isMyself = true;
-                if (endpoint == null)
+                IsMyself = true;
+                if (EndPoint == null)
                 {
                     // Unconfigured cluster nodes might report themselves as endpoint ":{port}",
                     // hence the origin fallback value to make sure that we can address them
-                    endpoint = origin;
+                    EndPoint = origin;
                 }
             }
 
-            nodeId = parts[0];
-            isSlave = flags.Contains("slave");
-            isNoAddr = flags.Contains("noaddr");
-            parentNodeId = string.IsNullOrWhiteSpace(parts[3]) ? null : parts[3];
+            NodeId = parts[0];
+            IsSlave = flags.Contains("slave");
+            IsNoAddr = flags.Contains("noaddr");
+            ParentNodeId = string.IsNullOrWhiteSpace(parts[3]) ? null : parts[3];
 
             List<SlotRange> slots = null;
 
@@ -352,8 +337,8 @@ namespace StackExchange.Redis
                     slots.Add(range);
                 }
             }
-            this.slots = slots == null ? NoSlots : slots.AsReadOnly();
-            this.isConnected = parts[7] == "connected"; // Can be "connected" or "disconnected"
+            this.Slots = slots?.AsReadOnly() ?? NoSlots;
+            this.IsConnected = parts[7] == "connected"; // Can be "connected" or "disconnected"
         }
         /// <summary>
         /// Gets all child nodes of the current node
@@ -367,13 +352,13 @@ namespace StackExchange.Redis
                 List<ClusterNode> nodes = null;
                 foreach (var node in configuration.Nodes)
                 {
-                    if (node.parentNodeId == this.nodeId)
+                    if (node.ParentNodeId == this.NodeId)
                     {
                         if (nodes == null) nodes = new List<ClusterNode>();
                         nodes.Add(node);
                     }
                 }
-                children = nodes == null ? NoNodes : nodes.AsReadOnly();
+                children = nodes?.AsReadOnly() ?? NoNodes;
                 return children;
             }
         }
@@ -381,32 +366,32 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets the endpoint of the current node
         /// </summary>
-        public EndPoint EndPoint { get { return endpoint; } }
+        public EndPoint EndPoint { get; }
 
         /// <summary>
         /// Gets whether this is the node which responded to the CLUSTER NODES request
         /// </summary>
-        public bool IsMyself { get { return isMyself; } }
+        public bool IsMyself { get; }
 
         /// <summary>
         /// Gets whether this node is a slave
         /// </summary>
-        public bool IsSlave { get { return isSlave; } }
+        public bool IsSlave { get; }
 
         /// <summary>
         /// Gets whether this node is flagged as noaddr
         /// </summary>
-        public bool IsNoAddr { get { return isNoAddr; } }
+        public bool IsNoAddr { get; }
 
         /// <summary>
         /// Gets the node's connection status
         /// </summary>
-        public bool IsConnected { get { return isConnected; } }
+        public bool IsConnected { get; }
 
         /// <summary>
         /// Gets the unique node-id of the current node
         /// </summary>
-        public string NodeId { get { return nodeId; } }
+        public string NodeId { get; }
 
         /// <summary>
         /// Gets the parent node of the current node
@@ -416,7 +401,7 @@ namespace StackExchange.Redis
             get
             {
                 if (parent != null) return parent == Dummy ? null : parent;
-                ClusterNode found = configuration[parentNodeId];
+                ClusterNode found = configuration[ParentNodeId];
                 parent = found ?? Dummy;
                 return found;
             }
@@ -425,17 +410,18 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets the unique node-id of the parent of the current node
         /// </summary>
-        public string ParentNodeId { get { return parentNodeId; } }
+        public string ParentNodeId { get; }
 
         /// <summary>
         /// The configuration as reported by the server
         /// </summary>
-        public string Raw { get { return raw; } }
+        public string Raw { get; }
 
         /// <summary>
         /// The slots owned by this server
         /// </summary>
-        public IList<SlotRange> Slots {  get {  return slots; } }
+        public IList<SlotRange> Slots { get; }
+
         /// <summary>
         /// Compares the current instance with another object of the same type and returns an integer that indicates whether the current instance precedes, follows, or occurs in the same position in the sort order as the other object.
         /// </summary>
@@ -443,14 +429,14 @@ namespace StackExchange.Redis
         {
             if (other == null) return -1;
 
-            if (this.isSlave != other.isSlave) return isSlave ? 1 : -1; // masters first
+            if (this.IsSlave != other.IsSlave) return IsSlave ? 1 : -1; // masters first
 
-            if (isSlave) // both slaves? compare by parent, so we get masters A, B, C and then slaves of A, B, C
+            if (IsSlave) // both slaves? compare by parent, so we get masters A, B, C and then slaves of A, B, C
             {
-                int i = string.CompareOrdinal(this.parentNodeId, other.parentNodeId);
+                int i = string.CompareOrdinal(this.ParentNodeId, other.ParentNodeId);
                 if (i != 0) return i;
             }
-            return string.CompareOrdinal(this.nodeId, other.nodeId);
+            return string.CompareOrdinal(this.NodeId, other.NodeId);
 
         }
 
@@ -486,12 +472,12 @@ namespace StackExchange.Redis
         public override string ToString()
         {
             if (toString != null) return toString;
-            var sb = new StringBuilder().Append(nodeId).Append(" at ").Append(endpoint);
-            if(isSlave)
+            var sb = new StringBuilder().Append(NodeId).Append(" at ").Append(EndPoint);
+            if(IsSlave)
             {
-                sb.Append(", slave of ").Append(parentNodeId);
+                sb.Append(", slave of ").Append(ParentNodeId);
                 var parent = Parent;
-                if (parent != null) sb.Append(" at ").Append(parent.endpoint);
+                if (parent != null) sb.Append(" at ").Append(parent.EndPoint);
             }
             var childCount = Children.Count;
             switch(childCount)
@@ -500,10 +486,10 @@ namespace StackExchange.Redis
                 case 1: sb.Append(", 1 slave"); break;
                 default: sb.Append(", ").Append(childCount).Append(" slaves"); break;
             }
-            if(slots.Count != 0)
+            if(Slots.Count != 0)
             {
                 sb.Append(", slots: ");
-                foreach(var slot in slots)
+                foreach(var slot in Slots)
                 {
                     sb.Append(slot).Append(' ');
                 }
@@ -513,7 +499,7 @@ namespace StackExchange.Redis
         }
         internal bool ServesSlot(int hashSlot)
         {
-            foreach (var slot in slots)
+            foreach (var slot in Slots)
             {
                 if (slot.Includes(hashSlot)) return true;
             }

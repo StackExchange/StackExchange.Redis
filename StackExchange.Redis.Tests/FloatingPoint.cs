@@ -70,15 +70,15 @@ namespace StackExchange.Redis.Tests
                 double sum = 0;
                 foreach (var value in incr)
                 {
-                    await db.StringIncrementAsync(key, value);
+                    await db.StringIncrementAsync(key, value).ConfigureAwait(false);
                     sum += value;
                 }
                 foreach (var value in decr)
                 {
-                    await db.StringDecrementAsync(key, value);
+                    await db.StringDecrementAsync(key, value).ConfigureAwait(false);
                     sum -= value;
                 }
-                var val = (double)await db.StringGetAsync(key);
+                var val = (double)await db.StringGetAsync(key).ConfigureAwait(false);
 
                 Assert.IsTrue(Within(sum, val, 0.0001));
             }
@@ -146,15 +146,15 @@ namespace StackExchange.Redis.Tests
                 double sum = 0;
                 foreach (var value in incr)
                 {
-                    await db.HashIncrementAsync(key, field, value);
+                    await db.HashIncrementAsync(key, field, value).ConfigureAwait(false);
                     sum += value;
                 }
                 foreach (var value in decr)
                 {
-                    await db.HashDecrementAsync(key, field, value);
+                    await db.HashDecrementAsync(key, field, value).ConfigureAwait(false);
                     sum -= value;
                 }
-                var val = (double)await db.HashGetAsync(key, field);
+                var val = (double)await db.HashGetAsync(key, field).ConfigureAwait(false);
 
                 Assert.IsTrue(Within(sum, val, 0.0001));
             }

@@ -6,10 +6,8 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
-
     partial class ConnectionMultiplexer
     {
-
         private readonly Dictionary<RedisChannel, Subscription> subscriptions = new Dictionary<RedisChannel, Subscription>();
 
         internal static bool TryCompleteHandler<T>(EventHandler<T> handler, object sender, T args, bool isAsync) where T : EventArgs
@@ -291,14 +289,14 @@ namespace StackExchange.Redis
 
         public long Publish(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None)
         {
-            if (channel.IsNullOrEmpty) throw new ArgumentNullException("channel");
+            if (channel.IsNullOrEmpty) throw new ArgumentNullException(nameof(channel));
             var msg = Message.Create(-1, flags, RedisCommand.PUBLISH, channel, message);
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
         public Task<long> PublishAsync(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None)
         {
-            if (channel.IsNullOrEmpty) throw new ArgumentNullException("channel");
+            if (channel.IsNullOrEmpty) throw new ArgumentNullException(nameof(channel));
             var msg = Message.Create(-1, flags, RedisCommand.PUBLISH, channel, message);
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
@@ -312,7 +310,7 @@ namespace StackExchange.Redis
         public Task SubscribeAsync(RedisChannel channel, Action<RedisChannel, RedisValue> handler, CommandFlags flags = CommandFlags.None)
         {
             
-            if (channel.IsNullOrEmpty) throw new ArgumentNullException("channel");
+            if (channel.IsNullOrEmpty) throw new ArgumentNullException(nameof(channel));
             return multiplexer.AddSubscription(channel, handler, flags, asyncState);
         }
 
@@ -320,7 +318,7 @@ namespace StackExchange.Redis
         public EndPoint SubscribedEndpoint(RedisChannel channel)
         {
             var server = multiplexer.GetSubscribedServer(channel);
-            return server == null ? null : server.EndPoint;
+            return server?.EndPoint;
         }
 
         public void Unsubscribe(RedisChannel channel, Action<RedisChannel, RedisValue> handler = null, CommandFlags flags = CommandFlags.None)
@@ -342,7 +340,7 @@ namespace StackExchange.Redis
 
         public Task UnsubscribeAsync(RedisChannel channel, Action<RedisChannel, RedisValue> handler = null, CommandFlags flags = CommandFlags.None)
         {
-            if (channel.IsNullOrEmpty) throw new ArgumentNullException("channel");
+            if (channel.IsNullOrEmpty) throw new ArgumentNullException(nameof(channel));
             return multiplexer.RemoveSubscription(channel, handler, flags, asyncState);
         }
     }
