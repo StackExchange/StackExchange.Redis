@@ -174,10 +174,7 @@ namespace StackExchange.Redis
         internal abstract string[] AsStringArray();
         private sealed class ArrayRedisResult : RedisResult
         {
-            public override bool IsNull
-            {
-                get { return value == null; }
-            }
+            public override bool IsNull => value == null;
             private readonly RedisResult[] value;
             public ArrayRedisResult(RedisResult[] value)
             {

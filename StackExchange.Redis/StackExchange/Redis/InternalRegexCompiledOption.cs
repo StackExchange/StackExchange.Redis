@@ -10,15 +10,13 @@ namespace StackExchange.Redis
     /// </summary>
     internal static class InternalRegexCompiledOption
     {
-        private static readonly RegexOptions RegexCompiledOption;
-
         static InternalRegexCompiledOption()
         {
 #if CORE_CLR
             if (!Enum.TryParse("Compiled", out RegexCompiledOption))
                 RegexCompiledOption = RegexOptions.None;
 #else
-            RegexCompiledOption = RegexOptions.Compiled;
+            Default = RegexOptions.Compiled;
 #endif
         }
 
@@ -28,12 +26,6 @@ namespace StackExchange.Redis
         /// This returns <see cref="System.Text.RegularExpressions.RegexOptions.Compiled"/> if it is supported; 
         /// <see cref="System.Text.RegularExpressions.RegexOptions.None"/> otherwise.
         /// </summary>
-        public static RegexOptions Default
-        {
-            get
-            {
-                return RegexCompiledOption;
-            }
-        }
+        public static RegexOptions Default { get; }
     }
 }

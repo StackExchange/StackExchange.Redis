@@ -44,15 +44,11 @@ namespace StackExchange.Redis
         {
             this.stateOrCompletionSource = stateOrCompletionSource;
         }
-        public object AsyncState
-        {
-            get
-            {
-                return stateOrCompletionSource is TaskCompletionSource<T>
-                    ? ((TaskCompletionSource<T>)stateOrCompletionSource).Task.AsyncState
-                    : stateOrCompletionSource;
-            }
-        }
+
+        public object AsyncState =>
+            stateOrCompletionSource is TaskCompletionSource<T>
+                ? ((TaskCompletionSource<T>) stateOrCompletionSource).Task.AsyncState
+                : stateOrCompletionSource;
 
         public static ResultBox<T> Get(object stateOrCompletionSource)
         {
