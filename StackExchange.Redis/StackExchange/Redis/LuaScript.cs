@@ -200,7 +200,7 @@ namespace StackExchange.Redis
                 throw new ArgumentOutOfRangeException(nameof(flags), "Loading a script cannot be FireAndForget");
             }
 
-            var hash = await server.ScriptLoadAsync(ExecutableScript, flags);
+            var hash = await server.ScriptLoadAsync(ExecutableScript, flags).ForAwait();
 
             return new LoadedLuaScript(this, hash);
         }
