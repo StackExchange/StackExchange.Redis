@@ -264,7 +264,7 @@ namespace StackExchange.Redis
                 Multiplexer.Trace("Enqueue: " + msg);
                 if (!TryEnqueue(msg, ServerEndPoint.IsSlave))
                 {
-                    OnInternalError(ExceptionFactory.NoConnectionAvailable(Multiplexer.IncludeDetailInExceptions, msg.Command, msg, ServerEndPoint));
+                    OnInternalError(ExceptionFactory.NoConnectionAvailable(Multiplexer.IncludeDetailInExceptions, msg.Command, msg, ServerEndPoint, Multiplexer.GetServerSnapshotsConnectionStateSummary()));
                 }
             }
         }

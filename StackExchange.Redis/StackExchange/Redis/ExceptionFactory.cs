@@ -67,10 +67,10 @@ namespace StackExchange.Redis
             return ex;
         }
 
-        internal static Exception NoConnectionAvailable(bool includeDetail, RedisCommand command, Message message, ServerEndPoint server)
+        internal static Exception NoConnectionAvailable(bool includeDetail, RedisCommand command, Message message, ServerEndPoint server, string serverSnapshotConnectionState)
         {
             string s = GetLabel(includeDetail, command, message);
-            var ex = new RedisConnectionException(ConnectionFailureType.UnableToResolvePhysicalConnection, "No connection is available to service this operation: " + s);
+            var ex = new RedisConnectionException(ConnectionFailureType.UnableToResolvePhysicalConnection, "No connection is available to service this operation: " + s + serverSnapshotConnectionState);
             if (includeDetail) AddDetail(ex, message, server, s);
             return ex;
         }

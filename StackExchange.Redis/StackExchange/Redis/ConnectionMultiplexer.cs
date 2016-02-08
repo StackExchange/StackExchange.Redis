@@ -295,7 +295,7 @@ namespace StackExchange.Redis
 
             if (server == null) throw new ArgumentNullException(nameof(server));
             var srv = new RedisServer(this, server, null);
-            if (!srv.IsConnected) throw ExceptionFactory.NoConnectionAvailable(IncludeDetailInExceptions, RedisCommand.SLAVEOF, null, server);
+            if (!srv.IsConnected) throw ExceptionFactory.NoConnectionAvailable(IncludeDetailInExceptions, RedisCommand.SLAVEOF, null, server, GetServerSnapshotsConnectionStateSummary());
 
             if (log == null) log = TextWriter.Null;
             CommandMap.AssertAvailable(RedisCommand.SLAVEOF);
@@ -1866,10 +1866,24 @@ namespace StackExchange.Redis
                 var source = ResultBox<T>.Get(tcs);
                 if (!TryPushMessageToBridge(message, processor, source, ref server))
                 {
-                    ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(IncludeDetailInExceptions, message.Command, message, server));
+                    ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(IncludeDetailInExceptions, message.Command, message, server, GetServerSnapshotsConnectionStateSummary()));
                 }
                 return tcs.Task;
             }
+        }
+
+        internal string GetServerSnapshotsConnectionStateSummary()
+        {
+            StringBuilder connectionStateSummary = new StringBuilder();
+            var temp = serverSnapshot;
+            for (int i = 0; i < temp.Length; i++)
+            {
+                connectionStateSummary.Append(" ;ServerEndpoint:");
+                connectionStateSummary.Append(temp[i].EndPoint.ToString());
+                connectionStateSummary.Append(" ConnectionState:");
+                connectionStateSummary.Append(temp[i].ConnectionState);
+            }
+            return connectionStateSummary.ToString();
         }
 
         internal static void ThrowFailed<T>(TaskCompletionSource<T> source, Exception unthrownException)
@@ -1907,7 +1921,7 @@ namespace StackExchange.Redis
                 {
                     if (!TryPushMessageToBridge(message, processor, source, ref server))
                     {
-                        throw ExceptionFactory.NoConnectionAvailable(IncludeDetailInExceptions, message.Command, message, server);
+                        throw ExceptionFactory.NoConnectionAvailable(IncludeDetailInExceptions, message.Command, message, server, GetServerSnapshotsConnectionStateSummary());
                     }
 
                     if (Monitor.Wait(source, timeoutMilliseconds))
