@@ -257,8 +257,8 @@ namespace StackExchange.Redis.Tests
 #endif
         protected static TimeSpan RunConcurrent(Action work, int threads, int timeout = 10000, [CallerMemberName] string caller = null)
         {
-            if (work == null) throw new ArgumentNullException("work");
-            if (threads < 1) throw new ArgumentOutOfRangeException("threads");
+            if (work == null) throw new ArgumentNullException(nameof(work));
+            if (threads < 1) throw new ArgumentOutOfRangeException(nameof(threads));
             if(string.IsNullOrWhiteSpace(caller)) caller = Me();
             Stopwatch watch = null;
             ManualResetEvent allDone = new ManualResetEvent(false);
