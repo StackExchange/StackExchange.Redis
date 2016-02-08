@@ -13,8 +13,10 @@ namespace StackExchange.Redis
         static InternalRegexCompiledOption()
         {
 #if CORE_CLR
-            if (!Enum.TryParse("Compiled", out RegexCompiledOption))
-                RegexCompiledOption = RegexOptions.None;
+            RegexOptions tmp; 
+            if (!Enum.TryParse("Compiled", out tmp))
+                tmp = RegexOptions.None;
+            Default = tmp;
 #else
             Default = RegexOptions.Compiled;
 #endif

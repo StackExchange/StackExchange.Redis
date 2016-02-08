@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0-alpha2",
+  "version": "1.1.572-alpha",
   "description": "High performance Redis client, incorporating both synchronous and asynchronous usage.",
   "authors": [ "Stack Exchange inc., marc.gravell" ],
   "owners": [ "marc.gravell" ],
