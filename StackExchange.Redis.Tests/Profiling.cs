@@ -447,7 +447,7 @@ namespace StackExchange.Redis.Tests
                           .ContinueWith(
                             async _ =>
                             {
-                                return (string)(await db.StringGetAsync("foo" + i));
+                                return (string)(await db.StringGetAsync("foo" + i).ConfigureAwait(false));
                             }
                           );
 

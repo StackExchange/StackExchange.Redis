@@ -170,7 +170,7 @@ namespace StackExchange.Redis.Tests
             {
                 Thread.Sleep(1000);
                 Debug.WriteLine("About to reconfigure.....");
-                await muxer.ConfigureAsync();
+                await muxer.ConfigureAsync().ConfigureAwait(false);
                 Debug.WriteLine("Reconfigured");
             }
         }
