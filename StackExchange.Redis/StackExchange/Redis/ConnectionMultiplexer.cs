@@ -813,8 +813,7 @@ namespace StackExchange.Redis
                 var muxer = multiplexerFactory();
                 killMe = muxer;
                 // note that task has timeouts internally, so it might take *just over* the regular timeout
-                // wrap into task to force async execution
-                var task = Factory.StartNew(() => muxer.ReconfigureAsync(true, false, log, null, "connect").Result);
+                var task = muxer.ReconfigureAsync(true, false, log, null, "connect");
 
                 if (!task.Wait(muxer.SyncConnectTimeout(true)))
                 {
