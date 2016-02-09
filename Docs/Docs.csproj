@@ -43,6 +43,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />
+    <None Include="ThreadPool.md" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="System" />
