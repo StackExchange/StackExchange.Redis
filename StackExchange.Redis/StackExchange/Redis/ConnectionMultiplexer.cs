@@ -1991,9 +1991,10 @@ namespace StackExchange.Redis
                         else
                         {
                             int inst, qu, qs, qc, wr, wq, @in, ar;
+#if FEATURE_SOCKET_MODE_POLL
                             var mgrState = socketManager.State;
                             var lastError = socketManager.LastErrorTimeRelative();
-
+#endif
                             var sb = new StringBuilder("Timeout performing ").Append(message.CommandAndKey);
                             data = new List<Tuple<string, string>> {Tuple.Create("Message", message.CommandAndKey)};
                             Action<string, string, string> add = (lk, sk, v) =>
@@ -2004,8 +2005,10 @@ namespace StackExchange.Redis
 
                             int queue = server.GetOutstandingCount(message.Command, out inst, out qu, out qs, out qc, out wr, out wq, out @in, out ar);
                             add("Instantaneous", "inst", inst.ToString());
+#if FEATURE_SOCKET_MODE_POLL
                             add("Manager-State", "mgr", mgrState.ToString());
                             add("Last-Error", "err", lastError);
+#endif
                             add("Queue-Length", "queue", queue.ToString());
                             add("Queue-Outstanding", "qu", qu.ToString());
                             add("Queue-Awaiting-Response", "qs", qs.ToString());

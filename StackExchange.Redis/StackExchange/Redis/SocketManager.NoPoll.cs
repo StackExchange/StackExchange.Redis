@@ -1,4 +1,4 @@
-﻿#if false
+﻿#if false //!FEATURE_SOCKET_MODE_POLL
 
 namespace StackExchange.Redis
 {

@@ -38,7 +38,15 @@ namespace StackExchange.Redis
 			}
 		}
 
-		#region CreateSslStream
+		public static bool RunningOnMonoUnix
+		{
+			get
+			{
+				return RunningOnMono && RunninOnUnix;
+			}
+		}
+
+#region CreateSslStream
 
 		/// <summary>
 		/// Creates the SSL stream, using EncryptionPolicy.RequireEncryption on platforms 
@@ -76,10 +84,10 @@ namespace StackExchange.Redis
 				userCertificateSelectionCallback) as SslStream;
 		}
 
-		#endregion
+#endregion
 
 #if !NET40
-		#region GetCompressionLevel
+#region GetCompressionLevel
 
 		/// <summary>
 		/// Gets the compression level from a string, avoiding a naming bug inside ancient mono versions.
@@ -101,7 +109,7 @@ namespace StackExchange.Redis
 				return (CompressionLevel)Enum.Parse(typeof(CompressionLevel), level.Replace("Optimal", "Optional"));
 			}
 		}
-		#endregion
+#endregion
 #endif
 	}
 }

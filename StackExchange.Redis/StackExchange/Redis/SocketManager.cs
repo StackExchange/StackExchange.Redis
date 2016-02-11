@@ -67,7 +67,7 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed partial class SocketManager : IDisposable
     {
-        internal static readonly SocketMode DefaultSocketMode = MonoHelper.RunninOnUnix ? SocketMode.Async : SocketMode.Poll;
+        internal static readonly SocketMode DefaultSocketMode = MonoHelper.RunningOnMonoUnix ? SocketMode.Async : SocketMode.Poll;
 
         internal enum ManagerState
         {
