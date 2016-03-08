@@ -542,7 +542,7 @@ namespace StackExchange.Redis
 
                 // no need to deny exec-sync here; will be complete before they see if
                 var tcs = TaskSource.Create<T>(asyncState);
-                ConnectionMultiplexer.ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(multiplexer.IncludeDetailInExceptions, message.Command, message, server));
+                ConnectionMultiplexer.ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(multiplexer.IncludeDetailInExceptions, message.Command, message, server, multiplexer.GetServerSnapShot()));
                 return tcs.Task;
             }
             return base.ExecuteAsync<T>(message, processor, server);
@@ -555,7 +555,7 @@ namespace StackExchange.Redis
             if (!server.IsConnected)
             {
                 if (message == null || message.IsFireAndForget) return default(T);
-                throw ExceptionFactory.NoConnectionAvailable(multiplexer.IncludeDetailInExceptions, message.Command, message, server);
+                throw ExceptionFactory.NoConnectionAvailable(multiplexer.IncludeDetailInExceptions, message.Command, message, server, multiplexer.GetServerSnapShot());
             }
             return base.ExecuteSync<T>(message, processor, server);
         }

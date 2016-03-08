@@ -16,7 +16,7 @@ namespace StackExchange.Redis
         CompetingWriter,
         NoConnection,
     }
-
+    
     sealed partial class PhysicalBridge : IDisposable
     {
         internal readonly string Name;
@@ -65,9 +65,12 @@ namespace StackExchange.Redis
             Disconnected
         }
 
+        public Exception LastException { get; private set; }
+
         public ConnectionType ConnectionType { get; }
 
         public bool IsConnected => state == (int)State.ConnectedEstablished;
+        
 
         public ConnectionMultiplexer Multiplexer { get; }
 
@@ -264,7 +267,7 @@ namespace StackExchange.Redis
                 Multiplexer.Trace("Enqueue: " + msg);
                 if (!TryEnqueue(msg, ServerEndPoint.IsSlave))
                 {
-                    OnInternalError(ExceptionFactory.NoConnectionAvailable(Multiplexer.IncludeDetailInExceptions, msg.Command, msg, ServerEndPoint));
+                    OnInternalError(ExceptionFactory.NoConnectionAvailable(Multiplexer.IncludeDetailInExceptions, msg.Command, msg, ServerEndPoint, Multiplexer.GetServerSnapShot()));
                 }
             }
         }
@@ -302,6 +305,7 @@ namespace StackExchange.Redis
         {
             if (reportNextFailure)
             {
+                LastException = innerException;
                 reportNextFailure = false; // until it is restored
                 var endpoint = ServerEndPoint.EndPoint;
                 Multiplexer.OnConnectionFailed(endpoint, ConnectionType, failureType, innerException, reconfigureNextFailure);
@@ -350,6 +354,7 @@ namespace StackExchange.Redis
             if (physical == connection && !isDisposed && ChangeState(State.ConnectedEstablishing, State.ConnectedEstablished))
             {
                 reportNextFailure = reconfigureNextFailure = true;
+                LastException = null;
                 Interlocked.Exchange(ref failConnectCount, 0);
                 ServerEndPoint.OnFullyEstablished(connection);
                 Multiplexer.RequestWrite(this, true);

@@ -781,9 +781,9 @@ namespace StackExchange.Redis
                     {
                         ssl.AuthenticateAsClient(host);
                     }
-                    catch (AuthenticationException)
+                    catch (AuthenticationException authexception)
                     {
-                        RecordConnectionFailed(ConnectionFailureType.AuthenticationFailure);
+                        RecordConnectionFailed(ConnectionFailureType.AuthenticationFailure, authexception);
                         Multiplexer.Trace("Encryption failure");
                         return SocketMode.Abort;
                     }

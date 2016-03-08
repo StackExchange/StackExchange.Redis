@@ -1,11 +1,19 @@
 ﻿using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Text;
 
 namespace StackExchange.Redis
 {
     internal static class ExceptionFactory
     {
         const string DataCommandKey = "redis-command",
-            DataServerKey = "redis-server";
+            DataServerKey = "redis-server",
+            DataServerEndpoint = "server-endpoint",
+            DataConnectionState = "connection-state",
+            DataLastFailure = "last-failure",
+            DataLastInnerException = "last-innerexception";
+
 
         internal static Exception AdminModeNotEnabled(bool includeDetail, RedisCommand command, Message message, ServerEndPoint server)
         {
@@ -67,12 +75,57 @@ namespace StackExchange.Redis
             return ex;
         }
 
-        internal static Exception NoConnectionAvailable(bool includeDetail, RedisCommand command, Message message, ServerEndPoint server)
+        internal static Exception NoConnectionAvailable(bool includeDetail, RedisCommand command, Message message, ServerEndPoint server, ServerEndPoint[] serverSnapshot)
         {
             string s = GetLabel(includeDetail, command, message);
-            var ex = new RedisConnectionException(ConnectionFailureType.UnableToResolvePhysicalConnection, "No connection is available to service this operation: " + s);
-            if (includeDetail) AddDetail(ex, message, server, s);
+
+            if (server != null)
+            {
+                //if we already have the serverEndpoint for connection failure use that
+                //otherwise it would output state of all the endpoints
+                serverSnapshot = new ServerEndPoint[] { server };
+            }
+            List<Exception> data;
+            string exceptionmessage = "No connection is available to service this operation: " + s + GetServerSnapShotLabel(serverSnapshot, out data);
+            var ex = new RedisConnectionException(ConnectionFailureType.UnableToResolvePhysicalConnection, exceptionmessage,new AggregateException(data));
+            if (includeDetail)
+            {
+                AddDetail(ex, message, server, s);
+            }
             return ex;
+        }
+
+        internal static string GetServerSnapShotLabel(ServerEndPoint[] serverSnapshot, out List<Exception> data)
+        {
+            List<Exception> exceptions = new List<Exception>();
+            StringBuilder connectionStateSummary = new StringBuilder();
+            Action<string, string> add = (k, v) =>
+             {
+                 connectionStateSummary.Append("; ");
+                 connectionStateSummary.Append(k);
+                 connectionStateSummary.Append(":");
+                 connectionStateSummary.Append(v);
+             };
+            if (serverSnapshot != null)
+            {
+                string serverSnapshotName;
+                for (int i = 0; i < serverSnapshot.Length; i++)
+                {
+                    serverSnapshotName = serverSnapshot[i].EndPoint.ToString();
+                    add(DataServerEndpoint, serverSnapshot[i].EndPoint.ToString());
+                    add(DataConnectionState, serverSnapshot[i].ConnectionState.ToString());
+                    
+                    if (serverSnapshot[i].LastException != null && serverSnapshot[i].LastException is RedisConnectionException)
+                    {
+                        var lastException = ((RedisConnectionException)serverSnapshot[i].LastException);
+                        exceptions.Add(lastException);
+                        add(DataLastFailure, lastException.FailureType.ToString());
+                        add(DataLastInnerException, lastException.InnerException?.Message);
+                    }
+                }
+            }
+            data = exceptions;
+            return connectionStateSummary.ToString();
         }
 
         internal static Exception NotSupported(bool includeDetail, RedisCommand command)
@@ -105,6 +158,7 @@ namespace StackExchange.Redis
 
                 if (server != null) exception.Data.Add(DataServerKey, Format.ToString(server.EndPoint));
             }
+            
         }
 
         static string GetLabel(bool includeDetail, RedisCommand command, Message message)
