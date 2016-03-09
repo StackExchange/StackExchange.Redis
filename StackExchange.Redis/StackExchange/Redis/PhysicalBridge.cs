@@ -70,7 +70,6 @@ namespace StackExchange.Redis
         public ConnectionType ConnectionType { get; }
 
         public bool IsConnected => state == (int)State.ConnectedEstablished;
-        
 
         public ConnectionMultiplexer Multiplexer { get; }
 
@@ -267,7 +266,7 @@ namespace StackExchange.Redis
                 Multiplexer.Trace("Enqueue: " + msg);
                 if (!TryEnqueue(msg, ServerEndPoint.IsSlave))
                 {
-                    OnInternalError(ExceptionFactory.NoConnectionAvailable(Multiplexer.IncludeDetailInExceptions, msg.Command, msg, ServerEndPoint, Multiplexer.GetServerSnapShot()));
+                    OnInternalError(ExceptionFactory.NoConnectionAvailable(Multiplexer.IncludeDetailInExceptions, msg.Command, msg, ServerEndPoint, Multiplexer.GetServerSnapshot()));
                 }
             }
         }

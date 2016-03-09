@@ -85,9 +85,8 @@ namespace StackExchange.Redis
                 //otherwise it would output state of all the endpoints
                 serverSnapshot = new ServerEndPoint[] { server };
             }
-            List<Exception> data;
-            string exceptionmessage = "No connection is available to service this operation: " + s + GetServerSnapShotLabel(serverSnapshot, out data);
-            var ex = new RedisConnectionException(ConnectionFailureType.UnableToResolvePhysicalConnection, exceptionmessage,new AggregateException(data));
+            string exceptionmessage = "No connection is available to service this operation: " + s ;
+            var ex = new RedisConnectionException(ConnectionFailureType.UnableToResolvePhysicalConnection, exceptionmessage, GetServerSnapshotInnerExceptions(serverSnapshot));
             if (includeDetail)
             {
                 AddDetail(ex, message, server, s);
@@ -95,37 +94,29 @@ namespace StackExchange.Redis
             return ex;
         }
 
-        internal static string GetServerSnapShotLabel(ServerEndPoint[] serverSnapshot, out List<Exception> data)
+        internal static Exception GetServerSnapshotInnerExceptions(ServerEndPoint[] serverSnapshot)
         {
-            List<Exception> exceptions = new List<Exception>();
-            StringBuilder connectionStateSummary = new StringBuilder();
-            Action<string, string> add = (k, v) =>
-             {
-                 connectionStateSummary.Append("; ");
-                 connectionStateSummary.Append(k);
-                 connectionStateSummary.Append(":");
-                 connectionStateSummary.Append(v);
-             };
+            List<Exception> innerExceptions = new List<Exception>();
             if (serverSnapshot != null)
             {
-                string serverSnapshotName;
                 for (int i = 0; i < serverSnapshot.Length; i++)
                 {
-                    serverSnapshotName = serverSnapshot[i].EndPoint.ToString();
-                    add(DataServerEndpoint, serverSnapshot[i].EndPoint.ToString());
-                    add(DataConnectionState, serverSnapshot[i].ConnectionState.ToString());
-                    
-                    if (serverSnapshot[i].LastException != null && serverSnapshot[i].LastException is RedisConnectionException)
+                    if (serverSnapshot[i].LastException != null)
                     {
-                        var lastException = ((RedisConnectionException)serverSnapshot[i].LastException);
-                        exceptions.Add(lastException);
-                        add(DataLastFailure, lastException.FailureType.ToString());
-                        add(DataLastInnerException, lastException.InnerException?.Message);
+                        var lastException = serverSnapshot[i].LastException;
+                        innerExceptions.Add(lastException);
                     }
                 }
             }
-            data = exceptions;
-            return connectionStateSummary.ToString();
+            if (innerExceptions.Count == 1)
+            {
+                return innerExceptions[0];
+            }
+            else if(innerExceptions.Count > 1)
+            {
+                return new AggregateException(innerExceptions);
+            }
+            return null;
         }
 
         internal static Exception NotSupported(bool includeDetail, RedisCommand command)
@@ -158,7 +149,6 @@ namespace StackExchange.Redis
 
                 if (server != null) exception.Data.Add(DataServerKey, Format.ToString(server.EndPoint));
             }
-            
         }
 
         static string GetLabel(bool includeDetail, RedisCommand command, Message message)

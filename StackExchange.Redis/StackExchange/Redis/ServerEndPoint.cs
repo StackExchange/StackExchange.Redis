@@ -119,9 +119,6 @@ namespace StackExchange.Redis
             }
         }
 
-
-
-
         public bool IsSlave { get { return isSlave; } set { SetConfig(ref isSlave, value); } }
 
         public long OperationCount
@@ -555,7 +552,7 @@ namespace StackExchange.Redis
             if (bridge == null) bridge = GetBridge(message.Command);
             if (!bridge.TryEnqueue(message, isSlave))
             {
-                ConnectionMultiplexer.ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(multiplexer.IncludeDetailInExceptions, message.Command, message, this, multiplexer.GetServerSnapShot()));
+                ConnectionMultiplexer.ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(multiplexer.IncludeDetailInExceptions, message.Command, message, this, multiplexer.GetServerSnapshot()));
             }
             return tcs.Task;
         }
