@@ -69,7 +69,7 @@ The entire range of [redis database commands](http://redis.io/commands) covering
 Using redis pub/sub
 ----
 
-Another common use of redis is as a [pub/sub message](http://redis.io/topics/pubsub) distribution tool; this too is simple, and in the event of connection failure, the `ConnectionMultiplexer` will handle all the details of re-subscribing to the requested channels.
+Another common use of redis is as a [pub/sub message](http://redis.io/topics/pubsub) distribution tool; this is also simple, and in the event of connection failure, the `ConnectionMultiplexer` will handle all the details of re-subscribing to the requested channels.
 
 ```C#
 ISubscriber sub = redis.GetSubscriber();
