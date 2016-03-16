@@ -26,6 +26,26 @@ namespace RedisCache.Tests
         }
 
         [Theory]
+        [InlineData("testprimary", "testvalue")]
+        public void Get_WithPrimaryKey(string kp, string v)
+        {
+            var mockRedis = FixtureFactory.GetMockRedis();
+            mockRedis.Setup(c => c.StringGet(kp)).Returns(v);
+            var cache = new RedisCache(mockRedis.Object);
+
+            var value = v;
+
+            var key1 = new RedisCacheKey(kp);
+
+            var result = cache.Get(key1);
+
+            Assert.NotNull(result);
+            Assert.Equal(value, result);
+
+            mockRedis.Verify(c => c.StringGet(kp), Times.Once());
+        }
+
+        [Theory]
         [InlineData("testprimary", "testsecondary", "testvalue")]
         public void Get_WithSecondaryKey(string kp, string ks, string v)
         {
@@ -43,6 +63,7 @@ namespace RedisCache.Tests
             Assert.Equal(value, result);
 
             mockRedis.Verify(c => c.StringGet(kp), Times.Once());
+            mockRedis.Verify(c => c.StringGet(ks), Times.Once());
         }
     }
 }

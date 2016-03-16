@@ -107,7 +107,7 @@ namespace RedisCache
         {
             var primaryKeys = RetrievePrimaryKeys(keys);
 
-            _cache.KeyDelete(primaryKeys.Select(key => (RedisKey)key).ToArray());
+            _cache.KeyDelete(primaryKeys.Where(key => !string.IsNullOrEmpty(key)).Select(key => (RedisKey)key).ToArray());
         }
 
         /// <summary>

@@ -4,55 +4,118 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Moq;
 using RedisCache;
+using StackExchange.Redis;
 using Xunit;
 
 namespace RedisCache.Tests
 {
     public class RemoveAll
     {
-        [Fact]
-        public void Remove_ReturnsNullAfter()
+        [Theory]
+        [MemberData("Data_Simple")]
+        [MemberData("Data_OnlySecondary")]
+        [MemberData("Data_MixedKeys")]
+        [MemberData("Data_Mixed_CacheMiss")]
+        public void RemoveAll_VariousData(RedisCacheKey[] keys, string[] missing, string[] primariesForMissing, string[] primaries)
         {
-            var cache = new RedisCache(new RedisCacheTestSettings());
+            var mockRedis = FixtureFactory.GetMockRedis();
+            var cache = new RedisCache(mockRedis.Object);
 
-            var key1 = new RedisCacheKey("remall-1-1");
-            var key2 = new RedisCacheKey("remall-1-2");
+            if (missing.Any())
+            {
+                RedisKey[] ksk = missing.Select(k => (RedisKey)k).ToArray();
+                RedisValue[] vsk = primariesForMissing.Select(v => (RedisValue)v).ToArray();
+                mockRedis.Setup(c => c.StringGet(ksk)).Returns(vsk);
+            }
 
-            var value1 = "foo";
-            var value2 = "bar";
+            cache.RemoveAll(keys.ToList());
 
-            cache.AddAll(new List<RedisCacheKey> { key1, key2 }, new List<string> { value1, value2 });
+            if (missing.Any())
+            {
+                RedisKey[] ksk = missing.Select(k => (RedisKey)k).ToArray();
+                mockRedis.Verify(c => c.StringGet(ksk), Times.Once());
+            }
 
-            var result = cache.GetAll(new List<RedisCacheKey> { key1, key2 });
-            Assert.Equal(2, result.Count);
+            RedisKey[] ks = primaries.Select(k => (RedisKey)k).ToArray();
+            mockRedis.Verify(c => c.KeyDelete(ks), Times.Once());
+        }
 
-            cache.RemoveAll(new List<RedisCacheKey> { key1, key2 });
-
-            result = cache.GetAll(new List<RedisCacheKey> { key1, key2 });
-            Assert.Equal(2, result.Count);
+        public static IEnumerable<object[]> Data_Simple
+        {
+            get
+            {
+                return new[]
+                {
+                new object[] {
+                    new[] {new RedisCacheKey("testkey1"), new RedisCacheKey("testkey2"), },
+                    new string[] {},
+                    new string[] {},
+                    new [] {"testkey1", "testkey2"},
+                },
+                new object[] {
+                    new[] {new RedisCacheKey("testkey1"), new RedisCacheKey("testkey2"), new RedisCacheKey("testkey3"), },
+                    new string[] {},
+                    new string[] {},
+                    new[] {"testkey1", "testkey2", "testkey3"},
+                }
+            };
+            }
         }
         
-        [Fact]
-        public void Remove_WithSecondaryKey()
+        public static IEnumerable<object[]> Data_OnlySecondary
         {
-            var cache = new RedisCache(new RedisCacheTestSettings());
+            get
+            {
+                return new[]
+                {
+                new object[] {
+                    new[] {new RedisCacheKey(new List<string> {"secondary1"}), new RedisCacheKey(new List<string> { "secondary2" })},
+                    new[] { "secondary1", "secondary2"},
+                    new[] {"primary1", "primary2"},
+                    new[] {"primary1", "primary2"},
+                }
+            };
+            }
+        }
 
-            var key = new RedisCacheKey("1234-5", "5678-5");
+        public static IEnumerable<object[]> Data_MixedKeys
+        {
+            get
+            {
+                return new[]
+                {
+                new object[] {
+                    new[] {new RedisCacheKey("primary1"), new RedisCacheKey(new List<string> { "secondary2" })},
+                    new[] {"secondary2"},
+                    new[] {"primary2"},
+                    new[] {"primary1", "primary2"},
+                },
+                new object[] {
+                    new[] { new RedisCacheKey(new List<string> { "secondary1" }), new RedisCacheKey("primary2"), new RedisCacheKey(new List<string> { "secondary3" })},
+                    new[] {"secondary1", "secondary3"},
+                    new[] {"primary1", "primary3"},
+                    new[] {"primary1", "primary2", "primary3"},
+                },
+            };
+            }
+        }
 
-            var value = "foo";
-
-            cache.Add(key, value);
-
-            var key2 = new RedisCacheKey(new List<string> { "5678-5" });
-
-            var result = cache.Get(key);
-            Assert.Equal(value, result);
-
-            cache.Remove(key2);
-
-            result = cache.Get(key);
-            Assert.Null(result);
+        public static IEnumerable<object[]> Data_Mixed_CacheMiss
+        {
+            get
+            {
+                return new[]
+                {
+                new object[] {
+                    new[] { new RedisCacheKey(new List<string> { "secondary1" }), new RedisCacheKey("primary2"), new RedisCacheKey(new List<string> { "secondary3" })},
+                    new[] {"secondary1", "secondary3"},
+                    new[] {"primary1", null},
+                    new[] {"primary1", "primary2"},
+                },
+            };
+            }
         }
     }
 }

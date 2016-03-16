@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Moq;
 using RedisCache;
 using Xunit;
 
@@ -10,47 +11,35 @@ namespace RedisCache.Tests
 {
     public class Remove
     {
-        [Fact]
-        public void Remove_ReturnsNullAfter()
+        [Theory]
+        [InlineData("testprimary")]
+        public void Remove_WithPrimaryKey(string kp)
         {
-            var cache = new RedisCache(new RedisCacheTestSettings());
+            var mockRedis = FixtureFactory.GetMockRedis();
+            var cache = new RedisCache(mockRedis.Object);
+            
+            var key1 = new RedisCacheKey(kp);
 
-            var key = new RedisCacheKey("1234-4");
-
-            var value = "foo";
-
-            cache.Add(key, value);
-
-            var result = cache.Get(key);
-            Assert.Equal(value, result);
-
-            cache.Remove(key);
-
-            result = cache.Get(key);
-            Assert.Null(result);
+            cache.Remove(key1);
+            
+            mockRedis.Verify(c => c.KeyDelete(kp), Times.Once());
         }
-        
 
-        [Fact]
-        public void Remove_WithSecondaryKey()
+        [Theory]
+        [InlineData("testprimary", "testsecondary")]
+        public void Remove_WithSecondaryKey(string kp, string ks)
         {
-            var cache = new RedisCache(new RedisCacheTestSettings());
-
-            var key = new RedisCacheKey("1234-5", "5678-5");
-
-            var value = "foo";
-
-            cache.Add(key, value);
-
-            var key2 = new RedisCacheKey(new List<string> { "5678-5" });
-
-            var result = cache.Get(key);
-            Assert.Equal(value, result);
+            var mockRedis = FixtureFactory.GetMockRedis();
+            mockRedis.Setup(c => c.StringGet(ks)).Returns(kp);
+            var cache = new RedisCache(mockRedis.Object);
+            
+            var key2 = new RedisCacheKey(new List<string> { ks });
 
             cache.Remove(key2);
 
-            result = cache.Get(key);
-            Assert.Null(result);
+            mockRedis.Verify(c => c.StringGet(ks), Times.Once());
+            mockRedis.Verify(c => c.KeyDelete(kp), Times.Once());
         }
+        
     }
 }
