@@ -22,6 +22,16 @@ namespace RedisCache
             Database.StringSet(primaryKey, value);
         }
 
+        public void Clear()
+        {
+            var endpoints = _connectionMultiplexer.GetEndPoints(true);
+            foreach (var endpoint in endpoints)
+            {
+                var server = _connectionMultiplexer.GetServer(endpoint);
+                server.FlushAllDatabases();
+            }
+        }
+
         public void StringSet(KeyValuePair<RedisKey, RedisValue>[] keyValueArray)
         {
             Database.StringSet(keyValueArray);

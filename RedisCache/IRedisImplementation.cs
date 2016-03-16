@@ -17,6 +17,7 @@ namespace RedisCache
 
         void KeyDelete(string primaryKey);
         void KeyDelete(RedisKey[] primaryKey);
-        
+
+        void Clear();
     }
 }

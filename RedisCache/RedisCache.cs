@@ -22,6 +22,11 @@ namespace RedisCache
             _cache = cache;
         }
 
+        public void Clear()
+        {
+            _cache.Clear();
+        }
+
         /// <summary>
         /// Add a serialized value to the redis database with a given key. The key is assumed to contain a primary key.
         /// </summary>
