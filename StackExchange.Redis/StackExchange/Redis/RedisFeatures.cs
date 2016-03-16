@@ -26,7 +26,8 @@ namespace StackExchange.Redis
                                          v2_8_0 = new Version(2, 8, 0),
                                          v2_8_12 = new Version(2, 8, 12),
                                          v2_8_18 = new Version(2, 8, 18),
-                                         v2_9_5 = new Version(2, 9, 5);
+                                         v2_9_5 = new Version(2, 9, 5),
+                                         v3_0_0 = new Version(3, 0, 0);
 
         private readonly Version version;
         /// <summary>

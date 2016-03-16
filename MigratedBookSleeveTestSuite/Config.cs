@@ -188,45 +188,59 @@ namespace Tests
         }
 
         [Test]
-        public void AbortConnectFalseForAzure()
+        public void ConfigurationOptionsDefaultForAzure()
         {
             var options = ConfigurationOptions.Parse("contoso.redis.cache.windows.net");
+            Assert.IsTrue(options.DefaultVersion.Equals(new Version(3, 0, 0)));
             Assert.IsFalse(options.AbortOnConnectFail);
         }
 
         [Test]
-        public void AbortConnectTrueForAzureWhenSpecified()
+        public void ConfigurationOptionsForAzureWhenSpecified()
         {
-            var options = ConfigurationOptions.Parse("contoso.redis.cache.windows.net,abortConnect=true");
+            var options = ConfigurationOptions.Parse("contoso.redis.cache.windows.net,abortConnect=true, version=2.1.1");
+            Assert.IsTrue(options.DefaultVersion.Equals(new Version(2, 1, 1)));
             Assert.IsTrue(options.AbortOnConnectFail);
         }
 
         [Test]
-        public void AbortConnectFalseForAzureChina()
+        public void ConfigurationOptionsDefaultForAzureChina()
         {
             // added a few upper case chars to validate comparison
             var options = ConfigurationOptions.Parse("contoso.REDIS.CACHE.chinacloudapi.cn");
+            Assert.IsTrue(options.DefaultVersion.Equals(new Version(3, 0, 0)));
             Assert.IsFalse(options.AbortOnConnectFail);
         }
 
         [Test]
-        public void AbortConnectFalseForAzureUSGov()
+        public void ConfigurationOptionsDefaultForAzureGermany()
+        {
+            var options = ConfigurationOptions.Parse("contoso.redis.cache.cloudapi.de");
+            Assert.IsTrue(options.DefaultVersion.Equals(new Version(3, 0, 0)));
+            Assert.IsFalse(options.AbortOnConnectFail);
+        }
+
+        [Test]
+        public void ConfigurationOptionsDefaultForAzureUSGov()
         {
             var options = ConfigurationOptions.Parse("contoso.redis.cache.usgovcloudapi.net");
+            Assert.IsTrue(options.DefaultVersion.Equals(new Version(3, 0, 0)));
             Assert.IsFalse(options.AbortOnConnectFail);
         }
 
         [Test]
-        public void AbortConnectTrueForNonAzure()
+        public void ConfigurationOptionsDefaultForNonAzure()
         {
             var options = ConfigurationOptions.Parse("redis.contoso.com");
+            Assert.IsTrue(options.DefaultVersion.Equals(new Version(2, 0, 0)));
             Assert.IsTrue(options.AbortOnConnectFail);
         }
 
         [Test]
-        public void AbortConnectDefaultWhenNoEndpointsSpecifiedYet()
+        public void ConfigurationOptionsDefaultWhenNoEndpointsSpecifiedYet()
         {
             var options = new ConfigurationOptions();
+            Assert.IsTrue(options.DefaultVersion.Equals(new Version(2, 0, 0)));
             Assert.IsTrue(options.AbortOnConnectFail);
         }
 
