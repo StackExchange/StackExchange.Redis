@@ -3,11 +3,12 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using RedisCache;
 using StackExchange.Redis;
 
 namespace RedisCache
 {
-    public class StackexchangeRedisImplementation :IRedisImplementation
+    internal class StackexchangeRedisImplementation :IRedisImplementation
     {
         private readonly ConnectionMultiplexer _connectionMultiplexer;
 
