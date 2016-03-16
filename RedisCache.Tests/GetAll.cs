@@ -4,34 +4,95 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using RedisCache;
+using StackExchange.Redis;
 using Xunit;
+using Xunit.Extensions;
 
 namespace RedisCache.Tests
 {
     public class GetAll
     {
-        [Fact]
-        public void Add_GetAll_ReturnsSame()
+        [Theory]
+        [MemberData("Data_Simple")]
+        [MemberData("Data_Simple_CacheMiss")]
+        [MemberData("Data_MixedKeys")]
+        public void Add_GetAll_ReturnsSame(RedisCacheKey[] keys, string[] missing, string[] primaries, string[] values)
         {
-            var cache = new RedisCache(new RedisCacheTestSettings());
+            var mockRedis = FixtureFactory.GetMockRedis();
+            var cache = new RedisCache(mockRedis.Object);
+            RedisKey[] ks = primaries.Select(k => (RedisKey)k).ToArray();
+            RedisValue[] vs = values.Select(v => (RedisValue) v).ToArray();
+            mockRedis.Setup(c => c.StringGet(ks)).Returns(vs);
 
+            if (missing.Any())
+            {
+                RedisKey[] ksk = missing.Select(k => (RedisKey)k).ToArray();
+                RedisValue[] vsk = primaries.Select(v => (RedisValue)v).ToArray();
+                mockRedis.Setup(c => c.StringGet(ksk)).Returns(vsk);
+            }
 
-            var key1 = new RedisCacheKey("getall-1-1");
-            var key2 = new RedisCacheKey("getall-1-2");
-
-            var value1 = "foo";
-            var value2 = "bar";
-
-            cache.Add(key1, value1);
-            cache.Add(key2, value2);
-
-            var result = cache.GetAll(new List<RedisCacheKey> { key1, key2 });
+            var result = cache.GetAll(keys.ToList());
 
             Assert.NotNull(result);
-            Assert.Equal(2, result.Count);
-            Assert.Contains(value1, result);
-            Assert.Contains(value2, result);
+            Assert.Equal(keys.Count(), result.Count);
+            Assert.Equal(values.ToList(), result);
         }
+
+        public static IEnumerable<object[]> Data_Simple
+        {
+            get
+            {
+                return new[]
+                {
+                new object[] {
+                    new[] {new RedisCacheKey("testkey1"), new RedisCacheKey("testkey2"), },
+                    new string[] {},
+                    new [] {"testkey1", "testkey2"},
+                    new[] {"testvalue1", "testvalue2"}
+                },
+                new object[] {
+                    new[] {new RedisCacheKey("testkey1"), new RedisCacheKey("testkey2"), new RedisCacheKey("testkey3"), },
+                    new string[] {},
+                    new[] {"testkey1", "testkey2", "testkey3"},
+                    new[] { "testvalue1", "testvalue2", "testvalue3" }
+                }
+            };
+            }
+        }
+
+
+        public static IEnumerable<object[]> Data_Simple_CacheMiss
+        {
+            get
+            {
+                return new[]
+                {
+                new object[] {
+                    new[] {new RedisCacheKey("testkey1"), new RedisCacheKey("testkey2"), new RedisCacheKey("testkey3"), },
+                    new string[] {},
+                    new[] {"testkey1", "testkey2", "testkey3"},
+                    new[] { "testvalue1", null, "testvalue3" }
+                }
+            };
+            }
+        }
+
+        public static IEnumerable<object[]> Data_MixedKeys
+        {
+            get
+            {
+                return new[]
+                {
+                new object[] {
+                    new[] {new RedisCacheKey(new List<string> {"secondary1"}), new RedisCacheKey(new List<string> { "secondary2" })},
+                    new[] { "secondary1", "secondary2"},
+                    new[] {"primary1", "primary2"},
+                    new[] { "testvalue1", "testvalue2"}
+                },
+            };
+            }
+        }
+
 
         [Fact]
         public void GetAll_WithSecondary()

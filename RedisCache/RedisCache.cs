@@ -154,8 +154,8 @@ namespace RedisCache
         private List<string> RetrievePrimaryKeys(List<RedisCacheKey> keys)
         {
             var keysWithoutPrimary = keys.Where(key => !key.HasPrimaryKey);
-            var secondaryKeysToLookup = keysWithoutPrimary.Select(key => (RedisKey) key.SecondaryKeys.First());
-            var foundPrimarykeys = _cache.StringGet(secondaryKeysToLookup.ToArray()).Select(r => (string)r);
+            var secondaryKeysToLookup = keysWithoutPrimary.Select(key => (RedisKey) key.SecondaryKeys.First()).ToArray();
+            var foundPrimarykeys = _cache.StringGet(secondaryKeysToLookup).Select(r => (string)r);
 
             return ReplaceUponCondition(keys.Select(key => key.PrimaryKey), foundPrimarykeys.ToList(), string.IsNullOrEmpty);
         }
