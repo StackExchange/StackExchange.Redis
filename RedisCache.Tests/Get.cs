@@ -1,13 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Collections.Generic;
 using Moq;
-using RedisCache;
 using Xunit;
 
-namespace RedisCache.Tests
+namespace Saxo.RedisCache.Tests
 {
     public class Get
     {
@@ -17,7 +12,7 @@ namespace RedisCache.Tests
         {
             var mockRedis = FixtureFactory.GetMockRedis();
             mockRedis.Setup(c => c.StringGet(k)).Returns(default(string));
-            var cache = new RedisCache(mockRedis.Object);
+            var cache = new Saxo.RedisCache.RedisCache(mockRedis.Object);
 
             var key = new RedisCacheKey(k);
 
@@ -31,7 +26,7 @@ namespace RedisCache.Tests
         {
             var mockRedis = FixtureFactory.GetMockRedis();
             mockRedis.Setup(c => c.StringGet(kp)).Returns(v);
-            var cache = new RedisCache(mockRedis.Object);
+            var cache = new Saxo.RedisCache.RedisCache(mockRedis.Object);
 
             var value = v;
 
@@ -52,7 +47,7 @@ namespace RedisCache.Tests
             var mockRedis = FixtureFactory.GetMockRedis();
             mockRedis.Setup(c => c.StringGet(kp)).Returns(v);
             mockRedis.Setup(c => c.StringGet(ks)).Returns(kp);
-            var cache = new RedisCache(mockRedis.Object);
+            var cache = new Saxo.RedisCache.RedisCache(mockRedis.Object);
             
             var value = v;
 

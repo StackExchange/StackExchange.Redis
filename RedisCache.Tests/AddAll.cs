@@ -1,14 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Collections.Generic;
 using Moq;
-using RedisCache;
-using Xunit;
 using StackExchange.Redis;
+using Xunit;
 
-namespace RedisCache.Tests
+namespace Saxo.RedisCache.Tests
 {
     public class AddAll
     {
@@ -18,7 +13,7 @@ namespace RedisCache.Tests
         public void Add_Get_ReturnsSame(string k1, string v1, string k2, string v2)
         {
             var mockRedis = FixtureFactory.GetMockRedis();
-            var cache = new RedisCache(mockRedis.Object);
+            var cache = new Saxo.RedisCache.RedisCache(mockRedis.Object);
 
             var key1 = new RedisCacheKey(k1);
             var key2 = new RedisCacheKey(k2);
@@ -40,7 +35,7 @@ namespace RedisCache.Tests
         public void AddAll_RequiresPrimaryKey()
         {
             var mockRedis = FixtureFactory.GetMockRedis();
-            var cache = new RedisCache(mockRedis.Object);
+            var cache = new Saxo.RedisCache.RedisCache(mockRedis.Object);
 
             var key1 = new RedisCacheKey(new List<string> { "addall-2-1" });
             var key2 = new RedisCacheKey(new List<string> { "addall-2-2" });
@@ -56,7 +51,7 @@ namespace RedisCache.Tests
         public void AddAll_WithMixed(string pk1, string sk1, string v1, string pk2, string sk2, string v2)
         {
             var mockRedis = FixtureFactory.GetMockRedis();
-            var cache = new RedisCache(mockRedis.Object);
+            var cache = new Saxo.RedisCache.RedisCache(mockRedis.Object);
 
             var key1 = new RedisCacheKey(pk1, sk1);
             var key2 = new RedisCacheKey(pk2, sk2);

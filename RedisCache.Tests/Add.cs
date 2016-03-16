@@ -1,10 +1,8 @@
 ﻿using System.Collections.Generic;
 using Moq;
-using RedisCache;
 using Xunit;
-using StackExchange.Redis;
 
-namespace RedisCache.Tests
+namespace Saxo.RedisCache.Tests
 {
     public class Add
     {
@@ -16,7 +14,7 @@ namespace RedisCache.Tests
             var mockRedis = FixtureFactory.GetMockRedis();
             mockRedis.Setup(c => c.StringGet(k)).Returns(v);
 
-            var cache = new RedisCache(mockRedis.Object);
+            var cache = new Saxo.RedisCache.RedisCache(mockRedis.Object);
 
             var key = new RedisCacheKey(k);
             var value = v;
@@ -34,7 +32,7 @@ namespace RedisCache.Tests
             mockRedis.Setup(c => c.StringGet(k1)).Returns(v1);
             mockRedis.Setup(c => c.StringGet(k2)).Returns(v2);
 
-            var cache = new RedisCache(mockRedis.Object);
+            var cache = new Saxo.RedisCache.RedisCache(mockRedis.Object);
             var key = new RedisCacheKey(k1);
 
             var key2 = new RedisCacheKey(k2);
@@ -54,7 +52,7 @@ namespace RedisCache.Tests
         public void RequiresPrimaryKey()
         {
             var mockRedis = FixtureFactory.GetMockRedis();
-            var cache = new RedisCache(mockRedis.Object);
+            var cache = new Saxo.RedisCache.RedisCache(mockRedis.Object);
 
             var key = new RedisCacheKey(new List<string> {"1234-3"});
 

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using StackExchange.Redis;
 
-namespace RedisCache
+namespace Saxo.RedisCache
 {
     public class RedisCache
     {

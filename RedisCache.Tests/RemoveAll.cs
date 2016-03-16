@@ -1,15 +1,10 @@
-﻿
-using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Moq;
-using RedisCache;
 using StackExchange.Redis;
 using Xunit;
 
-namespace RedisCache.Tests
+namespace Saxo.RedisCache.Tests
 {
     public class RemoveAll
     {
@@ -21,7 +16,7 @@ namespace RedisCache.Tests
         public void RemoveAll_VariousData(RedisCacheKey[] keys, string[] missing, string[] primariesForMissing, string[] primaries)
         {
             var mockRedis = FixtureFactory.GetMockRedis();
-            var cache = new RedisCache(mockRedis.Object);
+            var cache = new Saxo.RedisCache.RedisCache(mockRedis.Object);
 
             if (missing.Any())
             {

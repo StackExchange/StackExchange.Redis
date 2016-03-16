@@ -1,13 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Collections.Generic;
 using Moq;
-using RedisCache;
 using Xunit;
 
-namespace RedisCache.Tests
+namespace Saxo.RedisCache.Tests
 {
     public class Remove
     {
@@ -16,7 +11,7 @@ namespace RedisCache.Tests
         public void Remove_WithPrimaryKey(string kp)
         {
             var mockRedis = FixtureFactory.GetMockRedis();
-            var cache = new RedisCache(mockRedis.Object);
+            var cache = new Saxo.RedisCache.RedisCache(mockRedis.Object);
             
             var key1 = new RedisCacheKey(kp);
 
@@ -31,7 +26,7 @@ namespace RedisCache.Tests
         {
             var mockRedis = FixtureFactory.GetMockRedis();
             mockRedis.Setup(c => c.StringGet(ks)).Returns(kp);
-            var cache = new RedisCache(mockRedis.Object);
+            var cache = new Saxo.RedisCache.RedisCache(mockRedis.Object);
             
             var key2 = new RedisCacheKey(new List<string> { ks });
 

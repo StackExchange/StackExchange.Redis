@@ -1,13 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Moq;
-using RedisCache;
-using StackExchange.Redis;
+﻿using Moq;
 
-namespace RedisCache.Tests
+namespace Saxo.RedisCache.Tests
 {
     class FixtureFactory
     {

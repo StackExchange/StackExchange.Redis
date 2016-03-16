@@ -1,12 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using RedisCache;
+﻿using System.Collections.Generic;
 using StackExchange.Redis;
 
-namespace RedisCache
+namespace Saxo.RedisCache
 {
     internal class StackexchangeRedisImplementation :IRedisImplementation
     {

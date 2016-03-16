@@ -1,14 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using RedisCache;
 using StackExchange.Redis;
 using Xunit;
-using Xunit.Extensions;
 
-namespace RedisCache.Tests
+namespace Saxo.RedisCache.Tests
 {
     public class GetAll
     {
@@ -21,7 +16,7 @@ namespace RedisCache.Tests
         public void GetAll_VariousData(RedisCacheKey[] keys, string[] missing, string[] primariesForMissing, string[] primaries, string[] values, string[] expectedResults)
         {
             var mockRedis = FixtureFactory.GetMockRedis();
-            var cache = new RedisCache(mockRedis.Object);
+            var cache = new Saxo.RedisCache.RedisCache(mockRedis.Object);
             RedisKey[] ks = primaries.Select(k => (RedisKey)k).ToArray();
             RedisValue[] vs = values.Select(v => (RedisValue) v).ToArray();
             mockRedis.Setup(c => c.StringGet(ks)).Returns(vs);

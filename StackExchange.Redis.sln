@@ -60,9 +60,9 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StackExchange.Redis_Net45.S
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StackExchange.Redis.Tests_Net46", "StackExchange.Redis.Tests_Net46\StackExchange.Redis.Tests_Net46.csproj", "{19C00111-1328-4089-8565-94920B5B47F2}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedisCache", "RedisCache\RedisCache.csproj", "{7CEDA087-5E2B-4C8E-B9D8-792E8CF8472C}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Saxo.RedisCache", "RedisCache\Saxo.RedisCache.csproj", "{7CEDA087-5E2B-4C8E-B9D8-792E8CF8472C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedisCache.Tests", "RedisCache.Tests\RedisCache.Tests.csproj", "{BE27BD94-C109-45F9-AA3D-7C0B033C49BA}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Saxo.RedisCache.Tests", "RedisCache.Tests\Saxo.RedisCache.Tests.csproj", "{BE27BD94-C109-45F9-AA3D-7C0B033C49BA}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
