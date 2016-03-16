@@ -97,11 +97,13 @@ namespace RedisCache
         public List<string> GetAll(List<RedisCacheKey> keys)
         {
             var primaryKeys = RetrievePrimaryKeys(keys);
+            var keysForLookup =
+                primaryKeys.Where(key => !string.IsNullOrEmpty(key)).Select(key => (RedisKey) key).ToArray();
 
-            var res = _cache.StringGet(primaryKeys.Where(key => !string.IsNullOrEmpty(key)).Select(key => (RedisKey) key).ToArray()).Select(r => (string) r).ToList();
-            var nres = ReplaceUponCondition(primaryKeys, res, k => !string.IsNullOrEmpty(k));
+            var valuesFromCache = _cache.StringGet(keysForLookup).Select(r => (string) r).ToList();
+            var valuesWithMisses = ReplaceUponCondition(primaryKeys, valuesFromCache, k => !string.IsNullOrEmpty(k));
 
-            return nres;
+            return valuesWithMisses;
         }
 
         /// <summary>
@@ -111,8 +113,10 @@ namespace RedisCache
         public void RemoveAll(List<RedisCacheKey> keys)
         {
             var primaryKeys = RetrievePrimaryKeys(keys);
+            var keysForLookup =
+                primaryKeys.Where(key => !string.IsNullOrEmpty(key)).Select(key => (RedisKey)key).ToArray();
 
-            _cache.KeyDelete(primaryKeys.Where(key => !string.IsNullOrEmpty(key)).Select(key => (RedisKey)key).ToArray());
+            _cache.KeyDelete(keysForLookup);
         }
 
         /// <summary>
@@ -122,7 +126,7 @@ namespace RedisCache
         /// <returns></returns>
         private IEnumerable<KeyValuePair<RedisKey, RedisValue>> RetrieveSecondaryKeyPairs(RedisCacheKey key)
         {
-            return key.SecondaryKeys.Select(k => new KeyValuePair<RedisKey, RedisValue>(k, key.PrimaryKey));
+            return key.SecondaryKeys.Select(secondaryKey => new KeyValuePair<RedisKey, RedisValue>(secondaryKey, key.PrimaryKey));
         }
 
         /// <summary>
@@ -158,11 +162,12 @@ namespace RedisCache
         /// <returns></returns>
         private List<string> RetrievePrimaryKeys(List<RedisCacheKey> keys)
         {
-            var keysWithoutPrimary = keys.Where(key => !key.HasPrimaryKey);
-            var secondaryKeysToLookup = keysWithoutPrimary.Select(key => (RedisKey) key.SecondaryKeys.First()).ToArray();
-            var foundPrimarykeys = _cache.StringGet(secondaryKeysToLookup).Select(r => (string)r);
+            var keysWithMissingPrimary = keys.Where(key => !key.HasPrimaryKey);
+            var secondaryKeysToLookup = keysWithMissingPrimary.Select(key => (RedisKey) key.SecondaryKeys.First()).ToArray();
 
-            return ReplaceUponCondition(keys.Select(key => key.PrimaryKey), foundPrimarykeys.ToList(), string.IsNullOrEmpty);
+            var foundPrimaryKeys = _cache.StringGet(secondaryKeysToLookup).Select(r => (string)r).ToList();
+
+            return ReplaceUponCondition(keys.Select(key => key.PrimaryKey), foundPrimaryKeys, string.IsNullOrEmpty);
         }
 
         /// <summary>
