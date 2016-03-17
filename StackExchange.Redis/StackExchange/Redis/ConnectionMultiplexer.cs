@@ -51,6 +51,8 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed partial class ConnectionMultiplexer : IConnectionMultiplexer, IDisposable
     {
+        private static readonly string timeoutHelpLink = "https://github.com/StackExchange/StackExchange.Redis/tree/master/Docs/Timeouts.md";
+
         private static TaskFactory _factory = null;
 
         /// <summary>
@@ -1971,6 +1973,9 @@ namespace StackExchange.Redis
 
                             add("Local-CPU", "Local-CPU", GetSystemCpuPercent());
 #endif
+                            sb.Append(" (Please take a look at this article for some common client-side issues that can cause timeouts: ");
+                            sb.Append(timeoutHelpLink);
+                            sb.Append(")");
                             errMessage = sb.ToString();
                             if (stormLogThreshold >= 0 && queue >= stormLogThreshold && Interlocked.CompareExchange(ref haveStormLog, 1, 0) == 0)
                             {
@@ -1980,6 +1985,8 @@ namespace StackExchange.Redis
                             }
                         }
                         var timeoutEx = ExceptionFactory.Timeout(IncludeDetailInExceptions, errMessage, message, server);
+                        timeoutEx.HelpLink = timeoutHelpLink;
+
                         if (data != null)
                         {
                             foreach (var kv in data)
