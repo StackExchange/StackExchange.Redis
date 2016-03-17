@@ -210,7 +210,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The server version to assume
         /// </summary>
-        public Version DefaultVersion { get { return defaultVersion ?? RedisFeatures.v2_0_0; } set { defaultVersion = value; } }
+        public Version DefaultVersion { get { return defaultVersion ?? (IsAzureEndpoint() ? RedisFeatures.v3_0_0 : RedisFeatures.v2_0_0); } set { defaultVersion = value; } }
 
         /// <summary>
         /// The endpoints defined for this configuration
@@ -656,6 +656,7 @@ namespace StackExchange.Redis
                         case ".redis.cache.windows.net":
                         case ".redis.cache.chinacloudapi.cn":
                         case ".redis.cache.usgovcloudapi.net":
+                        case ".redis.cache.cloudapi.de":
                             return true;
                     }
                 }
