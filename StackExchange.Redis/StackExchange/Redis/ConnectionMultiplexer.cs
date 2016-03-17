@@ -2001,7 +2001,7 @@ namespace StackExchange.Redis
                 // snapshot these so that we can recycle the box
                 Exception ex;
                 T val;
-                ResultBox<T>.UnwrapAndRecycle(source, out val, out ex); // now that we aren't locking it...
+                ResultBox<T>.UnwrapAndRecycle(source, true, out val, out ex); // now that we aren't locking it...
                 if (ex != null) throw ex;
                 Trace(message + " received " + val);
                 return val;

@@ -400,7 +400,7 @@ namespace StackExchange.Redis
             {
                 Exception ex;
                 bool val;
-                ResultBox<bool>.UnwrapAndRecycle(resultBox, out val, out ex);
+                ResultBox<bool>.UnwrapAndRecycle(resultBox, false, out val, out ex);
                 resultBox = null;
                 wasSatisfied = ex == null && val;
             }

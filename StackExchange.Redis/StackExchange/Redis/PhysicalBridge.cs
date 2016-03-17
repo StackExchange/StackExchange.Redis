@@ -27,8 +27,7 @@ namespace StackExchange.Redis
 
         const double ProfileLogSeconds = (ConnectionMultiplexer.MillisecondsPerHeartbeat * ProfileLogSamples) / 1000.0;
 
-        private static readonly Message
-                                           ReusableAskingCommand = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.ASKING);
+        private static readonly Message ReusableAskingCommand = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.ASKING);
 
         private readonly CompletionManager completionManager;
         readonly long[] profileLog = new long[ProfileLogSamples];

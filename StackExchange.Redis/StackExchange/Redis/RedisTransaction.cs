@@ -177,8 +177,6 @@ namespace StackExchange.Redis
 
             static readonly QueuedMessage[] NixMessages = new QueuedMessage[0];
 
-            static readonly Message SharedMulti = Message.Create(-1, CommandFlags.None, RedisCommand.MULTI);
-
             private ConditionResult[] conditions;
 
             private QueuedMessage[] operations;
@@ -276,7 +274,7 @@ namespace StackExchange.Redis
                     if (!IsAborted)
                     {
                         multiplexer.Trace("Begining transaction");
-                        yield return SharedMulti;
+                        yield return Message.Create(-1, CommandFlags.None, RedisCommand.MULTI);
                     }
 
                     // PART 3: issue the commands
