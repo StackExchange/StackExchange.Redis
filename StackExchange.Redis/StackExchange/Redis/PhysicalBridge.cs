@@ -16,7 +16,7 @@ namespace StackExchange.Redis
         CompetingWriter,
         NoConnection,
     }
-
+    
     sealed partial class PhysicalBridge : IDisposable
     {
         internal readonly string Name;
@@ -64,6 +64,8 @@ namespace StackExchange.Redis
             ConnectedEstablished,
             Disconnected
         }
+
+        public Exception LastException { get; private set; }
 
         public ConnectionType ConnectionType { get; }
 
@@ -264,7 +266,7 @@ namespace StackExchange.Redis
                 Multiplexer.Trace("Enqueue: " + msg);
                 if (!TryEnqueue(msg, ServerEndPoint.IsSlave))
                 {
-                    OnInternalError(ExceptionFactory.NoConnectionAvailable(Multiplexer.IncludeDetailInExceptions, msg.Command, msg, ServerEndPoint));
+                    OnInternalError(ExceptionFactory.NoConnectionAvailable(Multiplexer.IncludeDetailInExceptions, msg.Command, msg, ServerEndPoint, Multiplexer.GetServerSnapshot()));
                 }
             }
         }
@@ -302,6 +304,7 @@ namespace StackExchange.Redis
         {
             if (reportNextFailure)
             {
+                LastException = innerException;
                 reportNextFailure = false; // until it is restored
                 var endpoint = ServerEndPoint.EndPoint;
                 Multiplexer.OnConnectionFailed(endpoint, ConnectionType, failureType, innerException, reconfigureNextFailure);
@@ -350,6 +353,7 @@ namespace StackExchange.Redis
             if (physical == connection && !isDisposed && ChangeState(State.ConnectedEstablishing, State.ConnectedEstablished))
             {
                 reportNextFailure = reconfigureNextFailure = true;
+                LastException = null;
                 Interlocked.Exchange(ref failConnectCount, 0);
                 ServerEndPoint.OnFullyEstablished(connection);
                 Multiplexer.RequestWrite(this, true);
@@ -381,6 +385,7 @@ namespace StackExchange.Redis
                         int connectTimeMilliseconds = unchecked(Environment.TickCount - VolatileWrapper.Read(ref connectStartTicks));
                         if (connectTimeMilliseconds >= Multiplexer.RawConfig.ConnectTimeout)
                         {
+                            LastException = ExceptionFactory.UnableToConnect("ConnectTimeout");
                             Trace("Aborting connect");
                             // abort and reconnect
                             var snapshot = physical;

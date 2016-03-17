@@ -91,6 +91,34 @@ namespace StackExchange.Redis
             }
         }
 
+        internal Exception LastException
+        {
+            get
+            {
+                var tmp1 = interactive;
+                var tmp2 = subscription;
+
+                //check if subscription endpoint has a better lastexception
+                if (tmp2 != null && tmp2.LastException != null)
+                {
+                    if (!tmp2.LastException.Data["Redis-FailureType"].ToString().Equals(ConnectionFailureType.UnableToConnect.ToString()))
+                    {
+                        return tmp2.LastException;
+                    }
+                }
+                return tmp1?.LastException;
+            }
+        }
+
+        internal PhysicalBridge.State ConnectionState
+        {
+            get
+            {
+                var tmp = interactive;
+                return tmp.ConnectionState;
+            }
+        }
+
         public bool IsSlave { get { return isSlave; } set { SetConfig(ref isSlave, value); } }
 
         public long OperationCount
@@ -524,7 +552,7 @@ namespace StackExchange.Redis
             if (bridge == null) bridge = GetBridge(message.Command);
             if (!bridge.TryEnqueue(message, isSlave))
             {
-                ConnectionMultiplexer.ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(multiplexer.IncludeDetailInExceptions, message.Command, message, this));
+                ConnectionMultiplexer.ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(multiplexer.IncludeDetailInExceptions, message.Command, message, this, multiplexer.GetServerSnapshot()));
             }
             return tcs.Task;
         }

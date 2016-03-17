@@ -1165,7 +1165,7 @@ namespace StackExchange.Redis
                 {
                     if (result.IsEqual(authFail) || result.IsEqual(authRequired))
                     {
-                        connection.RecordConnectionFailed(ConnectionFailureType.AuthenticationFailure);
+                        connection.RecordConnectionFailed(ConnectionFailureType.AuthenticationFailure, new Exception(result.ToString() + " Verify if the Redis password provided is correct."));
                     }
                     else if (result.AssertStarts(loading))
                     {

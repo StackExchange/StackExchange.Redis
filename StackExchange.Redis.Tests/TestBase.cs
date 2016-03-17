@@ -310,5 +310,15 @@ namespace StackExchange.Redis.Tests
             return watch.Elapsed;
         }
 
+        
+        protected virtual void GetAzureCredentials(out string name, out string password)
+        {
+            var lines = File.ReadAllLines(@"d:\dev\azure.txt");
+            if (lines == null || lines.Length != 2)
+                Assert.Inconclusive("azure credentials missing");
+            name = lines[0];
+            password = lines[1];
+        }
+
     }
 }
