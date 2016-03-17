@@ -1968,6 +1968,8 @@ namespace StackExchange.Redis
                             add("ThreadPool-IO-Completion", "IOCP", iocp);
                             add("ThreadPool-Workers", "WORKER", worker);
                             data.Add(Tuple.Create("Busy-Workers", busyWorkerCount.ToString()));
+
+                            add("Local-CPU", "Local-CPU", GetSystemCpuPercent());
 #endif
                             errMessage = sb.ToString();
                             if (stormLogThreshold >= 0 && queue >= stormLogThreshold && Interlocked.CompareExchange(ref haveStormLog, 1, 0) == 0)
@@ -2000,6 +2002,16 @@ namespace StackExchange.Redis
         }
 
 #if !CORE_CLR
+        private static string GetSystemCpuPercent()
+        {
+            float systemCPU;
+            if (PerfCounterHelper.TryGetSystemCPU(out systemCPU))
+            {
+                return Math.Round(systemCPU, 2) + "%";
+            }
+            return "unavailable";
+        }
+
         private static int GetThreadPoolStats(out string iocp, out string worker)
         {
             //BusyThreads =  TP.GetMaxThreads() –TP.GetAVailable();
