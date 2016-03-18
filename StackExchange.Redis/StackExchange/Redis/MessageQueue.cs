@@ -35,11 +35,13 @@ namespace StackExchange.Redis
                 queueLength = high.Count + regular.Count;
                 if (high.Count != 0 && (peeked = high.Peek()).Command == RedisCommand.PING)
                 {
-                    return peeked;
+                    //In a disconnect scenario, we don't want to complete the Ping message twice,
+                    //dequeue it now so it wont get dequeued in AbortUnsent (if we're going down that code path)
+                    return high.Dequeue();
                 }
                 if (regular.Count != 0 && (peeked = regular.Peek()).Command == RedisCommand.PING)
                 {
-                    return peeked;
+                    return regular.Dequeue();
                 }
             }
             return null;

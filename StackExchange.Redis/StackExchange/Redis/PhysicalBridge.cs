@@ -315,7 +315,6 @@ namespace StackExchange.Redis
             Trace("OnDisconnected");
 
             // if the next thing in the pipe is a PING, we can tell it that we failed (this really helps spot doomed connects)
-            // note that for simplicity we haven't removed it from the queue; that's OK
             int count;
             var ping = queue.PeekPing(out count);
             if (ping != null)

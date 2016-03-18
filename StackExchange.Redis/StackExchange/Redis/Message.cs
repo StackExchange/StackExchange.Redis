@@ -6,6 +6,7 @@ using System.Linq;
 using System.Runtime.Serialization;
 #endif
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace StackExchange.Redis
@@ -495,13 +496,17 @@ namespace StackExchange.Redis
 
         public bool TryComplete(bool isAsync)
         {
-            if (resultBox != null)
+            //Ensure we can never call TryComplete on the same resultBox from two threads by grabbing it now
+            var currBox = Interlocked.Exchange(ref resultBox, null);
+            if (currBox != null)
             {
-                var ret = resultBox.TryComplete(isAsync);
+                var ret = currBox.TryComplete(isAsync);
 
-                if (ret && isAsync)
+                //in async mode TryComplete will have unwrapped and recycled resultBox
+                if (!(ret && isAsync))
                 {
-                    resultBox = null; // in async mode TryComplete will have unwrapped and recycled resultBox; ensure we no longer reference it via this message
+                    //put result box back if it was not already recycled
+                    Interlocked.Exchange(ref resultBox, currBox);
                 }
 
                 performance?.SetCompleted();
