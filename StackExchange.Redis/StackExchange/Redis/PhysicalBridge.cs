@@ -316,7 +316,7 @@ namespace StackExchange.Redis
 
             // if the next thing in the pipe is a PING, we can tell it that we failed (this really helps spot doomed connects)
             int count;
-            var ping = queue.PeekPing(out count);
+            var ping = queue.DequeueUnsentPing(out count);
             if (ping != null)
             {
                 Trace("Marking PING as failed (queue length: " + count + ")");
