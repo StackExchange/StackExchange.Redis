@@ -125,6 +125,28 @@ namespace StackExchange.Redis.Tests
         }
 
         [Test]
+        public void DefaultClientName()
+        {
+            using (var muxer = Create(allowAdmin: true))
+            {
+                Assert.AreEqual(Environment.MachineName, muxer.ClientName);
+                var conn = muxer.GetDatabase();
+                conn.Ping();
+#if DEBUG
+                var name = GetServer(muxer).ClientGetName();
+                Assert.AreEqual(Environment.MachineName, name);
+#endif
+            }
+        }
+
+        [Test]
+        public void TryGetAzureRoleInstanceIdNoThrow()
+        {
+            ConfigurationOptions config = new ConfigurationOptions();
+            Assert.IsNull(config.TryGetAzureRoleInstanceIdNoThrow());
+        }
+
+        [Test]
         public void ReadConfigWithConfigDisabled()
         {
             using (var muxer = Create(allowAdmin: true, disabledCommands: new[] { "config", "info" }))
