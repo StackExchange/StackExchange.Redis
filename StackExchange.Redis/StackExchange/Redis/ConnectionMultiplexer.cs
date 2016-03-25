@@ -91,7 +91,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets the client-name that will be used on all new connections
         /// </summary>
-        public string ClientName => configuration.ClientName ?? Environment.GetEnvironmentVariable("ComputerName");
+        public string ClientName => configuration.ClientName;
 
         /// <summary>
         /// Gets the configuration of the connection

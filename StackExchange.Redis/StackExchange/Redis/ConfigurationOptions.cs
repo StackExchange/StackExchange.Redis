@@ -162,7 +162,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The client name to use for all connections
         /// </summary>
-        public string ClientName { get { return clientName ?? (clientName = AzureRoleInstanceId); } set { clientName = value; } }
+        public string ClientName { get { return clientName ?? (clientName = (AzureRoleInstanceId != null ? AzureRoleInstanceId : Environment.GetEnvironmentVariable("ComputerName"))); } set { clientName = value; } }
 
         /// <summary>
         /// The number of times to repeat the initial connect cycle if no servers respond promptly
