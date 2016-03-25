@@ -5,7 +5,6 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Security;
-using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -162,7 +161,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The client name to use for all connections
         /// </summary>
-        public string ClientName { get { return clientName ?? (clientName = (AzureRoleInstanceId != null ? AzureRoleInstanceId : Environment.GetEnvironmentVariable("ComputerName"))); } set { clientName = value; } }
+        public string ClientName { get { return clientName; } set { clientName = value; } }
 
         /// <summary>
         /// The number of times to repeat the initial connect cycle if no servers respond promptly
@@ -664,46 +663,6 @@ namespace StackExchange.Redis
             }
 
             return result; 
-        }
-
-        internal static string AzureRoleInstanceId = TryGetAzureRoleInstanceIdNoThrow();
-
-        /// <summary>
-        /// Tries to get the Roleinstance Id if Microsoft.WindowsAzure.ServiceRuntime is loaded.
-        /// In case of any failure, swallows the exception and returns null
-        /// </summary>
-        private static string TryGetAzureRoleInstanceIdNoThrow()
-        {
-            string roleInstanceId = null;
-            try
-            {
-                Assembly asm = null;
-                foreach (var asmb in AppDomain.CurrentDomain.GetAssemblies())
-                {
-                    if (asmb.GetName().Name.Equals("Microsoft.WindowsAzure.ServiceRuntime"))
-                    {
-                        asm = asmb;
-                        break;
-                    }
-                }
-                if (asm == null)
-                    return null;
-
-                var currentRoleInstanceProp = asm.GetType("Microsoft.WindowsAzure.ServiceRuntime.RoleEnvironment").GetProperty("CurrentRoleInstance");
-                var currentRoleInstanceId = currentRoleInstanceProp.GetValue(null, null);
-                roleInstanceId = currentRoleInstanceId.GetType().GetProperty("Id").GetValue(currentRoleInstanceId, null).ToString();
-
-                if (String.IsNullOrEmpty(roleInstanceId))
-                {
-                    roleInstanceId = null;
-                }
-            }
-            catch (Exception)
-            {
-                //silently ignores the exception
-                roleInstanceId = null;
-            }
-            return roleInstanceId;
         }
 
         private string InferSslHostFromEndpoints() {

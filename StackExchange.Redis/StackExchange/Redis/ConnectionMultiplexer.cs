@@ -8,6 +8,7 @@ using System.Net;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Reflection;
 #if NET40
 using Microsoft.Runtime.CompilerServices;
 #else
@@ -91,7 +92,53 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets the client-name that will be used on all new connections
         /// </summary>
-        public string ClientName => configuration.ClientName;
+        public string ClientName => configuration.ClientName ?? ConnectionMultiplexer.GetDefaultClientName();
+
+        private static string defaultClientName;
+        private static string GetDefaultClientName()
+        {
+            if (defaultClientName == null)
+            {
+                defaultClientName =  TryGetAzureRoleInstanceIdNoThrow() ?? Environment.GetEnvironmentVariable("ComputerName");
+            }
+            return defaultClientName;
+        }
+
+        /// Tries to get the Roleinstance Id if Microsoft.WindowsAzure.ServiceRuntime is loaded.
+        /// In case of any failure, swallows the exception and returns null
+        internal static string TryGetAzureRoleInstanceIdNoThrow()
+        {
+            string roleInstanceId = null;
+            try
+            {
+                Assembly asm = null;
+                foreach (var asmb in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    if (asmb.GetName().Name.Equals("Microsoft.WindowsAzure.ServiceRuntime"))
+                    {
+                        asm = asmb;
+                        break;
+                    }
+                }
+                if (asm == null)
+                    return null;
+
+                var currentRoleInstanceProp = asm.GetType("Microsoft.WindowsAzure.ServiceRuntime.RoleEnvironment").GetProperty("CurrentRoleInstance");
+                var currentRoleInstanceId = currentRoleInstanceProp.GetValue(null, null);
+                roleInstanceId = currentRoleInstanceId.GetType().GetProperty("Id").GetValue(currentRoleInstanceId, null).ToString();
+
+                if (String.IsNullOrEmpty(roleInstanceId))
+                {
+                    roleInstanceId = null;
+                }
+            }
+            catch (Exception)
+            {
+                //silently ignores the exception
+                roleInstanceId = null;
+            }
+            return roleInstanceId;
+        }
 
         /// <summary>
         /// Gets the configuration of the connection
