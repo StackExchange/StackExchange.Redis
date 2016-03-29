@@ -4,6 +4,40 @@ using System.ComponentModel;
 
 namespace StackExchange.Redis
 {
+
+
+    public struct GeoEntry : IEquatable<SortedSetEntry>, IComparable, IComparable<SortedSetEntry>
+    {
+        internal readonly RedisValue element;
+        internal readonly double latitude;
+        internal readonly double longitude;
+
+        /// <summary>
+        /// Initializes a GeoEntry value
+        /// </summary>
+        public GeoEntry(RedisValue element, double latitude, double longitude)
+        {
+            this.element = element;
+            this.latitude = latitude;
+            this.longitude = longitude;
+        }
+
+        public bool Equals(SortedSetEntry other)
+        {
+            throw new NotImplementedException();
+        }
+
+        public int CompareTo(object obj)
+        {
+            throw new NotImplementedException();
+        }
+
+        public int CompareTo(SortedSetEntry other)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
     /// <summary>
     /// Describes a sorted-set element with the corresponding value
     /// </summary>

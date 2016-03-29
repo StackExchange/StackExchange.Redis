@@ -44,6 +44,10 @@ namespace StackExchange.Redis
         /// <remarks>http://redis.io/commands/debug-object</remarks>
         RedisValue DebugObject(RedisKey key, CommandFlags flags = CommandFlags.None);
 
+
+        int GeoAdd(RedisKey key,RedisValue latitude, RedisValue longitude,RedisValue name)
+
+
         /// <summary>
         /// Decrements the number stored at field in the hash stored at key by decrement. If key does not exist, a new key holding a hash is created. If field does not exist or holds a string that cannot be interpreted as integer, the value is set to 0 before the operation is performed.
         /// </summary>
