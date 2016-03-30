@@ -24,7 +24,7 @@ An example use of the `LuaScript`:
 The `LuaScript` class rewrites variables in scripts of the form `@myVar` into the appropriate `ARGV[someIndex]` required by redis.  If the 
 parameter passed is of type `RedisKey` it will be sent as part of the `KEYS` collection automatically.
 
-Any object that exposes field or property members with the same name as @-prefixed variables in the Lua script can be used as a paramter hash to
+Any object that exposes field or property members with the same name as @-prefixed variables in the Lua script can be used as a parameter hash to
 `Evaluate` calls.  Supported member types are the following:
 
  - int(?)

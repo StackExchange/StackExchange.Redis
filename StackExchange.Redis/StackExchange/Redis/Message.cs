@@ -350,6 +350,18 @@ namespace StackExchange.Redis
             return new CommandKeyValueValueValueMessage(db, flags, command, key, value0, value1, value2);
         }
 
+        public static Message Create(int db, CommandFlags flags, RedisCommand command, RedisKey key, GeoEntry[] values)
+        {
+            var redisValues = new List<RedisValue>();
+            foreach (var value in values)
+            {
+                redisValues.Add(value.geoPos.longitude);
+                redisValues.Add(value.geoPos.latitude);
+                redisValues.Add(value.member);
+            }
+            return new CommandKeyValuesMessage(db,flags,command,key,redisValues.ToArray());
+        }
+
         public static Message Create(int db, CommandFlags flags, RedisCommand command, RedisKey key, RedisValue value0, RedisValue value1, RedisValue value2, RedisValue value3)
         {
             return new CommandKeyValueValueValueValueMessage(db, flags, command, key, value0, value1, value2, value3);
@@ -558,6 +570,20 @@ namespace StackExchange.Redis
         }
 
         internal static Message Create(int db, CommandFlags flags, RedisCommand command, RedisKey key, RedisValue[] values)
+        {
+            if (values == null) throw new ArgumentNullException(nameof(values));
+            switch (values.Length)
+            {
+                case 0: return new CommandKeyMessage(db, flags, command, key);
+                case 1: return new CommandKeyValueMessage(db, flags, command, key, values[0]);
+                case 2: return new CommandKeyValueValueMessage(db, flags, command, key, values[0], values[1]);
+                case 3: return new CommandKeyValueValueValueMessage(db, flags, command, key, values[0], values[1], values[2]);
+                case 4: return new CommandKeyValueValueValueValueMessage(db, flags, command, key, values[0], values[1], values[2], values[3]);
+                default: return new CommandKeyValuesMessage(db, flags, command, key, values);
+            }
+        }
+
+        internal static Message Create(int db, CommandFlags flags, RedisCommand command, RedisKey key, RedisValue[] values,GeoRadius geoRadius)
         {
             if (values == null) throw new ArgumentNullException(nameof(values));
             switch (values.Length)

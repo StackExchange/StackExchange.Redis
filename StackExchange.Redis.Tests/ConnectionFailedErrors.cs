@@ -117,5 +117,11 @@ namespace StackExchange.Redis.Tests
                 ClearAmbientFailures();
             }
         }
+
+        [Test]
+        public void TryGetAzureRoleInstanceIdNoThrow()
+        {
+            Assert.IsNull(ConnectionMultiplexer.TryGetAzureRoleInstanceIdNoThrow());
+        }
     }
 }
