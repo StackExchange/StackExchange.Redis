@@ -13,7 +13,7 @@ namespace Saxo.RedisCache
         }
 
         public IDatabase Database => _connectionMultiplexer.GetDatabase();
-        public void StringSet(string primaryKey, string value)
+        public void StringSet(RedisKey primaryKey, RedisValue value)
         {
             Database.StringSet(primaryKey, value);
         }
@@ -33,7 +33,7 @@ namespace Saxo.RedisCache
             Database.StringSet(keyValueArray);
         }
 
-        public string StringGet(string primaryKey)
+        public RedisValue StringGet(RedisKey primaryKey)
         {
             return Database.StringGet(primaryKey);
         }
@@ -43,7 +43,7 @@ namespace Saxo.RedisCache
             return Database.StringGet(primaryKeys);
         }
 
-        public void KeyDelete(string primaryKey)
+        public void KeyDelete(RedisKey primaryKey)
         {
             Database.KeyDelete(primaryKey);
         }

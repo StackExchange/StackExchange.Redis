@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using StackExchange.Redis;
 using Xunit;
 
@@ -16,9 +17,9 @@ namespace Saxo.RedisCache.Tests
         public void GetAll_VariousData(RedisCacheKey[] keys, string[] missing, string[] primariesForMissing, string[] primaries, string[] values, string[] expectedResults)
         {
             var mockRedis = FixtureFactory.GetMockRedis();
-            var cache = new Saxo.RedisCache.RedisCache(mockRedis.Object);
+            var cache = new RedisCache(mockRedis.Object);
             RedisKey[] ks = primaries.Select(k => (RedisKey)k).ToArray();
-            RedisValue[] vs = values.Select(v => (RedisValue) v).ToArray();
+            RedisValue[] vs = values.Select(v => (v!=null)? (RedisValue)Encoding.ASCII.GetBytes(v) : default(RedisValue)).ToArray();
             mockRedis.Setup(c => c.StringGet(ks)).Returns(vs);
 
             if (missing.Any())
@@ -29,10 +30,10 @@ namespace Saxo.RedisCache.Tests
             }
 
             var result = cache.GetAll(keys.ToList());
-
+            var expected = expectedResults.Select(v => (v!=null)? Encoding.ASCII.GetBytes(v) : null);
             Assert.NotNull(result);
             Assert.Equal(expectedResults.Count(), result.Count);
-            Assert.Equal(expectedResults.ToList(), result);
+            Assert.Equal(expected.ToList(), result);
         }
 
         public static IEnumerable<object[]> Data_Simple

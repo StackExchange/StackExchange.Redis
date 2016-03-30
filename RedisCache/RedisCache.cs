@@ -32,7 +32,7 @@ namespace Saxo.RedisCache
         /// </summary>
         /// <param name="key"></param>
         /// <param name="value"></param>
-        public void Add(RedisCacheKey key, string value)
+        public void Add(RedisCacheKey key, byte[] value)
         {
             if (!key.HasSecondaryKey)
             {
@@ -40,7 +40,7 @@ namespace Saxo.RedisCache
             }
             else
             {
-                AddAll(new List<RedisCacheKey> { key }, new List<string> { value });
+                AddAll(new List<RedisCacheKey> { key }, new List<byte[]> { value });
             }
         }
 
@@ -49,7 +49,7 @@ namespace Saxo.RedisCache
         /// </summary>
         /// <param name="key"></param>
         /// <returns></returns>
-        public string Get(RedisCacheKey key)
+        public byte[] Get(RedisCacheKey key)
         {
             var primaryKey = RetrievePrimaryKey(key);
 
@@ -72,7 +72,7 @@ namespace Saxo.RedisCache
         /// </summary>
         /// <param name="keys"></param>
         /// <param name="values"></param>
-        public void AddAll(List<RedisCacheKey> keys, List<string> values)
+        public void AddAll(List<RedisCacheKey> keys, List<byte[]> values)
         {
             if (keys.Any(k => !k.HasPrimaryKey))
             {
@@ -94,14 +94,14 @@ namespace Saxo.RedisCache
         /// </summary>
         /// <param name="keys"></param>
         /// <returns></returns>
-        public List<string> GetAll(List<RedisCacheKey> keys)
+        public List<byte[]> GetAll(List<RedisCacheKey> keys)
         {
             var primaryKeys = RetrievePrimaryKeys(keys);
             var keysForLookup =
                 primaryKeys.Where(key => !string.IsNullOrEmpty(key)).Select(key => (RedisKey) key).ToArray();
 
-            var valuesFromCache = _cache.StringGet(keysForLookup).Select(r => (string) r).ToList();
-            var valuesWithMisses = ReplaceUponCondition(primaryKeys, valuesFromCache, k => !string.IsNullOrEmpty(k));
+            var valuesFromCache = _cache.StringGet(keysForLookup).Select(r => (byte[]) r).ToList();
+            var valuesWithMisses = ReplaceWhereNotNull(primaryKeys, valuesFromCache);
 
             return valuesWithMisses;
         }
@@ -135,7 +135,7 @@ namespace Saxo.RedisCache
         /// <param name="keys"></param>
         /// <param name="values"></param>
         /// <returns></returns>
-        private List<KeyValuePair<RedisKey, RedisValue>> ToKeyValuePairList(IEnumerable<string> keys, IEnumerable<string> values)
+        private List<KeyValuePair<RedisKey, RedisValue>> ToKeyValuePairList(IEnumerable<string> keys, IEnumerable<byte[]> values)
         {
             return keys.Zip(values, (k, v) => new KeyValuePair<RedisKey, RedisValue>(k, v)).ToList();
         }
@@ -187,6 +187,26 @@ namespace Saxo.RedisCache
                 if (!condition(key))
                 {
                     newList.Add(key);
+                }
+                else
+                {
+                    newList.Add(replacementList[i]);
+                    i++;
+                }
+            }
+            return newList;
+        }
+
+        private List<byte[]> ReplaceWhereNotNull(IEnumerable<string> primaryList, List<byte[]> replacementList)
+        {
+            var newList = new List<byte[]>();
+
+            var i = 0;
+            foreach (var key in primaryList)
+            {
+                if (string.IsNullOrEmpty(key))
+                {
+                    newList.Add(null);
                 }
                 else
                 {

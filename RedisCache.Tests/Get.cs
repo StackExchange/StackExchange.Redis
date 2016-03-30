@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Text;
 using Moq;
 using Xunit;
 
@@ -11,8 +12,8 @@ namespace Saxo.RedisCache.Tests
         public void Get_CacheMissReturnsNull(string k)
         {
             var mockRedis = FixtureFactory.GetMockRedis();
-            mockRedis.Setup(c => c.StringGet(k)).Returns(default(string));
-            var cache = new Saxo.RedisCache.RedisCache(mockRedis.Object);
+            mockRedis.Setup(c => c.StringGet(k)).Returns(default(byte[]));
+            var cache = new RedisCache(mockRedis.Object);
 
             var key = new RedisCacheKey(k);
 
@@ -24,12 +25,11 @@ namespace Saxo.RedisCache.Tests
         [InlineData("testprimary", "testvalue")]
         public void Get_WithPrimaryKey(string kp, string v)
         {
+            var value = Encoding.ASCII.GetBytes(v);
             var mockRedis = FixtureFactory.GetMockRedis();
-            mockRedis.Setup(c => c.StringGet(kp)).Returns(v);
-            var cache = new Saxo.RedisCache.RedisCache(mockRedis.Object);
-
-            var value = v;
-
+            mockRedis.Setup(c => c.StringGet(kp)).Returns(value);
+            var cache = new RedisCache(mockRedis.Object);
+            
             var key1 = new RedisCacheKey(kp);
 
             var result = cache.Get(key1);
@@ -47,9 +47,9 @@ namespace Saxo.RedisCache.Tests
             var mockRedis = FixtureFactory.GetMockRedis();
             mockRedis.Setup(c => c.StringGet(kp)).Returns(v);
             mockRedis.Setup(c => c.StringGet(ks)).Returns(kp);
-            var cache = new Saxo.RedisCache.RedisCache(mockRedis.Object);
-            
-            var value = v;
+            var cache = new RedisCache(mockRedis.Object);
+
+            var value = Encoding.ASCII.GetBytes(v);
 
             var key2 = new RedisCacheKey(new List<string> {ks});
 
