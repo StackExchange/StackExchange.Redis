@@ -138,14 +138,7 @@ namespace StackExchange.Redis.Tests
 #endif
             }
         }
-
-        [Test]
-        public void TryGetAzureRoleInstanceIdNoThrow()
-        {
-            ConfigurationOptions config = new ConfigurationOptions();
-            Assert.IsNull(config.TryGetAzureRoleInstanceIdNoThrow());
-        }
-
+        
         [Test]
         public void ReadConfigWithConfigDisabled()
         {
