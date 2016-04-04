@@ -502,7 +502,7 @@ namespace StackExchange.Redis
                 this.key = key;
                 this.compareToResult = compareToResult;
                 this.expectedLength = expectedLength;
-
+                this.type = type;
                 switch (type) {
                     case RedisType.Hash:
                         cmd = RedisCommand.HLEN;
@@ -536,7 +536,7 @@ namespace StackExchange.Redis
 
             private string GetComparisonString()
             {
-                return compareToResult == 0 ? " == " : (compareToResult < 0 ? " < " : " > ");
+                return compareToResult == 0 ? " == " : (compareToResult < 0 ? " > " : " < ");
             }
 
             internal override void CheckCommands(CommandMap commandMap)

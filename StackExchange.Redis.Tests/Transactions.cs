@@ -346,14 +346,17 @@ namespace StackExchange.Redis.Tests
                     case ComparisonType.Equal:
                         expectSuccess = valueLength == length;
                         condition = Condition.StringLengthEqual(key2, length);
+                        Assert.That(condition.ToString(), Contains.Substring("String length == " + length));
                         break;
                     case ComparisonType.GreaterThan:
                         expectSuccess = valueLength > length;
                         condition = Condition.StringLengthGreaterThan(key2, length);
+                        Assert.That(condition.ToString(), Contains.Substring("String length > " + length));
                         break;
                     case ComparisonType.LessThan:
                         expectSuccess = valueLength < length;
                         condition = Condition.StringLengthLessThan(key2, length);
+                        Assert.That(condition.ToString(), Contains.Substring("String length < " + length));
                         break;
                 }
 
