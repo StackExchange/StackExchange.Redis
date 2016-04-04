@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
 
@@ -13,6 +14,7 @@ namespace StackExchange.Redis
             Database = db;
         }
 
+        private static string[] _redisUnits = new[] {"m", "km", "mi", "ft"};
         public object AsyncState => asyncState;
 
         public int Database { get; }
@@ -45,6 +47,134 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.RedisValue);
         }
 
+        public bool GeoAdd(RedisKey key, double longitude,double latitude,RedisValue member,CommandFlags flags = CommandFlags.None)
+        {
+            return GeoAdd(key, new GeoPosition(longitude, latitude), member, flags);
+        }
+
+        public bool GeoAdd(RedisKey key, GeoPosition geoPosition, RedisValue member, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.GEOADD, key, geoPosition.Longitude, geoPosition.Latitude, member);
+            return ExecuteSync(msg, ResultProcessor.Boolean);
+        }
+
+        public long GeoAdd(RedisKey key, GeoEntry[] geoEntries, CommandFlags flags = CommandFlags.None)
+        {
+            if(geoEntries == null) throw new ArgumentNullException(nameof(geoEntries));
+            var msg = Message.Create(Database,flags, RedisCommand.GEOADD, key, geoEntries);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+
+        public bool GeoRemove(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+        {
+            return SortedSetRemove(key, member, flags);
+        }
+
+        public RedisValue GeoDistance(RedisKey key, RedisValue value0, RedisValue value1, GeoUnit geoUnit = GeoUnit.Meters,CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.GEODIST, key,value0,value1,_redisUnits[(int)geoUnit]);
+            return ExecuteSync(msg, ResultProcessor.RedisValue);
+        }
+
+        public string[] GeoHash(RedisKey key, string[] members, CommandFlags flags = CommandFlags.None)
+        {
+            if(members == null)throw new ArgumentNullException(nameof(members));
+            var redisValues = new RedisValue[members.Length];
+            for (var i = 0; i < members.Length; i++) redisValues[i] = members[i];
+            var msg = Message.Create(Database, flags, RedisCommand.GEOHASH, key, redisValues);
+            var results = ExecuteSync(msg, ResultProcessor.RedisValueArray);
+            var retArray = new string[results.Length];
+            for (int i = 0; i < results.Length; i++)
+            {
+                retArray[i] = (string)results[i];
+            }
+            return retArray;
+        }
+
+        public string[] GeoHash(RedisKey key, string member, CommandFlags flags = CommandFlags.None)
+        {
+            return GeoHash(key, new[] {member}, flags);
+        }
+
+        public GeoPosition?[] GeoPos(RedisKey key, string[] members, CommandFlags flags = CommandFlags.None)
+        {
+            if (members == null) throw new ArgumentNullException(nameof(members));
+            var redisValues = new RedisValue[members.Length];
+            for (var i = 0; i < members.Length; i++) redisValues[i] = members[i];
+            var msg = Message.Create(Database, flags, RedisCommand.GEOPOS, key, redisValues);
+            return ExecuteSync(msg, ResultProcessor.RedisGeoPosition);
+        }
+
+        public GeoPosition? GeoPos(RedisKey key, string member, CommandFlags flags = CommandFlags.None)
+        {
+            return GeoPos(key, new string[] {member}, flags).FirstOrDefault();
+        }
+
+        public GeoRadiusResult[] GeoRadius(RedisKey key, GeoRadius geoRadius,CommandFlags flags = CommandFlags.None)
+        {
+            var redisValues = new List<RedisValue>();
+            redisValues.Add(geoRadius.geoPosition.longitude);
+            redisValues.Add(geoRadius.geoPosition.latitude);
+            redisValues.Add(geoRadius.radius);
+            redisValues.Add(_redisUnits[(int)geoRadius.geoUnit]);
+            if(geoRadius.geoRadiusOptions.HasFlag(GeoRadiusOptions.WITHCOORD))
+                redisValues.Add(GeoRadiusOptions.WITHCOORD.ToString());
+            if (geoRadius.geoRadiusOptions.HasFlag(GeoRadiusOptions.WITHDIST))
+                redisValues.Add(GeoRadiusOptions.WITHDIST.ToString());
+            if (geoRadius.geoRadiusOptions.HasFlag(GeoRadiusOptions.WITHHASH))
+                redisValues.Add(GeoRadiusOptions.WITHHASH.ToString());
+            if(geoRadius.maxReturnCount >0)
+                redisValues.Add(geoRadius.maxReturnCount);
+            var msg = Message.Create(Database, flags, RedisCommand.GEORADIUS, key, redisValues.ToArray());
+            var items = ExecuteSync(msg, ResultProcessor.RedisGeoRadius);
+
+            var arr = new GeoRadiusResult[items.Length];
+            for (int i = 0; i < arr.Length; i++)
+            {
+                RawResult[] item = items[i].GetArrayOfRawResults();
+                if (item == null)
+                {
+                    continue;
+                }
+                else
+                {
+                    var x = 0;
+                    var member = item[x++].AsRedisValue();
+                    var distance = geoRadius.geoRadiusOptions.HasFlag(GeoRadiusOptions.WITHDIST) ? new double?((double)item[x++].AsRedisValue()) : null;
+                    GeoPosition? geoPosition;
+                    
+                   
+                    long? geoHash;
+                    if (geoRadius.geoRadiusOptions.HasFlag(GeoRadiusOptions.WITHHASH))
+                    {
+                        long tempL;
+                        if (item[x++].TryGetInt64(out tempL))
+                            geoHash = new long?(tempL);
+                        else
+                            geoHash = new long?();
+
+                    }
+                    else
+                    {
+                        geoHash =null;
+                    }
+                    if (geoRadius.geoRadiusOptions.HasFlag(GeoRadiusOptions.WITHCOORD))
+                    {
+                        var radIem = item[x++].GetItemsAsRawResults();
+                        var longitude = (double)radIem[0].AsRedisValue();
+                        var latitude = (double)radIem[1].AsRedisValue();
+                        geoPosition = new GeoPosition?(new GeoPosition(longitude, latitude));
+                    }
+                    else
+                    {
+                        geoPosition = null;
+                    }
+                    var newRadiusResult = new GeoRadiusResult(member, geoRadius, distance, geoHash, geoPosition);
+                    arr[i] = newRadiusResult;
+                }
+            }
+            return arr;
+        }
         public Task<RedisValue> DebugObjectAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.DEBUG, RedisLiterals.OBJECT, key);
@@ -926,7 +1056,6 @@ namespace StackExchange.Redis
         {
             return script.EvaluateAsync(this, parameters, null, flags);
         }
-
         public bool SetAdd(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.SADD, key, value);

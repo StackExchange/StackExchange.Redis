@@ -4,6 +4,10 @@ using System.ComponentModel;
 
 namespace StackExchange.Redis
 {
+
+
+    
+
     /// <summary>
     /// Describes a sorted-set element with the corresponding value
     /// </summary>
