@@ -100,8 +100,8 @@ namespace Saxo.RedisCache
             var keysForLookup =
                 primaryKeys.Where(key => !string.IsNullOrEmpty(key)).Select(key => (RedisKey) key).ToArray();
 
-            var valuesFromCache = _cache.StringGet(keysForLookup).Select(r => (byte[]) r).ToList();
-            var valuesWithMisses = ReplaceWhereNotNull(primaryKeys, valuesFromCache);
+            var valuesFromCache = _cache.StringGet(keysForLookup).Select(r => (byte[]) r).GetEnumerator();
+            var valuesWithMisses = primaryKeys.Select(k => (k==null)? null : Pop(valuesFromCache)).ToList();
 
             return valuesWithMisses;
         }
@@ -165,56 +165,15 @@ namespace Saxo.RedisCache
             var keysWithMissingPrimary = keys.Where(key => !key.HasPrimaryKey);
             var secondaryKeysToLookup = keysWithMissingPrimary.Select(key => (RedisKey) key.SecondaryKeys.First()).ToArray();
 
-            var foundPrimaryKeys = _cache.StringGet(secondaryKeysToLookup).Select(r => (string)r).ToList();
-
-            return ReplaceUponCondition(keys.Select(key => key.PrimaryKey), foundPrimaryKeys, string.IsNullOrEmpty);
+            var foundPrimaryKeys = _cache.StringGet(secondaryKeysToLookup).Select(r => (string)r).GetEnumerator();
+            return keys.Select(k => (k.HasPrimaryKey) ? k.PrimaryKey : Pop(foundPrimaryKeys)).ToList();
         }
 
-        /// <summary>
-        /// Iterate through an enumerable, testing each value against a condition. If the condition is found to hold, the value is replaced with the first element of the replacement list.
-        /// </summary>
-        /// <param name="primaryList"></param>
-        /// <param name="replacementList"></param>
-        /// <param name="condition"></param>
-        /// <returns></returns>
-        private List<string> ReplaceUponCondition(IEnumerable<string> primaryList, List<string> replacementList, Func<string, bool> condition)
+        private static T Pop<T>(IEnumerator<T> enumerator)
         {
-            var newList = new List<string>();
-
-            var i = 0;
-            foreach (var key in primaryList)
-            {
-                if (!condition(key))
-                {
-                    newList.Add(key);
-                }
-                else
-                {
-                    newList.Add(replacementList[i]);
-                    i++;
-                }
-            }
-            return newList;
+            enumerator.MoveNext();
+            return enumerator.Current;
         }
-
-        private List<byte[]> ReplaceWhereNotNull(IEnumerable<string> primaryList, List<byte[]> replacementList)
-        {
-            var newList = new List<byte[]>();
-
-            var i = 0;
-            foreach (var key in primaryList)
-            {
-                if (string.IsNullOrEmpty(key))
-                {
-                    newList.Add(null);
-                }
-                else
-                {
-                    newList.Add(replacementList[i]);
-                    i++;
-                }
-            }
-            return newList;
-        }
+        
     }
 }
