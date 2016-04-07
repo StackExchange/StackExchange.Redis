@@ -68,7 +68,6 @@
     <Compile Include="Get.cs" />
     <Compile Include="GetAll.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="RedisCacheTestSettings.cs" />
     <Compile Include="Remove.cs" />
     <Compile Include="RemoveAll.cs" />
   </ItemGroup>
