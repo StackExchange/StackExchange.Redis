@@ -516,6 +516,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.SortedSetScoreAsync(ToInner(key), member, flags);
         }
 
+        public Task<long> SortedSetCountAsync(RedisKey key, double min, double max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.SortedSetCountAsync(key, min, max, exclude, flags);
+        }
+
         public Task<long> StringAppendAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
         {
             return Inner.StringAppendAsync(ToInner(key), value, flags);
@@ -767,5 +772,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
             // create as a delegate when first required, then re-use
             return mapFunction ?? (mapFunction = new Func<RedisKey, RedisKey>(ToInner)); 
         }
+
+      
     }
 }

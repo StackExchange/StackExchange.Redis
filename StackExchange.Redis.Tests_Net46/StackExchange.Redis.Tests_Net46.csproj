@@ -77,7 +77,70 @@
     <Reference Include="Microsoft.CSharp" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="..\StackExchange.Redis.Tests\**\*.cs"/>
+    <Compile Include="..\StackExchange.Redis.Tests\AsyncTests.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\BasicOps.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\BatchWrapperTests.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\Bits.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\Cluster.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\Commands.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\Config.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\ConnectFailTimeout.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\ConnectingFailDetection.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\ConnectionFailedErrors.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\ConnectionShutdown.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\ConnectToUnexistingHost.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\Databases.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\DatabaseWrapperTests.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\DefaultPorts.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\ExceptionFactoryTests.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\Expiry.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\FloatingPoint.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\HyperLogLog.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\Issues\BgSaveResponse.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\Issues\DefaultDatabase.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\Issues\Issue118.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\Issues\Issue182.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\Issues\Issue25.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\Issues\Issue6.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\Issues\SO22786599.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\Issues\SO23949477.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\Issues\SO24807536.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\Issues\SO25113323.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\Issues\SO25567566.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\Keys.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\KeysAndValues.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\Lex.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\Lists.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\Locking.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\Migrate.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\MultiAdd.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\MultiMaster.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\Naming.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\PreserveOrder.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\Profiling.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\Program.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\Properties\AssemblyInfo.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\PubSub.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\PubSubCommand.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\RealWorld.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\Scans.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\Scripting.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\Secure.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\Sentinel.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\Sets.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\SSDB.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\SSL.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\TaskTests.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\TestBase.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\TestInfoReplicationChecks.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\Transactions.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\TransactionWrapperTests.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\VPNTest.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\WithKeyPrefixTests.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\WrapperBaseTests.cs" />
+    <Compile Include="..\StackExchange.Redis.Tests\SortedSets.cs">
+      <Link>SortedSets.cs</Link>
+    </Compile>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config">
