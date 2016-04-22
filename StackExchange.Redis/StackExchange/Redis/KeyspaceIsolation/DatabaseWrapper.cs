@@ -649,6 +649,10 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.SortedSetScan(ToInner(key), pattern, pageSize, cursor, pageOffset, flags);
         }
 
+        public long SortedSetCount(RedisKey key, double min, double max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.SortedSetCount(key, min, max, exclude, flags);
+        }
 
 #if DEBUG
         public string ClientGetName(CommandFlags flags = CommandFlags.None)

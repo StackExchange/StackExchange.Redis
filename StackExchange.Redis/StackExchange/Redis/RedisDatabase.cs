@@ -2108,6 +2108,12 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
+        public long SortedSetCount(RedisKey key, double min = double.NegativeInfinity, double max = double.PositiveInfinity, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetLexMessage(RedisCommand.ZCOUNT, key, min, max, exclude, 0, -1, flags);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+
         public Task<long> SortedSetLengthByValueAsync(RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetLexMessage(RedisCommand.ZLEXCOUNT, key, min, max, exclude, 0, -1, flags);
@@ -2126,6 +2132,11 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
+        public Task<long> SortedSetCountAsync(RedisKey key, double min = double.NegativeInfinity, double max = double.PositiveInfinity, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetLexMessage(RedisCommand.ZCOUNT, key, min, max, exclude, 0, -1, flags);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
 
         internal class ScanIterator<T> : CursorEnumerable<T>
         {
