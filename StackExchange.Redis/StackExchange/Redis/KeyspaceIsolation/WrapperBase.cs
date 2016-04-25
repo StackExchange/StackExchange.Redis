@@ -516,9 +516,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.SortedSetScoreAsync(ToInner(key), member, flags);
         }
 
-        public Task<long> SortedSetCountAsync(RedisKey key, double min, double max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
+        public Task<long> SortedSetCountAsync(RedisKey key, double min, double max, CommandFlags flags = CommandFlags.None)
         {
-            return Inner.SortedSetCountAsync(key, min, max, exclude, flags);
+            return Inner.SortedSetCountAsync(key, min, max, flags);
         }
 
         public Task<long> StringAppendAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)

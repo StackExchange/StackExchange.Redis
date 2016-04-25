@@ -2108,9 +2108,9 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
-        public long SortedSetCount(RedisKey key, double min = double.NegativeInfinity, double max = double.PositiveInfinity, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
+        public long SortedSetCount(RedisKey key, double min = double.NegativeInfinity, double max = double.PositiveInfinity, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetLexMessage(RedisCommand.ZCOUNT, key, min, max, exclude, 0, -1, flags);
+            var msg = Message.Create(Database, flags, RedisCommand.ZCOUNT, key, min, max);
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
@@ -2132,9 +2132,9 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
-        public Task<long> SortedSetCountAsync(RedisKey key, double min = double.NegativeInfinity, double max = double.PositiveInfinity, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None)
+        public Task<long> SortedSetCountAsync(RedisKey key, double min = double.NegativeInfinity, double max = double.PositiveInfinity, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetLexMessage(RedisCommand.ZCOUNT, key, min, max, exclude, 0, -1, flags);
+            var msg = Message.Create(Database, flags, RedisCommand.ZCOUNT, key, min, max);
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
