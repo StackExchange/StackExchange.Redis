@@ -1237,6 +1237,11 @@ namespace StackExchange.Redis
                             return true;
                         }
                         break;
+                    case ResultType.SimpleString:
+                        //We don't want to blow up if the master is not found
+                        if (result.IsNull)
+                            return true;
+                        break;
                 }
                 return false;
             }
