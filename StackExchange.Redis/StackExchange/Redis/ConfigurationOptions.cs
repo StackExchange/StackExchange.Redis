@@ -105,7 +105,7 @@ namespace StackExchange.Redis
 
         private bool? allowAdmin, abortOnConnectFail, highPrioritySocketThreads, resolveDns, ssl;
 
-        private string clientName, serviceName, password, tieBreaker, sslHost, configChannel;
+        private string clientName, serviceName, password, tieBreaker, sslHost, configChannel;        
 
         private CommandMap commandMap;
 
@@ -113,7 +113,9 @@ namespace StackExchange.Redis
 
         private int? keepAlive, syncTimeout, connectTimeout, responseTimeout, writeBuffer, connectRetry, configCheckSeconds, defaultDatabase;
 
-        private Proxy? proxy;
+        private Proxy? proxy;        
+
+        private ConfigurationOptions sentinelMasterConfigurationOptions;
 
         /// <summary>
         /// A LocalCertificateSelectionCallback delegate responsible for selecting the certificate used for authentication; note
@@ -242,7 +244,12 @@ namespace StackExchange.Redis
         /// If enabled the ConnectionMultiplexer will not re-resolve DNS
         /// when attempting to re-connect after a connection failure.
         /// </summary>
-        public bool ResolveDns { get { return resolveDns.GetValueOrDefault(); } set { resolveDns = value; } }
+        public bool ResolveDns { get { return resolveDns.GetValueOrDefault(); } set { resolveDns = value; } }        
+        
+        /// <summary>
+        ///  Configuration options for the master that Sentinel connects to
+        /// </summary>
+        public ConfigurationOptions SentinelMasterConfigurationOptions { get { return sentinelMasterConfigurationOptions; } set { sentinelMasterConfigurationOptions = value; } }
 
         /// <summary>
         /// The service name used to resolve a service via sentinel
@@ -347,7 +354,8 @@ namespace StackExchange.Redis
                 ChannelPrefix = ChannelPrefix.Clone(),
                 SocketManager = SocketManager,
                 connectRetry = connectRetry,
-                configCheckSeconds = configCheckSeconds,
+                configCheckSeconds = configCheckSeconds,                
+                sentinelMasterConfigurationOptions = sentinelMasterConfigurationOptions,
                 responseTimeout = responseTimeout,
 				defaultDatabase = defaultDatabase,
             };
