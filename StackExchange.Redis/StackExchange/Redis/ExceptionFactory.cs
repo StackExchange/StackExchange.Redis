@@ -75,9 +75,25 @@ namespace StackExchange.Redis
             return ex;
         }
 
+        internal static string GetInnerMostExceptionMessage(Exception e)
+        {
+            if (e == null)
+            {
+                return "";
+            }
+            else
+            {
+                while (e.InnerException != null)
+                {
+                    e = e.InnerException;
+                }
+                return e.Message;
+            }
+        }
+        
         internal static Exception NoConnectionAvailable(bool includeDetail, RedisCommand command, Message message, ServerEndPoint server, ServerEndPoint[] serverSnapshot)
         {
-            string s = GetLabel(includeDetail, command, message);
+            string commandLabel = GetLabel(includeDetail, command, message);
 
             if (server != null)
             {
@@ -85,11 +101,19 @@ namespace StackExchange.Redis
                 //otherwise it would output state of all the endpoints
                 serverSnapshot = new ServerEndPoint[] { server };
             }
-            string exceptionmessage = "No connection is available to service this operation: " + s ;
-            var ex = new RedisConnectionException(ConnectionFailureType.UnableToResolvePhysicalConnection, exceptionmessage, GetServerSnapshotInnerExceptions(serverSnapshot));
+
+            var innerException = GetServerSnapshotInnerExceptions(serverSnapshot);
+
+            StringBuilder exceptionmessage = new StringBuilder("No connection is available to service this operation: ");
+            exceptionmessage.Append(commandLabel);
+            exceptionmessage.Append("; ");
+            exceptionmessage.Append(GetInnerMostExceptionMessage(innerException));
+
+            var ex = new RedisConnectionException(ConnectionFailureType.UnableToResolvePhysicalConnection, exceptionmessage.ToString(), innerException);
+            
             if (includeDetail)
             {
-                AddDetail(ex, message, server, s);
+                AddDetail(ex, message, server, commandLabel);
             }
             return ex;
         }
