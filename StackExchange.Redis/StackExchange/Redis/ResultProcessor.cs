@@ -84,6 +84,9 @@ namespace StackExchange.Redis
         public static readonly ResultProcessor<EndPoint>
             SentinelMasterEndpoint = new SentinelGetMasterAddressByNameProcessor();
 
+        public static readonly ResultProcessor<EndPoint[]>
+            SentinelAddressesEndPoints = new SentinelGetSentinelAddresses();
+
         public static readonly ResultProcessor<KeyValuePair<string, string>[][]>
             SentinelArrayOfArrays = new SentinelArrayOfArraysProcessor();
         
@@ -1238,6 +1241,68 @@ namespace StackExchange.Redis
                         }
                         break;
                 }
+                return false;
+            }
+        }
+
+        sealed class SentinelGetSentinelAddresses : ResultProcessor<EndPoint[]>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            {
+                List<EndPoint> endPoints = new List<EndPoint>();
+                
+                switch (result.Type)
+                {
+                    case ResultType.MultiBulk:
+                        RawResult[] items = result.GetItems();
+
+                        foreach(RawResult item in items)
+                        {
+                            var arr = item.GetItemsAsValues();
+                            String ip = null;
+                            String portStr = null;
+
+                            for(int i = 0; i < arr.Length && (ip == null || portStr == null); i += 2)
+                            {
+                                String name = arr[i];
+                                String value = arr[i + 1];
+
+                                switch(name)
+                                {
+                                    case "ip":
+                                        ip = value;
+                                        break;
+
+                                    case "port":
+                                        portStr = value;
+                                        break;
+
+                                    default:
+                                        break;
+                                }
+                            }
+                            
+                            int port;
+                            if (ip != null && portStr != null && int.TryParse(portStr, out port))
+                            {
+                                endPoints.Add(Format.ParseEndPoint(ip, port));     
+                            }                                                     
+                        }
+                        break;
+                        
+                    case ResultType.SimpleString:
+                        //We don't want to blow up if the master is not found
+                        if (result.IsNull)
+                            return true;
+                        break;
+                }
+
+                if(endPoints.Count > 0)
+                {
+                    SetResult(message, endPoints.ToArray());
+                    return true;
+                }
+
                 return false;
             }
         }

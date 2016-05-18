@@ -874,6 +874,12 @@ namespace StackExchange.Redis
                 }
                 if (!task.Result) throw ExceptionFactory.UnableToConnect(muxer.failureMessage);
                 killMe = null;
+
+                if(muxer.ServerSelectionStrategy.ServerType == ServerType.Sentinel)
+                {
+                    // Initialize the Sentinel handlers
+                    muxer.InitializeSentinel(log);
+                }
                 return muxer;
             }
             finally
@@ -1820,6 +1826,269 @@ namespace StackExchange.Redis
 
         internal ServerSelectionStrategy ServerSelectionStrategy => serverSelectionStrategy;
 
+        internal EndPoint currentSentinelMasterEndPoint = null;
+
+        internal System.Timers.Timer sentinelMasterReconnectTimer = null;
+        
+        internal Dictionary<String, ConnectionMultiplexer> sentinelConnectionChildren = null;
+
+        /// <summary>
+        /// Initializes the connection as a Sentinel connection and adds
+        /// the necessary event handlers to track changes to the managed
+        /// masters.
+        /// </summary>
+        /// <param name="log"></param>
+        internal void InitializeSentinel(TextWriter log)
+        {
+            if(ServerSelectionStrategy.ServerType != ServerType.Sentinel)
+                return;        
+
+            sentinelConnectionChildren = new Dictionary<string,ConnectionMultiplexer>();
+
+            // Subscribe to sentinel change events
+            ISubscriber sub = GetSubscriber();
+            if(sub.SubscribedEndpoint("+switch-master") == null)
+            {
+                sub.Subscribe("+switch-master", (channel, message) => {
+                    string[] messageParts = ((string)message).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    EndPoint switchBlame = Format.TryParseEndPoint(string.Format("{0}:{1}", messageParts[1], messageParts[2]));
+                    
+                    lock(sentinelConnectionChildren)
+                    {
+                        // Switch the master if we have connections for that service
+                        if(sentinelConnectionChildren.ContainsKey(messageParts[0]))
+                        {
+                            SwitchMaster(switchBlame, sentinelConnectionChildren[messageParts[0]]);
+                        }
+                    }
+                });
+            }  
+
+            // If we lose connection to a sentinel server,
+            // We need to reconfigure to make sure we still have
+            // a subscription to the +switch-master channel.
+            this.ConnectionFailed += (sender, e) => {
+                // Reconfigure to get subscriptions back online
+                ReconfigureAsync(false, true, log, e.EndPoint, "Lost sentinel connection", false).Wait();
+            };
+
+            // Subscribe to new sentinels being added
+            if(sub.SubscribedEndpoint("+sentinel") == null)
+            {
+                sub.Subscribe("+sentinel", (channel, message) => {
+                    string[] messageParts = ((string)message).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    UpdateSentinelAddressList(messageParts[0]);
+                });
+            }
+        }
+
+        /// <summary>
+        /// Returns a managed connection to the master server indicated by
+        /// the ServiceName in the config.
+        /// </summary>
+        /// <param name="config">the configuration to be used when connecting to the master</param>
+        /// <param name="log"></param>
+        /// <returns></returns>
+        public ConnectionMultiplexer GetSentinelMasterConnection(ConfigurationOptions config, TextWriter log = null)
+        {
+            if(ServerSelectionStrategy.ServerType != ServerType.Sentinel)
+                throw new NotImplementedException("The ConnectionMultiplexer is not a Sentinel connection.");
+
+            if(String.IsNullOrEmpty(config.ServiceName))
+                throw new ArgumentException("A ServiceName must be specified.");
+
+            // Clear out the endpoints                        
+            config.EndPoints.Clear();            
+
+            // Get an initial endpoint
+            EndPoint initialMasterEndPoint = null;
+
+            do 
+            {
+                initialMasterEndPoint = GetConfiguredMasterForService(config.ServiceName);
+            } while(initialMasterEndPoint == null);
+
+            config.EndPoints.Add(initialMasterEndPoint);
+
+            ConnectionMultiplexer connection = ConnectionMultiplexer.Connect(config, log);
+
+            // Attach to reconnect event to ensure proper connection to the new master
+            connection.ConnectionRestored += (sender, e) => {                
+                if(connection.sentinelMasterReconnectTimer != null)
+                {
+                    connection.sentinelMasterReconnectTimer.Stop();
+                    connection.sentinelMasterReconnectTimer = null;
+                }
+
+                // Run a switch to make sure we have update-to-date 
+                // information about which master we should connect to
+                SwitchMaster(e.EndPoint, connection);
+    
+                try
+                {
+                    // Verify that the reconnected endpoint is a master,
+                    // and the correct one otherwise we should reconnect
+                    if(connection.GetServer(e.EndPoint).IsSlave || e.EndPoint != currentSentinelMasterEndPoint)
+                    {
+                        // Wait for things to smooth out
+                        Thread.Sleep(200);
+
+                        // This isn't a master, so try connecting again
+                        SwitchMaster(e.EndPoint, connection);
+                    }
+                }
+                catch(Exception)
+                {
+                    // If we get here it means that we tried to reconnect to a server that is no longer
+                    // considered a master by Sentinel and was removed from the list of endpoints.
+
+                    // Wait for things to smooth out
+                    Thread.Sleep(200);
+
+                    // If we caught an exception, we may have gotten a stale endpoint
+                    // we are not aware of, so retry
+                    SwitchMaster(e.EndPoint, connection);
+                }
+            };
+
+            // If we lost the connection, run a switch to a least try and get updated info about the master
+            connection.ConnectionFailed += (sender, e) => {
+                // Periodically check to see if we can reconnect to the proper master.
+                // This is here in case we lost our subscription to a good sentinel instance
+                // or if we miss the published master change
+                if(connection.sentinelMasterReconnectTimer == null)
+                {
+                    connection.sentinelMasterReconnectTimer = new System.Timers.Timer(1000);
+                    connection.sentinelMasterReconnectTimer.AutoReset = true;                            
+
+                    connection.sentinelMasterReconnectTimer.Elapsed += (o, t) => {
+                        SwitchMaster(e.EndPoint, connection);
+                    };
+                            
+                    connection.sentinelMasterReconnectTimer.Start();
+                }                        
+            };
+            
+            lock(sentinelConnectionChildren)
+            {
+                sentinelConnectionChildren.Add(connection.RawConfig.ServiceName, connection);
+            }
+
+            // Perform the initial switchover
+            SwitchMaster(configuration.EndPoints[0], connection, log);   
+         
+            return connection;
+        }
+
+        internal EndPoint GetConfiguredMasterForService(String serviceName, int timeoutmillis = -1)
+        {
+            Task<EndPoint>[] sentinelMasters = this.serverSnapshot
+                        .Where(s => s.ServerType == ServerType.Sentinel)
+                        .Select(s => this.GetServer(s.EndPoint).SentinelGetMasterAddressByNameAsync(serviceName))
+                        .ToArray();
+
+            Task<Task<EndPoint>> firstCompleteRequest = WaitFirstNonNullIgnoreErrorsAsync(sentinelMasters);
+            if (!firstCompleteRequest.Wait(timeoutmillis))
+                throw new TimeoutException("Timeout resolving master for service");
+            if (firstCompleteRequest.Result.Result == null)
+                throw new Exception("Unable to determine master");
+
+            return firstCompleteRequest.Result.Result;
+        }	
+
+        private static async Task<Task<T>> WaitFirstNonNullIgnoreErrorsAsync<T>(Task<T>[] tasks)
+        {
+            if (tasks == null) throw new ArgumentNullException("tasks");
+            if (tasks.Length == 0) return null;
+            var typeNullable = (Nullable.GetUnderlyingType(typeof(T)) != null);
+            var taskList = tasks.Cast<Task>().ToList();
+
+            try
+            {
+                while (taskList.Count() > 0)
+                {
+#if NET40
+                    var allTasksAwaitingAny = TaskEx.WhenAny(taskList).ObserveErrors();
+#else
+                    var allTasksAwaitingAny = Task.WhenAny(taskList).ObserveErrors();
+#endif
+                    var result = await allTasksAwaitingAny.ForAwait();
+                    taskList.Remove((Task<T>)result);
+                    if (((Task<T>)result).IsFaulted) continue;
+                    if ((!typeNullable) || ((Task<T>)result).Result != null)
+                        return (Task<T>)result;
+                }
+            }
+            catch
+            { }
+
+            return null;
+        }
+
+        /// <summary>
+        ///  Switches the SentinelMasterConnection over to a new master.
+        /// </summary>
+        /// <param name="switchBlame">the endpoing responsible for the switch</param>
+        /// <param name="connection">the connection that should be switched over to a new master endpoint</param>
+        internal void SwitchMaster(EndPoint switchBlame, ConnectionMultiplexer connection, TextWriter log = null)
+        {            
+            if(log == null) log = TextWriter.Null;
+            
+            String serviceName = connection.RawConfig.ServiceName;
+
+            // Get new master
+            EndPoint masterEndPoint = null;
+
+            do 
+            {
+                masterEndPoint = GetConfiguredMasterForService(serviceName);
+            } while(masterEndPoint == null);
+
+            connection.currentSentinelMasterEndPoint = masterEndPoint;
+
+            if (!connection.servers.Contains(masterEndPoint))
+            {
+                connection.configuration.EndPoints.Clear();
+                connection.servers.Clear();
+                connection.serverSnapshot = new ServerEndPoint[0];
+                connection.configuration.EndPoints.Add(masterEndPoint);
+                Trace(string.Format("Switching master to {0}", masterEndPoint));
+                // Trigger a reconfigure                            
+                connection.ReconfigureAsync(false, false, log, switchBlame, string.Format("master switch {0}", serviceName), false, CommandFlags.PreferMaster).Wait();
+            }
+            
+            UpdateSentinelAddressList(serviceName);        
+        }
+
+        internal void UpdateSentinelAddressList(String serviceName, int timeoutmillis = 500)
+        {
+            Task<EndPoint[]>[] sentinels = this.serverSnapshot
+                        .Where(s => s.ServerType == ServerType.Sentinel)
+                        .Select(s => this.GetServer(s.EndPoint).SentinelGetSentinelAddresses(serviceName))
+                        .ToArray();
+
+            Task<Task<EndPoint[]>> firstCompleteRequest = WaitFirstNonNullIgnoreErrorsAsync(sentinels);
+
+            // Ignore errors, as having an updated sentinel list is
+            // not essential
+            if (!firstCompleteRequest.Wait(timeoutmillis))
+                return;
+            if (firstCompleteRequest.Result.Result == null)
+                return;
+                        
+            bool hasNew = false;
+            foreach(EndPoint newSentinel in firstCompleteRequest.Result.Result.Where(x => !configuration.EndPoints.Contains(x)))
+            {
+                hasNew = true;
+                configuration.EndPoints.Add(newSentinel);
+            }
+
+            if(hasNew)
+            {
+                // Reconfigure the sentinel multiplexer if we added new endpoints
+                ReconfigureAsync(false, true, null, configuration.EndPoints[0], "Updating Sentinel List", false).Wait();
+            }
+        }
 
         /// <summary>
         /// Close all connections and release all resources associated with this object
