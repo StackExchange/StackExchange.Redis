@@ -1858,7 +1858,19 @@ namespace StackExchange.Redis
                         // Switch the master if we have connections for that service
                         if(sentinelConnectionChildren.ContainsKey(messageParts[0]))
                         {
-                            SwitchMaster(switchBlame, sentinelConnectionChildren[messageParts[0]]);
+                            ConnectionMultiplexer child = sentinelConnectionChildren[messageParts[0]];
+
+                            // Is the connection still valid?
+                            if(child.IsDisposed)
+                            {
+                                child.ConnectionFailed -= OnManagedConnectionFailed;
+                                child.ConnectionRestored -= OnManagedConnectionRestored;
+                                sentinelConnectionChildren.Remove(messageParts[0]);
+                            }
+                            else
+                            {
+                                SwitchMaster(switchBlame, sentinelConnectionChildren[messageParts[0]]);
+                            }
                         }
                     }
                 });
@@ -1897,6 +1909,12 @@ namespace StackExchange.Redis
             if(String.IsNullOrEmpty(config.ServiceName))
                 throw new ArgumentException("A ServiceName must be specified.");
 
+            lock(sentinelConnectionChildren)
+            {
+                if(sentinelConnectionChildren.ContainsKey(config.ServiceName) && !sentinelConnectionChildren[config.ServiceName].IsDisposed)
+                    return sentinelConnectionChildren[config.ServiceName];
+            }
+
             // Clear out the endpoints                        
             config.EndPoints.Clear();            
 
@@ -1913,71 +1931,80 @@ namespace StackExchange.Redis
             ConnectionMultiplexer connection = ConnectionMultiplexer.Connect(config, log);
 
             // Attach to reconnect event to ensure proper connection to the new master
-            connection.ConnectionRestored += (sender, e) => {                
-                if(connection.sentinelMasterReconnectTimer != null)
-                {
-                    connection.sentinelMasterReconnectTimer.Stop();
-                    connection.sentinelMasterReconnectTimer = null;
-                }
-
-                // Run a switch to make sure we have update-to-date 
-                // information about which master we should connect to
-                SwitchMaster(e.EndPoint, connection);
-    
-                try
-                {
-                    // Verify that the reconnected endpoint is a master,
-                    // and the correct one otherwise we should reconnect
-                    if(connection.GetServer(e.EndPoint).IsSlave || e.EndPoint != currentSentinelMasterEndPoint)
-                    {
-                        // Wait for things to smooth out
-                        Thread.Sleep(200);
-
-                        // This isn't a master, so try connecting again
-                        SwitchMaster(e.EndPoint, connection);
-                    }
-                }
-                catch(Exception)
-                {
-                    // If we get here it means that we tried to reconnect to a server that is no longer
-                    // considered a master by Sentinel and was removed from the list of endpoints.
-
-                    // Wait for things to smooth out
-                    Thread.Sleep(200);
-
-                    // If we caught an exception, we may have gotten a stale endpoint
-                    // we are not aware of, so retry
-                    SwitchMaster(e.EndPoint, connection);
-                }
-            };
+            connection.ConnectionRestored += OnManagedConnectionRestored;
 
             // If we lost the connection, run a switch to a least try and get updated info about the master
-            connection.ConnectionFailed += (sender, e) => {
-                // Periodically check to see if we can reconnect to the proper master.
-                // This is here in case we lost our subscription to a good sentinel instance
-                // or if we miss the published master change
-                if(connection.sentinelMasterReconnectTimer == null)
-                {
-                    connection.sentinelMasterReconnectTimer = new System.Timers.Timer(1000);
-                    connection.sentinelMasterReconnectTimer.AutoReset = true;                            
+            connection.ConnectionFailed += OnManagedConnectionFailed;                        
 
-                    connection.sentinelMasterReconnectTimer.Elapsed += (o, t) => {
-                        SwitchMaster(e.EndPoint, connection);
-                    };
-                            
-                    connection.sentinelMasterReconnectTimer.Start();
-                }                        
-            };
-            
             lock(sentinelConnectionChildren)
             {
-                sentinelConnectionChildren.Add(connection.RawConfig.ServiceName, connection);
+                sentinelConnectionChildren[connection.RawConfig.ServiceName] = connection;
             }
 
             // Perform the initial switchover
             SwitchMaster(configuration.EndPoints[0], connection, log);   
          
             return connection;
+        }
+
+        internal void OnManagedConnectionRestored(Object sender, ConnectionFailedEventArgs e)
+        {
+            ConnectionMultiplexer connection = (ConnectionMultiplexer)sender;
+
+            if(connection.sentinelMasterReconnectTimer != null)
+            {
+                connection.sentinelMasterReconnectTimer.Stop();
+                connection.sentinelMasterReconnectTimer = null;
+            }
+
+            // Run a switch to make sure we have update-to-date 
+            // information about which master we should connect to
+            SwitchMaster(e.EndPoint, connection);
+    
+            try
+            {
+                // Verify that the reconnected endpoint is a master,
+                // and the correct one otherwise we should reconnect
+                if(connection.GetServer(e.EndPoint).IsSlave || e.EndPoint != connection.currentSentinelMasterEndPoint)
+                {
+                    // Wait for things to smooth out
+                    Thread.Sleep(200);
+
+                    // This isn't a master, so try connecting again
+                    SwitchMaster(e.EndPoint, connection);
+                }
+            }
+            catch(Exception)
+            {
+                // If we get here it means that we tried to reconnect to a server that is no longer
+                // considered a master by Sentinel and was removed from the list of endpoints.
+
+                // Wait for things to smooth out
+                Thread.Sleep(200);
+
+                // If we caught an exception, we may have gotten a stale endpoint
+                // we are not aware of, so retry
+                SwitchMaster(e.EndPoint, connection);
+            }
+        }
+
+        internal void OnManagedConnectionFailed(Object sender, ConnectionFailedEventArgs e)
+        {
+            ConnectionMultiplexer connection = (ConnectionMultiplexer)sender;
+            // Periodically check to see if we can reconnect to the proper master.
+            // This is here in case we lost our subscription to a good sentinel instance
+            // or if we miss the published master change
+            if(connection.sentinelMasterReconnectTimer == null)
+            {
+                connection.sentinelMasterReconnectTimer = new System.Timers.Timer(1000);
+                connection.sentinelMasterReconnectTimer.AutoReset = true;                            
+                
+                connection.sentinelMasterReconnectTimer.Elapsed += (o, t) => {
+                    SwitchMaster(e.EndPoint, connection);
+                };
+                            
+                connection.sentinelMasterReconnectTimer.Start();
+            }   
         }
 
         internal EndPoint GetConfiguredMasterForService(String serviceName, int timeoutmillis = -1)
