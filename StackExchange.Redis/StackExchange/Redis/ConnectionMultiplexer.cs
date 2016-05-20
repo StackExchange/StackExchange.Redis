@@ -109,6 +109,8 @@ namespace StackExchange.Redis
         internal static string TryGetAzureRoleInstanceIdNoThrow()
         {
             string roleInstanceId = null;
+            // TODO: CoreCLR port pending https://github.com/dotnet/coreclr/issues/919
+#if !CORE_CLR
             try
             {
                 Assembly asm = null;
@@ -137,6 +139,7 @@ namespace StackExchange.Redis
                 //silently ignores the exception
                 roleInstanceId = null;
             }
+#endif
             return roleInstanceId;
         }
 
