@@ -1,30 +1,35 @@
 {
   "version": "1.0.0-*",
   "description": "StackExchange.Redis.Tests",
-  "authors": [ "" ],
-  "tags": [ "" ],
-  "projectUrl": "",
-  "licenseUrl": "",
   "dependencies": {
     "StackExchange.Redis": {
-      "version": "1.1.572-alpha",
+      "version": "1.1.*",
       "target": "project"
     }
   },
   "commands": {
     "run": "StackExchange.Redis.Tests"
   },
-  "compilationOptions": { "define": [ "NUNITLITE" ] },
+  "buildOptions": {
+    "define": [ "NUNITLITE" ],
+    "emitEntryPoint": true
+  },
+  "runtimes": {
+    "win81-x64": {}
+  },
   "frameworks": {
-    "dnxcore50": {
-      "compilationOptions": { "define": [ "PLAT_SAFE_CONTINUATIONS", "CORE_CLR" ] },
+    "netcoreapp1.0": {
+      "imports": [ "dnxcore50" ],
+      "buildOptions": {
+        "define": [ "PLAT_SAFE_CONTINUATIONS", "CORE_CLR" ]
+      },
       "dependencies": {
-        "System.Console": "4.0.0-beta-23516",
-        "System.Linq.Expressions": "4.0.11-beta-23516",
-        "System.Reflection.Extensions": "4.0.1-beta-23516",
-        "System.Threading.Tasks.Parallel": "4.0.1-beta-23516",
-        "Microsoft.CSharp": "4.0.1-beta-23516",
-        "nunitlite": "3.0.0"
+        "System.Console": "4.0.0-rc2-24027",
+        "System.Linq.Expressions": "4.0.11-rc2-24027",
+        "System.Reflection.Extensions": "4.0.1-rc2-24027",
+        "System.Threading.Tasks.Parallel": "4.0.1-rc2-24027",
+        "Microsoft.CSharp": "4.0.1-rc2-24027",
+        "nunitlite": "3.2.1"
       }
     }
   }
