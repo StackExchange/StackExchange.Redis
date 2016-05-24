@@ -233,7 +233,7 @@ namespace StackExchange.Redis
         public string Password { get { return password; } set { password = value; } }
 
         /// <summary>
-        /// Indicates whether admin operations should be allowed
+        /// Type of proxy to use (if any); for example Proxy.Twemproxy
         /// </summary>
         public Proxy Proxy { get { return proxy.GetValueOrDefault(); } set { proxy = value; } }
 
