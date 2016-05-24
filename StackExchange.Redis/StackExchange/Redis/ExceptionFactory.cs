@@ -106,8 +106,12 @@ namespace StackExchange.Redis
 
             StringBuilder exceptionmessage = new StringBuilder("No connection is available to service this operation: ");
             exceptionmessage.Append(commandLabel);
-            exceptionmessage.Append("; ");
-            exceptionmessage.Append(GetInnerMostExceptionMessage(innerException));
+            string innermostExceptionstring = GetInnerMostExceptionMessage(innerException);
+            if (!string.IsNullOrEmpty(innermostExceptionstring))
+            {
+                exceptionmessage.Append("; ");
+                exceptionmessage.Append(innermostExceptionstring);
+            }
 
             var ex = new RedisConnectionException(ConnectionFailureType.UnableToResolvePhysicalConnection, exceptionmessage.ToString(), innerException);
             
