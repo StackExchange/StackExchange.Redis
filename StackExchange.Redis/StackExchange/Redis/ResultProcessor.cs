@@ -1165,7 +1165,7 @@ namespace StackExchange.Redis
                 {
                     if (result.IsEqual(authFail) || result.IsEqual(authRequired))
                     {
-                        connection.RecordConnectionFailed(ConnectionFailureType.AuthenticationFailure);
+                        connection.RecordConnectionFailed(ConnectionFailureType.AuthenticationFailure, new Exception(result.ToString() + " Verify if the Redis password provided is correct."));
                     }
                     else if (result.AssertStarts(loading))
                     {
@@ -1236,6 +1236,11 @@ namespace StackExchange.Redis
                             SetResult(message, null);
                             return true;
                         }
+                        break;
+                    case ResultType.SimpleString:
+                        //We don't want to blow up if the master is not found
+                        if (result.IsNull)
+                            return true;
                         break;
                 }
                 return false;

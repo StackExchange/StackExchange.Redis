@@ -206,17 +206,28 @@ namespace StackExchange.Redis
             result = 0;
             if (value == null || count <= 0) return false;
             checked
-            {   
-                bool neg = value[offset] == '-';
+            {
                 int max = offset + count;
-                for (int i = neg ? (offset + 1) : offset; i < max; i++)
+                if (value[offset] == '-')
                 {
-                    var b = value[i];
-                    if (b < '0' || b > '9') return false;
-                    result = (result * 10) + (b - '0');
+                    for (int i = offset + 1; i < max; i++)
+                    {
+                        var b = value[i];
+                        if (b < '0' || b > '9') return false;
+                        result = (result * 10) - (b - '0');
+                    }
+                    return true;
                 }
-                if (neg) result = -result;
-                return true;
+                else
+                {
+                    for (int i = offset; i < max; i++)
+                    {
+                        var b = value[i];
+                        if (b < '0' || b > '9') return false;
+                        result = (result * 10) + (b - '0');
+                    }
+                    return true;
+                }
             }
         }
 

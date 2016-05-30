@@ -8,6 +8,7 @@ using System.Net;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Reflection;
 #if NET40
 using Microsoft.Runtime.CompilerServices;
 #else
@@ -51,6 +52,8 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed partial class ConnectionMultiplexer : IConnectionMultiplexer, IDisposable
     {
+        private static readonly string timeoutHelpLink = "https://github.com/StackExchange/StackExchange.Redis/tree/master/Docs/Timeouts.md";
+
         private static TaskFactory _factory = null;
 
         /// <summary>
@@ -89,7 +92,56 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets the client-name that will be used on all new connections
         /// </summary>
-        public string ClientName => configuration.ClientName ?? Environment.GetEnvironmentVariable("ComputerName");
+        public string ClientName => configuration.ClientName ?? ConnectionMultiplexer.GetDefaultClientName();
+
+        private static string defaultClientName;
+        private static string GetDefaultClientName()
+        {
+            if (defaultClientName == null)
+            {
+                defaultClientName =  TryGetAzureRoleInstanceIdNoThrow() ?? Environment.GetEnvironmentVariable("ComputerName");
+            }
+            return defaultClientName;
+        }
+
+        /// Tries to get the Roleinstance Id if Microsoft.WindowsAzure.ServiceRuntime is loaded.
+        /// In case of any failure, swallows the exception and returns null
+        internal static string TryGetAzureRoleInstanceIdNoThrow()
+        {
+            string roleInstanceId = null;
+            // TODO: CoreCLR port pending https://github.com/dotnet/coreclr/issues/919
+#if !CORE_CLR
+            try
+            {
+                Assembly asm = null;
+                foreach (var asmb in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    if (asmb.GetName().Name.Equals("Microsoft.WindowsAzure.ServiceRuntime"))
+                    {
+                        asm = asmb;
+                        break;
+                    }
+                }
+                if (asm == null)
+                    return null;
+
+                var currentRoleInstanceProp = asm.GetType("Microsoft.WindowsAzure.ServiceRuntime.RoleEnvironment").GetProperty("CurrentRoleInstance");
+                var currentRoleInstanceId = currentRoleInstanceProp.GetValue(null, null);
+                roleInstanceId = currentRoleInstanceId.GetType().GetProperty("Id").GetValue(currentRoleInstanceId, null).ToString();
+
+                if (String.IsNullOrEmpty(roleInstanceId))
+                {
+                    roleInstanceId = null;
+                }
+            }
+            catch (Exception)
+            {
+                //silently ignores the exception
+                roleInstanceId = null;
+            }
+#endif
+            return roleInstanceId;
+        }
 
         /// <summary>
         /// Gets the configuration of the connection
@@ -295,7 +347,7 @@ namespace StackExchange.Redis
 
             if (server == null) throw new ArgumentNullException(nameof(server));
             var srv = new RedisServer(this, server, null);
-            if (!srv.IsConnected) throw ExceptionFactory.NoConnectionAvailable(IncludeDetailInExceptions, RedisCommand.SLAVEOF, null, server);
+            if (!srv.IsConnected) throw ExceptionFactory.NoConnectionAvailable(IncludeDetailInExceptions, RedisCommand.SLAVEOF, null, server, GetServerSnapshot());
 
             if (log == null) log = TextWriter.Null;
             CommandMap.AssertAvailable(RedisCommand.SLAVEOF);
@@ -1657,6 +1709,12 @@ namespace StackExchange.Redis
 
         private readonly ServerSelectionStrategy serverSelectionStrategy;
 
+        internal ServerEndPoint[] GetServerSnapshot()
+        {
+            var tmp = serverSnapshot;
+            return tmp;
+        }
+
         internal ServerEndPoint SelectServer(Message message)
         {
             if (message == null) return null;
@@ -1866,7 +1924,7 @@ namespace StackExchange.Redis
                 var source = ResultBox<T>.Get(tcs);
                 if (!TryPushMessageToBridge(message, processor, source, ref server))
                 {
-                    ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(IncludeDetailInExceptions, message.Command, message, server));
+                    ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(IncludeDetailInExceptions, message.Command, message, server, GetServerSnapshot()));
                 }
                 return tcs.Task;
             }
@@ -1907,7 +1965,7 @@ namespace StackExchange.Redis
                 {
                     if (!TryPushMessageToBridge(message, processor, source, ref server))
                     {
-                        throw ExceptionFactory.NoConnectionAvailable(IncludeDetailInExceptions, message.Command, message, server);
+                        throw ExceptionFactory.NoConnectionAvailable(IncludeDetailInExceptions, message.Command, message, server, GetServerSnapshot());
                     }
 
                     if (Monitor.Wait(source, timeoutMilliseconds))
@@ -1962,7 +2020,12 @@ namespace StackExchange.Redis
                             add("ThreadPool-IO-Completion", "IOCP", iocp);
                             add("ThreadPool-Workers", "WORKER", worker);
                             data.Add(Tuple.Create("Busy-Workers", busyWorkerCount.ToString()));
+
+                            add("Local-CPU", "Local-CPU", GetSystemCpuPercent());
 #endif
+                            sb.Append(" (Please take a look at this article for some common client-side issues that can cause timeouts: ");
+                            sb.Append(timeoutHelpLink);
+                            sb.Append(")");
                             errMessage = sb.ToString();
                             if (stormLogThreshold >= 0 && queue >= stormLogThreshold && Interlocked.CompareExchange(ref haveStormLog, 1, 0) == 0)
                             {
@@ -1972,6 +2035,8 @@ namespace StackExchange.Redis
                             }
                         }
                         var timeoutEx = ExceptionFactory.Timeout(IncludeDetailInExceptions, errMessage, message, server);
+                        timeoutEx.HelpLink = timeoutHelpLink;
+
                         if (data != null)
                         {
                             foreach (var kv in data)
@@ -1986,7 +2051,7 @@ namespace StackExchange.Redis
                 // snapshot these so that we can recycle the box
                 Exception ex;
                 T val;
-                ResultBox<T>.UnwrapAndRecycle(source, out val, out ex); // now that we aren't locking it...
+                ResultBox<T>.UnwrapAndRecycle(source, true, out val, out ex); // now that we aren't locking it...
                 if (ex != null) throw ex;
                 Trace(message + " received " + val);
                 return val;
@@ -1994,6 +2059,16 @@ namespace StackExchange.Redis
         }
 
 #if !CORE_CLR
+        private static string GetSystemCpuPercent()
+        {
+            float systemCPU;
+            if (PerfCounterHelper.TryGetSystemCPU(out systemCPU))
+            {
+                return Math.Round(systemCPU, 2) + "%";
+            }
+            return "unavailable";
+        }
+
         private static int GetThreadPoolStats(out string iocp, out string worker)
         {
             //BusyThreads =  TP.GetMaxThreads() –TP.GetAVailable();

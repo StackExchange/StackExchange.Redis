@@ -2383,7 +2383,7 @@ namespace StackExchange.Redis
             {
                 if (box != null)
                 {
-                    ResultBox<TimeSpan?>.UnwrapAndRecycle(box, out value, out ex);
+                    ResultBox<TimeSpan?>.UnwrapAndRecycle(box, false, out value, out ex);
                     box = null;
                     return ex == null;
                 }

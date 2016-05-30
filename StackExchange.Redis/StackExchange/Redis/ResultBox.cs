@@ -66,7 +66,7 @@ namespace StackExchange.Redis
             return new ResultBox<T>(stateOrCompletionSource);
         }
 
-        public static void UnwrapAndRecycle(ResultBox<T> box, out T value, out Exception exception)
+        public static void UnwrapAndRecycle(ResultBox<T> box, bool recycle, out T value, out Exception exception)
         {
             if (box == null)
             {
@@ -79,9 +79,12 @@ namespace StackExchange.Redis
                 exception = box.exception;
                 box.value = default(T);
                 box.exception = null;
-                for (int i = 0; i < store.Length; i++)
+                if (recycle)
                 {
-                    if (Interlocked.CompareExchange(ref store[i], box, null) == null) return;
+                    for (int i = 0; i < store.Length; i++)
+                    {
+                        if (Interlocked.CompareExchange(ref store[i], box, null) == null) return;
+                    }
                 }
             }
         }
@@ -102,7 +105,7 @@ namespace StackExchange.Redis
                 {
                     T val;
                     Exception ex;
-                    UnwrapAndRecycle(this, out val, out ex);
+                    UnwrapAndRecycle(this, true, out val, out ex);
 
                     if (ex == null) tcs.TrySetResult(val);
                     else
