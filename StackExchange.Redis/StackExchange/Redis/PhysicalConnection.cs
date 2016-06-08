@@ -779,7 +779,11 @@ namespace StackExchange.Redis
                         );
                     try
                     {
+#if CORE_CLR
+                        ssl.AuthenticateAsClientAsync(host).GetAwaiter().GetResult();
+#else
                         ssl.AuthenticateAsClient(host);
+#endif
                     }
                     catch (AuthenticationException authexception)
                     {
@@ -794,11 +798,7 @@ namespace StackExchange.Redis
 
                 int bufferSize = config.WriteBuffer;
                 this.netStream = stream;
-#if CORE_CLR
-                this.outStream = bufferSize <= 0 ? stream : new BufferedOutputStream(stream, bufferSize);
-#else
                 this.outStream = bufferSize <= 0 ? stream : new BufferedStream(stream, bufferSize);
-#endif
                 Multiplexer.LogLocked(log, "Connected {0}", Bridge);
 
                 Bridge.OnConnected(this, log);
