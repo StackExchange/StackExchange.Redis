@@ -299,6 +299,53 @@ namespace StackExchange.Redis
     }
 #if !CORE_CLR
 
+    internal class ThreadPoolStats
+    {
+        public int Busy { get; set; }
+        public int Free { get; set; }
+        public int Min { get; set; }
+        public int Max { get; set; }
+
+        public override string ToString()
+        {
+            return $"(Busy={Busy},Free={Free},Min={Min},Max={Max})";
+        }
+
+        public static void Gather(out ThreadPoolStats iocp, out ThreadPoolStats worker)
+        {
+            //BusyThreads =  TP.GetMaxThreads() –TP.GetAVailable();
+            //If BusyThreads >= TP.GetMinThreads(), then threadpool growth throttling is possible.
+
+            int maxIoThreads, maxWorkerThreads;
+            ThreadPool.GetMaxThreads(out maxWorkerThreads, out maxIoThreads);
+
+            int freeIoThreads, freeWorkerThreads;
+            ThreadPool.GetAvailableThreads(out freeWorkerThreads, out freeIoThreads);
+
+            int minIoThreads, minWorkerThreads;
+            ThreadPool.GetMinThreads(out minWorkerThreads, out minIoThreads);
+
+            int busyIoThreads = maxIoThreads - freeIoThreads;
+            int busyWorkerThreads = maxWorkerThreads - freeWorkerThreads;
+
+            iocp = new ThreadPoolStats
+            {
+                Busy = busyIoThreads,
+                Free = freeIoThreads,
+                Min = minIoThreads,
+                Max = maxIoThreads
+            };
+
+            worker = new ThreadPoolStats
+            {
+                Busy = busyWorkerThreads,
+                Free = freeWorkerThreads,
+                Min = minWorkerThreads,
+                Max = maxWorkerThreads
+            };
+        }
+    }
+
     internal static class PerfCounterHelper
     {
         static object staticLock = new object();

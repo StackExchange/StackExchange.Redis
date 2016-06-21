@@ -611,8 +611,9 @@ namespace StackExchange.Redis
             {
                 var sb = new StringBuilder();
                 sb.Append(message);
-                string iocp, worker;
-                busyWorkerCount = GetThreadPoolStats(out iocp, out worker);
+                ThreadPoolStats iocp, worker;
+                ThreadPoolStats.Gather(out iocp, out worker);
+                busyWorkerCount = worker.Busy;
                 sb.Append(", IOCP: ").Append(iocp).Append(", WORKER: ").Append(worker);
                 LogLocked(log, sb.ToString());
             }
@@ -1990,14 +1991,25 @@ namespace StackExchange.Redis
                             var lastError = socketManager.LastErrorTimeRelative();
 
 #endif
-                            var sb = new StringBuilder("Timeout performing ").Append(message.CommandAndKey);
+                            var sb = new StringBuilder($"Timeout performing {message.CommandAndKey}.");
                             data = new List<Tuple<string, string>> {Tuple.Create("Message", message.CommandAndKey)};
+                            bool firstAdd = true;
                             Action<string, string, string> add = (lk, sk, v) =>
                             {
                                 data.Add(Tuple.Create(lk, v));
-                                sb.Append(", " + sk + ": " + v);
+                                if (!firstAdd) 
+                                    sb.Append(", ");
+                                sb.Append(sk + ": " + v);
+                                firstAdd = false;
                             };
 
+#if !CORE_CLR
+                            ThreadPoolStats iocp, worker;
+                            string localCpuPercent;
+                            AddTimeoutRootCauseIfPossible(sb, out iocp, out worker, out localCpuPercent);
+#endif
+
+                            sb.Append(" Diagnostics Info: ");
                             int queue = server.GetOutstandingCount(message.Command, out inst, out qu, out qs, out qc, out wr, out wq, out @in, out ar);
                             add("Instantaneous", "inst", inst.ToString());
 #if FEATURE_SOCKET_MODE_POLL
@@ -2015,13 +2027,11 @@ namespace StackExchange.Redis
 
                             add("Client-Name", "clientName", ClientName);
 #if !CORE_CLR
-                            string iocp, worker;
-                            int busyWorkerCount = GetThreadPoolStats(out iocp, out worker);
-                            add("ThreadPool-IO-Completion", "IOCP", iocp);
-                            add("ThreadPool-Workers", "WORKER", worker);
-                            data.Add(Tuple.Create("Busy-Workers", busyWorkerCount.ToString()));
+                            add("ThreadPool-IO-Completion", "IOCP", iocp.ToString());
+                            add("ThreadPool-Workers", "WORKER", worker.ToString());
+                            data.Add(Tuple.Create("Busy-Workers", worker.Busy.ToString()));
 
-                            add("Local-CPU", "Local-CPU", GetSystemCpuPercent());
+                            add("Local-CPU", "Local-CPU", localCpuPercent);
 #endif
                             sb.Append(" (Please take a look at this article for some common client-side issues that can cause timeouts: ");
                             sb.Append(timeoutHelpLink);
@@ -2059,36 +2069,36 @@ namespace StackExchange.Redis
         }
 
 #if !CORE_CLR
-        private static string GetSystemCpuPercent()
+        /// <summary>
+        /// Gathers system stats and appends detailed info about possible causes of timeouts to the error message StringBuilder
+        /// </summary>
+        private static void AddTimeoutRootCauseIfPossible(StringBuilder sb, out ThreadPoolStats iocp, out ThreadPoolStats worker, out string localCpuPercent)
         {
+            bool detailsAdded = false;
+            ThreadPoolStats.Gather(out iocp, out worker);
+            if (iocp.Busy > iocp.Min || worker.Busy > worker.Min)
+            {
+                detailsAdded = true;
+                sb.Append($" The number of busy IOCP or WORKER threads in the ThreadPool is greater than the Min setting, which could easily be the cause of this timeout.  See https://aka.ms/redis/threadpool for details on how ThreadPool Growth Throttling can affect performance.");
+            }
+
             float systemCPU;
+            localCpuPercent = "unavalable";
             if (PerfCounterHelper.TryGetSystemCPU(out systemCPU))
             {
-                return Math.Round(systemCPU, 2) + "%";
+                localCpuPercent = Math.Round(systemCPU, 2) + "%";
+                if (systemCPU > 85)
+                {
+                    if (detailsAdded)
+                    {
+                        sb.Append($" Additionally, this timeout may be a result of the local CPU usage being high ({localCpuPercent}).");
+                    }
+                    else
+                    {
+                        sb.Append($" This timeout may be a result of the local CPU usage being high ({localCpuPercent}).");
+                    }
+                }
             }
-            return "unavailable";
-        }
-
-        private static int GetThreadPoolStats(out string iocp, out string worker)
-        {
-            //BusyThreads =  TP.GetMaxThreads() –TP.GetAVailable();
-            //If BusyThreads >= TP.GetMinThreads(), then threadpool growth throttling is possible.
-
-            int maxIoThreads, maxWorkerThreads;
-            ThreadPool.GetMaxThreads(out maxWorkerThreads, out maxIoThreads);
-
-            int freeIoThreads, freeWorkerThreads;
-            ThreadPool.GetAvailableThreads(out freeWorkerThreads, out freeIoThreads);
-
-            int minIoThreads, minWorkerThreads;
-            ThreadPool.GetMinThreads(out minWorkerThreads, out minIoThreads);
-
-            int busyIoThreads = maxIoThreads - freeIoThreads;
-            int busyWorkerThreads = maxWorkerThreads - freeWorkerThreads;
-
-            iocp = $"(Busy={busyIoThreads},Free={freeIoThreads},Min={minIoThreads},Max={maxIoThreads})";
-            worker = $"(Busy={busyWorkerThreads},Free={freeWorkerThreads},Min={minWorkerThreads},Max={maxWorkerThreads})";
-            return busyWorkerThreads;
         }
 #endif
 
