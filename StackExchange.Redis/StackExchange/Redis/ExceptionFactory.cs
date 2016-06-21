@@ -102,7 +102,7 @@ namespace StackExchange.Redis
                 serverSnapshot = new ServerEndPoint[] { server };
             }
 
-            var innerException = GetServerSnapshotInnerExceptions(serverSnapshot);
+            var innerException = PopulateInnerExceptions(serverSnapshot);
 
             StringBuilder exceptionmessage = new StringBuilder("No connection is available to service this operation: ");
             exceptionmessage.Append(commandLabel);
@@ -122,11 +122,16 @@ namespace StackExchange.Redis
             return ex;
         }
 
-        internal static Exception GetServerSnapshotInnerExceptions(ServerEndPoint[] serverSnapshot)
+        internal static Exception PopulateInnerExceptions(ServerEndPoint[] serverSnapshot)
         {
             List<Exception> innerExceptions = new List<Exception>();
             if (serverSnapshot != null)
             {
+                if (serverSnapshot.Length > 0 && serverSnapshot[0].Multiplexer.LastException != null)
+                {
+                    innerExceptions.Add(serverSnapshot[0].Multiplexer.LastException);
+                }
+
                 for (int i = 0; i < serverSnapshot.Length; i++)
                 {
                     if (serverSnapshot[i].LastException != null)

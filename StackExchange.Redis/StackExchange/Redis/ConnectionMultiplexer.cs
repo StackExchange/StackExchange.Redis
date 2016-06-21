@@ -872,7 +872,11 @@ namespace StackExchange.Redis
                     task.ObserveErrors();
                     if (muxer.RawConfig.AbortOnConnectFail)
                     {
-                        throw ExceptionFactory.UnableToConnect("Timeout");
+                        throw ExceptionFactory.UnableToConnect("ConnectTimeout");
+                    }
+                    else
+                    {
+                        muxer.LastException = ExceptionFactory.UnableToConnect("ConnectTimeout");
                     }
                 }
                 if (!task.Result) throw ExceptionFactory.UnableToConnect(muxer.failureMessage);
@@ -984,6 +988,9 @@ namespace StackExchange.Redis
                 return unchecked(Environment.TickCount - VolatileWrapper.Read(ref lastHeartbeatTicks)) / 1000;
             }
         }
+
+        internal Exception LastException { get; set; }
+
         internal static long LastGlobalHeartbeatSecondsAgo => unchecked(Environment.TickCount - VolatileWrapper.Read(ref lastGlobalHeartbeatTicks)) / 1000;
 
         internal CompletionManager UnprocessableCompletionManager => unprocessableCompletionManager;
@@ -1128,6 +1135,10 @@ namespace StackExchange.Redis
                 if (configuration.AbortOnConnectFail)
                 {
                     throw new TimeoutException();
+                }
+                else
+                {
+                    LastException = new TimeoutException("ConnectTimeout");
                 }
                 return false;
             }
