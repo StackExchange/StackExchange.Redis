@@ -2006,7 +2006,7 @@ namespace StackExchange.Redis
 #if !CORE_CLR
                             ThreadPoolStats iocp, worker;
                             string localCpuPercent;
-                            AddTimeoutRootCauseIfPossible(sb, out iocp, out worker, out localCpuPercent);
+                            AddTimeoutRootCauseIfPossible(sb, server, out iocp, out worker, out localCpuPercent);
 #endif
 
                             sb.Append(" Diagnostics Info: ");
@@ -2072,19 +2072,28 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gathers system stats and appends detailed info about possible causes of timeouts to the error message StringBuilder
         /// </summary>
-        private static void AddTimeoutRootCauseIfPossible(StringBuilder sb, out ThreadPoolStats iocp, out ThreadPoolStats worker, out string localCpuPercent)
+        private static void AddTimeoutRootCauseIfPossible(StringBuilder sb, ServerEndPoint server, out ThreadPoolStats iocp, out ThreadPoolStats worker, out string localCpuPercent)
         {
-            bool detailsAdded = false;
+            localCpuPercent = "unavalable";
             ThreadPoolStats.Gather(out iocp, out worker);
+
+            float systemCPU;
+            bool gotCpuUsageSuccessfully = PerfCounterHelper.TryGetSystemCPU(out systemCPU);
+
+            if (server.ConnectionState != PhysicalBridge.State.ConnectedEstablished)
+            {
+                sb.Append($" The connection to the server was lost and was not restored in the timeout specified.");
+                return; // don't add IOCP and CPU details to the error message because connection management trumps all other causes of timeouts.
+            }
+
+            bool detailsAdded = false;            
             if (iocp.Busy > iocp.Min || worker.Busy > worker.Min)
             {
                 detailsAdded = true;
                 sb.Append($" The number of busy IOCP or WORKER threads in the ThreadPool is greater than the 'Min' setting, which could easily be the cause of this timeout.  See https://github.com/StackExchange/StackExchange.Redis/blob/master/Docs/Timeouts.md#are-you-seeing-high-number-of-busyio-or-busyworker-threads-in-the-timeout-exception for details on how ThreadPool Growth Throttling can affect performance.");
             }
-
-            float systemCPU;
-            localCpuPercent = "unavalable";
-            if (PerfCounterHelper.TryGetSystemCPU(out systemCPU))
+            
+            if (gotCpuUsageSuccessfully)
             {
                 localCpuPercent = Math.Round(systemCPU, 2) + "%";
                 if (systemCPU > 85)
