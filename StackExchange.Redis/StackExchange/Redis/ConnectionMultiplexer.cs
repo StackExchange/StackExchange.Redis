@@ -2079,7 +2079,7 @@ namespace StackExchange.Redis
             if (iocp.Busy > iocp.Min || worker.Busy > worker.Min)
             {
                 detailsAdded = true;
-                sb.Append($" The number of busy IOCP or WORKER threads in the ThreadPool is greater than the Min setting, which could easily be the cause of this timeout.  See https://aka.ms/redis/threadpool for details on how ThreadPool Growth Throttling can affect performance.");
+                sb.Append($" The number of busy IOCP or WORKER threads in the ThreadPool is greater than the 'Min' setting, which could easily be the cause of this timeout.  See https://github.com/StackExchange/StackExchange.Redis/blob/master/Docs/Timeouts.md#are-you-seeing-high-number-of-busyio-or-busyworker-threads-in-the-timeout-exception for details on how ThreadPool Growth Throttling can affect performance.");
             }
 
             float systemCPU;
