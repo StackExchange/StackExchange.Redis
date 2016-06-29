@@ -690,7 +690,7 @@ namespace StackExchange.Redis
                     Multiplexer.Trace("Beginning async read...", physicalName);
 #if CORE_CLR
                     var result = netStream.ReadAsync(ioBuffer, ioBufferBytes, space);
-                    switch(result.Status)
+                    switch (result.Status)
                     {
                         case TaskStatus.RanToCompletion:
                         case TaskStatus.Faulted:
