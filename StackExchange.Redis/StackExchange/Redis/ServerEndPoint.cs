@@ -25,7 +25,7 @@ namespace StackExchange.Redis
     {
         internal volatile ServerEndPoint Master;
         internal volatile ServerEndPoint[] Slaves = NoSlaves;
-        private static readonly Regex nameSanitizer = new Regex("[^!-~]", InternalRegexCompiledOption.Default);
+        private static readonly Regex nameSanitizer = new Regex("[^!-~]", RegexOptions.Compiled);
         private static readonly ServerEndPoint[] NoSlaves = new ServerEndPoint[0];
         private readonly EndPoint endpoint;
 
