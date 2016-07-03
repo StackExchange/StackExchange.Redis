@@ -6,8 +6,8 @@
       "version": "1.1.*",
       "target": "project"
     },
-    "nunit": "3.4.0",
-    "dotnet-test-nunit": "3.4.0-alpha-2" 
+    "nunit": "3.4.1",
+    "dotnet-test-nunit": "3.4.0-beta-1" 
   },
   "testRunner": "nunit",
   "frameworks": {
