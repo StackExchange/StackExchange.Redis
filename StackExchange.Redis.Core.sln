@@ -1,9 +1,9 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
-VisualStudioVersion = 14.0.25123.0
+VisualStudioVersion = 14.0.25420.1
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "BasicTest_dnxcore50", "BasicTest_dnxcore50\BasicTest_dnxcore50.xproj", "{9D83BABA-A92E-495F-BF63-DEB4F6B09355}"
+Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "BasicTest.Core", "BasicTest.Core\BasicTest.Core.xproj", "{9D83BABA-A92E-495F-BF63-DEB4F6B09355}"
 EndProject
 Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "StackExchange.Redis", "StackExchange.Redis\StackExchange.Redis.xproj", "{EF84877F-59BE-41BE-9013-E765AF0BB72E}"
 EndProject
@@ -14,6 +14,26 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{3AD17044-6BFF-4750-9AC2-2CA466375F2A}"
 	ProjectSection(SolutionItems) = preProject
 		NuGet.Config = NuGet.Config
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Redis Configs", "Redis Configs", "{96E891CD-2ED7-4293-A7AB-4C6F5D8D2B05}"
+	ProjectSection(SolutionItems) = preProject
+		Redis Configs\master.conf = Redis Configs\master.conf
+		Redis Configs\redis-cli 7000.cmd = Redis Configs\redis-cli 7000.cmd
+		Redis Configs\redis-cli 7001.cmd = Redis Configs\redis-cli 7001.cmd
+		Redis Configs\redis-cli 7002.cmd = Redis Configs\redis-cli 7002.cmd
+		Redis Configs\redis-cli 7003.cmd = Redis Configs\redis-cli 7003.cmd
+		Redis Configs\redis-cli 7004.cmd = Redis Configs\redis-cli 7004.cmd
+		Redis Configs\redis-cli 7005.cmd = Redis Configs\redis-cli 7005.cmd
+		Redis Configs\redis-cli master.cmd = Redis Configs\redis-cli master.cmd
+		Redis Configs\redis-cli secure.cmd = Redis Configs\redis-cli secure.cmd
+		Redis Configs\redis-cli slave.cmd = Redis Configs\redis-cli slave.cmd
+		Redis Configs\redis-server all local.cmd = Redis Configs\redis-server all local.cmd
+		Redis Configs\redis-server master.cmd = Redis Configs\redis-server master.cmd
+		Redis Configs\redis-server secure.cmd = Redis Configs\redis-server secure.cmd
+		Redis Configs\redis-server slave.cmd = Redis Configs\redis-server slave.cmd
+		Redis Configs\secure.conf = Redis Configs\secure.conf
+		Redis Configs\slave.conf = Redis Configs\slave.conf
 	EndProjectSection
 EndProject
 Global
@@ -41,5 +61,8 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{96E891CD-2ED7-4293-A7AB-4C6F5D8D2B05} = {3AD17044-6BFF-4750-9AC2-2CA466375F2A}
 	EndGlobalSection
 EndGlobal

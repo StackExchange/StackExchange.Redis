@@ -15,7 +15,7 @@
     }
   },
   "commands": {
-    "run": "BasicTest_dnxcore50"
+    "run": "BasicTest.Core"
   },
   "frameworks": {
     "netcoreapp1.0": {
