@@ -238,7 +238,7 @@ public class Redis : IDisposable
         socket.Connect(Host, Port);
         if (!socket.Connected)
         {
-            socket.Close();
+            socket.Dispose();
             socket = null;
             return;
         }
@@ -272,7 +272,7 @@ public class Redis : IDisposable
         catch (SocketException)
         {
             // timeout;
-            socket.Close();
+            socket.Dispose();
             socket = null;
 
             return false;
@@ -297,7 +297,7 @@ public class Redis : IDisposable
         catch (SocketException)
         {
             // timeout;
-            socket.Close();
+            socket.Dispose();
             socket = null;
 
             return false;
@@ -842,7 +842,7 @@ public class Redis : IDisposable
         if (disposing)
         {
             SendCommand("QUIT\r\n");
-            socket.Close();
+            socket.Dispose();
             socket = null;
         }
     }

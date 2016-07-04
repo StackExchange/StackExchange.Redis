@@ -41,7 +41,7 @@ namespace Tests.Issues
                 var originallyTask = conn.SetLengthAsync(todoKey);
                 int keepChecking = 1;
                 Task last = null;
-                while (Thread.VolatileRead(ref keepChecking) == 1)
+                while (Volatile.Read(ref keepChecking) == 1)
                 {
                     throttle.Wait(); // acquire
                     conn.SetPopAsync(todoKey).ContinueWith(task =>
@@ -51,7 +51,7 @@ namespace Tests.Issues
                         {
                             if ((string)task.Result == null)
                             {
-                                Thread.VolatileWrite(ref keepChecking, 0);
+                                Volatile.Write(ref keepChecking, 0);
                             }
                             else
                             {
