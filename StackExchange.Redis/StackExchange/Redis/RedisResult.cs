@@ -11,9 +11,9 @@ namespace StackExchange.Redis
         /// Create a new RedisResult.
         /// </summary>
         /// <returns></returns>
-        public static RedisResult Create(ResultType type, byte[] value)
+        public static RedisResult Create(RedisValue value)
         {
-            return TryCreate(null, new RawResult(type, value, 0, value.Length));
+            return new SingleRedisResult(value);
         }
 
         // internally, this is very similar to RawResult, except it is designed to be usable
