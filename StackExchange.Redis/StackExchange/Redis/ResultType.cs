@@ -1,6 +1,6 @@
 ﻿namespace StackExchange.Redis
 {
-    internal enum ResultType : byte
+    public enum ResultType : byte
     {
         None = 0,
         SimpleString = 1,
