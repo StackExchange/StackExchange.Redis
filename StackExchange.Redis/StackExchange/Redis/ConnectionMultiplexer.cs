@@ -2007,7 +2007,11 @@ namespace StackExchange.Redis
                             ThreadPoolStats iocp, worker;
                             string localCpuPercent;
                             AddTimeoutRootCauseIfPossible(sb, server, out iocp, out worker, out localCpuPercent);
+#else
+                            AppendTimeoutHelpLinkUrl(sb);
 #endif
+
+
 
                             sb.Append(" Diagnostics Info: ");
                             int queue = server.GetOutstandingCount(message.Command, out inst, out qu, out qs, out qc, out wr, out wq, out @in, out ar);
@@ -2032,10 +2036,7 @@ namespace StackExchange.Redis
                             data.Add(Tuple.Create("Busy-Workers", worker.Busy.ToString()));
 
                             add("Local-CPU", "Local-CPU", localCpuPercent);
-#endif
-                            sb.Append(" (Please take a look at this article for some common client-side issues that can cause timeouts: ");
-                            sb.Append(timeoutHelpLink);
-                            sb.Append(")");
+#endif                      
                             errMessage = sb.ToString();
                             if (stormLogThreshold >= 0 && queue >= stormLogThreshold && Interlocked.CompareExchange(ref haveStormLog, 1, 0) == 0)
                             {
@@ -2068,6 +2069,13 @@ namespace StackExchange.Redis
             }
         }
 
+        private static void AppendTimeoutHelpLinkUrl(StringBuilder sb)
+        {
+            sb.Append(" Please take a look at this article for some tips for investigating timeouts: ");
+            sb.Append(timeoutHelpLink);
+            sb.Append(".");
+        }
+
 #if !CORE_CLR
         /// <summary>
         /// Gathers system stats and appends detailed info about possible causes of timeouts to the error message StringBuilder
@@ -2086,10 +2094,12 @@ namespace StackExchange.Redis
                 return; // don't add IOCP and CPU details to the error message because connection management trumps all other causes of timeouts.
             }
 
-            bool detailsAdded = false;            
+            bool detailsAdded = false;
+            bool timeoutHelpLinkAdded = false;
             if (iocp.Busy > iocp.Min || worker.Busy > worker.Min)
             {
                 detailsAdded = true;
+                timeoutHelpLinkAdded = true;
                 sb.Append($" The number of busy IOCP or WORKER threads in the ThreadPool is greater than the 'Min' setting, which could easily be the cause of this timeout.  See https://github.com/StackExchange/StackExchange.Redis/blob/master/Docs/Timeouts.md#are-you-seeing-high-number-of-busyio-or-busyworker-threads-in-the-timeout-exception for details on how ThreadPool Growth Throttling can affect performance.");
             }
             
@@ -2107,6 +2117,11 @@ namespace StackExchange.Redis
                         sb.Append($" This timeout may be a result of the local CPU usage being high ({localCpuPercent}).");
                     }
                 }
+            }
+
+            if (!timeoutHelpLinkAdded)
+            {
+                AppendTimeoutHelpLinkUrl(sb);
             }
         }
 #endif
