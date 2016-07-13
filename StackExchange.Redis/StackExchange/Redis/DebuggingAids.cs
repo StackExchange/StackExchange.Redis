@@ -299,12 +299,12 @@ namespace StackExchange.Redis
     }
 #if !CORE_CLR
 
-    internal class ThreadPoolStats
+    internal struct ThreadPoolStats
     {
-        public int Busy { get; set; }
-        public int Free { get; set; }
-        public int Min { get; set; }
-        public int Max { get; set; }
+        public int Busy { get; private set; }
+        public int Free { get; private set; }
+        public int Min { get; private set; }
+        public int Max { get; private set; }
 
         public override string ToString()
         {
