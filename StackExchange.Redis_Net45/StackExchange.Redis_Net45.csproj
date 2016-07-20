@@ -73,7 +73,7 @@
     <Reference Include="System.IO.Compression" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="..\StackExchange.Redis\**\*.cs"/>
+    <Compile Include="..\StackExchange.Redis\**\*.cs" Exclude="..\StackExchange.Redis\obj\**\*.cs"/>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
