@@ -185,7 +185,7 @@ namespace StackExchange.Redis
             public Task SubscribeToServer(ConnectionMultiplexer multiplexer, RedisChannel channel, CommandFlags flags, object asyncState, bool internalCall)
             {
                 var cmd = channel.IsPatternBased ? RedisCommand.PSUBSCRIBE : RedisCommand.SUBSCRIBE;
-                var selected = multiplexer.SelectServer(-1, cmd, CommandFlags.DemandMaster, default(RedisKey));
+                var selected = multiplexer.SelectServer(-1, cmd, flags, default(RedisKey));
 
                 if (selected == null || Interlocked.CompareExchange(ref owner, selected, null) != null) return null;
 
