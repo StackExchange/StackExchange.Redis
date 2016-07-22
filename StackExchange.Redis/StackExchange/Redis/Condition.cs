@@ -18,7 +18,7 @@ namespace StackExchange.Redis
         /// </summary>
         public static Condition HashEqual(RedisKey key, RedisValue hashField, RedisValue value)
         {
-            if (hashField.IsNull) throw new ArgumentNullException("hashField");
+            if (hashField.IsNull) throw new ArgumentNullException(nameof(hashField));
             if (value.IsNull) return HashNotExists(key, hashField);
             return new EqualsCondition(key, hashField, true, value);
         }
@@ -28,7 +28,7 @@ namespace StackExchange.Redis
         /// </summary>
         public static Condition HashExists(RedisKey key, RedisValue hashField)
         {
-            if (hashField.IsNull) throw new ArgumentNullException("hashField");
+            if (hashField.IsNull) throw new ArgumentNullException(nameof(hashField));
             return new ExistsCondition(key, hashField, true);
         }
 
@@ -37,7 +37,7 @@ namespace StackExchange.Redis
         /// </summary>
         public static Condition HashNotEqual(RedisKey key, RedisValue hashField, RedisValue value)
         {
-            if (hashField.IsNull) throw new ArgumentNullException("hashField");
+            if (hashField.IsNull) throw new ArgumentNullException(nameof(hashField));
             if (value.IsNull) return HashExists(key, hashField);
             return new EqualsCondition(key, hashField, false, value);
         }
@@ -47,7 +47,7 @@ namespace StackExchange.Redis
         /// </summary>
         public static Condition HashNotExists(RedisKey key, RedisValue hashField)
         {
-            if (hashField.IsNull) throw new ArgumentNullException("hashField");
+            if (hashField.IsNull) throw new ArgumentNullException(nameof(hashField));
             return new ExistsCondition(key, hashField, false);
         }
 
@@ -117,6 +117,126 @@ namespace StackExchange.Redis
             return new EqualsCondition(key, RedisValue.Null, false, value);
         }
 
+        /// <summary>
+        /// Enforces that the given hash length is a certain value
+        /// </summary>
+        public static Condition HashLengthEqual(RedisKey key, long length)
+        {
+            return new LengthCondition(key, RedisType.Hash, 0, length);
+        }
+        
+        /// <summary>
+        /// Enforces that the given hash length is less than a certain value
+        /// </summary>
+        public static Condition HashLengthLessThan(RedisKey key, long length)
+        {
+            return new LengthCondition(key, RedisType.Hash, 1, length);
+        }
+        
+        /// <summary>
+        /// Enforces that the given hash length is greater than a certain value
+        /// </summary>
+        public static Condition HashLengthGreaterThan(RedisKey key, long length)
+        {
+            return new LengthCondition(key, RedisType.Hash, -1, length);
+        }
+
+        /// <summary>
+        /// Enforces that the given string length is a certain value
+        /// </summary>
+        public static Condition StringLengthEqual(RedisKey key, long length)
+        {
+            return new LengthCondition(key, RedisType.String, 0, length);
+        }
+        
+        /// <summary>
+        /// Enforces that the given string length is less than a certain value
+        /// </summary>
+        public static Condition StringLengthLessThan(RedisKey key, long length)
+        {
+            return new LengthCondition(key, RedisType.String, 1, length);
+        }
+        
+        /// <summary>
+        /// Enforces that the given string length is greater than a certain value
+        /// </summary>
+        public static Condition StringLengthGreaterThan(RedisKey key, long length)
+        {
+            return new LengthCondition(key, RedisType.String, -1, length);
+        }
+        
+        /// <summary>
+        /// Enforces that the given list length is a certain value
+        /// </summary>
+        public static Condition ListLengthEqual(RedisKey key, long length)
+        {
+            return new LengthCondition(key, RedisType.List, 0, length);
+        }
+        
+        /// <summary>
+        /// Enforces that the given list length is less than a certain value
+        /// </summary>
+        public static Condition ListLengthLessThan(RedisKey key, long length)
+        {
+            return new LengthCondition(key, RedisType.List, 1, length);
+        }
+        
+        /// <summary>
+        /// Enforces that the given list length is greater than a certain value
+        /// </summary>
+        public static Condition ListLengthGreaterThan(RedisKey key, long length)
+        {
+            return new LengthCondition(key, RedisType.List, -1, length);
+        }
+        
+        /// <summary>
+        /// Enforces that the given set cardinality is a certain value
+        /// </summary>
+        public static Condition SetLengthEqual(RedisKey key, long length)
+        {
+            return new LengthCondition(key, RedisType.Set, 0, length);
+        }
+        
+        /// <summary>
+        /// Enforces that the given set cardinality is less than a certain value
+        /// </summary>
+        public static Condition SetLengthLessThan(RedisKey key, long length)
+        {
+            return new LengthCondition(key, RedisType.Set, 1, length);
+        }
+        
+        /// <summary>
+        /// Enforces that the given set cardinality is greater than a certain value
+        /// </summary>
+        public static Condition SetLengthGreaterThan(RedisKey key, long length)
+        {
+            return new LengthCondition(key, RedisType.Set, -1, length);
+        }
+                
+        /// <summary>
+        /// Enforces that the given sorted set cardinality is a certain value
+        /// </summary>
+        public static Condition SortedSetLengthEqual(RedisKey key, long length)
+        {
+            return new LengthCondition(key, RedisType.SortedSet, 0, length);
+        }
+        
+        /// <summary>
+        /// Enforces that the given sorted set cardinality is less than a certain value
+        /// </summary>
+        public static Condition SortedSetLengthLessThan(RedisKey key, long length)
+        {
+            return new LengthCondition(key, RedisType.SortedSet, 1, length);
+        }
+        
+        /// <summary>
+        /// Enforces that the given sorted set cardinality is greater than a certain value
+        /// </summary>
+        public static Condition SortedSetLengthGreaterThan(RedisKey key, long length)
+        {
+            return new LengthCondition(key, RedisType.SortedSet, -1, length);
+        }
+
         internal abstract void CheckCommands(CommandMap commandMap);
 
         internal abstract IEnumerable<Message> CreateMessages(int db, ResultBox resultBox);
@@ -136,7 +256,7 @@ namespace StackExchange.Redis
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
                 var msg = message as ConditionMessage;
-                var condition = msg == null ? null : msg.Condition;
+                var condition = msg?.Condition;
                 bool final;
                 if (condition != null && condition.TryValidate(result, out final))
                 {
@@ -307,7 +427,7 @@ namespace StackExchange.Redis
             private readonly RedisKey key;
             public ListCondition(RedisKey key, long index, bool expectedResult, RedisValue? expectedValue)
             {
-                if (key.IsNull) throw new ArgumentException("key");
+                if (key.IsNull) throw new ArgumentException(nameof(key));
                 this.key = key;
                 this.index = index;
                 this.expectedResult = expectedResult;
@@ -364,6 +484,97 @@ namespace StackExchange.Redis
             }
         }
 
+        internal class LengthCondition : Condition
+        {
+            internal override Condition MapKeys(Func<RedisKey,RedisKey> map)
+            {
+                return new LengthCondition(map(key), type, compareToResult, expectedLength);
+            }
+            private readonly int compareToResult;
+            private readonly long expectedLength;
+            private readonly RedisKey key;
+            private readonly RedisType type;
+            private readonly RedisCommand cmd;
+
+            public LengthCondition(RedisKey key, RedisType type, int compareToResult, long expectedLength)
+            {
+                if (key.IsNull) throw new ArgumentException(nameof(key));
+                this.key = key;
+                this.compareToResult = compareToResult;
+                this.expectedLength = expectedLength;
+                this.type = type;
+                switch (type) {
+                    case RedisType.Hash:
+                        cmd = RedisCommand.HLEN;
+                        break;
+
+                    case RedisType.Set:
+                        cmd = RedisCommand.SCARD;
+                        break;
+
+                    case RedisType.List:
+                        cmd = RedisCommand.LLEN;
+                        break;
+
+                    case RedisType.SortedSet:
+                        cmd = RedisCommand.ZCARD;
+                        break;
+
+                    case RedisType.String:
+                        cmd = RedisCommand.STRLEN;
+                        break;
+
+                    default:
+                        throw new ArgumentException(nameof(type));
+                }
+            }
+
+            public override string ToString()
+            {
+                return ((string)key) + " " + type + " length" + GetComparisonString() + expectedLength;
+            }
+
+            private string GetComparisonString()
+            {
+                return compareToResult == 0 ? " == " : (compareToResult < 0 ? " > " : " < ");
+            }
+
+            internal override void CheckCommands(CommandMap commandMap)
+            {
+                commandMap.AssertAvailable(cmd);
+            }
+
+            internal sealed override IEnumerable<Message> CreateMessages(int db, ResultBox resultBox)
+            {
+                yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key);
+
+                var message = ConditionProcessor.CreateMessage(this, db, CommandFlags.None, cmd, key);
+                message.SetSource(ConditionProcessor.Default, resultBox);
+                yield return message;
+            }
+
+            internal override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
+            {
+                return serverSelectionStrategy.HashSlot(key);
+            }
+            internal override bool TryValidate(RawResult result, out bool value)
+            {
+                switch (result.Type)
+                {
+                    case ResultType.BulkString:
+                    case ResultType.SimpleString:
+                    case ResultType.Integer:
+                        var parsed = result.AsRedisValue();
+                        value = parsed.IsInteger && (expectedLength.CompareTo((long) parsed) == compareToResult);
+                        ConnectionMultiplexer.TraceWithoutContext("actual: " + (string)parsed + "; expected: " + expectedLength +
+                            "; wanted: " + GetComparisonString() + "; voting: " + value);
+                        return true;
+                }
+                value = false;
+                return false;
+            }
+        }
+
     }
 
     /// <summary>
@@ -371,7 +582,7 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed class ConditionResult
     {
-internal readonly Condition Condition;
+        internal readonly Condition Condition;
 
         private ResultBox<bool> resultBox;
 
@@ -386,7 +597,8 @@ internal readonly Condition Condition;
         /// <summary>
         /// Indicates whether the condition was satisfied
         /// </summary>
-        public bool WasSatisfied { get { return wasSatisfied; } }
+        public bool WasSatisfied => wasSatisfied;
+
         internal IEnumerable<Message> CreateMessages(int db)
         {
             return Condition.CreateMessages(db, resultBox);
@@ -399,7 +611,7 @@ internal readonly Condition Condition;
             {
                 Exception ex;
                 bool val;
-                ResultBox<bool>.UnwrapAndRecycle(resultBox, out val, out ex);
+                ResultBox<bool>.UnwrapAndRecycle(resultBox, false, out val, out ex);
                 resultBox = null;
                 wasSatisfied = ex == null && val;
             }

@@ -120,8 +120,8 @@ namespace StackExchange.Redis
 
         public void SetException(Message message, Exception ex)
         {
-            var box = message == null ? null : message.ResultBox;
-            if (box != null) box.SetException(ex);
+            var box = message?.ResultBox;
+            box?.SetException(ex);
         }
         // true if ready to be completed (i.e. false if re-issued to another server)
         public virtual bool SetResult(PhysicalConnection connection, Message message, RawResult result)
@@ -192,7 +192,7 @@ namespace StackExchange.Redis
         private void UnexpectedResponse(Message message, RawResult result)
         {
             ConnectionMultiplexer.TraceWithoutContext("From " + GetType().Name, "Unexpected Response");
-            ConnectionFail(message, ConnectionFailureType.ProtocolFailure, "Unexpected response to " + (message == null ? "n/a" : message.Command.ToString()) +": " + result.ToString());
+            ConnectionFail(message, ConnectionFailureType.ProtocolFailure, "Unexpected response to " + (message?.Command.ToString() ?? "n/a") +": " + result.ToString());
         }
 
         public sealed class TimeSpanProcessor : ResultProcessor<TimeSpan?>
@@ -347,7 +347,7 @@ namespace StackExchange.Redis
 
         internal sealed class ScriptLoadProcessor : ResultProcessor<byte[]>
         {
-            static readonly Regex sha1 = new Regex("^[0-9a-f]{40}$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+            static readonly Regex sha1 = new Regex("^[0-9a-f]{40}$", InternalRegexCompiledOption.Default | RegexOptions.IgnoreCase);
 
             internal static bool IsSHA1(string script)
             {
@@ -1165,7 +1165,7 @@ namespace StackExchange.Redis
                 {
                     if (result.IsEqual(authFail) || result.IsEqual(authRequired))
                     {
-                        connection.RecordConnectionFailed(ConnectionFailureType.AuthenticationFailure);
+                        connection.RecordConnectionFailed(ConnectionFailureType.AuthenticationFailure, new Exception(result.ToString() + " Verify if the Redis password provided is correct."));
                     }
                     else if (result.AssertStarts(loading))
                     {
@@ -1226,16 +1226,21 @@ namespace StackExchange.Redis
                         var arr = result.GetItemsAsValues();
 
                         int port;
-                        if (arr.Count() == 2 && int.TryParse(arr[1], out port))
+                        if (arr.Length == 2 && int.TryParse(arr[1], out port))
                         {
                             SetResult(message, Format.ParseEndPoint(arr[0], port));
                             return true;
                         } 
-                        else if (arr.Count() == 0)
+                        else if (arr.Length == 0)
                         {
                             SetResult(message, null);
                             return true;
                         }
+                        break;
+                    case ResultType.SimpleString:
+                        //We don't want to blow up if the master is not found
+                        if (result.IsNull)
+                            return true;
                         break;
                 }
                 return false;
@@ -1257,9 +1262,9 @@ namespace StackExchange.Redis
                     case ResultType.MultiBulk:
                         var arrayOfArrays = result.GetArrayOfRawResults();
 
-                        var returnArray = new KeyValuePair<string, string>[arrayOfArrays.Count()][];
+                        var returnArray = new KeyValuePair<string, string>[arrayOfArrays.Length][];
 
-                        for (int i = 0; i < arrayOfArrays.Count(); i++)
+                        for (int i = 0; i < arrayOfArrays.Length; i++)
                         {
                             var rawInnerArray = arrayOfArrays[i];
                             KeyValuePair<string, string>[] kvpArray;
@@ -1285,7 +1290,7 @@ namespace StackExchange.Redis
             var box = message.ResultBox as ResultBox<T>;
             message.SetResponseReceived();
 
-            if (box != null) box.SetResult(value);            
+            box?.SetResult(value);
         }
     }
 }

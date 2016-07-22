@@ -90,7 +90,7 @@ namespace StackExchange.Redis
                 if (ip.Port == 0) return ip.Address.ToString();
                 return ip.Address.ToString() + ":" + Format.ToString(ip.Port);
             }
-            return endpoint == null ? "" : endpoint.ToString();
+            return endpoint?.ToString() ?? "";
         }
         internal static string ToStringHostOnly(EndPoint endpoint)
         {
@@ -118,7 +118,7 @@ namespace StackExchange.Redis
                     port = ip.Port;
                     return true;
                 }
-                else if (endpoint is DnsEndPoint)
+                if (endpoint is DnsEndPoint)
                 {
                     DnsEndPoint dns = (DnsEndPoint)endpoint;
                     host = dns.Host;
@@ -133,7 +133,7 @@ namespace StackExchange.Redis
 
         internal static bool TryParseDouble(string s, out double value)
         {
-            if(s == null || s.Length == 0)
+            if(string.IsNullOrEmpty(s))
             {
                 value = 0;
                 return false;

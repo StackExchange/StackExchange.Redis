@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
@@ -17,7 +17,7 @@
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
     <OutputPath>bin.snk\Debug\</OutputPath>
-    <DefineConstants>TRACE;DEBUG;NET40 STRONG_NAME</DefineConstants>
+    <DefineConstants>TRACE;DEBUG;NET40 STRONG_NAME FEATURE_SERIALIZATION FEATURE_SOCKET_MODE_POLL</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -28,7 +28,7 @@
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin.snk\Release\</OutputPath>
-    <DefineConstants>TRACE;NET40 STRONG_NAME</DefineConstants>
+    <DefineConstants>TRACE;NET40 STRONG_NAME FEATURE_SERIALIZATION FEATURE_SOCKET_MODE_POLL</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <UseVSHostingProcess>false</UseVSHostingProcess>
@@ -39,11 +39,11 @@
     <SignAssembly>true</SignAssembly>
   </PropertyGroup>
   <PropertyGroup>
-    <AssemblyOriginatorKeyFile>StackExchange.Redis.snk</AssemblyOriginatorKeyFile>
+    <AssemblyOriginatorKeyFile>..\StackExchange.Redis.snk</AssemblyOriginatorKeyFile>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Mono|AnyCPU'">
     <OutputPath>bin\Mono\</OutputPath>
-    <DefineConstants>TRACE;NET40 STRONG_NAME</DefineConstants>
+    <DefineConstants>TRACE;NET40 STRONG_NAME FEATURE_SERIALIZATION</DefineConstants>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <DocumentationFile>bin.snk\Release\StackExchange.Redis.StrongName.xml</DocumentationFile>
     <Optimize>true</Optimize>
@@ -76,112 +76,11 @@
       <HintPath>..\packages\Microsoft.Bcl.1.1.10\lib\net40\System.Threading.Tasks.dll</HintPath>
     </Reference>
   </ItemGroup>
-  <ItemGroup>
-    <Compile Include="..\StackExchange.Redis\Properties\AssemblyInfo.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\Aggregate.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\Bitwise.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ClientFlags.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ClientInfo.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ClientType.cs">
-      <Link>ClientType.cs</Link>
-    </Compile>
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ConcurrentProfileStorageCollection.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ConnectionMultiplexer.Profiling.cs">
-      <DependentUpon>ConnectionMultiplexer.cs</DependentUpon>
-    </Compile>
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ClusterConfiguration.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\CommandFlags.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\CommandMap.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\CommandTrace.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\CompletedDefaultTask.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\CompletionManager.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\Condition.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ConfigurationOptions.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ConnectionCounters.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ConnectionFailedEventArgs.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ConnectionFailureType.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ConnectionMultiplexer.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ConnectionMultiplexer.ReaderWriter.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ConnectionType.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\DebuggingAids.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\EndPointCollection.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\EndPointEventArgs.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ExceptionFactory.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\Exclude.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ExportOptions.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ExtensionMethods.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\Format.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\HashEntry.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\HashSlotMovedEventArgs.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IBatch.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ICompletable.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IConnectionMultiplexer.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IDatabase.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IDatabaseAsync.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IMultiMessage.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\InternalErrorEventArgs.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IProfiler.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IRedis.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IRedisAsync.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\IServer.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ISubscriber.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ITransaction.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\LoggingTextStream.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\Message.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\MessageCompletable.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\MessageQueue.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\MigrateOptions.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ProfileContextTracker.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ProfileStorage.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\LuaScript.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\Order.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\PhysicalBridge.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\PhysicalConnection.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\RawResult.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\RedisBase.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\RedisBatch.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\RedisChannel.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\RedisCommand.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\RedisDatabase.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\RedisErrorEventArgs.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\RedisFeatures.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\RedisKey.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\RedisLiterals.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\RedisResult.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\RedisServer.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\RedisSubscriber.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\RedisTransaction.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\RedisType.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\RedisValue.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ReplicationChangeOptions.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ResultBox.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ResultProcessor.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ResultType.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ScriptParameterMapper.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\SaveType.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ServerCounters.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ServerEndPoint.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ServerSelectionStrategy.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ServerType.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\SetOperation.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\ShutdownMode.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\SocketManager.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\SocketManager.NoPoll.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\SocketManager.Poll.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\SortedSetEntry.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\SortType.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\StringSplits.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\TaskSource.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\When.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\KeyspaceIsolation\BatchWrapper.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\KeyspaceIsolation\DatabaseExtension.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\KeyspaceIsolation\DatabaseWrapper.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\KeyspaceIsolation\TransactionWrapper.cs" />
-    <Compile Include="..\StackExchange.Redis\StackExchange\Redis\KeyspaceIsolation\WrapperBase.cs" />
+    <ItemGroup>
+    <Compile Include="..\StackExchange.Redis\**\*.cs"/>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
-    <None Include="StackExchange.Redis.snk" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Import Project="..\packages\Microsoft.Bcl.Build.1.0.21\build\Microsoft.Bcl.Build.targets" Condition="Exists('..\packages\Microsoft.Bcl.Build.1.0.21\build\Microsoft.Bcl.Build.targets')" />

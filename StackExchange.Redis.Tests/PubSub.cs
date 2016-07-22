@@ -38,17 +38,17 @@ namespace StackExchange.Redis.Tests
                 Thread.Sleep(1000);
                 pub.Publish("abcd", "efg");
                 Thread.Sleep(500);
-                Assert.AreEqual(0, Thread.VolatileRead(ref a), "a1");
-                Assert.AreEqual(1, Thread.VolatileRead(ref b), "b1");
-                Assert.AreEqual(1, Thread.VolatileRead(ref c), "c1");
-                Assert.AreEqual(1, Thread.VolatileRead(ref d), "d1");
+                Assert.AreEqual(0, VolatileWrapper.Read(ref a), "a1");
+                Assert.AreEqual(1, VolatileWrapper.Read(ref b), "b1");
+                Assert.AreEqual(1, VolatileWrapper.Read(ref c), "c1");
+                Assert.AreEqual(1, VolatileWrapper.Read(ref d), "d1");
 
                 pub.Publish("*bcd", "efg");
                 Thread.Sleep(500);
-                Assert.AreEqual(1, Thread.VolatileRead(ref a), "a2");
-                //Assert.AreEqual(1, Thread.VolatileRead(ref b), "b2");
-                //Assert.AreEqual(1, Thread.VolatileRead(ref c), "c2");
-                //Assert.AreEqual(1, Thread.VolatileRead(ref d), "d2");
+                Assert.AreEqual(1, VolatileWrapper.Read(ref a), "a2");
+                //Assert.AreEqual(1, VolatileWrapper.Read(ref b), "b2");
+                //Assert.AreEqual(1, VolatileWrapper.Read(ref c), "c2");
+                //Assert.AreEqual(1, VolatileWrapper.Read(ref d), "d2");
 
             }
         }
@@ -101,7 +101,7 @@ namespace StackExchange.Redis.Tests
                 {
                     Assert.AreEqual(0, received.Count);
                 }
-                Assert.AreEqual(0, Thread.VolatileRead(ref secondHandler));
+                Assert.AreEqual(0, VolatileWrapper.Read(ref secondHandler));
                 var count = sub.Publish(pubChannel, "def");
 
                 Ping(muxer, pub, sub, 3);
@@ -110,7 +110,7 @@ namespace StackExchange.Redis.Tests
                 {
                     Assert.AreEqual(1, received.Count);
                 }
-                Assert.AreEqual(1, Thread.VolatileRead(ref secondHandler));
+                Assert.AreEqual(1, VolatileWrapper.Read(ref secondHandler));
 
                 // unsubscribe from first; should still see second
                 sub.Unsubscribe(subChannel, handler1);
@@ -120,7 +120,7 @@ namespace StackExchange.Redis.Tests
                 {
                     Assert.AreEqual(1, received.Count);
                 }
-                Assert.AreEqual(2, Thread.VolatileRead(ref secondHandler));
+                Assert.AreEqual(2, VolatileWrapper.Read(ref secondHandler));
                 Assert.AreEqual(1, count);
 
                 // unsubscribe from second; should see nothing this time
@@ -131,7 +131,7 @@ namespace StackExchange.Redis.Tests
                 {
                     Assert.AreEqual(1, received.Count);
                 }
-                Assert.AreEqual(2, Thread.VolatileRead(ref secondHandler));
+                Assert.AreEqual(2, VolatileWrapper.Read(ref secondHandler));
                 Assert.AreEqual(0, count);
             }
         }
@@ -172,7 +172,7 @@ namespace StackExchange.Redis.Tests
                 {
                     Assert.AreEqual(0, received.Count);
                 }
-                Assert.AreEqual(0, Thread.VolatileRead(ref secondHandler));
+                Assert.AreEqual(0, VolatileWrapper.Read(ref secondHandler));
                 Ping(muxer, pub, sub);
                 var count = sub.Publish(key, "def", CommandFlags.FireAndForget);
                 Ping(muxer, pub, sub);
@@ -181,7 +181,7 @@ namespace StackExchange.Redis.Tests
                 {
                     Assert.AreEqual(1, received.Count);
                 }
-                Assert.AreEqual(1, Thread.VolatileRead(ref secondHandler));
+                Assert.AreEqual(1, VolatileWrapper.Read(ref secondHandler));
 
                 sub.Unsubscribe(key);
                 count = sub.Publish(key, "ghi", CommandFlags.FireAndForget);
@@ -247,7 +247,7 @@ namespace StackExchange.Redis.Tests
                 {
                     Assert.AreEqual(0, received.Count);
                 }
-                Assert.AreEqual(0, Thread.VolatileRead(ref secondHandler));
+                Assert.AreEqual(0, VolatileWrapper.Read(ref secondHandler));
                 var count = sub.Publish("abc", "def");
 
                 Ping(muxer, pub, sub);
@@ -256,7 +256,7 @@ namespace StackExchange.Redis.Tests
                 {
                     Assert.AreEqual(1, received.Count);
                 }
-                Assert.AreEqual(1, Thread.VolatileRead(ref secondHandler));
+                Assert.AreEqual(1, VolatileWrapper.Read(ref secondHandler));
 
                 sub.Unsubscribe("a*c");
                 count = sub.Publish("abc", "ghi");
@@ -392,7 +392,7 @@ namespace StackExchange.Redis.Tests
                 });
                 sub.Publish(channel, "abc");
                 sub.Ping();
-                Assert.AreEqual(1, Thread.VolatileRead(ref counter), "counter");
+                Assert.AreEqual(1, VolatileWrapper.Read(ref counter), "counter");
                 var server = GetServer(muxer);
                 Assert.AreEqual(1, server.GetCounters().Subscription.SocketCount, "sockets");
 
@@ -408,8 +408,20 @@ namespace StackExchange.Redis.Tests
 #endif
                 sub.Publish(channel, "abc");
                 sub.Ping();
-                Assert.AreEqual(2, Thread.VolatileRead(ref counter), "counter");
+                Assert.AreEqual(2, VolatileWrapper.Read(ref counter), "counter");
             }
+        }
+    }
+
+    internal static class VolatileWrapper
+    {
+        public static int Read(ref int location)
+        {
+#if !CORE_CLR
+            return Thread.VolatileRead(ref location);
+#else
+            return Volatile.Read(ref location);
+#endif
         }
     }
 }

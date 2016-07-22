@@ -2,7 +2,9 @@
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
+#if FEATURE_BOOKSLEEVE
 using BookSleeve;
+#endif
 using NUnit.Framework;
 using StackExchange.Redis.KeyspaceIsolation;
 namespace StackExchange.Redis.Tests
@@ -72,26 +74,28 @@ namespace StackExchange.Redis.Tests
         }
 
         [Test]
-        [ExpectedException(typeof(ArgumentException), ExpectedMessage = @"A null key is not valid in this context")]
         public void GetWithNullKey()
         {
             using (var muxer = Create())
             {
                 var db = muxer.GetDatabase();
                 string key = null;
-                db.StringGet(key);
+                Assert.Throws<ArgumentException>(
+                    () => db.StringGet(key),
+                    "A null key is not valid in this context");
             }
         }
 
         [Test]
-        [ExpectedException(typeof(ArgumentException), ExpectedMessage = @"A null key is not valid in this context")]
         public void SetWithNullKey()
         {
             using (var muxer = Create())
             {
                 var db = muxer.GetDatabase();
                 string key = null, value = "abc";
-                db.StringSet(key, value);
+                Assert.Throws<ArgumentException>(
+                    () => db.StringSet(key, value),
+                    "A null key is not valid in this context");
             }
         }
 
@@ -230,9 +234,19 @@ namespace StackExchange.Redis.Tests
                 var conn = muxer.GetDatabase();
                 muxer.Wait(conn.PingAsync());
 
+#if CORE_CLR
+                int number = 0;
+#endif
                 Action<Task> nonTrivial = delegate
                 {
+#if !CORE_CLR
                     Thread.SpinWait(5);
+#else
+                    for (int i = 0; i < 50; i++)
+                    {
+                        number++;
+                    }
+#endif
                 };
                 var watch = Stopwatch.StartNew();
                 for (int i = 0; i <= AsyncOpsQty; i++)
@@ -293,7 +307,6 @@ namespace StackExchange.Redis.Tests
             }
         }
         [Test]
-        [ExpectedException(typeof(RedisServerException), ExpectedMessage = "WRONGTYPE Operation against a key holding the wrong kind of value")]
         public void GetWithExpiryWrongTypeAsync()
         {
             using (var conn = Create())
@@ -302,33 +315,41 @@ namespace StackExchange.Redis.Tests
                 RedisKey key = Me();
                 db.KeyDelete(key);
                 db.SetAdd(key, "abc");
-                try
+                Assert.Throws<RedisServerException>(() =>
                 {
-                    var async = db.Wait(db.StringGetWithExpiryAsync(key));
-                }
-                catch(AggregateException ex)
-                {
-                    throw ex.InnerExceptions[0];
-                }                
-                Assert.Fail();
+                    try
+                    {
+                        var async = db.Wait(db.StringGetWithExpiryAsync(key));
+                    }
+                    catch (AggregateException ex)
+                    {
+                        throw ex.InnerExceptions[0];
+                    }
+                    Assert.Fail();
+                },
+                "A null key is not valid in this context");
             }
         }
 
         [Test]
-        [ExpectedException(typeof(RedisServerException), ExpectedMessage = "WRONGTYPE Operation against a key holding the wrong kind of value")]
         public void GetWithExpiryWrongTypeSync()
         {
-            using (var conn = Create())
+            Assert.Throws<RedisServerException>(() =>
             {
-                var db = conn.GetDatabase();
-                RedisKey key = Me();
-                db.KeyDelete(key);
-                db.SetAdd(key, "abc");
-                db.StringGetWithExpiry(key);
-                Assert.Fail();
-            }
+                using (var conn = Create())
+                {
+                    var db = conn.GetDatabase();
+                    RedisKey key = Me();
+                    db.KeyDelete(key);
+                    db.SetAdd(key, "abc");
+                    db.StringGetWithExpiry(key);
+                    Assert.Fail();
+                }
+            },
+            "WRONGTYPE Operation against a key holding the wrong kind of value");
         }
 
+#if FEATURE_BOOKSLEEVE
         [Test]
         [TestCase(true, true, ResultCompletionMode.ConcurrentIfContinuation)]
         [TestCase(true, false, ResultCompletionMode.ConcurrentIfContinuation)]
@@ -378,7 +399,7 @@ namespace StackExchange.Redis.Tests
                     completionMode, AsyncOpsQty / watch.Elapsed.TotalSeconds);
             }
         }
-
+#endif
 
         [Test]
         [TestCase(true, 1)]
@@ -423,6 +444,8 @@ namespace StackExchange.Redis.Tests
 #endif
             }
         }
+
+#if FEATURE_BOOKSLEEVE
         [Test]
         [TestCase(ResultCompletionMode.Concurrent, 1)]
         [TestCase(ResultCompletionMode.ConcurrentIfContinuation, 1)]
@@ -462,6 +485,7 @@ namespace StackExchange.Redis.Tests
                     completionMode, threads, (workPerThread * threads) / timeTaken.TotalSeconds);
             }
         }
+#endif
 
         [Test]
         [TestCase(true, 1)]

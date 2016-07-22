@@ -37,7 +37,7 @@ namespace StackExchange.Redis
         // Arguments are in the order they have to passed to the script in
         internal string[] Arguments { get; private set; }
 
-        bool HasArguments { get { return Arguments != null && Arguments.Length > 0; } }
+        bool HasArguments => Arguments != null && Arguments.Length > 0;
 
         Hashtable ParameterMappers;
 
@@ -106,7 +106,7 @@ namespace StackExchange.Redis
         {
             if (HasArguments)
             {
-                if (ps == null) throw new ArgumentNullException("ps", "Script requires parameters");
+                if (ps == null) throw new ArgumentNullException(nameof(ps), "Script requires parameters");
 
                 var psType = ps.GetType();
                 var mapper = (Func<object, RedisKey?, ScriptParameterMapper.ScriptParameters>)ParameterMappers[psType];
@@ -119,7 +119,7 @@ namespace StackExchange.Redis
                         {
                             string missingMember;
                             string badMemberType;
-                            if(!ScriptParameterMapper.IsValidParameterHash(psType, this, out missingMember, out badMemberType))
+                            if (!ScriptParameterMapper.IsValidParameterHash(psType, this, out missingMember, out badMemberType))
                             {
                                 if (missingMember != null)
                                 {
@@ -179,7 +179,7 @@ namespace StackExchange.Redis
         {
             if (flags.HasFlag(CommandFlags.FireAndForget))
             {
-                throw new ArgumentOutOfRangeException("flags", "Loading a script cannot be FireAndForget");
+                throw new ArgumentOutOfRangeException(nameof(flags), "Loading a script cannot be FireAndForget");
             }
 
             var hash = server.ScriptLoad(ExecutableScript, flags);
@@ -197,10 +197,10 @@ namespace StackExchange.Redis
         {
             if (flags.HasFlag(CommandFlags.FireAndForget))
             {
-                throw new ArgumentOutOfRangeException("flags", "Loading a script cannot be FireAndForget");
+                throw new ArgumentOutOfRangeException(nameof(flags), "Loading a script cannot be FireAndForget");
             }
 
-            var hash = await server.ScriptLoadAsync(ExecutableScript, flags);
+            var hash = await server.ScriptLoadAsync(ExecutableScript, flags).ForAwait();
 
             return new LoadedLuaScript(this, hash);
         }
@@ -228,12 +228,12 @@ namespace StackExchange.Redis
         /// <summary>
         /// The original script that was used to create this LoadedLuaScript.
         /// </summary>
-        public string OriginalScript { get { return Original.OriginalScript; } }
+        public string OriginalScript => Original.OriginalScript;
 
         /// <summary>
         /// The script that will actually be sent to Redis for execution.
         /// </summary>
-        public string ExecutableScript { get { return Original.ExecutableScript; } }
+        public string ExecutableScript => Original.ExecutableScript;
 
         /// <summary>
         /// The SHA1 hash of ExecutableScript.

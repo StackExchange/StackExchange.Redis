@@ -1,15 +1,13 @@
-﻿using System;
+﻿#if FEATURE_SOCKET_MODE_POLL
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Threading;
 
-#if !__MonoCS__
 namespace StackExchange.Redis
 {
-    
-
     partial class SocketManager
     {
         internal const SocketMode DefaultSocketMode = SocketMode.Poll;
@@ -70,8 +68,8 @@ namespace StackExchange.Redis
 
         private void OnAddRead(Socket socket, ISocketCallback callback)
         {
-            if (socket == null) throw new ArgumentNullException("socket");
-            if (callback == null) throw new ArgumentNullException("callback");
+            if (socket == null) throw new ArgumentNullException(nameof(socket));
+            if (callback == null) throw new ArgumentNullException(nameof(callback));
 
             lock (socketLookup)
             {
@@ -142,10 +140,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal ManagerState State
-        {
-            get { return managerState; }
-        }
+        internal ManagerState State => managerState;
         private volatile ManagerState managerState;
         private volatile int lastErrorTicks;
         internal string LastErrorTimeRelative()
@@ -174,7 +169,7 @@ namespace StackExchange.Redis
                 managerState = ManagerState.CheckForHeartbeat;
                 active.Clear();
                 activeCallbacks.Clear();
-                if (dead != null) dead.Clear();
+                dead?.Clear();
 
                 // this check is actually a pace-maker; sometimes the Timer callback stalls for
                 // extended periods of time, which can cause socket disconnect
@@ -376,10 +371,12 @@ namespace StackExchange.Redis
 
         private void StartReader()
         {
-            var thread = new Thread(read, 32 * 1024); // don't need a huge stack
-            thread.Name = name + ":Read";
-            thread.IsBackground = true;
-            thread.Priority = ThreadPriority.AboveNormal; // time critical
+            var thread = new Thread(read, 32*1024) // don't need a huge stack
+            {
+                Priority = useHighPrioritySocketThreads ? ThreadPriority.AboveNormal : ThreadPriority.Normal,
+                Name = name + ":Read",
+                IsBackground = true
+            };
             thread.Start(this);
         }
         [StructLayout(LayoutKind.Sequential)]
@@ -400,19 +397,18 @@ namespace StackExchange.Redis
             public readonly Socket Socket;
             public SocketPair(Socket socket, ISocketCallback callback)
             {
-                this.Socket = socket;
-                this.Callback = callback;
+                Socket = socket;
+                Callback = callback;
             }
         }
         sealed class QueueDrainSyncLock
         {
-            private readonly SocketManager manager;
             private int workers;
             public QueueDrainSyncLock(SocketManager manager)
             {
-                this.manager = manager;
+                Manager = manager;
             }
-            public SocketManager Manager { get { return manager; } }
+            public SocketManager Manager { get; }
 
             internal bool Consume()
             {

@@ -46,7 +46,7 @@ public class Redis : IDisposable
     public Redis(string host, int port)
     {
         if (host == null)
-            throw new ArgumentNullException("host");
+            throw new ArgumentNullException(nameof(host));
 
         Host = host;
         Port = port;
@@ -94,9 +94,9 @@ public class Redis : IDisposable
     public void Set(string key, string value)
     {
         if (key == null)
-            throw new ArgumentNullException("key");
+            throw new ArgumentNullException(nameof(key));
         if (value == null)
-            throw new ArgumentNullException("value");
+            throw new ArgumentNullException(nameof(value));
 
         Set(key, Encoding.UTF8.GetBytes(value));
     }
@@ -104,12 +104,12 @@ public class Redis : IDisposable
     public void Set(string key, byte[] value)
     {
         if (key == null)
-            throw new ArgumentNullException("key");
+            throw new ArgumentNullException(nameof(key));
         if (value == null)
-            throw new ArgumentNullException("value");
+            throw new ArgumentNullException(nameof(value));
 
         if (value.Length > 1073741824)
-            throw new ArgumentException("value exceeds 1G", "value");
+            throw new ArgumentException("value exceeds 1G", nameof(value));
 
         if (!SendDataCommand(value, "SET {0} {1}\r\n", key, value.Length))
             throw new Exception("Unable to connect");
@@ -119,9 +119,9 @@ public class Redis : IDisposable
     public bool SetNX(string key, string value)
     {
         if (key == null)
-            throw new ArgumentNullException("key");
+            throw new ArgumentNullException(nameof(key));
         if (value == null)
-            throw new ArgumentNullException("value");
+            throw new ArgumentNullException(nameof(value));
 
         return SetNX(key, Encoding.UTF8.GetBytes(value));
     }
@@ -129,12 +129,12 @@ public class Redis : IDisposable
     public bool SetNX(string key, byte[] value)
     {
         if (key == null)
-            throw new ArgumentNullException("key");
+            throw new ArgumentNullException(nameof(key));
         if (value == null)
-            throw new ArgumentNullException("value");
+            throw new ArgumentNullException(nameof(value));
 
         if (value.Length > 1073741824)
-            throw new ArgumentException("value exceeds 1G", "value");
+            throw new ArgumentException("value exceeds 1G", nameof(value));
 
         return SendDataExpectInt(value, "SETNX {0} {1}\r\n", key, value.Length) > 0 ? true : false;
     }
@@ -147,7 +147,7 @@ public class Redis : IDisposable
     public void Set(IDictionary<string, byte[]> dict)
     {
         if (dict == null)
-            throw new ArgumentNullException("dict");
+            throw new ArgumentNullException(nameof(dict));
 
         var nl = Encoding.UTF8.GetBytes("\r\n");
 
@@ -173,14 +173,14 @@ public class Redis : IDisposable
     public byte[] Get(string key)
     {
         if (key == null)
-            throw new ArgumentNullException("key");
+            throw new ArgumentNullException(nameof(key));
         return SendExpectData(null, "GET " + key + "\r\n");
     }
 
     public string GetString(string key)
     {
         if (key == null)
-            throw new ArgumentNullException("key");
+            throw new ArgumentNullException(nameof(key));
         return Encoding.UTF8.GetString(Get(key));
     }
 
@@ -192,12 +192,12 @@ public class Redis : IDisposable
     public byte[] GetSet(string key, byte[] value)
     {
         if (key == null)
-            throw new ArgumentNullException("key");
+            throw new ArgumentNullException(nameof(key));
         if (value == null)
-            throw new ArgumentNullException("value");
+            throw new ArgumentNullException(nameof(value));
 
         if (value.Length > 1073741824)
-            throw new ArgumentException("value exceeds 1G", "value");
+            throw new ArgumentException("value exceeds 1G", nameof(value));
 
         if (!SendDataCommand(value, "GETSET {0} {1}\r\n", key, value.Length))
             throw new Exception("Unable to connect");
@@ -208,9 +208,9 @@ public class Redis : IDisposable
     public string GetSet(string key, string value)
     {
         if (key == null)
-            throw new ArgumentNullException("key");
+            throw new ArgumentNullException(nameof(key));
         if (value == null)
-            throw new ArgumentNullException("value");
+            throw new ArgumentNullException(nameof(value));
         return Encoding.UTF8.GetString(GetSet(key, Encoding.UTF8.GetBytes(value)));
     }
 
@@ -466,56 +466,56 @@ public class Redis : IDisposable
     public bool ContainsKey(string key)
     {
         if (key == null)
-            throw new ArgumentNullException("key");
+            throw new ArgumentNullException(nameof(key));
         return SendExpectInt("EXISTS " + key + "\r\n") == 1;
     }
 
     public bool Remove(string key)
     {
         if (key == null)
-            throw new ArgumentNullException("key");
+            throw new ArgumentNullException(nameof(key));
         return SendExpectInt("DEL " + key + "\r\n", key) == 1;
     }
 
     public int Remove(params string[] args)
     {
         if (args == null)
-            throw new ArgumentNullException("args");
+            throw new ArgumentNullException(nameof(args));
         return SendExpectInt("DEL " + string.Join(" ", args) + "\r\n");
     }
 
     public int Increment(string key)
     {
         if (key == null)
-            throw new ArgumentNullException("key");
+            throw new ArgumentNullException(nameof(key));
         return SendExpectInt("INCR " + key + "\r\n");
     }
 
     public int Increment(string key, int count)
     {
         if (key == null)
-            throw new ArgumentNullException("key");
+            throw new ArgumentNullException(nameof(key));
         return SendExpectInt("INCRBY {0} {1}\r\n", key, count);
     }
 
     public int Decrement(string key)
     {
         if (key == null)
-            throw new ArgumentNullException("key");
+            throw new ArgumentNullException(nameof(key));
         return SendExpectInt("DECR " + key + "\r\n");
     }
 
     public int Decrement(string key, int count)
     {
         if (key == null)
-            throw new ArgumentNullException("key");
+            throw new ArgumentNullException(nameof(key));
         return SendExpectInt("DECRBY {0} {1}\r\n", key, count);
     }
 
     public KeyType TypeOf(string key)
     {
         if (key == null)
-            throw new ArgumentNullException("key");
+            throw new ArgumentNullException(nameof(key));
         switch (SendExpectString("TYPE {0}\r\n", key))
         {
             case "none":
@@ -538,30 +538,30 @@ public class Redis : IDisposable
     public bool Rename(string oldKeyname, string newKeyname)
     {
         if (oldKeyname == null)
-            throw new ArgumentNullException("oldKeyname");
+            throw new ArgumentNullException(nameof(oldKeyname));
         if (newKeyname == null)
-            throw new ArgumentNullException("newKeyname");
+            throw new ArgumentNullException(nameof(newKeyname));
         return SendGetString("RENAME {0} {1}\r\n", oldKeyname, newKeyname)[0] == '+';
     }
 
     public bool Expire(string key, int seconds)
     {
         if (key == null)
-            throw new ArgumentNullException("key");
+            throw new ArgumentNullException(nameof(key));
         return SendExpectInt("EXPIRE {0} {1}\r\n", key, seconds) == 1;
     }
 
     public bool ExpireAt(string key, int time)
     {
         if (key == null)
-            throw new ArgumentNullException("key");
+            throw new ArgumentNullException(nameof(key));
         return SendExpectInt("EXPIREAT {0} {1}\r\n", key, time) == 1;
     }
 
     public int TimeToLive(string key)
     {
         if (key == null)
-            throw new ArgumentNullException("key");
+            throw new ArgumentNullException(nameof(key));
         return SendExpectInt("TTL {0}\r\n", key);
     }
 
@@ -778,13 +778,13 @@ public class Redis : IDisposable
     void StoreSetCommands(string cmd, string destKey, params string[] keys)
     {
         if (String.IsNullOrEmpty(cmd))
-            throw new ArgumentNullException("cmd");
+            throw new ArgumentNullException(nameof(cmd));
 
         if (String.IsNullOrEmpty(destKey))
-            throw new ArgumentNullException("destKey");
+            throw new ArgumentNullException(nameof(destKey));
 
         if (keys == null)
-            throw new ArgumentNullException("keys");
+            throw new ArgumentNullException(nameof(keys));
 
         SendExpectSuccess("{0} {1} {2}\r\n", cmd, destKey, String.Join(" ", keys));
     }

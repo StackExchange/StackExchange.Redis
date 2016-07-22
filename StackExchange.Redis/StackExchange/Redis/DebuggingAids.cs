@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -17,7 +18,7 @@ namespace StackExchange.Redis
         }
         static partial void OnAllocated()
         {
-            Interlocked.Increment(ref ResultBox.allocations);
+            Interlocked.Increment(ref allocations);
         }
     }
     partial interface IServer
@@ -103,17 +104,17 @@ namespace StackExchange.Redis
         internal void SimulateConnectionFailure()
         {
             var tmp = interactive;
-            if (tmp != null) tmp.SimulateConnectionFailure();
+            tmp?.SimulateConnectionFailure();
             tmp = subscription;
-            if (tmp != null) tmp.SimulateConnectionFailure();
+            tmp?.SimulateConnectionFailure();
         }
         internal string ListPending(int maxCount)
         {
             var sb = new StringBuilder();
             var tmp = interactive;
-            if (tmp != null) tmp.ListPending(sb, maxCount);
+            tmp?.ListPending(sb, maxCount);
             tmp = subscription;
-            if (tmp != null) tmp.ListPending(sb, maxCount);
+            tmp?.ListPending(sb, maxCount);
             return sb.ToString();
         }
     }
@@ -231,12 +232,11 @@ namespace StackExchange.Redis
     {
         internal void SimulateConnectionFailure()
         {
-            if (!multiplexer.RawConfig.AllowAdmin)
+            if (!Multiplexer.RawConfig.AllowAdmin)
             {
-                throw ExceptionFactory.AdminModeNotEnabled(multiplexer.IncludeDetailInExceptions, RedisCommand.DEBUG, null, serverEndPoint); // close enough
+                throw ExceptionFactory.AdminModeNotEnabled(Multiplexer.IncludeDetailInExceptions, RedisCommand.DEBUG, null, ServerEndPoint); // close enough
             }
-            var tmp = physical;
-            if (tmp != null) tmp.RecordConnectionFailed(ConnectionFailureType.SocketFailure);
+            physical?.RecordConnectionFailed(ConnectionFailureType.SocketFailure);
         }
         internal void ListPending(StringBuilder sb, int maxCount)
         {
@@ -248,20 +248,18 @@ namespace StackExchange.Redis
     {
         partial void OnDebugAbort()
         {
-            if (!multiplexer.AllowConnect)
+            if (!Multiplexer.AllowConnect)
             {
                 throw new RedisConnectionException(ConnectionFailureType.InternalFailure, "debugging");
             }
         }
 
-        bool ISocketCallback.IgnoreConnect
-        {
-            get { return multiplexer.IgnoreConnect; }
-        }
+        bool ISocketCallback.IgnoreConnect => Multiplexer.IgnoreConnect;
 
-        private volatile static bool emulateStaleConnection;
+        private static volatile bool emulateStaleConnection;
         public static bool EmulateStaleConnection 
-        { get
+        {
+            get
             {
                 return emulateStaleConnection;
             }
@@ -299,9 +297,57 @@ namespace StackExchange.Redis
         /// </summary>
         Async = 2
     }
+#if !CORE_CLR
 
+    internal static class PerfCounterHelper
+    {
+        static object staticLock = new object();
+        static volatile PerformanceCounter _cpu;
+        static volatile bool _disabled;
+
+        public static bool TryGetSystemCPU(out float value)
+        {
+            value = -1;
+
+            try
+            {   
+                if (!_disabled && _cpu == null)
+                {
+                    lock (staticLock)
+                    {
+                        if (_cpu == null)
+                        {
+                            _cpu = new PerformanceCounter("Processor", "% Processor Time", "_Total");
+
+                            // First call always returns 0, so get that out of the way.
+                            _cpu.NextValue();
+                        }
+                    }
+                }
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // Some environments don't allow access to Performance Counters, so stop trying.
+                _disabled = true;
+            }
+            catch (Exception)
+            {
+                // this shouldn't happen, but just being safe...
+            }
+
+            if (_cpu != null)
+            {
+                value = _cpu.NextValue();
+                return true;
+            }
+
+            return false;
+        }
+    }
+    
     internal class CompletionTypeHelper
     {
+
         public static void RunWithCompletionType(Func<AsyncCallback, IAsyncResult> beginAsync, AsyncCallback callback, CompletionType completionType)
         { 
             AsyncCallback proxyCallback;
@@ -343,6 +389,7 @@ namespace StackExchange.Redis
             return;
         }
     }
+#endif
 
 #if VERBOSE
 

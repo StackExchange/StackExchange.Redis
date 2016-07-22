@@ -23,22 +23,29 @@ namespace StackExchange.Redis
         /// <summary>
         /// The unique element stored in the sorted set
         /// </summary>
-        public RedisValue Element { get { return element; } }
-        /// <summary>
-        /// The score against the element
-        /// </summary>
-        public double Score { get { return score; } }
+        public RedisValue Element => element;
 
         /// <summary>
         /// The score against the element
         /// </summary>
-        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never), Obsolete("Please use Score", false)]
+        public double Score => score;
+
+        /// <summary>
+        /// The score against the element
+        /// </summary>
+#if !CORE_CLR
+        [Browsable(false)]
+#endif
+        [EditorBrowsable(EditorBrowsableState.Never), Obsolete("Please use Score", false)]
         public double Value { get { return score; } }
 
         /// <summary>
         /// The unique element stored in the sorted set
         /// </summary>
-        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never), Obsolete("Please use Element", false)]
+#if !CORE_CLR
+        [Browsable(false)]
+#endif
+        [EditorBrowsable(EditorBrowsableState.Never), Obsolete("Please use Element", false)]
         public RedisValue Key { get { return element; } }
 
         /// <summary>
@@ -83,7 +90,7 @@ namespace StackExchange.Redis
         /// </summary>
         public bool Equals(SortedSetEntry value)
         {
-            return this.score == value.score && this.element == value.element;
+            return score == value.score && element == value.element;
         }
 
         /// <summary>
@@ -91,7 +98,7 @@ namespace StackExchange.Redis
         /// </summary>
         public int CompareTo(SortedSetEntry value)
         {
-            return this.score.CompareTo(value.score);
+            return score.CompareTo(value.score);
         }
 
         /// <summary>

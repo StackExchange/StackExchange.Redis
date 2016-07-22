@@ -11,20 +11,22 @@ all applied in a single unit (i.e. without other connections getting time betwee
 a `EXEC`, everything is thrown away. Because the commands inside the transaction are queued, you can't make decisions *inside*
 the transaction. For example, in a SQL database you might do the following (pseudo-code - illustrative only):
 
-    // assign a new unique id only if they don't already
-	// have one, in a transaction to ensure no thread-races
-	var newId = CreateNewUniqueID(); // optimistic
-    using(var tran = conn.BeginTran())
+```C#
+// assign a new unique id only if they don't already
+// have one, in a transaction to ensure no thread-races
+var newId = CreateNewUniqueID(); // optimistic
+using(var tran = conn.BeginTran())
+{
+	var cust = GetCustomer(conn, custId, tran);
+	var uniqueId = cust.UniqueID;
+	if(uniqueId == null)
 	{
-	    var cust = GetCustomer(conn, custId, tran);
-		var uniqueId = cust.UniqueID;
-		if(uniqueId == null)
-		{
-			cust.UniqueId = newId;
-			SaveCustomer(conn, cust, tran);
-		}
-	    tran.Complete();
+		cust.UniqueId = newId;
+		SaveCustomer(conn, cust, tran);
 	}
+	tran.Complete();
+}
+```
 
 So how do you do it in Redis?
 ---
@@ -39,14 +41,16 @@ you *can* do is: `WATCH` a key, check data from that key in the normal way, then
 If, when you check the data, you discover that you don't actually need the transaction, you can use `UNWATCH` to
 forget all the watched keys. Note that watched keys are also reset during `EXEC` and `DISCARD`. So *at the Redis layer*, this is conceptually:
 
-    WATCH {custKey}
-	HEXISTS {custKey} "UniqueId"
-	(check the reply, then either:)
-	MULTI
-	HSET {custKey} "UniqueId" {newId}
-	EXEC
-	(or, if we find there was already an unique-id:)
-	UNWATCH
+```
+WATCH {custKey}
+HEXISTS {custKey} "UniqueId"
+(check the reply, then either:)
+MULTI
+HSET {custKey} "UniqueId" {newId}
+EXEC
+(or, if we find there was already an unique-id:)
+UNWATCH
+```
 
 This might look odd - having a `MULTI`/`EXEC` that only spans a single operation - but the important thing
 is that we are now also tracking changes to `{custKey}` from all other connections - if anyone else
@@ -62,12 +66,14 @@ basically pre-canned tests involving `WATCH`, some kind of test, and a check on 
 pass, the `MULTI`/`EXEC` is issued; otherwise `UNWATCH` is issued. This is all done in a way that prevents the commands being
 mixed together with other callers. So our example becomes:
 
-    var newId = CreateNewId();
-    var tran = db.CreateTransaction();
-    tran.AddCondition(Condition.HashNotExists(custKey, "UniqueID"));
-    tran.HashSetAsync(custKey, "UniqueID", newId);
-    bool committed = tran.Execute();
-    // ^^^ if true: it was applied; if false: it was rolled back
+```C#
+var newId = CreateNewId();
+var tran = db.CreateTransaction();
+tran.AddCondition(Condition.HashNotExists(custKey, "UniqueID"));
+tran.HashSetAsync(custKey, "UniqueID", newId);
+bool committed = tran.Execute();
+// ^^^ if true: it was applied; if false: it was rolled back
+```
 
 Note that the object returned from `CreateTransaction` only has access to the *async* methods - because the result of
 each operation will not be known until after `Execute` (or `ExecuteAsync`) has completed. If the operations are not applied, all the `Task`s
@@ -82,8 +88,10 @@ Inbuilt operations via `When`
 It should also be noted that many common scenarios (in particular: key/hash existence, like in the above) have been anticipated by Redis, and single-operation
 atomic commands exist. These are accessed via the `When` parameter - so our previous example can *also* be written as:
 
-    var newId = CreateNewId();
-    bool wasSet = db.HashSet(custKey, "UniqueID", newId, When.NotExists);
+```C#
+var newId = CreateNewId();
+bool wasSet = db.HashSet(custKey, "UniqueID", newId, When.NotExists);
+```
 
 (here, the `When.NotExists` causes the `HSETNX` command to be used, rather than `HSET`)
 
@@ -96,11 +104,15 @@ between the caller and the server, but the trade-off is that it monopolises the 
 
 At the Redis layer (and assuming `HSETNX` did not exist) this could be implemented as:
 
-    EVAL "if redis.call('hexists', KEYS[1], 'UniqueId') then return redis.call('hset', KEYS[1], 'UniqueId', ARGV[1]) else return 0 end" 1 {custKey} {newId}
+```
+EVAL "if redis.call('hexists', KEYS[1], 'UniqueId') then return redis.call('hset', KEYS[1], 'UniqueId', ARGV[1]) else return 0 end" 1 {custKey} {newId}
+```
 
 This can be used in StackExchange.Redis via:
 
-    var wasSet = (bool) db.ScriptEvaluate(@"if redis.call('hexists', KEYS[1], 'UniqueId') then return redis.call('hset', KEYS[1], 'UniqueId', ARGV[1]) else return 0 end",
-            new RedisKey[] { custKey }, new RedisValue[] { newId });
+```C#
+var wasSet = (bool) db.ScriptEvaluate(@"if redis.call('hexists', KEYS[1], 'UniqueId') then return redis.call('hset', KEYS[1], 'UniqueId', ARGV[1]) else return 0 end",
+        new RedisKey[] { custKey }, new RedisValue[] { newId });
+```
 
 (note that the response from `ScriptEvaluate` and `ScriptEvaluateAsync` is variable depending on your exact script; the response can be interpreted by casting - in this case as a `bool`)

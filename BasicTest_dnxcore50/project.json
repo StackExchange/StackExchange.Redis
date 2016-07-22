@@ -1,0 +1,31 @@
+{
+  "version": "1.0.0-*",
+  "description": "StackExchange.Redis.BasicTest dnxcore50",
+  "buildOptions": {
+    "compile": {
+      "include": [
+        "../BasicTest/Program.cs"
+      ]
+    }
+  },
+  "dependencies": {
+    "StackExchange.Redis": {
+      "version": "1.1.*",
+      "target": "project"
+    }
+  },
+  "commands": {
+    "run": "BasicTest_dnxcore50"
+  },
+  "frameworks": {
+    "netcoreapp1.0": {
+      "buildOptions": {
+        "define": [ "CORE_CLR" ]
+      },
+      "imports": [ "dnxcore50" ],
+      "dependencies": {
+        "System.Console": "4.0.0-rc2-24027"
+      }
+    }
+  }
+}

@@ -10,7 +10,7 @@ namespace StackExchange.Redis.Tests
     public class Locking : TestBase
     {
         [Test]
-        [TestCaseSource("TestModes")]
+        [TestCaseSource(nameof(TestModes))]
         public void AggressiveParallel(TestMode testMode)
         {
             int count = 2;
@@ -127,12 +127,12 @@ namespace StackExchange.Redis.Tests
             NoMultiExec,
             Twemproxy
         }
-        public IEnumerable<TestMode> TestModes()
+        public static IEnumerable<TestMode> TestModes()
         {
             return (TestMode[])Enum.GetValues(typeof(TestMode));
         }
         [Test]
-        [TestCaseSource("TestModes")]
+        [TestCaseSource(nameof(TestModes))]
         public void TakeLockAndExtend(TestMode mode)
         {
             bool withTran = mode == TestMode.MultiExec;
@@ -219,7 +219,7 @@ namespace StackExchange.Redis.Tests
 
 
         [Test]
-        [TestCaseSource("TestModes")]
+        [TestCaseSource(nameof(TestModes))]
         public void TestBasicLockNotTaken(TestMode testMode)
         {
             using (var conn = Create(testMode))
@@ -249,7 +249,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Test]
-        [TestCaseSource("TestModes")]
+        [TestCaseSource(nameof(TestModes))]
         public void TestBasicLockTaken(TestMode testMode)
         {
             using (var conn = Create(testMode))

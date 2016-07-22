@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿#if FEATURE_MOQ
+using System.Text;
 using Moq;
 using NUnit.Framework;
 using StackExchange.Redis.KeyspaceIsolation;
@@ -11,7 +12,7 @@ namespace StackExchange.Redis.Tests
         private Mock<ITransaction> mock;
         private TransactionWrapper wrapper;
 
-        [TestFixtureSetUp]
+        [OneTimeSetUp]
         public void Initialize()
         {
             mock = new Mock<ITransaction>();
@@ -89,3 +90,4 @@ namespace StackExchange.Redis.Tests
         }
     }
 }
+#endif

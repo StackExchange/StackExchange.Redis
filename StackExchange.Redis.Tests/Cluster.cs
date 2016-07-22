@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -20,7 +19,11 @@ namespace StackExchange.Redis.Tests
         protected override string GetConfiguration()
         {
             var server = ClusterIp;
+#if !CORE_CLR
             if (string.Equals(Environment.MachineName, "MARC-LAPTOP", StringComparison.InvariantCultureIgnoreCase))
+#else
+            if (string.Equals(Environment.GetEnvironmentVariable("COMPUTERNAME"), "MARC-LAPTOP", StringComparison.OrdinalIgnoreCase))
+#endif
             {
                 server = "192.168.56.101";
             }
@@ -130,7 +133,7 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create())
             {
                 var endpoints = conn.GetEndPoints();
-                var servers = Array.ConvertAll(endpoints, e => conn.GetServer(e));
+                var servers = endpoints.Select(e => conn.GetServer(e));
 
                 var key = Me();
                 const string value = "abc";
@@ -198,110 +201,116 @@ namespace StackExchange.Redis.Tests
         }
 
         [Test]
-        [ExpectedException(typeof(RedisCommandException), ExpectedMessage = "Multi-key operations must involve a single slot; keys can use 'hash tags' to help this, i.e. '{/users/12345}/account' and '{/users/12345}/contacts' will always be in the same slot")]
         public void TransactionWithMultiServerKeys()
         {
-            using(var muxer = Create())
+            Assert.Throws<RedisCommandException>(() =>
             {
-                // connect
-                var cluster = muxer.GetDatabase();
-                var anyServer = muxer.GetServer(muxer.GetEndPoints()[0]);
-                anyServer.Ping();
-                Assert.AreEqual(ServerType.Cluster, anyServer.ServerType);
-                var config = anyServer.ClusterConfiguration;
-                Assert.IsNotNull(config);
-
-                // invent 2 keys that we believe are served by different nodes
-                string x = Guid.NewGuid().ToString(), y;
-                var xNode = config.GetBySlot(x);
-                int abort = 1000;
-                do
+                using (var muxer = Create())
                 {
-                    y = Guid.NewGuid().ToString();
-                } while (--abort > 0 && config.GetBySlot(y) == xNode);
-                if (abort == 0) Assert.Inconclusive("failed to find a different node to use");
-                var yNode = config.GetBySlot(y);
-                Console.WriteLine("x={0}, served by {1}", x, xNode.NodeId);
-                Console.WriteLine("y={0}, served by {1}", y, yNode.NodeId);
-                Assert.AreNotEqual(xNode.NodeId, yNode.NodeId, "same node");
+                    // connect
+                    var cluster = muxer.GetDatabase();
+                    var anyServer = muxer.GetServer(muxer.GetEndPoints()[0]);
+                    anyServer.Ping();
+                    Assert.AreEqual(ServerType.Cluster, anyServer.ServerType);
+                    var config = anyServer.ClusterConfiguration;
+                    Assert.IsNotNull(config);
 
-                // wipe those keys
-                cluster.KeyDelete(x, CommandFlags.FireAndForget);
-                cluster.KeyDelete(y, CommandFlags.FireAndForget);
+                    // invent 2 keys that we believe are served by different nodes
+                    string x = Guid.NewGuid().ToString(), y;
+                    var xNode = config.GetBySlot(x);
+                    int abort = 1000;
+                    do
+                    {
+                        y = Guid.NewGuid().ToString();
+                    } while (--abort > 0 && config.GetBySlot(y) == xNode);
+                    if (abort == 0) Assert.Inconclusive("failed to find a different node to use");
+                    var yNode = config.GetBySlot(y);
+                    Console.WriteLine("x={0}, served by {1}", x, xNode.NodeId);
+                    Console.WriteLine("y={0}, served by {1}", y, yNode.NodeId);
+                    Assert.AreNotEqual(xNode.NodeId, yNode.NodeId, "same node");
 
-                // create a transaction that attempts to assign both keys
-                var tran = cluster.CreateTransaction();
-                tran.AddCondition(Condition.KeyNotExists(x));
-                tran.AddCondition(Condition.KeyNotExists(y));
-                var setX = tran.StringSetAsync(x, "x-val");
-                var setY = tran.StringSetAsync(y, "y-val");
-                bool success = tran.Execute();
+                    // wipe those keys
+                    cluster.KeyDelete(x, CommandFlags.FireAndForget);
+                    cluster.KeyDelete(y, CommandFlags.FireAndForget);
 
-                Assert.Fail("Expected single-slot rules to apply");
-                // the rest no longer applies while we are following single-slot rules
+                    // create a transaction that attempts to assign both keys
+                    var tran = cluster.CreateTransaction();
+                    tran.AddCondition(Condition.KeyNotExists(x));
+                    tran.AddCondition(Condition.KeyNotExists(y));
+                    var setX = tran.StringSetAsync(x, "x-val");
+                    var setY = tran.StringSetAsync(y, "y-val");
+                    bool success = tran.Execute();
 
-                //// check that everything was aborted
-                //Assert.IsFalse(success, "tran aborted");
-                //Assert.IsTrue(setX.IsCanceled, "set x cancelled");
-                //Assert.IsTrue(setY.IsCanceled, "set y cancelled");
-                //var existsX = cluster.KeyExistsAsync(x);
-                //var existsY = cluster.KeyExistsAsync(y);
-                //Assert.IsFalse(cluster.Wait(existsX), "x exists");
-                //Assert.IsFalse(cluster.Wait(existsY), "y exists");
-            }
+                    Assert.Fail("Expected single-slot rules to apply");
+                    // the rest no longer applies while we are following single-slot rules
+
+                    //// check that everything was aborted
+                    //Assert.IsFalse(success, "tran aborted");
+                    //Assert.IsTrue(setX.IsCanceled, "set x cancelled");
+                    //Assert.IsTrue(setY.IsCanceled, "set y cancelled");
+                    //var existsX = cluster.KeyExistsAsync(x);
+                    //var existsY = cluster.KeyExistsAsync(y);
+                    //Assert.IsFalse(cluster.Wait(existsX), "x exists");
+                    //Assert.IsFalse(cluster.Wait(existsY), "y exists");
+                }
+            },
+            "Multi-key operations must involve a single slot; keys can use 'hash tags' to help this, i.e. '{/users/12345}/account' and '{/users/12345}/contacts' will always be in the same slot");
         }
 
         [Test]
-        [ExpectedException(typeof(RedisCommandException), ExpectedMessage = "Multi-key operations must involve a single slot; keys can use 'hash tags' to help this, i.e. '{/users/12345}/account' and '{/users/12345}/contacts' will always be in the same slot")]
         public void TransactionWithSameServerKeys()
         {
-            using (var muxer = Create())
+            Assert.Throws<RedisCommandException>(() =>
             {
-                // connect
-                var cluster = muxer.GetDatabase();
-                var anyServer = muxer.GetServer(muxer.GetEndPoints()[0]);
-                anyServer.Ping();
-                var config = anyServer.ClusterConfiguration;
-                Assert.IsNotNull(config);
-
-                // invent 2 keys that we believe are served by different nodes
-                string x = Guid.NewGuid().ToString(), y;
-                var xNode = config.GetBySlot(x);
-                int abort = 1000;
-                do
+                using (var muxer = Create())
                 {
-                    y = Guid.NewGuid().ToString();
-                } while (--abort > 0 && config.GetBySlot(y) != xNode);
-                if (abort == 0) Assert.Inconclusive("failed to find a key with the same node to use");
-                var yNode = config.GetBySlot(y);
-                Console.WriteLine("x={0}, served by {1}", x, xNode.NodeId);
-                Console.WriteLine("y={0}, served by {1}", y, yNode.NodeId);
-                Assert.AreEqual(xNode.NodeId, yNode.NodeId, "same node");
+                    // connect
+                    var cluster = muxer.GetDatabase();
+                    var anyServer = muxer.GetServer(muxer.GetEndPoints()[0]);
+                    anyServer.Ping();
+                    var config = anyServer.ClusterConfiguration;
+                    Assert.IsNotNull(config);
 
-                // wipe those keys
-                cluster.KeyDelete(x, CommandFlags.FireAndForget);
-                cluster.KeyDelete(y, CommandFlags.FireAndForget);
+                    // invent 2 keys that we believe are served by different nodes
+                    string x = Guid.NewGuid().ToString(), y;
+                    var xNode = config.GetBySlot(x);
+                    int abort = 1000;
+                    do
+                    {
+                        y = Guid.NewGuid().ToString();
+                    } while (--abort > 0 && config.GetBySlot(y) != xNode);
+                    if (abort == 0) Assert.Inconclusive("failed to find a key with the same node to use");
+                    var yNode = config.GetBySlot(y);
+                    Console.WriteLine("x={0}, served by {1}", x, xNode.NodeId);
+                    Console.WriteLine("y={0}, served by {1}", y, yNode.NodeId);
+                    Assert.AreEqual(xNode.NodeId, yNode.NodeId, "same node");
 
-                // create a transaction that attempts to assign both keys
-                var tran = cluster.CreateTransaction();
-                tran.AddCondition(Condition.KeyNotExists(x));
-                tran.AddCondition(Condition.KeyNotExists(y));
-                var setX = tran.StringSetAsync(x, "x-val");
-                var setY = tran.StringSetAsync(y, "y-val");
-                bool success = tran.Execute();
+                    // wipe those keys
+                    cluster.KeyDelete(x, CommandFlags.FireAndForget);
+                    cluster.KeyDelete(y, CommandFlags.FireAndForget);
 
-                Assert.Fail("Expected single-slot rules to apply");
-                // the rest no longer applies while we are following single-slot rules
+                    // create a transaction that attempts to assign both keys
+                    var tran = cluster.CreateTransaction();
+                    tran.AddCondition(Condition.KeyNotExists(x));
+                    tran.AddCondition(Condition.KeyNotExists(y));
+                    var setX = tran.StringSetAsync(x, "x-val");
+                    var setY = tran.StringSetAsync(y, "y-val");
+                    bool success = tran.Execute();
 
-                //// check that everything was aborted
-                //Assert.IsTrue(success, "tran aborted");
-                //Assert.IsFalse(setX.IsCanceled, "set x cancelled");
-                //Assert.IsFalse(setY.IsCanceled, "set y cancelled");
-                //var existsX = cluster.KeyExistsAsync(x);
-                //var existsY = cluster.KeyExistsAsync(y);
-                //Assert.IsTrue(cluster.Wait(existsX), "x exists");
-                //Assert.IsTrue(cluster.Wait(existsY), "y exists");
-            }
+                    Assert.Fail("Expected single-slot rules to apply");
+                    // the rest no longer applies while we are following single-slot rules
+
+                    //// check that everything was aborted
+                    //Assert.IsTrue(success, "tran aborted");
+                    //Assert.IsFalse(setX.IsCanceled, "set x cancelled");
+                    //Assert.IsFalse(setY.IsCanceled, "set y cancelled");
+                    //var existsX = cluster.KeyExistsAsync(x);
+                    //var existsY = cluster.KeyExistsAsync(y);
+                    //Assert.IsTrue(cluster.Wait(existsX), "x exists");
+                    //Assert.IsTrue(cluster.Wait(existsY), "y exists");
+                }
+            },
+            "Multi-key operations must involve a single slot; keys can use 'hash tags' to help this, i.e. '{/users/12345}/account' and '{/users/12345}/contacts' will always be in the same slot");
         }
 
         [Test]
@@ -361,7 +370,7 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create(allowAdmin: true))
             {
                 var cluster = conn.GetDatabase();
-                var server = Array.ConvertAll(conn.GetEndPoints(), x => conn.GetServer(x)).First(x => !x.IsSlave);
+                var server = conn.GetEndPoints().Select(x => conn.GetServer(x)).First(x => !x.IsSlave);
                 server.FlushAllDatabases();
                 try
                 {
@@ -467,7 +476,7 @@ namespace StackExchange.Redis.Tests
                 Task[] send = new Task[COUNT];
                 int index = 0;
 
-                var servers = Array.ConvertAll(conn.GetEndPoints(), x => conn.GetServer(x));
+                var servers = conn.GetEndPoints().Select(x => conn.GetServer(x));
                 foreach (var server in servers)
                 {
                     if (!server.IsSlave)
@@ -545,7 +554,7 @@ namespace StackExchange.Redis.Tests
 
         private static string Describe(EndPoint endpoint)
         {
-            return endpoint == null ? "(unknown)" : endpoint.ToString();
+            return endpoint?.ToString() ?? "(unknown)";
         }
 
         class TestProfiler : IProfiler
@@ -593,7 +602,7 @@ namespace StackExchange.Redis.Tests
                 conn.RegisterProfiler(profiler);
 
                 var endpoints = conn.GetEndPoints();
-                var servers = Array.ConvertAll(endpoints, e => conn.GetServer(e));
+                var servers = endpoints.Select(e => conn.GetServer(e));
 
                 conn.BeginProfiling(profiler.MyContext);
                 var db = conn.GetDatabase();

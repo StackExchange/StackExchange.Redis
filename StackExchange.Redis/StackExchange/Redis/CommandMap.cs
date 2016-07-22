@@ -9,9 +9,22 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed class CommandMap
     {
-        private static readonly CommandMap
-            @default = CreateImpl(null, null),
-            twemproxy = CreateImpl(null, exclusions: new HashSet<RedisCommand>
+        private readonly byte[][] map;
+
+        internal CommandMap(byte[][] map)
+        {
+            this.map = map;
+        }
+        /// <summary>
+        /// The default commands specified by redis
+        /// </summary>
+        public static CommandMap Default { get; } = CreateImpl(null, null);
+
+        /// <summary>
+        /// The commands available to <a href="twemproxy">https://github.com/twitter/twemproxy</a>
+        /// </summary>
+        /// <remarks>https://github.com/twitter/twemproxy/blob/master/notes/redis.md</remarks>
+        public static CommandMap Twemproxy { get; } = CreateImpl(null, exclusions: new HashSet<RedisCommand>
         {
             // see https://github.com/twitter/twemproxy/blob/master/notes/redis.md
             RedisCommand.KEYS, RedisCommand.MIGRATE, RedisCommand.MOVE, RedisCommand.OBJECT, RedisCommand.RANDOMKEY,
@@ -33,50 +46,33 @@ namespace StackExchange.Redis
 
             RedisCommand.SCRIPT,
 
-            RedisCommand.AUTH, RedisCommand.ECHO, RedisCommand.PING, RedisCommand.QUIT, RedisCommand.SELECT,
+            RedisCommand.ECHO, RedisCommand.PING, RedisCommand.QUIT, RedisCommand.SELECT,
 
             RedisCommand.BGREWRITEAOF, RedisCommand.BGSAVE, RedisCommand.CLIENT, RedisCommand.CLUSTER, RedisCommand.CONFIG, RedisCommand.DBSIZE,
             RedisCommand.DEBUG, RedisCommand.FLUSHALL, RedisCommand.FLUSHDB, RedisCommand.INFO, RedisCommand.LASTSAVE, RedisCommand.MONITOR, RedisCommand.SAVE,
             RedisCommand.SHUTDOWN, RedisCommand.SLAVEOF, RedisCommand.SLOWLOG, RedisCommand.SYNC, RedisCommand.TIME
-        }), ssdb = Create(new HashSet<string> {
+        });
+
+        /// <summary>
+        /// The commands available to <a href="ssdb">http://www.ideawu.com/ssdb/</a>
+        /// </summary>
+        /// <remarks>http://www.ideawu.com/ssdb/docs/redis-to-ssdb.html</remarks>
+        public static CommandMap SSDB { get; } = Create(new HashSet<string> {
             // see http://www.ideawu.com/ssdb/docs/redis-to-ssdb.html
             "ping",
             "get", "set", "del", "incr", "incrby", "mget", "mset", "keys", "getset", "setnx",
             "hget", "hset", "hdel", "hincrby", "hkeys", "hvals", "hmget", "hmset", "hlen",
             "zscore", "zadd", "zrem", "zrange", "zrangebyscore", "zincrby", "zdecrby", "zcard",
             "llen", "lpush", "rpush", "lpop", "rpop", "lrange", "lindex" 
-        }, true),
-            sentinel = Create(new HashSet<string> {
-            // see http://redis.io/topics/sentinel
-            "ping", "info", "sentinel", "subscribe", "psubscribe", "unsubscribe", "punsubscribe" }, true);
-        private readonly byte[][] map;
-
-        internal CommandMap(byte[][] map)
-        {
-            this.map = map;
-        }
-        /// <summary>
-        /// The default commands specified by redis
-        /// </summary>
-        public static CommandMap Default { get { return @default; } }
-
-        /// <summary>
-        /// The commands available to <a href="twemproxy">https://github.com/twitter/twemproxy</a>
-        /// </summary>
-        /// <remarks>https://github.com/twitter/twemproxy/blob/master/notes/redis.md</remarks>
-        public static CommandMap Twemproxy {  get { return twemproxy; } }
-
-        /// <summary>
-        /// The commands available to <a href="ssdb">http://www.ideawu.com/ssdb/</a>
-        /// </summary>
-        /// <remarks>http://www.ideawu.com/ssdb/docs/redis-to-ssdb.html</remarks>
-        public static CommandMap SSDB { get { return ssdb; } }
+        }, true);
 
         /// <summary>
         /// The commands available to <a href="Sentinel">http://redis.io/topics/sentinel</a>
         /// </summary>
         /// <remarks>http://redis.io/topics/sentinel</remarks>
-        public static CommandMap Sentinel { get { return sentinel; } }
+        public static CommandMap Sentinel { get; } = Create(new HashSet<string> {
+            // see http://redis.io/topics/sentinel
+            "ping", "info", "sentinel", "subscribe", "psubscribe", "unsubscribe", "punsubscribe" }, true);
 
         /// <summary>
         /// Create a new CommandMap, customizing some commands
@@ -85,8 +81,7 @@ namespace StackExchange.Redis
         {
             if (overrides == null || overrides.Count == 0) return Default;
 
-            if (ReferenceEquals(overrides.Comparer, StringComparer.OrdinalIgnoreCase) ||
-                ReferenceEquals(overrides.Comparer, StringComparer.InvariantCultureIgnoreCase))
+            if (ReferenceEquals(overrides.Comparer, StringComparer.OrdinalIgnoreCase))
             {
                 // that's ok; we're happy with ordinal/invariant case-insensitive
                 // (but not culture-specific insensitive; completely untested)
@@ -209,13 +204,13 @@ namespace StackExchange.Redis
                         }
                     }
                     if (value != name) haveDelta = true;
-
+                    // TODO: bug?
                     haveDelta = true;
                     byte[] val = string.IsNullOrWhiteSpace(value) ? null : Encoding.UTF8.GetBytes(value);
                     map[idx] = val;
                 }
             }
-            if (!haveDelta && @default != null) return @default;
+            if (!haveDelta && Default != null) return Default;
 
             return new CommandMap(map);
         }

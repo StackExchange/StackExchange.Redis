@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
+#if CORE_CLR
+using System.Reflection;
+#endif
 using System.Threading.Tasks;
 using NUnit.Framework;
 using System.Threading;
@@ -445,7 +447,7 @@ namespace StackExchange.Redis.Tests
                           .ContinueWith(
                             async _ =>
                             {
-                                return (string)(await db.StringGetAsync("foo" + i));
+                                return (string)(await db.StringGetAsync("foo" + i).ConfigureAwait(false));
                             }
                           );
 
@@ -456,11 +458,11 @@ namespace StackExchange.Redis.Tests
                 conn.WaitAll(allTasks.ToArray());
 
                 var res = conn.FinishProfiling(profiler.MyContext);
-                Assert.IsTrue(res.GetType().IsValueType);
+                Assert.IsTrue(res.GetType().GetTypeInfo().IsValueType);
 
                 using(var e = res.GetEnumerator())
                 {
-                    Assert.IsTrue(e.GetType().IsValueType);
+                    Assert.IsTrue(e.GetType().GetTypeInfo().IsValueType);
 
                     Assert.IsTrue(e.MoveNext());
                     var i = e.Current;

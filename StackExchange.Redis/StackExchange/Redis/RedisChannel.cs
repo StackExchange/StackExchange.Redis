@@ -8,7 +8,6 @@ namespace StackExchange.Redis
     /// </summary>
     public struct RedisChannel : IEquatable<RedisChannel>
     {
-
         internal static readonly RedisChannel[] EmptyArray = new RedisChannel[0];
 
         private readonly byte[] value;
@@ -30,7 +29,7 @@ namespace StackExchange.Redis
         private RedisChannel(byte[] value, bool isPatternBased)
         {
             this.value = value;
-            this.IsPatternBased = isPatternBased;
+            IsPatternBased = isPatternBased;
         }
         private static bool DeterminePatternBased(byte[] value, PatternMode mode)
         {
@@ -41,27 +40,18 @@ namespace StackExchange.Redis
                 case PatternMode.Literal: return false;
                 case PatternMode.Pattern: return true;
                 default:
-                    throw new ArgumentOutOfRangeException("mode");
+                    throw new ArgumentOutOfRangeException(nameof(mode));
             }
         }
 
         /// <summary>
         /// Indicates whether the channel-name is either null or a zero-length value
         /// </summary>
-        public bool IsNullOrEmpty
-        {
-            get
-            {
-                return value == null || value.Length == 0;
-            }
-        }
+        public bool IsNullOrEmpty => value == null || value.Length == 0;
 
-        internal bool IsNull
-        {
-            get { return value == null; }
-        }
+        internal bool IsNull => value == null;
 
-        internal byte[] Value { get { return value; } }
+        internal byte[] Value => value;
 
         /// <summary>
         /// Indicate whether two channel names are not equal
@@ -150,15 +140,15 @@ namespace StackExchange.Redis
         {
             if (obj is RedisChannel)
             {
-                return RedisValue.Equals(this.value, ((RedisChannel)obj).value);
+                return RedisValue.Equals(value, ((RedisChannel)obj).value);
             }
             if (obj is string)
             {
-                return RedisValue.Equals(this.value, Encoding.UTF8.GetBytes((string)obj));
+                return RedisValue.Equals(value, Encoding.UTF8.GetBytes((string)obj));
             }
             if (obj is byte[])
             {
-                return RedisValue.Equals(this.value, (byte[])obj);
+                return RedisValue.Equals(value, (byte[])obj);
             }
             return false;
         }
@@ -168,8 +158,8 @@ namespace StackExchange.Redis
         /// </summary>
         public bool Equals(RedisChannel other)
         {
-            return this.IsPatternBased == other.IsPatternBased &&
-                RedisValue.Equals(this.value, other.value);
+            return IsPatternBased == other.IsPatternBased &&
+                RedisValue.Equals(value, other.value);
         }
 
         /// <summary>
@@ -177,7 +167,7 @@ namespace StackExchange.Redis
         /// </summary>
         public override int GetHashCode()
         {
-            return RedisValue.GetHashCode(this.value) + (IsPatternBased ? 1 : 0);
+            return RedisValue.GetHashCode(value) + (IsPatternBased ? 1 : 0);
         }
 
         /// <summary>
@@ -204,7 +194,7 @@ namespace StackExchange.Redis
 
         internal RedisChannel Clone()
         {
-            byte[] clone = value == null ? null : (byte[])value.Clone();
+            byte[] clone = (byte[]) value?.Clone();
             return clone;
         }
 

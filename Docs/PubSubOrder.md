@@ -12,7 +12,9 @@ This works *particularly* well if messages are generally unrelated.
 
 For safety, **the default is sequential**; however, it is strongly recommended that you use concurrent processing whenever possible. This is a simple change:
 
-    multiplexer.PreserveAsyncOrder = false;
+```C#
+multiplexer.PreserveAsyncOrder = false;
+```
 
 The reason that this is not a *configuration* option is that whether it is appropriate to do this depends *entirely* on the code that is subscribing to
 messages.

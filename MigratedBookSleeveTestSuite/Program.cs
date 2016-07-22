@@ -100,7 +100,6 @@ namespace Tests
 
                     foreach (var test in tests)
                     {
-                        var expectedFail = Attribute.GetCustomAttribute(test, typeof(ExpectedExceptionAttribute)) as ExpectedExceptionAttribute;
                         Console.Write(test.Name + ": ");
                         Exception err = null;
 
@@ -129,35 +128,6 @@ namespace Tests
                         if (err is AggregateException && ((AggregateException)err).InnerExceptions.Count == 1)
                         {
                             err = ((AggregateException)err).InnerExceptions[0];
-                        }
-
-                        if (expectedFail != null)
-                        {
-                            if (err == null)
-                            {
-                                err = new NUnit.Framework.AssertionException("failed to fail");
-                            }
-                            else
-                            {
-                                int issues = 0;
-                                if (expectedFail.ExpectedException != null && !expectedFail.ExpectedException.IsAssignableFrom(err.GetType()))
-                                {
-                                    issues++;
-                                }
-                                if (expectedFail.ExpectedExceptionName != null && err.GetType().FullName != expectedFail.ExpectedExceptionName)
-                                {
-                                    issues++;
-                                }
-                                if (expectedFail.ExpectedMessage != null && err.Message != expectedFail.ExpectedMessage)
-                                {
-                                    issues++;
-                                }
-                                if (issues == 0) err = null;
-                                else
-                                {
-                                    err = new InvalidOperationException("Failed in a different way", err);
-                                }
-                            }
                         }
 
                         if (err == null)
@@ -200,8 +170,7 @@ namespace Tests
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false, Inherited = false)]
 public sealed class ActiveTestAttribute : Attribute
 {
-    private readonly int count;
-    public int Count { get { return count; } }
+    public int Count { get; }
     public ActiveTestAttribute() : this(1) { }
-    public ActiveTestAttribute(int count) { this.count = count; }
+    public ActiveTestAttribute(int count) { this.Count = count; }
 }

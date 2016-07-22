@@ -1,11 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using NUnit.Framework;
-using StackExchange.Redis;
 
 namespace StackExchange.Redis.Tests.Issues
 {
@@ -32,7 +27,7 @@ namespace StackExchange.Redis.Tests.Issues
             var log = new StringWriter();
             try
             {
-                using (var conn = ConnectionMultiplexer.Connect(string.Format("{0}:{1}", PrimaryServer, PrimaryPort), log)) {
+                using (var conn = ConnectionMultiplexer.Connect($"{PrimaryServer}:{PrimaryPort}", log)) {
                     var db = conn.GetDatabase();
                     Assert.AreEqual(0, db.Database);
                 }
@@ -49,7 +44,7 @@ namespace StackExchange.Redis.Tests.Issues
             var log = new StringWriter();
             try
             {
-                using (var conn = ConnectionMultiplexer.Connect(string.Format("{0}:{1},defaultDatabase=3", PrimaryServer, PrimaryPort), log)) {
+                using (var conn = ConnectionMultiplexer.Connect($"{PrimaryServer}:{PrimaryPort},defaultDatabase=3", log)) {
                     var db = conn.GetDatabase();
                     Assert.AreEqual(3, db.Database);
                 }

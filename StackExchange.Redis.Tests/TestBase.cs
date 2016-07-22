@@ -8,7 +8,9 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+#if FEATURE_BOOKSLEEVE
 using BookSleeve;
+#endif
 using NUnit.Framework;
 
 namespace StackExchange.Redis.Tests
@@ -48,6 +50,9 @@ namespace StackExchange.Redis.Tests
             {
                 Console.WriteLine("Unobserved: " + args.Exception);
                 args.SetObserved();
+#if CORE_CLR
+                if (IgnorableExceptionPredicates.Any(predicate => predicate(args.Exception.InnerException))) return;
+#endif
                 Interlocked.Increment(ref failCount);
                 lock (exceptions)
                 {
@@ -55,6 +60,15 @@ namespace StackExchange.Redis.Tests
                 }
             };
         }
+
+#if CORE_CLR
+        static Func<Exception, bool>[] IgnorableExceptionPredicates = new Func<Exception, bool>[]
+        {
+            e => e != null && e is ObjectDisposedException && e.Message.Equals("Cannot access a disposed object.\r\nObject name: 'System.Net.Sockets.NetworkStream'."),
+            e => e != null && e is IOException && e.Message.StartsWith("Unable to read data from the transport connection:")
+        };
+#endif
+
         protected void OnConnectionFailed(object sender, ConnectionFailedEventArgs e)
         {
             Interlocked.Increment(ref failCount);
@@ -221,6 +235,7 @@ namespace StackExchange.Redis.Tests
             return caller;
         }
 
+#if FEATURE_BOOKSLEEVE
         protected static RedisConnection GetOldStyleConnection(bool open = true, bool allowAdmin = false, bool waitForOpen = false, int syncTimeout = 5000, int ioTimeout = 5000)
         {
             return GetOldStyleConnection(PrimaryServer, PrimaryPort, open, allowAdmin, waitForOpen, syncTimeout, ioTimeout);
@@ -239,11 +254,11 @@ namespace StackExchange.Redis.Tests
             }
             return conn;
         }
-
+#endif
         protected static TimeSpan RunConcurrent(Action work, int threads, int timeout = 10000, [CallerMemberName] string caller = null)
         {
-            if (work == null) throw new ArgumentNullException("work");
-            if (threads < 1) throw new ArgumentOutOfRangeException("theads");
+            if (work == null) throw new ArgumentNullException(nameof(work));
+            if (threads < 1) throw new ArgumentOutOfRangeException(nameof(threads));
             if(string.IsNullOrWhiteSpace(caller)) caller = Me();
             Stopwatch watch = null;
             ManualResetEvent allDone = new ManualResetEvent(false);
@@ -282,15 +297,27 @@ namespace StackExchange.Redis.Tests
             }
             if (!allDone.WaitOne(timeout))
             {
-                for(int i = 0; i < threads; i++)
+#if !CORE_CLR
+                for (int i = 0; i < threads; i++)
                 {
                     var thd = threadArr[i];
                     if (thd.IsAlive) thd.Abort();
                 }
+#endif
                 throw new TimeoutException();
             }
 
             return watch.Elapsed;
+        }
+
+        
+        protected virtual void GetAzureCredentials(out string name, out string password)
+        {
+            var lines = File.ReadAllLines(@"d:\dev\azure.txt");
+            if (lines == null || lines.Length != 2)
+                Assert.Inconclusive("azure credentials missing");
+            name = lines[0];
+            password = lines[1];
         }
 
     }

@@ -62,6 +62,7 @@
     <None Include="Profiling.md" />
     <None Include="PubSubOrder.md" />
     <None Include="PipelinesMultiplexers.md" />
+    <None Include="Timeouts.md" />
     <None Include="Transactions.md" />
   </ItemGroup>
   <ItemGroup>

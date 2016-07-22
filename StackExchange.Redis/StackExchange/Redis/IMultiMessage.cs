@@ -3,6 +3,7 @@
 namespace StackExchange.Redis
 {
     internal interface IMultiMessage
-    {        IEnumerable<Message> GetMessages(PhysicalConnection connection);
+    {
+        IEnumerable<Message> GetMessages(PhysicalConnection connection);
     }
 }

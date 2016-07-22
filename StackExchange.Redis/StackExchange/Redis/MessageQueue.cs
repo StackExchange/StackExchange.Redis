@@ -9,7 +9,7 @@ namespace StackExchange.Redis
             regular = new Queue<Message>(),
             high = new Queue<Message>();
 
-        public object SyncLock { get { return regular; } }
+        public object SyncLock => regular;
 
         public Message Dequeue()
         {
@@ -27,19 +27,26 @@ namespace StackExchange.Redis
             return null;
         }
 
-        public Message PeekPing(out int queueLength)
+        /// <summary>
+        /// Checks both high-pri and regular queues to see if the next item is a PING, and if so: dequeues it and returns it
+        /// </summary>
+        public Message DequeueUnsentPing(out int queueLength)
         {
             lock (regular)
             {
                 Message peeked;
                 queueLength = high.Count + regular.Count;
+                //In a disconnect scenario, we don't want to complete the Ping message twice,
+                //dequeue it now so it wont get dequeued in AbortUnsent (if we're going down that code path)
                 if (high.Count != 0 && (peeked = high.Peek()).Command == RedisCommand.PING)
                 {
-                    return peeked;
+                    queueLength--;
+                    return high.Dequeue();
                 }
                 if (regular.Count != 0 && (peeked = regular.Peek()).Command == RedisCommand.PING)
                 {
-                    return peeked;
+                    queueLength--;
+                    return regular.Dequeue();
                 }
             }
             return null;

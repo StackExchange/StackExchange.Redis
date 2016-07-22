@@ -122,25 +122,36 @@ namespace Tests
             }
         }
 
-        [Test, ExpectedException(typeof(RedisConnectionException))]
+        [Test]
         public void CanNotOpenNonsenseConnection_IP()
         {
-            var log = new StringWriter();
-            try {
-                using (var conn = ConnectionMultiplexer.Connect(Config.LocalHost + ":6500")) { }
-            } finally {
-                Console.WriteLine(log);
-            }
+            Assert.Throws<RedisConnectionException>(() =>
+            {
+                var log = new StringWriter();
+                try {
+                    using (var conn = ConnectionMultiplexer.Connect(Config.LocalHost + ":6500")) { }
+                }
+                finally {
+                    Console.WriteLine(log);
+                }
+            });
         }
-        [Test, ExpectedException(typeof(RedisConnectionException))]
+
+        [Test]
         public void CanNotOpenNonsenseConnection_DNS()
         {
-            var log = new StringWriter();
-            try {
-                using (var conn = ConnectionMultiplexer.Connect("doesnot.exist.ds.aasd981230d.com:6500", log)) { }
-            } finally {
-                Console.WriteLine(log);
-            }
+            Assert.Throws<RedisConnectionException>(() =>
+            {
+                var log = new StringWriter();
+                try
+                {
+                    using (var conn = ConnectionMultiplexer.Connect("doesnot.exist.ds.aasd981230d.com:6500", log)) { }
+                }
+                finally
+                {
+                    Console.WriteLine(log);
+                }
+            });
         }
 
         [Test]
@@ -174,6 +185,63 @@ namespace Tests
             {
                 Console.WriteLine(log);
             }
+        }
+
+        [Test]
+        public void ConfigurationOptionsDefaultForAzure()
+        {
+            var options = ConfigurationOptions.Parse("contoso.redis.cache.windows.net");
+            Assert.IsTrue(options.DefaultVersion.Equals(new Version(3, 0, 0)));
+            Assert.IsFalse(options.AbortOnConnectFail);
+        }
+
+        [Test]
+        public void ConfigurationOptionsForAzureWhenSpecified()
+        {
+            var options = ConfigurationOptions.Parse("contoso.redis.cache.windows.net,abortConnect=true, version=2.1.1");
+            Assert.IsTrue(options.DefaultVersion.Equals(new Version(2, 1, 1)));
+            Assert.IsTrue(options.AbortOnConnectFail);
+        }
+
+        [Test]
+        public void ConfigurationOptionsDefaultForAzureChina()
+        {
+            // added a few upper case chars to validate comparison
+            var options = ConfigurationOptions.Parse("contoso.REDIS.CACHE.chinacloudapi.cn");
+            Assert.IsTrue(options.DefaultVersion.Equals(new Version(3, 0, 0)));
+            Assert.IsFalse(options.AbortOnConnectFail);
+        }
+
+        [Test]
+        public void ConfigurationOptionsDefaultForAzureGermany()
+        {
+            var options = ConfigurationOptions.Parse("contoso.redis.cache.cloudapi.de");
+            Assert.IsTrue(options.DefaultVersion.Equals(new Version(3, 0, 0)));
+            Assert.IsFalse(options.AbortOnConnectFail);
+        }
+
+        [Test]
+        public void ConfigurationOptionsDefaultForAzureUSGov()
+        {
+            var options = ConfigurationOptions.Parse("contoso.redis.cache.usgovcloudapi.net");
+            Assert.IsTrue(options.DefaultVersion.Equals(new Version(3, 0, 0)));
+            Assert.IsFalse(options.AbortOnConnectFail);
+        }
+
+        [Test]
+        public void ConfigurationOptionsDefaultForNonAzure()
+        {
+            var options = ConfigurationOptions.Parse("redis.contoso.com");
+            Assert.IsTrue(options.DefaultVersion.Equals(new Version(2, 0, 0)));
+            Assert.IsTrue(options.AbortOnConnectFail);
+        }
+
+        [Test]
+        public void ConfigurationOptionsDefaultWhenNoEndpointsSpecifiedYet()
+        {
+            var options = new ConfigurationOptions();
+            Assert.IsTrue(options.DefaultVersion.Equals(new Version(2, 0, 0)));
+            Assert.IsTrue(options.AbortOnConnectFail);
         }
 
         internal static void AssertNearlyEqual(double x, double y)

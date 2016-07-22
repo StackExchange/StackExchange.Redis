@@ -38,7 +38,7 @@ namespace StackExchange.Redis
                 }
             } catch(Exception ex)
             {
-                if(connection != null) connection.OnInternalError(ex);
+                connection?.OnInternalError(ex);
                 return null; // will be logged as a protocol fail by the processor
             }
         }
@@ -174,14 +174,11 @@ namespace StackExchange.Redis
         internal abstract string[] AsStringArray();
         private sealed class ArrayRedisResult : RedisResult
         {
-            public override bool IsNull
-            {
-                get { return value == null; }
-            }
+            public override bool IsNull => value == null;
             private readonly RedisResult[] value;
             public ArrayRedisResult(RedisResult[] value)
             {
-                if (value == null) throw new ArgumentNullException("value");
+                if (value == null) throw new ArgumentNullException(nameof(value));
                 this.value = value;
             }
             public override string ToString()
@@ -194,14 +191,14 @@ namespace StackExchange.Redis
                 throw new InvalidCastException();
             }
 
-            internal override bool[] AsBooleanArray() { return Array.ConvertAll(value, x => x.AsBoolean()); }
+            internal override bool[] AsBooleanArray() { return ConvertHelper.ConvertAll(value, x => x.AsBoolean()); }
 
             internal override byte[] AsByteArray()
             {
                 if (value.Length == 1) return value[0].AsByteArray();
                 throw new InvalidCastException();
             }
-            internal override byte[][] AsByteArrayArray() { return Array.ConvertAll(value, x => x.AsByteArray()); }
+            internal override byte[][] AsByteArrayArray() { return ConvertHelper.ConvertAll(value, x => x.AsByteArray()); }
 
             internal override double AsDouble()
             {
@@ -209,7 +206,7 @@ namespace StackExchange.Redis
                 throw new InvalidCastException();
             }
 
-            internal override double[] AsDoubleArray() { return Array.ConvertAll(value, x => x.AsDouble()); }
+            internal override double[] AsDoubleArray() { return ConvertHelper.ConvertAll(value, x => x.AsDouble()); }
 
             internal override int AsInt32()
             {
@@ -217,7 +214,7 @@ namespace StackExchange.Redis
                 throw new InvalidCastException();
             }
 
-            internal override int[] AsInt32Array() { return Array.ConvertAll(value, x => x.AsInt32()); }
+            internal override int[] AsInt32Array() { return ConvertHelper.ConvertAll(value, x => x.AsInt32()); }
 
             internal override long AsInt64()
             {
@@ -225,7 +222,7 @@ namespace StackExchange.Redis
                 throw new InvalidCastException();
             }
 
-            internal override long[] AsInt64Array() { return Array.ConvertAll(value, x => x.AsInt64()); }
+            internal override long[] AsInt64Array() { return ConvertHelper.ConvertAll(value, x => x.AsInt64()); }
 
             internal override bool? AsNullableBoolean()
             {
@@ -257,7 +254,7 @@ namespace StackExchange.Redis
                 throw new InvalidCastException();
             }
 
-            internal override RedisKey[] AsRedisKeyArray() { return Array.ConvertAll(value, x => x.AsRedisKey()); }
+            internal override RedisKey[] AsRedisKeyArray() { return ConvertHelper.ConvertAll(value, x => x.AsRedisKey()); }
 
             internal override RedisResult[] AsRedisResultArray() { return value; }
 
@@ -267,14 +264,14 @@ namespace StackExchange.Redis
                 throw new InvalidCastException();
             }
 
-            internal override RedisValue[] AsRedisValueArray() { return Array.ConvertAll(value, x => x.AsRedisValue()); }
+            internal override RedisValue[] AsRedisValueArray() { return ConvertHelper.ConvertAll(value, x => x.AsRedisValue()); }
 
             internal override string AsString()
             {
                 if (value.Length == 1) return value[0].AsString();
                 throw new InvalidCastException();
             }
-            internal override string[] AsStringArray() { return Array.ConvertAll(value, x => x.AsString()); }
+            internal override string[] AsStringArray() { return ConvertHelper.ConvertAll(value, x => x.AsString()); }
         }
 
         private sealed class ErrorRedisResult : RedisResult
@@ -282,13 +279,10 @@ namespace StackExchange.Redis
             private readonly string value;
             public ErrorRedisResult(string value)
             {
-                if (value == null) throw new ArgumentNullException("value");
+                if (value == null) throw new ArgumentNullException(nameof(value));
                 this.value = value;
             }
-            public override bool IsNull
-            {
-                get { return value == null; }
-            }
+            public override bool IsNull => value == null;
             public override string ToString() { return value; }
             internal override bool AsBoolean() { throw new RedisServerException(value); }
 
@@ -340,10 +334,7 @@ namespace StackExchange.Redis
                 this.value = value;
             }
 
-            public override bool IsNull
-            {
-                get { return value.IsNull; }
-            }
+            public override bool IsNull => value.IsNull;
 
             public override string ToString() { return value.ToString(); }
             internal override bool AsBoolean() { return (bool)value; }

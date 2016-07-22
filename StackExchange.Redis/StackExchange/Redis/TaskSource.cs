@@ -1,8 +1,10 @@
-﻿using System;
+﻿using System.Threading.Tasks;
+#if !PLAT_SAFE_CONTINUATIONS
+using System;
 using System.Diagnostics;
 using System.Reflection;
 using System.Reflection.Emit;
-using System.Threading.Tasks;
+#endif
 
 namespace StackExchange.Redis
 {

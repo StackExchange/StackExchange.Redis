@@ -2,8 +2,11 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+#if FEATURE_SERIALIZATION
 using System.Runtime.Serialization;
+#endif
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace StackExchange.Redis
@@ -11,25 +14,32 @@ namespace StackExchange.Redis
     /// <summary>
     /// Indicates that a command was illegal and was not sent to the server
     /// </summary>
+#if FEATURE_SERIALIZATION
     [Serializable]
+#endif
     public sealed class RedisCommandException : Exception
     {
+#if FEATURE_SERIALIZATION
         private RedisCommandException(SerializationInfo info, StreamingContext ctx) : base(info, ctx) { }
+#endif
         internal RedisCommandException(string message) : base(message) { }
         internal RedisCommandException(string message, Exception innerException) : base(message, innerException) { }
     }
 
-    
+
 
     /// <summary>
     /// Indicates a connection fault when communicating with redis
     /// </summary>
+#if FEATURE_SERIALIZATION
     [Serializable]
+#endif
     public sealed class RedisConnectionException : RedisException
     {
+#if FEATURE_SERIALIZATION
         private RedisConnectionException(SerializationInfo info, StreamingContext ctx) : base(info, ctx)
         {
-            this.FailureType = (ConnectionFailureType)info.GetInt32("failureType");
+            FailureType = (ConnectionFailureType)info.GetInt32("failureType");
         }
         /// <summary>
         /// Serialization implementation; not intended for general usage
@@ -37,45 +47,54 @@ namespace StackExchange.Redis
         public override void GetObjectData(SerializationInfo info, StreamingContext context)
         {
             base.GetObjectData(info, context);
-            info.AddValue("failureType", (int)this.FailureType);
+            info.AddValue("failureType", (int)FailureType);
         }
+#endif
 
         internal RedisConnectionException(ConnectionFailureType failureType, string message) : base(message)
         {
-            this.FailureType = failureType;
+            FailureType = failureType;
         }
         internal RedisConnectionException(ConnectionFailureType failureType, string message, Exception innerException) : base(message, innerException)
         {
-            this.FailureType = failureType;
+            FailureType = failureType;
         }
 
         /// <summary>
         /// The type of connection failure
         /// </summary>
-        public ConnectionFailureType FailureType { get; private set; }
+        public ConnectionFailureType FailureType { get; }
     }
 
     /// <summary>
     /// Indicates an issue communicating with redis
     /// </summary>
+#if FEATURE_SERIALIZATION
     [Serializable]
+#endif
     public class RedisException : Exception
     {
         /// <summary>
         /// Deserialization constructor; not intended for general usage
         /// </summary>
+#if FEATURE_SERIALIZATION
         protected RedisException(SerializationInfo info, StreamingContext ctx) : base(info, ctx) { }
-        
+#endif
+
         internal RedisException(string message) : base(message) { }
         internal RedisException(string message, Exception innerException) : base(message, innerException) { }
     }
     /// <summary>
     /// Indicates an exception raised by a redis server
     /// </summary>
+#if FEATURE_SERIALIZATION
     [Serializable]
+#endif
     public sealed class RedisServerException : RedisException
     {
+#if FEATURE_SERIALIZATION
         private RedisServerException(SerializationInfo info, StreamingContext ctx) : base(info, ctx) { }
+#endif
         
         internal RedisServerException(string message) : base(message) { }
     }
@@ -93,15 +112,10 @@ namespace StackExchange.Redis
         {
             this.log = log;
             this.tail = tail;
-            this.FlagsRaw = tail.FlagsRaw;
+            FlagsRaw = tail.FlagsRaw;
         }
-        public override string CommandAndKey
-        {
-            get
-            {
-                return tail.CommandAndKey;
-            }
-        }
+        public override string CommandAndKey => tail.CommandAndKey;
+
         public override void AppendStormLog(StringBuilder sb)
         {
             tail.AppendStormLog(sb);
@@ -120,7 +134,7 @@ namespace StackExchange.Redis
             tail.WriteImpl(physical);
         }
 
-        public TextWriter Log { get { return log; } }
+        public TextWriter Log => log;
     }
 
     abstract class Message : ICompletable
@@ -155,7 +169,7 @@ namespace StackExchange.Redis
 
         protected Message(int db, CommandFlags flags, RedisCommand command)
         {
-            bool dbNeeded = Message.RequiresDatabase(command);
+            bool dbNeeded = RequiresDatabase(command);
             if (db < 0)
             {
                 if (dbNeeded)
@@ -172,7 +186,7 @@ namespace StackExchange.Redis
             }
 
             bool masterOnly = IsMasterOnly(command);
-            this.Db = db;
+            Db = db;
             this.command = command;
             this.flags = flags & UserSelectableFlags;
             if (masterOnly) SetMasterOnly();
@@ -183,17 +197,17 @@ namespace StackExchange.Redis
 
         internal void SetMasterOnly()
         {
-            switch (GetMasterSlaveFlags(this.flags))
+            switch (GetMasterSlaveFlags(flags))
             {
                 case CommandFlags.DemandSlave:
-                    throw ExceptionFactory.MasterOnly(false, this.command, null, null);
+                    throw ExceptionFactory.MasterOnly(false, command, null, null);
                 case CommandFlags.DemandMaster:
                     // already fine as-is
                     break;
                 case CommandFlags.PreferMaster:
                 case CommandFlags.PreferSlave:
                 default: // we will run this on the master, then
-                    this.flags = SetMasterSlaveFlags(this.flags, CommandFlags.DemandMaster);
+                    flags = SetMasterSlaveFlags(flags, CommandFlags.DemandMaster);
                     break;
             }
         }
@@ -219,11 +233,11 @@ namespace StackExchange.Redis
             performance.SetMessage(this);
         }
 
-        public RedisCommand Command { get { return command; } }
+        public RedisCommand Command => command;
 
-        public virtual string CommandAndKey { get { return Command.ToString(); } }
+        public virtual string CommandAndKey => Command.ToString();
 
-        public CommandFlags Flags { get { return flags; } }
+        public CommandFlags Flags => flags;
 
         /// <summary>
         /// Things with the potential to cause harm, or to reveal configuration information
@@ -257,36 +271,22 @@ namespace StackExchange.Redis
             }
         }
 
-        public bool IsAsking
-        {
-            get { return (flags & AskingFlag) != 0; }
-        }
+        public bool IsAsking => (flags & AskingFlag) != 0;
 
-        internal bool IsScriptUnavailable
-        {
-            get { return (flags & ScriptUnavailableFlag) != 0; }
-        }
+        internal bool IsScriptUnavailable => (flags & ScriptUnavailableFlag) != 0;
+
         internal void SetScriptUnavailable()
         {
             flags |= ScriptUnavailableFlag;
         }
 
-        public bool IsFireAndForget
-        {
-            get { return (flags & CommandFlags.FireAndForget) != 0; }
-        }
+        public bool IsFireAndForget => (flags & CommandFlags.FireAndForget) != 0;
 
-        public bool IsHighPriority
-        {
-            get { return (flags & CommandFlags.HighPriority) != 0; }
-        }
+        public bool IsHighPriority => (flags & CommandFlags.HighPriority) != 0;
 
-        public bool IsInternalCall
-        {
-            get { return (flags & InternalCallFlag) != 0; }
-        }
+        public bool IsInternalCall => (flags & InternalCallFlag) != 0;
 
-        public ResultBox ResultBox { get { return resultBox; } }
+        public ResultBox ResultBox => resultBox;
 
         public static Message Create(int db, CommandFlags flags, RedisCommand command)
         {
@@ -486,36 +486,36 @@ namespace StackExchange.Redis
 
         public override string ToString()
         {
-            return string.Format("[{0}]:{1} ({2})", Db, CommandAndKey,
-                resultProcessor == null ? "(n/a)" : resultProcessor.GetType().Name);
+            return $"[{Db}]:{CommandAndKey} ({resultProcessor?.GetType().Name ?? "(n/a)"})";
         }
 
         public void SetResponseReceived()
         {
-            if (performance != null)
-            {
-                performance.SetResponseReceived();
-            }
+            performance?.SetResponseReceived();
         }
 
         public bool TryComplete(bool isAsync)
         {
-            if (resultBox != null)
+            //Ensure we can never call TryComplete on the same resultBox from two threads by grabbing it now
+            var currBox = Interlocked.Exchange(ref resultBox, null);
+            if (currBox != null)
             {
-                var ret = resultBox.TryComplete(isAsync);
-                if (performance != null)
+                var ret = currBox.TryComplete(isAsync);
+
+                //in async mode TryComplete will have unwrapped and recycled resultBox
+                if (!(ret && isAsync))
                 {
-                    performance.SetCompleted();
+                    //put result box back if it was not already recycled
+                    Interlocked.Exchange(ref resultBox, currBox);
                 }
+
+                performance?.SetCompleted();
                 return ret;
             }
             else
             {
                 ConnectionMultiplexer.TraceWithoutContext("No result-box to complete for " + Command, "Message");
-                if (performance != null)
-                {
-                    performance.SetCompleted();
-                }
+                performance?.SetCompleted();
                 return true;
             }
         }
@@ -559,7 +559,7 @@ namespace StackExchange.Redis
 
         internal static Message Create(int db, CommandFlags flags, RedisCommand command, RedisKey key, RedisValue[] values)
         {
-            if (values == null) throw new ArgumentNullException("values");
+            if (values == null) throw new ArgumentNullException(nameof(values));
             switch (values.Length)
             {
                 case 0: return new CommandKeyMessage(db, flags, command, key);
@@ -573,7 +573,7 @@ namespace StackExchange.Redis
 
         internal static Message Create(int db, CommandFlags flags, RedisCommand command, RedisKey key0, RedisValue[] values, RedisKey key1)
         {
-            if (values == null) throw new ArgumentNullException("values");
+            if (values == null) throw new ArgumentNullException(nameof(values));
             return new CommandKeyValuesKeyMessage(db, flags, command, key0, values, key1);
         }
 
@@ -633,7 +633,7 @@ namespace StackExchange.Redis
 
         internal void Cancel()
         {
-            if (resultProcessor != null) resultProcessor.SetException(this, new TaskCanceledException());
+            resultProcessor?.SetException(this, new TaskCanceledException());
         }
 
         // true if ready to be completed (i.e. false if re-issued to another server)
@@ -645,26 +645,17 @@ namespace StackExchange.Redis
         internal void Fail(ConnectionFailureType failure, Exception innerException)
         {
             PhysicalConnection.IdentifyFailureType(innerException, ref failure);
-            if (resultProcessor != null)
-            {
-                resultProcessor.ConnectionFail(this, failure, innerException);
-            }
+            resultProcessor?.ConnectionFail(this, failure, innerException);
         }
 
         internal void SetEnqueued()
         {
-            if(performance != null)
-            {
-                performance.SetEnqueued();
-            }
+            performance?.SetEnqueued();
         }
 
         internal void SetRequestSent()
         {
-            if (performance != null)
-            {
-                performance.SetRequestSent();
-            }
+            performance?.SetRequestSent();
         }
 
         internal void SetAsking(bool value)
@@ -675,7 +666,7 @@ namespace StackExchange.Redis
 
         internal void SetNoRedirect()
         {
-            this.flags |= CommandFlags.NoRedirect;
+            flags |= CommandFlags.NoRedirect;
         }
 
         internal void SetPreferMaster()
@@ -713,7 +704,7 @@ namespace StackExchange.Redis
             }
             catch (Exception ex)
             {
-                if (physical != null) physical.OnInternalError(ex);
+                physical?.OnInternalError(ex);
                 Fail(ConnectionFailureType.InternalFailure, ex);
             }
         }
@@ -724,10 +715,10 @@ namespace StackExchange.Redis
             public CommandChannelBase(int db, CommandFlags flags, RedisCommand command, RedisChannel channel) : base(db, flags, command)
             {
                 channel.AssertNotNull();
-                this.Channel = channel;
+                Channel = channel;
             }
 
-            public override string CommandAndKey { get { return Command + " " + Channel; } }
+            public override string CommandAndKey => Command + " " + Channel;
         }
 
         internal abstract class CommandKeyBase : Message
@@ -737,10 +728,11 @@ namespace StackExchange.Redis
             public CommandKeyBase(int db, CommandFlags flags, RedisCommand command, RedisKey key) : base(db, flags, command)
             {
                 key.AssertNotNull();
-                this.Key = key;
+                Key = key;
             }
 
-            public override string CommandAndKey { get { return Command + " " + ((string)Key); } }
+            public override string CommandAndKey => Command + " " + (string)Key;
+
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
             {
                 return serverSelectionStrategy.HashSlot(Key);

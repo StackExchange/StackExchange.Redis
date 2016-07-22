@@ -9,7 +9,7 @@ namespace StackExchange.Redis.Tests.Issues
     {
         protected override string GetConfiguration()
         {
-            return "127.0.0.1";
+            return "127.0.0.1:6379";
         }
         [Test]
         public async void Execute()
@@ -18,7 +18,7 @@ namespace StackExchange.Redis.Tests.Issues
             {
                 for(int i = 0; i < 100; i++)
                 {
-                    Assert.AreEqual("ok", await DoStuff(conn));
+                    Assert.AreEqual("ok", await DoStuff(conn).ConfigureAwait(false));
 
                 }
             }
@@ -30,13 +30,13 @@ namespace StackExchange.Redis.Tests.Issues
             var timeout = Task.Delay(5000);
             var len = db.ListLengthAsync("list");
 
-            if (await Task.WhenAny(timeout, len) != len)
+            if (await Task.WhenAny(timeout, len).ConfigureAwait(false) != len)
             {
                 return "Timeout getting length";
             }
 
             
-            if ((await len) == 0)
+            if ((await len.ConfigureAwait(false)) == 0)
             {
                 db.ListRightPush("list", "foo", flags: CommandFlags.FireAndForget);
             }
@@ -48,14 +48,14 @@ namespace StackExchange.Redis.Tests.Issues
 
             var exec = tran.ExecuteAsync();
             // SWAP THESE TWO
-            bool ok = await Task.WhenAny(exec, timeout) == exec;
+            bool ok = await Task.WhenAny(exec, timeout).ConfigureAwait(false) == exec;
             //bool ok = true;
 
             if (ok)
             {
-                if (await exec)
+                if (await exec.ConfigureAwait(false))
                 {
-                    await Task.WhenAll(x, y, z);
+                    await Task.WhenAll(x, y, z).ConfigureAwait(false);
 
                     var db2 = conn.GetDatabase();
                     db2.HashGet("hash", "whatever");
