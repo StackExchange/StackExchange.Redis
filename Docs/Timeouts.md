@@ -45,7 +45,7 @@ Given the above information, it's recommend to set the minimum configuration val
 
 How to configure this setting:
 
- - In ASP.NET, use the ["minIoThreads" configuration setting](https://msdn.microsoft.com/en-us/library/vstudio/7w2sway1(v=vs.100).aspx) under the `<processModel>` configuration element in web.config.  You should be able to set this programmatically (see below) from your Application_Start method in global.asax.cs.
+ - In ASP.NET, use the ["minIoThreads" configuration setting](https://msdn.microsoft.com/en-us/library/vstudio/7w2sway1(v=vs.100).aspx) under the `<processModel>` configuration element in machine.config. If you are running inside of Azure WebSites, this setting is not exposed through the configuration options. You should be able to set this programmatically (see below) from your Application_Start method in global.asax.cs.
 
 > **Important Note:** the value specified in this configuration element is a *per-core* setting.  For example, if you have a 4 core machine and want your minIOThreads setting to be 200 at runtime, you would use `<processModel minIoThreads="50"/>`.
 

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 #if CORE_CLR
 using System.Collections.Generic;
 using System.Reflection;
@@ -280,7 +280,7 @@ namespace StackExchange.Redis
                 double thisDouble, otherDouble;
                 CompareType thisType = this.ResolveType(out thisInt64, out thisDouble),
                     otherType = other.ResolveType(out otherInt64, out otherDouble);
-            
+
                 if(thisType == CompareType.Null)
                 {
                     return otherType == CompareType.Null ? 0 : -1;
@@ -511,7 +511,7 @@ namespace StackExchange.Redis
             if (valueBlob == IntegerSentinel)
                 return Format.ToString(value.valueInt64);
             if (valueBlob == null) return null;
-            
+
             if (valueBlob.Length == 0) return "";
             try
             {
@@ -597,7 +597,7 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Convert to a long if possible, returning true.
-        /// 
+        ///
         /// Returns false otherwise.
         /// </summary>
         public bool TryParse(out long val)
@@ -621,7 +621,7 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Convert to a int if possible, returning true.
-        /// 
+        ///
         /// Returns false otherwise.
         /// </summary>
         public bool TryParse(out int val)
@@ -639,7 +639,7 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Convert to a double if possible, returning true.
-        /// 
+        ///
         /// Returns false otherwise.
         /// </summary>
         public bool TryParse(out double val)
