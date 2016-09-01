@@ -7,6 +7,14 @@ namespace StackExchange.Redis
     /// </summary>
     public abstract class RedisResult
     {
+        /// <summary>
+        /// Create a new RedisResult.
+        /// </summary>
+        /// <returns></returns>
+        public static RedisResult Create(RedisValue value)
+        {
+            return new SingleRedisResult(value);
+        }
 
         // internally, this is very similar to RawResult, except it is designed to be usable
         // outside of the IO-processing pipeline: the buffers are standalone, etc
