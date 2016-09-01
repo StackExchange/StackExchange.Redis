@@ -194,12 +194,9 @@ namespace StackExchange.Redis
         /// <summary>
         /// Completion type for BeginConnect call
         /// </summary>
+        [Obsolete("This no longer has an effect; all connects will be asynchronous")]
         public static CompletionType ConnectCompletionType { get; set; }
-
-        partial void ShouldForceConnectCompletionType(ref CompletionType completionType)
-        {
-            completionType = SocketManager.ConnectCompletionType;
-        }
+        
     }
     partial interface ISocketCallback
     {
@@ -342,51 +339,6 @@ namespace StackExchange.Redis
             }
 
             return false;
-        }
-    }
-    
-    internal class CompletionTypeHelper
-    {
-
-        public static void RunWithCompletionType(Func<AsyncCallback, IAsyncResult> beginAsync, AsyncCallback callback, CompletionType completionType)
-        { 
-            AsyncCallback proxyCallback;
-            if (completionType == CompletionType.Any)
-            {
-                proxyCallback =  (ar) =>
-                {
-                    if (!ar.CompletedSynchronously)
-                    {
-                        callback(ar);
-                    }
-                };
-            }
-            else
-            {
-                proxyCallback = (ar) => { };
-            }
-
-            var result = beginAsync(proxyCallback);
-
-            if (completionType == CompletionType.Any && !result.CompletedSynchronously)
-            {
-                return;
-            }
-
-            result.AsyncWaitHandle.WaitOne();
-
-            switch (completionType)
-            { 
-                case CompletionType.Async:
-                    ThreadPool.QueueUserWorkItem((s) => { callback(result); });
-                    break;
-                case CompletionType.Any:
-                case CompletionType.Sync:
-                    callback(result);
-                    break;
-            }
-
-            return;
         }
     }
 #endif

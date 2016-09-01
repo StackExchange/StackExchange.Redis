@@ -18,6 +18,9 @@
   "authors": [ "Stack Exchange inc., marc.gravell" ],
   "copyright": "Stack Exchange inc. 2014-",
   "dependencies": {
+    "Channels": "0.1.0-beta-94",
+    "Channels.Networking.Libuv": "0.1.0-beta-94",
+    "Channels.Text.Primitives": "0.1.0-beta-94"
   },
   "buildOptions": {
     "allowUnsafe": true,
@@ -37,16 +40,7 @@
     }
   },
   "frameworks": {
-    "net40": {
-      "dependencies": {
-        "Microsoft.Bcl": "1.1.10",
-        "Microsoft.Bcl.Async": "1.0.168"
-      },
-      "buildOptions": {
-        "define": [ "FEATURE_SERIALIZATION" ]
-      }
-    },
-    "net45": {
+    "net451": {
       "frameworkAssemblies": {
         "System.IO.Compression": "4.0.0.0"
       },
