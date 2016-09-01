@@ -32,6 +32,10 @@ namespace StackExchange.Redis
         {
             return result =>
             {   // can't capture AsyncState on SocketRead, so we'll do it once per physical instead
+                if (result.IsFaulted)
+                {
+                    GC.KeepAlive(result.Exception);
+                }
                 try
                 {
                     physical.Multiplexer.Trace("Completed asynchronously: processing in callback", physical.physicalName);
