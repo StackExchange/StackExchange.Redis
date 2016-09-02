@@ -225,13 +225,7 @@ namespace RedisCore
                 }
                 // confirm that the LF in the CRLF
                 var tmp = seekBuffer.Slice(cr).Slice(1);
-                if (tmp.Length == 0)
-                {
-                    result = default(RawResult);
-                    return false;
-                }
-                var span = tmp.FirstSpan;
-                if (span.Array[span.Offset] == (byte)'\n')
+                if (tmp.Peek() == (byte)'\n')
                 {
                     result = new RawResult(resultType, buffer.Slice(1, cr));
                     buffer = tmp.Slice(1); // skip the \n next time
