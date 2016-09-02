@@ -1,14 +1,13 @@
 ﻿using Channels;
-using Channels.Networking.Libuv;
 using System;
 using System.Collections.Generic;
-using System.Net;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace RedisCore
 {
+
     abstract class ResultParser
     {
         public abstract void Process(ref RawResult response, object source);
@@ -245,42 +244,33 @@ namespace RedisCore
         
         protected IWritableChannel Output => connection.Output;
         protected IReadableChannel Input => connection.Input;
-        public void Dispose() => Shutdown(ref connection, null);
-        private UvTcpConnection connection;
-
+        public void Dispose()
+        {
+            connection?.Dispose();
+            connection = null;
+        }
+        
         public bool IsConnected => connection != null;
-        public async void Connect(UvThread thread, IPEndPoint endpoint)
+        internal async void Connect(ClientChannelFactory factory, string location)
         {
             try
             {
-                UvTcpClient client = new UvTcpClient(thread, endpoint);
-                connection = await client.ConnectAsync();
+                connection = await factory.ConnectAsync(location);
                 OnConnected();
-                ReadLoop(connection);
+                ReadLoop();
             }
             catch (Exception ex)
             {
                 Program.WriteError(ex);
             }
         }
-        private static void Shutdown(ref UvTcpConnection connection, Exception error)
-        {
-            if (connection != null)
-            {
-                try
-                {
-                    if (!connection.Input.Completion.IsCompleted) connection.Input.CompleteReading(error);
-                    if (!connection.Output.Completion.IsCompleted) connection.Output.CompleteWriting(error);
-                }
-                catch (Exception ex) { Program.WriteError(ex); }
-                connection = null;
-            }
-        }
+        private IClientChannel connection;
+
         private int outCount, inCount, flushCount;
         public int InCount => Volatile.Read(ref inCount);
         public int OutCount => Volatile.Read(ref outCount);
         public int FlushCount => Volatile.Read(ref flushCount);
-        private async void ReadLoop(UvTcpConnection connection)
+        private async void ReadLoop()
         {
             try
             {
@@ -303,12 +293,12 @@ namespace RedisCore
                     }
                     data.Consumed(data.Start, data.End);
                 }
-                Shutdown(ref connection, null);
+                connection?.Dispose();
             }
             catch (Exception ex)
             {
                 Program.WriteError(ex);
-                Shutdown(ref connection, ex);
+                connection?.Dispose();
             }
         }
         protected virtual void OnConnected() { }

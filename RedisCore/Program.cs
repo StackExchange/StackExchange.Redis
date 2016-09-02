@@ -10,19 +10,21 @@ namespace RedisCore
 {
     public class Program
     {
-        const int PipelinedCount = 5000000, RequestResponseCount = 100000,
+        const int PipelinedCount = 500000, RequestResponseCount = 10000,
             BatchSize = 1000, BatchCount = PipelinedCount / BatchSize;
         public static void Main()
         {
-           
             Thread.CurrentThread.Name = "Main";
-            using (var thread = new UvThread())
+
+            using (ClientChannelFactory factory = new SocketClientChannelFactory())
+            //using (ClientChannelFactory factory = new UvClientChannelFactory())
             using (var conn = new RedisConnection())
             {
-                conn.Connect(thread, new IPEndPoint(IPAddress.Loopback, 6379));
+                Console.WriteLine($"Channel factory: {factory}");
+                conn.Connect(factory, "127.0.0.1:6379");
 
                 Thread.Sleep(1000);
-                if(conn.IsConnected)
+                if (conn.IsConnected)
                 {
                     Console.WriteLine("RedisCore (bits of StackExchange.Redis with libuv/channels) Connected successfully");
                 }
@@ -36,13 +38,13 @@ namespace RedisCore
                 int oldOut = conn.OutCount, oldIn = conn.InCount, oldFlush = conn.FlushCount;
                 var timer = Stopwatch.StartNew();
                 // starting at 1 so that we can wait on the last one and still send the right amount
-                for(int i = 1; i < PipelinedCount; i++) conn.Ping(fireAndForget: true);
+                for (int i = 1; i < PipelinedCount; i++) conn.Ping(fireAndForget: true);
                 conn.Ping(); // block
                 timer.Stop();
                 int outCount = conn.OutCount - oldOut, inCount = conn.InCount - oldIn, flushCount = conn.FlushCount - oldFlush;
                 Console.WriteLine($"out: {outCount}, in: {inCount}, flush: {flushCount}, {timer.ElapsedMilliseconds}ms; {((outCount * 1000.0) / timer.ElapsedMilliseconds):F0} ops/s");
 
-                Console.WriteLine($"Sending {(BatchSize * BatchCount)+1} pings synchronously fire-and-forget ({BatchCount} batches of {BatchSize}) ...");
+                Console.WriteLine($"Sending {(BatchSize * BatchCount) + 1} pings synchronously fire-and-forget ({BatchCount} batches of {BatchSize}) ...");
                 oldOut = conn.OutCount;
                 oldIn = conn.InCount;
                 oldFlush = conn.FlushCount;
@@ -78,7 +80,7 @@ namespace RedisCore
 
                 PingAsync(conn);
 
-                
+
                 Console.ReadKey();
             }
             
