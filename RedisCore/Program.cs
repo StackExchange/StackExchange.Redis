@@ -24,7 +24,7 @@ namespace RedisCore
                 Thread.Sleep(1000);
                 if(conn.IsConnected)
                 {
-                    Console.WriteLine("Connected successfully");
+                    Console.WriteLine("RedisCore (bits of StackExchange.Redis with libuv/channels) Connected successfully");
                 }
                 else
                 {
@@ -102,12 +102,13 @@ namespace RedisCore
             oldFlush = conn.FlushCount;
             timer = Stopwatch.StartNew();
 
+            Task ignored = null;
             for (int i = 0; i < BatchCount; i++)
             {
                 var batch = conn.CreateBatch();
                 for (int j = 0; j < BatchSize; j++)
                 {
-                    await batch.PingAysnc(true);
+                    ignored = batch.PingAysnc(true);
                 }
                 await batch.ExecuteAsync();
             }

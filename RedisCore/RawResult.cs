@@ -51,7 +51,19 @@ namespace RedisCore
                     throw new InvalidOperationException("Unexpected response prefix: " + (char)resultType);
             }
         }
-        private static Vector<byte> _vectorCRs = new Vector<byte>((byte)'\r');
+        private static Vector<byte> _vectorCRs;
+        static RawResult() // this field init fails on net452 - needs .cctor
+        {
+            try
+            {
+                _vectorCRs = new Vector<byte>((byte)'\r');
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+                Program.WriteError(ex);
+            }
+        }
         private static bool TryReadLineTerminatedString(ResultType resultType, ref ReadableBuffer buffer, out RawResult result)
         {
             // look for the CR in the CRLF
