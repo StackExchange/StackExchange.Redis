@@ -15,7 +15,7 @@ namespace RedisCore
     {
         class MyRedisConnection : RedisConnection
         {
-            internal const int ToSend = 500000;
+            internal const int ToSend = 100000;
             int remaining = ToSend;
             Stopwatch timer;
             internal void StartTimer()
@@ -25,10 +25,15 @@ namespace RedisCore
             protected override void OnReceived(ref RawResult result)
             {
                 Program.WriteStatus("Received: " + result.ToString());
-                if(Interlocked.Decrement(ref remaining) == 0)
+                int now = Interlocked.Decrement(ref remaining);
+                if (now == 0)
                 {
                     timer.Stop();
                     Console.WriteLine($"{ToSend} messages received: {timer.ElapsedMilliseconds}ms; {(ToSend * 1000.0) / timer.ElapsedMilliseconds}ops/s");
+                }
+                else if (now < 0)
+                {
+                    Console.WriteLine("you got more messages than you expected! something is ill");
                 }
             }
             protected override void OnConnected()
