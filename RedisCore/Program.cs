@@ -122,7 +122,7 @@ namespace RedisCore
             {
                 try
                 {
-                    if (!connection.Input.IsCompleted) connection.Input.CompleteReading(error);
+                    if (!connection.Input.Completion.IsCompleted) connection.Input.CompleteReading(error);
                     if (!connection.Output.Completion.IsCompleted) connection.Output.CompleteWriting(error);
                 }
                 catch(Exception ex) { Program.WriteError(ex); }
@@ -137,8 +137,8 @@ namespace RedisCore
                 while (true)
                 {
                     Program.WriteStatus("Awaiting input");
-                    var data = await connection.Input;
-                    if (data.IsEmpty && connection.Input.IsCompleted) break;
+                    var data = await connection.Input.ReadAsync();
+                    if (data.IsEmpty && connection.Input.Completion.IsCompleted) break;
                     Program.WriteStatus($"Processing {data.Length} bytes...");
                     RawResult result;
                     while(RawResult.TryParse(ref data, out result))
