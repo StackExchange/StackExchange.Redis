@@ -9,7 +9,7 @@ namespace RedisCore
 {
     public class Program
     {
-        const int PipelinedCount = 50000000, RequestResponseCount = 100000;
+        const int PipelinedCount = 5000000, RequestResponseCount = 100000;
         public static void Main()
         {
            
