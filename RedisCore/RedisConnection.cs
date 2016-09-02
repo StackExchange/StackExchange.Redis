@@ -41,6 +41,11 @@ namespace RedisCore
         protected virtual void Validate(ref RawResult response) { }
         protected virtual T GetResult(ref RawResult response) => default(T);
     }
+    interface IMessageBox
+    {
+        SentMessage GetMessage();
+        void Write(ref WritableBuffer output);
+    }
     public class RedisConnection : IDisposable
     {
         struct PingMessage : IMessage
@@ -70,8 +75,101 @@ namespace RedisCore
             var ping = new PingMessage();
             WriteSync(ref ping, PingMessage.Parser, fireAndForget);
         }
-        
 
+        public class Batch
+        {
+
+            sealed class MessageBox<T> : IMessageBox where T : struct, IMessage
+            {
+                private T message;
+                private ResultParser parser;
+                object source;
+                void IMessageBox.Write(ref WritableBuffer output) => message.Write(ref output);
+                SentMessage IMessageBox.GetMessage() => new SentMessage(source, parser);
+                public MessageBox(T message, object source, ResultParser parser)
+                {
+                    this.message = message;
+                    this.source = source;
+                    this.parser = parser;
+                }
+            }
+            private List<IMessageBox> messages = new List<IMessageBox>();
+            internal List<IMessageBox> Messages => messages;
+            private RedisConnection connection;
+
+            internal Batch(RedisConnection connection)
+            {
+                this.connection = connection;
+            }
+            public Task PingAysnc(bool fireAndForget)
+            {
+                var ping = new PingMessage();
+                return Add(ref ping, PingMessage.Parser, fireAndForget);
+            } 
+            private Task<TResult> Add<TMessage, TResult>(ref TMessage message, ResultParser<TResult> parser, bool fireAndForget)
+                where TMessage : struct, IMessage
+            {
+                TaskCompletionSource<TResult> source = fireAndForget ? null :
+                    new TaskCompletionSource<TResult>(TaskContinuationOptions.RunContinuationsAsynchronously);
+                var expectedResult = new SentMessage(source, parser);
+                messages.Add(new MessageBox<TMessage>(message, source, parser));
+                return source?.Task ?? DefaultTask<TResult>.Instance;
+            }
+            public void Execute() => connection.WriteBatch(this);
+            public Task ExecuteAsync() => connection.WriteBatchAsync(this);
+
+        }
+        internal void WriteBatch(Batch batch)
+        {
+            var messages = batch.Messages;
+            if (messages.Count == 0) return;
+            writeLock.Wait();
+            WriteBatchWithLock(batch);
+        }
+        internal Task WriteBatchAsync(Batch batch)
+        {
+            if (writeLock.Wait(0))
+            {
+                WriteBatchWithLock(batch);
+                return DefaultTask<bool>.Instance;
+            }
+            return AquireLockAndWriteBatchAsync(batch);
+        }
+        private async Task AquireLockAndWriteBatchAsync(Batch batch)
+        {
+            await writeLock.WaitAsync();
+            WriteBatchWithLock(batch);
+        }
+        private void WriteBatchWithLock(Batch batch)
+        {
+            try
+            {
+                var output = Output.Alloc();
+                foreach (var message in batch.Messages)
+                {
+                    lock(expectedReplies)
+                    {
+                        expectedReplies.Enqueue(message.GetMessage());
+                    }
+                    Interlocked.Increment(ref outCount);
+                    message.Write(ref output);
+                }
+                var awaiter = output.FlushAsync().GetAwaiter();
+                if (!awaiter.IsCompleted)
+                    throw new InvalidOperationException("Expectation failed; IO thread threatened");
+                awaiter.GetResult();
+                Interlocked.Increment(ref flushCount);
+            }
+            finally
+            {
+                writeLock.Release();
+            }
+        }
+
+        public Batch CreateBatch()
+        {
+            return new Batch(this);
+        }
         private TResult WriteSync<TMessage, TResult>(ref TMessage message, ResultParser<TResult> parser, bool fireAndForget)
             where TMessage : struct, IMessage
         {
@@ -125,6 +223,7 @@ namespace RedisCore
                 if (!awaiter.IsCompleted)
                     throw new InvalidOperationException("Expectation failed; IO thread threatened");
                 awaiter.GetResult();
+                Interlocked.Increment(ref flushCount);
             }
             finally
             {
@@ -177,9 +276,10 @@ namespace RedisCore
                 connection = null;
             }
         }
-        private int outCount, inCount;
+        private int outCount, inCount, flushCount;
         public int InCount => Volatile.Read(ref inCount);
         public int OutCount => Volatile.Read(ref outCount);
+        public int FlushCount => Volatile.Read(ref flushCount);
         private async void ReadLoop(UvTcpConnection connection)
         {
             try

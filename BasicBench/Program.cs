@@ -7,7 +7,8 @@ namespace BasicBench
 {
     class Program
     {
-        const int PipelinedCount = 5000000, RequestResponseCount = 100000;
+        const int PipelinedCount = 5000000, RequestResponseCount = 100000,
+            BatchSize = 1000, BatchCount = PipelinedCount / BatchSize;
         public static void Main()
         {
 

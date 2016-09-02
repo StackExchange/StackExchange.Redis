@@ -4,12 +4,14 @@ using System.Diagnostics;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace RedisCore
 {
     public class Program
     {
-        const int PipelinedCount = 5000000, RequestResponseCount = 100000;
+        const int PipelinedCount = 5000000, RequestResponseCount = 100000,
+            BatchSize = 1000, BatchCount = PipelinedCount / BatchSize;
         public static void Main()
         {
            
@@ -31,24 +33,48 @@ namespace RedisCore
                 }
 
                 Console.WriteLine($"Sending {PipelinedCount} pings synchronously fire-and-forget (pipelined) ...");
-                int oldOut = conn.OutCount, oldIn = conn.InCount;
+                int oldOut = conn.OutCount, oldIn = conn.InCount, oldFlush = conn.FlushCount;
                 var timer = Stopwatch.StartNew();
                 // starting at 1 so that we can wait on the last one and still send the right amount
                 for(int i = 1; i < PipelinedCount; i++) conn.Ping(fireAndForget: true);
                 conn.Ping(); // block
                 timer.Stop();
-                int outCount = conn.OutCount - oldOut, inCount = conn.InCount - oldIn;
-                Console.WriteLine($"out: {outCount}, in: {inCount}, {timer.ElapsedMilliseconds}ms; {((outCount * 1000.0) / timer.ElapsedMilliseconds):F0} ops/s");
+                int outCount = conn.OutCount - oldOut, inCount = conn.InCount - oldIn, flushCount = conn.FlushCount - oldFlush;
+                Console.WriteLine($"out: {outCount}, in: {inCount}, flush: {flushCount}, {timer.ElapsedMilliseconds}ms; {((outCount * 1000.0) / timer.ElapsedMilliseconds):F0} ops/s");
+
+                Console.WriteLine($"Sending {(BatchSize * BatchCount)+1} pings synchronously fire-and-forget ({BatchCount} batches of {BatchSize}) ...");
+                oldOut = conn.OutCount;
+                oldIn = conn.InCount;
+                oldFlush = conn.FlushCount;
+                timer = Stopwatch.StartNew();
+
+                for (int i = 0; i < BatchCount; i++)
+                {
+                    var batch = conn.CreateBatch();
+                    for (int j = 0; j < BatchSize; j++)
+                    {
+                        batch.PingAysnc(true);
+                    }
+                    batch.Execute();
+                }
+                conn.Ping(); // block
+                timer.Stop();
+                outCount = conn.OutCount - oldOut;
+                inCount = conn.InCount - oldIn;
+                flushCount = conn.FlushCount - oldFlush;
+                Console.WriteLine($"out: {outCount}, in: {inCount}, flush: {flushCount}, {timer.ElapsedMilliseconds}ms; {((outCount * 1000.0) / timer.ElapsedMilliseconds):F0} ops/s");
 
                 Console.WriteLine($"Sending {RequestResponseCount} pings synchronously req/resp/req/resp/...");
                 oldOut = conn.OutCount;
                 oldIn = conn.InCount;
+                oldFlush = conn.FlushCount;
                 timer = Stopwatch.StartNew();
                 for (int i = 0; i < RequestResponseCount; i++) conn.Ping();
                 timer.Stop();
                 outCount = conn.OutCount - oldOut;
                 inCount = conn.InCount - oldIn;
-                Console.WriteLine($"out: {outCount}, in: {inCount}, {timer.ElapsedMilliseconds}ms; {((outCount * 1000.0) / timer.ElapsedMilliseconds):F0} ops/s");
+                flushCount = conn.FlushCount - oldFlush;
+                Console.WriteLine($"out: {outCount}, in: {inCount}, flush: {flushCount}, {timer.ElapsedMilliseconds}ms; {((outCount * 1000.0) / timer.ElapsedMilliseconds):F0} ops/s");
 
                 PingAsync(conn);
 
@@ -61,24 +87,49 @@ namespace RedisCore
         private static async void PingAsync(RedisConnection conn)
         {
             Console.WriteLine($"Sending {PipelinedCount} pings asynchronously fire-and-forget (pipelined) ...");
-            int oldOut = conn.OutCount, oldIn = conn.InCount;
+            int oldOut = conn.OutCount, oldIn = conn.InCount, oldFlush = conn.FlushCount;
             var timer = Stopwatch.StartNew();
             // starting at 1 so that we can wait on the last one and still send the right amount
             for (int i = 1; i < PipelinedCount; i++) await conn.PingAsync(fireAndForget: true);
             await conn.PingAsync(); // block
             timer.Stop();
-            int outCount = conn.OutCount - oldOut, inCount = conn.InCount - oldIn;
-            Console.WriteLine($"out: {outCount}, in: {inCount}, {timer.ElapsedMilliseconds}ms; {((outCount * 1000.0) / timer.ElapsedMilliseconds):F0} ops/s");
+            int outCount = conn.OutCount - oldOut, inCount = conn.InCount - oldIn, flushCount = conn.FlushCount - oldFlush;
+            Console.WriteLine($"out: {outCount}, in: {inCount}, flush: {flushCount}, {timer.ElapsedMilliseconds}ms; {((outCount * 1000.0) / timer.ElapsedMilliseconds):F0} ops/s");
+
+            Console.WriteLine($"Sending {(BatchSize * BatchCount) + 1} pings asynchronously fire-and-forget ({BatchCount} batches of {BatchSize}) ...");
+            oldOut = conn.OutCount;
+            oldIn = conn.InCount;
+            oldFlush = conn.FlushCount;
+            timer = Stopwatch.StartNew();
+
+            for (int i = 0; i < BatchCount; i++)
+            {
+                var batch = conn.CreateBatch();
+                for (int j = 0; j < BatchSize; j++)
+                {
+                    await batch.PingAysnc(true);
+                }
+                await batch.ExecuteAsync();
+            }
+            await conn.PingAsync(); // block
+            timer.Stop();
+            outCount = conn.OutCount - oldOut;
+            inCount = conn.InCount - oldIn;
+            flushCount = conn.FlushCount - oldFlush;
+            Console.WriteLine($"out: {outCount}, in: {inCount}, flush: {flushCount}, {timer.ElapsedMilliseconds}ms; {((outCount * 1000.0) / timer.ElapsedMilliseconds):F0} ops/s");
+
 
             Console.WriteLine($"Sending {RequestResponseCount} pings asynchronously req/resp/req/resp/...");
             oldOut = conn.OutCount;
             oldIn = conn.InCount;
+            oldFlush = conn.FlushCount;
             timer = Stopwatch.StartNew();
             for (int i = 0; i < RequestResponseCount; i++) await conn.PingAsync();
             timer.Stop();
             outCount = conn.OutCount - oldOut;
             inCount = conn.InCount - oldIn;
-            Console.WriteLine($"out: {outCount}, in: {inCount}, {timer.ElapsedMilliseconds}ms; {((outCount * 1000.0) / timer.ElapsedMilliseconds):F0} ops/s");
+            flushCount = conn.FlushCount - oldFlush;
+            Console.WriteLine($"out: {outCount}, in: {inCount}, flush: {flushCount}, {timer.ElapsedMilliseconds}ms; {((outCount * 1000.0) / timer.ElapsedMilliseconds):F0} ops/s");
         }
 
         [Conditional("DEBUG")]
