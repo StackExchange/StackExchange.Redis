@@ -52,7 +52,7 @@ namespace RedisCore
             }
         }
         private static Vector<byte> _vectorCRs;
-        static RawResult() // this field init fails on net452 - needs .cctor
+        static RawResult() // this field init fails on net452 - needs non-trivial .cctor
         {
             try
             {
