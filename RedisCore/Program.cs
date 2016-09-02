@@ -18,6 +18,7 @@ namespace RedisCore
             internal const int ToSend = 100000;
             int remaining = ToSend;
             Stopwatch timer;
+
             internal void StartTimer()
             {
                 timer = Stopwatch.StartNew();
@@ -53,6 +54,11 @@ namespace RedisCore
 
                 Console.WriteLine("Catching breath...");
                 Thread.Sleep(1000);
+                if(!conn.IsConnected)
+                {
+                    Console.WriteLine("Failed to connect; is redis running?");
+                    return;
+                }
                 Console.WriteLine($"Sending {MyRedisConnection.ToSend} pings...");
                 conn.StartTimer();
                 for(int i = 0; i < MyRedisConnection.ToSend; i++) conn.Ping();
@@ -96,6 +102,7 @@ namespace RedisCore
         public void Dispose() => Shutdown(ref connection, null);
         private UvTcpConnection connection;
 
+        public bool IsConnected => connection != null;
         public async void Connect(UvThread thread, IPEndPoint endpoint)
         {
             try
