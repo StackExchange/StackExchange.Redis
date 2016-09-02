@@ -8,6 +8,7 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace RedisCore
 {
@@ -15,7 +16,7 @@ namespace RedisCore
     {
         class MyRedisConnection : RedisConnection
         {
-            internal const int ToSend = 100000;
+            internal const int ToSend = 5000000;
             int remaining = ToSend;
             Stopwatch timer;
 
@@ -30,11 +31,16 @@ namespace RedisCore
                 if (now == 0)
                 {
                     timer.Stop();
-                    Console.WriteLine($"{ToSend} messages received: {timer.ElapsedMilliseconds}ms; {(ToSend * 1000.0) / timer.ElapsedMilliseconds}ops/s");
+                    Console.WriteLine();
+                    Console.WriteLine($"{ToSend} messages received: {timer.ElapsedMilliseconds}ms; {((ToSend * 1000.0) / timer.ElapsedMilliseconds):F0} ops/s");
                 }
                 else if (now < 0)
                 {
                     Console.WriteLine("you got more messages than you expected! something is ill");
+                }
+                else if ((now %  10000) == 0)
+                {
+                    Console.Write('.');
                 }
             }
             protected override void OnConnected()
@@ -61,7 +67,7 @@ namespace RedisCore
                 }
                 Console.WriteLine($"Sending {MyRedisConnection.ToSend} pings...");
                 conn.StartTimer();
-                for(int i = 0; i < MyRedisConnection.ToSend; i++) conn.Ping();
+                for(int i = 0; i < MyRedisConnection.ToSend; i++) conn.PingAsync();
                 Console.WriteLine($"Sent");
                 Console.WriteLine("[press return to exit]");
                 Console.ReadLine();
@@ -84,15 +90,32 @@ namespace RedisCore
     abstract class RedisConnection : IDisposable
     {
         private readonly SemaphoreSlim writeLock = new SemaphoreSlim(1, 1);
-        internal async void Ping()
+        private static readonly Task done = Task.FromResult(true);
+        internal Task PingAsync()
         {
             Program.WriteStatus("ping requested");
-            bool haveLock = writeLock.Wait(0);
-            if (!haveLock) await writeLock.WaitAsync();
+            if (writeLock.Wait(0)) {
+                WriteWithLock();
+                return done;
+            }
+            return AquireLockAndWriteAsync();
+        }
+        private async Task AquireLockAndWriteAsync()
+        {
+            Program.WriteStatus("awaiting lock...");
+            await writeLock.WaitAsync();
+            Program.WriteStatus("lock obtained");
+            WriteWithLock();
+        }
+        private void WriteWithLock()
+        {
             Program.WriteStatus("writing ping");
             var output = Output.Alloc(ping.Length);
             output.Write(ping, 0, ping.Length);
-            await output.FlushAsync();
+            var awaiter = output.FlushAsync().GetAwaiter();
+            if (!awaiter.IsCompleted)
+                throw new InvalidOperationException("Expectation failed; IO thread threatened");
+            awaiter.GetResult();
             Program.WriteStatus("flushed");
             writeLock.Release();
         }
