@@ -174,7 +174,10 @@ namespace StackExchange.Redis
 
         internal SocketToken BeginConnect(EndPoint endpoint, ISocketCallback callback, ConnectionMultiplexer multiplexer, TextWriter log)
         {
-            var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            var family = AddressFamily.InterNetwork;
+            var socketType = SocketType.Stream;
+            var protocolType = ProtocolType.Tcp;
+            var socket = new Socket(family, socketType, protocolType);
             SetFastLoopbackOption(socket);
             socket.NoDelay = true;
             try
@@ -190,8 +193,23 @@ namespace StackExchange.Redis
                     DnsEndPoint dnsEndpoint = (DnsEndPoint)endpoint;
 
 #if CORE_CLR
+                    var stopWatch = System.Diagnostics.Stopwatch.StartNew();
+
+                    // Work around https://github.com/dotnet/corefx/issues/8768 by resolving and picking an IPEndPoint to which we can connect.
+                    EndPoint endPointToUse = ResolveWorkingEndpointAsync(dnsEndpoint, family, socketType, protocolType, multiplexer, log).Result;
+
+                    if (endPointToUse == null)
+                    {
+                        throw new InvalidOperationException(string.Format("BeginConnect: fail to connect to any of the resolved IP endpoints for Dns endpoint '{0}'; ensure Redis service is running at the configured endpoint.", formattedEndpoint));
+                    }
+
+                    formattedEndpoint = Format.ToString(endPointToUse);
+                    multiplexer.LogLocked(log, "Using resolved IP endpoint: {0}", formattedEndpoint);
+                    stopWatch.Stop();
+                    multiplexer.LogLocked(log, "Time spent on resolving a working IP endpoint: {0} ms", stopWatch.Elapsed.TotalMilliseconds.ToString());
+
                     multiplexer.LogLocked(log, "BeginConnect: {0}", formattedEndpoint);
-                    socket.ConnectAsync(dnsEndpoint.Host, dnsEndpoint.Port).ContinueWith(t =>
+                    socket.ConnectAsync(endPointToUse).ContinueWith(t =>
                     {
                         multiplexer.LogLocked(log, "EndConnect: {0}", formattedEndpoint);
                         EndConnectImpl(t, multiplexer, log, tuple);
@@ -219,6 +237,7 @@ namespace StackExchange.Redis
                     {
                         multiplexer.LogLocked(log, "EndConnect: {0}", formattedEndpoint);
                         EndConnectImpl(t, multiplexer, log, tuple);
+                        multiplexer.LogLocked(log, "Connect complete: {0}", formattedEndpoint);
                     });
 #else
                     CompletionTypeHelper.RunWithCompletionType(
@@ -246,6 +265,7 @@ namespace StackExchange.Redis
             var token = new SocketToken(socket);
             return token;
         }
+
         internal void SetFastLoopbackOption(Socket socket)
         {
             // SIO_LOOPBACK_FAST_PATH (http://msdn.microsoft.com/en-us/library/windows/desktop/jj841212%28v=vs.85%29.aspx)
@@ -370,6 +390,50 @@ namespace StackExchange.Redis
                 }
             }
         }
+
+#if CORE_CLR
+        private async Task<EndPoint> ResolveWorkingEndpointAsync(DnsEndPoint dnsEndPoint, AddressFamily family, SocketType socketType, ProtocolType protocol, ConnectionMultiplexer multiplexer, TextWriter log)
+        {
+            IPAddress[] hostAddresses = null;
+
+            if (dnsEndPoint.Host == ".")
+            {
+                hostAddresses = new[] { IPAddress.Loopback };
+            }
+            else
+            {
+                try
+                {
+                    hostAddresses = await Dns.GetHostAddressesAsync(dnsEndPoint.Host);
+                }
+                catch (Exception ex)
+                {
+                    multiplexer.LogLocked(log, "ResolveWorkingEndpointAsync: error occurred when resolving IP endpoints for {0}: {1}", Format.ToString(dnsEndPoint), ex.ToString());
+                    return null;
+                }
+            }
+
+            foreach (var address in hostAddresses)
+            {
+                var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                var endpoint = new IPEndPoint(address, dnsEndPoint.Port);
+                var formattedEndpoint = Format.ToString(endpoint);
+                try
+                {
+                    multiplexer.LogLocked(log, "ResolveWorkingEndpointAsync: trying to connect to '{0}'...", formattedEndpoint);
+                    await socket.ConnectAsync(endpoint);
+                    multiplexer.LogLocked(log, "ResolveWorkingEndpointAsync: connection to '{0}' established", formattedEndpoint);
+                    return endpoint;
+                }
+                catch (Exception ex)
+                {
+                    multiplexer.LogLocked(log, "ResolveWorkingEndpointAsync: failed to connect to '{0}', {1}", formattedEndpoint, ex.ToString());
+                }
+            }
+
+            return null;
+        }
+#endif
 
         partial void OnDispose();
         partial void OnShutdown(Socket socket);
