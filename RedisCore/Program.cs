@@ -37,8 +37,8 @@ namespace RedisCore
         {
             Thread.CurrentThread.Name = "Main";
 
-            using (ClientChannelFactory factory = new SocketClientChannelFactory())
-            //using (ClientChannelFactory factory = new UvClientChannelFactory())
+            //using (ClientChannelFactory factory = new SocketClientChannelFactory())
+            using (ClientChannelFactory factory = new UvClientChannelFactory())
             using (var conn = new RedisConnection())
             {
                 Console.WriteLine($"Channel factory: {factory}");
