@@ -206,6 +206,17 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
+        public RedisValue Echo(RedisValue message, CommandFlags flags)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.ECHO, message);
+            return ExecuteSync(msg, ResultProcessor.RedisValue);
+        }
+        public Task<RedisValue> EchoAsync(RedisValue message, CommandFlags flags)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.ECHO, message);
+            return ExecuteAsync(msg, ResultProcessor.RedisValue);
+        }
+
         public void FlushAllDatabases(CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(-1, flags, RedisCommand.FLUSHALL);

@@ -16,7 +16,7 @@
         "portable-net45+win8"
       ],
       "buildOptions": {
-        "define": [ "PLAT_SAFE_CONTINUATIONS", "CORE_CLR" ]
+        "define": [ "CORE_CLR" ]
       },
       "dependencies": {
         "Microsoft.NETCore.App": {

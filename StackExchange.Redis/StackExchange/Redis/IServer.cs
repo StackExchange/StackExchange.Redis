@@ -175,6 +175,17 @@ namespace StackExchange.Redis
         /// <remarks>http://redis.io/commands/dbsize</remarks>
         Task<long> DatabaseSizeAsync(int database = 0, CommandFlags flags = CommandFlags.None);
 
+        /// <summary>
+        /// Return the same message passed in
+        /// </summary>
+        /// <remarks>http://redis.io/commands/echo</remarks>
+        RedisValue Echo(RedisValue message, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Return the same message passed in
+        /// </summary>
+        /// <remarks>http://redis.io/commands/echo</remarks>
+        Task<RedisValue> EchoAsync(RedisValue message, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Delete all the keys of all databases on the server.
