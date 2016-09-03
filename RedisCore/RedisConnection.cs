@@ -1,6 +1,8 @@
 ﻿using Channels;
+using Channels.Text.Primitives;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -10,18 +12,21 @@ namespace RedisCore
 
     abstract class ResultParser
     {
-        public abstract void Process(ref RawResult response, object source);
+        public abstract void Process(ref RawResult response, object source, bool getResult);
     }
     abstract class ResultParser<T> : ResultParser
     {
-        public sealed override void Process(ref RawResult response, object source)
+        public sealed override void Process(ref RawResult response, object source, bool getResult)
         {
             T result = default(T);
             Exception error = null;
             try
             {
-                Validate(ref response);
-                result = GetResult(ref response);
+                error = Validate(ref response);
+                if (error == null && getResult)
+                {
+                    result = GetResult(ref response);
+                }
             }
             catch (Exception ex)
             {
@@ -37,8 +42,13 @@ namespace RedisCore
                 else ((TaskCompletionSource<T>)source).TrySetResult(result);
             }
         }
-        protected virtual void Validate(ref RawResult response) { }
-        protected virtual T GetResult(ref RawResult response) => default(T);
+        protected virtual Exception Validate(ref RawResult response)
+            => response.Type == ResultType.Error ? new RedisException(response.GetAsciiString()) : null;
+        protected abstract T GetResult(ref RawResult response);
+    }
+    class RedisException : Exception
+    {
+        public RedisException(string message) : base(message) { }
     }
     interface IMessageBox
     {
@@ -58,7 +68,10 @@ namespace RedisCore
             public int MinimumSize => ping.Length;
 
             public static readonly ResultParser<bool> Parser = new PingParser();
-            sealed class PingParser : ResultParser<bool> { }
+            sealed class PingParser : ResultParser<bool>
+            {
+                protected override bool GetResult(ref RawResult response) => true;
+            }
         }
         private readonly SemaphoreSlim writeLock = new SemaphoreSlim(1, 1);
 
@@ -82,14 +95,16 @@ namespace RedisCore
             {
                 private T message;
                 private ResultParser parser;
+                private bool getResult;
                 object source;
                 void IMessageBox.Write(ref WritableBuffer output) => message.Write(ref output);
-                SentMessage IMessageBox.GetMessage() => new SentMessage(source, parser);
-                public MessageBox(T message, object source, ResultParser parser)
+                SentMessage IMessageBox.GetMessage() => new SentMessage(source, parser, getResult);
+                public MessageBox(T message, object source, ResultParser parser, bool getResult)
                 {
                     this.message = message;
                     this.source = source;
                     this.parser = parser;
+                    this.getResult = getResult;
                 }
             }
             private List<IMessageBox> messages = new List<IMessageBox>();
@@ -110,14 +125,172 @@ namespace RedisCore
             {
                 TaskCompletionSource<TResult> source = fireAndForget ? null :
                     new TaskCompletionSource<TResult>(TaskContinuationOptions.RunContinuationsAsynchronously);
-                var expectedResult = new SentMessage(source, parser);
-                messages.Add(new MessageBox<TMessage>(message, source, parser));
+                messages.Add(new MessageBox<TMessage>(message, source, parser, !fireAndForget));
                 return source?.Task ?? DefaultTask<TResult>.Instance;
             }
             public void Execute() => connection.WriteBatch(this);
             public Task ExecuteAsync() => connection.WriteBatchAsync(this);
 
         }
+        public struct RedisValue
+        {
+            internal bool IsString => content is string;
+
+            internal object Content => content;
+
+            private object content;
+
+            private RedisValue(object content)
+            {
+                this.content = content;
+            }
+            public override string ToString()
+            {
+                if (content is byte[]) return Encoding.UTF8.GetString((byte[])content);
+                return (string)content;
+            }
+            public static implicit operator RedisValue(string value) => new RedisValue(value);
+            public static implicit operator string(RedisValue value) => value.ToString();
+        }
+        public RedisValue Echo(RedisValue value)
+        {
+            var msg = new EchoMessage(value);
+            return WriteSync(ref msg, EchoMessage.GetParser(ref value), false);
+        }
+        public Task<RedisValue> EchoAsync(RedisValue value)
+        {
+            var msg = new EchoMessage(value);
+            return WriteAsync(ref msg, EchoMessage.GetParser(ref value), false);
+        }
+        struct EchoMessage : IMessage
+        {
+            private RedisValue value;
+
+            public EchoMessage(RedisValue value) { this.value = value; }
+
+            class ByteArrayParser : ResultParser<RedisValue>
+            {
+                public static readonly ResultParser<RedisValue> Instance = new ByteArrayParser();
+                private ByteArrayParser() { }
+                protected override RedisValue GetResult(ref RawResult response)
+                {
+                    throw new NotImplementedException();
+                }
+            }
+            class StringParser : ResultParser<RedisValue>
+            {
+                public static readonly ResultParser<RedisValue> Instance = new StringParser();
+                private StringParser() { }
+                protected override RedisValue GetResult(ref RawResult response)
+                    => response.GetUtf8String();
+
+            }
+            internal static ResultParser<RedisValue> GetParser(ref RedisValue value)
+                => value.IsString ? StringParser.Instance : ByteArrayParser.Instance;
+
+            int IMessage.MinimumSize => 0;
+            static readonly byte[] prefix =
+                Encoding.ASCII.GetBytes("*2\r\n$4\r\nECHO\r\n"),
+                Nil = Encoding.ASCII.GetBytes("$-1\r\n"),
+                Empty = Encoding.ASCII.GetBytes("$0\r\n\r\n"),
+                CRLF = { (byte)'\r', (byte)'\n' };
+
+            static void WriteString(ref WritableBuffer output, object content)
+            {
+                if (content == null)
+                {
+                    output.Write(Nil, 0, Nil.Length);
+                }
+                else if (content is byte[])
+                {
+                    var tmp = (byte[])content;
+                    if (tmp.Length == 0)
+                    {
+                        output.Write(Empty, 0, Empty.Length);
+                    }
+                    else
+                    {
+                        WriteLengthPrefix(ref output, tmp.Length);
+                        output.Write(tmp, 0, tmp.Length);
+                        output.Write(CRLF, 0, CRLF.Length);
+                    }
+                }
+                else
+                {
+                    string tmp = (string)content;
+                    if (tmp.Length == 0)
+                    {
+                        output.Write(Empty, 0, Empty.Length);
+                    }
+                    else
+                    {
+                        int byteCount = Encoding.UTF8.GetByteCount(tmp);
+                        WriteLengthPrefix(ref output, byteCount);
+                        // note: I've checked, and the UTF-8 encoder is faster than the
+                        // ASCII encoder, even when all the data is 7-bit, so just use that
+                        WritableBufferExtensions.WriteUtf8String(ref output, tmp);
+                        output.Write(CRLF, 0, CRLF.Length);
+                    }
+                }
+            }
+            void IMessage.Write(ref WritableBuffer output)
+            {
+                output.Write(prefix, 0, prefix.Length);
+                WriteString(ref output, value.Content);
+            }
+            static byte[] PregenerateLengthPrefix(int i) => Encoding.ASCII.GetBytes("$" + i.ToString() + "\r\n");
+
+            static readonly byte[][] LowNumbers = Enumerable.Range(-1, 12).Select(PregenerateLengthPrefix).ToArray();
+            static readonly byte[] MinValue = PregenerateLengthPrefix(int.MinValue); // can't use regular loop - math fails
+            private static unsafe void WriteLengthPrefix(ref WritableBuffer output, int len)
+            {
+                if (len == int.MinValue)
+                {
+                    byte[] tmp = MinValue;
+                    output.Write(tmp, 0, tmp.Length);
+                }
+                else if (len >= -1 && len <= 10)
+                {
+                    byte[] tmp = LowNumbers[len + 1];
+                    output.Write(tmp, 0, tmp.Length);
+                }
+                else
+                {
+                    // format is: "$42\r\n" (for length 42)
+                    // int has range +-2billion, so 10 chars for the value, one for sign, 3 for overheads
+                    output.Ensure(14);
+                    byte* buffer = (byte*)output.Memory.BufferPtr, c = buffer;
+                    *c = (byte)'$';
+                    if (len < 0)
+                    {
+                        *++c = (byte)'-';
+                        len = -len;
+                    }
+                    int bytes;
+                    if (len < 10) bytes = 1;
+                    else if (len < 100) bytes = 2;
+                    else if (len < 1000) bytes = 3;
+                    else if (len < 10000) bytes = 4;
+                    else if (len < 100000) bytes = 5;
+                    else if (len < 1000000) bytes = 6;
+                    else if (len < 10000000) bytes = 7;
+                    else if (len < 100000000) bytes = 8;
+                    else if (len < 1000000000) bytes = 9;
+                    else bytes = 10;
+                    c += bytes;
+                    bytes = (int)(c - buffer) + 3; // this is now the total bytes written
+                    c[1] = (byte)'\r';
+                    c[2] = (byte)'\n';
+                    do
+                    {
+                        *c-- = (byte)('0' + (len % 10));
+                        len /= 10;
+                    } while (len != 0);
+                    output.CommitBytes(bytes);
+                }
+            }
+        }
+
         internal void WriteBatch(Batch batch)
         {
             var messages = batch.Messages;
@@ -150,14 +323,12 @@ namespace RedisCore
                     {
                         expectedReplies.Enqueue(message.GetMessage());
                     }
-                    Interlocked.Increment(ref outCount);
                     message.Write(ref output);
                 }
                 var awaiter = output.FlushAsync().GetAwaiter();
                 if (!awaiter.IsCompleted)
                     throw new InvalidOperationException("Expectation failed; IO thread threatened");
                 awaiter.GetResult();
-                Interlocked.Increment(ref flushCount);
             }
             finally
             {
@@ -175,7 +346,7 @@ namespace RedisCore
             writeLock.Wait();
             if (fireAndForget)
             {
-                WriteWithLockSync(ref message, parser, null);
+                WriteWithLockSync(ref message, parser, null, fireAndForget);
                 return default(TResult);
             }
             
@@ -183,7 +354,7 @@ namespace RedisCore
             TResult result;
             lock(source.SyncLock)
             {
-                WriteWithLockSync(ref message, parser, source);
+                WriteWithLockSync(ref message, parser, source, fireAndForget);
                 result = source.WaitLocked();
             }
             ResultBox<TResult>.Put(source); // oinly gets put back if we successfully exit etc
@@ -204,25 +375,23 @@ namespace RedisCore
             await writeLock.WaitAsync();
             return await WriteWithLockAsync<TMessage, TResult>(ref message, parser, fireAndForget);
         }
-        private void WriteWithLockSync<TMessage, TResult>(ref TMessage message, ResultParser<TResult> parser, object source)
+        private void WriteWithLockSync<TMessage, TResult>(ref TMessage message, ResultParser<TResult> parser, object source, bool fireAndForget)
             where TMessage : struct, IMessage
         {
             try
             {
-                var expectedReply = new SentMessage(source, parser);
+                var expectedReply = new SentMessage(source, parser, !fireAndForget);
 
                 lock (expectedReplies)
                 {
                     expectedReplies.Enqueue(expectedReply);
                 }
-                Interlocked.Increment(ref outCount);
                 var output = Output.Alloc(message.MinimumSize);
                 message.Write(ref output);
                 var awaiter = output.FlushAsync().GetAwaiter();
                 if (!awaiter.IsCompleted)
                     throw new InvalidOperationException("Expectation failed; IO thread threatened");
                 awaiter.GetResult();
-                Interlocked.Increment(ref flushCount);
             }
             finally
             {
@@ -238,7 +407,7 @@ namespace RedisCore
         {
             TaskCompletionSource<TResult> source = fireAndForget ? null :
                 new TaskCompletionSource<TResult>(TaskContinuationOptions.RunContinuationsAsynchronously);
-            WriteWithLockSync(ref message, parser, source);
+            WriteWithLockSync(ref message, parser, source, fireAndForget);
             return source?.Task ?? DefaultTask<TResult>.Instance;
         }
         
@@ -266,10 +435,6 @@ namespace RedisCore
         }
         private IClientChannel connection;
 
-        private int outCount, inCount, flushCount;
-        public int InCount => Volatile.Read(ref inCount);
-        public int OutCount => Volatile.Read(ref outCount);
-        public int FlushCount => Volatile.Read(ref flushCount);
         private async void ReadLoop()
         {
             try
@@ -288,7 +453,6 @@ namespace RedisCore
                         {
                             next = expectedReplies.Dequeue();
                         }
-                        Interlocked.Increment(ref inCount);
                         next.OnReceived(ref result);
                     }
                     data.Consumed(data.Start, data.End);

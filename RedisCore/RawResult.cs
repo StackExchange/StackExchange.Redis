@@ -23,6 +23,8 @@ namespace RedisCore
                     return "(unknown)";
             }
         }
+        internal string GetAsciiString() => Buffer.Length == 0 ? "" : Buffer.GetAsciiString();
+        internal string GetUtf8String() => Buffer.Length == 0 ? "" : Buffer.GetUtf8String();
         // runs on uv thread
         public static unsafe bool TryParse(ref ReadableBuffer buffer, out RawResult result)
         {
@@ -42,8 +44,7 @@ namespace RedisCore
                 case (byte)':': // integer
                     return TryReadLineTerminatedString(ResultType.Integer, ref buffer, out result);
                 case (byte)'$': // bulk string
-                    throw new NotImplementedException();
-                //return ReadBulkString(buffer, ref offset, ref count);
+                    return TryReadBulkString(ref buffer, out result);
                 case (byte)'*': // array
                     throw new NotImplementedException();
                 //return ReadArray(buffer, ref offset, ref count);
@@ -51,19 +52,9 @@ namespace RedisCore
                     throw new InvalidOperationException("Unexpected response prefix: " + (char)resultType);
             }
         }
-        private static Vector<byte> _vectorCRs;
-        static RawResult() // this field init fails on net452 - needs non-trivial .cctor
-        {
-            try
-            {
-                _vectorCRs = new Vector<byte>((byte)'\r');
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex.Message);
-                Program.WriteError(ex);
-            }
-        }
+
+        private static Vector<byte> _vectorCRs = new Vector<byte>((byte)'\r'),
+            _unused = new Vector<byte>(0); // to avoid JIT bug in net 452; yes, really
         private static bool TryReadLineTerminatedString(ResultType resultType, ref ReadableBuffer buffer, out RawResult result)
         {
             // look for the CR in the CRLF
@@ -88,6 +79,64 @@ namespace RedisCore
             }
             result = default(RawResult);
             return false;
+        }
+        static bool TryFindCRLF(ref ReadableBuffer buffer, out ReadCursor cursor)
+        {
+            var seekBuffer = buffer;
+            while (seekBuffer.Length >= 2)
+            {
+                cursor = seekBuffer.IndexOf(ref _vectorCRs);
+                if (cursor.IsEnd) break;
+
+                // confirm that the LF in the CRLF
+                var tmp = seekBuffer.Slice(cursor).Slice(1);
+                if (tmp.Peek() == (byte)'\n') return true;
+                // move forwards and keep trying
+                seekBuffer = tmp;
+            }
+            cursor = default(ReadCursor);
+            return false;
+        }
+        private static bool TryReadBulkString(ref ReadableBuffer buffer, out RawResult result)
+        {
+            ReadCursor cr;
+            if(!TryFindCRLF(ref buffer, out cr))
+            {
+                result = default(RawResult);
+                return false;
+            }
+            var slice = buffer.Slice(1, cr);
+            if(slice.Peek() == (byte)'-')
+            {
+                if(slice.Length == 2 && slice.Slice(1).Peek() == (byte)'1')
+                {
+                    throw new NotImplementedException("Null bulk string");
+                    // result = 
+                    // return true;
+                }
+                throw new InvalidOperationException("Protocol exception; negative length not expected except -1");
+            }
+            int len = (int)ReadableBufferExtensions.GetUInt32(slice);
+
+            // check that the final CRLF is well formed
+            slice = buffer.Slice(cr).Slice(2);
+            if(slice.Length < len + 2)
+            {
+                // not enough data
+                result = default(RawResult);
+                return false;
+            }
+
+            var tmp = slice.Slice(len);
+            if(tmp.Peek() != '\r' || tmp.Slice(1).Peek() != '\n')
+            {
+                throw new InvalidOperationException("Protocol exception; expected crlf after bulk string");
+            }
+
+            // all looks good, yay!
+            result = new RawResult(ResultType.BulkString, slice.Slice(0, len));
+            buffer = slice.Slice(len + 2);
+            return true;
         }
 
         public RawResult(RawResult[] items)
