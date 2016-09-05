@@ -57,19 +57,26 @@ namespace RedisCore
     }
     public class RedisConnection : IDisposable
     {
+        internal static readonly byte[] CRLF = { (byte)'\r', (byte)'\n' };
         struct PingMessage : IMessage
         {
             public override string ToString() => "PING";
 
             public void Write(ref WritableBuffer output) => output.Write(ping, 0, ping.Length);
 
-            static readonly byte[] ping = Encoding.ASCII.GetBytes("PING\r\n");
+            static readonly byte[] ping = Encoding.ASCII.GetBytes("PING\r\n"),
+                PONG = Encoding.ASCII.GetBytes("PONG");
 
             public int MinimumSize => ping.Length;
 
             public static readonly ResultParser<bool> Parser = new PingParser();
             sealed class PingParser : ResultParser<bool>
             {
+                protected override Exception Validate(ref RawResult response)
+                {
+                    return base.Validate(ref response) ?? (response.Buffer.Equals(PONG, 0, PONG.Length) ? null
+                        : new InvalidOperationException("Unexpected pong response: " + response.GetUtf8String()));
+                }
                 protected override bool GetResult(ref RawResult response) => true;
             }
         }
@@ -192,8 +199,7 @@ namespace RedisCore
             static readonly byte[] prefix =
                 Encoding.ASCII.GetBytes("*2\r\n$4\r\nECHO\r\n"),
                 Nil = Encoding.ASCII.GetBytes("$-1\r\n"),
-                Empty = Encoding.ASCII.GetBytes("$0\r\n\r\n"),
-                CRLF = { (byte)'\r', (byte)'\n' };
+                Empty = Encoding.ASCII.GetBytes("$0\r\n\r\n");
 
             static void WriteString(ref WritableBuffer output, object content)
             {
@@ -210,7 +216,7 @@ namespace RedisCore
                     }
                     else
                     {
-                        WriteLengthPrefix(ref output, tmp.Length);
+                        WriteLengthPrefix(ref output, (uint)tmp.Length);
                         output.Write(tmp, 0, tmp.Length);
                         output.Write(CRLF, 0, CRLF.Length);
                     }
@@ -225,7 +231,7 @@ namespace RedisCore
                     else
                     {
                         int byteCount = Encoding.UTF8.GetByteCount(tmp);
-                        WriteLengthPrefix(ref output, byteCount);
+                        WriteLengthPrefix(ref output, (uint)byteCount);
                         // note: I've checked, and the UTF-8 encoder is faster than the
                         // ASCII encoder, even when all the data is 7-bit, so just use that
                         WritableBufferExtensions.WriteUtf8String(ref output, tmp);
@@ -238,56 +244,14 @@ namespace RedisCore
                 output.Write(prefix, 0, prefix.Length);
                 WriteString(ref output, value.Content);
             }
-            static byte[] PregenerateLengthPrefix(int i) => Encoding.ASCII.GetBytes("$" + i.ToString() + "\r\n");
 
-            static readonly byte[][] LowNumbers = Enumerable.Range(-1, 12).Select(PregenerateLengthPrefix).ToArray();
-            static readonly byte[] MinValue = PregenerateLengthPrefix(int.MinValue); // can't use regular loop - math fails
-            private static unsafe void WriteLengthPrefix(ref WritableBuffer output, int len)
+            private static unsafe void WriteLengthPrefix(ref WritableBuffer output, uint len)
             {
-                if (len == int.MinValue)
-                {
-                    byte[] tmp = MinValue;
-                    output.Write(tmp, 0, tmp.Length);
-                }
-                else if (len >= -1 && len <= 10)
-                {
-                    byte[] tmp = LowNumbers[len + 1];
-                    output.Write(tmp, 0, tmp.Length);
-                }
-                else
-                {
-                    // format is: "$42\r\n" (for length 42)
-                    // int has range +-2billion, so 10 chars for the value, one for sign, 3 for overheads
-                    output.Ensure(14);
-                    byte* buffer = (byte*)output.Memory.BufferPtr, c = buffer;
-                    *c = (byte)'$';
-                    if (len < 0)
-                    {
-                        *++c = (byte)'-';
-                        len = -len;
-                    }
-                    int bytes;
-                    if (len < 10) bytes = 1;
-                    else if (len < 100) bytes = 2;
-                    else if (len < 1000) bytes = 3;
-                    else if (len < 10000) bytes = 4;
-                    else if (len < 100000) bytes = 5;
-                    else if (len < 1000000) bytes = 6;
-                    else if (len < 10000000) bytes = 7;
-                    else if (len < 100000000) bytes = 8;
-                    else if (len < 1000000000) bytes = 9;
-                    else bytes = 10;
-                    c += bytes;
-                    bytes = (int)(c - buffer) + 3; // this is now the total bytes written
-                    c[1] = (byte)'\r';
-                    c[2] = (byte)'\n';
-                    do
-                    {
-                        *c-- = (byte)('0' + (len % 10));
-                        len /= 10;
-                    } while (len != 0);
-                    output.CommitBytes(bytes);
-                }
+                output.Ensure(4); // "$x\r\n" is best case
+                *(byte*)output.Memory.UnsafePointer = (byte)'$';
+                output.CommitBytes(1);
+                WritableBufferExtensions.WriteUInt64(ref output, len);
+                output.Write(RedisConnection.CRLF, 0, RedisConnection.CRLF.Length);
             }
         }
 

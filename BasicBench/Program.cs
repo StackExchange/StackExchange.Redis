@@ -11,12 +11,11 @@ namespace BasicBench
 {
     class Program
     {
-        const int PipelinedCount = 5000, RequestResponseCount = 100,
+        const int PipelinedCount = 500000, RequestResponseCount = 10000,
             BatchSize = 1000, BatchCount = PipelinedCount / BatchSize,
             CorpusLoops = 10;
         static string[] GetCorpus()
         {
-            Console.WriteLine(Directory.GetCurrentDirectory());
             return GetCorpus("TaleOfTwoCities.txt") ?? GetCorpus("../TaleOfTwoCities.txt") ?? new string[0];
         }
 
@@ -57,38 +56,38 @@ namespace BasicBench
                 }
                 Stopwatch timer;
 
-                //Console.WriteLine($"Sending {PipelinedCount} pings synchronously fire-and-forget (pipelined) ...");
-                //Collect();
-                //timer = Stopwatch.StartNew();
-                //// starting at 1 so that we can wait on the last one and still send the right amount
-                //for (int i = 1; i < PipelinedCount; i++) db.Ping(CommandFlags.FireAndForget);
-                //db.Ping(); // block
-                //timer.Stop();
-                //Console.WriteLine($"{timer.ElapsedMilliseconds}ms; {((PipelinedCount * 1000.0) / timer.ElapsedMilliseconds):F0} ops/s");
+                Console.WriteLine($"Sending {PipelinedCount} pings synchronously fire-and-forget (pipelined) ...");
+                Collect();
+                timer = Stopwatch.StartNew();
+                // starting at 1 so that we can wait on the last one and still send the right amount
+                for (int i = 1; i < PipelinedCount; i++) db.Ping(CommandFlags.FireAndForget);
+                db.Ping(); // block
+                timer.Stop();
+                Console.WriteLine($"{timer.ElapsedMilliseconds}ms; {((PipelinedCount * 1000.0) / timer.ElapsedMilliseconds):F0} ops/s");
 
 
-                //Console.WriteLine($"Sending {(BatchSize * BatchCount) + 1} pings synchronously fire-and-forget ({BatchCount} batches of {BatchSize}) ...");
-                //Collect();
-                //timer = Stopwatch.StartNew();
-                //for (int i = 0; i < BatchCount; i++)
-                //{
-                //    var batch = db.CreateBatch();
-                //    for (int j = 0; j < BatchSize; j++)
-                //    {
-                //        batch.PingAsync(CommandFlags.FireAndForget);
-                //    }
-                //    batch.Execute();
-                //}
-                //db.Ping(); // block
-                //timer.Stop();
-                //Console.WriteLine($"{timer.ElapsedMilliseconds}ms; {((((BatchSize * BatchCount) + 1) * 1000.0) / timer.ElapsedMilliseconds):F0} ops/s");
+                Console.WriteLine($"Sending {(BatchSize * BatchCount) + 1} pings synchronously fire-and-forget ({BatchCount} batches of {BatchSize}) ...");
+                Collect();
+                timer = Stopwatch.StartNew();
+                for (int i = 0; i < BatchCount; i++)
+                {
+                    var batch = db.CreateBatch();
+                    for (int j = 0; j < BatchSize; j++)
+                    {
+                        batch.PingAsync(CommandFlags.FireAndForget);
+                    }
+                    batch.Execute();
+                }
+                db.Ping(); // block
+                timer.Stop();
+                Console.WriteLine($"{timer.ElapsedMilliseconds}ms; {((((BatchSize * BatchCount) + 1) * 1000.0) / timer.ElapsedMilliseconds):F0} ops/s");
 
-                //Console.WriteLine($"Sending {RequestResponseCount} pings synchronously req/resp/req/resp/...");
-                //Collect();
-                //timer = Stopwatch.StartNew();
-                //for (int i = 0; i < RequestResponseCount; i++) db.Ping();
-                //timer.Stop();
-                //Console.WriteLine($"{timer.ElapsedMilliseconds}ms; {((RequestResponseCount * 1000.0) / timer.ElapsedMilliseconds):F0} ops/s");
+                Console.WriteLine($"Sending {RequestResponseCount} pings synchronously req/resp/req/resp/...");
+                Collect();
+                timer = Stopwatch.StartNew();
+                for (int i = 0; i < RequestResponseCount; i++) db.Ping();
+                timer.Stop();
+                Console.WriteLine($"{timer.ElapsedMilliseconds}ms; {((RequestResponseCount * 1000.0) / timer.ElapsedMilliseconds):F0} ops/s");
 
                 Console.WriteLine("Loading corpus...");
                 var corpus = GetCorpus();
@@ -109,7 +108,7 @@ namespace BasicBench
                 Console.WriteLine($"Correct data received: {received.SequenceEqual(corpus)}");
 
 
-                //PingAsync(db);
+                PingAsync(db);
 
 
                 Console.ReadKey();
