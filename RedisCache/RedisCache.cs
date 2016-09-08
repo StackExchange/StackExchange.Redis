@@ -165,8 +165,13 @@ namespace Saxo.RedisCache
             var keysWithMissingPrimary = keys.Where(key => !key.HasPrimaryKey);
             var secondaryKeysToLookup = keysWithMissingPrimary.Select(key => (RedisKey) key.SecondaryKeys.First()).ToArray();
 
-            var foundPrimaryKeys = _cache.StringGet(secondaryKeysToLookup).Select(r => (string)r).GetEnumerator();
-            return keys.Select(k => (k.HasPrimaryKey) ? k.PrimaryKey : Pop(foundPrimaryKeys)).ToList();
+            if (secondaryKeysToLookup.Any())
+            {
+                var foundPrimaryKeys = _cache.StringGet(secondaryKeysToLookup).Select(r => (string) r).GetEnumerator();
+                return keys.Select(k => (k.HasPrimaryKey) ? k.PrimaryKey : Pop(foundPrimaryKeys)).ToList();
+            }
+
+            return keys.Select(k => k.PrimaryKey).ToList();
         }
 
         private static T Pop<T>(IEnumerator<T> enumerator)
