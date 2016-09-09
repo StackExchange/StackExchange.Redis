@@ -14,7 +14,7 @@ namespace BasicTest
     {
         static void Main(string[] args)
         {
-            int AsyncOpsQty = 10000;
+            int AsyncOpsQty = 500000;
             if(args.Length == 1)
             {
                 int tmp;
@@ -68,6 +68,5 @@ namespace BasicTest
         {
             return caller;
         }
-
     }
 }

@@ -77,7 +77,7 @@
     <Reference Include="Microsoft.CSharp" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="..\StackExchange.Redis.Tests\**\*.cs"/>
+    <Compile Include="..\StackExchange.Redis.Tests\**\*.cs" Exclude="..\StackExchange.Redis.Tests\obj\**\*.cs"/>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config">

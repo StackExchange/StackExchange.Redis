@@ -202,14 +202,8 @@ namespace StackExchange.Redis
             inst = (int)(Interlocked.Read(ref operationCount) - Interlocked.Read(ref profileLastLog));
             qu = queue.Count();
             var tmp = physical;
-            if(tmp == null)
-            {
-                qs = @in = ar = 0;
-            } else
-            {
-                qs = tmp.GetSentAwaitingResponseCount();
-                @in = tmp.GetAvailableInboundBytes(out ar);
-            }
+            @in = ar = 0;
+            qs = tmp?.GetSentAwaitingResponseCount() ?? 0;
             qc = completionManager.GetOutstandingCount();
             wr = Interlocked.CompareExchange(ref activeWriters, 0, 0);
             wq = Interlocked.CompareExchange(ref inWriteQueue, 0, 0);

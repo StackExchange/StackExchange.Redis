@@ -23,7 +23,7 @@ namespace StackExchange.Redis
             }
         }
 
-        static readonly Regex ParameterExtractor = new Regex(@"@(?<paramName> ([a-z]|_) ([a-z]|_|\d)*)", InternalRegexCompiledOption.Default | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace);
+        static readonly Regex ParameterExtractor = new Regex(@"@(?<paramName> ([a-z]|_) ([a-z]|_|\d)*)", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace);
         static string[] ExtractParameters(string script)
         {
             var ps = ParameterExtractor.Matches(script);

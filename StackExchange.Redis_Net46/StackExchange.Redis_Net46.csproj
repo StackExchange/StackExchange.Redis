@@ -57,7 +57,7 @@
     <Reference Include="System.IO.Compression" />
   </ItemGroup>
     <ItemGroup>
-    <Compile Include="..\StackExchange.Redis\**\*.cs"/>
+    <Compile Include="..\StackExchange.Redis\**\*.cs" Exclude="..\StackExchange.Redis\obj\**\*.cs"/>
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
