@@ -28,6 +28,7 @@ namespace Tests
         }
         static void Main2()
         {
+#if !CORE_CLR
             // why is this here? because some dumbass forgot to install a decent test-runner before going to the airport
             var epicFail = new List<string>();
             var testTypes = from type in typeof(Program).Assembly.GetTypes()
@@ -163,6 +164,7 @@ namespace Tests
 //                BookSleeve.RedisConnectionBase.AllSyncCallbacks, BookSleeve.RedisConnectionBase.AllAsyncCallbacks);
 //#endif
 
+#endif
         }
     }
 }

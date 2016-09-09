@@ -247,21 +247,21 @@ namespace Tests
                 sub.WaitAll(t1, t2);
                 pub.Publish("abc", "");
                 AllowReasonableTimeToPublishAndProcess();
-                Assert.AreEqual(1, Thread.VolatileRead(ref x));
-                Assert.AreEqual(1, Thread.VolatileRead(ref y));
+                Assert.AreEqual(1, Volatile.Read(ref x));
+                Assert.AreEqual(1, Volatile.Read(ref y));
                 t1 = sub.UnsubscribeAsync("abc", null);
                 t2 = sub.UnsubscribeAsync("ab*", null);
                 sub.WaitAll(t1, t2);
                 pub.Publish("abc", "");
-                Assert.AreEqual(1, Thread.VolatileRead(ref x));
-                Assert.AreEqual(1, Thread.VolatileRead(ref y));
+                Assert.AreEqual(1, Volatile.Read(ref x));
+                Assert.AreEqual(1, Volatile.Read(ref y));
                 t1 = sub.SubscribeAsync("abc", delegate { Interlocked.Increment(ref x); });
                 t2 = sub.SubscribeAsync("ab*", delegate { Interlocked.Increment(ref y); });
                 sub.WaitAll(t1, t2);
                 pub.Publish("abc", "");
                 AllowReasonableTimeToPublishAndProcess();
-                Assert.AreEqual(2, Thread.VolatileRead(ref x));
-                Assert.AreEqual(2, Thread.VolatileRead(ref y));
+                Assert.AreEqual(2, Volatile.Read(ref x));
+                Assert.AreEqual(2, Volatile.Read(ref y));
 
             }
         }

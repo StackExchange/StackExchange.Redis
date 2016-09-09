@@ -86,7 +86,7 @@ namespace StackExchange.Redis.Tests
                 Assert.That(rde.FailureType, Is.EqualTo(ConnectionFailureType.SocketFailure));
             }
         }
-
+#if DEBUG // needs AllowConnect, which is DEBUG only
         [Test]
         public void CheckFailureRecovered()
         {
@@ -117,7 +117,7 @@ namespace StackExchange.Redis.Tests
                 ClearAmbientFailures();
             }
         }
-
+#endif
         [Test]
         public void TryGetAzureRoleInstanceIdNoThrow()
         {

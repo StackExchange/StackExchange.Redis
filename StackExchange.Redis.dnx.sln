@@ -1,10 +1,8 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
-VisualStudioVersion = 14.0.25123.0
+VisualStudioVersion = 14.0.25420.1
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "BasicTest_dnxcore50", "BasicTest_dnxcore50\BasicTest_dnxcore50.xproj", "{9D83BABA-A92E-495F-BF63-DEB4F6B09355}"
-EndProject
 Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "StackExchange.Redis", "StackExchange.Redis\StackExchange.Redis.xproj", "{EF84877F-59BE-41BE-9013-E765AF0BB72E}"
 EndProject
 Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "StackExchange.Redis.StrongName", "StackExchange.Redis.StrongName\StackExchange.Redis.StrongName.xproj", "{46754D2A-AC16-4686-B113-3DB08ACF4269}"
@@ -13,8 +11,16 @@ Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "StackExchange.Redis.Tests",
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{3AD17044-6BFF-4750-9AC2-2CA466375F2A}"
 	ProjectSection(SolutionItems) = preProject
+		global.json = global.json
 		NuGet.Config = NuGet.Config
+		TaleOfTwoCities.txt = TaleOfTwoCities.txt
 	EndProjectSection
+EndProject
+Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "BasicTest", "BasicTest\BasicTest.xproj", "{939FA5F7-16AA-4847-812B-6EBC3748A86D}"
+EndProject
+Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "RedisCore", "RedisCore\RedisCore.xproj", "{D77F118E-38D4-42C3-8A70-7A335C0DD2F4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BasicBench", "BasicBench\BasicBench.csproj", "{C23A7292-9A84-49BD-9B25-B96C208F5754}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -22,10 +28,6 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{9D83BABA-A92E-495F-BF63-DEB4F6B09355}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{9D83BABA-A92E-495F-BF63-DEB4F6B09355}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{9D83BABA-A92E-495F-BF63-DEB4F6B09355}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{9D83BABA-A92E-495F-BF63-DEB4F6B09355}.Release|Any CPU.Build.0 = Release|Any CPU
 		{EF84877F-59BE-41BE-9013-E765AF0BB72E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{EF84877F-59BE-41BE-9013-E765AF0BB72E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{EF84877F-59BE-41BE-9013-E765AF0BB72E}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -38,6 +40,18 @@ Global
 		{3B8BD8F1-8BFC-4D8C-B4DA-25FFAF3D1DBE}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3B8BD8F1-8BFC-4D8C-B4DA-25FFAF3D1DBE}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3B8BD8F1-8BFC-4D8C-B4DA-25FFAF3D1DBE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{939FA5F7-16AA-4847-812B-6EBC3748A86D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{939FA5F7-16AA-4847-812B-6EBC3748A86D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{939FA5F7-16AA-4847-812B-6EBC3748A86D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{939FA5F7-16AA-4847-812B-6EBC3748A86D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D77F118E-38D4-42C3-8A70-7A335C0DD2F4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D77F118E-38D4-42C3-8A70-7A335C0DD2F4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D77F118E-38D4-42C3-8A70-7A335C0DD2F4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D77F118E-38D4-42C3-8A70-7A335C0DD2F4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C23A7292-9A84-49BD-9B25-B96C208F5754}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C23A7292-9A84-49BD-9B25-B96C208F5754}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C23A7292-9A84-49BD-9B25-B96C208F5754}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C23A7292-9A84-49BD-9B25-B96C208F5754}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
