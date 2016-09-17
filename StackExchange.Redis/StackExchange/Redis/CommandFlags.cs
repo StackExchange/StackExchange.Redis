@@ -2,7 +2,7 @@
 
 namespace StackExchange.Redis
 {
-    /// <summary>
+  /// <summary>
     /// Behaviour markers associated with a given command
     /// </summary>
     [Flags]

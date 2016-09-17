@@ -230,6 +230,42 @@ namespace StackExchange.Redis
                 return arr;
             }
         }
+        
+        internal GeoPosition?[] GetItemsAsGeoPositionArray()
+        {
+            RawResult[] items = GetItems();
+            if (items == null)
+            {
+                return null;
+            }
+            else if (items.Length == 0)
+            {
+                return new GeoPosition?[0];
+            }
+            else
+            {
+                var arr = new GeoPosition?[items.Length];
+                for (int i = 0; i < arr.Length; i++)
+                {
+                    RawResult[] item = items[i].GetArrayOfRawResults();
+                    if (item == null)
+                    {
+                        arr[i] = null;
+                    }
+                    else
+                    {
+                        arr[i] = new GeoPosition((double)item[0].AsRedisValue(), (double)item[1].AsRedisValue());
+                    }
+                }
+                return arr;
+            }
+        }
+
+        internal RawResult[] GetItemsAsRawResults()
+        {
+            return GetItems();
+        }
+
 
         // returns an array of RawResults
         internal RawResult[] GetArrayOfRawResults()

@@ -38,6 +38,13 @@
         FLUSHALL,
         FLUSHDB,
 
+        GEOADD,
+        GEODIST,
+        GEOHASH,
+        GEOPOS,
+        GEORADIUS,
+        GEORADIUSBYMEMBER,
+
         GET,
         GETBIT,
         GETRANGE,
