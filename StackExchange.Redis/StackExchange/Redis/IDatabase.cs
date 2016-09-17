@@ -57,7 +57,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <returns>True if the specified member was not already present in the set, else False</returns>
         /// <remarks>http://redis.io/commands/geoadd</remarks>
-        bool GeoAdd(RedisKey key, GeoPosition geoPosition, RedisValue member, CommandFlags flags = CommandFlags.None);
+        bool GeoAdd(RedisKey key, StackExchange.Redis.GeoEntry geoPosition, RedisValue member, CommandFlags flags = CommandFlags.None);
 
 
         /// <summary>
@@ -79,7 +79,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <returns>The command returns the distance as a double (represented as a string) in the specified unit, or NULL if one or both the elements are missing.</returns>
         /// <remarks>http://redis.io/commands/geodist</remarks>
-        RedisValue GeoDistance(RedisKey key, RedisValue member1, RedisValue member2, GeoUnit geoUnit = GeoUnit.Meters, CommandFlags flags = CommandFlags.None);
+        double GeoDistance(RedisKey key, RedisValue member1, RedisValue member2, GeoUnit geoUnit = GeoUnit.Meters, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Return valid Geohash strings representing the position of one or more elements in a sorted set value representing a geospatial index (where elements were added using GEOADD).

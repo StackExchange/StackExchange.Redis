@@ -15,7 +15,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Kilometers
         /// </summary>
-        KiloMeters,
+        Kilometers,
         /// <summary>
         /// Miles
         /// </summary>

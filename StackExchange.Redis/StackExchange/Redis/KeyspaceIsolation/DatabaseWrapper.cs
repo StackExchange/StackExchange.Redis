@@ -36,9 +36,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         {
             return Inner.GeoAdd(ToInner(key), geoEntries, flags);
         }
-        public bool GeoAdd(RedisKey key, GeoPosition geoPosition, RedisValue member, CommandFlags flags = CommandFlags.None)
+        public bool GeoAdd(RedisKey key, GeoEntry geoEntry, RedisValue member, CommandFlags flags = CommandFlags.None)
         {
-            return Inner.GeoAdd(key, geoPosition, member, flags);
+            return Inner.GeoAdd(key, geoEntry, member, flags);
         }
 
         public bool GeoRemove(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
@@ -46,7 +46,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.GeoRemove(key, member, flags);
         }
 
-        public RedisValue GeoDistance(RedisKey key, RedisValue value0, RedisValue value1, GeoUnit geoUnit = GeoUnit.Meters,CommandFlags flags = CommandFlags.None)
+        public double GeoDistance(RedisKey key, RedisValue value0, RedisValue value1, GeoUnit geoUnit = GeoUnit.Meters,CommandFlags flags = CommandFlags.None)
         {
             return Inner.GeoDistance(ToInner(key), value0, value1, geoUnit, flags);
         }
