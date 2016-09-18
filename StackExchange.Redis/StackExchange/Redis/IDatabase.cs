@@ -963,5 +963,11 @@ namespace StackExchange.Redis
         /// <returns>the length of the string after it was modified by the command.</returns>
         /// <remarks>http://redis.io/commands/setrange</remarks>
         RedisValue StringSetRange(RedisKey key, long offset, RedisValue value, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Issues Redis WAIT command to wait for writes to a given number of slaves to have completed before returning or before timing out. Setting timeout to 0 means that the operation will never timeout.
+        /// </summary>
+        /// <returns>Always returns the number of slaves that have acknowledged the most recent writes, regardless of whether the specified number of slaves was reached or if a timeout occurred.</returns>
+        long SyncWait(int numOfSlaves = 1, int timeoutMilliseconds = 0, CommandFlags flags = CommandFlags.None);
     }
 }
