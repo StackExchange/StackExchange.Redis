@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Text;
 using Moq;
 using StackExchange.Redis;
@@ -28,7 +29,7 @@ namespace Saxo.RedisCache.Tests
             {
                 new KeyValuePair<RedisKey, RedisValue>(k1, value1),
                 new KeyValuePair<RedisKey, RedisValue>(k2, value2)
-            }), Times.Once());
+            }, TimeSpan.MinValue), Times.Once());
             
         }
 
@@ -68,7 +69,7 @@ namespace Saxo.RedisCache.Tests
                 new KeyValuePair<RedisKey, RedisValue>(pk2, v2),
                 new KeyValuePair<RedisKey, RedisValue>(sk1, pk1),
                 new KeyValuePair<RedisKey, RedisValue>(sk2, pk2)
-            }), Times.Once());
+            }, TimeSpan.MinValue), Times.Once());
         }
     }
 }

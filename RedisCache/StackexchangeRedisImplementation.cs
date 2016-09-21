@@ -1,9 +1,11 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 using StackExchange.Redis;
 
 namespace Saxo.RedisCache
 {
-    internal class StackexchangeRedisImplementation :IRedisImplementation
+    internal class StackexchangeRedisImplementation : IRedisImplementation
     {
         private readonly ConnectionMultiplexer _connectionMultiplexer;
 
@@ -13,9 +15,10 @@ namespace Saxo.RedisCache
         }
 
         public IDatabase Database => _connectionMultiplexer.GetDatabase();
-        public void StringSet(RedisKey primaryKey, RedisValue value)
-        {
-            Database.StringSet(primaryKey, value);
+
+        public void StringSet(RedisKey primaryKey, RedisValue value, TimeSpan? expire = null)
+        {            
+            Database.StringSet(primaryKey, value, expire);
         }
 
         public void Clear()
@@ -28,9 +31,13 @@ namespace Saxo.RedisCache
             }
         }
 
-        public void StringSet(KeyValuePair<RedisKey, RedisValue>[] keyValueArray)
+        public void StringSet(KeyValuePair<RedisKey, RedisValue>[] keyValueArray, TimeSpan? expire = null)
         {
             Database.StringSet(keyValueArray);
+            keyValueArray.ToList().ForEach(keyValue =>
+            {
+                Database.KeyExpire(keyValue.Key, expire);
+            });            
         }
 
         public RedisValue StringGet(RedisKey primaryKey)

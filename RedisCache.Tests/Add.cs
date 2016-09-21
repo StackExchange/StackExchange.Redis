@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Text;
 using Moq;
 using Xunit;
@@ -21,7 +22,7 @@ namespace Saxo.RedisCache.Tests
 
             cache.Add(key, value);
 
-            mockRedis.Verify(c => c.StringSet(k, v), Times.Once());
+            mockRedis.Verify(c => c.StringSet(k, v, TimeSpan.MinValue), Times.Once());
         }
 
         [Theory]
@@ -43,8 +44,8 @@ namespace Saxo.RedisCache.Tests
             cache.Add(key, value1);
             cache.Add(key2, value2);
             
-            mockRedis.Verify(c => c.StringSet(k1, v1), Times.Once());
-            mockRedis.Verify(c => c.StringSet(k2, v2), Times.Once());
+            mockRedis.Verify(c => c.StringSet(k1, v1, TimeSpan.MinValue), Times.Once());
+            mockRedis.Verify(c => c.StringSet(k2, v2, TimeSpan.MinValue), Times.Once());
         }
 
         [Fact]

@@ -1,12 +1,13 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using StackExchange.Redis;
 
 namespace Saxo.RedisCache
 {
     public interface IRedisImplementation
     {
-        void StringSet(RedisKey primaryKey, RedisValue value);
-        void StringSet(KeyValuePair<RedisKey, RedisValue>[] toArray);
+        void StringSet(RedisKey primaryKey, RedisValue value, TimeSpan? expire = null);
+        void StringSet(KeyValuePair<RedisKey, RedisValue>[] toArray, TimeSpan? expire = null);
 
         RedisValue StringGet(RedisKey primaryKey);
         RedisValue[] StringGet(RedisKey[] primaryKey);

@@ -13,7 +13,7 @@ namespace Saxo.RedisCache
         {
             if (settings == null)
                 throw new ArgumentNullException(nameof(settings));
-            
+
             _cache = new StackexchangeRedisImplementation(settings);
         }
 
@@ -32,15 +32,16 @@ namespace Saxo.RedisCache
         /// </summary>
         /// <param name="key"></param>
         /// <param name="value"></param>
-        public void Add(RedisCacheKey key, byte[] value)
+        /// <param name="expire"></param>
+        public void Add(RedisCacheKey key, byte[] value, TimeSpan? expire = null)
         {
             if (!key.HasSecondaryKey)
             {
-                _cache.StringSet(key.PrimaryKey, value);
+                _cache.StringSet(key.PrimaryKey, value, expire);
             }
             else
             {
-                AddAll(new List<RedisCacheKey> { key }, new List<byte[]> { value });
+                AddAll(new List<RedisCacheKey> { key }, new List<byte[]> { value }, expire);
             }
         }
 
@@ -55,7 +56,7 @@ namespace Saxo.RedisCache
 
             return _cache.StringGet(primaryKey);
         }
-        
+
         /// <summary>
         /// Remove a key-value pair from the database corresponding to a given key.
         /// </summary>
@@ -72,13 +73,14 @@ namespace Saxo.RedisCache
         /// </summary>
         /// <param name="keys"></param>
         /// <param name="values"></param>
-        public void AddAll(List<RedisCacheKey> keys, List<byte[]> values)
+        /// <param name="expire"></param>
+        public void AddAll(List<RedisCacheKey> keys, List<byte[]> values, TimeSpan? expire = null)
         {
             if (keys.Any(k => !k.HasPrimaryKey))
             {
                 throw new RedisCacheException("Value cannot be added without a primary key.");
             }
-            
+
             var entries = ToKeyValuePairList(keys.Select(k => k.PrimaryKey), values);
 
             foreach (var key in keys)
@@ -86,9 +88,9 @@ namespace Saxo.RedisCache
                 entries.AddRange(RetrieveSecondaryKeyPairs(key));
             }
 
-            _cache.StringSet(entries.ToArray());
+            _cache.StringSet(entries.ToArray(), expire);
         }
-        
+
         /// <summary>
         /// Get all values associated with a list of cache keys. Cache misses are represented with the default value.
         /// </summary>
@@ -98,10 +100,15 @@ namespace Saxo.RedisCache
         {
             var primaryKeys = RetrievePrimaryKeys(keys);
             var keysForLookup =
-                primaryKeys.Where(key => !string.IsNullOrEmpty(key)).Select(key => (RedisKey) key).ToArray();
+                primaryKeys.Where(key => !string.IsNullOrEmpty(key)).Select(key => (RedisKey)key).ToArray();
 
-            var valuesFromCache = _cache.StringGet(keysForLookup).Select(r => (byte[]) r).GetEnumerator();
-            var valuesWithMisses = primaryKeys.Select(k => (k==null)? null : Pop(valuesFromCache)).ToList();
+            var valuesWithMisses = new List<byte[]>();
+
+            if (keysForLookup.Any())
+            {
+                var valuesFromCache = _cache.StringGet(keysForLookup).Select(r => (byte[])r).GetEnumerator();
+                valuesWithMisses = primaryKeys.Select(k => (k == null) ? null : Pop(valuesFromCache)).ToList();
+            }
 
             return valuesWithMisses;
         }
@@ -163,11 +170,11 @@ namespace Saxo.RedisCache
         private List<string> RetrievePrimaryKeys(List<RedisCacheKey> keys)
         {
             var keysWithMissingPrimary = keys.Where(key => !key.HasPrimaryKey);
-            var secondaryKeysToLookup = keysWithMissingPrimary.Select(key => (RedisKey) key.SecondaryKeys.First()).ToArray();
+            var secondaryKeysToLookup = keysWithMissingPrimary.Select(key => (RedisKey)key.SecondaryKeys.First()).ToArray();
 
             if (secondaryKeysToLookup.Any())
             {
-                var foundPrimaryKeys = _cache.StringGet(secondaryKeysToLookup).Select(r => (string) r).GetEnumerator();
+                var foundPrimaryKeys = _cache.StringGet(secondaryKeysToLookup).Select(r => (string)r).GetEnumerator();
                 return keys.Select(k => (k.HasPrimaryKey) ? k.PrimaryKey : Pop(foundPrimaryKeys)).ToList();
             }
 
@@ -179,6 +186,6 @@ namespace Saxo.RedisCache
             enumerator.MoveNext();
             return enumerator.Current;
         }
-        
+
     }
 }
