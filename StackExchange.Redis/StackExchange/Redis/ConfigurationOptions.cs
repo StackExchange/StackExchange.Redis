@@ -366,9 +366,20 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Returns the effective configuration string for this configuration
+        /// Returns the effective configuration string for this configuration, including Redis credentials.
         /// </summary>
         public override string ToString()
+        {
+            // include password to allow generation of configuration strings 
+            // used for connecting multiplexer
+            return ToString(includePassword: true);
+        }
+
+        /// <summary>
+        /// Returns the effective configuration string for this configuration
+        /// with the option to include or exclude the password from the string.
+        /// </summary>
+        public string ToString(bool includePassword)
         {
             var sb = new StringBuilder();
             foreach (var endpoint in endpoints)
@@ -382,7 +393,7 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.AllowAdmin, allowAdmin);
             Append(sb, OptionKeys.Version, defaultVersion);
             Append(sb, OptionKeys.ConnectTimeout, connectTimeout);
-            Append(sb, OptionKeys.Password, password);
+            Append(sb, OptionKeys.Password, includePassword ? password : "*****");
             Append(sb, OptionKeys.TieBreaker, tieBreaker);
             Append(sb, OptionKeys.WriteBuffer, writeBuffer);
             Append(sb, OptionKeys.Ssl, ssl);
