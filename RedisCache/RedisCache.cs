@@ -27,6 +27,11 @@ namespace Saxo.RedisCache
             _cache.Clear();
         }
 
+        public bool IsAlive()
+        {
+            return _cache.IsAlive();
+        }
+
         /// <summary>
         /// Add a serialized value to the redis database with a given key. The key is assumed to contain a primary key.
         /// </summary>

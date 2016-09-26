@@ -6,6 +6,8 @@ namespace Saxo.RedisCache
 {
     public interface IRedisImplementation
     {
+        bool IsAlive();
+
         void StringSet(RedisKey primaryKey, RedisValue value, TimeSpan? expire = null);
         void StringSet(KeyValuePair<RedisKey, RedisValue>[] toArray, TimeSpan? expire = null);
 

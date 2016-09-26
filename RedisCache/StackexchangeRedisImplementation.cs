@@ -8,13 +8,27 @@ namespace Saxo.RedisCache
     internal class StackexchangeRedisImplementation : IRedisImplementation
     {
         private readonly ConnectionMultiplexer _connectionMultiplexer;
+        private readonly bool _isServerAlive;
 
         public StackexchangeRedisImplementation(IRedisCacheSettings settings)
         {
-            _connectionMultiplexer = ConnectionMultiplexer.Connect(settings.ServerAddress);
+            try
+            {
+                _connectionMultiplexer = ConnectionMultiplexer.Connect(settings.ServerAddress);
+                _isServerAlive = true;
+            }
+            catch (Exception)
+            {
+                _isServerAlive = false;
+            }
         }
 
         public IDatabase Database => _connectionMultiplexer.GetDatabase();
+
+        public bool IsAlive()
+        {
+            return _isServerAlive && _connectionMultiplexer.IsConnected;
+        }
 
         public void StringSet(RedisKey primaryKey, RedisValue value, TimeSpan? expire = null)
         {            
