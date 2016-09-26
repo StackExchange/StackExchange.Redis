@@ -2019,7 +2019,7 @@ namespace StackExchange.Redis
                             // only add keyslot if its a valid cluster key slot
                             if (hashSlot != ServerSelectionStrategy.NoSlot)
                             {
-                                add("CommandKey-Slot", "commandKeySlot", message.GetHashSlot(this.ServerSelectionStrategy).ToString());
+                                add("Key-HashSlot", "keyHashSlot", message.GetHashSlot(this.ServerSelectionStrategy).ToString());
                             }
 #if !CORE_CLR
                             string iocp, worker;
