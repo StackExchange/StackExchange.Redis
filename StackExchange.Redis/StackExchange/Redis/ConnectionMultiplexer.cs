@@ -1422,16 +1422,27 @@ namespace StackExchange.Redis
                         {
                             serverSelectionStrategy.ServerType = ServerType.Standalone;
                         }
-                        var preferred = await NominatePreferredMaster(log, servers, useTieBreakers, tieBreakers, masters).ObserveErrors().ForAwait();
-                        foreach (var master in masters)
+
+                        if (configuration.AllowMultipleRedundantMasters)
                         {
-                            if (master == preferred)
+                            foreach (var master in masters)
                             {
                                 master.ClearUnselectable(UnselectableFlags.RedundantMaster);
                             }
-                            else
+                        }
+                        else
+                        {
+                            var preferred = await NominatePreferredMaster(log, servers, useTieBreakers, tieBreakers, masters).ObserveErrors().ForAwait();
+                            foreach (var master in masters)
                             {
-                                master.SetUnselectable(UnselectableFlags.RedundantMaster);
+                                if (master == preferred)
+                                {
+                                    master.ClearUnselectable(UnselectableFlags.RedundantMaster);
+                                }
+                                else
+                                {
+                                    master.SetUnselectable(UnselectableFlags.RedundantMaster);
+                                }
                             }
                         }
                     }

@@ -77,7 +77,8 @@ namespace StackExchange.Redis
                         TieBreaker = "tiebreaker", WriteBuffer = "writeBuffer", Ssl = "ssl", SslHost = "sslHost", HighPrioritySocketThreads = "highPriorityThreads",
                         ConfigChannel = "configChannel", AbortOnConnectFail = "abortConnect", ResolveDns = "resolveDns",
                         ChannelPrefix = "channelPrefix", Proxy = "proxy", ConnectRetry = "connectRetry",
-                        ConfigCheckSeconds = "configCheckSeconds", ResponseTimeout = "responseTimeout", DefaultDatabase = "defaultDatabase";
+                        ConfigCheckSeconds = "configCheckSeconds", ResponseTimeout = "responseTimeout", DefaultDatabase = "defaultDatabase",
+                        AllowMultipleRedundantMasters = "allowMultipleRedundantMasters";
             private static readonly Dictionary<string, string> normalizedOptions = new[]
             {
                 AllowAdmin, SyncTimeout,
@@ -87,6 +88,7 @@ namespace StackExchange.Redis
                 ConfigChannel, AbortOnConnectFail, ResolveDns,
                 ChannelPrefix, Proxy, ConnectRetry,
                 ConfigCheckSeconds, DefaultDatabase,
+                AllowMultipleRedundantMasters,
             }.ToDictionary(x => x, StringComparer.OrdinalIgnoreCase);
 
             public static string TryNormalize(string value)
@@ -103,7 +105,7 @@ namespace StackExchange.Redis
 
         private readonly EndPointCollection endpoints = new EndPointCollection();
 
-        private bool? allowAdmin, abortOnConnectFail, highPrioritySocketThreads, resolveDns, ssl;
+        private bool? allowAdmin, abortOnConnectFail, highPrioritySocketThreads, resolveDns, ssl, allowMultipleRedundantMasters;
 
         private string clientName, serviceName, password, tieBreaker, sslHost, configChannel;
 
@@ -274,6 +276,17 @@ namespace StackExchange.Redis
         /// Tie-breaker used to choose between masters (must match the endpoint exactly)
         /// </summary>
         public string TieBreaker { get { return tieBreaker ?? DefaultTieBreaker; } set { tieBreaker = value; } }
+
+        
+        /// <summary>
+        ///   Allow multiple (redundant) classic redis server master
+        ///   nodes to be used in round-robin fashion. If set to true,
+        ///   no single master will be nominated as preferred, instead
+        ///   all available standalone masters will be added to the
+        ///   collection of available and selectable server endpoints.
+        /// </summary>
+        public bool AllowMultipleRedundantMasters { get { return allowMultipleRedundantMasters.GetValueOrDefault(); } set { allowMultipleRedundantMasters = value; } }
+
         /// <summary>
         /// The size of the output buffer to use
         /// </summary>
@@ -349,7 +362,8 @@ namespace StackExchange.Redis
                 connectRetry = connectRetry,
                 configCheckSeconds = configCheckSeconds,
                 responseTimeout = responseTimeout,
-				defaultDatabase = defaultDatabase,
+                defaultDatabase = defaultDatabase,
+                allowMultipleRedundantMasters = allowMultipleRedundantMasters,
             };
             foreach (var item in endpoints)
                 options.endpoints.Add(item);
@@ -408,6 +422,7 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.ConfigCheckSeconds, configCheckSeconds);
             Append(sb, OptionKeys.ResponseTimeout, responseTimeout);
             Append(sb, OptionKeys.DefaultDatabase, defaultDatabase);
+            Append(sb, OptionKeys.AllowMultipleRedundantMasters, allowMultipleRedundantMasters);
             commandMap?.AppendDeltas(sb);
             return sb.ToString();
         }
@@ -612,6 +627,9 @@ namespace StackExchange.Redis
                             break;
                         case OptionKeys.DefaultDatabase:
                             defaultDatabase = OptionKeys.ParseInt32(key, value);
+                            break;
+                        case OptionKeys.AllowMultipleRedundantMasters:
+                            allowMultipleRedundantMasters = OptionKeys.ParseBoolean(key, value);
                             break;
                         default:
                             if (!string.IsNullOrEmpty(key) && key[0] == '$')
