@@ -1197,7 +1197,7 @@ namespace StackExchange.Redis
                 Trace("Starting reconfiguration...");
                 Trace(blame != null, "Blaming: " + Format.ToString(blame));
 
-                LogLocked(log, Configuration);
+                LogLocked(log, configuration.ToString(includePassword: false));
                 LogLocked(log, "");
 
 
