@@ -1,4 +1,4 @@
-#if NUNITLITE
+#if NUNITLITE && !CORE_CLR
 using System;
 using System.Reflection;
 using NUnit.Common;

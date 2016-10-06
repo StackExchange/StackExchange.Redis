@@ -168,7 +168,7 @@ namespace StackExchange.Redis.Tests
             bool checkConnect = true, bool pause = true, string failMessage = null,
             string channelPrefix = null, bool useSharedSocketManager = true, Proxy? proxy = null)
         {
-            if(pause) Thread.Sleep(500); // get a lot of glitches when hammering new socket creations etc; pace it out a bit
+            if(pause) Thread.Sleep(250); // get a lot of glitches when hammering new socket creations etc; pace it out a bit
             string configuration = GetConfiguration();
             var config = ConfigurationOptions.Parse(configuration);
             if (disabledCommands != null && disabledCommands.Length != 0)

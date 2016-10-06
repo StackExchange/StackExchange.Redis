@@ -10,7 +10,7 @@ namespace StackExchange.Redis.Tests
 
         [Test]
         [MaxTime(100000)]
-        [TestCase("or-devredis01.ds.stackexchange.com:6379")]
+        [TestCase("co-devredis01.ds.stackexchange.com:6379")]
         public void Execute(string config)
         {
             for (int i = 0; i < 50; i++)

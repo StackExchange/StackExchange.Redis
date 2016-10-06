@@ -19,3 +19,4 @@ RedisQFork*.dat
 StackExchange.Redis.*.zip
 .vs/
 *.lock.json
+packages/
