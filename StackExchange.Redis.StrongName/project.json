@@ -13,7 +13,7 @@
     }
   },
   "title": "StackExchange.Redis.StrongName",
-  "version": "1.1.606-*",
+  "version": "1.1.607-*",
   "description": "High performance Redis client, incorporating both synchronous and asynchronous usage.",
   "authors": [ "Stack Exchange inc., marc.gravell" ],
   "copyright": "Stack Exchange inc. 2014-",
@@ -43,7 +43,7 @@
         "Microsoft.Bcl.Async": "1.0.168"
       },
       "buildOptions": {
-        "define": [ "FEATURE_SERIALIZATION" ]
+        "define": [ "FEATURE_SERIALIZATION", "FEATURE_SOCKET_MODE_POLL" ]
       }
     },
     "net45": {
@@ -51,14 +51,16 @@
         "System.IO.Compression": "4.0.0.0"
       },
       "buildOptions": {
-        "define": [ "FEATURE_SERIALIZATION" ]
+        "define": [ "FEATURE_SERIALIZATION", "FEATURE_SOCKET_MODE_POLL" ]
       }
     },
     "net46": {
       "frameworkAssemblies": {
         "System.IO.Compression": "4.0.0.0"
       },
-      "define": [ "FEATURE_SERIALIZATION" ]
+      "buildOptions": {
+        "define": [ "FEATURE_SERIALIZATION", "FEATURE_SOCKET_MODE_POLL" ]
+      }
     },
     "netstandard1.5": {
       "buildOptions": {
