@@ -905,7 +905,11 @@ namespace StackExchange.Redis
                         if (isDisposed) throw new ObjectDisposedException(ToString());
 
                         server = new ServerEndPoint(this, endpoint, null);
-                        servers.Add(endpoint, server);
+                        // ^^ this could indirectly cause servers to become changes, so treble-check!
+                        if (!servers.ContainsKey(endpoint))
+                        {
+                            servers.Add(endpoint, server);
+                        }
 
                         var newSnapshot = serverSnapshot;
                         Array.Resize(ref newSnapshot, newSnapshot.Length + 1);
@@ -1226,7 +1230,11 @@ namespace StackExchange.Redis
                             if (server == null)
                             {
                                 server = new ServerEndPoint(this, endpoint, log);
-                                servers.Add(endpoint, server);
+                                // ^^ this could indirectly cause servers to become changes, so treble-check!
+                                if (!servers.ContainsKey(endpoint))
+                                {
+                                    servers.Add(endpoint, server);
+                                }
                             }
                             serverSnapshot[index++] = server;
                         }
