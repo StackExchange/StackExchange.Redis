@@ -59,7 +59,12 @@ namespace Saxo.RedisCache
         {
             var primaryKey = RetrievePrimaryKey(key);
 
-            return _cache.StringGet(primaryKey);
+            if (primaryKey != null)
+            {
+                return _cache.StringGet(primaryKey);
+            }
+
+            return null;
         }
 
         /// <summary>
