@@ -17,7 +17,7 @@
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
     <OutputPath>bin.snk\Debug\</OutputPath>
-    <DefineConstants>TRACE;DEBUG;STRONG_NAME FEATURE_SERIALIZATION FEATURE_SOCKET_MODE_POLL</DefineConstants>
+    <DefineConstants>TRACE;DEBUG;STRONG_NAME FEATURE_SERIALIZATION </DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -27,7 +27,7 @@
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin.snk\Release\</OutputPath>
-    <DefineConstants>TRACE;STRONG_NAME FEATURE_SERIALIZATION FEATURE_SOCKET_MODE_POLL</DefineConstants>
+    <DefineConstants>TRACE;STRONG_NAME FEATURE_SERIALIZATION </DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -36,7 +36,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Verbose|AnyCPU'">
     <DebugSymbols>true</DebugSymbols>
     <OutputPath>bin.snk\Verbose\</OutputPath>
-    <DefineConstants>TRACE;DEBUG;VERBOSE STRONG_NAME FEATURE_SERIALIZATION FEATURE_SOCKET_MODE_POLL</DefineConstants>
+    <DefineConstants>TRACE;DEBUG;VERBOSE STRONG_NAME FEATURE_SERIALIZATION </DefineConstants>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <DocumentationFile>bin.snk\Verbose\StackExchange.Redis.StrongName.xml</DocumentationFile>
     <DebugType>full</DebugType>
@@ -48,7 +48,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Log Output|AnyCPU'">
     <DebugSymbols>true</DebugSymbols>
     <OutputPath>bin.snk\LogOutput\</OutputPath>
-    <DefineConstants>TRACE;DEBUG;LOGOUTPUT STRONG_NAME FEATURE_SERIALIZATION FEATURE_SOCKET_MODE_POLL</DefineConstants>
+    <DefineConstants>TRACE;DEBUG;LOGOUTPUT STRONG_NAME FEATURE_SERIALIZATION </DefineConstants>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <DocumentationFile>bin.snk\LogOutput\StackExchange.Redis.StrongName.xml</DocumentationFile>
     <DebugType>full</DebugType>
