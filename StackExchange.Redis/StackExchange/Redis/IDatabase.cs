@@ -638,14 +638,14 @@ namespace StackExchange.Redis
         /// </summary>
         /// <returns>True if the value was added, False if it already existed (the score is still updated)</returns>
         /// <remarks>http://redis.io/commands/zadd</remarks>
-        bool SortedSetAdd(RedisKey key, RedisValue member, double score, CommandFlags flags = CommandFlags.None);
+        bool SortedSetAdd(RedisKey key, RedisValue member, double score, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Adds all the specified members with the specified scores to the sorted set stored at key. If a specified member is already a member of the sorted set, the score is updated and the element reinserted at the right position to ensure the correct ordering.
         /// </summary>
         /// <returns>The number of elements added to the sorted sets, not including elements already existing for which the score was updated.</returns>
         /// <remarks>http://redis.io/commands/zadd</remarks>
-        long SortedSetAdd(RedisKey key, SortedSetEntry[] values, CommandFlags flags = CommandFlags.None);
+        long SortedSetAdd(RedisKey key, SortedSetEntry[] values, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Computes a set operation over two sorted sets, and stores the result in destination, optionally performing 
