@@ -6,6 +6,7 @@
       "version": "1.1.*",
       "target": "project"
     },
+    "redis-64": "3.0.503",
     "nunit": "3.4.1",
     "dotnet-test-nunit": "3.4.0-beta-1" 
   },
