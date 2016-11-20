@@ -1,7 +1,7 @@
 ﻿Pipelines and Multiplexers
 ===
 
-Latency sucks. Modern computers can churn data at an alarming rate, and high speed networking (often with multiple parallel links between important servers) provides enormous bandwidth, but... that damned latency means that computers spend an awful lot of time *waiting for data* (one of the several reasons that continuation-based programming is becoming increasingly popular. Let's consider some regular procedural code:
+Latency sucks. Modern computers can churn data at an alarming rate, and high speed networking (often with multiple parallel links between important servers) provides enormous bandwidth, but... that damned latency means that computers spend an awful lot of time *waiting for data* and that is one of the several reasons that continuation-based programming is becoming increasingly popular. Let's consider some regular procedural code:
 
 ```C#
 string a = db.StringGet("a");
