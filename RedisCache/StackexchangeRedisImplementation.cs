@@ -9,14 +9,25 @@ namespace Saxo.RedisCache
     {
         private readonly IRedisCacheSettings _settings;
 
-        private ConfigurationOptions ConfigurationOptions => new ConfigurationOptions
+        private ConfigurationOptions ConfigurationOptions
         {
-            AbortOnConnectFail = false,
-            ClientName = _settings.ServerAddress,
-            KeepAlive = 5,
-            Ssl = false
-        };
-
+            get
+            {
+                var configurationOptions = new ConfigurationOptions
+                {
+                    AbortOnConnectFail = false,
+                    KeepAlive = 180,
+                    Ssl = false
+                };
+                var serverAddresses = _settings.ServerAddress.Split(',');
+                foreach (var serverAddress in serverAddresses)
+                {
+                    configurationOptions.EndPoints.Add(serverAddress);
+                }
+                return configurationOptions;
+            }
+        }
+        
         public StackexchangeRedisImplementation(IRedisCacheSettings settings)
         {
             if (settings == null)
