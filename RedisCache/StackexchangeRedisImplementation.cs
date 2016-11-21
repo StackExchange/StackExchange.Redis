@@ -13,17 +13,10 @@ namespace Saxo.RedisCache
         {
             get
             {
-                var configurationOptions = new ConfigurationOptions
-                {
-                    AbortOnConnectFail = false,
-                    KeepAlive = 180,
-                    Ssl = false
-                };
-                var serverAddresses = _settings.ServerAddress.Split(',');
-                foreach (var serverAddress in serverAddresses)
-                {
-                    configurationOptions.EndPoints.Add(serverAddress);
-                }
+                var configurationOptions = ConfigurationOptions.Parse(_settings.ServerAddress);
+                configurationOptions.AbortOnConnectFail = false;
+                configurationOptions.KeepAlive = 180;
+                configurationOptions.Ssl = false;
                 return configurationOptions;
             }
         }
