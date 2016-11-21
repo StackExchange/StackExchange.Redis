@@ -5,29 +5,59 @@ using StackExchange.Redis;
 
 namespace Saxo.RedisCache
 {
-    internal class StackexchangeRedisImplementation : IRedisImplementation
+    internal class StackexchangeRedisImplementation : IRedisImplementation, IDisposable
     {
-        private readonly ConnectionMultiplexer _connectionMultiplexer;
-        private readonly bool _isServerAlive;
+        private readonly IRedisCacheSettings _settings;
 
-        public StackexchangeRedisImplementation(IRedisCacheSettings settings)
+        private ConfigurationOptions ConfigurationOptions
         {
-            try
+            get
             {
-                _connectionMultiplexer = ConnectionMultiplexer.Connect(settings.ServerAddress);
-                _isServerAlive = true;
-            }
-            catch (Exception)
-            {
-                _isServerAlive = false;
+                var configurationOptions = ConfigurationOptions.Parse(_settings.ServerAddress);
+                configurationOptions.AbortOnConnectFail = false;
+                configurationOptions.KeepAlive = 180;
+                configurationOptions.Ssl = false;
+                return configurationOptions;
             }
         }
+        
+        public StackexchangeRedisImplementation(IRedisCacheSettings settings)
+        {
+            if (settings == null)
+            {
+                throw new ArgumentNullException(nameof(settings));
+            }
+            _settings = settings;
+        }
+        
+        private static volatile ConnectionMultiplexer _connectionMultiplexer;
+        private static readonly object ConnectionLock = new object();
 
-        public IDatabase Database => _connectionMultiplexer.GetDatabase();
+        private ConnectionMultiplexer ConnectionMultiplexer
+        {
+            get
+            {
+                if (_connectionMultiplexer != null)
+                {
+                    return _connectionMultiplexer;
+                }
+                lock (ConnectionLock)
+                {
+                    if (_connectionMultiplexer != null)
+                    {
+                        return _connectionMultiplexer;
+                    }
+                    _connectionMultiplexer = ConnectionMultiplexer.Connect(ConfigurationOptions);
+                }
+                return _connectionMultiplexer;
+            }
+        }
+        
+        public IDatabase Database => ConnectionMultiplexer.GetDatabase();
 
         public bool IsAlive()
         {
-            return _isServerAlive && _connectionMultiplexer.IsConnected;
+            return ConnectionMultiplexer.IsConnected;
         }
 
         public void StringSet(RedisKey primaryKey, RedisValue value, TimeSpan? expire = null)
@@ -37,10 +67,10 @@ namespace Saxo.RedisCache
 
         public void Clear()
         {
-            var endpoints = _connectionMultiplexer.GetEndPoints(true);
+            var endpoints = ConnectionMultiplexer.GetEndPoints(true);
             foreach (var endpoint in endpoints)
             {
-                var server = _connectionMultiplexer.GetServer(endpoint);
+                var server = ConnectionMultiplexer.GetServer(endpoint);
                 server.FlushAllDatabases();
             }
         }
@@ -72,6 +102,20 @@ namespace Saxo.RedisCache
         public void KeyDelete(RedisKey[] primaryKeys)
         {
             Database.KeyDelete(primaryKeys);
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                ConnectionMultiplexer?.Dispose();
+            }
         }
     }
 }
