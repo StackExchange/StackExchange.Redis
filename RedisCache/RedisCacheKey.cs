@@ -5,8 +5,8 @@ namespace Saxo.RedisCache
 {
     public class RedisCacheKey
     {
-        public string PrimaryKey { get; set; }
-        public List<string> SecondaryKeys { get; set; }
+        public string PrimaryKey { get; }
+        public List<string> SecondaryKeys { get; }
 
         /// <summary>
         /// Initializes a new instance of RedisCacheKey that is empty. Only accessible internally.
@@ -39,7 +39,7 @@ namespace Saxo.RedisCache
         /// Initializes a new instance of RedisCacheKey holding only a list of secondary keys.
         /// </summary>
         /// <param name="secondaryKeys">A list of secondary keys assumed to be unique.</param>
-        public RedisCacheKey(List<string> secondaryKeys) : this()
+        public RedisCacheKey(IEnumerable<string> secondaryKeys) : this()
         {
             SecondaryKeys.AddRange(secondaryKeys);
         }
@@ -49,7 +49,7 @@ namespace Saxo.RedisCache
         /// </summary>
         /// <param name="primaryKey">A primary key assumed to be unique.</param>
         /// <param name="secondaryKeys">A list of secondary keys assumed to be unique.</param>
-        public RedisCacheKey(string primaryKey, List<string> secondaryKeys) : this(primaryKey)
+        public RedisCacheKey(string primaryKey, IEnumerable<string> secondaryKeys) : this(primaryKey)
         {
             SecondaryKeys.AddRange(secondaryKeys);
         }

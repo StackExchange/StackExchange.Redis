@@ -5,7 +5,7 @@ using StackExchange.Redis;
 
 namespace Saxo.RedisCache
 {
-    public class RedisCache
+    public class RedisCache : IDisposable
     {
         private readonly IRedisImplementation _cache;
 
@@ -134,6 +134,21 @@ namespace Saxo.RedisCache
                 primaryKeys.Where(key => !string.IsNullOrEmpty(key)).Select(key => (RedisKey)key).ToArray();
 
             _cache.KeyDelete(keysForLookup);
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                var disposable = _cache as IDisposable;
+                disposable?.Dispose();
+            }
         }
 
         /// <summary>
