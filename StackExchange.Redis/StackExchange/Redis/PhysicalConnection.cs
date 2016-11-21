@@ -32,6 +32,10 @@ namespace StackExchange.Redis
         {
             return result =>
             {   // can't capture AsyncState on SocketRead, so we'll do it once per physical instead
+                if (result.IsFaulted)
+                {
+                    GC.KeepAlive(result.Exception);
+                }
                 try
                 {
                     physical.Multiplexer.Trace("Completed asynchronously: processing in callback", physical.physicalName);
@@ -690,7 +694,7 @@ namespace StackExchange.Redis
                     Multiplexer.Trace("Beginning async read...", physicalName);
 #if CORE_CLR
                     var result = netStream.ReadAsync(ioBuffer, ioBufferBytes, space);
-                    switch(result.Status)
+                    switch (result.Status)
                     {
                         case TaskStatus.RanToCompletion:
                         case TaskStatus.Faulted:

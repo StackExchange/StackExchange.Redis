@@ -25,7 +25,7 @@ namespace StackExchange.Redis
     {
         internal volatile ServerEndPoint Master;
         internal volatile ServerEndPoint[] Slaves = NoSlaves;
-        private static readonly Regex nameSanitizer = new Regex("[^!-~]", InternalRegexCompiledOption.Default);
+        private static readonly Regex nameSanitizer = new Regex("[^!-~]", RegexOptions.Compiled);
         private static readonly ServerEndPoint[] NoSlaves = new ServerEndPoint[0];
         private readonly EndPoint endpoint;
 
@@ -101,7 +101,8 @@ namespace StackExchange.Redis
                 //check if subscription endpoint has a better lastexception
                 if (tmp2 != null && tmp2.LastException != null)
                 {
-                    if (!tmp2.LastException.Data["Redis-FailureType"].ToString().Equals(ConnectionFailureType.UnableToConnect.ToString()))
+                    var failureType = tmp2.LastException.Data["Redis-FailureType"];
+                    if (failureType != null && !failureType.ToString().Equals(ConnectionFailureType.UnableToConnect.ToString()))
                     {
                         return tmp2.LastException;
                     }

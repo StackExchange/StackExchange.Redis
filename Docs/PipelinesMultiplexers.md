@@ -1,7 +1,7 @@
 ﻿Pipelines and Multiplexers
 ===
 
-Latency sucks. Modern computers can churn data at an alarming rate, and high speed networking (often with multiple parallel links between important servers) provides enormous bandwidth, but... that damned latency means that computers spend an awful lot of time *waiting for data* (one of the several reasons that continuation-based programming is becoming increasingly popular. Let's consider some regular procedural code:
+Latency sucks. Modern computers can churn data at an alarming rate, and high speed networking (often with multiple parallel links between important servers) provides enormous bandwidth, but... that damned latency means that computers spend an awful lot of time *waiting for data* and that is one of the several reasons that continuation-based programming is becoming increasingly popular. Let's consider some regular procedural code:
 
 ```C#
 string a = db.StringGet("a");
@@ -97,7 +97,7 @@ Concurrency
 It should be noted that the pipeline / multiplexer / future-value approach also plays very nicely with continuation-based asynchronous code; for example you could write:
 
 ```C#
-string value = await db.StringGet(key);
+string value = await db.StringGetAsync(key);
 if (value == null) {
     value = await ComputeValueFromDatabase(...);
     db.StringSet(key, value, flags: CommandFlags.FireAndForget);

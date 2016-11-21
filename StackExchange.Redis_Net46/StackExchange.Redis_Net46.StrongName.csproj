@@ -18,7 +18,7 @@
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
     <OutputPath>bin.snk\Debug\</OutputPath>
-    <DefineConstants>TRACE;DEBUG;NET46 PLAT_SAFE_CONTINUATIONS STRONG_NAME FEATURE_SERIALIZATION FEATURE_SOCKET_MODE_POLL</DefineConstants>
+    <DefineConstants>TRACE;DEBUG;NET46 STRONG_NAME FEATURE_SERIALIZATION FEATURE_SOCKET_MODE_POLL</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -62,8 +62,8 @@
     <Reference Include="System.Core" />
     <Reference Include="System.IO.Compression" />
   </ItemGroup>
-    <ItemGroup>
-    <Compile Include="..\StackExchange.Redis\**\*.cs"/>
+  <ItemGroup>
+    <Compile Include="..\StackExchange.Redis\**\*.cs" Exclude="..\StackExchange.Redis\obj\**\*.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
