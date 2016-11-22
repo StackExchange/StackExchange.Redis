@@ -48,28 +48,28 @@ namespace StackExchange.Redis
         public double? DistanceFromCenter { get; }
 
         /// <summary>
-        /// The Geo Hash of the matched member as an integer. (The key in the sorted set)
+        /// The raw geohash-encoded sorted set score of the item, in the form of a 52 bit unsigned integer. This is only useful for low level hacks or debugging and is otherwise of little interest for the general user.
         /// </summary>
-        public long? GeoHash { get; }
+        public long? ScoreHash { get; }
 
         /// <summary>
         /// The coordinates of the matched member.
         /// </summary>
-        public GeoPosition? GeoPosition { get; }
+        public GeoPosition? Location { get; }
 
         /// <summary>
-        /// Returns a new GeoRadiusResult
+        /// Creates a new GeoRadiusResult
         /// </summary>
-        public GeoRadiusResult(RedisValue member,GeoRadius command,double? distanceFromCenter,long? geoHash,GeoPosition? geoPosition)
+        internal GeoRadiusResult(RedisValue member, GeoRadius command, double? distanceFromCenter, long? scoreHash, GeoPosition? location)
         {
             Member = member;
             Command = command;
             DistanceFromCenter = distanceFromCenter;
-            GeoHash = geoHash;
-            GeoPosition = geoPosition;
+            ScoreHash = scoreHash;
+            Location = location;
         }
 
-      
+
 
     }
 
@@ -86,7 +86,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The center point to base the search.
         /// </summary>
-        public GeoPosition GeoPosition { get; }
+        public GeoPosition Position { get; }
 
         /// <summary>
         /// The key to use.
@@ -101,7 +101,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The possible options for the GeoRadius command
         /// </summary>
-        public GeoRadiusOptions GeoRadiusOptions { get; }
+        public GeoRadiusOptions Options { get; }
 
         /// <summary>
         /// The maximum number of results to return.
@@ -112,19 +112,22 @@ namespace StackExchange.Redis
         /// <summary>
         /// Creates a new GeoRadius
         /// </summary>
-        public GeoRadius(RedisKey key,GeoPosition geoPosition,double radius,int maxReturnCount =-1,GeoUnit unit = GeoUnit.Meters,GeoRadiusOptions geoRadiusOptions = (GeoRadiusOptions.WithCoordinates | GeoRadiusOptions.WithDistance | GeoRadiusOptions.WithGeoHash))
+        public GeoRadius(RedisKey key, GeoPosition geoPosition, double radius, int maxReturnCount = -1, GeoUnit unit = GeoUnit.Meters, GeoRadiusOptions geoRadiusOptions = (GeoRadiusOptions.WithCoordinates | GeoRadiusOptions.WithDistance | GeoRadiusOptions.WithGeoHash))
         {
             Key = key;
-            GeoPosition = geoPosition;
+            Position = geoPosition;
             Radius = radius;
             Unit = unit;
-            GeoRadiusOptions = geoRadiusOptions;
+            Options = geoRadiusOptions;
             MaxReturnCount = maxReturnCount;
         }
 
+        /// <summary>
+        /// Indicates if the specified flag is set
+        /// </summary>
         public bool HasFlag(GeoRadiusOptions flag)
         {
-            return (GeoRadiusOptions & flag) != 0;
+            return (Options & flag) != 0;
         }
     }
 
@@ -146,9 +149,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Creates a new GeoPosition
         /// </summary>
-        /// <param name="longitude"></param>
-        /// <param name="latitude"></param>
-        public GeoPosition(double longitude,double latitude)
+        public GeoPosition(double longitude, double latitude)
         {
             Longitude = longitude;
             Latitude = latitude;
@@ -196,7 +197,7 @@ namespace StackExchange.Redis
         /// </summary>
         public static bool operator !=(GeoPosition x, GeoPosition y)
         {
-            return x.Longitude!= y.Longitude || x.Latitude != y.Latitude;
+            return x.Longitude != y.Longitude || x.Latitude != y.Latitude;
         }
     }
 
@@ -209,39 +210,39 @@ namespace StackExchange.Redis
         /// <summary>
         /// The name of the geo entry
         /// </summary>
-        public string Member { get; }
+        public RedisValue Member { get; }
 
         /// <summary>
         /// Describes the longitude and latitude of a GeoEntry
         /// </summary>
-        public GeoPosition Point { get; }
+        public GeoPosition Location { get; }
 
         /// <summary>
         /// Initializes a GeoEntry value
         /// </summary>
-        public GeoEntry(double longitude,double latitude,RedisValue member)
+        public GeoEntry(double longitude, double latitude, RedisValue member)
         {
             Member = member;
-            Point = new GeoPosition(longitude, latitude);
+            Location = new GeoPosition(longitude, latitude);
         }
 
-       
+
 
         /// <summary>
         /// The longitude of the geo entry
         /// </summary>
-        public double Longitude => Point.Longitude;
+        public double Longitude => Location.Longitude;
 
         /// <summary>
         /// The latitude of the geo entry
         /// </summary>
-        public double Latitude => Point.Latitude;
+        public double Latitude => Location.Latitude;
 
         /// <summary>
         /// See Object.ToString()
         /// </summary>
         public override string ToString()
-       {
+        {
             return $"({Longitude},{Latitude})={Member}";
         }
         /// <summary>
@@ -249,7 +250,7 @@ namespace StackExchange.Redis
         /// </summary>
         public override int GetHashCode()
         {
-            return Point.GetHashCode() ^ Member.GetHashCode();
+            return Location.GetHashCode() ^ Member.GetHashCode();
         }
         /// <summary>
         /// Compares two values for equality
@@ -270,14 +271,14 @@ namespace StackExchange.Redis
         /// </summary>
         public static bool operator ==(GeoEntry x, GeoEntry y)
         {
-            return Equals(x.Point, y.Point) && x.Member == y.Member;
+            return Equals(x.Location, y.Location) && x.Member == y.Member;
         }
         /// <summary>
         /// Compares two values for non-equality
         /// </summary>
         public static bool operator !=(GeoEntry x, GeoEntry y)
         {
-            return !Equals(x.Point, y.Point) || x.Member != y.Member;
+            return !Equals(x.Location, y.Location) || x.Member != y.Member;
         }
     }
 }

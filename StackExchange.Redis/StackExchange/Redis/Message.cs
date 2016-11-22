@@ -355,8 +355,8 @@ namespace StackExchange.Redis
             var redisValues = new List<RedisValue>();
             foreach (var value in values)
             {
-                redisValues.Add(value.Point.Longitude);
-                redisValues.Add(value.Point.Latitude);
+                redisValues.Add(value.Location.Longitude);
+                redisValues.Add(value.Location.Latitude);
                 redisValues.Add(value.Member);
             }
             return new CommandKeyValuesMessage(db,flags,command,key,redisValues.ToArray());

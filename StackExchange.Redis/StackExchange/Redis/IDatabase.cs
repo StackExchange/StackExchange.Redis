@@ -86,14 +86,14 @@ namespace StackExchange.Redis
         /// </summary>
         /// <returns>The command returns an array where each element is the Geohash corresponding to each member name passed as argument to the command.</returns>
         /// <remarks>http://redis.io/commands/geohash</remarks>
-        string[] GeoHash(RedisKey key, string[] members, CommandFlags flags = CommandFlags.None);
+        string[] GeoHash(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Return valid Geohash strings representing the position of one or more elements in a sorted set value representing a geospatial index (where elements were added using GEOADD).
         /// </summary>
         /// <returns>The command returns an array where each element is the Geohash corresponding to each member name passed as argument to the command.</returns>
         /// <remarks>http://redis.io/commands/geohash</remarks>
-        string[] GeoHash(RedisKey key, string member, CommandFlags flags = CommandFlags.None);
+        string GeoHash(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None);
 
 
         /// <summary>
@@ -101,14 +101,14 @@ namespace StackExchange.Redis
         /// </summary>
         /// <returns>The command returns an array where each element is a two elements array representing longitude and latitude (x,y) of each member name passed as argument to the command.Non existing elements are reported as NULL elements of the array.</returns>
         /// <remarks>http://redis.io/commands/geopos</remarks>
-        GeoPosition?[] GeoPos(RedisKey key, string[] members, CommandFlags flags = CommandFlags.None);
+        GeoPosition?[] GeoPos(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Return the positions (longitude,latitude) of all the specified members of the geospatial index represented by the sorted set at key.
         /// </summary>
         /// <returns>The command returns an array where each element is a two elements array representing longitude and latitude (x,y) of each member name passed as argument to the command.Non existing elements are reported as NULL elements of the array.</returns>
         /// <remarks>http://redis.io/commands/geopos</remarks>
-        GeoPosition? GeoPos(RedisKey key, string member, CommandFlags flags = CommandFlags.None);
+        GeoPosition? GeoPos(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Return the members of a sorted set populated with geospatial information using GEOADD, which are within the borders of the area specified with the center location and the maximum distance from the center (the radius).

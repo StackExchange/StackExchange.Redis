@@ -51,22 +51,22 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.GeoDistance(ToInner(key), value0, value1, geoUnit, flags);
         }
 
-        public string[] GeoHash(RedisKey key, string[] members, CommandFlags flags = CommandFlags.None)
+        public string[] GeoHash(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
         {
             return Inner.GeoHash(key, members, flags);
         }
 
-        public string[] GeoHash(RedisKey key, string member, CommandFlags flags = CommandFlags.None)
+        public string GeoHash(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
         {
             return Inner.GeoHash(key, member, flags);
         }
 
-        public GeoPosition?[] GeoPos(RedisKey key, string[] members, CommandFlags flags = CommandFlags.None)
+        public GeoPosition?[] GeoPos(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
         {
             return Inner.GeoPos(key, members, flags);
         }
 
-        public GeoPosition? GeoPos(RedisKey key, string member, CommandFlags flags = CommandFlags.None)
+        public GeoPosition? GeoPos(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
         {
             return Inner.GeoPos(key, member, flags);
         }
