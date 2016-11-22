@@ -78,12 +78,11 @@ namespace StackExchange.Redis
         /// </summary>
         public ServerCounters GetCounters()
         {
-            var snapshot = serverSnapshot;
-
+            var snapshots = serverSnapshot;
             var counters = new ServerCounters(null);
-            for (int i = 0; i < snapshot.Length; i++)
+            foreach (var snapshot in snapshots)
             {
-                counters.Add(snapshot[i].GetCounters());
+                counters.Add(snapshot.GetCounters());
             }
             unprocessableCompletionManager.GetCounters(counters.Other);
             return counters;
@@ -585,9 +584,8 @@ namespace StackExchange.Redis
             { }
             // if we get problems, need to give the non-failing ones time to finish
             // to be fair and reasonable
-            for (int i = 0; i < tasks.Length; i++)
+            foreach (var task in tasks)
             {
-                var task = tasks[i];
                 if (!task.IsCanceled && !task.IsCompleted && !task.IsFaulted)
                 {
                     var remaining = timeout - checked((int)watch.ElapsedMilliseconds);
@@ -679,9 +677,8 @@ namespace StackExchange.Redis
 
             // if we get problems, need to give the non-failing ones time to finish
             // to be fair and reasonable
-            for (int i = 0; i < tasks.Length; i++)
+            foreach (var task in tasks)
             {
-                var task = tasks[i];
                 if (!task.IsCanceled && !task.IsCompleted && !task.IsFaulted)
                 {
                     var remaining = timeoutMilliseconds - checked((int)watch.ElapsedMilliseconds);
@@ -972,8 +969,7 @@ namespace StackExchange.Redis
                 Trace("heartbeat");
 
                 var tmp = serverSnapshot;
-                for (int i = 0; i < tmp.Length; i++)
-                    tmp[i].OnHeartbeat();
+                foreach (var server in serverSnapshot) server.OnHeartbeat();
             } catch(Exception ex)
             {
                 OnInternalError(ex);
@@ -1084,7 +1080,7 @@ namespace StackExchange.Redis
             {
                 long total = 0;
                 var snapshot = serverSnapshot;
-                for (int i = 0; i < snapshot.Length; i++) total += snapshot[i].OperationCount;
+                long total = snapshot.Sum(server => server.OperationCount);
                 return total;
             }
         }
@@ -1665,22 +1661,12 @@ namespace StackExchange.Redis
         private ServerEndPoint SelectServerByElection(ServerEndPoint[] servers, string endpoint, TextWriter log)
         {
             if (servers == null || string.IsNullOrWhiteSpace(endpoint)) return null;
-            for (int i = 0; i < servers.Length; i++)
-            {
-                if (string.Equals(Format.ToString(servers[i].EndPoint), endpoint, StringComparison.OrdinalIgnoreCase))
-                    return servers[i];
-            }
+            var selectedServer = servers.First(server => string.Equals(Format.ToString(server.EndPoint), endpoint, StringComparison.OrdinalIgnoreCase));
             LogLocked(log, "...but we couldn't find that");
             var deDottedEndpoint = DeDotifyHost(endpoint);
-            for (int i = 0; i < servers.Length; i++)
-            {
-                if (string.Equals(DeDotifyHost(Format.ToString(servers[i].EndPoint)), deDottedEndpoint, StringComparison.OrdinalIgnoreCase))
-                {
-                    LogLocked(log, "...but we did find instead: {0}", deDottedEndpoint);
-                    return servers[i];
-                }
-            }
-            return null;
+            selectedServer = servers.First(server => string.Equals(DeDotifyHost(Format.ToString(server.EndPoint)), deDottedEndpoint, StringComparison.OrdinalIgnoreCase));
+            if (selectedServer != null) LogLocked(log, "...but we did find instead: {0}", deDottedEndpoint);
+            return selectedServer;        
         }
 
         static string DeDotifyHost(string input)
@@ -1824,10 +1810,7 @@ namespace StackExchange.Redis
         {
             get
             {
-                var tmp = serverSnapshot;
-                for (int i = 0; i < tmp.Length; i++)
-                    if (tmp[i].IsConnected) return true;
-                return false;
+                return serverSnapshot.Any(server => server.IsConnected);
             }
         }
 
