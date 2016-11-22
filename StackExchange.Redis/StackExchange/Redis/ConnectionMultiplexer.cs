@@ -611,8 +611,9 @@ namespace StackExchange.Redis
             {
                 var sb = new StringBuilder();
                 sb.Append(message);
-                string iocp, worker;
-                busyWorkerCount = GetThreadPoolStats(out iocp, out worker);
+                ThreadPoolStats iocp, worker;
+                ThreadPoolStats.Gather(out iocp, out worker);
+                busyWorkerCount = worker.Busy;
                 sb.Append(", IOCP: ").Append(iocp).Append(", WORKER: ").Append(worker);
                 LogLocked(log, sb.ToString());
             }
@@ -2002,14 +2003,29 @@ namespace StackExchange.Redis
                             var lastError = socketManager.LastErrorTimeRelative();
 
 #endif
-                            var sb = new StringBuilder("Timeout performing ").Append(message.CommandAndKey);
+                            var sb = new StringBuilder($"Timeout performing {message.CommandAndKey}.");
                             data = new List<Tuple<string, string>> {Tuple.Create("Message", message.CommandAndKey)};
+                            bool firstAdd = true;
                             Action<string, string, string> add = (lk, sk, v) =>
                             {
                                 data.Add(Tuple.Create(lk, v));
-                                sb.Append(", " + sk + ": " + v);
+                                if (!firstAdd) 
+                                    sb.Append(", ");
+                                sb.Append(sk + ": " + v);
+                                firstAdd = false;
                             };
 
+#if !CORE_CLR
+                            ThreadPoolStats iocp, worker;
+                            string localCpuPercent;
+                            AddTimeoutRootCauseIfPossible(sb, server, out iocp, out worker, out localCpuPercent);
+#else
+                            AppendTimeoutHelpLinkUrl(sb);
+#endif
+
+
+
+                            sb.Append(" Diagnostics Info: ");
                             int queue = server.GetOutstandingCount(message.Command, out inst, out qu, out qs, out qc, out wr, out wq, out @in, out ar);
                             add("Instantaneous", "inst", inst.ToString());
 #if FEATURE_SOCKET_MODE_POLL
@@ -2027,17 +2043,12 @@ namespace StackExchange.Redis
 
                             add("Client-Name", "clientName", ClientName);
 #if !CORE_CLR
-                            string iocp, worker;
-                            int busyWorkerCount = GetThreadPoolStats(out iocp, out worker);
-                            add("ThreadPool-IO-Completion", "IOCP", iocp);
-                            add("ThreadPool-Workers", "WORKER", worker);
-                            data.Add(Tuple.Create("Busy-Workers", busyWorkerCount.ToString()));
+                            add("ThreadPool-IO-Completion", "IOCP", iocp.ToString());
+                            add("ThreadPool-Workers", "WORKER", worker.ToString());
+                            data.Add(Tuple.Create("Busy-Workers", worker.Busy.ToString()));
 
-                            add("Local-CPU", "Local-CPU", GetSystemCpuPercent());
-#endif
-                            sb.Append(" (Please take a look at this article for some common client-side issues that can cause timeouts: ");
-                            sb.Append(timeoutHelpLink);
-                            sb.Append(")");
+                            add("Local-CPU", "Local-CPU", localCpuPercent);
+#endif                      
                             errMessage = sb.ToString();
                             if (stormLogThreshold >= 0 && queue >= stormLogThreshold && Interlocked.CompareExchange(ref haveStormLog, 1, 0) == 0)
                             {
@@ -2070,37 +2081,51 @@ namespace StackExchange.Redis
             }
         }
 
-#if !CORE_CLR
-        private static string GetSystemCpuPercent()
+        private static void AppendTimeoutHelpLinkUrl(StringBuilder sb)
         {
-            float systemCPU;
-            if (PerfCounterHelper.TryGetSystemCPU(out systemCPU))
-            {
-                return Math.Round(systemCPU, 2) + "%";
-            }
-            return "unavailable";
+            sb.Append(" Please take a look at this article for some tips for investigating timeouts: ");
+            sb.Append(timeoutHelpLink);
+            sb.Append(".");
         }
 
-        private static int GetThreadPoolStats(out string iocp, out string worker)
+#if !CORE_CLR
+        /// <summary>
+        /// Gathers system stats and appends detailed info about possible causes of timeouts to the error message StringBuilder
+        /// </summary>
+        private static void AddTimeoutRootCauseIfPossible(StringBuilder sb, ServerEndPoint server, out ThreadPoolStats iocp, out ThreadPoolStats worker, out string localCpuPercent)
         {
-            //BusyThreads =  TP.GetMaxThreads() –TP.GetAVailable();
-            //If BusyThreads >= TP.GetMinThreads(), then threadpool growth throttling is possible.
+            localCpuPercent = "unavalable";
+            ThreadPoolStats.Gather(out iocp, out worker);
 
-            int maxIoThreads, maxWorkerThreads;
-            ThreadPool.GetMaxThreads(out maxWorkerThreads, out maxIoThreads);
+            float systemCPU;
+            bool gotCpuUsageSuccessfully = PerfCounterHelper.TryGetSystemCPU(out systemCPU);
 
-            int freeIoThreads, freeWorkerThreads;
-            ThreadPool.GetAvailableThreads(out freeWorkerThreads, out freeIoThreads);
+            if (server.ConnectionState != PhysicalBridge.State.ConnectedEstablished)
+            {
+                sb.Append($" The connection to the server was lost and was not restored in the timeout specified.");
+                return; // don't add IOCP and CPU details to the error message because connection management trumps all other causes of timeouts.
+            }
 
-            int minIoThreads, minWorkerThreads;
-            ThreadPool.GetMinThreads(out minWorkerThreads, out minIoThreads);
+            bool timeoutHelpLinkAdded = false;
+            if (iocp.Busy > iocp.Min || worker.Busy > worker.Min)
+            {
+                timeoutHelpLinkAdded = true;
+                sb.Append($" The number of busy IOCP or WORKER threads in the ThreadPool is greater than the 'Min' setting, which could easily be the cause of this timeout.  See https://github.com/StackExchange/StackExchange.Redis/blob/master/Docs/Timeouts.md#are-you-seeing-high-number-of-busyio-or-busyworker-threads-in-the-timeout-exception for details on how ThreadPool Growth Throttling can affect performance.");
+            }
+            
+            if (gotCpuUsageSuccessfully)
+            {
+                localCpuPercent = Math.Round(systemCPU, 2) + "%";
+                if (systemCPU > 85)
+                {
+                    sb.Append($" This timeout may be a result of the local CPU usage being high ({localCpuPercent}).");
+                }
+            }
 
-            int busyIoThreads = maxIoThreads - freeIoThreads;
-            int busyWorkerThreads = maxWorkerThreads - freeWorkerThreads;
-
-            iocp = $"(Busy={busyIoThreads},Free={freeIoThreads},Min={minIoThreads},Max={maxIoThreads})";
-            worker = $"(Busy={busyWorkerThreads},Free={freeWorkerThreads},Min={minWorkerThreads},Max={maxWorkerThreads})";
-            return busyWorkerThreads;
+            if (!timeoutHelpLinkAdded)
+            {
+                AppendTimeoutHelpLinkUrl(sb);
+            }
         }
 #endif
 
