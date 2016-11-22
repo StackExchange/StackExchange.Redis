@@ -66,6 +66,13 @@ namespace StackExchange.Redis
 
         public static readonly ResultProcessor<RedisValue[]>
             RedisValueArray = new RedisValueArrayProcessor();
+
+        public static readonly ResultProcessor<GeoPosition?[]>
+            RedisGeoPosition = new RedisValueGeoPositionProcessor();
+
+        public static readonly ResultProcessor<RawResult[]>
+            RedisGeoRadius = new RedisGeoRadiusProcessor();
+
         public static readonly ResultProcessor<TimeSpan>
             ResponseTimer = new TimingProcessor();
 
@@ -1088,6 +1095,39 @@ namespace StackExchange.Redis
                 return false;
             }
         }
+        
+        sealed class RedisValueGeoPositionProcessor : ResultProcessor<GeoPosition?[]>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            {
+                switch (result.Type)
+                {
+                    case ResultType.MultiBulk:
+                        var arr = result.GetItemsAsGeoPositionArray();
+
+                        SetResult(message, arr);
+                        return true;
+                }
+                return false;
+            }
+        }
+
+        sealed class RedisGeoRadiusProcessor : ResultProcessor<RawResult[]>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            {
+                switch (result.Type)
+                {
+                    case ResultType.MultiBulk:
+                        var arr = result.GetItemsAsRawResults();
+
+                        SetResult(message, arr);
+                        return true;
+                }
+                return false;
+            }
+        }
+
         sealed class RedisValueProcessor : ResultProcessor<RedisValue>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
