@@ -13,17 +13,14 @@ namespace StackExchange.Redis.Tests
     public class Cluster : TestBase
     {
         //private const string ClusterIp = "192.168.0.15";  // marc
-        private const string ClusterIp = "10.110.11.102";   // kmontrose
+        //private const string ClusterIp = "10.110.11.102";   // kmontrose
+        private const string ClusterIp = "127.0.0.1";
         private const int ServerCount = 6, FirstPort = 7000;
 
         protected override string GetConfiguration()
         {
             var server = ClusterIp;
-#if !CORE_CLR
-            if (string.Equals(Environment.MachineName, "MARC-LAPTOP", StringComparison.InvariantCultureIgnoreCase))
-#else
-            if (string.Equals(Environment.GetEnvironmentVariable("COMPUTERNAME"), "MARC-LAPTOP", StringComparison.OrdinalIgnoreCase))
-#endif
+            if (string.Equals(Environment.MachineName, "MARC-LAPTOP", StringComparison.OrdinalIgnoreCase))
             {
                 server = "192.168.56.101";
             }

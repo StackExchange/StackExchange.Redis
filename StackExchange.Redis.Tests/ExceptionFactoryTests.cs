@@ -25,7 +25,7 @@ namespace StackExchange.Redis.Tests
             var ex = ExceptionFactory.NoConnectionAvailable(true, new RedisCommand(), null, null, null);
             Assert.Null(ex.InnerException);
         }
-
+#if DEBUG // needs debug connection features
         [Test]
         public void MultipleEndpointsThrowAggregateException()
         {
@@ -108,6 +108,6 @@ namespace StackExchange.Redis.Tests
             }
 
         }
-
+#endif
     }
 }

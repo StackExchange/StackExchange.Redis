@@ -38,15 +38,6 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        private static void GetAzureCredentials(out string name, out string password)
-        {
-            var lines = File.ReadAllLines(@"d:\dev\azure.txt");
-            if (lines == null || lines.Length != 2)
-                Assert.Inconclusive("azure credentials missing");
-            name = lines[0];
-            password = lines[1];
-        }
-
         [Test]
         [TestCase(false, false)]
         [TestCase(true, false)]
