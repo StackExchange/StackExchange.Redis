@@ -18,5 +18,6 @@ namespace Saxo.RedisCache
         void KeyDelete(RedisKey[] primaryKey);
 
         void Clear();
+        void ClearByTag(string tag);
     }
 }
