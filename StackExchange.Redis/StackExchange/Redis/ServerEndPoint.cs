@@ -215,7 +215,7 @@ namespace StackExchange.Redis
                 multiplexer.Trace("Updating cluster ranges...");
                 multiplexer.UpdateClusterRange(configuration);
                 multiplexer.Trace("Resolving genealogy...");
-                var thisNode = configuration.Nodes.FirstOrDefault(x => x.EndPoint == this.EndPoint);
+                var thisNode = configuration.Nodes.FirstOrDefault(x => x.EndPoint.Equals(this.EndPoint));
                 if (thisNode != null)
                 {
                     List<ServerEndPoint> slaves = null;
