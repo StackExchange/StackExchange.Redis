@@ -13,7 +13,7 @@
     }
   },
   "title": "StackExchange.Redis",
-  "version": "1.1.608-*",
+  "version": "1.2.0-alpha1",
   "description": "High performance Redis client, incorporating both synchronous and asynchronous usage.",
   "authors": [ "Stack Exchange inc., marc.gravell" ],
   "copyright": "Stack Exchange inc. 2014-",
