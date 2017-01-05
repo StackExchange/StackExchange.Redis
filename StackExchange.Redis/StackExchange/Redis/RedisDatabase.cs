@@ -1145,28 +1145,45 @@ namespace StackExchange.Redis
             var msg = GetSortedSetAddMessage(default(RedisKey), key, skip, take, order, sortType, by, get, flags);
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray);
         }
-
-        public bool SortedSetAdd(RedisKey key, RedisValue member, double score, CommandFlags flags = CommandFlags.None)
+        public bool SortedSetAdd(RedisKey key, RedisValue member, double score, CommandFlags flags)
         {
-            var msg = Message.Create(Database, flags, RedisCommand.ZADD, key, score, member);
+            var msg = GetSortedSetAddMessage(key, member, score, When.Always, flags);
             return ExecuteSync(msg, ResultProcessor.Boolean);
         }
-
-        public long SortedSetAdd(RedisKey key, SortedSetEntry[] values, CommandFlags flags = CommandFlags.None)
+        public bool SortedSetAdd(RedisKey key, RedisValue member, double score, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetSortedSetAddMessage(key, values, flags);
+            var msg = GetSortedSetAddMessage(key, member, score, when, flags);
+            return ExecuteSync(msg, ResultProcessor.Boolean);
+        }
+        public long SortedSetAdd(RedisKey key, SortedSetEntry[] values, CommandFlags flags)
+        {
+            var msg = GetSortedSetAddMessage(key, values, When.Always, flags);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+        public long SortedSetAdd(RedisKey key, SortedSetEntry[] values, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetSortedSetAddMessage(key, values, when, flags);
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
-        public Task<bool> SortedSetAddAsync(RedisKey key, RedisValue member, double score, CommandFlags flags = CommandFlags.None)
+        public Task<bool> SortedSetAddAsync(RedisKey key, RedisValue member, double score, CommandFlags flags)
         {
-            var msg = Message.Create(Database, flags, RedisCommand.ZADD, key, score, member);
+            var msg = GetSortedSetAddMessage(key, member, score, When.Always, flags);
             return ExecuteAsync(msg, ResultProcessor.Boolean);
         }
-
-        public Task<long> SortedSetAddAsync(RedisKey key, SortedSetEntry[] values, CommandFlags flags = CommandFlags.None)
+        public Task<bool> SortedSetAddAsync(RedisKey key, RedisValue member, double score, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetSortedSetAddMessage(key, values, flags);
+            var msg = GetSortedSetAddMessage(key, member, score, when, flags);
+            return ExecuteAsync(msg, ResultProcessor.Boolean);
+        }
+        public Task<long> SortedSetAddAsync(RedisKey key, SortedSetEntry[] values, CommandFlags flags)
+        {
+            var msg = GetSortedSetAddMessage(key, values, When.Always, flags);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
+        public Task<long> SortedSetAddAsync(RedisKey key, SortedSetEntry[] values, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetSortedSetAddMessage(key, values, when, flags);
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
@@ -1741,22 +1758,45 @@ namespace StackExchange.Redis
             return Message.Create(Database, flags, RedisCommand.RESTORE, key, pttl, value);
         }
 
-        private Message GetSortedSetAddMessage(RedisKey key, SortedSetEntry[] values, CommandFlags flags)
+        private Message GetSortedSetAddMessage(RedisKey key, RedisValue member, double score, When when, CommandFlags flags)
         {
+            WhenAlwaysOrExistsOrNotExists(when);
+            switch (when)
+            {
+                case When.Always: return Message.Create(Database, flags, RedisCommand.ZADD, key, score, member);
+                case When.NotExists: return Message.Create(Database, flags, RedisCommand.ZADD, key, RedisLiterals.NX, score, member);
+                case When.Exists: return Message.Create(Database, flags, RedisCommand.ZADD, key, RedisLiterals.XX, score, member);
+                default: throw new ArgumentOutOfRangeException(nameof(when));
+            }
+        }
+
+        private Message GetSortedSetAddMessage(RedisKey key, SortedSetEntry[] values, When when, CommandFlags flags)
+        {
+            WhenAlwaysOrExistsOrNotExists(when);
             if (values == null) throw new ArgumentNullException(nameof(values));
             switch (values.Length)
             {
                 case 0: return null;
                 case 1:
-                    return Message.Create(Database, flags, RedisCommand.ZADD, key,
-                        values[0].score, values[0].element);
-                case 2:
-                    return Message.Create(Database, flags, RedisCommand.ZADD, key,
-                        values[0].score, values[0].element,
-                        values[1].score, values[1].element);
+                    return GetSortedSetAddMessage(key, values[0].element, values[0].score, when, flags);
                 default:
-                    var arr = new RedisValue[values.Length * 2];
+                    RedisValue[] arr;
                     int index = 0;
+                    switch (when)
+                    {
+                        case When.Always:
+                            arr = new RedisValue[values.Length * 2];
+                            break;
+                        case When.NotExists:
+                            arr = new RedisValue[values.Length * 2 + 1];
+                            arr[index++] = RedisLiterals.NX;
+                            break;
+                        case When.Exists:
+                            arr = new RedisValue[values.Length * 2 + 1];
+                            arr[index++] = RedisLiterals.XX;
+                            break;
+                        default: throw new ArgumentOutOfRangeException(nameof(when));
+                    }
                     for (int i = 0; i < values.Length; i++)
                     {
                         arr[index++] = values[i].score;

@@ -13,14 +13,16 @@ namespace StackExchange.Redis.Tests.Issues
                 var db = conn.GetDatabase(0);
                 RedisKey key = Me();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
-                db.SortedSetAdd(key, "c", 3, CommandFlags.FireAndForget);
+                db.SortedSetAdd(key, "c", 3, When.Always, CommandFlags.FireAndForget);
                 db.SortedSetAdd(key,
                     new[] {
                         new SortedSetEntry("a", 1),
                         new SortedSetEntry("b", 2),
                         new SortedSetEntry("d", 4),
                         new SortedSetEntry("e", 5)
-                    }, CommandFlags.FireAndForget);
+                    },
+                    When.Always,
+                    CommandFlags.FireAndForget);
                 var pairs = db.SortedSetRangeByScoreWithScores(
                     key, order: Order.Descending, take: 3);
                 Assert.AreEqual(3, pairs.Length);

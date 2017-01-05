@@ -638,16 +638,16 @@ namespace StackExchange.Redis.Tests
         [Test]
         public void SortedSetAdd_1()
         {
-            wrapper.SortedSetAdd("key", "member", 1.23, CommandFlags.HighPriority);
-            mock.Verify(_ => _.SortedSetAdd("prefix:key", "member", 1.23, CommandFlags.HighPriority));
+            wrapper.SortedSetAdd("key", "member", 1.23, When.Exists, CommandFlags.HighPriority);
+            mock.Verify(_ => _.SortedSetAdd("prefix:key", "member", 1.23, When.Exists, CommandFlags.HighPriority));
         }
 
         [Test]
         public void SortedSetAdd_2()
         {
             SortedSetEntry[] values = new SortedSetEntry[0];
-            wrapper.SortedSetAdd("key", values, CommandFlags.HighPriority);
-            mock.Verify(_ => _.SortedSetAdd("prefix:key", values, CommandFlags.HighPriority));
+            wrapper.SortedSetAdd("key", values, When.Exists, CommandFlags.HighPriority);
+            mock.Verify(_ => _.SortedSetAdd("prefix:key", values, When.Exists, CommandFlags.HighPriority));
         }
 
         [Test]

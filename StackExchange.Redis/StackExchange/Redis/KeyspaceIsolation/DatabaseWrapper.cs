@@ -415,15 +415,22 @@ namespace StackExchange.Redis.KeyspaceIsolation
         {
             return Inner.Sort(ToInner(key), skip, take, order, sortType, SortByToInner(by), SortGetToInner(get), flags);
         }
-
-        public long SortedSetAdd(RedisKey key, SortedSetEntry[] values, CommandFlags flags = CommandFlags.None)
+        public long SortedSetAdd(RedisKey key, SortedSetEntry[] values, CommandFlags flags)
         {
             return Inner.SortedSetAdd(ToInner(key), values, flags);
         }
+        public long SortedSetAdd(RedisKey key, SortedSetEntry[] values, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.SortedSetAdd(ToInner(key), values, when, flags);
+        }
 
-        public bool SortedSetAdd(RedisKey key, RedisValue member, double score, CommandFlags flags = CommandFlags.None)
+        public bool SortedSetAdd(RedisKey key, RedisValue member, double score, CommandFlags flags)
         {
             return Inner.SortedSetAdd(ToInner(key), member, score, flags);
+        }
+        public bool SortedSetAdd(RedisKey key, RedisValue member, double score, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.SortedSetAdd(ToInner(key), member, score, when, flags);
         }
 
         public long SortedSetCombineAndStore(SetOperation operation, RedisKey destination, RedisKey[] keys, double[] weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None)
