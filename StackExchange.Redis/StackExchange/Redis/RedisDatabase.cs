@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace StackExchange.Redis
@@ -92,17 +93,16 @@ namespace StackExchange.Redis
             return SortedSetRemoveAsync(key, member, flags);
         }
 
-        public double GeoDistance(RedisKey key, RedisValue value0, RedisValue value1, GeoUnit unit = GeoUnit.Meters, CommandFlags flags = CommandFlags.None)
+        public double? GeoDistance(RedisKey key, RedisValue value0, RedisValue value1, GeoUnit unit = GeoUnit.Meters, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.GEODIST, key, value0, value1, StackExchange.Redis.GeoPosition.GetRedisUnit(unit));
-            return ExecuteSync(msg, ResultProcessor.Double);
+            return ExecuteSync(msg, ResultProcessor.NullableDouble);
         }
-        public Task<double> GeoDistanceAsync(RedisKey key, RedisValue value0, RedisValue value1, GeoUnit unit = GeoUnit.Meters, CommandFlags flags = CommandFlags.None)
+        public Task<double?> GeoDistanceAsync(RedisKey key, RedisValue value0, RedisValue value1, GeoUnit unit = GeoUnit.Meters, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.GEODIST, key, value0, value1, StackExchange.Redis.GeoPosition.GetRedisUnit(unit));
-            return ExecuteAsync(msg, ResultProcessor.Double);
+            return ExecuteAsync(msg, ResultProcessor.NullableDouble);
         }
-
         public string[] GeoHash(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
         {
             if (members == null) throw new ArgumentNullException(nameof(members));
@@ -158,6 +158,13 @@ namespace StackExchange.Redis
             var msg = Message.Create(Database, flags, RedisCommand.GEOPOS, key, member);
             return ExecuteAsync(msg, ResultProcessor.RedisGeoPosition);
         }
+        static readonly RedisValue
+            WITHCOORD = Encoding.ASCII.GetBytes("WITHCOORD"),
+            WITHDIST = Encoding.ASCII.GetBytes("WITHDIST"),
+            WITHHASH = Encoding.ASCII.GetBytes("WITHHASH"),
+            COUNT = Encoding.ASCII.GetBytes("COUNT"),
+            ASC = Encoding.ASCII.GetBytes("ASC"),
+            DESC = Encoding.ASCII.GetBytes("DESC");
         private Message GetGeoRadiusMessage(RedisKey key, RedisValue? member, double longitude, double latitude, double radius, GeoUnit unit, int count, Order? order, GeoRadiusOptions options, CommandFlags flags)
         {
             var redisValues = new List<RedisValue>();
@@ -175,16 +182,20 @@ namespace StackExchange.Redis
             }
             redisValues.Add(radius);
             redisValues.Add(StackExchange.Redis.GeoPosition.GetRedisUnit(unit));
-            if ((options & GeoRadiusOptions.WithCoordinates) != 0) redisValues.Add("WITHCOORD");
-            if ((options & GeoRadiusOptions.WithDistance) != 0) redisValues.Add("WITHDIST");
-            if ((options & GeoRadiusOptions.WithGeoHash) != 0) redisValues.Add("WITHHASH");
-            if (count > 0) redisValues.Add(count);
+            if ((options & GeoRadiusOptions.WithCoordinates) != 0) redisValues.Add(WITHCOORD);
+            if ((options & GeoRadiusOptions.WithDistance) != 0) redisValues.Add(WITHDIST);
+            if ((options & GeoRadiusOptions.WithGeoHash) != 0) redisValues.Add(WITHHASH);
+            if (count > 0)
+            {
+                redisValues.Add(COUNT);
+                redisValues.Add(count);
+            }
             if (order != null)
             {
                 switch (order.Value)
                 {
-                    case Order.Ascending: redisValues.Add("ASC"); break;
-                    case Order.Descending: redisValues.Add("DESC"); break;
+                    case Order.Ascending: redisValues.Add(ASC); break;
+                    case Order.Descending: redisValues.Add(DESC); break;
                     default: throw new ArgumentOutOfRangeException(nameof(order));
                 }
             }

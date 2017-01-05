@@ -1293,6 +1293,14 @@ The coordinates as a two items x,y array (longitude,latitude).
                     case ResultType.BulkString:
                         SetResult(message, result.GetString());
                         return true;
+                    case ResultType.MultiBulk:
+                        var arr = result.GetItems();
+                        if(arr.Length == 1)
+                        {
+                            SetResult(message, arr[0].GetString());
+                            return true;
+                        }
+                        break;
                 }
                 return false;
             }

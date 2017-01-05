@@ -36,7 +36,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<bool> GeoRemoveAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
             => Inner.GeoRemoveAsync(ToInner(key), member, flags);
 
-        public Task<double> GeoDistanceAsync(RedisKey key, RedisValue member1, RedisValue member2, GeoUnit unit = GeoUnit.Meters, CommandFlags flags = CommandFlags.None)
+        public Task<double?> GeoDistanceAsync(RedisKey key, RedisValue member1, RedisValue member2, GeoUnit unit = GeoUnit.Meters, CommandFlags flags = CommandFlags.None)
             => Inner.GeoDistanceAsync(ToInner(key), member1, member2, unit, flags);
 
         public Task<string[]> GeoHashAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)

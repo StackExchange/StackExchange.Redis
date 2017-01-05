@@ -37,6 +37,10 @@ namespace StackExchange.Redis
     public struct GeoRadiusResult
     {
         /// <summary>
+        /// Indicate the member being represented
+        /// </summary>
+        public override string ToString() => Member.ToString();
+        /// <summary>
         /// The matched member.
         /// </summary>
         public RedisValue Member { get; }
@@ -169,7 +173,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Describes the longitude and latitude of a GeoEntry
         /// </summary>
-        public GeoPosition Point { get; }
+        public GeoPosition Position { get; }
 
         /// <summary>
         /// Initializes a GeoEntry value
@@ -177,7 +181,7 @@ namespace StackExchange.Redis
         public GeoEntry(double longitude, double latitude, RedisValue member)
         {
             Member = member;
-            Point = new GeoPosition(longitude, latitude);
+            Position = new GeoPosition(longitude, latitude);
         }
 
 
@@ -185,12 +189,12 @@ namespace StackExchange.Redis
         /// <summary>
         /// The longitude of the geo entry
         /// </summary>
-        public double Longitude => Point.Longitude;
+        public double Longitude => Position.Longitude;
 
         /// <summary>
         /// The latitude of the geo entry
         /// </summary>
-        public double Latitude => Point.Latitude;
+        public double Latitude => Position.Latitude;
 
         /// <summary>
         /// See Object.ToString()
@@ -204,7 +208,7 @@ namespace StackExchange.Redis
         /// </summary>
         public override int GetHashCode()
         {
-            return Point.GetHashCode() ^ Member.GetHashCode();
+            return Position.GetHashCode() ^ Member.GetHashCode();
         }
         /// <summary>
         /// Compares two values for equality
@@ -225,14 +229,14 @@ namespace StackExchange.Redis
         /// </summary>
         public static bool operator ==(GeoEntry x, GeoEntry y)
         {
-            return x.Point == y.Point && x.Member == y.Member;
+            return x.Position == y.Position && x.Member == y.Member;
         }
         /// <summary>
         /// Compares two values for non-equality
         /// </summary>
         public static bool operator !=(GeoEntry x, GeoEntry y)
         {
-            return x.Point != y.Point || x.Member != y.Member;
+            return x.Position != y.Position || x.Member != y.Member;
         }
     }
 }
