@@ -27,7 +27,8 @@ namespace StackExchange.Redis
                                          v2_8_12 = new Version(2, 8, 12),
                                          v2_8_18 = new Version(2, 8, 18),
                                          v2_9_5 = new Version(2, 9, 5),
-                                         v3_0_0 = new Version(3, 0, 0);
+                                         v3_0_0 = new Version(3, 0, 0),
+                                         v3_2_0 = new Version(3, 2, 0);
 
         private readonly Version version;
         /// <summary>
@@ -143,6 +144,11 @@ namespace StackExchange.Redis
         /// Is PFCOUNT supported on slaves?
         /// </summary>
         public bool HyperLogLogCountSlaveSafe => Version >= v2_8_18;
+
+        /// <summary>
+        /// Are the GEO commands available?
+        /// </summary>
+        public bool Geo => Version >= v3_2_0;
 
         /// <summary>
         /// The Redis version of the server
