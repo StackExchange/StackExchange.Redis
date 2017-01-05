@@ -86,6 +86,13 @@ namespace StackExchange.Redis
                 serverSnapshot = new ServerEndPoint[] { server };
             }
             string exceptionmessage = "No connection is available to service this operation: " + s ;
+
+#if !CORE_CLR
+            if (includeDetail)
+            {
+                exceptionmessage += ". " + ConnectionMultiplexer.GetThreadPoolAndCPUSummary();
+            }
+#endif
             var ex = new RedisConnectionException(ConnectionFailureType.UnableToResolvePhysicalConnection, exceptionmessage, GetServerSnapshotInnerExceptions(serverSnapshot));
             if (includeDetail)
             {

@@ -2078,6 +2078,14 @@ namespace StackExchange.Redis
         }
 
 #if !CORE_CLR
+        internal static string GetThreadPoolAndCPUSummary()
+        {
+            string iocp, worker;
+            GetThreadPoolStats(out iocp, out worker);
+            var cpu = GetSystemCpuPercent();
+            return $"IOCP: {iocp}, WORKER: {worker}, Local-CPU: {cpu}";
+        }
+
         private static string GetSystemCpuPercent()
         {
             float systemCPU;
