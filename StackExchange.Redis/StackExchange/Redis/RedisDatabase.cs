@@ -1145,25 +1145,42 @@ namespace StackExchange.Redis
             var msg = GetSortedSetAddMessage(default(RedisKey), key, skip, take, order, sortType, by, get, flags);
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray);
         }
-
+        public bool SortedSetAdd(RedisKey key, RedisValue member, double score, CommandFlags flags)
+        {
+            var msg = GetSortedSetAddMessage(key, member, score, When.Always, flags);
+            return ExecuteSync(msg, ResultProcessor.Boolean);
+        }
         public bool SortedSetAdd(RedisKey key, RedisValue member, double score, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetSortedSetAddMessage(key, member, score, when, flags);
             return ExecuteSync(msg, ResultProcessor.Boolean);
         }
-
+        public long SortedSetAdd(RedisKey key, SortedSetEntry[] values, CommandFlags flags)
+        {
+            var msg = GetSortedSetAddMessage(key, values, When.Always, flags);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
         public long SortedSetAdd(RedisKey key, SortedSetEntry[] values, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetSortedSetAddMessage(key, values, when, flags);
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
+        public Task<bool> SortedSetAddAsync(RedisKey key, RedisValue member, double score, CommandFlags flags)
+        {
+            var msg = GetSortedSetAddMessage(key, member, score, When.Always, flags);
+            return ExecuteAsync(msg, ResultProcessor.Boolean);
+        }
         public Task<bool> SortedSetAddAsync(RedisKey key, RedisValue member, double score, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetSortedSetAddMessage(key, member, score, when, flags);
             return ExecuteAsync(msg, ResultProcessor.Boolean);
         }
-
+        public Task<long> SortedSetAddAsync(RedisKey key, SortedSetEntry[] values, CommandFlags flags)
+        {
+            var msg = GetSortedSetAddMessage(key, values, When.Always, flags);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
         public Task<long> SortedSetAddAsync(RedisKey key, SortedSetEntry[] values, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetSortedSetAddMessage(key, values, when, flags);

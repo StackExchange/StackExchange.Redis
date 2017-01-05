@@ -416,11 +416,19 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.SortAsync(ToInner(key), skip, take, order, sortType, SortByToInner(by), SortGetToInner(get), flags);
         }
 
+        public Task<long> SortedSetAddAsync(RedisKey key, SortedSetEntry[] values, CommandFlags flags)
+        {
+            return Inner.SortedSetAddAsync(ToInner(key), values, flags);
+        }
         public Task<long> SortedSetAddAsync(RedisKey key, SortedSetEntry[] values, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
             return Inner.SortedSetAddAsync(ToInner(key), values, when, flags);
         }
 
+        public Task<bool> SortedSetAddAsync(RedisKey key, RedisValue member, double score, CommandFlags flags)
+        {
+            return Inner.SortedSetAddAsync(ToInner(key), member, score, flags);
+        }
         public Task<bool> SortedSetAddAsync(RedisKey key, RedisValue member, double score, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
             return Inner.SortedSetAddAsync(ToInner(key), member, score, when, flags);

@@ -596,7 +596,21 @@ namespace StackExchange.Redis
         /// </summary>
         /// <returns>True if the value was added, False if it already existed (the score is still updated)</returns>
         /// <remarks>http://redis.io/commands/zadd</remarks>
+        Task<bool> SortedSetAddAsync(RedisKey key, RedisValue member, double score, CommandFlags flags);
+
+        /// <summary>
+        /// Adds the specified member with the specified score to the sorted set stored at key. If the specified member is already a member of the sorted set, the score is updated and the element reinserted at the right position to ensure the correct ordering.
+        /// </summary>
+        /// <returns>True if the value was added, False if it already existed (the score is still updated)</returns>
+        /// <remarks>http://redis.io/commands/zadd</remarks>
         Task<bool> SortedSetAddAsync(RedisKey key, RedisValue member, double score, When when = When.Always, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Adds all the specified members with the specified scores to the sorted set stored at key. If a specified member is already a member of the sorted set, the score is updated and the element reinserted at the right position to ensure the correct ordering.
+        /// </summary>
+        /// <returns>The number of elements added to the sorted sets, not including elements already existing for which the score was updated.</returns>
+        /// <remarks>http://redis.io/commands/zadd</remarks>
+        Task<long> SortedSetAddAsync(RedisKey key, SortedSetEntry[] values, CommandFlags flags);
 
         /// <summary>
         /// Adds all the specified members with the specified scores to the sorted set stored at key. If a specified member is already a member of the sorted set, the score is updated and the element reinserted at the right position to ensure the correct ordering.
