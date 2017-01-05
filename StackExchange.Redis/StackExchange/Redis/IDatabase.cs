@@ -45,6 +45,86 @@ namespace StackExchange.Redis
         RedisValue DebugObject(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Add the specified member to the set stored at key. Specified members that are already a member of this set are ignored. If key does not exist, a new set is created before adding the specified members.
+        /// </summary>
+        /// <returns>True if the specified member was not already present in the set, else False</returns>
+        /// <remarks>http://redis.io/commands/geoadd</remarks>
+        bool GeoAdd(RedisKey key, double longitude, double latitude, RedisValue member, CommandFlags flags = CommandFlags.None);
+
+
+        /// <summary>
+        /// Add the specified member to the set stored at key. Specified members that are already a member of this set are ignored. If key does not exist, a new set is created before adding the specified members.
+        /// </summary>
+        /// <returns>True if the specified member was not already present in the set, else False</returns>
+        /// <remarks>http://redis.io/commands/geoadd</remarks>
+        bool GeoAdd(RedisKey key, StackExchange.Redis.GeoEntry value, CommandFlags flags = CommandFlags.None);
+
+
+        /// <summary>
+        /// Add the specified members to the set stored at key. Specified members that are already a member of this set are ignored. If key does not exist, a new set is created before adding the specified members.
+        /// </summary>
+        /// <returns>the number of elements that were added to the set, not including all the elements already present into the set.</returns>
+        /// <remarks>http://redis.io/commands/geoadd</remarks>
+        long GeoAdd(RedisKey key, GeoEntry[] values, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Removes the specified member from the geo sorted set stored at key. Non existing members are ignored.
+        /// </summary>
+        /// <returns>True if the member existed in the sorted set and was removed; False otherwise.</returns>
+        /// <remarks>http://redis.io/commands/zrem</remarks>
+        bool GeoRemove(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Return the distance between two members in the geospatial index represented by the sorted set.
+        /// </summary>
+        /// <returns>The command returns the distance as a double (represented as a string) in the specified unit, or NULL if one or both the elements are missing.</returns>
+        /// <remarks>http://redis.io/commands/geodist</remarks>
+        double? GeoDistance(RedisKey key, RedisValue member1, RedisValue member2, GeoUnit unit = GeoUnit.Meters, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Return valid Geohash strings representing the position of one or more elements in a sorted set value representing a geospatial index (where elements were added using GEOADD).
+        /// </summary>
+        /// <returns>The command returns an array where each element is the Geohash corresponding to each member name passed as argument to the command.</returns>
+        /// <remarks>http://redis.io/commands/geohash</remarks>
+        string[] GeoHash(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Return valid Geohash strings representing the position of one or more elements in a sorted set value representing a geospatial index (where elements were added using GEOADD).
+        /// </summary>
+        /// <returns>The command returns an array where each element is the Geohash corresponding to each member name passed as argument to the command.</returns>
+        /// <remarks>http://redis.io/commands/geohash</remarks>
+        string GeoHash(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None);
+
+
+        /// <summary>
+        /// Return the positions (longitude,latitude) of all the specified members of the geospatial index represented by the sorted set at key.
+        /// </summary>
+        /// <returns>The command returns an array where each element is a two elements array representing longitude and latitude (x,y) of each member name passed as argument to the command.Non existing elements are reported as NULL elements of the array.</returns>
+        /// <remarks>http://redis.io/commands/geopos</remarks>
+        GeoPosition?[] GeoPosition(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Return the positions (longitude,latitude) of all the specified members of the geospatial index represented by the sorted set at key.
+        /// </summary>
+        /// <returns>The command returns an array where each element is a two elements array representing longitude and latitude (x,y) of each member name passed as argument to the command.Non existing elements are reported as NULL elements of the array.</returns>
+        /// <remarks>http://redis.io/commands/geopos</remarks>
+        GeoPosition? GeoPosition(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Return the members of a sorted set populated with geospatial information using GEOADD, which are within the borders of the area specified with the center location and the maximum distance from the center (the radius).
+        /// </summary>
+        /// <returns>GeoRadiusResult[]</returns>
+        /// <remarks>http://redis.io/commands/georadius</remarks>
+        GeoRadiusResult[] GeoRadius(RedisKey key, RedisValue member, double radius, GeoUnit unit = GeoUnit.Meters, int count = -1, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Return the members of a sorted set populated with geospatial information using GEOADD, which are within the borders of the area specified with the center location and the maximum distance from the center (the radius).
+        /// </summary>
+        /// <returns>GeoRadiusResult[]</returns>
+        /// <remarks>http://redis.io/commands/georadius</remarks>
+        GeoRadiusResult[] GeoRadius(RedisKey key, double longitude, double latitude, double radius, GeoUnit unit = GeoUnit.Meters, int count = -1, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Decrements the number stored at field in the hash stored at key by decrement. If key does not exist, a new key holding a hash is created. If field does not exist or holds a string that cannot be interpreted as integer, the value is set to 0 before the operation is performed.
         /// </summary>
         /// <remarks>The range of values supported by HINCRBY is limited to 64 bit signed integers.</remarks>
@@ -638,14 +718,28 @@ namespace StackExchange.Redis
         /// </summary>
         /// <returns>True if the value was added, False if it already existed (the score is still updated)</returns>
         /// <remarks>http://redis.io/commands/zadd</remarks>
-        bool SortedSetAdd(RedisKey key, RedisValue member, double score, CommandFlags flags = CommandFlags.None);
+        bool SortedSetAdd(RedisKey key, RedisValue member, double score, CommandFlags flags);
+
+        /// <summary>
+        /// Adds the specified member with the specified score to the sorted set stored at key. If the specified member is already a member of the sorted set, the score is updated and the element reinserted at the right position to ensure the correct ordering.
+        /// </summary>
+        /// <returns>True if the value was added, False if it already existed (the score is still updated)</returns>
+        /// <remarks>http://redis.io/commands/zadd</remarks>
+        bool SortedSetAdd(RedisKey key, RedisValue member, double score, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Adds all the specified members with the specified scores to the sorted set stored at key. If a specified member is already a member of the sorted set, the score is updated and the element reinserted at the right position to ensure the correct ordering.
         /// </summary>
         /// <returns>The number of elements added to the sorted sets, not including elements already existing for which the score was updated.</returns>
         /// <remarks>http://redis.io/commands/zadd</remarks>
-        long SortedSetAdd(RedisKey key, SortedSetEntry[] values, CommandFlags flags = CommandFlags.None);
+        long SortedSetAdd(RedisKey key, SortedSetEntry[] values, CommandFlags flags);
+
+        /// <summary>
+        /// Adds all the specified members with the specified scores to the sorted set stored at key. If a specified member is already a member of the sorted set, the score is updated and the element reinserted at the right position to ensure the correct ordering.
+        /// </summary>
+        /// <returns>The number of elements added to the sorted sets, not including elements already existing for which the score was updated.</returns>
+        /// <remarks>http://redis.io/commands/zadd</remarks>
+        long SortedSetAdd(RedisKey key, SortedSetEntry[] values, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Computes a set operation over two sorted sets, and stores the result in destination, optionally performing 

@@ -88,6 +88,23 @@ namespace StackExchange.Redis.Tests
         }
 #if DEBUG // needs AllowConnect, which is DEBUG only
         [Test]
+        public void AbortOnConnectFailFalseConnectTimeoutError()
+        {
+            string name, password;
+            GetAzureCredentials(out name, out password);
+            var options = new ConfigurationOptions();
+            options.EndPoints.Add(name + ".redis.cache.windows.net");
+            options.Ssl = true;
+            options.ConnectTimeout = 0;
+            options.Password = password;
+            using (var muxer = ConnectionMultiplexer.Connect(options))
+            {
+                var ex = Assert.Throws<RedisConnectionException>(() => muxer.GetDatabase().Ping());
+                Assert.That(ex.Message, Does.Contain("ConnectTimeout"));
+            }
+        }
+
+        [Test]
         public void CheckFailureRecovered()
         {
             try
@@ -117,6 +134,7 @@ namespace StackExchange.Redis.Tests
                 ClearAmbientFailures();
             }
         }
+
 #endif
         [Test]
         public void TryGetAzureRoleInstanceIdNoThrow()

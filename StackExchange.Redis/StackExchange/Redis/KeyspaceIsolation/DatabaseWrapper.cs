@@ -27,6 +27,59 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.DebugObject(ToInner(key), flags);
         }
 
+        public bool GeoAdd(RedisKey key, double longitude, double latitude, RedisValue member, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.GeoAdd(ToInner(key), longitude, latitude, member, flags);
+        }
+
+        public long GeoAdd(RedisKey key, GeoEntry[] geoEntries, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.GeoAdd(ToInner(key), geoEntries, flags);
+        }
+        public bool GeoAdd(RedisKey key, GeoEntry geoEntry, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.GeoAdd(ToInner(key), geoEntry, flags);
+        }
+
+        public bool GeoRemove(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.GeoRemove(ToInner(key), member, flags);
+        }
+
+        public double? GeoDistance(RedisKey key, RedisValue value0, RedisValue value1, GeoUnit unit = GeoUnit.Meters,CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.GeoDistance(ToInner(key), value0, value1, unit, flags);
+        }
+
+        public string[] GeoHash(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.GeoHash(ToInner(key), members, flags);
+        }
+
+        public string GeoHash(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.GeoHash(ToInner(key), member, flags);
+        }
+
+        public GeoPosition?[] GeoPosition(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.GeoPosition(ToInner(key), members, flags);
+        }
+
+        public GeoPosition? GeoPosition(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.GeoPosition(ToInner(key), member, flags);
+        }
+
+        public GeoRadiusResult[] GeoRadius(RedisKey key, RedisValue member, double radius, GeoUnit unit = GeoUnit.Meters, int count = -1, Order? order = null,GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.GeoRadius(ToInner(key), member, radius, unit, count, order, options, flags);
+        }
+        public GeoRadiusResult[] GeoRadius(RedisKey key, double longitude, double latitude, double radius, GeoUnit unit = GeoUnit.Meters, int count = -1, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.GeoRadius(ToInner(key), longitude, latitude, radius, unit, count, order, options, flags);
+        }
+
         public double HashDecrement(RedisKey key, RedisValue hashField, double value, CommandFlags flags = CommandFlags.None)
         {
             return Inner.HashDecrement(ToInner(key), hashField, value, flags);
@@ -415,15 +468,22 @@ namespace StackExchange.Redis.KeyspaceIsolation
         {
             return Inner.Sort(ToInner(key), skip, take, order, sortType, SortByToInner(by), SortGetToInner(get), flags);
         }
-
-        public long SortedSetAdd(RedisKey key, SortedSetEntry[] values, CommandFlags flags = CommandFlags.None)
+        public long SortedSetAdd(RedisKey key, SortedSetEntry[] values, CommandFlags flags)
         {
             return Inner.SortedSetAdd(ToInner(key), values, flags);
         }
+        public long SortedSetAdd(RedisKey key, SortedSetEntry[] values, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.SortedSetAdd(ToInner(key), values, when, flags);
+        }
 
-        public bool SortedSetAdd(RedisKey key, RedisValue member, double score, CommandFlags flags = CommandFlags.None)
+        public bool SortedSetAdd(RedisKey key, RedisValue member, double score, CommandFlags flags)
         {
             return Inner.SortedSetAdd(ToInner(key), member, score, flags);
+        }
+        public bool SortedSetAdd(RedisKey key, RedisValue member, double score, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.SortedSetAdd(ToInner(key), member, score, when, flags);
         }
 
         public long SortedSetCombineAndStore(SetOperation operation, RedisKey destination, RedisKey[] keys, double[] weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None)

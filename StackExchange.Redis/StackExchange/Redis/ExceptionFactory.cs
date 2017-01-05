@@ -75,9 +75,25 @@ namespace StackExchange.Redis
             return ex;
         }
 
+        internal static string GetInnerMostExceptionMessage(Exception e)
+        {
+            if (e == null)
+            {
+                return "";
+            }
+            else
+            {
+                while (e.InnerException != null)
+                {
+                    e = e.InnerException;
+                }
+                return e.Message;
+            }
+        }
+        
         internal static Exception NoConnectionAvailable(bool includeDetail, RedisCommand command, Message message, ServerEndPoint server, ServerEndPoint[] serverSnapshot)
         {
-            string s = GetLabel(includeDetail, command, message);
+            string commandLabel = GetLabel(includeDetail, command, message);
 
             if (server != null)
             {
@@ -85,20 +101,42 @@ namespace StackExchange.Redis
                 //otherwise it would output state of all the endpoints
                 serverSnapshot = new ServerEndPoint[] { server };
             }
-            string exceptionmessage = "No connection is available to service this operation: " + s ;
-            var ex = new RedisConnectionException(ConnectionFailureType.UnableToResolvePhysicalConnection, exceptionmessage, GetServerSnapshotInnerExceptions(serverSnapshot));
+
+            var innerException = PopulateInnerExceptions(serverSnapshot);
+
+            StringBuilder exceptionmessage = new StringBuilder("No connection is available to service this operation: ").Append(commandLabel);
+            string innermostExceptionstring = GetInnerMostExceptionMessage(innerException);
+            if (!string.IsNullOrEmpty(innermostExceptionstring))
+            {
+                exceptionmessage.Append("; ").Append(innermostExceptionstring);
+            }
+
+#if !CORE_CLR
             if (includeDetail)
             {
-                AddDetail(ex, message, server, s);
+                exceptionmessage.Append("; ").Append(ConnectionMultiplexer.GetThreadPoolAndCPUSummary());
+            }
+#endif
+
+            var ex = new RedisConnectionException(ConnectionFailureType.UnableToResolvePhysicalConnection, exceptionmessage.ToString(), innerException);
+            
+            if (includeDetail)
+            {
+                AddDetail(ex, message, server, commandLabel);
             }
             return ex;
         }
 
-        internal static Exception GetServerSnapshotInnerExceptions(ServerEndPoint[] serverSnapshot)
+        internal static Exception PopulateInnerExceptions(ServerEndPoint[] serverSnapshot)
         {
             List<Exception> innerExceptions = new List<Exception>();
             if (serverSnapshot != null)
             {
+                if (serverSnapshot.Length > 0 && serverSnapshot[0].Multiplexer.LastException != null)
+                {
+                    innerExceptions.Add(serverSnapshot[0].Multiplexer.LastException);
+                }
+
                 for (int i = 0; i < serverSnapshot.Length; i++)
                 {
                     if (serverSnapshot[i].LastException != null)

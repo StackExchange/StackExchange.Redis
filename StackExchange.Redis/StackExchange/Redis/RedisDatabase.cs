@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace StackExchange.Redis
@@ -44,11 +46,177 @@ namespace StackExchange.Redis
             var msg = Message.Create(Database, flags, RedisCommand.DEBUG, RedisLiterals.OBJECT, key);
             return ExecuteSync(msg, ResultProcessor.RedisValue);
         }
-
         public Task<RedisValue> DebugObjectAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.DEBUG, RedisLiterals.OBJECT, key);
             return ExecuteAsync(msg, ResultProcessor.RedisValue);
+        }
+
+        public bool GeoAdd(RedisKey key, double longitude, double latitude, RedisValue member, CommandFlags flags = CommandFlags.None)
+        {
+            return GeoAdd(key, new GeoEntry(longitude, latitude, member), flags);
+        }
+
+        public Task<bool> GeoAddAsync(RedisKey key, double longitude, double latitude, RedisValue member, CommandFlags flags = CommandFlags.None)
+        {
+            return GeoAddAsync(key, new GeoEntry(longitude, latitude, member), flags);
+        }
+
+        public bool GeoAdd(RedisKey key, GeoEntry value, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.GEOADD, key, value.Longitude, value.Latitude, value.Member);
+            return ExecuteSync(msg, ResultProcessor.Boolean);
+        }
+        public Task<bool> GeoAddAsync(RedisKey key, GeoEntry value, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.GEOADD, key, value.Longitude, value.Latitude, value.Member);
+            return ExecuteAsync(msg, ResultProcessor.Boolean);
+        }
+
+        public long GeoAdd(RedisKey key, GeoEntry[] values, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.GEOADD, key, values);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+        public Task<long> GeoAddAsync(RedisKey key, GeoEntry[] values, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.GEOADD, key, values);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
+
+        public bool GeoRemove(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+        {
+            return SortedSetRemove(key, member, flags);
+        }
+        public Task<bool> GeoRemoveAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+        {
+            return SortedSetRemoveAsync(key, member, flags);
+        }
+
+        public double? GeoDistance(RedisKey key, RedisValue value0, RedisValue value1, GeoUnit unit = GeoUnit.Meters, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.GEODIST, key, value0, value1, StackExchange.Redis.GeoPosition.GetRedisUnit(unit));
+            return ExecuteSync(msg, ResultProcessor.NullableDouble);
+        }
+        public Task<double?> GeoDistanceAsync(RedisKey key, RedisValue value0, RedisValue value1, GeoUnit unit = GeoUnit.Meters, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.GEODIST, key, value0, value1, StackExchange.Redis.GeoPosition.GetRedisUnit(unit));
+            return ExecuteAsync(msg, ResultProcessor.NullableDouble);
+        }
+        public string[] GeoHash(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
+        {
+            if (members == null) throw new ArgumentNullException(nameof(members));
+            var redisValues = new RedisValue[members.Length];
+            for (var i = 0; i < members.Length; i++) redisValues[i] = members[i];
+            var msg = Message.Create(Database, flags, RedisCommand.GEOHASH, key, redisValues);
+            return ExecuteSync(msg, ResultProcessor.StringArray);
+        }
+        public Task<string[]> GeoHashAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
+        {
+            if (members == null) throw new ArgumentNullException(nameof(members));
+            var redisValues = new RedisValue[members.Length];
+            for (var i = 0; i < members.Length; i++) redisValues[i] = members[i];
+            var msg = Message.Create(Database, flags, RedisCommand.GEOHASH, key, redisValues);
+            return ExecuteAsync(msg, ResultProcessor.StringArray);
+        }
+
+        public string GeoHash(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.GEOHASH, key, member);
+            return ExecuteSync(msg, ResultProcessor.String);
+        }
+        public Task<string> GeoHashAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.GEOHASH, key, member);
+            return ExecuteAsync(msg, ResultProcessor.String);
+        }
+
+        public GeoPosition?[] GeoPosition(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
+        {
+            if (members == null) throw new ArgumentNullException(nameof(members));
+            var redisValues = new RedisValue[members.Length];
+            for (var i = 0; i < members.Length; i++) redisValues[i] = members[i];
+            var msg = Message.Create(Database, flags, RedisCommand.GEOPOS, key, redisValues);
+            return ExecuteSync(msg, ResultProcessor.RedisGeoPositionArray);
+        }
+        public Task<GeoPosition?[]> GeoPositionAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
+        {
+            if (members == null) throw new ArgumentNullException(nameof(members));
+            var redisValues = new RedisValue[members.Length];
+            for (var i = 0; i < members.Length; i++) redisValues[i] = members[i];
+            var msg = Message.Create(Database, flags, RedisCommand.GEOPOS, key, redisValues);
+            return ExecuteAsync(msg, ResultProcessor.RedisGeoPositionArray);
+        }
+
+        public GeoPosition? GeoPosition(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.GEOPOS, key, member);
+            return ExecuteSync(msg, ResultProcessor.RedisGeoPosition);
+        }
+        public Task<GeoPosition?> GeoPositionAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.GEOPOS, key, member);
+            return ExecuteAsync(msg, ResultProcessor.RedisGeoPosition);
+        }
+        static readonly RedisValue
+            WITHCOORD = Encoding.ASCII.GetBytes("WITHCOORD"),
+            WITHDIST = Encoding.ASCII.GetBytes("WITHDIST"),
+            WITHHASH = Encoding.ASCII.GetBytes("WITHHASH"),
+            COUNT = Encoding.ASCII.GetBytes("COUNT"),
+            ASC = Encoding.ASCII.GetBytes("ASC"),
+            DESC = Encoding.ASCII.GetBytes("DESC");
+        private Message GetGeoRadiusMessage(RedisKey key, RedisValue? member, double longitude, double latitude, double radius, GeoUnit unit, int count, Order? order, GeoRadiusOptions options, CommandFlags flags)
+        {
+            var redisValues = new List<RedisValue>();
+            RedisCommand command;
+            if (member == null)
+            {
+                redisValues.Add(longitude);
+                redisValues.Add(latitude);
+                command = RedisCommand.GEORADIUS;
+            }
+            else
+            {
+                redisValues.Add(member.Value);
+                command = RedisCommand.GEORADIUSBYMEMBER;
+            }
+            redisValues.Add(radius);
+            redisValues.Add(StackExchange.Redis.GeoPosition.GetRedisUnit(unit));
+            if ((options & GeoRadiusOptions.WithCoordinates) != 0) redisValues.Add(WITHCOORD);
+            if ((options & GeoRadiusOptions.WithDistance) != 0) redisValues.Add(WITHDIST);
+            if ((options & GeoRadiusOptions.WithGeoHash) != 0) redisValues.Add(WITHHASH);
+            if (count > 0)
+            {
+                redisValues.Add(COUNT);
+                redisValues.Add(count);
+            }
+            if (order != null)
+            {
+                switch (order.Value)
+                {
+                    case Order.Ascending: redisValues.Add(ASC); break;
+                    case Order.Descending: redisValues.Add(DESC); break;
+                    default: throw new ArgumentOutOfRangeException(nameof(order));
+                }
+            }
+
+            return Message.Create(Database, flags, command, key, redisValues.ToArray());
+        }
+        public GeoRadiusResult[] GeoRadius(RedisKey key, RedisValue member, double radius, GeoUnit unit, int count, Order? order, GeoRadiusOptions options, CommandFlags flags)
+        {
+            return ExecuteSync(GetGeoRadiusMessage(key, member, double.NaN, double.NaN, radius, unit, count, order, options, flags), ResultProcessor.GeoRadiusArray(options));
+        }
+        public Task<GeoRadiusResult[]> GeoRadiusAsync(RedisKey key, RedisValue member, double radius, GeoUnit unit, int count, Order? order, GeoRadiusOptions options, CommandFlags flags)
+        {
+            return ExecuteAsync(GetGeoRadiusMessage(key, member, double.NaN, double.NaN, radius, unit, count, order, options, flags), ResultProcessor.GeoRadiusArray(options));
+        }
+        public GeoRadiusResult[] GeoRadius(RedisKey key, double longitude, double latitude, double radius, GeoUnit unit, int count, Order? order, GeoRadiusOptions options, CommandFlags flags)
+        {
+            return ExecuteSync(GetGeoRadiusMessage(key, null, longitude, latitude, radius, unit, count, order, options, flags), ResultProcessor.GeoRadiusArray(options));
+        }
+        public Task<GeoRadiusResult[]> GeoRadiusAsync(RedisKey key, double longitude, double latitude, double radius, GeoUnit unit, int count, Order? order, GeoRadiusOptions options, CommandFlags flags)
+        {
+            return ExecuteAsync(GetGeoRadiusMessage(key, null, longitude, latitude, radius, unit, count, order, options, flags), ResultProcessor.GeoRadiusArray(options));
         }
 
         public long HashDecrement(RedisKey key, RedisValue hashField, long value = 1, CommandFlags flags = CommandFlags.None)
@@ -310,7 +478,7 @@ namespace StackExchange.Redis
                 var features = GetFeatures(Database, keys[0], flags, out server);
                 // technically a write / master-only command until 2.8.18
                 if (server != null && !features.HyperLogLogCountSlaveSafe) cmd.SetMasterOnly();
-            }            
+            }
             return ExecuteSync(cmd, ResultProcessor.Int64, server);
         }
 
@@ -926,7 +1094,6 @@ namespace StackExchange.Redis
         {
             return script.EvaluateAsync(this, parameters, null, flags);
         }
-
         public bool SetAdd(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.SADD, key, value);
@@ -1145,28 +1312,45 @@ namespace StackExchange.Redis
             var msg = GetSortedSetAddMessage(default(RedisKey), key, skip, take, order, sortType, by, get, flags);
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray);
         }
-
-        public bool SortedSetAdd(RedisKey key, RedisValue member, double score, CommandFlags flags = CommandFlags.None)
+        public bool SortedSetAdd(RedisKey key, RedisValue member, double score, CommandFlags flags)
         {
-            var msg = Message.Create(Database, flags, RedisCommand.ZADD, key, score, member);
+            var msg = GetSortedSetAddMessage(key, member, score, When.Always, flags);
             return ExecuteSync(msg, ResultProcessor.Boolean);
         }
-
-        public long SortedSetAdd(RedisKey key, SortedSetEntry[] values, CommandFlags flags = CommandFlags.None)
+        public bool SortedSetAdd(RedisKey key, RedisValue member, double score, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetSortedSetAddMessage(key, values, flags);
+            var msg = GetSortedSetAddMessage(key, member, score, when, flags);
+            return ExecuteSync(msg, ResultProcessor.Boolean);
+        }
+        public long SortedSetAdd(RedisKey key, SortedSetEntry[] values, CommandFlags flags)
+        {
+            var msg = GetSortedSetAddMessage(key, values, When.Always, flags);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+        public long SortedSetAdd(RedisKey key, SortedSetEntry[] values, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetSortedSetAddMessage(key, values, when, flags);
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
-        public Task<bool> SortedSetAddAsync(RedisKey key, RedisValue member, double score, CommandFlags flags = CommandFlags.None)
+        public Task<bool> SortedSetAddAsync(RedisKey key, RedisValue member, double score, CommandFlags flags)
         {
-            var msg = Message.Create(Database, flags, RedisCommand.ZADD, key, score, member);
+            var msg = GetSortedSetAddMessage(key, member, score, When.Always, flags);
             return ExecuteAsync(msg, ResultProcessor.Boolean);
         }
-
-        public Task<long> SortedSetAddAsync(RedisKey key, SortedSetEntry[] values, CommandFlags flags = CommandFlags.None)
+        public Task<bool> SortedSetAddAsync(RedisKey key, RedisValue member, double score, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetSortedSetAddMessage(key, values, flags);
+            var msg = GetSortedSetAddMessage(key, member, score, when, flags);
+            return ExecuteAsync(msg, ResultProcessor.Boolean);
+        }
+        public Task<long> SortedSetAddAsync(RedisKey key, SortedSetEntry[] values, CommandFlags flags)
+        {
+            var msg = GetSortedSetAddMessage(key, values, When.Always, flags);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
+        public Task<long> SortedSetAddAsync(RedisKey key, SortedSetEntry[] values, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetSortedSetAddMessage(key, values, when, flags);
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
@@ -1668,8 +1852,9 @@ namespace StackExchange.Redis
             switch (hashFields.Length)
             {
                 case 0: return null;
-                case 1: return Message.Create(Database, flags, RedisCommand.HMSET, key,
-                        hashFields[0].name, hashFields[0].value);
+                case 1:
+                    return Message.Create(Database, flags, RedisCommand.HMSET, key,
+                    hashFields[0].name, hashFields[0].value);
                 case 2:
                     return Message.Create(Database, flags, RedisCommand.HMSET, key,
                         hashFields[0].name, hashFields[0].value,
@@ -1741,22 +1926,45 @@ namespace StackExchange.Redis
             return Message.Create(Database, flags, RedisCommand.RESTORE, key, pttl, value);
         }
 
-        private Message GetSortedSetAddMessage(RedisKey key, SortedSetEntry[] values, CommandFlags flags)
+        private Message GetSortedSetAddMessage(RedisKey key, RedisValue member, double score, When when, CommandFlags flags)
         {
+            WhenAlwaysOrExistsOrNotExists(when);
+            switch (when)
+            {
+                case When.Always: return Message.Create(Database, flags, RedisCommand.ZADD, key, score, member);
+                case When.NotExists: return Message.Create(Database, flags, RedisCommand.ZADD, key, RedisLiterals.NX, score, member);
+                case When.Exists: return Message.Create(Database, flags, RedisCommand.ZADD, key, RedisLiterals.XX, score, member);
+                default: throw new ArgumentOutOfRangeException(nameof(when));
+            }
+        }
+
+        private Message GetSortedSetAddMessage(RedisKey key, SortedSetEntry[] values, When when, CommandFlags flags)
+        {
+            WhenAlwaysOrExistsOrNotExists(when);
             if (values == null) throw new ArgumentNullException(nameof(values));
             switch (values.Length)
             {
                 case 0: return null;
                 case 1:
-                    return Message.Create(Database, flags, RedisCommand.ZADD, key,
-                        values[0].score, values[0].element);
-                case 2:
-                    return Message.Create(Database, flags, RedisCommand.ZADD, key,
-                        values[0].score, values[0].element,
-                        values[1].score, values[1].element);
+                    return GetSortedSetAddMessage(key, values[0].element, values[0].score, when, flags);
                 default:
-                    var arr = new RedisValue[values.Length * 2];
+                    RedisValue[] arr;
                     int index = 0;
+                    switch (when)
+                    {
+                        case When.Always:
+                            arr = new RedisValue[values.Length * 2];
+                            break;
+                        case When.NotExists:
+                            arr = new RedisValue[values.Length * 2 + 1];
+                            arr[index++] = RedisLiterals.NX;
+                            break;
+                        case When.Exists:
+                            arr = new RedisValue[values.Length * 2 + 1];
+                            arr[index++] = RedisLiterals.XX;
+                            break;
+                        default: throw new ArgumentOutOfRangeException(nameof(when));
+                    }
                     for (int i = 0; i < values.Length; i++)
                     {
                         arr[index++] = values[i].score;

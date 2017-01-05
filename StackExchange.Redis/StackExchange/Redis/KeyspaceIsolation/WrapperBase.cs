@@ -24,6 +24,41 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.DebugObjectAsync(ToInner(key), flags);
         }
 
+        public Task<bool> GeoAddAsync(RedisKey key, double longitude, double latitude, RedisValue member, CommandFlags flags = CommandFlags.None)
+            => Inner.GeoAddAsync(ToInner(key), longitude, latitude, member, flags);
+
+        public Task<bool> GeoAddAsync(RedisKey key, StackExchange.Redis.GeoEntry value, CommandFlags flags = CommandFlags.None)
+            => Inner.GeoAddAsync(ToInner(key), value, flags);
+
+        public Task<long> GeoAddAsync(RedisKey key, StackExchange.Redis.GeoEntry[] values, CommandFlags flags = CommandFlags.None)
+            => Inner.GeoAddAsync(ToInner(key), values, flags);
+
+        public Task<bool> GeoRemoveAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+            => Inner.GeoRemoveAsync(ToInner(key), member, flags);
+
+        public Task<double?> GeoDistanceAsync(RedisKey key, RedisValue member1, RedisValue member2, GeoUnit unit = GeoUnit.Meters, CommandFlags flags = CommandFlags.None)
+            => Inner.GeoDistanceAsync(ToInner(key), member1, member2, unit, flags);
+
+        public Task<string[]> GeoHashAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
+            => Inner.GeoHashAsync(ToInner(key), members, flags);
+
+        public Task<string> GeoHashAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+            => Inner.GeoHashAsync(ToInner(key), member, flags);
+
+
+        public Task<GeoPosition?[]> GeoPositionAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
+            => Inner.GeoPositionAsync(ToInner(key), members, flags);
+
+        public Task<GeoPosition?> GeoPositionAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+            => Inner.GeoPositionAsync(ToInner(key), member, flags);
+
+        public Task<GeoRadiusResult[]> GeoRadiusAsync(RedisKey key, RedisValue member, double radius, GeoUnit unit = GeoUnit.Meters, int count = -1, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None)
+            => Inner.GeoRadiusAsync(ToInner(key), member, radius, unit, count, order, options, flags);
+
+        public Task<GeoRadiusResult[]> GeoRadiusAsync(RedisKey key, double longitude, double latitude, double radius, GeoUnit unit = GeoUnit.Meters, int count = -1, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None)
+            => Inner.GeoRadiusAsync(ToInner(key), longitude, latitude, radius, unit, count, order, options, flags);
+
+
         public Task<double> HashDecrementAsync(RedisKey key, RedisValue hashField, double value, CommandFlags flags = CommandFlags.None)
         {
             return Inner.HashDecrementAsync(ToInner(key), hashField, value, flags);
@@ -416,14 +451,22 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.SortAsync(ToInner(key), skip, take, order, sortType, SortByToInner(by), SortGetToInner(get), flags);
         }
 
-        public Task<long> SortedSetAddAsync(RedisKey key, SortedSetEntry[] values, CommandFlags flags = CommandFlags.None)
+        public Task<long> SortedSetAddAsync(RedisKey key, SortedSetEntry[] values, CommandFlags flags)
         {
             return Inner.SortedSetAddAsync(ToInner(key), values, flags);
         }
+        public Task<long> SortedSetAddAsync(RedisKey key, SortedSetEntry[] values, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.SortedSetAddAsync(ToInner(key), values, when, flags);
+        }
 
-        public Task<bool> SortedSetAddAsync(RedisKey key, RedisValue member, double score, CommandFlags flags = CommandFlags.None)
+        public Task<bool> SortedSetAddAsync(RedisKey key, RedisValue member, double score, CommandFlags flags)
         {
             return Inner.SortedSetAddAsync(ToInner(key), member, score, flags);
+        }
+        public Task<bool> SortedSetAddAsync(RedisKey key, RedisValue member, double score, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.SortedSetAddAsync(ToInner(key), member, score, when, flags);
         }
 
         public Task<long> SortedSetCombineAndStoreAsync(SetOperation operation, RedisKey destination, RedisKey[] keys, double[] weights = null, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None)

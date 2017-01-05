@@ -89,7 +89,7 @@ namespace StackExchange.Redis
         TimeSpan ResponseToCompletion { get; }
 
         /// <summary>
-        /// How long it took this redis command to be processed, from creation to deserializing the final resposne.
+        /// How long it took this redis command to be processed, from creation to deserializing the final response.
         /// 
         /// Note that this TimeSpan *does not* include time spent awaiting a Task in consumer code.
         /// </summary>

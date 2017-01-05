@@ -101,8 +101,7 @@ namespace StackExchange.Redis
                 //check if subscription endpoint has a better lastexception
                 if (tmp2 != null && tmp2.LastException != null)
                 {
-                    var failureType = tmp2.LastException.Data["Redis-FailureType"];
-                    if (failureType != null && !failureType.ToString().Equals(ConnectionFailureType.UnableToConnect.ToString()))
+                    if (tmp2.LastException.Data.Contains("Redis-FailureType") && !tmp2.LastException.Data["Redis-FailureType"].ToString().Equals(ConnectionFailureType.UnableToConnect.ToString()))
                     {
                         return tmp2.LastException;
                     }
@@ -215,7 +214,7 @@ namespace StackExchange.Redis
                 multiplexer.Trace("Updating cluster ranges...");
                 multiplexer.UpdateClusterRange(configuration);
                 multiplexer.Trace("Resolving genealogy...");
-                var thisNode = configuration.Nodes.FirstOrDefault(x => x.EndPoint == this.EndPoint);
+                var thisNode = configuration.Nodes.FirstOrDefault(x => x.EndPoint.Equals(this.EndPoint));
                 if (thisNode != null)
                 {
                     List<ServerEndPoint> slaves = null;

@@ -125,7 +125,11 @@ namespace StackExchange.Redis
                 if (asm == null)
                     return null;
 
-                var currentRoleInstanceProp = asm.GetType("Microsoft.WindowsAzure.ServiceRuntime.RoleEnvironment").GetProperty("CurrentRoleInstance");
+                var type = asm.GetType("Microsoft.WindowsAzure.ServiceRuntime.RoleEnvironment");
+
+                // https://msdn.microsoft.com/en-us/library/microsoft.windowsazure.serviceruntime.roleenvironment.isavailable.aspx                if (!(bool)type.GetProperty("IsAvailable").GetValue(null, null))                    return null;
+
+                var currentRoleInstanceProp = type.GetProperty("CurrentRoleInstance");
                 var currentRoleInstanceId = currentRoleInstanceProp.GetValue(null, null);
                 roleInstanceId = currentRoleInstanceId.GetType().GetProperty("Id").GetValue(currentRoleInstanceId, null).ToString();
 
@@ -872,7 +876,11 @@ namespace StackExchange.Redis
                     task.ObserveErrors();
                     if (muxer.RawConfig.AbortOnConnectFail)
                     {
-                        throw ExceptionFactory.UnableToConnect("Timeout");
+                        throw ExceptionFactory.UnableToConnect("ConnectTimeout");
+                    }
+                    else
+                    {
+                        muxer.LastException = ExceptionFactory.UnableToConnect("ConnectTimeout");
                     }
                 }
                 if (!task.Result) throw ExceptionFactory.UnableToConnect(muxer.failureMessage);
@@ -988,6 +996,9 @@ namespace StackExchange.Redis
                 return unchecked(Environment.TickCount - VolatileWrapper.Read(ref lastHeartbeatTicks)) / 1000;
             }
         }
+
+        internal Exception LastException { get; set; }
+
         internal static long LastGlobalHeartbeatSecondsAgo => unchecked(Environment.TickCount - VolatileWrapper.Read(ref lastGlobalHeartbeatTicks)) / 1000;
 
         internal CompletionManager UnprocessableCompletionManager => unprocessableCompletionManager;
@@ -1132,6 +1143,10 @@ namespace StackExchange.Redis
                 if (configuration.AbortOnConnectFail)
                 {
                     throw new TimeoutException();
+                }
+                else
+                {
+                    LastException = new TimeoutException("ConnectTimeout");
                 }
                 return false;
             }
@@ -2026,6 +2041,13 @@ namespace StackExchange.Redis
                             add("Active-Readers", "ar", ar.ToString());
 
                             add("Client-Name", "clientName", ClientName);
+                            add("Server-Endpoint", "serverEndpoint", server.EndPoint.ToString());
+                            var hashSlot = message.GetHashSlot(this.ServerSelectionStrategy);
+                            // only add keyslot if its a valid cluster key slot
+                            if (hashSlot != ServerSelectionStrategy.NoSlot)
+                            {
+                                add("Key-HashSlot", "keyHashSlot", message.GetHashSlot(this.ServerSelectionStrategy).ToString());
+                            }
 #if !CORE_CLR
                             string iocp, worker;
                             int busyWorkerCount = GetThreadPoolStats(out iocp, out worker);
@@ -2071,6 +2093,14 @@ namespace StackExchange.Redis
         }
 
 #if !CORE_CLR
+        internal static string GetThreadPoolAndCPUSummary()
+        {
+            string iocp, worker;
+            GetThreadPoolStats(out iocp, out worker);
+            var cpu = GetSystemCpuPercent();
+            return $"IOCP: {iocp}, WORKER: {worker}, Local-CPU: {cpu}";
+        }
+
         private static string GetSystemCpuPercent()
         {
             float systemCPU;
