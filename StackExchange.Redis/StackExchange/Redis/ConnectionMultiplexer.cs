@@ -2026,6 +2026,13 @@ namespace StackExchange.Redis
                             add("Active-Readers", "ar", ar.ToString());
 
                             add("Client-Name", "clientName", ClientName);
+                            add("Server-Endpoint", "serverEndpoint", server.EndPoint.ToString());
+                            var hashSlot = message.GetHashSlot(this.ServerSelectionStrategy);
+                            // only add keyslot if its a valid cluster key slot
+                            if (hashSlot != ServerSelectionStrategy.NoSlot)
+                            {
+                                add("Key-HashSlot", "keyHashSlot", message.GetHashSlot(this.ServerSelectionStrategy).ToString());
+                            }
 #if !CORE_CLR
                             string iocp, worker;
                             int busyWorkerCount = GetThreadPoolStats(out iocp, out worker);
