@@ -252,7 +252,21 @@ namespace StackExchange.Redis
                 return arr;
             }
         }
-
+        internal GeoPosition? GetItemsAsGeoPosition()
+        {
+            RawResult[] items = GetItems();
+            if (items == null || items.Length == 0)
+            {
+                return null;
+            }
+           
+            var coords = items[0].GetArrayOfRawResults();
+            if (coords == null)
+            {
+                return null;
+            }            
+            return new GeoPosition((double)coords[0].AsRedisValue(), (double)coords[1].AsRedisValue());
+        }
         internal GeoPosition?[] GetItemsAsGeoPositionArray()
         {
             RawResult[] items = GetItems();

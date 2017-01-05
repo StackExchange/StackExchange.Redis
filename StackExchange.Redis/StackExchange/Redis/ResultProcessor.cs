@@ -71,6 +71,8 @@ namespace StackExchange.Redis
             StringArray = new StringArrayProcessor();
 
         public static readonly ResultProcessor<GeoPosition?[]>
+            RedisGeoPositionArray = new RedisValueGeoPositionArrayProcessor();
+        public static readonly ResultProcessor<GeoPosition?>
             RedisGeoPosition = new RedisValueGeoPositionProcessor();
 
         public static readonly ResultProcessor<TimeSpan>
@@ -1116,7 +1118,22 @@ namespace StackExchange.Redis
             }
         }
 
-        sealed class RedisValueGeoPositionProcessor : ResultProcessor<GeoPosition?[]>
+        sealed class RedisValueGeoPositionProcessor : ResultProcessor<GeoPosition?>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            {
+                switch (result.Type)
+                {
+                    case ResultType.MultiBulk:
+                        var pos = result.GetItemsAsGeoPosition();
+
+                        SetResult(message, pos);
+                        return true;
+                }
+                return false;
+            }
+        }
+        sealed class RedisValueGeoPositionArrayProcessor : ResultProcessor<GeoPosition?[]>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {

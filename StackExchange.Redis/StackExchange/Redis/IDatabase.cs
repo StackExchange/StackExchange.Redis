@@ -93,7 +93,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <returns>The command returns an array where each element is the Geohash corresponding to each member name passed as argument to the command.</returns>
         /// <remarks>http://redis.io/commands/geohash</remarks>
-        string[] GeoHash(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None);
+        string GeoHash(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None);
 
 
         /// <summary>
