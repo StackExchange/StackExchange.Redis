@@ -27,6 +27,59 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.DebugObject(ToInner(key), flags);
         }
 
+        public bool GeoAdd(RedisKey key, double longitude, double latitude, RedisValue member, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.GeoAdd(ToInner(key), longitude, latitude, member, flags);
+        }
+
+        public long GeoAdd(RedisKey key, GeoEntry[] geoEntries, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.GeoAdd(ToInner(key), geoEntries, flags);
+        }
+        public bool GeoAdd(RedisKey key, GeoEntry geoEntry, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.GeoAdd(key, geoEntry, flags);
+        }
+
+        public bool GeoRemove(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.GeoRemove(key, member, flags);
+        }
+
+        public double GeoDistance(RedisKey key, RedisValue value0, RedisValue value1, GeoUnit geoUnit = GeoUnit.Meters,CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.GeoDistance(ToInner(key), value0, value1, geoUnit, flags);
+        }
+
+        public string[] GeoHash(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.GeoHash(key, members, flags);
+        }
+
+        public string[] GeoHash(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.GeoHash(key, member, flags);
+        }
+
+        public GeoPosition?[] GeoPosition(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.GeoPosition(key, members, flags);
+        }
+
+        public GeoPosition? GeoPosition(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.GeoPosition(key, member, flags);
+        }
+
+        public GeoRadiusResult[] GeoRadius(RedisKey key, RedisValue member, double radius, GeoUnit unit = GeoUnit.Meters, int count = -1, Order? order = null,GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.GeoRadius(key, member, radius, unit, count, order, options, flags);
+        }
+        public GeoRadiusResult[] GeoRadius(RedisKey key, double longitude, double latitude, double radius, GeoUnit unit = GeoUnit.Meters, int count = -1, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.GeoRadius(key, longitude, latitude, radius, unit, count, order, options, flags);
+        }
+
         public double HashDecrement(RedisKey key, RedisValue hashField, double value, CommandFlags flags = CommandFlags.None)
         {
             return Inner.HashDecrement(ToInner(key), hashField, value, flags);

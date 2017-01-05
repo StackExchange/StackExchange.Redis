@@ -135,7 +135,7 @@ namespace StackExchange.Redis.Tests
         }
 
         protected const int PrimaryPort = 6379, SlavePort = 6380, SecurePort = 6381;
-        protected const string PrimaryServer = "127.0.0.1", SecurePassword = "changeme", PrimaryPortString = "6379", SlavePortString = "6380", SecurePortString = "6381";
+        protected const string PrimaryServer = "192.168.10.120", SecurePassword = "changeme", PrimaryPortString = "6379", SlavePortString = "6380", SecurePortString = "6381";
         internal static Task Swallow(Task task)
         {
             if (task != null) task.ContinueWith(swallowErrors, TaskContinuationOptions.OnlyOnFaulted);

@@ -95,7 +95,7 @@ namespace StackExchange.Redis
 #if FEATURE_SERIALIZATION
         private RedisServerException(SerializationInfo info, StreamingContext ctx) : base(info, ctx) { }
 #endif
-        
+
         internal RedisServerException(string message) : base(message) { }
     }
 
@@ -348,6 +348,29 @@ namespace StackExchange.Redis
         public static Message Create(int db, CommandFlags flags, RedisCommand command, RedisKey key, RedisValue value0, RedisValue value1, RedisValue value2)
         {
             return new CommandKeyValueValueValueMessage(db, flags, command, key, value0, value1, value2);
+        }
+
+        public static Message Create(int db, CommandFlags flags, RedisCommand command, RedisKey key, GeoEntry[] values)
+        {
+            if (values == null) throw new ArgumentNullException(nameof(values));
+            if (values.Length == 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(values));
+            }
+            if (values.Length == 1)
+            {
+                var value = values[0];
+                return Message.Create(db, flags, command, key, value.Longitude, value.Latitude, value.Member);
+            }
+            var arr = new RedisValue[3 * values.Length];
+            int index = 0;
+            foreach (var value in values)
+            {
+                arr[index++] = value.Longitude;
+                arr[index++] = value.Latitude;
+                arr[index++] = value.Member;
+            }
+            return new CommandKeyValuesMessage(db, flags, command, key, arr);
         }
 
         public static Message Create(int db, CommandFlags flags, RedisCommand command, RedisKey key, RedisValue value0, RedisValue value1, RedisValue value2, RedisValue value3)
@@ -907,7 +930,7 @@ namespace StackExchange.Redis
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
             {
                 int slot = ServerSelectionStrategy.NoSlot;
-                for(int i = 0; i < keys.Length; i++)
+                for (int i = 0; i < keys.Length; i++)
                 {
                     slot = serverSelectionStrategy.CombineSlot(slot, keys[i]);
                 }

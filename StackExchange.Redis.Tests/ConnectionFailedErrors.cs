@@ -134,6 +134,7 @@ namespace StackExchange.Redis.Tests
                 ClearAmbientFailures();
             }
         }
+
 #endif
         [Test]
         public void TryGetAzureRoleInstanceIdNoThrow()

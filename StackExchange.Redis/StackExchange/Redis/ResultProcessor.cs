@@ -66,6 +66,13 @@ namespace StackExchange.Redis
 
         public static readonly ResultProcessor<RedisValue[]>
             RedisValueArray = new RedisValueArrayProcessor();
+
+        public static readonly ResultProcessor<string[]>
+            StringArray = new StringArrayProcessor();
+
+        public static readonly ResultProcessor<GeoPosition?[]>
+            RedisGeoPosition = new RedisValueGeoPositionProcessor();
+
         public static readonly ResultProcessor<TimeSpan>
             ResponseTimer = new TimingProcessor();
 
@@ -74,6 +81,8 @@ namespace StackExchange.Redis
 
         public static readonly SortedSetEntryArrayProcessor
             SortedSetWithScores = new SortedSetEntryArrayProcessor();
+
+        public static ResultProcessor<GeoRadiusResult[]> GeoRadiusArray(GeoRadiusOptions options) => GeoRadiusResultArrayProcessor.Get(options);
 
         public static readonly ResultProcessor<string>
                             String = new StringProcessor(),
@@ -86,7 +95,7 @@ namespace StackExchange.Redis
 
         public static readonly ResultProcessor<KeyValuePair<string, string>[][]>
             SentinelArrayOfArrays = new SentinelArrayOfArraysProcessor();
-        
+
         #endregion
 
         public static readonly ResultProcessor<KeyValuePair<string, string>[]>
@@ -96,7 +105,7 @@ namespace StackExchange.Redis
             TimeSpanFromSeconds = new TimeSpanProcessor(false);
         public static readonly HashEntryArrayProcessor
             HashEntryArray = new HashEntryArrayProcessor();
-        static readonly byte[] MOVED = Encoding.UTF8.GetBytes("MOVED "), ASK = Encoding.UTF8.GetBytes("ASK ");        
+        static readonly byte[] MOVED = Encoding.UTF8.GetBytes("MOVED "), ASK = Encoding.UTF8.GetBytes("ASK ");
 
         public void ConnectionFail(Message message, ConnectionFailureType fail, Exception innerException)
         {
@@ -153,7 +162,7 @@ namespace StackExchange.Redis
                     if (Format.TryParseInt32(parts[1], out hashSlot) &&
                         (endpoint = Format.TryParseEndPoint(parts[2])) != null)
                     {
-                        
+
                         // no point sending back to same server, and no point sending to a dead server
                         if (!Equals(server.EndPoint, endpoint))
                         {
@@ -177,7 +186,7 @@ namespace StackExchange.Redis
                 {
                     err = result.GetString();
                 }
-                
+
                 if (log)
                 {
                     bridge.Multiplexer.OnErrorMessage(server.EndPoint, err);
@@ -204,7 +213,7 @@ namespace StackExchange.Redis
         private void UnexpectedResponse(Message message, RawResult result)
         {
             ConnectionMultiplexer.TraceWithoutContext("From " + GetType().Name, "Unexpected Response");
-            ConnectionFail(message, ConnectionFailureType.ProtocolFailure, "Unexpected response to " + (message?.Command.ToString() ?? "n/a") +": " + result.ToString());
+            ConnectionFail(message, ConnectionFailureType.ProtocolFailure, "Unexpected response to " + (message?.Command.ToString() ?? "n/a") + ": " + result.ToString());
         }
 
         public sealed class TimeSpanProcessor : ResultProcessor<TimeSpan?>
@@ -314,7 +323,7 @@ namespace StackExchange.Redis
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
-                if(result.Type == ResultType.MultiBulk)
+                if (result.Type == ResultType.MultiBulk)
                 {
                     var items = result.GetItems();
                     long count;
@@ -503,7 +512,7 @@ namespace StackExchange.Redis
             static readonly byte[] READONLY = Encoding.UTF8.GetBytes("READONLY ");
             public override bool SetResult(PhysicalConnection connection, Message message, RawResult result)
             {
-                if(result.IsError && result.AssertStarts(READONLY))
+                if (result.IsError && result.AssertStarts(READONLY))
                 {
                     var server = connection.Bridge.ServerEndPoint;
                     server.Multiplexer.Trace("Auto-configured role: slave");
@@ -584,7 +593,7 @@ namespace StackExchange.Redis
                                                 break;
                                         }
                                     }
-                                    else if((val = Extract(line, "run_id:")) != null)
+                                    else if ((val = Extract(line, "run_id:")) != null)
                                     {
                                         server.RunId = val;
                                     }
@@ -927,11 +936,11 @@ namespace StackExchange.Redis
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
-                if(result.Type == ResultType.MultiBulk)
+                if (result.Type == ResultType.MultiBulk)
                 {
                     var arr = result.GetItems();
                     long val;
-                    if(arr != null && arr.Length == 2 && arr[1].TryGetInt64(out val))
+                    if (arr != null && arr.Length == 2 && arr[1].TryGetInt64(out val))
                     {
                         SetResult(message, val);
                         return true;
@@ -950,7 +959,7 @@ namespace StackExchange.Redis
                     case ResultType.Integer:
                     case ResultType.SimpleString:
                     case ResultType.BulkString:
-                        if(result.IsNull)
+                        if (result.IsNull)
                         {
                             SetResult(message, null);
                             return true;
@@ -975,7 +984,7 @@ namespace StackExchange.Redis
                     case ResultType.Integer:
                     case ResultType.SimpleString:
                     case ResultType.BulkString:
-                        if(result.IsNull)
+                        if (result.IsNull)
                         {
                             SetResult(message, null);
                             return true;
@@ -1091,11 +1100,125 @@ namespace StackExchange.Redis
                 return false;
             }
         }
+        sealed class StringArrayProcessor : ResultProcessor<string[]>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            {
+                switch (result.Type)
+                {
+                    case ResultType.MultiBulk:
+                        var arr = result.GetItemsAsStrings();
+
+                        SetResult(message, arr);
+                        return true;
+                }
+                return false;
+            }
+        }
+
+        sealed class RedisValueGeoPositionProcessor : ResultProcessor<GeoPosition?[]>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            {
+                switch (result.Type)
+                {
+                    case ResultType.MultiBulk:
+                        var arr = result.GetItemsAsGeoPositionArray();
+
+                        SetResult(message, arr);
+                        return true;
+                }
+                return false;
+            }
+        }
+
+        sealed class GeoRadiusResultArrayProcessor : ResultProcessor<GeoRadiusResult[]>
+        {
+            private static readonly GeoRadiusResultArrayProcessor[] instances;
+            private readonly GeoRadiusOptions options;
+
+            static GeoRadiusResultArrayProcessor()
+            {
+                instances = new GeoRadiusResultArrayProcessor[8];
+                for (int i = 0; i < 8; i++) instances[i] = new GeoRadiusResultArrayProcessor((GeoRadiusOptions)i);
+            }
+            public static GeoRadiusResultArrayProcessor Get(GeoRadiusOptions options)
+            {
+                int i = (int)options;
+                if (i < 0 || i >= instances.Length) throw new ArgumentOutOfRangeException(nameof(options));
+                return instances[i];
+            }
+
+            private GeoRadiusResultArrayProcessor(GeoRadiusOptions options)
+            {
+                this.options = options;
+            }
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            {
+                switch (result.Type)
+                {
+                    case ResultType.MultiBulk:
+                        var arr = result.GetItemsAsRawResults();
+
+                        GeoRadiusResult[] typed;
+                        if (arr == null)
+                        {
+                            typed = null;
+                        }
+                        else
+                        {
+                            var options = this.options;
+                            typed = new GeoRadiusResult[arr.Length];
+                            for (int i = 0; i < arr.Length; i++)
+                            {
+                                typed[i] = Parse(options, arr[i]);
+                            }
+                        }
+                        SetResult(message, typed);
+                        return true;
+                }
+                return false;
+            }
+
+            private static GeoRadiusResult Parse(GeoRadiusOptions options, RawResult item)
+            {
+                if (options == GeoRadiusOptions.None)
+                {
+                    // Without any WITH option specified, the command just returns a linear array like ["New York","Milan","Paris"].
+                    return new GeoRadiusResult(item.AsRedisValue(), null, null, null);
+                }
+                // If WITHCOORD, WITHDIST or WITHHASH options are specified, the command returns an array of arrays, where each sub-array represents a single item.
+                var arr = item.GetArrayOfRawResults();
+
+                int index = 0;
+                // the first item in the sub-array is always the name of the returned item.
+                var member = arr[index++].AsRedisValue();
+
+                /*  The other information is returned in the following order as successive elements of the sub-array.
+The distance from the center as a floating point number, in the same unit specified in the radius.
+The geohash integer.
+The coordinates as a two items x,y array (longitude,latitude).
+                 */
+                double? distance = null;
+                GeoPosition? position = null;
+                long? hash = null;
+                if ((options & GeoRadiusOptions.WithDistance) != 0) { distance = (double?)arr[index++].AsRedisValue(); }
+                if ((options & GeoRadiusOptions.WithGeoHash) != 0) { hash = (long?)arr[index++].AsRedisValue(); }
+                if ((options & GeoRadiusOptions.WithCoordinates) != 0)
+                {
+                    var coords = arr[index++].GetArrayOfRawResults();
+                    double longitude = (double)coords[0].AsRedisValue(), latitude = (double)coords[1].AsRedisValue();
+                    position = new GeoPosition(longitude, latitude);
+                }
+                return new GeoRadiusResult(member, distance, hash, position);
+            }
+        }
+
         sealed class RedisValueProcessor : ResultProcessor<RedisValue>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
-                switch(result.Type)
+                switch (result.Type)
                 {
                     case ResultType.Integer:
                     case ResultType.SimpleString:
@@ -1194,7 +1317,7 @@ namespace StackExchange.Redis
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
                 bool happy;
-                switch(message.Command)
+                switch (message.Command)
                 {
                     case RedisCommand.ECHO:
                         happy = result.Type == ResultType.BulkString && (!establishConnection || result.IsEqual(connection.Multiplexer.UniqueId));
@@ -1212,9 +1335,9 @@ namespace StackExchange.Redis
                         happy = true;
                         break;
                 }
-                if(happy)
+                if (happy)
                 {
-                    if(establishConnection) connection.Bridge.OnFullyEstablished(connection);
+                    if (establishConnection) connection.Bridge.OnFullyEstablished(connection);
                     SetResult(message, happy);
                     return true;
                 }
@@ -1242,7 +1365,7 @@ namespace StackExchange.Redis
                         {
                             SetResult(message, Format.ParseEndPoint(arr[0], port));
                             return true;
-                        } 
+                        }
                         else if (arr.Length == 0)
                         {
                             SetResult(message, null);
