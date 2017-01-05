@@ -601,16 +601,16 @@ namespace StackExchange.Redis.Tests
         [Test]
         public void SortedSetAddAsync_1()
         {
-            wrapper.SortedSetAddAsync("key", "member", 1.23, CommandFlags.HighPriority);
-            mock.Verify(_ => _.SortedSetAddAsync("prefix:key", "member", 1.23, CommandFlags.HighPriority));
+            wrapper.SortedSetAddAsync("key", "member", 1.23, When.Exists, CommandFlags.HighPriority);
+            mock.Verify(_ => _.SortedSetAddAsync("prefix:key", "member", 1.23, When.Exists, CommandFlags.HighPriority));
         }
 
         [Test]
         public void SortedSetAddAsync_2()
         {
             SortedSetEntry[] values = new SortedSetEntry[0];
-            wrapper.SortedSetAddAsync("key", values, CommandFlags.HighPriority);
-            mock.Verify(_ => _.SortedSetAddAsync("prefix:key", values, CommandFlags.HighPriority));
+            wrapper.SortedSetAddAsync("key", values, When.Exists, CommandFlags.HighPriority);
+            mock.Verify(_ => _.SortedSetAddAsync("prefix:key", values, When.Exists, CommandFlags.HighPriority));
         }
 
         [Test]
