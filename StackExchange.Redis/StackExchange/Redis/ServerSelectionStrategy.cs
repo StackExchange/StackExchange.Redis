@@ -240,11 +240,49 @@ namespace StackExchange.Redis
             if (endpoint.IsSlave && endpoint.IsSelectable(command)) return endpoint;
 
             var slaves = endpoint.Slaves;
+
+            return GetRandomSlaveEndPoint(slaves, command) ?? GetFirstSlaveEndPoint(slaves, command);
+        }
+
+        /// <summary>
+        /// get the first available slave
+        /// </summary>
+        /// <param name="slaves"></param>
+        /// <param name="command"></param>
+        /// <returns></returns>
+        private static ServerEndPoint GetFirstSlaveEndPoint(ServerEndPoint[] slaves, RedisCommand command)
+        {
+            ServerEndPoint endpoint = null;
             for (int i = 0; i < slaves.Length; i++)
             {
                 endpoint = slaves[i];
                 if (endpoint.IsSlave && endpoint.IsSelectable(command)) return endpoint;
             }
+            return null;
+        }
+
+        /// <summary>
+        /// get a random slave
+        /// </summary>
+        /// <param name="slaves"></param>
+        /// <param name="command"></param>
+        /// <returns></returns>
+        private static ServerEndPoint GetRandomSlaveEndPoint(ServerEndPoint[] slaves, RedisCommand command)
+        {
+            if (slaves != null && slaves.Length > 0)
+            {
+                Int32 randomNum = 0;
+
+                if (slaves.Length > 1)
+                {
+                    randomNum = new Random().Next() % slaves.Length;
+                }
+
+                ServerEndPoint endpoint = slaves[randomNum];
+                if (endpoint.IsSlave && endpoint.IsSelectable(command)) return endpoint;
+
+            }
+
             return null;
         }
 
