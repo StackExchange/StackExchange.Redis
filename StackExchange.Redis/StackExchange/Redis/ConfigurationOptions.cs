@@ -212,7 +212,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The retry policy to be used for connection reconnects
         /// </summary>
-        public IReconnectRetryPolicy ReconnectRetryPolicy { get { return reconnectRetryPolicy ?? new LinearRetry(ConnectTimeout); } set { reconnectRetryPolicy = value; } }
+        public IReconnectRetryPolicy ReconnectRetryPolicy { get { return reconnectRetryPolicy ?? (reconnectRetryPolicy = new LinearRetry(ConnectTimeout)); } set { reconnectRetryPolicy = value; } }
 
 
         /// <summary>
@@ -358,7 +358,7 @@ namespace StackExchange.Redis
                 configCheckSeconds = configCheckSeconds,
                 responseTimeout = responseTimeout,
 				defaultDatabase = defaultDatabase,
-                ReconnectRetryPolicy = ReconnectRetryPolicy,
+                ReconnectRetryPolicy = reconnectRetryPolicy,
             };
             foreach (var item in endpoints)
                 options.endpoints.Add(item);
