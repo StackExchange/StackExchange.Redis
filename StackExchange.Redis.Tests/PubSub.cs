@@ -206,7 +206,8 @@ namespace StackExchange.Redis.Tests
                 var t2 = pub.PingAsync();
                 Thread.Sleep(100); // especially useful when testing any-order mode
 
-                if (!Task.WaitAll(new[] { t1, t2 }, muxer.TimeoutMilliseconds * 2)) throw new TimeoutException();
+                var timeout = muxer.Timeout + muxer.Timeout;
+                if (!Task.WaitAll(new[] { t1, t2 }, timeout)) throw new TimeoutException(timeout.ToString());
             }
         }
 

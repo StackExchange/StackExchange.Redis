@@ -137,7 +137,7 @@ namespace StackExchange.Redis.Tests
                 {
                     db.StringIncrement(key);
                 }
-            }, Threads, timeout: 45000);
+            }, Threads, timeout: TimeSpan.FromSeconds(45));
             value = (long)db.StringGet(key);
             Assert.AreEqual(SyncLoop * Threads, value);
             Console.WriteLine("Sync: {0} INCR using {1} threads, {2:###,##0}ms, {3} ops/s; final value: {4}",

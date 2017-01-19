@@ -196,7 +196,8 @@ namespace StackExchange.Redis.Tests
             if (proxy != null) config.Proxy = proxy.Value;
             var watch = Stopwatch.StartNew();
             var task = ConnectionMultiplexer.ConnectAsync(config, log ?? Console.Out);
-            if (!task.Wait(config.ConnectTimeout >= (int.MaxValue / 2) ? int.MaxValue : config.ConnectTimeout * 2))
+            var timeout = TimeSpan.FromMilliseconds(config.ConnectTimeout >= (int.MaxValue / 2) ? int.MaxValue : config.ConnectTimeout * 2);
+            if (!task.Wait(timeout))
             {
                 task.ContinueWith(x =>
                 {
@@ -207,7 +208,7 @@ namespace StackExchange.Redis.Tests
                     catch
                     { }
                 }, TaskContinuationOptions.OnlyOnFaulted);
-                throw new TimeoutException("Connect timeout");
+                throw new TimeoutException("Connect timeout: " + timeout.ToString());
             }
             watch.Stop();
             Console.WriteLine("Connect took: " + watch.ElapsedMilliseconds + "ms");
@@ -255,8 +256,13 @@ namespace StackExchange.Redis.Tests
             return conn;
         }
 #endif
-        protected static TimeSpan RunConcurrent(Action work, int threads, int timeout = 10000, [CallerMemberName] string caller = null)
+        protected static TimeSpan RunConcurrent(Action work, int threads, TimeSpan? timeout = null, [CallerMemberName] string caller = null)
         {
+            if (!timeout.HasValue)
+            {
+                timeout = TimeSpan.FromSeconds(10);
+            }
+
             if (work == null) throw new ArgumentNullException(nameof(work));
             if (threads < 1) throw new ArgumentOutOfRangeException(nameof(threads));
             if(string.IsNullOrWhiteSpace(caller)) caller = Me();
@@ -295,7 +301,7 @@ namespace StackExchange.Redis.Tests
                 threadArr[i] = thd;
                 thd.Start();
             }
-            if (!allDone.WaitOne(timeout))
+            if (!allDone.WaitOne(timeout.Value))
             {
 #if !CORE_CLR
                 for (int i = 0; i < threads; i++)
@@ -304,7 +310,7 @@ namespace StackExchange.Redis.Tests
                     if (thd.IsAlive) thd.Abort();
                 }
 #endif
-                throw new TimeoutException();
+                throw new TimeoutException(timeout.Value.ToString());
             }
 
             return watch.Elapsed;
