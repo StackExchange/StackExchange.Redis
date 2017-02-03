@@ -970,6 +970,8 @@ namespace StackExchange.Redis
         {
             ((ConnectionMultiplexer)state).OnHeartbeat();
         };
+
+        private int _activeHeartbeatErrors;
         private void OnHeartbeat()
         {
             try
@@ -982,9 +984,20 @@ namespace StackExchange.Redis
                 var tmp = serverSnapshot;
                 for (int i = 0; i < tmp.Length; i++)
                     tmp[i].OnHeartbeat();
-            } catch(Exception ex)
+            }
+            catch (Exception ex)
             {
-                OnInternalError(ex);
+                if (Interlocked.CompareExchange(ref _activeHeartbeatErrors, 1, 0) == 0)
+                {
+                    try
+                    {
+                        OnInternalError(ex);
+                    }
+                    finally
+                    {
+                        Interlocked.Exchange(ref _activeHeartbeatErrors, 0);
+                    }
+                }
             }
         }
 

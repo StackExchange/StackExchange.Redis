@@ -7,6 +7,7 @@ using System.Net;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace StackExchange.Redis
@@ -531,17 +532,28 @@ namespace StackExchange.Redis
         }
         private int lastInfoReplicationCheckTicks;
 
+        private int _heartBeatActive;
         internal void OnHeartbeat()
         {
-            try
+            // don't overlap operations on an endpoint
+            if (Interlocked.CompareExchange(ref _heartBeatActive, 1, 0) == 0)
             {
-                interactive?.OnHeartbeat(false);
-                subscription?.OnHeartbeat(false);
-            } catch(Exception ex)
-            {
-                multiplexer.OnInternalError(ex, EndPoint);
-            }
+                try
+                {
 
+
+                    interactive?.OnHeartbeat(false);
+                    subscription?.OnHeartbeat(false);
+                }
+                catch (Exception ex)
+                {
+                    multiplexer.OnInternalError(ex, EndPoint);
+                }
+                finally
+                {
+                    Interlocked.Exchange(ref _heartBeatActive, 0);
+                }
+            }
         }
 
         internal Task<T> QueueDirectAsync<T>(Message message, ResultProcessor<T> processor, object asyncState = null, PhysicalBridge bridge = null)
