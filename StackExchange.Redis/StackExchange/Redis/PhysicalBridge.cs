@@ -383,7 +383,7 @@ namespace StackExchange.Redis
                         int connectTimeMilliseconds = unchecked(Environment.TickCount - VolatileWrapper.Read(ref connectStartTicks));
                         if (connectTimeMilliseconds >= Multiplexer.RawConfig.ConnectTimeout)
                         {
-                            LastException = ExceptionFactory.UnableToConnect("ConnectTimeout");
+                            LastException = ExceptionFactory.UnableToConnect(Multiplexer.RawConfig.AbortOnConnectFail, "ConnectTimeout");
                             Trace("Aborting connect");
                             // abort and reconnect
                             var snapshot = physical;
