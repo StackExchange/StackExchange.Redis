@@ -169,6 +169,7 @@ ReconnectRetryPolicy
 Configure the policy used by the Connection Multiplexer to  retry re-connect, namely linearly (default) or exponentially.
 
 Example:
+```C#
 config.ReconnectRetryPolicy = new ExponentialRetry(5000); // defaults maxDeltaBackoff to 10000 ms
 //retry#    retry to re-connect after time in milliseconds
 //1	        a random value between 5000 and 5500	   
@@ -186,3 +187,4 @@ config.ReconnectRetryPolicy = new LinearRetry(5000);
 //4	        5000 
 //5	        5000 
 //6	        5000 
+```
