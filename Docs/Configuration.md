@@ -166,7 +166,9 @@ These settings are also used by the `IServer.MakeMaster()` method, which can set
 
 ReconnectRetryPolicy
 ---
-Configure the policy used by the Connection Multiplexer to  retry re-connect, namely linearly (default) or exponentially.
+StackExchange.Redis automatically tries to reconnect in the background when the connection is lost for any reason. It keeps retrying  until the connection has been restored. It would use ReconnectRetryPolicy to decide how long it should wait between the retries.
+ReconnectRetryPolicy can be linearly (default), exponentially or a custom retry policy.
+
 
 Example:
 ```C#
