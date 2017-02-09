@@ -170,7 +170,7 @@ StackExchange.Redis automatically tries to reconnect in the background when the 
 ReconnectRetryPolicy can be linear (default), exponential or a custom retry policy.
 
 
-Example:
+Examples:
 ```C#
 config.ReconnectRetryPolicy = new ExponentialRetry(5000); // defaults maxDeltaBackoff to 10000 ms
 //retry#    retry to re-connect after time in milliseconds
