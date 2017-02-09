@@ -47,6 +47,7 @@ namespace StackExchange.Redis
         int profileLogIndex;
         volatile bool reportNextFailure = true, reconfigureNextFailure = false;
         private volatile int state = (int)State.Disconnected;
+
         public PhysicalBridge(ServerEndPoint serverEndPoint, ConnectionType type)
         {
             ServerEndPoint = serverEndPoint;
@@ -364,6 +365,8 @@ namespace StackExchange.Redis
         }
 
         private int connectStartTicks;
+        private long connectTimeoutRetryCount = 0;
+        
         internal void OnHeartbeat(bool ifConnectedOnly)
         {
             bool runThisTime = false;
@@ -381,8 +384,10 @@ namespace StackExchange.Redis
                 {
                     case (int)State.Connecting:
                         int connectTimeMilliseconds = unchecked(Environment.TickCount - VolatileWrapper.Read(ref connectStartTicks));
-                        if (connectTimeMilliseconds >= Multiplexer.RawConfig.ConnectTimeout)
+                        bool shouldRetry = Multiplexer.RawConfig.ReconnectRetryPolicy.ShouldRetry(Interlocked.Read(ref connectTimeoutRetryCount), connectTimeMilliseconds);
+                        if (shouldRetry)
                         {
+                            Interlocked.Increment(ref connectTimeoutRetryCount);
                             LastException = ExceptionFactory.UnableToConnect("ConnectTimeout");
                             Trace("Aborting connect");
                             // abort and reconnect
@@ -405,6 +410,7 @@ namespace StackExchange.Redis
                         {
                             if(state == (int)State.ConnectedEstablished)
                             {
+                                Interlocked.Exchange(ref connectTimeoutRetryCount, 0);
                                 tmp.Bridge.ServerEndPoint.ClearUnselectable(UnselectableFlags.DidNotRespond);
                             }
                             tmp.OnHeartbeat();
@@ -441,6 +447,7 @@ namespace StackExchange.Redis
                         }
                         break;
                     case (int)State.Disconnected:
+                        Interlocked.Exchange(ref connectTimeoutRetryCount, 0);
                         if (!ifConnectedOnly)
                         {
                             AbortUnsent();
@@ -449,6 +456,7 @@ namespace StackExchange.Redis
                         }
                         break;
                     default:
+                        Interlocked.Exchange(ref connectTimeoutRetryCount, 0);
                         if (!ifConnectedOnly)
                         {
                             AbortUnsent();
