@@ -31,7 +31,7 @@
         /// Redis Sorted Sets are, similarly to Redis Sets, non repeating collections of Strings. The difference is that every member of a Sorted Set is associated with score, that is used in order to take the sorted set ordered, from the smallest to the greatest score. While members are unique, scores may be repeated.
         /// </summary>
         /// <remarks>http://redis.io/commands#sorted_set</remarks>
-        SortedSet,
+        ZSet,
         /// <summary>
         /// Redis Hashes are maps between string fields and string values, so they are the perfect data type to represent objects (eg: A User with a number of fields like name, surname, age, and so forth)
         /// </summary>
