@@ -64,6 +64,7 @@ namespace StackExchange.Redis.Tests
                 };
                 var ex = Assert.Throws<RedisConnectionException>(() => muxer.GetDatabase().Ping());
                 var rde = (RedisConnectionException)ex.InnerException;
+                Assert.That(ex.CommandStatus, Is.EqualTo(CommandStatus.WaitingToBeSent));
                 Assert.That(rde.FailureType, Is.EqualTo(ConnectionFailureType.AuthenticationFailure));
                 Assert.That(rde.InnerException.Message, Is.EqualTo("Error: NOAUTH Authentication required. Verify if the Redis password provided is correct."));
                 //wait for a second  for connectionfailed event to fire

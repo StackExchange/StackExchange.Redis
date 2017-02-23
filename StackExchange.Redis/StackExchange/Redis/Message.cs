@@ -27,6 +27,40 @@ namespace StackExchange.Redis
     }
 
 
+/// <summary>
+/// Indicates the time allotted for a command or operation has expired.
+/// </summary>
+#if FEATURE_SERIALIZATION
+    [Serializable]
+#endif
+    public sealed class RedisTimeoutException : TimeoutException
+    {
+#if FEATURE_SERIALIZATION
+        private RedisTimeoutException(SerializationInfo info, StreamingContext ctx) : base(info, ctx)
+        {
+             Commandstatus = (CommandStatus) info.GetValue("commandStatus", typeof(CommandStatus));
+        }
+        /// <summary>
+        /// Serialization implementation; not intended for general usage
+        /// </summary>
+        public override void GetObjectData(SerializationInfo info, StreamingContext context)
+        {
+            base.GetObjectData(info, context);
+            info.AddValue("commandStatus", Commandstatus);
+        }
+#endif
+        internal RedisTimeoutException(string message, CommandStatus commandStatus) : base(message)
+        {
+            Commandstatus = commandStatus;
+        }
+
+        /// <summary>
+        /// status of the command while communicating with Redis
+        /// </summary>
+        public CommandStatus Commandstatus { get; }
+    }
+
+
 
     /// <summary>
     /// Indicates a connection fault when communicating with redis
@@ -40,6 +74,7 @@ namespace StackExchange.Redis
         private RedisConnectionException(SerializationInfo info, StreamingContext ctx) : base(info, ctx)
         {
             FailureType = (ConnectionFailureType)info.GetInt32("failureType");
+            CommandStatus = (CommandStatus)info.GetValue("commandStatus", typeof(CommandStatus));
         }
         /// <summary>
         /// Serialization implementation; not intended for general usage
@@ -48,22 +83,33 @@ namespace StackExchange.Redis
         {
             base.GetObjectData(info, context);
             info.AddValue("failureType", (int)FailureType);
+            info.AddValue("commandStatus", CommandStatus);
         }
 #endif
 
-        internal RedisConnectionException(ConnectionFailureType failureType, string message) : base(message)
+        internal RedisConnectionException(ConnectionFailureType failureType, string message) : this(failureType, message, null, CommandStatus.Unknown)
         {
-            FailureType = failureType;
         }
-        internal RedisConnectionException(ConnectionFailureType failureType, string message, Exception innerException) : base(message, innerException)
+
+        internal RedisConnectionException(ConnectionFailureType failureType, string message, Exception innerException) : this(failureType, message, innerException, CommandStatus.Unknown)
+        {
+        }
+
+        internal RedisConnectionException(ConnectionFailureType failureType, string message, Exception innerException, CommandStatus commandStatus) : base(message, innerException)
         {
             FailureType = failureType;
+            CommandStatus = commandStatus;
         }
 
         /// <summary>
         /// The type of connection failure
         /// </summary>
         public ConnectionFailureType FailureType { get; }
+
+        /// <summary>
+        /// status of the command while communicating with Redis
+        /// </summary>
+        public CommandStatus CommandStatus { get; }
     }
 
     /// <summary>
@@ -193,6 +239,7 @@ namespace StackExchange.Redis
 
             createdDateTime = DateTime.UtcNow;
             createdTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+            Status = CommandStatus.WaitingToBeSent;
         }
 
         internal void SetMasterOnly()
@@ -231,7 +278,10 @@ namespace StackExchange.Redis
             createdTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
             performance = ProfileStorage.NewAttachedToSameContext(oldPerformance, resendTo, isMoved);
             performance.SetMessage(this);
+            Status = CommandStatus.WaitingToBeSent;
         }
+
+        internal CommandStatus Status { get; private set; }
 
         public RedisCommand Command => command;
 
@@ -678,6 +728,7 @@ namespace StackExchange.Redis
 
         internal void SetRequestSent()
         {
+            Status = CommandStatus.Sent;
             performance?.SetRequestSent();
         }
 
