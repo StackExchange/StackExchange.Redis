@@ -83,6 +83,7 @@ The `ConfigurationOptions` object has a wide range of properties, all of which a
 | tiebreaker={string}    | `TieBreaker`           | Key to use for selecting a server in an ambiguous master scenario               |
 | version={string}       | `DefaultVersion`       | Redis version level (useful when the server does not make this available)       |
 | writeBuffer={int}      | `WriteBuffer`          | Size of the output buffer                                                       |
+| ReconnectRetryPolicy={IReconnectRetryPolicy}   | `ReconnectRetryPolicy`          | Reconnect retry policy                                                       |
 
 Tokens in the configuration string are comma-separated; any without an `=` sign are assumed to be redis server endpoints. Endpoints without an explicit port will use 6379 if ssl is not enabled, and 6380 if ssl is enabled.
 Tokens starting with `$` are taken to represent command maps, for example: `$config=cfg`.
@@ -162,3 +163,30 @@ Likewise, when the configuration is changed (especially the master/slave configu
 Both options can be customized or disabled (set to `""`), via the `.ConfigurationChannel` and `.TieBreaker` configuration properties.
 
 These settings are also used by the `IServer.MakeMaster()` method, which can set the tie-breaker in the database and broadcast the configuration change message. The configuration message can also be used separately to master/slave changes simply to request all nodes to refresh their configurations, via the `ConnectionMultiplexer.PublishReconfigure` method.
+
+ReconnectRetryPolicy
+---
+StackExchange.Redis automatically tries to reconnect in the background when the connection is lost for any reason. It keeps retrying  until the connection has been restored. It would use ReconnectRetryPolicy to decide how long it should wait between the retries.
+ReconnectRetryPolicy can be linear (default), exponential or a custom retry policy.
+
+
+Examples:
+```C#
+config.ReconnectRetryPolicy = new ExponentialRetry(5000); // defaults maxDeltaBackoff to 10000 ms
+//retry#    retry to re-connect after time in milliseconds
+//1	        a random value between 5000 and 5500	   
+//2	        a random value between 5000 and 6050	   
+//3	        a random value between 5000 and 6655	   
+//4	        a random value between 5000 and 8053
+//5	        a random value between 5000 and 10000, since maxDeltaBackoff was 10000 ms
+//6	        a random value between 5000 and 10000
+
+config.ReconnectRetryPolicy = new LinearRetry(5000); 
+//retry#    retry to re-connect after time in milliseconds
+//1	        5000 
+//2	        5000 	   
+//3	        5000 	   
+//4	        5000 
+//5	        5000 
+//6	        5000 
+```

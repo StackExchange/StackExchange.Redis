@@ -115,6 +115,8 @@ namespace StackExchange.Redis
 
         private Proxy? proxy;
 
+        private IReconnectRetryPolicy reconnectRetryPolicy; 
+
         /// <summary>
         /// A LocalCertificateSelectionCallback delegate responsible for selecting the certificate used for authentication; note
         /// that this cannot be specified in the configuration-string.
@@ -206,6 +208,12 @@ namespace StackExchange.Redis
             }
             set { connectTimeout = value; }
         }
+
+        /// <summary>
+        /// The retry policy to be used for connection reconnects
+        /// </summary>
+        public IReconnectRetryPolicy ReconnectRetryPolicy { get { return reconnectRetryPolicy ?? (reconnectRetryPolicy = new LinearRetry(ConnectTimeout)); } set { reconnectRetryPolicy = value; } }
+
 
         /// <summary>
         /// The server version to assume
@@ -350,6 +358,7 @@ namespace StackExchange.Redis
                 configCheckSeconds = configCheckSeconds,
                 responseTimeout = responseTimeout,
 				defaultDatabase = defaultDatabase,
+                ReconnectRetryPolicy = reconnectRetryPolicy,
             };
             foreach (var item in endpoints)
                 options.endpoints.Add(item);
