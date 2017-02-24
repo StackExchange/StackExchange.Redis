@@ -62,28 +62,30 @@ Configuration Options
 
 The `ConfigurationOptions` object has a wide range of properties, all of which are fully documented in intellisense. Some of the more common options to use include:
 
-| Configuration string   | `ConfigurationOptions` | Meaning                                                                         |
-| ---------------------- | ---------------------- | ------------------------------------------------------------------------------- |
-| abortConnect={bool}    | `AbortOnConnectFail`   | If true, `Connect` will not create a connection while no servers are available  |
-| allowAdmin={bool}     | `AllowAdmin`           | Enables a range of commands that are considered risky                           |
-| channelPrefix={string} | `ChannelPrefix`        | Optional channel prefix for all pub/sub operations                              |
-| connectRetry={int}     | `ConnectRetry`         | The number of times to repeat connect attempts during initial `Connect`         |
-| connectTimeout={int}   | `ConnectTimeout`       | Timeout (ms) for connect operations                                             |
-| configChannel={string} | `ConfigurationChannel` | Broadcast channel name for communicating configuration changes                  |
-| defaultDatabase={int}  | `DefaultDatabase`      | Default database index, from `0` to `databases - 1`
-| keepAlive={int}        | `KeepAlive`            | Time (seconds) at which to send a message to help keep sockets alive            |
-| name={string}          | `ClientName`           | Identification for the connection within redis                                  |
-| password={string}      | `Password`             | Password for the redis server                                                   |
-| proxy={proxy type}     | `Proxy`                | Type of proxy in use (if any); for example "twemproxy"                          |
-| resolveDns={bool}      | `ResolveDns`           | Specifies that DNS resolution should be explicit and eager, rather than implicit |
-| serviceName={string}   | `ServiceName`          | Not currently implemented (intended for use with sentinel)                      |
-| ssl={bool}             | `Ssl`                  | Specifies that SSL encryption should be used                                    |
-| sslHost={string}       | `SslHost`              | Enforces a particular SSL host identity on the server's certificate             |
-| syncTimeout={int}      | `SyncTimeout`          | Time (ms) to allow for synchronous operations                                   |
-| tiebreaker={string}    | `TieBreaker`           | Key to use for selecting a server in an ambiguous master scenario               |
-| version={string}       | `DefaultVersion`       | Redis version level (useful when the server does not make this available)       |
-| writeBuffer={int}      | `WriteBuffer`          | Size of the output buffer                                                       |
-| ReconnectRetryPolicy={IReconnectRetryPolicy}   | `ReconnectRetryPolicy`          | Reconnect retry policy                                                       |
+| Configuration string   | `ConfigurationOptions` | Default                      | Meaning                                                                          |
+| ---------------------- | ---------------------- | ---------------------------- | -------------------------------------------------------------------------------- |
+| abortConnect={bool}    | `AbortOnConnectFail`   | `true` (`false` on Azure)    | If true, `Connect` will not create a connection while no servers are available   |
+| allowAdmin={bool}      | `AllowAdmin`           | `false`                      | Enables a range of commands that are considered risky                            |
+| channelPrefix={string} | `ChannelPrefix`        | `null`                       | Optional channel prefix for all pub/sub operations                               |
+| connectRetry={int}     | `ConnectRetry`         | `3`                          | The number of times to repeat connect attempts during initial `Connect`          |
+| connectTimeout={int}   | `ConnectTimeout`       | `5000`                       | Timeout (ms) for connect operations                                              |
+| configChannel={string} | `ConfigurationChannel` | `__Booksleeve_MasterChanged` | Broadcast channel name for communicating configuration changes                   |
+| defaultDatabase={int}  | `DefaultDatabase`      | `null`                       | Default database index, from `0` to `databases - 1`                              |
+| keepAlive={int}        | `KeepAlive`            | `-1`                         | Time (seconds) at which to send a message to help keep sockets alive             |
+| name={string}          | `ClientName`           | `null`                       | Identification for the connection within redis                                   |
+| password={string}      | `Password`             | `null`                       | Password for the redis server                                                    |
+| proxy={proxy type}     | `Proxy`                | `Proxy.None`                 | Type of proxy in use (if any); for example "twemproxy"                           |
+| resolveDns={bool}      | `ResolveDns`           | `false`                      | Specifies that DNS resolution should be explicit and eager, rather than implicit |
+| serviceName={string}   | `ServiceName`          | `null`                       | Not currently implemented (intended for use with sentinel)                       |
+| ssl={bool}             | `Ssl`                  | `false`                      | Specifies that SSL encryption should be used                                     |
+| sslHost={string}       | `SslHost`              | `null`                       | Enforces a particular SSL host identity on the server's certificate              |
+| syncTimeout={int}      | `SyncTimeout`          | `000`                        | Time (ms) to allow for synchronous operations                                    |
+| tiebreaker={string}    | `TieBreaker`           | `__Booksleeve_TieBreak`      | Key to use for selecting a server in an ambiguous master scenario                |
+| version={string}       | `DefaultVersion`       | (`3.0` in Azure, else `2.0`) | Redis version level (useful when the server does not make this available)        |
+| writeBuffer={int}      | `WriteBuffer`          | `4096`                       | Size of the output buffer                                                        |
+
+Additional code-only options:
+- ReconnectRetryPolicy (`IReconnectRetryPolicy`) - Default: `ReconnectRetryPolicy = LinearRetry(ConnectTimeout);`
 
 Tokens in the configuration string are comma-separated; any without an `=` sign are assumed to be redis server endpoints. Endpoints without an explicit port will use 6379 if ssl is not enabled, and 6380 if ssl is enabled.
 Tokens starting with `$` are taken to represent command maps, for example: `$config=cfg`.
