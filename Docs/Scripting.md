@@ -1,7 +1,7 @@
 ﻿Scripting
 ===
 
-Basic [Lua scripting](http://redis.io/commands/EVAL) is supported by the `IServer.ScriptLoad(Async)`, `IServer.ScriptExists(Async)`, `IServer.ScriptExists(Async)`, `IDatabase.ScriptEvaluate`, and `IDatabaseAsync.ScriptEvaluateAsync` methods.
+Basic [Lua scripting](http://redis.io/commands/EVAL) is supported by the `IServer.ScriptLoad(Async)`, `IServer.ScriptExists(Async)`, `IServer.ScriptFlush(Async)`, `IDatabase.ScriptEvaluate`, and `IDatabaseAsync.ScriptEvaluateAsync` methods.
 These methods expose the basic commands necessary to submit and execute Lua scripts to redis.
 
 More sophisticated scripting is available through the `LuaScript` class.  The `LuaScript` class makes it simpler to prepare and submit parameters along with a script, as well as allowing you to use 
