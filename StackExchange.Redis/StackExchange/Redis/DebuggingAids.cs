@@ -335,7 +335,7 @@ namespace StackExchange.Redis
                 // this shouldn't happen, but just being safe...
             }
 
-            if (_cpu != null)
+            if (!_disabled && _cpu != null)
             {
                 value = _cpu.NextValue();
                 return true;
