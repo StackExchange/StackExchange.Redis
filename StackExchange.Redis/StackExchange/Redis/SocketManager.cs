@@ -278,6 +278,13 @@ namespace StackExchange.Redis
             catch (SocketException)
             {
             }
+            catch (PlatformNotSupportedException)
+            {
+                // Fix for https://github.com/StackExchange/StackExchange.Redis/issues/582 
+                // Checking the platform can fail on some platforms. However, we don't 
+                //   care if the platform check fails because this is for a Windows 
+                //   optimization, and checking the platform will not fail on Windows.
+            }
 #endif
         }
 
