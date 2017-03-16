@@ -838,7 +838,7 @@ namespace StackExchange.Redis
         /// <returns>list of elements in the specified score range.</returns>
         RedisValue[] SortedSetRangeByValue(RedisKey key, RedisValue min = default(RedisValue), RedisValue max = default(RedisValue),
             Exclude exclude = Exclude.None, long skip = 0, long take = -1,
-            CommandFlags flags = CommandFlags.None);
+            CommandFlags flags = CommandFlags.None, Order order = Order.Ascending);
 
         /// <summary>
         /// Returns the rank of member in the sorted set stored at key, by default with the scores ordered from low to high. The rank (or index) is 0-based, which means that the member with the lowest score has rank 0.

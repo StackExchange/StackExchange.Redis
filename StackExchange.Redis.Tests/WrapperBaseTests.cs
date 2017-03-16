@@ -688,8 +688,15 @@ namespace StackExchange.Redis.Tests
         [Test]
         public void SortedSetRangeByValueAsync()
         {
-            wrapper.SortedSetRangeByValueAsync("key", "min", "max", Exclude.Start, 123, 456, CommandFlags.HighPriority);
-            mock.Verify(_ => _.SortedSetRangeByValueAsync("prefix:key", "min", "max", Exclude.Start, 123, 456, CommandFlags.HighPriority));
+            wrapper.SortedSetRangeByValueAsync("key", "min", "max", Exclude.Start, 123, 456, CommandFlags.HighPriority, Order.Ascending);
+            mock.Verify(_ => _.SortedSetRangeByValueAsync("prefix:key", "min", "max", Exclude.Start, 123, 456, CommandFlags.HighPriority, Order.Ascending));
+        }
+
+        [Test]
+        public void SortedSetRangeByValueDescendingAsync()
+        {
+            wrapper.SortedSetRangeByValueAsync("key", "min", "max", Exclude.Start, 123, 456, CommandFlags.HighPriority, Order.Descending);
+            mock.Verify(_ => _.SortedSetRangeByValueAsync("prefix:key", "min", "max", Exclude.Start, 123, 456, CommandFlags.HighPriority, Order.Descending));
         }
 
         [Test]

@@ -2304,9 +2304,9 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
-        public RedisValue[] SortedSetRangeByValue(RedisKey key, RedisValue min = default(RedisValue), RedisValue max = default(RedisValue), Exclude exclude = Exclude.None, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
+        public RedisValue[] SortedSetRangeByValue(RedisKey key, RedisValue min = default(RedisValue), RedisValue max = default(RedisValue), Exclude exclude = Exclude.None, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None, Order order = Order.Ascending)
         {
-            var msg = GetLexMessage(RedisCommand.ZRANGEBYLEX, key, min, max, exclude, skip, take, flags);
+            var msg = GetLexMessage(order == Order.Ascending ? RedisCommand.ZRANGEBYLEX : RedisCommand.ZREVRANGEBYLEX, key, min, max, exclude, skip, take, flags);
             return ExecuteSync(msg, ResultProcessor.RedisValueArray);
         }
 
@@ -2322,9 +2322,9 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
-        public Task<RedisValue[]> SortedSetRangeByValueAsync(RedisKey key, RedisValue min = default(RedisValue), RedisValue max = default(RedisValue), Exclude exclude = Exclude.None, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
+        public Task<RedisValue[]> SortedSetRangeByValueAsync(RedisKey key, RedisValue min = default(RedisValue), RedisValue max = default(RedisValue), Exclude exclude = Exclude.None, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None, Order order = Order.Ascending)
         {
-            var msg = GetLexMessage(RedisCommand.ZRANGEBYLEX, key, min, max, exclude, skip, take, flags);
+            var msg = GetLexMessage(order == Order.Ascending ? RedisCommand.ZRANGEBYLEX : RedisCommand.ZREVRANGEBYLEX, key, min, max, exclude, skip, take, flags);
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray);
         }
 

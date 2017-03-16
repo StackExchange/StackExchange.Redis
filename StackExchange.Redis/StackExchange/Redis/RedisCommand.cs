@@ -171,6 +171,7 @@
         ZLEXCOUNT,
         ZRANGE,
         ZRANGEBYLEX,
+        ZREVRANGEBYLEX,
         ZRANGEBYSCORE,
         ZRANK,
         ZREM,
