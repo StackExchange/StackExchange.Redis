@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Security.Authentication;
 using System.Threading.Tasks;
 using NUnit.Framework;
 using StackExchange.Redis;
@@ -185,6 +186,42 @@ namespace Tests
             {
                 Console.WriteLine(log);
             }
+        }
+
+        [Test]
+        public void SslProtocols_SingleValue()
+        {
+            var log = new StringWriter();
+            var options = ConfigurationOptions.Parse("myhost,sslProtocols=Tls11");
+            Assert.AreEqual(SslProtocols.Tls11, options.SslProtocols.Value);
+        }
+
+        [Test]
+        public void SslProtocols_MultipleValues()
+        {
+            var log = new StringWriter();
+            var options = ConfigurationOptions.Parse("myhost,sslProtocols=Tls11|Tls12");
+            Assert.AreEqual(SslProtocols.Tls11|SslProtocols.Tls12, options.SslProtocols.Value);
+        }
+
+        [Test]
+        public void SslProtocols_UsingIntegerValue()
+        {
+            var log = new StringWriter();
+
+            // The below scenario is for cases where the *targeted*
+            // .NET framework version (e.g. .NET 4.0) doesn't define an enum value (e.g. Tls11)
+            // but the OS has been patched with support
+            int integerValue = (int)(SslProtocols.Tls11 | SslProtocols.Tls12);
+            var options = ConfigurationOptions.Parse("myhost,sslProtocols=" + integerValue);
+            Assert.AreEqual(SslProtocols.Tls11 | SslProtocols.Tls12, options.SslProtocols.Value);
+        }
+
+        [Test]
+        public void SslProtocols_InvalidValue()
+        {
+            var log = new StringWriter();
+            Assert.Throws<ArgumentOutOfRangeException>(() => ConfigurationOptions.Parse("myhost,sslProtocols=InvalidSslProtocol"));            
         }
 
         [Test]

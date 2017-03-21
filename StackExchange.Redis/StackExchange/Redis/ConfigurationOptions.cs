@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Security;
+using System.Security.Authentication;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -65,7 +66,18 @@ namespace StackExchange.Redis
                 if (!Enum.TryParse(value, true, out tmp)) throw new ArgumentOutOfRangeException("Keyword '" + key + "' requires a proxy value");
                 return tmp;
             }
+#if !CORE_CLR
+            internal static SslProtocols ParseSslProtocols(string key, string value)
+            {
+                SslProtocols tmp;
+                //Flags expect commas as separators, but we need to use '|' since commas are already used in the connection string to mean something else
+                value = value?.Replace("|", ","); 
 
+                if (!Enum.TryParse(value, true, out tmp)) throw new ArgumentOutOfRangeException("Keyword '" + key + "' requires an SslProtocol value (multiple values separated by '|').");
+
+                return tmp;                
+            }
+#endif
             internal static void Unknown(string key)
             {
                 throw new ArgumentException("Keyword '" + key + "' is not supported");
@@ -78,6 +90,10 @@ namespace StackExchange.Redis
                         ConfigChannel = "configChannel", AbortOnConnectFail = "abortConnect", ResolveDns = "resolveDns",
                         ChannelPrefix = "channelPrefix", Proxy = "proxy", ConnectRetry = "connectRetry",
                         ConfigCheckSeconds = "configCheckSeconds", ResponseTimeout = "responseTimeout", DefaultDatabase = "defaultDatabase";
+#if !CORE_CLR
+            internal const string SslProtocols = "sslProtocols";
+#endif
+                
             private static readonly Dictionary<string, string> normalizedOptions = new[]
             {
                 AllowAdmin, SyncTimeout,
@@ -87,6 +103,9 @@ namespace StackExchange.Redis
                 ConfigChannel, AbortOnConnectFail, ResolveDns,
                 ChannelPrefix, Proxy, ConnectRetry,
                 ConfigCheckSeconds, DefaultDatabase,
+#if !CORE_CLR
+                SslProtocols,
+#endif
             }.ToDictionary(x => x, StringComparer.OrdinalIgnoreCase);
 
             public static string TryNormalize(string value)
@@ -140,7 +159,7 @@ namespace StackExchange.Redis
         /// Indicates whether admin operations should be allowed
         /// </summary>
         public bool AllowAdmin { get { return allowAdmin.GetValueOrDefault(); } set { allowAdmin = value; } }
-
+                
         /// <summary>
         /// Indicates whether the connection should be encrypted
         /// </summary>
@@ -156,6 +175,13 @@ namespace StackExchange.Redis
         /// </summary>
         public bool Ssl { get { return ssl.GetValueOrDefault(); } set { ssl = value; } }
 
+
+#if !CORE_CLR
+        /// <summary>
+        /// Configures which Ssl/TLS protocols should be allowed.  If not set, defaults are chosen by the .NET framework.
+        /// </summary>
+        public SslProtocols? SslProtocols { get; set; }
+#endif
         /// <summary>
         /// Automatically encodes and decodes channels
         /// </summary>
@@ -357,8 +383,11 @@ namespace StackExchange.Redis
                 connectRetry = connectRetry,
                 configCheckSeconds = configCheckSeconds,
                 responseTimeout = responseTimeout,
-				defaultDatabase = defaultDatabase,
+                defaultDatabase = defaultDatabase,
                 ReconnectRetryPolicy = reconnectRetryPolicy,
+#if !CORE_CLR
+                SslProtocols = SslProtocols,
+#endif
             };
             foreach (var item in endpoints)
                 options.endpoints.Add(item);
@@ -622,6 +651,11 @@ namespace StackExchange.Redis
                         case OptionKeys.DefaultDatabase:
                             defaultDatabase = OptionKeys.ParseInt32(key, value);
                             break;
+#if !CORE_CLR
+                        case OptionKeys.SslProtocols:
+                            SslProtocols = OptionKeys.ParseSslProtocols(key, value);
+                            break;
+#endif
                         default:
                             if (!string.IsNullOrEmpty(key) && key[0] == '$')
                             {
@@ -660,7 +694,7 @@ namespace StackExchange.Redis
 
             return true;
         }
-
+        
         private bool IsAzureEndpoint()
         {
             var result = false; 
