@@ -388,7 +388,7 @@ namespace StackExchange.Redis
                         if (shouldRetry)
                         {
                             Interlocked.Increment(ref connectTimeoutRetryCount);
-                            LastException = ExceptionFactory.UnableToConnect("ConnectTimeout");
+                            LastException = ExceptionFactory.UnableToConnect(Multiplexer.RawConfig.AbortOnConnectFail, "ConnectTimeout");
                             Trace("Aborting connect");
                             // abort and reconnect
                             var snapshot = physical;

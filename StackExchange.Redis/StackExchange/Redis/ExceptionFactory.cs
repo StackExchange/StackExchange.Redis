@@ -194,10 +194,11 @@ namespace StackExchange.Redis
             return message == null ? command.ToString() : (includeDetail ? message.CommandAndKey : message.Command.ToString());
         }
 
-        internal static Exception UnableToConnect(string failureMessage=null)
+        internal static Exception UnableToConnect(bool abortOnConnect, string failureMessage=null)
         {
+            var abortOnConnectionFailure = abortOnConnect ? "to create a disconnected multiplexer, disable AbortOnConnectFail. " : "";
             return new RedisConnectionException(ConnectionFailureType.UnableToConnect,
-                "It was not possible to connect to the redis server(s); to create a disconnected multiplexer, disable AbortOnConnectFail. " + failureMessage);
+                string.Format("It was not possible to connect to the redis server(s); {0}{1}", abortOnConnectionFailure, failureMessage));
         }
 
         internal static Exception BeganProfilingWithDuplicateContext(object forContext)

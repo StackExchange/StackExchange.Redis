@@ -794,7 +794,7 @@ namespace StackExchange.Redis
                 bool configured = await muxer.ReconfigureAsync(true, false, log, null, "connect").ObserveErrors().ForAwait();
                 if (!configured)
                 {
-                    throw ExceptionFactory.UnableToConnect(muxer.failureMessage);
+                    throw ExceptionFactory.UnableToConnect(muxer.RawConfig.AbortOnConnectFail, muxer.failureMessage);
                 }
                 killMe = null;
                 return muxer;
@@ -817,7 +817,7 @@ namespace StackExchange.Redis
                 bool configured = await muxer.ReconfigureAsync(true, false, log, null, "connect").ObserveErrors().ForAwait();
                 if (!configured)
                 {
-                    throw ExceptionFactory.UnableToConnect(muxer.failureMessage);
+                    throw ExceptionFactory.UnableToConnect(muxer.RawConfig.AbortOnConnectFail, muxer.failureMessage);
                 }
                 killMe = null;
                 return muxer;
@@ -876,14 +876,14 @@ namespace StackExchange.Redis
                     task.ObserveErrors();
                     if (muxer.RawConfig.AbortOnConnectFail)
                     {
-                        throw ExceptionFactory.UnableToConnect("ConnectTimeout");
+                        throw ExceptionFactory.UnableToConnect(muxer.RawConfig.AbortOnConnectFail, "ConnectTimeout");
                     }
                     else
                     {
-                        muxer.LastException = ExceptionFactory.UnableToConnect("ConnectTimeout");
+                        muxer.LastException = ExceptionFactory.UnableToConnect(muxer.RawConfig.AbortOnConnectFail, "ConnectTimeout");
                     }
                 }
-                if (!task.Result) throw ExceptionFactory.UnableToConnect(muxer.failureMessage);
+                if (!task.Result) throw ExceptionFactory.UnableToConnect(muxer.RawConfig.AbortOnConnectFail, muxer.failureMessage);
                 killMe = null;
                 return muxer;
             }
