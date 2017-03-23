@@ -5,7 +5,7 @@ Similarly, verify you are not getting CPU bound on client or on the server box w
 
 Are there commands taking long time to process on the redis-server?
 ---------------
-There can be commands that are taking long time to process on the redis-server causing the request to timeout. Few examples of long running commands are mget with large number of keys, keys * or poorly written lua script. You can run the SlowLog command to see if there are requests taking longer than expected. More details regarding the command can be found [here] (http://redis.io/commands/slowlog) 
+There can be commands that are taking long time to process on the redis-server causing the request to timeout. Few examples of long running commands are mget with large number of keys, keys * or poorly written lua script. You can run the SlowLog command to see if there are requests taking longer than expected. More details regarding the command can be found [here] (https://redis.io/commands/slowlog) 
 
 Was there a big request preceding several small requests to the Redis that timed out?
 ---------------
@@ -45,7 +45,7 @@ Given the above information, it's recommend to set the minimum configuration val
 
 How to configure this setting:
 
- - In ASP.NET, use the ["minIoThreads" configuration setting](https://msdn.microsoft.com/en-us/library/vstudio/7w2sway1(v=vs.100).aspx) under the `<processModel>` configuration element in machine.config. If you are running inside of Azure WebSites, this setting is not exposed through the configuration options. You should be able to set this programmatically (see below) from your Application_Start method in global.asax.cs.
+ - In ASP.NET, use the ["minIoThreads" configuration setting](https://msdn.microsoft.com/en-us/library/vstudio/7w2sway1(v=vs.100).aspx) under the `<processModel>` configuration element in `machine.config`. You could set your server's `machine.config` to allow this overridable per apppool via the method indicated [here](https://stackoverflow.com/questions/1939230/asp-net-processmodel-configuration-optimization#comment2882249_1939245) and set this per Web.Config. Alternativly you can be able to set this programmatically (see below) from your Application_Start method in `Global.asax.cs`.
 
 > **Important Note:** the value specified in this configuration element is a *per-core* setting.  For example, if you have a 4 core machine and want your minIOThreads setting to be 200 at runtime, you would use `<processModel minIoThreads="50"/>`.
 
