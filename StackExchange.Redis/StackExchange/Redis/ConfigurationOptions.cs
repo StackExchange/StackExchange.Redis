@@ -66,7 +66,7 @@ namespace StackExchange.Redis
                 if (!Enum.TryParse(value, true, out tmp)) throw new ArgumentOutOfRangeException("Keyword '" + key + "' requires a proxy value");
                 return tmp;
             }
-#if !CORE_CLR
+
             internal static SslProtocols ParseSslProtocols(string key, string value)
             {
                 SslProtocols tmp;
@@ -77,7 +77,7 @@ namespace StackExchange.Redis
 
                 return tmp;                
             }
-#endif
+
             internal static void Unknown(string key)
             {
                 throw new ArgumentException("Keyword '" + key + "' is not supported");
@@ -90,10 +90,8 @@ namespace StackExchange.Redis
                         ConfigChannel = "configChannel", AbortOnConnectFail = "abortConnect", ResolveDns = "resolveDns",
                         ChannelPrefix = "channelPrefix", Proxy = "proxy", ConnectRetry = "connectRetry",
                         ConfigCheckSeconds = "configCheckSeconds", ResponseTimeout = "responseTimeout", DefaultDatabase = "defaultDatabase";
-#if !CORE_CLR
             internal const string SslProtocols = "sslProtocols";
-#endif
-                
+
             private static readonly Dictionary<string, string> normalizedOptions = new[]
             {
                 AllowAdmin, SyncTimeout,
@@ -103,9 +101,7 @@ namespace StackExchange.Redis
                 ConfigChannel, AbortOnConnectFail, ResolveDns,
                 ChannelPrefix, Proxy, ConnectRetry,
                 ConfigCheckSeconds, DefaultDatabase,
-#if !CORE_CLR
                 SslProtocols,
-#endif
             }.ToDictionary(x => x, StringComparer.OrdinalIgnoreCase);
 
             public static string TryNormalize(string value)
@@ -175,13 +171,11 @@ namespace StackExchange.Redis
         /// </summary>
         public bool Ssl { get { return ssl.GetValueOrDefault(); } set { ssl = value; } }
 
-
-#if !CORE_CLR
         /// <summary>
         /// Configures which Ssl/TLS protocols should be allowed.  If not set, defaults are chosen by the .NET framework.
         /// </summary>
         public SslProtocols? SslProtocols { get; set; }
-#endif
+
         /// <summary>
         /// Automatically encodes and decodes channels
         /// </summary>

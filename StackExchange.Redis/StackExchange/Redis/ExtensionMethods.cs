@@ -1,5 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Net.Security;
+using System.Security.Authentication;
+using System.Security.Cryptography.X509Certificates;
 
 namespace StackExchange.Redis
 {
@@ -121,6 +124,34 @@ namespace StackExchange.Redis
             if (values == null) return null;
             if (values.Length == 0) return nix;
             return ConvertHelper.ConvertAll(values, x => (string)x);
+        }
+
+        internal static void AuthenticateAsClient(this SslStream ssl, string host, SslProtocols? allowedProtocols)
+        {
+            if (!allowedProtocols.HasValue)
+            {
+                //Default to the sslProtocols defined by the .NET Framework
+                AuthenticateAsClientUsingDefaultProtocols(ssl, host);
+                return;
+            }
+
+            var certificateCollection = new X509CertificateCollection();
+            const bool checkCertRevocation = true;
+#if CORE_CLR
+            ssl.AuthenticateAsClientAsync(host, certificateCollection, allowedProtocols.Value, checkCertRevocation)
+                                .GetAwaiter().GetResult();
+#else
+            ssl.AuthenticateAsClient(host, certificateCollection, allowedProtocols.Value, checkCertRevocation);
+#endif
+        }
+
+        private static void AuthenticateAsClientUsingDefaultProtocols(SslStream ssl, string host)
+        {
+#if CORE_CLR
+            ssl.AuthenticateAsClientAsync(host).GetAwaiter().GetResult();
+#else
+            ssl.AuthenticateAsClient(host);
+#endif
         }
     }
 }

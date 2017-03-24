@@ -187,7 +187,7 @@ namespace Tests
                 Console.WriteLine(log);
             }
         }
-#if !CORE_CLR
+
         [Test]
         public void SslProtocols_SingleValue()
         {
@@ -223,7 +223,6 @@ namespace Tests
             var log = new StringWriter();
             Assert.Throws<ArgumentOutOfRangeException>(() => ConfigurationOptions.Parse("myhost,sslProtocols=InvalidSslProtocol"));            
         }
-#endif //#if !CORE_CLR
 
         [Test]
         public void ConfigurationOptionsDefaultForAzure()
