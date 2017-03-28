@@ -788,6 +788,13 @@ namespace StackExchange.Redis
         long SortedSetLengthByValue(RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Returns the number of elements in the sorted set at key with a score between min and max.
+        /// </summary>
+        /// <returns> the number of elements in the sorted set at key with a score between min and max.</returns>
+        /// <remarks>http://redis.io/commands/zcount</remarks>
+        long SortedSetCount(RedisKey key, double min = double.NegativeInfinity, double max = double.PositiveInfinity, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Returns the specified range of elements in the sorted set stored at key. By default the elements are considered to be ordered from the lowest to the highest score. Lexicographical order is used for elements with equal score.
         /// Both start and stop are zero-based indexes, where 0 is the first element, 1 is the next element and so on. They can also be negative numbers indicating offsets from the end of the sorted set, with -1 being the last element of the sorted set, -2 the penultimate element and so on.
         /// </summary>
