@@ -177,7 +177,7 @@ namespace StackExchange.Redis
                             {
                                 err = string.Format("Endpoint {0} serving hashslot {1} is not reachable at this point of time. Please check connectTimeout value. If it is low, try increasing it to give the ConnectionMultiplexer a chance to recover from the network disconnect.  ", endpoint, hashSlot);
 #if !CORE_CLR
-                                err += ConnectionMultiplexer.GetThreadPoolAndCPUSummary();
+                                err += ConnectionMultiplexer.GetThreadPoolAndCPUSummary(bridge.Multiplexer.IncludePerformanceCountersInExceptions);
 #endif
                             }
                         }

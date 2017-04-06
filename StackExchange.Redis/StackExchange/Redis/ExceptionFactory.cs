@@ -92,7 +92,7 @@ namespace StackExchange.Redis
             }
         }
         
-        internal static Exception NoConnectionAvailable(bool includeDetail, RedisCommand command, Message message, ServerEndPoint server, ServerEndPoint[] serverSnapshot)
+        internal static Exception NoConnectionAvailable(bool includeDetail, bool includePerformanceCounters, RedisCommand command, Message message, ServerEndPoint server, ServerEndPoint[] serverSnapshot)
         {
             string commandLabel = GetLabel(includeDetail, command, message);
 
@@ -115,7 +115,7 @@ namespace StackExchange.Redis
 #if !CORE_CLR
             if (includeDetail)
             {
-                exceptionmessage.Append("; ").Append(ConnectionMultiplexer.GetThreadPoolAndCPUSummary());
+                exceptionmessage.Append("; ").Append(ConnectionMultiplexer.GetThreadPoolAndCPUSummary(includePerformanceCounters));
             }
 #endif
 

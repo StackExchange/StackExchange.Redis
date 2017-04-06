@@ -351,7 +351,7 @@ namespace StackExchange.Redis
 
             if (server == null) throw new ArgumentNullException(nameof(server));
             var srv = new RedisServer(this, server, null);
-            if (!srv.IsConnected) throw ExceptionFactory.NoConnectionAvailable(IncludeDetailInExceptions, RedisCommand.SLAVEOF, null, server, GetServerSnapshot());
+            if (!srv.IsConnected) throw ExceptionFactory.NoConnectionAvailable(IncludeDetailInExceptions, IncludePerformanceCountersInExceptions, RedisCommand.SLAVEOF, null, server, GetServerSnapshot());
 
             if (log == null) log = TextWriter.Null;
             CommandMap.AssertAvailable(RedisCommand.SLAVEOF);
@@ -935,6 +935,7 @@ namespace StackExchange.Redis
         {
             if (configuration == null) throw new ArgumentNullException(nameof(configuration));
             IncludeDetailInExceptions = true;
+            IncludePerformanceCountersInExceptions = false;
             
             this.configuration = configuration;
             
@@ -1964,7 +1965,7 @@ namespace StackExchange.Redis
                 var source = ResultBox<T>.Get(tcs);
                 if (!TryPushMessageToBridge(message, processor, source, ref server))
                 {
-                    ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(IncludeDetailInExceptions, message.Command, message, server, GetServerSnapshot()));
+                    ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(IncludeDetailInExceptions, IncludePerformanceCountersInExceptions, message.Command, message, server, GetServerSnapshot()));
                 }
                 return tcs.Task;
             }
@@ -2005,7 +2006,7 @@ namespace StackExchange.Redis
                 {
                     if (!TryPushMessageToBridge(message, processor, source, ref server))
                     {
-                        throw ExceptionFactory.NoConnectionAvailable(IncludeDetailInExceptions, message.Command, message, server, GetServerSnapshot());
+                        throw ExceptionFactory.NoConnectionAvailable(IncludeDetailInExceptions, IncludePerformanceCountersInExceptions, message.Command, message, server, GetServerSnapshot());
                     }
 
                     if (Monitor.Wait(source, timeoutMilliseconds))
@@ -2068,7 +2069,10 @@ namespace StackExchange.Redis
                             add("ThreadPool-Workers", "WORKER", worker);
                             data.Add(Tuple.Create("Busy-Workers", busyWorkerCount.ToString()));
 
-                            add("Local-CPU", "Local-CPU", GetSystemCpuPercent());
+                            if (IncludePerformanceCountersInExceptions)
+                            {
+                                add("Local-CPU", "Local-CPU", GetSystemCpuPercent());
+                            }
 #endif
                             sb.Append(" (Please take a look at this article for some common client-side issues that can cause timeouts: ");
                             sb.Append(timeoutHelpLink);
@@ -2106,11 +2110,11 @@ namespace StackExchange.Redis
         }
 
 #if !CORE_CLR
-        internal static string GetThreadPoolAndCPUSummary()
+        internal static string GetThreadPoolAndCPUSummary(bool includePerformanceCounters)
         {
             string iocp, worker;
             GetThreadPoolStats(out iocp, out worker);
-            var cpu = GetSystemCpuPercent();
+            var cpu = includePerformanceCounters ? GetSystemCpuPercent() : "n/a";
             return $"IOCP: {iocp}, WORKER: {worker}, Local-CPU: {cpu}";
         }
 
@@ -2151,6 +2155,11 @@ namespace StackExchange.Redis
         /// Should exceptions include identifiable details? (key names, additional .Data annotations)
         /// </summary>
         public bool IncludeDetailInExceptions { get; set; }
+
+        /// <summary>
+        /// Should exceptions include performance counter details? (CPU usage, etc - note that this can be problematic on some platforms)
+        /// </summary>
+        public bool IncludePerformanceCountersInExceptions { get; set; }
 
         int haveStormLog = 0, stormLogThreshold = 15;
         string stormLogSnapshot;

@@ -9,7 +9,7 @@ namespace Tests.Issues
     [TestFixture]
     public class Massive_Delete
     {
-        [TestFixtureSetUp]
+        [OneTimeSetUpAttribute]
         public void Init()
         {
             using (var muxer = Config.GetUnsecuredConnection(allowAdmin: true))

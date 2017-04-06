@@ -40,8 +40,8 @@ namespace Tests
                                 Type = type,
                                 Methods = methods,
                                 ActiveMethods = methods.Where(x => Attribute.IsDefined(x, typeof(ActiveTestAttribute))).ToArray(),
-                                Setup = methods.SingleOrDefault(x => Attribute.IsDefined(x, typeof(TestFixtureSetUpAttribute))),
-                                TearDown = methods.SingleOrDefault(x => Attribute.IsDefined(x, typeof(TestFixtureTearDownAttribute)))
+                                Setup = methods.SingleOrDefault(x => Attribute.IsDefined(x, typeof(OneTimeSetUpAttribute))),
+                                TearDown = methods.SingleOrDefault(x => Attribute.IsDefined(x, typeof(OneTimeTearDownAttribute)))
                             };
             int pass = 0, fail = 0;
 
