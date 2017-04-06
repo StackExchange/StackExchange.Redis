@@ -12,7 +12,8 @@ namespace StackExchange.Redis
             DataServerEndpoint = "server-endpoint",
             DataConnectionState = "connection-state",
             DataLastFailure = "last-failure",
-            DataLastInnerException = "last-innerexception";
+            DataLastInnerException = "last-innerexception",
+            DataSentStatusKey = "request-sent-status";
 
 
         internal static Exception AdminModeNotEnabled(bool includeDetail, RedisCommand command, Message message, ServerEndPoint server)
@@ -118,7 +119,7 @@ namespace StackExchange.Redis
             }
 #endif
 
-            var ex = new RedisConnectionException(ConnectionFailureType.UnableToResolvePhysicalConnection, exceptionmessage.ToString(), innerException);
+            var ex = new RedisConnectionException(ConnectionFailureType.UnableToResolvePhysicalConnection, exceptionmessage.ToString(), innerException, message?.Status ?? CommandStatus.Unknown);
             
             if (includeDetail)
             {
@@ -173,7 +174,7 @@ namespace StackExchange.Redis
 
         internal static Exception Timeout(bool includeDetail, string errorMessage, Message message, ServerEndPoint server)
         {
-            var ex = new TimeoutException(errorMessage);
+            var ex = new RedisTimeoutException(errorMessage, message?.Status ?? CommandStatus.Unknown);
             if (includeDetail) AddDetail(ex, message, server, null);
             return ex;
         }
@@ -182,7 +183,11 @@ namespace StackExchange.Redis
         {
             if (exception != null)
             {
-                if (message != null) exception.Data.Add(DataCommandKey, message.CommandAndKey);
+                if (message != null)
+                {
+                    exception.Data.Add(DataCommandKey, message.CommandAndKey);
+                    exception.Data.Add(DataSentStatusKey, message.Status);
+                }
                 else if (label != null) exception.Data.Add(DataCommandKey, label);
 
                 if (server != null) exception.Data.Add(DataServerKey, Format.ToString(server.EndPoint));
