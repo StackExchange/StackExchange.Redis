@@ -783,11 +783,9 @@ namespace StackExchange.Redis
                         );
                     try
                     {
-#if CORE_CLR
-                        ssl.AuthenticateAsClientAsync(host).GetAwaiter().GetResult();
-#else
-                        ssl.AuthenticateAsClient(host);
-#endif
+                        ssl.AuthenticateAsClient(host, config.SslProtocols);
+
+                        Multiplexer.LogLocked(log, $"SSL connection established successfully using protocol: {ssl.SslProtocol}");
                     }
                     catch (AuthenticationException authexception)
                     {
