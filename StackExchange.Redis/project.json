@@ -34,7 +34,7 @@
         "Microsoft.Bcl.Async": "1.0.168"
       },
       "buildOptions": {
-        "define": [ "FEATURE_SERIALIZATION", "FEATURE_SOCKET_MODE_POLL" ]
+        "define": [ "FEATURE_SERIALIZATION" ]
       }
     },
     "net45": {
@@ -42,7 +42,7 @@
         "System.IO.Compression": "4.0.0.0"
       },
       "buildOptions": {
-        "define": [ "FEATURE_SERIALIZATION", "FEATURE_SOCKET_MODE_POLL" ]
+        "define": [ "FEATURE_SERIALIZATION" ]
       }
     },
     "net46": {
@@ -50,7 +50,7 @@
         "System.IO.Compression": "4.0.0.0"
       },
       "buildOptions": {
-        "define": [ "FEATURE_SERIALIZATION", "FEATURE_SOCKET_MODE_POLL" ]
+        "define": [ "FEATURE_SERIALIZATION" ]
       }
     },
     "netstandard1.5": {

@@ -18,7 +18,7 @@
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
     <OutputPath>bin.snk\Debug\</OutputPath>
-    <DefineConstants>TRACE;DEBUG;NET46 STRONG_NAME FEATURE_SERIALIZATION FEATURE_SOCKET_MODE_POLL</DefineConstants>
+    <DefineConstants>TRACE;DEBUG;NET46 STRONG_NAME FEATURE_SERIALIZATION</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -30,7 +30,7 @@
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin.snk\Release\</OutputPath>
-    <DefineConstants>TRACE;NET46 PLAT_SAFE_CONTINUATIONS STRONG_NAME FEATURE_SERIALIZATION FEATURE_SOCKET_MODE_POLL</DefineConstants>
+    <DefineConstants>TRACE;NET46 PLAT_SAFE_CONTINUATIONS STRONG_NAME FEATURE_SERIALIZATION</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <UseVSHostingProcess>false</UseVSHostingProcess>
@@ -43,19 +43,6 @@
   </PropertyGroup>
   <PropertyGroup>
     <AssemblyOriginatorKeyFile>..\StackExchange.Redis.snk</AssemblyOriginatorKeyFile>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Mono|AnyCPU'">
-    <OutputPath>bin\Mono\</OutputPath>
-    <DefineConstants>TRACE;NET46 PLAT_SAFE_CONTINUATIONS STRONG_NAME FEATURE_SERIALIZATION</DefineConstants>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <DocumentationFile>bin.snk\Release\StackExchange.Redis.StrongName.xml</DocumentationFile>
-    <Optimize>true</Optimize>
-    <DebugType>pdbonly</DebugType>
-    <PlatformTarget>AnyCPU</PlatformTarget>
-    <UseVSHostingProcess>false</UseVSHostingProcess>
-    <ErrorReport>prompt</ErrorReport>
-    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
-    <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
