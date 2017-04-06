@@ -27,4 +27,18 @@ Other changes (not library related)
 - add: ZADD support for new NX/XX switches (#520)
 - add: core-clr preview support improvements
 
+## 1.1.608
+
+- fix: bug with race condition in servers indexer (related: 1.1.606)
+
+## 1.1.607
+
+- fix: ensure socket-mode polling is enabled (.net)
+
+## 1.1.606
+
+- fix: bug with race condition in servers indexer
+
+## and the rest
+
 (I'm happy to take PRs for change history going back in time)
