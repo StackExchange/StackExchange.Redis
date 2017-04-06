@@ -34,16 +34,16 @@ PM> Install-Package StackExchange.Redis.StrongName
 Documentation
 ---
 
-- [Basic Usage](/Basics) - getting started and basic usage
-- [Configuration](/Configuration) - options available when connecting to redis
-- [Pipelines and Multiplexers](/PipelinesMultiplexers) - what is a multiplexer?
-- [Keys, Values and Channels](/KeysValues) - discusses the data-types used on the API
-- [Transactions](/Transactions) - how atomic transactions work in redis
-- [Events](/Events) - the events available for logging / information purposes
-- [Pub/Sub Message Order](/PubSubOrder) - advice on sequential and concurrent processing
-- [Where are `KEYS` / `SCAN` / `FLUSH*`?](/KeysScan) - how to use server-based commands
-- [Profiling](/Profiling) - profiling interfaces, as well as how to profile in an `async` world
-- [Scripting](/Scripting) - running Lua scripts with convenient named parameter replacement 
+- [Basic Usage](Basics) - getting started and basic usage
+- [Configuration](Configuration) - options available when connecting to redis
+- [Pipelines and Multiplexers](PipelinesMultiplexers) - what is a multiplexer?
+- [Keys, Values and Channels](KeysValues) - discusses the data-types used on the API
+- [Transactions](Transactions) - how atomic transactions work in redis
+- [Events](Events) - the events available for logging / information purposes
+- [Pub/Sub Message Order](PubSubOrder) - advice on sequential and concurrent processing
+- [Where are `KEYS` / `SCAN` / `FLUSH*`?](KeysScan) - how to use server-based commands
+- [Profiling](Profiling) - profiling interfaces, as well as how to profile in an `async` world
+- [Scripting](Scripting) - running Lua scripts with convenient named parameter replacement 
 
 Questions and Contributions
 ---
