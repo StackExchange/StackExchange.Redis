@@ -2,7 +2,7 @@
 
 ## Unreleased changes:
 
-- fix: make performance-counter tracking opt-in (`IncludePerformanceCountersInExceptions`) as it was [causing problems](#587)
+- fix: make performance-counter tracking opt-in (`IncludePerformanceCountersInExceptions`) as it was causing problems (#587)
 - add: can now specifiy allowed SSL/TLS protocols  (#603)
 - add: track message status in exceptions (#576)
 - improved connection retry policy (#510, #572)
