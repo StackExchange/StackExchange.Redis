@@ -2,9 +2,10 @@
 
 ## Unreleased changes:
 
-- fix: make performance-counter tracking opt-in (`IncludePerformanceCountersInExceptions`) as it was causing problems (#587)
+- add: make performance-counter tracking opt-in (`IncludePerformanceCountersInExceptions`) as it was causing problems (#587)
 - add: can now specifiy allowed SSL/TLS protocols  (#603)
 - add: track message status in exceptions (#576)
+- add: `GetDatabase()` optimization for DB 0 and low numbered databases: `IDatabase` instance is retained and recycled (as long as no `asyncState` is provided)
 - improved connection retry policy (#510, #572)
 
 Other changes (not library related)
