@@ -1035,9 +1035,29 @@ namespace StackExchange.Redis
 
             if (db < 0) throw new ArgumentOutOfRangeException(nameof(db));
             if (db != 0 && RawConfig.Proxy == Proxy.Twemproxy) throw new NotSupportedException("Twemproxy only supports database 0");
-            return new RedisDatabase(this, db, asyncState);
+
+            // if there's no async-state, and the DB is suitable, we can hand out a re-used instance
+            return (asyncState == null && db <= MaxCachedDatabaseInstance)
+                ? GetCachedDatabaseInstance(db) : new RedisDatabase(this, db, asyncState);
         }
 
+        // DB zero is stored separately, since 0-only is a massively common use-case
+        const int MaxCachedDatabaseInstance = 16; // 17 items - [0,16]
+        // side note: "databases 16" is the default in redis.conf; happy to store one extra to get nice alignment etc
+        private IDatabase dbCacheZero;
+        private IDatabase[] dbCacheLow;
+        private IDatabase GetCachedDatabaseInstance(int db) // note that we already trust db here; only caller checks range
+        {
+            // note we don't need to worry about *always* returning the same instance
+            // - if two threads ask for db 3 at the same time, it is OK for them to get
+            // different instances, one of which (arbitrarily) ends up cached for later use
+            if(db == 0)
+            {
+                return dbCacheZero ?? (dbCacheZero = new RedisDatabase(this, 0, null));
+            }
+            var arr = dbCacheLow ?? (dbCacheLow = new IDatabase[MaxCachedDatabaseInstance]);
+            return arr[db - 1] ?? (arr[db - 1] = new RedisDatabase(this, db, null));
+        }
 
         /// <summary>
         /// Obtain a configuration API for an individual server
