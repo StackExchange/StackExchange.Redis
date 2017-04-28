@@ -514,6 +514,23 @@ namespace StackExchange.Redis
         Task<RedisResult> ScriptEvaluateAsync(string script, RedisKey[] keys = null, RedisValue[] values = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Execute an arbitrary command against the server; this is primarily intended for
+        /// executing modules, but may also be used to provide access to new features that lack
+        /// a direct API
+        /// </summary>
+        /// <returns>A dynamic representation of the command's result</returns>
+        Task<RedisResult> ExecuteAsync(string command, params object[] args);
+
+
+        /// <summary>
+        /// Execute an arbitrary command against the server; this is primarily intended for
+        /// executing modules, but may also be used to provide access to new features that lack
+        /// a direct API
+        /// </summary>
+        /// <returns>A dynamic representation of the command's result</returns>
+        Task<RedisResult> ExecuteAsync(string command, object[] args, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Execute a Lua script against the server using just the SHA1 hash
         /// </summary>
         /// <remarks>http://redis.io/commands/evalsha</remarks>

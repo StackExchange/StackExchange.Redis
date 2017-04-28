@@ -360,6 +360,13 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.Publish(ToInner(channel), message, flags);
         }
 
+        public RedisResult Execute(string command, params object[] args)
+            => Execute(command, args, CommandFlags.None);
+
+        public RedisResult Execute(string command, object[] args, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.Execute(command, ToInner(args), flags);
+        }
         public RedisResult ScriptEvaluate(byte[] hash, RedisKey[] keys = null, RedisValue[] values = null, CommandFlags flags = CommandFlags.None)
         {
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?

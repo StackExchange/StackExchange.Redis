@@ -474,6 +474,21 @@ namespace StackExchange.Redis
             WriteRaw(outStream, arguments + 1);
             WriteUnified(outStream, commandBytes);
         }
+        internal void WriteHeader(string command, int arguments)
+        {
+            var commandBytes = Multiplexer.CommandMap.GetBytes(command);
+            if (commandBytes == null)
+            {
+                throw ExceptionFactory.CommandDisabled(Multiplexer.IncludeDetailInExceptions, command, null, Bridge.ServerEndPoint);
+            }
+            outStream.WriteByte((byte)'*');
+
+            // remember the time of the first write that still not followed by read
+            Interlocked.CompareExchange(ref firstUnansweredWriteTickCount, Environment.TickCount, 0);
+
+            WriteRaw(outStream, arguments + 1);
+            WriteUnified(outStream, commandBytes);
+        }
 
         static void WriteRaw(Stream stream, long value, bool withLengthPrefix = false)
         {

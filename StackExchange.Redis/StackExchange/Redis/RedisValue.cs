@@ -393,6 +393,21 @@ namespace StackExchange.Redis
             else blob = value;
             return new RedisValue(0, blob);
         }
+
+        internal static RedisValue Parse(object obj)
+        {
+            if (obj == null) return RedisValue.Null;
+            if (obj is RedisValue) return (RedisValue)obj;
+            if (obj is string) return (RedisValue)(string)obj;
+            if (obj is int) return (RedisValue)(int)obj;
+            if (obj is double) return (RedisValue)(double)obj;
+            if (obj is byte[]) return (RedisValue)(byte[])obj;
+            if (obj is bool) return (RedisValue)(bool)obj;
+            if (obj is long) return (RedisValue)(long)obj;
+            if (obj is float) return (RedisValue)(float)obj;
+
+            throw new InvalidOperationException("Unable to format type for redis: " + obj.GetType().FullName);
+        }
         /// <summary>
         /// Creates a new RedisValue from a Boolean
         /// </summary>

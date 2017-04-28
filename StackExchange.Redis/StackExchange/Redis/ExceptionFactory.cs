@@ -30,6 +30,13 @@ namespace StackExchange.Redis
             if (includeDetail) AddDetail(ex, message, server, s);
             return ex;
         }
+        internal static Exception CommandDisabled(bool includeDetail, string command, Message message, ServerEndPoint server)
+        {
+            string s = GetLabel(includeDetail, command, message);
+            var ex = new RedisCommandException("This operation has been disabled in the command-map and cannot be used: " + s);
+            if (includeDetail) AddDetail(ex, message, server, s);
+            return ex;
+        }
 
         internal static Exception ConnectionFailure(bool includeDetail, ConnectionFailureType failureType, string message, ServerEndPoint server)
         {
@@ -197,6 +204,10 @@ namespace StackExchange.Redis
         static string GetLabel(bool includeDetail, RedisCommand command, Message message)
         {
             return message == null ? command.ToString() : (includeDetail ? message.CommandAndKey : message.Command.ToString());
+        }
+        static string GetLabel(bool includeDetail, string command, Message message)
+        {
+            return message == null ? command : (includeDetail ? message.CommandAndKey : message.Command.ToString());
         }
 
         internal static Exception UnableToConnect(bool abortOnConnect, string failureMessage=null)

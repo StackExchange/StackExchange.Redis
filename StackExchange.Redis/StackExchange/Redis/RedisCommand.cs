@@ -183,5 +183,7 @@
         ZSCAN,
         ZSCORE,
         ZUNIONSTORE,
+
+        UNKNOWN,
     }
 }

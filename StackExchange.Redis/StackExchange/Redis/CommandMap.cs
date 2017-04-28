@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Text;
 
@@ -172,6 +173,29 @@ namespace StackExchange.Redis
         {
             return map[(int)command];
         }
+        internal byte[] GetBytes(string command)
+        {
+            if (command == null) return null;
+            if(Enum.TryParse(command, true, out RedisCommand cmd))
+            {   // we know that one!
+                return map[(int)cmd];
+            }
+            var bytes = (byte[])_unknownCommands[command];
+            if(bytes == null)
+            {
+                lock(_unknownCommands)
+                {   // double-checked
+                    bytes = (byte[])_unknownCommands[command];
+                    if(bytes == null)
+                    {
+                        bytes = Encoding.ASCII.GetBytes(command);
+                        _unknownCommands[command] = bytes;
+                    }
+                }
+            }
+            return bytes;
+        }
+        static readonly Hashtable _unknownCommands = new Hashtable();
 
         internal bool IsAvailable(RedisCommand command)
         {

@@ -812,6 +812,7 @@ namespace StackExchange.Redis
                             connection.SetUnknownDatabase();
                         }
                         break;
+                    case RedisCommand.UNKNOWN:
                     case RedisCommand.DISCARD:
                     case RedisCommand.EXEC:
                         connection.SetUnknownDatabase();

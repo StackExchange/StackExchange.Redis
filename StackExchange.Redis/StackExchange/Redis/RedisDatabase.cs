@@ -1059,6 +1059,20 @@ namespace StackExchange.Redis
                 throw;
             }
         }
+        public RedisResult Execute(string command, params object[] args)
+    => Execute(command, args, CommandFlags.None);
+        public RedisResult Execute(string command, object[] args, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = new ExecuteMessage(Database, flags, command, args);
+            return ExecuteSync(msg, ResultProcessor.ScriptResult);
+        }
+        public Task<RedisResult> ExecuteAsync(string command, params object[] args)
+    => ExecuteAsync(command, args, CommandFlags.None);
+        public Task<RedisResult> ExecuteAsync(string command, object[] args, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = new ExecuteMessage(Database, flags, command, args);
+            return ExecuteAsync(msg, ResultProcessor.ScriptResult);
+        }
         public RedisResult ScriptEvaluate(byte[] hash, RedisKey[] keys = null, RedisValue[] values = null, CommandFlags flags = CommandFlags.None)
         {
             var msg = new ScriptEvalMessage(Database, flags, hash, keys, values);
@@ -2427,6 +2441,52 @@ namespace StackExchange.Redis
                         break;
                 }
                 return false;
+            }
+        }
+        private sealed class ExecuteMessage : Message
+        {
+            private readonly string _command;
+            private static readonly object[] NoArgs = new object[0];
+            private readonly object[] args;
+            public ExecuteMessage(int db, CommandFlags flags, string command, object[] args) : base(db, flags, RedisCommand.UNKNOWN)
+            {
+                _command = command;
+                this.args = args ?? NoArgs;
+            }
+            internal override void WriteImpl(PhysicalConnection physical)
+            {
+                physical.WriteHeader(_command, args.Length);
+                for(int i = 0; i < args.Length; i++)
+                {
+                    object arg = args[i];
+                    if (arg is RedisKey)
+                    {
+                        physical.Write((RedisKey)arg);
+                    }
+                    else if (arg is RedisChannel)
+                    {
+                        physical.Write((RedisChannel)arg);
+                    }
+                    else
+                    {   // recognises well-known types
+                        physical.Write(RedisValue.Parse(arg));
+                    }
+                }
+            }
+            public override string CommandAndKey => _command;
+
+            public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
+            {
+                int slot = ServerSelectionStrategy.NoSlot;
+                for (int i = 0 ; i < args.Length ; i++)
+                {
+                    object arg = args[i];
+                    if(arg is RedisKey)
+                    {
+                        slot = serverSelectionStrategy.CombineSlot(slot, (RedisKey)arg);
+                    }
+                }
+                return slot;
             }
         }
         private sealed class ScriptEvalMessage : Message, IMultiMessage

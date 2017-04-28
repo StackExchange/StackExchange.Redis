@@ -90,6 +90,7 @@ namespace StackExchange.Redis
 
             switch(message.Command)
             {
+                case RedisCommand.UNKNOWN:
                 case RedisCommand.EVAL:
                 case RedisCommand.EVALSHA:
                     // people can do very naughty things in an EVAL

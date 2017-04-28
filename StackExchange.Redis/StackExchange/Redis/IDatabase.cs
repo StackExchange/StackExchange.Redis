@@ -532,7 +532,24 @@ namespace StackExchange.Redis
         /// <returns>the number of clients that received the message.</returns>
         /// <remarks>http://redis.io/commands/publish</remarks>
         long Publish(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None);
-        
+
+        /// <summary>
+        /// Execute an arbitrary command against the server; this is primarily intended for
+        /// executing modules, but may also be used to provide access to new features that lack
+        /// a direct API
+        /// </summary>
+        /// <returns>A dynamic representation of the command's result</returns>
+        RedisResult Execute(string command, params object[] args);
+
+        /// <summary>
+        /// Execute an arbitrary command against the server; this is primarily intended for
+        /// executing modules, but may also be used to provide access to new features that lack
+        /// a direct API
+        /// </summary>
+        /// <returns>A dynamic representation of the command's result</returns>
+        RedisResult Execute(string command, object[] args, CommandFlags flags = CommandFlags.None);
+
+
         /// <summary>
         /// Execute a Lua script against the server
         /// </summary>

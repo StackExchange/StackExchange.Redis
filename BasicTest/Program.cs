@@ -14,17 +14,39 @@ namespace BasicTest
     {
         static void Main(string[] args)
         {
-            int AsyncOpsQty = 500000;
-            if(args.Length == 1)
+            using (var conn = ConnectionMultiplexer.Connect("127.0.0.1:6379"))
             {
-                int tmp;
-                if(int.TryParse(args[0], out tmp))
-                    AsyncOpsQty = tmp;
+                var db = conn.GetDatabase();
+
+                // needs explicit RedisKey type for key-based
+                // sharding to work; will still work with strings,
+                // but no key-based sharding support
+                RedisKey key = "some_key";
+
+                // note: if command renames are configured in
+                // the API, they will still work automatically 
+                db.Execute("del", key);
+                db.Execute("set", key, "12");
+                db.Execute("incrby", key, 4);
+                int i = (int)db.Execute("get", key);
+
+                Console.WriteLine(i); // 16;
+
             }
-            MassiveBulkOpsAsync(AsyncOpsQty, true, true);
-            MassiveBulkOpsAsync(AsyncOpsQty, true, false);
-            MassiveBulkOpsAsync(AsyncOpsQty, false, true);
-            MassiveBulkOpsAsync(AsyncOpsQty, false, false);
+
+
+
+            //int AsyncOpsQty = 500000;
+            //if(args.Length == 1)
+            //{
+            //    int tmp;
+            //    if(int.TryParse(args[0], out tmp))
+            //        AsyncOpsQty = tmp;
+            //}
+            //MassiveBulkOpsAsync(AsyncOpsQty, true, true);
+            //MassiveBulkOpsAsync(AsyncOpsQty, true, false);
+            //MassiveBulkOpsAsync(AsyncOpsQty, false, true);
+            //MassiveBulkOpsAsync(AsyncOpsQty, false, false);
         }
         static void MassiveBulkOpsAsync(int AsyncOpsQty, bool preserveOrder, bool withContinuation)
         {            
