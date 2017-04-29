@@ -40,6 +40,10 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MigratedBookSleeveTestSuite
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Docs", "Docs\Docs.csproj", "{7909952C-0F38-4E62-A7BA-1A77E1452FDA}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NRediSearch", "NRediSearch\NRediSearch.csproj", "{71455B07-E628-4F3A-9FFF-9EC63071F78E}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NRediSearch.Test", "NRediSearch.Test\NRediSearch.Test.csproj", "{94D233F5-2400-4542-98B9-BA72005C57DC}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -109,6 +113,26 @@ Global
 		{7909952C-0F38-4E62-A7BA-1A77E1452FDA}.Release|Any CPU.Build.0 = Release|Any CPU
 		{7909952C-0F38-4E62-A7BA-1A77E1452FDA}.Verbose|Any CPU.ActiveCfg = Mono|Any CPU
 		{7909952C-0F38-4E62-A7BA-1A77E1452FDA}.Verbose|Any CPU.Build.0 = Mono|Any CPU
+		{71455B07-E628-4F3A-9FFF-9EC63071F78E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{71455B07-E628-4F3A-9FFF-9EC63071F78E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{71455B07-E628-4F3A-9FFF-9EC63071F78E}.Log Output|Any CPU.ActiveCfg = Release|Any CPU
+		{71455B07-E628-4F3A-9FFF-9EC63071F78E}.Log Output|Any CPU.Build.0 = Release|Any CPU
+		{71455B07-E628-4F3A-9FFF-9EC63071F78E}.Mono|Any CPU.ActiveCfg = Release|Any CPU
+		{71455B07-E628-4F3A-9FFF-9EC63071F78E}.Mono|Any CPU.Build.0 = Release|Any CPU
+		{71455B07-E628-4F3A-9FFF-9EC63071F78E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{71455B07-E628-4F3A-9FFF-9EC63071F78E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{71455B07-E628-4F3A-9FFF-9EC63071F78E}.Verbose|Any CPU.ActiveCfg = Release|Any CPU
+		{71455B07-E628-4F3A-9FFF-9EC63071F78E}.Verbose|Any CPU.Build.0 = Release|Any CPU
+		{94D233F5-2400-4542-98B9-BA72005C57DC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{94D233F5-2400-4542-98B9-BA72005C57DC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{94D233F5-2400-4542-98B9-BA72005C57DC}.Log Output|Any CPU.ActiveCfg = Debug|Any CPU
+		{94D233F5-2400-4542-98B9-BA72005C57DC}.Log Output|Any CPU.Build.0 = Debug|Any CPU
+		{94D233F5-2400-4542-98B9-BA72005C57DC}.Mono|Any CPU.ActiveCfg = Debug|Any CPU
+		{94D233F5-2400-4542-98B9-BA72005C57DC}.Mono|Any CPU.Build.0 = Debug|Any CPU
+		{94D233F5-2400-4542-98B9-BA72005C57DC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{94D233F5-2400-4542-98B9-BA72005C57DC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{94D233F5-2400-4542-98B9-BA72005C57DC}.Verbose|Any CPU.ActiveCfg = Debug|Any CPU
+		{94D233F5-2400-4542-98B9-BA72005C57DC}.Verbose|Any CPU.Build.0 = Debug|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
