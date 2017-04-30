@@ -59,8 +59,18 @@ namespace NRediSearch.Test
             Assert.Equal(1, res.TotalResults);
             var item = res.Documents.Single();
             Assert.Equal("doc1", item.Id);
+
+            Assert.True(item.HasProperty("title"));
+            Assert.True(item.HasProperty("body"));
+            Assert.True(item.HasProperty("price"));
+            Assert.False(item.HasProperty("blap"));
+
+            Assert.Equal("hello world", (string)item["title"]);
+            Assert.Equal("lorem ipsum", (string)item["body"]);
+            Assert.Equal(1337, (int)item["price"]);
+
             
-                
+
         }
     }
 }
