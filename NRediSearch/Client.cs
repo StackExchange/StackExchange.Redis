@@ -101,7 +101,7 @@ namespace NRediSearch
                 f.SerializeRedisArgs(args);
             }
 
-            return (string)await _db.ExecuteAsync("FT.CREATE", args) == "OK";
+            return (string)await _db.ExecuteAsync("FT.CREATE", args).ConfigureAwait(false) == "OK";
         }
 
         /// <summary>
@@ -130,7 +130,7 @@ namespace NRediSearch
             args.Add(_boxedIndexName);
             q.SerializeRedisArgs(args);
 
-            var resp = (RedisResult[])await _db.ExecuteAsync("FT.SEARCH", args);
+            var resp = (RedisResult[])await _db.ExecuteAsync("FT.SEARCH", args).ConfigureAwait(false);
             return new SearchResult(resp, !q.NoContent, q.WithScores, q.WithPayloads);
         }
 
@@ -161,7 +161,7 @@ namespace NRediSearch
         public async Task<bool> AddDocumentAsync(string docId, Dictionary<string, RedisValue> fields, double score = 1.0, bool noSave = false, bool replace = false, byte[] payload = null)
         {
             var args = BuildAddDocumentArgs(docId, fields, score, noSave, replace, payload);
-            return (string)await _db.ExecuteAsync("FT.ADD", args) == "OK";
+            return (string)await _db.ExecuteAsync("FT.ADD", args).ConfigureAwait(false) == "OK";
         }
 
         private List<object> BuildAddDocumentArgs(string docId, Dictionary<string, RedisValue> fields, double score, bool noSave, bool replace, byte[] payload)
@@ -233,7 +233,7 @@ namespace NRediSearch
             {
                 args.Add("REPLACE".Literal());
             }
-            return (string)await _db.ExecuteAsync("FT.ADDHASH", args) == "OK";
+            return (string)await _db.ExecuteAsync("FT.ADDHASH", args).ConfigureAwait(false) == "OK";
         }
 
         /// <summary>
@@ -252,7 +252,7 @@ namespace NRediSearch
         /// <returns>a map of key/value pairs</returns>
         public async Task<Dictionary<string, RedisValue>> GetInfoAsync()
         {
-            return ParseGetInfo(await _db.ExecuteAsync("FT.INFO", _boxedIndexName));
+            return ParseGetInfo(await _db.ExecuteAsync("FT.INFO", _boxedIndexName).ConfigureAwait(false));
         }
         static Dictionary<string, RedisValue> ParseGetInfo(RedisResult value)
         {
@@ -284,7 +284,7 @@ namespace NRediSearch
         /// <returns>true if it has been deleted, false if it did not exist</returns>
         public async Task<bool> DeleteDocumentAsync(string docId)
         {
-            return (long)await _db.ExecuteAsync("FT.DEL", _boxedIndexName, docId) == 1;
+            return (long)await _db.ExecuteAsync("FT.DEL", _boxedIndexName, docId).ConfigureAwait(false) == 1;
         }
 
         /// <summary>
@@ -301,7 +301,7 @@ namespace NRediSearch
         /// <returns>true on success</returns>
         public async Task<bool> DropIndexAsync()
         {
-            return (string) await _db.ExecuteAsync("FT.DROP", _boxedIndexName) == "OK";
+            return (string) await _db.ExecuteAsync("FT.DROP", _boxedIndexName).ConfigureAwait(false) == "OK";
         }
 
         /// <summary>
@@ -317,7 +317,7 @@ namespace NRediSearch
         /// </summary>
         public async Task<long> OptimizeIndexAsync()
         {
-            return (long) await _db.ExecuteAsync("FT.OPTIMIZE", _boxedIndexName);
+            return (long) await _db.ExecuteAsync("FT.OPTIMIZE", _boxedIndexName).ConfigureAwait(false);
         }
     }
 }
