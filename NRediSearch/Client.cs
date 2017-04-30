@@ -51,14 +51,18 @@ namespace NRediSearch
                 args.Add("NOSCOREIDX".Literal());
             }
         }
-        IDatabase _db;
-        private object _boxedIndexName;
+        private readonly IDatabaseAsync _db;
+        private IDatabase DbSync
+            => (_db as IDatabase) ?? throw new InvalidOperationException("Synchronous operations are not available on this database instance");
+
+        private readonly object _boxedIndexName;
         public RedisKey IndexName => (RedisKey)_boxedIndexName;
-        public Client(RedisKey indexName, IDatabase db)
+        public Client(RedisKey indexName, IDatabaseAsync db)
         {
-            _db = db;
+            _db = db ?? throw new ArgumentNullException(nameof(db));
             _boxedIndexName = indexName; // only box once, not per-command
         }
+        public Client(RedisKey indexName, IDatabase db) : this(indexName, (IDatabaseAsync)db) { }
 
         /// <summary>
         /// Create the index definition in redis
@@ -79,7 +83,7 @@ namespace NRediSearch
                 f.SerializeRedisArgs(args);
             }
 
-            return (string)_db.Execute("FT.CREATE", args) == "OK";
+            return (string)DbSync.Execute("FT.CREATE", args) == "OK";
         }
 
         /// <summary>
@@ -115,7 +119,7 @@ namespace NRediSearch
             args.Add(_boxedIndexName);
             q.SerializeRedisArgs(args);
 
-            var resp = (RedisResult[])_db.Execute("FT.SEARCH", args);
+            var resp = (RedisResult[])DbSync.Execute("FT.SEARCH", args);
             return new SearchResult(resp, !q.NoContent, q.WithScores, q.WithPayloads);
         }
 
@@ -146,7 +150,7 @@ namespace NRediSearch
         public bool AddDocument(string docId, Dictionary<string, RedisValue> fields, double score = 1.0, bool noSave = false, bool replace = false, byte[] payload = null)
         {
             var args = BuildAddDocumentArgs(docId, fields, score, noSave, replace, payload);
-            return (string)_db.Execute("FT.ADD", args) == "OK";
+            return (string)DbSync.Execute("FT.ADD", args) == "OK";
         }
 
         /// <summary>
@@ -217,7 +221,7 @@ namespace NRediSearch
             {
                 args.Add("REPLACE".Literal());
             }
-            return (string)_db.Execute("FT.ADDHASH", args) == "OK";
+            return (string)DbSync.Execute("FT.ADDHASH", args) == "OK";
         }
         /// <summary>
         /// Index a document already in redis as a HASH key.
@@ -243,7 +247,7 @@ namespace NRediSearch
         /// <returns>a map of key/value pairs</returns>
         public Dictionary<string, RedisValue> GetInfo()
         {
-            return ParseGetInfo(_db.Execute("FT.INFO", _boxedIndexName));
+            return ParseGetInfo(DbSync.Execute("FT.INFO", _boxedIndexName));
         }
         /// <summary>
         /// Get the index info, including memory consumption and other statistics.
@@ -274,7 +278,7 @@ namespace NRediSearch
         /// <returns>true if it has been deleted, false if it did not exist</returns>
         public bool DeleteDocument(string docId)
         {
-            return (long)_db.Execute("FT.DEL", _boxedIndexName, docId) == 1;
+            return (long)DbSync.Execute("FT.DEL", _boxedIndexName, docId) == 1;
         }
 
         /// <summary>
@@ -293,7 +297,7 @@ namespace NRediSearch
         /// <returns>true on success</returns>
         public bool DropIndex()
         {
-            return (string)_db.Execute("FT.DROP", _boxedIndexName) == "OK";
+            return (string)DbSync.Execute("FT.DROP", _boxedIndexName) == "OK";
         }
         /// <summary>
         /// Drop the index and all associated keys, including documents
@@ -309,7 +313,7 @@ namespace NRediSearch
         /// </summary>
         public long OptimizeIndex()
         {
-            return (long)_db.Execute("FT.OPTIMIZE", _boxedIndexName);
+            return (long)DbSync.Execute("FT.OPTIMIZE", _boxedIndexName);
         }
 
         /// <summary>
