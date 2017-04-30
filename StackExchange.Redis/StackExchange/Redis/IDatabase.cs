@@ -547,7 +547,7 @@ namespace StackExchange.Redis
         /// a direct API
         /// </summary>
         /// <returns>A dynamic representation of the command's result</returns>
-        RedisResult Execute(string command, object[] args, CommandFlags flags = CommandFlags.None);
+        RedisResult Execute(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None);
 
 
         /// <summary>

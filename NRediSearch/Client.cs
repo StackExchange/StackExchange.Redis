@@ -78,7 +78,7 @@ namespace NRediSearch
                 f.SerializeRedisArgs(args);
             }
 
-            return (string)_db.Execute("FT.CREATE", args.ToArray()) == "OK";
+            return (string)_db.Execute("FT.CREATE", args) == "OK";
         }
 
         /// <summary>
@@ -92,7 +92,7 @@ namespace NRediSearch
             args.Add(_boxedIndexName);
             q.SerializeRedisArgs(args);
 
-            var resp = (RedisResult[])_db.Execute("FT.SEARCH", args.ToArray());
+            var resp = (RedisResult[])_db.Execute("FT.SEARCH", args);
             return new SearchResult(resp, !q.NoContent, q.WithScores, q.WithPayloads);
         }
 
@@ -105,7 +105,7 @@ namespace NRediSearch
         /// <param name="noSave">if set, we only index the document and do not save its contents. This allows fetching just doc ids</param>
         /// <param name="replace">if set, and the document already exists, we reindex and update it</param>
         /// <param name="payload">if set, we can save a payload in the index to be retrieved or evaluated by scoring functions on the server</param>
-        public bool AddDocument(string docId, double score, Dictionary<string, RedisValue> fields, bool noSave, bool replace, byte[] payload)
+        public bool AddDocument(string docId, Dictionary<string, RedisValue> fields, double score = 1.0, bool noSave = false, bool replace = false, byte[] payload = null)
         {
             var args = new List<object> { _boxedIndexName, docId, score };
             if (noSave)
@@ -130,21 +130,14 @@ namespace NRediSearch
                 args.Add(ent.Value);
             }
 
-            return (string)_db.Execute("FT.ADD", args.ToArray()) == "OK";
+            return (string)_db.Execute("FT.ADD", args) == "OK";
         }
 
         /// <summary>
         /// replaceDocument is a convenience for calling addDocument with replace=true 
         /// </summary>
-        public bool ReplaceDocument(string docId, double score, Dictionary<string, RedisValue> fields)
-            => AddDocument(docId, score, fields, false, true, null);
-
-        /** See above */
-        public bool AddDocument(string docId, double score, Dictionary<string, RedisValue> fields)
-            => AddDocument(docId, score, fields, false, false, null);
-        /** See above */
-        public bool AddDocument(string docId, Dictionary<string, RedisValue> fields)
-            => AddDocument(docId, 1, fields, false, false, null);
+        public bool ReplaceDocument(string docId, Dictionary<string, RedisValue> fields, double score = 1.0, byte[] payload = null)
+            => AddDocument(docId, fields, score, false, true, payload);
 
         /// <summary>
         /// Index a document already in redis as a HASH key.
@@ -162,7 +155,7 @@ namespace NRediSearch
                 args.Add("REPLACE".Literal());
             }
 
-            return (string)_db.Execute("FT.ADDHASH", args.ToArray()) == "OK";
+            return (string)_db.Execute("FT.ADDHASH", args) == "OK";
         }
 
         /// <summary>
@@ -191,8 +184,7 @@ namespace NRediSearch
         /// <returns>true if it has been deleted, false if it did not exist</returns>
         public bool DeleteDocument(string docId)
         {
-            long r = (long)_db.Execute("FT.DEL", _boxedIndexName, docId);
-            return r == 1;
+            return (long)_db.Execute("FT.DEL", _boxedIndexName, docId) == 1;
         }
 
         /// <summary>
@@ -209,8 +201,7 @@ namespace NRediSearch
         /// </summary>
         public long OptimizeIndex()
         {
-            long ret = (long)_db.Execute("FT.OPTIMIZE", _boxedIndexName);
-            return ret;
+            return (long)_db.Execute("FT.OPTIMIZE", _boxedIndexName);
         }
     }
 }

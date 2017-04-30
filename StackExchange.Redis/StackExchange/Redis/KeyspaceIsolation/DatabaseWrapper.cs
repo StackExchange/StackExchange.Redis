@@ -363,7 +363,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public RedisResult Execute(string command, params object[] args)
             => Execute(command, args, CommandFlags.None);
 
-        public RedisResult Execute(string command, object[] args, CommandFlags flags = CommandFlags.None)
+        public RedisResult Execute(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
         {
             return Inner.Execute(command, ToInner(args), flags);
         }

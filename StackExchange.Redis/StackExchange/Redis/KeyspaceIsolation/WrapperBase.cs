@@ -713,23 +713,28 @@ namespace StackExchange.Redis.KeyspaceIsolation
                 return ToInner(outer);
             }
         }
-        protected object[] ToInner(object[] args)
+        protected ICollection<object> ToInner(ICollection<object> args)
         {
             if (args != null && args.Any(x => x is RedisKey || x is RedisChannel))
             {
-                var withPrefix = new object[args.Length];
-                for (int i = 0; i < args.Length; i++)
+                var withPrefix = new object[args.Count];
+                int i = 0;
+                foreach(var oldArg in args)
                 {
-                    var arg = args[i];
-                    if (arg is RedisKey)
+                    object newArg;
+                    if (oldArg is RedisKey)
                     {
-                        arg = ToInner((RedisKey)arg);
+                        newArg    = ToInner((RedisKey)oldArg);
                     }
-                    else if (arg is RedisChannel)
+                    else if (oldArg is RedisChannel)
                     {
-                        arg = ToInner((RedisChannel)arg);
+                        newArg = ToInner((RedisChannel)oldArg);
                     }
-                    withPrefix[i] = arg;
+                    else
+                    {
+                        newArg = oldArg;
+                    }
+                    withPrefix[i++] = newArg;
                 }
                 args = withPrefix;
             }
