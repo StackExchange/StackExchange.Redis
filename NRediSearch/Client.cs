@@ -8,9 +8,15 @@ namespace NRediSearch
 {
     public sealed class Client
     {
+        internal static readonly LiteralCache Literals = new LiteralCache();
+
         [Flags]
         public enum IndexOptions
         {
+            /// <summary>
+            /// All options disabled
+            /// </summary>
+            None = 0,
             /// <summary>
             /// Set this to tell the index not to save term offset vectors. This reduces memory consumption but does not
             /// allow performing exact matches, and reduces overall relevance of multi-term queries
@@ -35,23 +41,24 @@ namespace NRediSearch
         {
             if ((flags & IndexOptions.UseTermOffsets) == 0)
             {
-                args.Add("NOOFFSETS");
+                args.Add(Literals["NOOFFSETS"]);
             }
             if ((flags & IndexOptions.KeepFieldFlags) == 0)
             {
-                args.Add("NOFIELDS");
+                args.Add(Literals["NOFIELDS"]);
             }
             if ((flags & IndexOptions.UseScoreIndexes) == 0)
             {
-                args.Add("NOSCOREIDX");
+                args.Add(Literals["NOSCOREIDX"]);
             }
         }
         IDatabase _db;
-        public RedisKey IndexName { get; }
+        private object _boxedIndexName;
+        public RedisKey IndexName => (RedisKey)_boxedIndexName;
         public Client(RedisKey indexName, IDatabase db)
         {
             _db = db;
-            IndexName = indexName;
+            _boxedIndexName = indexName; // only box once, not per-command
         }
 
         /// <summary>
@@ -64,9 +71,9 @@ namespace NRediSearch
         {
             var args = new List<object>();
 
-            args.Add(IndexName);
+            args.Add(_boxedIndexName);
             SerializeRedisArgs(options, args);
-            args.Add("SCHEMA");
+            args.Add(Literals["SCHEMA"]);
 
             foreach (var f in schema.Fields)
             {
@@ -84,7 +91,7 @@ namespace NRediSearch
         public SearchResult Search(Query q)
         {
             var args = new List<object>();
-            args.Add(IndexName);
+            args.Add(_boxedIndexName);
             q.SerializeRedisArgs(args);
 
             var resp = (RedisResult[])_db.Execute("FT.SEARCH", args.ToArray());
@@ -102,23 +109,23 @@ namespace NRediSearch
         /// <param name="payload">if set, we can save a payload in the index to be retrieved or evaluated by scoring functions on the server</param>
         public bool AddDocument(string docId, double score, Dictionary<string, RedisValue> fields, bool noSave, bool replace, byte[] payload)
         {
-            var args = new List<object> { IndexName, docId, score };
+            var args = new List<object> { _boxedIndexName, docId, score };
             if (noSave)
             {
-                args.Add("NOSAVE");
+                args.Add(Literals["NOSAVE"]);
             }
             if (replace)
             {
-                args.Add("REPLACE");
+                args.Add(Literals["REPLACE"]);
             }
             if (payload != null)
             {
-                args.Add("PAYLOAD");
+                args.Add(Literals["PAYLOAD"]);
                 // TODO: Fix this
                 args.Add(payload);
             }
 
-            args.Add("FIELDS");
+            args.Add(Literals["FIELDS"]);
             foreach (var ent in fields)
             {
                 args.Add(ent.Key);
@@ -150,11 +157,11 @@ namespace NRediSearch
         /// <returns>true on success</returns>
         public bool AddHash(string docId, double score, bool replace)
         {
-            var args = new List<object> { IndexName, docId, score };
+            var args = new List<object> { _boxedIndexName, docId, score };
 
             if (replace)
             {
-                args.Add("REPLACE");
+                args.Add(Literals["REPLACE"]);
             }
 
             return (string)_db.Execute("FT.ADDHASH", args.ToArray()) == "OK";
@@ -168,7 +175,7 @@ namespace NRediSearch
         public Dictionary<string, RedisValue> GetInfo()
         {
 
-            var res = (RedisValue[])_db.Execute("FT.INFO", IndexName);
+            var res = (RedisValue[])_db.Execute("FT.INFO", _boxedIndexName);
             var info = new Dictionary<string, RedisValue>();
             for (int i = 0; i < res.Length; i += 2)
             {
@@ -186,7 +193,7 @@ namespace NRediSearch
         /// <returns>true if it has been deleted, false if it did not exist</returns>
         public bool DeleteDocument(string docId)
         {
-            long r = (long)_db.Execute("FT.DEL", IndexName, docId);
+            long r = (long)_db.Execute("FT.DEL", _boxedIndexName, docId);
             return r == 1;
         }
 
@@ -196,7 +203,7 @@ namespace NRediSearch
         /// <returns>true on success</returns>
         public bool DropIndex()
         {
-            return (string)_db.Execute("FT.DROP", IndexName) == "OK";
+            return (string)_db.Execute("FT.DROP", _boxedIndexName) == "OK";
         }
 
         /// <summary>
@@ -204,7 +211,7 @@ namespace NRediSearch
         /// </summary>
         public long OptimizeIndex()
         {
-            long ret = (long)_db.Execute("FT.OPTIMIZE", IndexName);
+            long ret = (long)_db.Execute("FT.OPTIMIZE", _boxedIndexName);
             return ret;
         }
     }

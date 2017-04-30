@@ -31,13 +31,13 @@ namespace NRediSearch
 
             internal virtual void SerializeRedisArgs(List<object> args)
             {
-                string GetForRedis(FieldType type)
+                object GetForRedis(FieldType type)
                 {
                     switch (type)
                     {
-                        case FieldType.FullText: return "TEXT";
-                        case FieldType.Geo: return "GEO";
-                        case FieldType.Numeric: return "NUMERIC";
+                        case FieldType.FullText: return Client.Literals["TEXT"];
+                        case FieldType.Geo: return Client.Literals["GEO"];
+                        case FieldType.Numeric: return Client.Literals["NUMERIC"];
                         default: throw new ArgumentOutOfRangeException(nameof(type));
                     }
                 }
@@ -57,7 +57,7 @@ namespace NRediSearch
                 base.SerializeRedisArgs(args);
                 if (Weight != 1.0)
                 {
-                    args.Add("WEIGHT");
+                    args.Add(Client.Literals["WEIGHT"]);
                     args.Add(Weight);
                 }
             }
