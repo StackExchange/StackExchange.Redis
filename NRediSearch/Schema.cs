@@ -35,9 +35,9 @@ namespace NRediSearch
                 {
                     switch (type)
                     {
-                        case FieldType.FullText: return Client.Literals["TEXT"];
-                        case FieldType.Geo: return Client.Literals["GEO"];
-                        case FieldType.Numeric: return Client.Literals["NUMERIC"];
+                        case FieldType.FullText: return "TEXT".Literal();
+                        case FieldType.Geo: return "GEO".Literal();
+                        case FieldType.Numeric: return "NUMERIC".Literal();
                         default: throw new ArgumentOutOfRangeException(nameof(type));
                     }
                 }
@@ -57,7 +57,7 @@ namespace NRediSearch
                 base.SerializeRedisArgs(args);
                 if (Weight != 1.0)
                 {
-                    args.Add(Client.Literals["WEIGHT"]);
+                    args.Add("WEIGHT".Literal());
                     args.Add(Weight);
                 }
             }

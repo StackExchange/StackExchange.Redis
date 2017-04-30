@@ -8,8 +8,6 @@ namespace NRediSearch
 {
     public sealed class Client
     {
-        internal static readonly LiteralCache Literals = new LiteralCache();
-
         [Flags]
         public enum IndexOptions
         {
@@ -41,15 +39,15 @@ namespace NRediSearch
         {
             if ((flags & IndexOptions.UseTermOffsets) == 0)
             {
-                args.Add(Literals["NOOFFSETS"]);
+                args.Add("NOOFFSETS".Literal());
             }
             if ((flags & IndexOptions.KeepFieldFlags) == 0)
             {
-                args.Add(Literals["NOFIELDS"]);
+                args.Add("NOFIELDS".Literal());
             }
             if ((flags & IndexOptions.UseScoreIndexes) == 0)
             {
-                args.Add(Literals["NOSCOREIDX"]);
+                args.Add("NOSCOREIDX".Literal());
             }
         }
         IDatabase _db;
@@ -73,7 +71,7 @@ namespace NRediSearch
 
             args.Add(_boxedIndexName);
             SerializeRedisArgs(options, args);
-            args.Add(Literals["SCHEMA"]);
+            args.Add("SCHEMA".Literal());
 
             foreach (var f in schema.Fields)
             {
@@ -112,20 +110,20 @@ namespace NRediSearch
             var args = new List<object> { _boxedIndexName, docId, score };
             if (noSave)
             {
-                args.Add(Literals["NOSAVE"]);
+                args.Add("NOSAVE".Literal());
             }
             if (replace)
             {
-                args.Add(Literals["REPLACE"]);
+                args.Add("REPLACE".Literal());
             }
             if (payload != null)
             {
-                args.Add(Literals["PAYLOAD"]);
+                args.Add("PAYLOAD".Literal());
                 // TODO: Fix this
                 args.Add(payload);
             }
 
-            args.Add(Literals["FIELDS"]);
+            args.Add("FIELDS".Literal());
             foreach (var ent in fields)
             {
                 args.Add(ent.Key);
@@ -161,7 +159,7 @@ namespace NRediSearch
 
             if (replace)
             {
-                args.Add(Literals["REPLACE"]);
+                args.Add("REPLACE".Literal());
             }
 
             return (string)_db.Execute("FT.ADDHASH", args.ToArray()) == "OK";

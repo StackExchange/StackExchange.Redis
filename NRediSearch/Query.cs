@@ -60,7 +60,7 @@ namespace NRediSearch
                     // need to add leading bracket
                     return "(" + num.ToString("G17", NumberFormatInfo.InvariantInfo);
                 }
-                args.Add(Client.Literals["FILTER"]);
+                args.Add("FILTER".Literal());
                 args.Add(Property);
                 args.Add(FormatNum(min, exclusiveMin));
                 args.Add(FormatNum(max, exclusiveMax));
@@ -86,7 +86,7 @@ namespace NRediSearch
 
             internal override void SerializeRedisArgs(List<object> args)
             {
-                args.Add(Client.Literals["GEOFILTER"]);
+                args.Add("GEOFILTER".Literal());
                 args.Add(Property);
                 args.Add(lon);
                 args.Add(lat);
@@ -94,10 +94,10 @@ namespace NRediSearch
 
                 switch (unit)
                 {
-                    case GeoUnit.Feet: args.Add(Client.Literals["ft"]); break;
-                    case GeoUnit.Kilometers: args.Add(Client.Literals["km"]); break;
-                    case GeoUnit.Meters: args.Add(Client.Literals["m"]); break;
-                    case GeoUnit.Miles: args.Add(Client.Literals["mi"]); break;
+                    case GeoUnit.Feet: args.Add("ft".Literal()); break;
+                    case GeoUnit.Kilometers: args.Add("km".Literal()); break;
+                    case GeoUnit.Meters: args.Add("m".Literal()); break;
+                    case GeoUnit.Miles: args.Add("mi".Literal()); break;
                     default: throw new InvalidOperationException($"Unknown unit: {unit}");
                 }
             }
@@ -175,45 +175,45 @@ namespace NRediSearch
 
             if (Verbatim)
             {
-                args.Add(Client.Literals["VERBATIM"]);
+                args.Add("VERBATIM".Literal());
             }
             if (NoContent)
             {
-                args.Add(Client.Literals["NOCONTENT"]);
+                args.Add("NOCONTENT".Literal());
             }
             if (NoStopwords)
             {
-                args.Add(Client.Literals["NOSTOPWORDS"]);
+                args.Add("NOSTOPWORDS".Literal());
             }
             if (WithScores)
             {
-                args.Add(Client.Literals["WITHSCORES"]);
+                args.Add("WITHSCORES".Literal());
             }
             if (WithPayloads)
             {
-                args.Add(Client.Literals["WITHPAYLOADS"]);
+                args.Add("WITHPAYLOADS".Literal());
             }
             if (Language != null)
             {
-                args.Add(Client.Literals["LANGUAGE"]);
+                args.Add("LANGUAGE".Literal());
                 args.Add(Language);
             }
             if (_fields != null && _fields.Length > 0)
             {
-                args.Add(Client.Literals["INFIELDS"]);
+                args.Add("INFIELDS".Literal());
                 args.Add(_fields.Length);
                 args.AddRange(_fields);
             }
 
             if (Payload != null)
             {
-                args.Add(Client.Literals["PAYLOAD"]);
+                args.Add("PAYLOAD".Literal());
                 args.Add(Payload);
             }
 
             if (_paging.Offset != 0 || _paging.Count != 10)
             {
-                args.Add(Client.Literals["LIMIT"]);
+                args.Add("LIMIT".Literal());
                 args.Add(_paging.Offset);
                 args.Add(_paging.Count);
             }
