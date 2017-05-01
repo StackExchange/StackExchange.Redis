@@ -23,9 +23,8 @@
     <DefaultLanguage>en-US</DefaultLanguage>
     <IncludeSymbols>false</IncludeSymbols>
 
-    <TargetFrameworks>net45;net46;netstandard1.5</TargetFrameworks><!--net40;-->
+    <LibraryTargetFrameworks>net45;net46;netstandard1.5</LibraryTargetFrameworks><!--net40;-->
     <CoreFxVersion>4.3.0</CoreFxVersion>
-    
   </PropertyGroup>
   
   <ItemGroup>
