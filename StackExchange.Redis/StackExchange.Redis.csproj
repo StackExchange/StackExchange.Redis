@@ -2,28 +2,12 @@
 
   <PropertyGroup>
     <Description>High performance Redis client, incorporating both synchronous and asynchronous usage.</Description>
-    <Copyright>Stack Exchange inc. 2014-</Copyright>
     <AssemblyTitle>StackExchange.Redis</AssemblyTitle>
-    <VersionPrefix>1.2.0</VersionPrefix>
-    <Authors>Stack Exchange inc., marc.gravell</Authors>
-    <TargetFrameworks>net45;net46;netstandard1.5</TargetFrameworks><!--net40;-->
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <AssemblyName>StackExchange.Redis</AssemblyName>
     <PackageId>StackExchange.Redis</PackageId>
     <PackageTags>Async;Redis;Cache;PubSub;Messaging</PackageTags>
-    <PackageProjectUrl>https://github.com/StackExchange/StackExchange.Redis</PackageProjectUrl>
-    <PackageLicenseUrl>https://raw.github.com/StackExchange/StackExchange.Redis/master/LICENSE</PackageLicenseUrl>
-    <RepositoryType>git</RepositoryType>
-    <RepositoryUrl>https://github.com/StackExchange/StackExchange.Redis</RepositoryUrl>
-  
-    <CoreFxVersion>4.3.0</CoreFxVersion>
-  
-    <ApplicationIcon />
-  
     <OutputTypeEx>library</OutputTypeEx>
-  
-    <StartupObject />
   </PropertyGroup>
 
   <ItemGroup>

@@ -80,7 +80,7 @@ namespace NRediSearch
         /// <summary>
         /// Add a numeric field to the schema
         /// </summary>
-        /// <param name="name">the field's name</param
+        /// <param name="name">the field's name</param>
         /// <returns>the schema object</returns>
         public Schema AddGeoField(string name)
         {
@@ -91,7 +91,7 @@ namespace NRediSearch
         /// <summary>
         /// Add a numeric field to the schema
         /// </summary>
-        /// <param name="name">the field's name</param
+        /// <param name="name">the field's name</param>
         /// <returns>the schema object</returns>
         public Schema AddNumericField(string name)
         {

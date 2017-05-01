@@ -9,23 +9,23 @@ namespace Tests
 {
     class Program
     {
-        static void Main()
-        {
-            try
-            {
-                Main2();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine();
-                Console.WriteLine("CRAZY ERRORS: " + ex);
-            }
-            finally
-            {
-                Console.WriteLine("Press any key to exit");
-                Console.ReadKey();
-            }
-        }
+        // static void Main()
+        // {
+        //     try
+        //     {
+        //         Main2();
+        //     }
+        //     catch (Exception ex)
+        //     {
+        //         Console.WriteLine();
+        //         Console.WriteLine("CRAZY ERRORS: " + ex);
+        //     }
+        //     finally
+        //     {
+        //         Console.WriteLine("Press any key to exit");
+        //         Console.ReadKey();
+        //     }
+        // }
         static void Main2()
         {
 #if !CORE_CLR

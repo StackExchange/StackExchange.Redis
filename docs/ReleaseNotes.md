@@ -2,11 +2,14 @@
 
 ## Unreleased changes:
 
+- **UNAVAILABLE**: .NET 4.0 support is not in this build, due to [a build issue](https://github.com/dotnet/cli/issues/5993) - looking into solutions
 - add: make performance-counter tracking opt-in (`IncludePerformanceCountersInExceptions`) as it was causing problems (#587)
 - add: can now specifiy allowed SSL/TLS protocols  (#603)
 - add: track message status in exceptions (#576)
 - add: `GetDatabase()` optimization for DB 0 and low numbered databases: `IDatabase` instance is retained and recycled (as long as no `asyncState` is provided)
 - improved connection retry policy (#510, #572)
+- add `Execute`/`ExecuteAsync` API to support "modules"; [more info](http://blog.marcgravell.com/2017/04/stackexchangeredis-and-redis-40-modules.html)
+- fix: timeout link fixed re /docs change (below)
 
 Other changes (not library related)
 

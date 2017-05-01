@@ -328,13 +328,13 @@ namespace NRediSearch
         /// Get the size of an autoc-complete suggestion dictionary
         /// </summary>
         public long CountSuggestions()
-            => (long)DbSync.Execute("FT.SUGLEN".Literal(), _boxedIndexName);
+            => (long)DbSync.Execute("FT.SUGLEN", _boxedIndexName);
 
         /// <summary>
         /// Get the size of an autoc-complete suggestion dictionary
         /// </summary>
         public async Task<long> CountSuggestionsAsync()
-            => (long)await _db.ExecuteAsync("FT.SUGLEN".Literal(), _boxedIndexName).ConfigureAwait(false);
+            => (long)await _db.ExecuteAsync("FT.SUGLEN", _boxedIndexName).ConfigureAwait(false);
 
         /// <summary>
         /// Add a suggestion string to an auto-complete suggestion dictionary. This is disconnected from the index definitions, and leaves creating and updating suggestino dictionaries to the user.

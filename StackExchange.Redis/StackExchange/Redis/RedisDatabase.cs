@@ -1060,15 +1060,15 @@ namespace StackExchange.Redis
             }
         }
         public RedisResult Execute(string command, params object[] args)
-    => Execute(command, args, CommandFlags.None);
+            => Execute(command, args, CommandFlags.None);
         public RedisResult Execute(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
         {
             var msg = new ExecuteMessage(Database, flags, command, args);
             return ExecuteSync(msg, ResultProcessor.ScriptResult);
         }
         public Task<RedisResult> ExecuteAsync(string command, params object[] args)
-    => ExecuteAsync(command, args, CommandFlags.None);
-        public Task<RedisResult> ExecuteAsync(string command, object[] args, CommandFlags flags = CommandFlags.None)
+            => ExecuteAsync(command, args, CommandFlags.None);
+        public Task<RedisResult> ExecuteAsync(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
         {
             var msg = new ExecuteMessage(Database, flags, command, args);
             return ExecuteAsync(msg, ResultProcessor.ScriptResult);

@@ -108,7 +108,7 @@ namespace BasicTest
                     AsyncOpsQty / watch.Elapsed.TotalSeconds);
             }
         }
-        protected static string Me([CallerMemberName] string caller = null)
+        internal static string Me([CallerMemberName] string caller = null)
         {
             return caller;
         }

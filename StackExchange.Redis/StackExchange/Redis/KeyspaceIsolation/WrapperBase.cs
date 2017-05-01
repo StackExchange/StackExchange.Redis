@@ -345,11 +345,10 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.PublishAsync(ToInner(channel), message, flags);
         }
         public Task<RedisResult> ExecuteAsync(string command, params object[] args)
-    => ExecuteAsync(command, args, CommandFlags.None);
-        public Task<RedisResult> ExecuteAsync(string command, object[] args, CommandFlags flags = CommandFlags.None)
-        {
-            return Inner.ExecuteAsync(command, ToInner(args), flags);
-        }
+            => Inner.ExecuteAsync(command, ToInner(args), CommandFlags.None);
+        public Task<RedisResult> ExecuteAsync(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
+            => Inner.ExecuteAsync(command, ToInner(args), flags);
+
         public Task<RedisResult> ScriptEvaluateAsync(byte[] hash, RedisKey[] keys = null, RedisValue[] values = null, CommandFlags flags = CommandFlags.None)
         {
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?

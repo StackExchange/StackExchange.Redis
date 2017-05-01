@@ -528,7 +528,7 @@ namespace StackExchange.Redis
         /// a direct API
         /// </summary>
         /// <returns>A dynamic representation of the command's result</returns>
-        Task<RedisResult> ExecuteAsync(string command, object[] args, CommandFlags flags = CommandFlags.None);
+        Task<RedisResult> ExecuteAsync(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Execute a Lua script against the server using just the SHA1 hash
