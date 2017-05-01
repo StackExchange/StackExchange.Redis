@@ -10,7 +10,7 @@
 - improved connection retry policy (#510, #572)
 - add `Execute`/`ExecuteAsync` API to support "modules"; [more info](http://blog.marcgravell.com/2017/04/stackexchangeredis-and-redis-40-modules.html)
 - fix: timeout link fixed re /docs change (below)
-- [`NRediSearch`](https://www.nuget.org/packages/NRediSearch/) added as exploration into "modules"
+- [`NRediSearch`](https://www.nuget.org/packages/NRediSearch/) added as exploration into "modules" - note that this requires [StackExchange.Redis 1.2.2](https://www.nuget.org/packages/StackExchange.Redis/1.2.2) (the package incorrectly specifies 1.2.0, still investigating why)
 
 Other changes (not library related)
 
