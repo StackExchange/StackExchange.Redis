@@ -323,5 +323,98 @@ namespace NRediSearch
         {
             return (long) await _db.ExecuteAsync("FT.OPTIMIZE", _boxedIndexName).ConfigureAwait(false);
         }
+
+        /// <summary>
+        /// Get the size of an autoc-complete suggestion dictionary
+        /// </summary>
+        public long CountSuggestions()
+            => (long)DbSync.Execute("FT.SUGLEN".Literal(), _boxedIndexName);
+
+        /// <summary>
+        /// Get the size of an autoc-complete suggestion dictionary
+        /// </summary>
+        public async Task<long> CountSuggestionsAsync()
+            => (long)await _db.ExecuteAsync("FT.SUGLEN".Literal(), _boxedIndexName).ConfigureAwait(false);
+
+        /// <summary>
+        /// Add a suggestion string to an auto-complete suggestion dictionary. This is disconnected from the index definitions, and leaves creating and updating suggestino dictionaries to the user.
+        /// </summary>
+        /// <param name="value">the suggestion string we index</param>
+        /// <param name="score">a floating point number of the suggestion string's weight</param>
+        /// <param name="increment">if set, we increment the existing entry of the suggestion by the given score, instead of replacing the score. This is useful for updating the dictionary based on user queries in real time</param>
+        /// <returns>the current size of the suggestion dictionary.</returns>
+        public long AddSuggestion(string value, double score, bool increment = false)
+        {
+            object args = increment
+                ? new object[] { _boxedIndexName, value, score, "INCR".Literal() }
+                : new object[] { _boxedIndexName, value, score };
+            return (long)DbSync.Execute("FT.SUGADD", args);
+        }
+
+        /// <summary>
+        /// Add a suggestion string to an auto-complete suggestion dictionary. This is disconnected from the index definitions, and leaves creating and updating suggestino dictionaries to the user.
+        /// </summary>
+        /// <param name="value">the suggestion string we index</param>
+        /// <param name="score">a floating point number of the suggestion string's weight</param>
+        /// <param name="increment">if set, we increment the existing entry of the suggestion by the given score, instead of replacing the score. This is useful for updating the dictionary based on user queries in real time</param>
+        /// <returns>the current size of the suggestion dictionary.</returns>
+        public async Task<long> AddSuggestionAsync(string value, double score, bool increment = false)
+        {
+            object args = increment
+                ? new object[] { _boxedIndexName, value, score, "INCR".Literal() }
+                : new object[] { _boxedIndexName, value, score };
+            return (long)await _db.ExecuteAsync("FT.SUGADD", args).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Delete a string from a suggestion index.
+        /// </summary>
+        /// <param name="value">the string to delete</param>
+        public bool DeleteSuggestion(string value)
+            => (long)DbSync.Execute("FT.SUGDEL", _boxedIndexName, value) == 1;
+
+        /// <summary>
+        /// Delete a string from a suggestion index.
+        /// </summary>
+        /// <param name="value">the string to delete</param>
+        public async Task<bool> DeleteSuggestionAsync(string value)
+            => (long)await _db.ExecuteAsync("FT.SUGDEL", _boxedIndexName, value).ConfigureAwait(false) == 1;
+
+        /// <summary>
+        /// Get completion suggestions for a prefix
+        /// </summary>
+        /// <param name="prefix">the prefix to complete on</param>
+        /// <param name="fuzzy"> if set,we do a fuzzy prefix search, including prefixes at levenshtein distance of 1 from the prefix sent</param>
+        /// <param name="max">If set, we limit the results to a maximum of num. (Note: The default is 5, and the number cannot be greater than 10).</param>
+        /// <returns>a list of the top suggestions matching the prefix</returns>
+        public string[] GetSuggestions(string prefix, bool fuzzy = false, int max = 5)
+        {
+            var args = new List<object> { _boxedIndexName, prefix};
+            if (fuzzy) args.Add("FUZZY".Literal());
+            if (max != 5)
+            {
+                args.Add("MAX".Literal());
+                args.Add(max);
+            }
+            return (string[])DbSync.Execute("FT.SUGGET", args);
+        }
+        /// <summary>
+        /// Get completion suggestions for a prefix
+        /// </summary>
+        /// <param name="prefix">the prefix to complete on</param>
+        /// <param name="fuzzy"> if set,we do a fuzzy prefix search, including prefixes at levenshtein distance of 1 from the prefix sent</param>
+        /// <param name="max">If set, we limit the results to a maximum of num. (Note: The default is 5, and the number cannot be greater than 10).</param>
+        /// <returns>a list of the top suggestions matching the prefix</returns>
+        public async Task<string[]> GetSuggestionsAsync(string prefix, bool fuzzy = false, int max = 5)
+        {
+            var args = new List<object> { _boxedIndexName, prefix };
+            if (fuzzy) args.Add("FUZZY".Literal());
+            if (max != 5)
+            {
+                args.Add("MAX".Literal());
+                args.Add(max);
+            }
+            return (string[])await _db.ExecuteAsync("FT.SUGGET", args).ConfigureAwait(false);
+        }
     }
 }
