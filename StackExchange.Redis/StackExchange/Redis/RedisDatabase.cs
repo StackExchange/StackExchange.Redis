@@ -1060,15 +1060,15 @@ namespace StackExchange.Redis
             }
         }
         public RedisResult Execute(string command, params object[] args)
-    => Execute(command, args, CommandFlags.None);
-        public RedisResult Execute(string command, object[] args, CommandFlags flags = CommandFlags.None)
+            => Execute(command, args, CommandFlags.None);
+        public RedisResult Execute(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
         {
             var msg = new ExecuteMessage(Database, flags, command, args);
             return ExecuteSync(msg, ResultProcessor.ScriptResult);
         }
         public Task<RedisResult> ExecuteAsync(string command, params object[] args)
-    => ExecuteAsync(command, args, CommandFlags.None);
-        public Task<RedisResult> ExecuteAsync(string command, object[] args, CommandFlags flags = CommandFlags.None)
+            => ExecuteAsync(command, args, CommandFlags.None);
+        public Task<RedisResult> ExecuteAsync(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
         {
             var msg = new ExecuteMessage(Database, flags, command, args);
             return ExecuteAsync(msg, ResultProcessor.ScriptResult);
@@ -2447,18 +2447,17 @@ namespace StackExchange.Redis
         {
             private readonly string _command;
             private static readonly object[] NoArgs = new object[0];
-            private readonly object[] args;
-            public ExecuteMessage(int db, CommandFlags flags, string command, object[] args) : base(db, flags, RedisCommand.UNKNOWN)
+            private readonly ICollection<object> args;
+            public ExecuteMessage(int db, CommandFlags flags, string command, ICollection<object> args) : base(db, flags, RedisCommand.UNKNOWN)
             {
                 _command = command;
                 this.args = args ?? NoArgs;
             }
             internal override void WriteImpl(PhysicalConnection physical)
             {
-                physical.WriteHeader(_command, args.Length);
-                for(int i = 0; i < args.Length; i++)
+                physical.WriteHeader(_command, args.Count);
+                foreach(object arg in args)
                 {
-                    object arg = args[i];
                     if (arg is RedisKey)
                     {
                         physical.Write((RedisKey)arg);
@@ -2478,9 +2477,8 @@ namespace StackExchange.Redis
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
             {
                 int slot = ServerSelectionStrategy.NoSlot;
-                for (int i = 0 ; i < args.Length ; i++)
+                foreach(object arg in args)
                 {
-                    object arg = args[i];
                     if(arg is RedisKey)
                     {
                         slot = serverSelectionStrategy.CombineSlot(slot, (RedisKey)arg);

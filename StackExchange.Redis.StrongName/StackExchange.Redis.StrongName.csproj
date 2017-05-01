@@ -2,24 +2,12 @@
 
   <PropertyGroup>
     <Description>High performance Redis client, incorporating both synchronous and asynchronous usage.</Description>
-    <Copyright>Stack Exchange inc. 2014-</Copyright>
     <AssemblyTitle>StackExchange.Redis.StrongName</AssemblyTitle>
-    <VersionPrefix>1.2.0</VersionPrefix>
-    <Authors>Stack Exchange inc., marc.gravell</Authors>
-    <TargetFrameworks>net40;net45;net46;netstandard1.5</TargetFrameworks>
     <DefineConstants>$(DefineConstants);STRONG_NAME</DefineConstants>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <AssemblyName>StackExchange.Redis.StrongName</AssemblyName>
-    <AssemblyOriginatorKeyFile>../StackExchange.Redis.snk</AssemblyOriginatorKeyFile>
     <SignAssembly>true</SignAssembly>
     <PublicSign Condition=" '$(OS)' != 'Windows_NT' ">true</PublicSign>
     <PackageId>StackExchange.Redis.StrongName</PackageId>
     <PackageTags>Async;Redis;Cache;PubSub;Messaging</PackageTags>
-    <PackageProjectUrl>https://github.com/StackExchange/StackExchange.Redis</PackageProjectUrl>
-    <PackageLicenseUrl>https://raw.github.com/StackExchange/StackExchange.Redis/master/LICENSE</PackageLicenseUrl>
-    <RepositoryType>git</RepositoryType>
-    <RepositoryUrl>https://github.com/StackExchange/StackExchange.Redis</RepositoryUrl>
   </PropertyGroup>
 
   <ItemGroup>
@@ -55,28 +43,28 @@
   </PropertyGroup>
 
   <ItemGroup Condition=" '$(TargetFramework)' == 'netstandard1.5' ">
-    <PackageReference Include="System.Collections" Version="4.0.11" />
-    <PackageReference Include="System.Collections.Concurrent" Version="4.0.12" />
-    <PackageReference Include="System.Collections.NonGeneric" Version="4.0.1" />
-    <PackageReference Include="System.Diagnostics.Tools" Version="4.0.1" />
-    <PackageReference Include="System.IO.Compression" Version="4.1.0" />
-    <PackageReference Include="System.IO.FileSystem" Version="4.0.1" />
-    <PackageReference Include="System.Linq" Version="4.1.0" />
-    <PackageReference Include="System.Net.NameResolution" Version="4.0.0" />
-    <PackageReference Include="System.Net.Security" Version="4.0.0" />
-    <PackageReference Include="System.Net.Sockets" Version="4.1.0" />
-    <PackageReference Include="System.Reflection.Emit" Version="4.0.1" />
-    <PackageReference Include="System.Reflection.Emit.Lightweight" Version="4.0.1" />
-    <PackageReference Include="System.Reflection.TypeExtensions" Version="4.1.0" />
-    <PackageReference Include="System.Runtime.Extensions" Version="4.1.0" />
-    <PackageReference Include="System.Runtime.InteropServices.RuntimeInformation" Version="4.0.0" />
-    <PackageReference Include="System.Security.Cryptography.Algorithms" Version="4.2.0" />
-    <PackageReference Include="System.Security.Cryptography.X509Certificates" Version="4.1.0" />
-    <PackageReference Include="System.Text.RegularExpressions" Version="4.1.0" />
-    <PackageReference Include="System.Threading" Version="4.0.11" />
-    <PackageReference Include="System.Threading.Thread" Version="4.0.0" />
-    <PackageReference Include="System.Threading.ThreadPool" Version="4.0.10" />
-    <PackageReference Include="System.Threading.Timer" Version="4.0.1" />
+    <PackageReference Include="System.Collections" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Collections.Concurrent" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Collections.NonGeneric" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Diagnostics.Tools" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.IO.Compression" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.IO.FileSystem" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Linq" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Net.NameResolution" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Net.Security" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Net.Sockets" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Reflection.Emit" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Reflection.Emit.Lightweight" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Reflection.TypeExtensions" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Runtime.Extensions" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Runtime.InteropServices.RuntimeInformation" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Security.Cryptography.Algorithms" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Security.Cryptography.X509Certificates" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Text.RegularExpressions" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Threading" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Threading.Thread" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Threading.ThreadPool" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Threading.Timer" Version="$(CoreFxVersion)" />
   </ItemGroup>
 
 </Project>

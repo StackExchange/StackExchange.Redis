@@ -528,6 +528,10 @@ namespace StackExchange.Redis
             if (valueBlob == null) return null;
 
             if (valueBlob.Length == 0) return "";
+            if (valueBlob.Length == 2 && valueBlob[0] == (byte)'O' && valueBlob[1] == (byte)'K')
+            {
+                return "OK"; // special case for +OK status results from modules
+            }
             try
             {
                 return Encoding.UTF8.GetString(valueBlob);

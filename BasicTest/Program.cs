@@ -5,13 +5,35 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using StackExchange.Redis;
+using System.IO;
 
 [assembly: AssemblyVersion("1.0.0")]
 
 namespace BasicTest
 {
-    class Program
+    static class YourPreferredSerializer
     {
+        public static T Deserialize<T>(Stream s) { return default(T); }
+    }
+    static class Program
+    {
+        public static RedisValue JsonGet(this IDatabase db, RedisKey key,
+            string path = ".", CommandFlags flags = CommandFlags.None)
+        {
+            return (RedisValue)db.Execute("JSON.GET",
+                new object[] { key, path }, flags);
+        }
+
+        public static T JsonGet<T>(this IDatabase db, RedisKey key,
+            string path = ".", CommandFlags flags = CommandFlags.None)
+        {
+            byte[] bytes = (byte[])db.Execute("JSON.GET",
+                new object[] { key, path }, flags);
+            using (var ms = new MemoryStream(bytes))
+            {
+                return YourPreferredSerializer.Deserialize<T>(ms);
+            }
+        }
         static void Main(string[] args)
         {
             using (var conn = ConnectionMultiplexer.Connect("127.0.0.1:6379"))
@@ -86,7 +108,7 @@ namespace BasicTest
                     AsyncOpsQty / watch.Elapsed.TotalSeconds);
             }
         }
-        protected static string Me([CallerMemberName] string caller = null)
+        internal static string Me([CallerMemberName] string caller = null)
         {
             return caller;
         }

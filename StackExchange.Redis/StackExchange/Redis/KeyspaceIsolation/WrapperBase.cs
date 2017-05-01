@@ -345,11 +345,10 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.PublishAsync(ToInner(channel), message, flags);
         }
         public Task<RedisResult> ExecuteAsync(string command, params object[] args)
-    => ExecuteAsync(command, args, CommandFlags.None);
-        public Task<RedisResult> ExecuteAsync(string command, object[] args, CommandFlags flags = CommandFlags.None)
-        {
-            return Inner.ExecuteAsync(command, ToInner(args), flags);
-        }
+            => Inner.ExecuteAsync(command, ToInner(args), CommandFlags.None);
+        public Task<RedisResult> ExecuteAsync(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
+            => Inner.ExecuteAsync(command, ToInner(args), flags);
+
         public Task<RedisResult> ScriptEvaluateAsync(byte[] hash, RedisKey[] keys = null, RedisValue[] values = null, CommandFlags flags = CommandFlags.None)
         {
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
@@ -713,23 +712,28 @@ namespace StackExchange.Redis.KeyspaceIsolation
                 return ToInner(outer);
             }
         }
-        protected object[] ToInner(object[] args)
+        protected ICollection<object> ToInner(ICollection<object> args)
         {
             if (args != null && args.Any(x => x is RedisKey || x is RedisChannel))
             {
-                var withPrefix = new object[args.Length];
-                for (int i = 0; i < args.Length; i++)
+                var withPrefix = new object[args.Count];
+                int i = 0;
+                foreach(var oldArg in args)
                 {
-                    var arg = args[i];
-                    if (arg is RedisKey)
+                    object newArg;
+                    if (oldArg is RedisKey)
                     {
-                        arg = ToInner((RedisKey)arg);
+                        newArg    = ToInner((RedisKey)oldArg);
                     }
-                    else if (arg is RedisChannel)
+                    else if (oldArg is RedisChannel)
                     {
-                        arg = ToInner((RedisChannel)arg);
+                        newArg = ToInner((RedisChannel)oldArg);
                     }
-                    withPrefix[i] = arg;
+                    else
+                    {
+                        newArg = oldArg;
+                    }
+                    withPrefix[i++] = newArg;
                 }
                 args = withPrefix;
             }
