@@ -1,15 +1,14 @@
 <Project>
   <PropertyGroup>
-    <VersionPrefix>1.2.2</VersionPrefix>
+    <VersionPrefix>1.2.3</VersionPrefix>
 
     <Copyright>2017 Stack Exchange, Inc.</Copyright>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <AssemblyOriginatorKeyFile>../StackExchange.Redis.snk</AssemblyOriginatorKeyFile>
     <PackageId>$(AssemblyName)</PackageId>
-    <Authors>Stack Exchange inc., marc.gravell</Authors>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    
+    <Authors>Stack Exchange, Inc.; marc.gravell</Authors>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>    
     
     <PackageReleaseNotes>https://stackexchange.github.io/StackExchange.Redis/ReleaseNotes</PackageReleaseNotes>
     <PackageProjectUrl>https://github.com/StackExchange/StackExchange.Redis/</PackageProjectUrl>
@@ -27,8 +26,18 @@
     <CoreFxVersion>4.3.0</CoreFxVersion>
   </PropertyGroup>
   
+   <!-- Workarounds for https://github.com/NuGet/Home/issues/4853 -->
+   <PropertyGroup Condition="'$(TargetFramework)' == 'net40' OR  '$(TargetFramework)' == 'net45' OR '$(TargetFramework)' == 'net46'">
+     <DisableImplicitFrameworkReferences>true</DisableImplicitFrameworkReferences>
+     <AddAdditionalExplicitAssemblyReferences>false</AddAdditionalExplicitAssemblyReferences>
+   </PropertyGroup>
+   <ItemGroup Condition="'$(TargetFramework)' == 'net40' OR  '$(TargetFramework)' == 'net45' OR '$(TargetFramework)' == 'net46'">
+     <Reference Include="System.Core" Pack="false" />
+   </ItemGroup>
+
   <ItemGroup>
-    <PackageReference Include="SourceLink.Create.GitHub" Version="2.0.2" PrivateAssets="All" /> 
+    <PackageReference Include="SourceLink.Create.GitHub" Version="2.0.2" PrivateAssets="All" />
+    <PackageReference Include="NuGet.Build.Tasks.Pack" Version="4.3.0-preview1-4045" PrivateAssets="All" />
     <DotNetCliToolReference Include="dotnet-sourcelink" Version="2.0.2" />
     <DotNetCliToolReference Include="dotnet-sourcelink-git" Version="2.0.2" />
   </ItemGroup>
