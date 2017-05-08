@@ -8,6 +8,9 @@ using System.Net.Security;
 using System.Security.Authentication;
 using System.Text;
 using System.Threading.Tasks;
+#if CORE_CLR
+using System.Runtime.InteropServices;
+#endif
 
 namespace StackExchange.Redis
 {
@@ -485,6 +488,24 @@ namespace StackExchange.Redis
                                 cache[dns.Host] = ip;
                                 endpoints[i] = new IPEndPoint(ip, dns.Port);
                             }
+#if CORE_CLR
+                            else if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && ips.Length > 1)
+                            {
+                                for (int j = 0; j < ips.Length; j++)
+                                {
+                                    ip = ips[j];
+                                    multiplexer.LogLocked(log, "'{0}' => {1}", dns.Host, ip);
+                                    if (j == 0)
+                                    {
+                                        endpoints[i] = new IPEndPoint(ip, dns.Port);
+                                    }
+                                    else
+                                    {
+                                        endpoints.Add(new IPEndPoint(ip, dns.Port));
+                                    }
+                                }
+                            }
+#endif
                         }
                     }
                     catch (Exception ex)

@@ -15,6 +15,9 @@ using Microsoft.Runtime.CompilerServices;
 using System.IO.Compression;
 using System.Runtime.CompilerServices;
 #endif
+#if CORE_CLR
+using System.Runtime.InteropServices;
+#endif
 
 namespace StackExchange.Redis
 {
@@ -843,6 +846,14 @@ namespace StackExchange.Redis
             }
             if (config.EndPoints.Count == 0) throw new ArgumentException("No endpoints specified", nameof(configuration));
             config.SetDefaultPorts();
+
+#if CORE_CLR
+            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                config.ResolveDns = true;
+            }
+#endif
+
             return new ConnectionMultiplexer(config);
         }
         /// <summary>
