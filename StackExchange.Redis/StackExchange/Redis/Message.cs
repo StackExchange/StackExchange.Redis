@@ -200,7 +200,7 @@ namespace StackExchange.Redis
         private const CommandFlags UserSelectableFlags
             = CommandFlags.None | CommandFlags.DemandMaster | CommandFlags.DemandSlave
             | CommandFlags.PreferMaster | CommandFlags.PreferSlave
-            | CommandFlags.HighPriority | CommandFlags.FireAndForget | CommandFlags.NoRedirect;
+            | CommandFlags.HighPriority | CommandFlags.FireAndForget | CommandFlags.NoRedirect | CommandFlags.NoScriptCache;
 
         private CommandFlags flags;
         internal CommandFlags FlagsRaw { get { return flags; } set { flags = value; } }
