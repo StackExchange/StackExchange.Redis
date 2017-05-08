@@ -1,5 +1,9 @@
 # Release Notes
 
+## 1.2.3
+
+- fix: when using `redis-cluster` with multiple replicas, use round-robin when selecting replica (#610)
+
 ## 1.2.2 (preview):
 
 - **UNAVAILABLE**: .NET 4.0 support is not in this build, due to [a build issue](https://github.com/dotnet/cli/issues/5993) - looking into solutions
