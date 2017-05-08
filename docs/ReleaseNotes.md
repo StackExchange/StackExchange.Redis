@@ -3,6 +3,7 @@
 ## 1.2.3
 
 - fix: when using `redis-cluster` with multiple replicas, use round-robin when selecting replica (#610)
+- add: can specify `NoScriptCache` flag when using `ScriptEvaluate` to bypass all cache features (always uses `EVAL` instead of `SCRIPT LOAD` and `EVALSHA`)
 
 ## 1.2.2 (preview):
 
