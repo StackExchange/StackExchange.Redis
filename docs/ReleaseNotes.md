@@ -1,9 +1,11 @@
 # Release Notes
 
+# Important: .NET 4.0 support is currently **disabled**; if you need .NET 4.0, please stick with 1.2.1 while we keep investigating
+
 ## 1.2.3
 
 - fix: when using `redis-cluster` with multiple replicas, use round-robin when selecting replica (#610)
-- add: can specify `NoScriptCache` flag when using `ScriptEvaluate` to bypass all cache features (always uses `EVAL` instead of `SCRIPT LOAD` and `EVALSHA`)
+- add: can specify `NoScriptCache` flag when using `ScriptEvaluate` to bypass all cache features (always uses `EVAL` instead of `SCRIPT LOAD` and `EVALSHA`) (#617)
 
 ## 1.2.2 (preview):
 
