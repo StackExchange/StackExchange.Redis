@@ -518,7 +518,13 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets the timeout associated with the connections
         /// </summary>
-        public int TimeoutMilliseconds => timeoutMilliseconds;
+        [Obsolete("Use Timeout property instead")]
+        public int TimeoutMilliseconds => (int)timeout.TotalMilliseconds;
+
+        /// <summary>
+        /// Gets the timeout associated with the connections
+        /// </summary>
+        public TimeSpan Timeout => timeout;
 
         /// <summary>
         /// Gets all endpoints defined on the server
@@ -531,7 +537,7 @@ namespace StackExchange.Redis
             return ConvertHelper.ConvertAll(serverSnapshot, x => x.EndPoint);
         }
 
-        private readonly int timeoutMilliseconds;
+        private readonly TimeSpan timeout;
 
         private readonly ConfigurationOptions configuration;
 
@@ -548,7 +554,7 @@ namespace StackExchange.Redis
         public void Wait(Task task)
         {
             if (task == null) throw new ArgumentNullException(nameof(task));
-            if (!task.Wait(timeoutMilliseconds)) throw new TimeoutException();
+            if (!task.Wait(timeout)) throw new TimeoutException(timeout.ToString());
         }
 
         /// <summary>
@@ -558,7 +564,7 @@ namespace StackExchange.Redis
         public T Wait<T>(Task<T> task)
         {
             if (task == null) throw new ArgumentNullException(nameof(task));
-            if (!task.Wait(timeoutMilliseconds)) throw new TimeoutException();
+            if (!task.Wait(timeout)) throw new TimeoutException(timeout.ToString());
             return task.Result;
         }
         /// <summary>
@@ -568,14 +574,14 @@ namespace StackExchange.Redis
         {
             if (tasks == null) throw new ArgumentNullException(nameof(tasks));
             if (tasks.Length == 0) return;
-            if (!Task.WaitAll(tasks, timeoutMilliseconds)) throw new TimeoutException();
+            if (!Task.WaitAll(tasks, timeout)) throw new TimeoutException(timeout.ToString());
         }
 
         private bool WaitAllIgnoreErrors(Task[] tasks)
         {
-            return WaitAllIgnoreErrors(tasks, timeoutMilliseconds);
+            return WaitAllIgnoreErrors(tasks, timeout);
         }
-        private static bool WaitAllIgnoreErrors(Task[] tasks, int timeout)
+        private static bool WaitAllIgnoreErrors(Task[] tasks, TimeSpan timeout)
         {
             if (tasks == null) throw new ArgumentNullException(nameof(tasks));
             if (tasks.Length == 0) return true;
@@ -594,8 +600,8 @@ namespace StackExchange.Redis
                 var task = tasks[i];
                 if (!task.IsCanceled && !task.IsCompleted && !task.IsFaulted)
                 {
-                    var remaining = timeout - checked((int)watch.ElapsedMilliseconds);
-                    if (remaining <= 0) return false;
+                    var remaining = timeout - watch.Elapsed;
+                    if (remaining <= TimeSpan.Zero) return false;
                     try
                     {
                         task.Wait(remaining);
@@ -949,7 +955,7 @@ namespace StackExchange.Redis
             }
 
             PreserveAsyncOrder = true; // safest default
-            timeoutMilliseconds = configuration.SyncTimeout;
+            timeout = TimeSpan.FromMilliseconds(configuration.SyncTimeout);
 
             OnCreateReaderWriter(configuration);
             unprocessableCompletionManager = new CompletionManager(this, "multiplexer");
@@ -1171,16 +1177,17 @@ namespace StackExchange.Redis
             // note we expect ReconfigureAsync to internally allow [n] duration,
             // so to avoid near misses, here we wait 2*[n]
             var task = ReconfigureAsync(false, true, log, null, "configure");
-            if (!task.Wait(SyncConnectTimeout(false)))
+            var syncConnectTimeout = TimeSpan.FromMilliseconds(SyncConnectTimeout(false));
+            if (!task.Wait(syncConnectTimeout))
             {
                 task.ObserveErrors();
                 if (configuration.AbortOnConnectFail)
                 {
-                    throw new TimeoutException();
+                    throw new TimeoutException(syncConnectTimeout.ToString());
                 }
                 else
                 {
-                    LastException = new TimeoutException("ConnectTimeout");
+                    LastException = new TimeoutException("ConnectTimeout: " + syncConnectTimeout.ToString());
                 }
                 return false;
             }
@@ -1260,13 +1267,13 @@ namespace StackExchange.Redis
                     {
                         var dns = configuration.ResolveEndPointsAsync(this, log).ObserveErrors();
 #if NET40
-                        var any = TaskEx.WhenAny(dns, TaskEx.Delay(timeoutMilliseconds));
+                        var any = TaskEx.WhenAny(dns, TaskEx.Delay(timeout));
 #else
-                        var any = Task.WhenAny(dns, Task.Delay(timeoutMilliseconds));
+                        var any = Task.WhenAny(dns, Task.Delay(timeout));
 #endif
                         if ((await any.ForAwait()) != dns)
                         {
-                            throw new TimeoutException("Timeout resolving endpoints");
+                            throw new TimeoutException("Timeout resolving endpoints: " + timeout.ToString());
                         }
                     }
                     int index = 0;
@@ -2029,7 +2036,7 @@ namespace StackExchange.Redis
                         throw ExceptionFactory.NoConnectionAvailable(IncludeDetailInExceptions, IncludePerformanceCountersInExceptions, message.Command, message, server, GetServerSnapshot());
                     }
 
-                    if (Monitor.Wait(source, timeoutMilliseconds))
+                    if (Monitor.Wait(source, timeout))
                     {
                         Trace("Timeley response to " + message.ToString());
                     }
@@ -2041,7 +2048,7 @@ namespace StackExchange.Redis
                         List<Tuple<string, string>> data = null;
                         if (server == null || !IncludeDetailInExceptions)
                         {
-                            errMessage = "Timeout performing " + message.Command.ToString();
+                            errMessage = "Timeout performing " + message.Command.ToString() + ": " + timeout.ToString();
                         }
                         else
                         {

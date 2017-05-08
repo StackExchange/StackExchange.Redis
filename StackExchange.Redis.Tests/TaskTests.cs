@@ -83,7 +83,8 @@ namespace StackExchange.Redis.Tests
             private ManualResetEventSlim evt = new ManualResetEventSlim();
             public void Wait()
             {
-                if (!evt.Wait(5000)) throw new TimeoutException();
+                var timeout = TimeSpan.FromSeconds(5);
+                if (!evt.Wait(timeout)) throw new TimeoutException(timeout.ToString());
             }
             public void Attach(Task task, AttachMode attachMode)
             {
