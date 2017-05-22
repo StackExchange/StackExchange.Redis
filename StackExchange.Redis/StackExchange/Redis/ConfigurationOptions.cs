@@ -450,6 +450,10 @@ namespace StackExchange.Redis
             return false;
         }
 
+        internal bool HasAllDnsEndPoints() {
+            return !endpoints.Any(ep => !(ep is DnsEndPoint));
+        }
+
 #pragma warning disable 1998 // NET40 is sync, not async, currently
         internal async Task ResolveEndPointsAsync(ConnectionMultiplexer multiplexer, TextWriter log)
         {
