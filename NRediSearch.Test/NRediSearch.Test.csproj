@@ -2,7 +2,6 @@
 
   <PropertyGroup>    
     <TargetFramework>netcoreapp1.1</TargetFramework>
-    <TargetFrameworks>$(TargetFramework)</TargetFrameworks>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
   </PropertyGroup>
 

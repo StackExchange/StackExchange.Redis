@@ -240,9 +240,11 @@ namespace StackExchange.Redis
             if (endpoint.IsSlave && endpoint.IsSelectable(command)) return endpoint;
 
             var slaves = endpoint.Slaves;
-            for (int i = 0; i < slaves.Length; i++)
+            var len = slaves.Length;
+            uint startOffset = len <= 1 ? 0 : endpoint.NextReplicaOffset();
+            for (int i = 0; i < len; i++)
             {
-                endpoint = slaves[i];
+                endpoint = slaves[(int)(((uint)i + startOffset) % len)];
                 if (endpoint.IsSlave && endpoint.IsSelectable(command)) return endpoint;
             }
             return null;

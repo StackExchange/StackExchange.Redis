@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <TargetFrameworks>$(LibraryTargetFrameworks)</TargetFrameworks>
     <Description>High performance Redis client, incorporating both synchronous and asynchronous usage.</Description>
     <AssemblyTitle>StackExchange.Redis</AssemblyTitle>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>

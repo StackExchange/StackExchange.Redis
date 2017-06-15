@@ -2530,8 +2530,10 @@ namespace StackExchange.Redis
 
             public IEnumerable<Message> GetMessages(PhysicalConnection connection)
             {
-                if (script != null && connection.Multiplexer.CommandMap.IsAvailable(RedisCommand.SCRIPT)) // a script was provided (rather than a hash); check it is known and supported
+                if (script != null && connection.Multiplexer.CommandMap.IsAvailable(RedisCommand.SCRIPT)
+                    && (Flags & CommandFlags.NoScriptCache) == 0) 
                 {
+                    // a script was provided (rather than a hash); check it is known and supported
                     asciiHash = connection.Bridge.ServerEndPoint.GetScriptHash(script, command);
 
                     if (asciiHash == null)

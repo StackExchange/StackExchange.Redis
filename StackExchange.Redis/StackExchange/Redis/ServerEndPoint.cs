@@ -341,6 +341,10 @@ namespace StackExchange.Redis
             }
         }
 
+        int _nextReplicaOffset;
+        internal uint NextReplicaOffset() // used to round-robin between multiple replicas
+            => (uint) System.Threading.Interlocked.Increment(ref _nextReplicaOffset);
+
         internal Task Close()
         {
             var tmp = interactive;

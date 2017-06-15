@@ -5,6 +5,7 @@ obj
 *.suo
 *.user
 *.nupkg
+nupkgs/
 packages/NuGet.CommandLine.*
 *.sln.docstates
 _ReSharper.*

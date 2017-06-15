@@ -1,6 +1,13 @@
 # Release Notes
 
-## Unreleased changes:
+# Important: .NET 4.0 support is currently **disabled**; if you need .NET 4.0, please stick with 1.2.1 while we keep investigating
+
+## 1.2.3
+
+- fix: when using `redis-cluster` with multiple replicas, use round-robin when selecting replica (#610)
+- add: can specify `NoScriptCache` flag when using `ScriptEvaluate` to bypass all cache features (always uses `EVAL` instead of `SCRIPT LOAD` and `EVALSHA`) (#617)
+
+## 1.2.2 (preview):
 
 - **UNAVAILABLE**: .NET 4.0 support is not in this build, due to [a build issue](https://github.com/dotnet/cli/issues/5993) - looking into solutions
 - add: make performance-counter tracking opt-in (`IncludePerformanceCountersInExceptions`) as it was causing problems (#587)
@@ -10,6 +17,7 @@
 - improved connection retry policy (#510, #572)
 - add `Execute`/`ExecuteAsync` API to support "modules"; [more info](http://blog.marcgravell.com/2017/04/stackexchangeredis-and-redis-40-modules.html)
 - fix: timeout link fixed re /docs change (below)
+- [`NRediSearch`](https://www.nuget.org/packages/NRediSearch/) added as exploration into "modules"
 
 Other changes (not library related)
 
