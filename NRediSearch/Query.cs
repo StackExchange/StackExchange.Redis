@@ -162,6 +162,16 @@ namespace NRediSearch
         public byte[] Payload { get; set; }
 
         /// <summary>
+        /// Set the query parameter to sort by
+        /// </summary>
+        public string SortBy { get; set; }
+
+        /// <summary>
+        /// Set the query parameter to sort by ASC by default
+        /// </summary>
+        public bool SortAscending {get; set;} = true;
+
+        /// <summary>
         /// Create a new index
         /// </summary>
         public Query(String queryString)
@@ -203,6 +213,13 @@ namespace NRediSearch
                 args.Add("INFIELDS".Literal());
                 args.Add(_fields.Length);
                 args.AddRange(_fields);
+            }
+
+            if(SortBy != null)
+            {
+                args.Add("SORTBY".Literal());
+                args.Add(SortBy);
+                args.Add((SortAscending ? "ASC" : "DESC").Literal());
             }
 
             if (Payload != null)
@@ -258,6 +275,19 @@ namespace NRediSearch
         public Query LimitFields(params string[] fields)
         {
             this._fields = fields;
+            return this;
+        }
+
+        /// <summary>
+        /// Set the query to be sorted by a sortable field defined in the schema
+        /// </summary>
+        /// <param name="field">the sorting field's name</param>
+        /// <param name="ascending">if set to true, the sorting order is ascending, else descending</param>
+        /// <returns>the query object itself</returns>
+        public Query SetSortBy(string field, bool ascending = true)
+        {
+            SortBy = field;
+            SortAscending = ascending;
             return this;
         }
     }
