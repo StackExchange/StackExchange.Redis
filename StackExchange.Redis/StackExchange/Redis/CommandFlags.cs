@@ -27,7 +27,7 @@ namespace StackExchange.Redis
         /// This operation should be performed on the master if it is available, but read operations may
         /// be performed on a slave if no master is available. This is the default option.
         /// </summary>
-        PreferMaster = 0,
+        PreferMaster = 3,
 
         /// <summary>
         /// This operation should only be performed on the master.
