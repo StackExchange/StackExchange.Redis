@@ -45,7 +45,8 @@ Given the above information, it's recommend to set the minimum configuration val
 
 How to configure this setting:
 
- - In ASP.NET, use the ["minIoThreads" configuration setting](https://msdn.microsoft.com/en-us/library/vstudio/7w2sway1(v=vs.100).aspx) under the `<processModel>` configuration element in `machine.config`. You could set your server's `machine.config` to allow this overridable per apppool via the method indicated [here](https://stackoverflow.com/questions/1939230/asp-net-processmodel-configuration-optimization#comment2882249_1939245) and set this per Web.Config. Alternativly you can be able to set this programmatically (see below) from your Application_Start method in `Global.asax.cs`.
+ - In ASP.NET, use the ["minIoThreads" configuration setting](https://msdn.microsoft.com/en-us/library/7w2sway1(v=vs.71).aspx) under the `<processModel>` configuration element in `machine.config`. Acording to Microsoft, you can't change this value per site by editing your web.config (even when you could do it in the past), so the value that you choose here is the value that all your .NET sites will use. Please note that you don't need to add every property if you put autoConfig in false, just putting autoConfig="false" and overriding the value is enough:
+        <processModel autoConfig="false" maxIoThreads="250" />
 
 > **Important Note:** the value specified in this configuration element is a *per-core* setting.  For example, if you have a 4 core machine and want your minIOThreads setting to be 200 at runtime, you would use `<processModel minIoThreads="50"/>`.
 
