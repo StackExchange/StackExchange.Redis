@@ -815,7 +815,12 @@ namespace StackExchange.Redis
 
                 int bufferSize = config.WriteBuffer;
                 this.netStream = stream;
+#if !CORE_CLR_14
                 this.outStream = bufferSize <= 0 ? stream : new BufferedStream(stream, bufferSize);
+#else
+                this.outStream = stream;
+#endif
+            
                 Multiplexer.LogLocked(log, "Connected {0}", Bridge);
 
                 Bridge.OnConnected(this, log);

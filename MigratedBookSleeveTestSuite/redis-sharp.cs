@@ -242,7 +242,11 @@ public class Redis : IDisposable
             socket = null;
             return;
         }
+#if !CORE_CLR_14
         bstream = new BufferedStream(new NetworkStream(socket), 16 * 1024);
+#else
+        bstream = new NetworkStream(socket);
+#endif
 
         if (Password != null)
             SendExpectSuccess("AUTH {0}\r\n", Password);
