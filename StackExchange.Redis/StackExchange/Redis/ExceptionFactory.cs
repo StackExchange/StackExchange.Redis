@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Text;
 
 namespace StackExchange.Redis
@@ -27,6 +28,13 @@ namespace StackExchange.Redis
         {
             string s = GetLabel(includeDetail, command, message);
             var ex = new RedisCommandException("This operation has been disabled in the command-map and cannot be used: " + s);
+            if (includeDetail) AddDetail(ex, message, server, s);
+            return ex;
+        }
+        internal static Exception TooManyArgs(bool includeDetail, string command, Message message, ServerEndPoint server, int required)
+        {
+            string s = GetLabel(includeDetail, command, message);
+            var ex = new RedisCommandException($"This operation would involve too many arguments ({required} vs the redis limit of {PhysicalConnection.REDIS_MAX_ARGS}): {s}");
             if (includeDetail) AddDetail(ex, message, server, s);
             return ex;
         }

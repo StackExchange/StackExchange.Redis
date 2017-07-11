@@ -474,8 +474,14 @@ namespace StackExchange.Redis
             WriteRaw(outStream, arguments + 1);
             WriteUnified(outStream, commandBytes);
         }
+        internal const int REDIS_MAX_ARGS = 1024 * 1024; // there is a <= 1024*1024 max constraint inside redis itself: https://github.com/antirez/redis/blob/6c60526db91e23fb2d666fc52facc9a11780a2a3/src/networking.c#L1024
+
         internal void WriteHeader(string command, int arguments)
         {
+            if(arguments >= REDIS_MAX_ARGS) // using >= here because we will be adding 1 for the command itself (which is an arg for the purposes of the multi-bulk protocol)
+            {
+                throw ExceptionFactory.TooManyArgs(Multiplexer.IncludeDetailInExceptions, command, null, Bridge.ServerEndPoint, arguments + 1);
+            }
             var commandBytes = Multiplexer.CommandMap.GetBytes(command);
             if (commandBytes == null)
             {
