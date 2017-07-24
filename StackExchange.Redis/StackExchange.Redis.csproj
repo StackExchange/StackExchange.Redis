@@ -8,7 +8,7 @@
     <AssemblyName>StackExchange.Redis</AssemblyName>
     <PackageId>StackExchange.Redis</PackageId>
     <PackageTags>Async;Redis;Cache;PubSub;Messaging</PackageTags>
-    <OutputTypeEx>library</OutputTypeEx>
+    <OutputTypeEx>Library</OutputTypeEx>
   </PropertyGroup>
 
   <ItemGroup>
@@ -34,11 +34,7 @@
     <Reference Include="Microsoft.CSharp" />
   </ItemGroup>
 
-  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net45|AnyCPU'">
-    <OutputType>Library</OutputType>
-  </PropertyGroup>
-
-  <PropertyGroup Condition=" '$(TargetFramework)' == 'net40' ">
+  <PropertyGroup Condition=" '$(TargetFramework)' == 'net40' or  '$(TargetFramework)' == 'net45' or '$(TargetFramework)' == 'net46'">
     <DefineConstants>$(DefineConstants);FEATURE_SERIALIZATION;FEATURE_SOCKET_MODE_POLL</DefineConstants>
   </PropertyGroup>
 

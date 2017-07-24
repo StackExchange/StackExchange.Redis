@@ -9,6 +9,7 @@
     <PublicSign Condition=" '$(OS)' != 'Windows_NT' ">true</PublicSign>
     <PackageId>StackExchange.Redis.StrongName</PackageId>
     <PackageTags>Async;Redis;Cache;PubSub;Messaging</PackageTags>
+    <OutputTypeEx>Library</OutputTypeEx>
   </PropertyGroup>
 
   <ItemGroup>
@@ -35,7 +36,7 @@
     <Reference Include="Microsoft.CSharp" />
   </ItemGroup>
 
-  <PropertyGroup Condition=" '$(TargetFramework)' == 'net40' ">
+  <PropertyGroup Condition=" '$(TargetFramework)' == 'net40' or  '$(TargetFramework)' == 'net45' or '$(TargetFramework)' == 'net46'">
     <DefineConstants>$(DefineConstants);FEATURE_SERIALIZATION;FEATURE_SOCKET_MODE_POLL</DefineConstants>
   </PropertyGroup>
 
