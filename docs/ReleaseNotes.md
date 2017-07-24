@@ -2,6 +2,10 @@
 
 # Important: .NET 4.0 support is currently **disabled**; if you need .NET 4.0, please stick with 1.2.1 while we keep investigating
 
+## 1.2.5
+
+- critical fix: "poll mode" was disabled in the build for net45/net60 - impact: IO jams and lack of reader during high load
+
 ## 1.2.4
 
 - fix: incorrect build configuration (#649)
