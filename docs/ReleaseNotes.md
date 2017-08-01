@@ -4,7 +4,7 @@
 
 ## 1.2.6
 
-- fix change to `cluster nodes` output when using cluster-enabled target and 4.0+ (see [redis #4186]https://github.com/antirez/redis/issues/4186)
+- fix change to `cluster nodes` output when using cluster-enabled target and 4.0+ (see [redis #4186](https://github.com/antirez/redis/issues/4186)
 
 ## 1.2.5
 
