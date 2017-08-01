@@ -2,6 +2,10 @@
 
 # Important: .NET 4.0 support is currently **disabled**; if you need .NET 4.0, please stick with 1.2.1 while we keep investigating
 
+## 1.2.6
+
+- fix change to `cluster nodes` output when using cluster-enabled target and 4.0+ (see [redis #4186]https://github.com/antirez/redis/issues/4186)
+
 ## 1.2.5
 
 - critical fix: "poll mode" was disabled in the build for net45/net60 - impact: IO jams and lack of reader during high load

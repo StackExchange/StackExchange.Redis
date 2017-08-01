@@ -182,8 +182,8 @@ namespace StackExchange.Redis
                     if (string.IsNullOrWhiteSpace(line)) continue;
                     var node = new ClusterNode(this, line, origin);
                     
-                    // Be resilient to ":0 {master,slave},fail,noaddr" nodes
-                    if (node.IsNoAddr)
+                    // Be resilient to ":0 {master,slave},fail,noaddr" nodes, and nodes where the endpoint doesn't parse
+                    if (node.IsNoAddr || node.EndPoint == null)
                         continue;
 
                     // Override the origin value with the endpoint advertised with the target node to
@@ -308,8 +308,13 @@ namespace StackExchange.Redis
             var parts = raw.Split(StringSplits.Space);
 
             var flags = parts[2].Split(StringSplits.Comma);
-            
-            EndPoint = Format.TryParseEndPoint(parts[1]);
+
+            // redis 4 changes the format of "cluster nodes" - adds @... to the endpoint
+            var ep = parts[1];
+            int at = ep.IndexOf('@');
+            if (at >= 0) ep = ep.Substring(0, at);
+
+            EndPoint = Format.TryParseEndPoint(ep);
             if (flags.Contains("myself"))
             {
                 IsMyself = true;
