@@ -26,7 +26,7 @@ namespace StackExchange.Redis
 
         private static readonly byte[] Crlf = Encoding.ASCII.GetBytes("\r\n");
 
-#if CORE_CLR
+#if CORE_CLR && !NETSTANDARD2_0
         readonly Action<Task<int>> endRead;
         private static Action<Task<int>> EndReadFactory(PhysicalConnection physical)
         {
@@ -110,7 +110,7 @@ namespace StackExchange.Redis
             var endpoint = bridge.ServerEndPoint.EndPoint;
             physicalName = connectionType + "#" + Interlocked.Increment(ref totalCount) + "@" + Format.ToString(endpoint);
             this.Bridge = bridge;
-#if CORE_CLR
+#if CORE_CLR && !NETSTANDARD2_0
             endRead = EndReadFactory(this);
 #endif
             OnCreateEcho();
@@ -199,7 +199,7 @@ namespace StackExchange.Redis
             int @in = -1, ar = -1;
             managerState = SocketManager.ManagerState.RecordConnectionFailed_OnDisconnected;
             Bridge.OnDisconnected(failureType, this, out isCurrent, out oldState);
-            if(oldState == PhysicalBridge.State.ConnectedEstablished)
+            if (oldState == PhysicalBridge.State.ConnectedEstablished)
             {
                 try
                 {
@@ -237,13 +237,13 @@ namespace StackExchange.Redis
                 add("Pending", "pending", Bridge.GetPendingCount().ToString());
                 add("Previous-Physical-State", "state", oldState.ToString());
 
-                if(@in >= 0)
+                if (@in >= 0)
                 {
                     add("Inbound-Bytes", "in", @in.ToString());
                     add("Active-Readers", "ar", ar.ToString());
                 }
 
-                add("Last-Heartbeat", "last-heartbeat", (lastBeat == 0 ? "never" : (unchecked(now - lastBeat)/1000 + "s ago"))+ (Bridge.IsBeating ? " (mid-beat)" : "") );
+                add("Last-Heartbeat", "last-heartbeat", (lastBeat == 0 ? "never" : (unchecked(now - lastBeat) / 1000 + "s ago")) + (Bridge.IsBeating ? " (mid-beat)" : ""));
                 add("Last-Multiplexer-Heartbeat", "last-mbeat", Multiplexer.LastHeartbeatSecondsAgo + "s ago");
                 add("Last-Global-Heartbeat", "global", ConnectionMultiplexer.LastGlobalHeartbeatSecondsAgo + "s ago");
 #if FEATURE_SOCKET_MODE_POLL
@@ -360,7 +360,7 @@ namespace StackExchange.Redis
                     return null;
                 }
 
-                if(message.Command == RedisCommand.SELECT)
+                if (message.Command == RedisCommand.SELECT)
                 {
                     // this could come from an EVAL/EVALSHA inside a transaction, for example; we'll accept it
                     Bridge.Trace("Switching database: " + targetDatabase);
@@ -478,7 +478,7 @@ namespace StackExchange.Redis
 
         internal void WriteHeader(string command, int arguments)
         {
-            if(arguments >= REDIS_MAX_ARGS) // using >= here because we will be adding 1 for the command itself (which is an arg for the purposes of the multi-bulk protocol)
+            if (arguments >= REDIS_MAX_ARGS) // using >= here because we will be adding 1 for the command itself (which is an arg for the purposes of the multi-bulk protocol)
             {
                 throw ExceptionFactory.TooManyArgs(Multiplexer.IncludeDetailInExceptions, command, null, Bridge.ServerEndPoint, arguments + 1);
             }
@@ -588,10 +588,11 @@ namespace StackExchange.Redis
             if (value == null)
             {
                 WriteRaw(stream, -1);
-            } else
+            }
+            else
             {
                 WriteRaw(stream, value.Length * 2);
-                for(int i = 0; i < value.Length; i++)
+                for (int i = 0; i < value.Length; i++)
                 {
                     stream.WriteByte(ToHexNibble(value[i] >> 4));
                     stream.WriteByte(ToHexNibble(value[i] & 15));
@@ -639,7 +640,7 @@ namespace StackExchange.Redis
             }
             else
             {
-#if !CORE_CLR
+#if !CORE_CLR || NETSTANDARD2_0
                 fixed (char* c = value)
                 fixed (byte* b = outScratch)
                 {
@@ -713,7 +714,7 @@ namespace StackExchange.Redis
                     keepReading = false;
                     int space = EnsureSpaceAndComputeBytesToRead();
                     Multiplexer.Trace("Beginning async read...", physicalName);
-#if CORE_CLR
+#if CORE_CLR && !NETSTANDARD2_0
                     var result = netStream.ReadAsync(ioBuffer, ioBufferBytes, space);
                     switch (result.Status)
                     {
@@ -773,7 +774,8 @@ namespace StackExchange.Redis
                 {
                     return delegate { return new X509Certificate2(pfxPath, pfxPassword ?? "", flags ?? X509KeyStorageFlags.DefaultKeySet); };
                 }
-            } catch
+            }
+            catch
             { }
             return null;
         }
@@ -790,7 +792,7 @@ namespace StackExchange.Redis
                 // [network]<==[ssl]<==[logging]<==[buffered]
                 var config = Multiplexer.RawConfig;
 
-                if(config.Ssl)
+                if (config.Ssl)
                 {
                     Multiplexer.LogLocked(log, "Configuring SSL");
                     var host = config.SslHost;
@@ -835,7 +837,7 @@ namespace StackExchange.Redis
             }
         }
 
-#if CORE_CLR
+#if CORE_CLR && !NETSTANDARD2_0
         private bool EndReading(Task<int> result)
         {
             try
@@ -1033,7 +1035,8 @@ namespace StackExchange.Redis
             catch (Exception ex)
             {
                 RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
-            }finally
+            }
+            finally
             {
                 Interlocked.Decrement(ref haveReader);
             }
@@ -1059,12 +1062,12 @@ namespace StackExchange.Redis
                 if (itemCountActual < 0)
                 {
                     //for null response by command like EXEC, RESP array: *-1\r\n
-                    return new RawResult(ResultType.SimpleString, null, 0, 0); 
+                    return new RawResult(ResultType.SimpleString, null, 0, 0);
                 }
                 else if (itemCountActual == 0)
                 {
                     //for zero array response by command like SCAN, Resp array: *0\r\n 
-                    return RawResult.EmptyArray; 
+                    return RawResult.EmptyArray;
                 }
 
                 var arr = new RawResult[itemCountActual];
@@ -1128,11 +1131,11 @@ namespace StackExchange.Redis
         }
         RawResult TryParseResult(byte[] buffer, ref int offset, ref int count)
         {
-            if(count == 0) return RawResult.Nil;
+            if (count == 0) return RawResult.Nil;
 
             char resultType = (char)buffer[offset++];
             count--;
-            switch(resultType)
+            switch (resultType)
             {
                 case '+': // simple string
                     return ReadLineTerminatedString(ResultType.SimpleString, buffer, ref offset, ref count);
