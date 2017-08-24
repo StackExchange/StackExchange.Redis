@@ -26,28 +26,13 @@
   </PropertyGroup>
 
   <ItemGroup Condition=" '$(TargetFramework)' == 'netstandard1.5' ">
-    <PackageReference Include="System.Collections" Version="$(CoreFxVersion)" />
-    <PackageReference Include="System.Collections.Concurrent" Version="$(CoreFxVersion)" />
     <PackageReference Include="System.Collections.NonGeneric" Version="$(CoreFxVersion)" />
-    <PackageReference Include="System.Diagnostics.Tools" Version="$(CoreFxVersion)" />
-    <PackageReference Include="System.IO.Compression" Version="$(CoreFxVersion)" />
-    <PackageReference Include="System.IO.FileSystem" Version="$(CoreFxVersion)" />
-    <PackageReference Include="System.Linq" Version="$(CoreFxVersion)" />
     <PackageReference Include="System.Net.NameResolution" Version="$(CoreFxVersion)" />
     <PackageReference Include="System.Net.Security" Version="$(CoreFxVersion)" />
-    <PackageReference Include="System.Net.Sockets" Version="$(CoreFxVersion)" />
     <PackageReference Include="System.Reflection.Emit" Version="$(CoreFxVersion)" />
     <PackageReference Include="System.Reflection.Emit.Lightweight" Version="$(CoreFxVersion)" />
     <PackageReference Include="System.Reflection.TypeExtensions" Version="$(CoreFxVersion)" />
-    <PackageReference Include="System.Runtime.Extensions" Version="$(CoreFxVersion)" />
-    <PackageReference Include="System.Runtime.InteropServices.RuntimeInformation" Version="$(CoreFxVersion)" />
-    <PackageReference Include="System.Security.Cryptography.Algorithms" Version="$(CoreFxVersion)" />
-    <PackageReference Include="System.Security.Cryptography.X509Certificates" Version="$(CoreFxVersion)" />
-    <PackageReference Include="System.Text.RegularExpressions" Version="$(CoreFxVersion)" />
-    <PackageReference Include="System.Threading" Version="$(CoreFxVersion)" />
     <PackageReference Include="System.Threading.Thread" Version="$(CoreFxVersion)" />
     <PackageReference Include="System.Threading.ThreadPool" Version="$(CoreFxVersion)" />
-    <PackageReference Include="System.Threading.Timer" Version="$(CoreFxVersion)" />
   </ItemGroup>
-
 </Project>
