@@ -1,7 +1,6 @@
 using System;
 using Xunit;
 using StackExchange.Redis;
-using NRediSearch;
 using System.Collections.Generic;
 using System.Linq;
 

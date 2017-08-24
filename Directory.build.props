@@ -24,11 +24,6 @@
 
     <LibraryTargetFrameworks>net45;net46;netstandard1.5</LibraryTargetFrameworks>
     <CoreFxVersion>4.3.0</CoreFxVersion>
+    <xUnitVersion>2.3.0-beta5-build3750</xUnitVersion>
   </PropertyGroup>
-
-  <ItemGroup>
-    <PackageReference Include="SourceLink.Create.GitHub" Version="2.2.0" PrivateAssets="All" />
-    <DotNetCliToolReference Include="dotnet-sourcelink" Version="2.2.0" />
-    <DotNetCliToolReference Include="dotnet-sourcelink-git" Version="2.2.0" />
-  </ItemGroup>
 </Project>
