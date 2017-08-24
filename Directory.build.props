@@ -22,7 +22,7 @@
     <DefaultLanguage>en-US</DefaultLanguage>
     <IncludeSymbols>false</IncludeSymbols>
 
-    <LibraryTargetFrameworks>net45;net46;netstandard1.5</LibraryTargetFrameworks><!--net40;-->
+    <LibraryTargetFrameworks>net45;net46;netstandard1.5;netstandard2.0</LibraryTargetFrameworks><!--net40;-->
     <CoreFxVersion>4.3.0</CoreFxVersion>
   </PropertyGroup>
   
