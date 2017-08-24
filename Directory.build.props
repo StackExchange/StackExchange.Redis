@@ -22,22 +22,13 @@
     <DefaultLanguage>en-US</DefaultLanguage>
     <IncludeSymbols>false</IncludeSymbols>
 
-    <LibraryTargetFrameworks>net45;net46;netstandard1.5</LibraryTargetFrameworks><!--net40;-->
+    <LibraryTargetFrameworks>net45;net46;netstandard1.5</LibraryTargetFrameworks>
     <CoreFxVersion>4.3.0</CoreFxVersion>
   </PropertyGroup>
-  
-   <!-- Workarounds for https://github.com/NuGet/Home/issues/4853 -->
-   <PropertyGroup Condition="'$(TargetFramework)' == 'net40' OR  '$(TargetFramework)' == 'net45' OR '$(TargetFramework)' == 'net46'">
-     <DisableImplicitFrameworkReferences>true</DisableImplicitFrameworkReferences>
-     <AddAdditionalExplicitAssemblyReferences>false</AddAdditionalExplicitAssemblyReferences>
-   </PropertyGroup>
-   <ItemGroup Condition="'$(TargetFramework)' == 'net40' OR  '$(TargetFramework)' == 'net45' OR '$(TargetFramework)' == 'net46'">
-     <Reference Include="System.Core" Pack="false" />
-   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="SourceLink.Create.GitHub" Version="2.0.2" PrivateAssets="All" />
-    <DotNetCliToolReference Include="dotnet-sourcelink" Version="2.0.2" />
-    <DotNetCliToolReference Include="dotnet-sourcelink-git" Version="2.0.2" />
+    <PackageReference Include="SourceLink.Create.GitHub" Version="2.2.0" PrivateAssets="All" />
+    <DotNetCliToolReference Include="dotnet-sourcelink" Version="2.2.0" />
+    <DotNetCliToolReference Include="dotnet-sourcelink-git" Version="2.2.0" />
   </ItemGroup>
 </Project>
