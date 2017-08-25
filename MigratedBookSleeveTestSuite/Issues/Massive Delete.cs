@@ -2,15 +2,13 @@
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
-using NUnit.Framework;
+using Xunit;
 
 namespace Tests.Issues
 {
-    [TestFixture]
     public class Massive_Delete
     {
-        [OneTimeSetUpAttribute]
-        public void Init()
+        public Massive_Delete()
         {
             using (var muxer = Config.GetUnsecuredConnection(allowAdmin: true))
             {
@@ -30,7 +28,7 @@ namespace Tests.Issues
         const int db = 4;
         const string todoKey = "todo";
 
-        [Test]
+        [Fact]
         public void ExecuteMassiveDelete()
         {
             var watch = Stopwatch.StartNew();

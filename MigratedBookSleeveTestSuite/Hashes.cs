@@ -2,15 +2,14 @@
 using System.Collections.Generic;
 using System.Text;
 using System.Linq;
-using NUnit.Framework;
 using StackExchange.Redis;
+using Xunit;
 
 namespace Tests
 {
-    [TestFixture]
     public class Hashes // http://redis.io/commands#hash
     {
-        [Test]
+        [Fact]
         public void TestIncrBy()
         {
             using (var muxer = Config.GetUnsecuredConnection())
@@ -19,20 +18,23 @@ namespace Tests
                 conn.KeyDeleteAsync("hash-test");
                 for (int i = 1; i < 1000; i++)
                 {
-                    Assert.AreEqual(i, conn.HashIncrementAsync("hash-test", "a", 1).Result);
-                    Assert.AreEqual(-i, conn.HashIncrementAsync("hash-test", "b", -1).Result);
-                    //Assert.AreEqual(i, conn.Wait(conn.Hashes.Increment(5, "hash-test", "a", 1)));
-                    //Assert.AreEqual(-i, conn.Wait(conn.Hashes.Increment(5, "hash-test", "b", -1)));
+                    Assert.Equal(i, conn.HashIncrementAsync("hash-test", "a", 1).Result);
+                    Assert.Equal(-i, conn.HashIncrementAsync("hash-test", "b", -1).Result);
+                    //Assert.Equal(i, conn.Wait(conn.Hashes.Increment(5, "hash-test", "a", 1)));
+                    //Assert.Equal(-i, conn.Wait(conn.Hashes.Increment(5, "hash-test", "b", -1)));
                 }
             }
         }
 
-        [Test]
+        [SkippableFact]
         public void Scan()
         {
             using (var muxer = Config.GetUnsecuredConnection(waitForOpen: true))
             {
-                if (!Config.GetFeatures(muxer).Scan) Assert.Inconclusive();
+                if (!Config.GetFeatures(muxer).Scan)
+                {
+                    Skip.NotSupported(nameof(RedisFeatures.Scan));
+                }
                 const int db = 3;
                 var conn = muxer.GetDatabase(db);
                 
@@ -52,22 +54,22 @@ namespace Tests
                 var v3 = t3.ToArray();
                 var v4 = t4.ToArray();
 
-                Assert.AreEqual(3, v1.Length);
-                Assert.AreEqual(1, v2.Length);
-                Assert.AreEqual(3, v3.Length);
-                Assert.AreEqual(1, v4.Length);
+                Assert.Equal(3, v1.Length);
+                Assert.Single(v2);
+                Assert.Equal(3, v3.Length);
+                Assert.Single(v4);
                 Array.Sort(v1, (x, y) => string.Compare(x.Name, y.Name));
                 Array.Sort(v2, (x, y) => string.Compare(x.Name, y.Name));
                 Array.Sort(v3, (x, y) => string.Compare(x.Name, y.Name));
                 Array.Sort(v4, (x, y) => string.Compare(x.Name, y.Name));
 
-                Assert.AreEqual("abc=def,ghi=jkl,mno=pqr", string.Join(",", v1.Select(pair => pair.Name + "=" + (string)pair.Value)));
-                Assert.AreEqual("ghi=jkl", string.Join(",", v2.Select(pair => pair.Name + "=" + (string)pair.Value)));
-                Assert.AreEqual("abc=def,ghi=jkl,mno=pqr", string.Join(",", v3.Select(pair => pair.Name + "=" + pair.Value)));
-                Assert.AreEqual("ghi=jkl", string.Join(",", v4.Select(pair => pair.Name + "=" + pair.Value)));
+                Assert.Equal("abc=def,ghi=jkl,mno=pqr", string.Join(",", v1.Select(pair => pair.Name + "=" + pair.Value)));
+                Assert.Equal("ghi=jkl", string.Join(",", v2.Select(pair => pair.Name + "=" + pair.Value)));
+                Assert.Equal("abc=def,ghi=jkl,mno=pqr", string.Join(",", v3.Select(pair => pair.Name + "=" + pair.Value)));
+                Assert.Equal("ghi=jkl", string.Join(",", v4.Select(pair => pair.Name + "=" + pair.Value)));
             }
         }
-        [Test]
+        [Fact]
         public void TestIncrementOnHashThatDoesntExist()
         {
             using (var muxer = Config.GetUnsecuredConnection())
@@ -76,30 +78,31 @@ namespace Tests
                 conn.KeyDeleteAsync("keynotexist");
                 var result1 = conn.Wait(conn.HashIncrementAsync("keynotexist", "fieldnotexist", 1));
                 var result2 = conn.Wait(conn.HashIncrementAsync("keynotexist", "anotherfieldnotexist", 1));
-                Assert.AreEqual(1, result1);
-                Assert.AreEqual(1, result2);
+                Assert.Equal(1, result1);
+                Assert.Equal(1, result2);
             }
         }
-        [Test]
+
+        [SkippableFact]
         public void TestIncrByFloat()
         {
             using (var muxer = Config.GetUnsecuredConnection(waitForOpen: true))
             {
                 var conn = muxer.GetDatabase(5);
-                if (!Config.GetFeatures(muxer).IncrementFloat) Assert.Inconclusive();
+                if (!Config.GetFeatures(muxer).IncrementFloat)
                 {
-                    conn.KeyDeleteAsync("hash-test");
-                    for (int i = 1; i < 1000; i++)
-                    {
-                        Assert.AreEqual((double)i, conn.HashIncrementAsync("hash-test", "a", 1.0).Result);
-                        Assert.AreEqual((double)(-i), conn.HashIncrementAsync("hash-test", "b", -1.0).Result);
-                    }
+                    Skip.NotSupported(nameof(RedisFeatures.Scan));
+                }
+                conn.KeyDeleteAsync("hash-test");
+                for (int i = 1; i < 1000; i++)
+                {
+                    Assert.Equal(i, conn.HashIncrementAsync("hash-test", "a", 1.0).Result);
+                    Assert.Equal(-i, conn.HashIncrementAsync("hash-test", "b", -1.0).Result);
                 }
             }
         }
 
-
-        [Test]
+        [Fact]
         public void TestGetAll()
         {
             using (var muxer = Config.GetUnsecuredConnection())
@@ -124,16 +127,16 @@ namespace Tests
                     x => Guid.Parse(x.Name), x => int.Parse(x.Value));
 #pragma warning restore 618
 
-                Assert.AreEqual(shouldMatch.Count, inRedis.Count);
+                Assert.Equal(shouldMatch.Count, inRedis.Count);
 
                 foreach (var k in shouldMatch.Keys)
                 {
-                    Assert.AreEqual(shouldMatch[k], inRedis[k]);
+                    Assert.Equal(shouldMatch[k], inRedis[k]);
                 }
             }
         }
 
-        [Test]
+        [Fact]
         public void TestGet()
         {
             using (var muxer = Config.GetUnsecuredConnection())
@@ -156,14 +159,14 @@ namespace Tests
                 foreach (var k in shouldMatch.Keys)
                 {
                     var inRedis = conn.HashGetAsync(key, k.ToString()).Result;
-                    var num = int.Parse((string)inRedis);
+                    var num = int.Parse(inRedis);
 
-                    Assert.AreEqual(shouldMatch[k], num);
+                    Assert.Equal(shouldMatch[k], num);
                 }
             }
         }
 
-        [Test]
+        [Fact]
         public void TestSet() // http://redis.io/commands/hset
         {
             using (var muxer = Config.GetUnsecuredConnection())
@@ -185,22 +188,22 @@ namespace Tests
                 var set4 = conn.HashSetAsync("hashkey", "empty_type2", RedisValue.EmptyString);
                 var val5 = conn.HashGetAsync("hashkey", "empty_type2");
 
-                Assert.AreEqual(null, (string)val0.Result);
-                Assert.AreEqual(true, set0.Result);
-                Assert.AreEqual("value1", (string)val1.Result);
-                Assert.AreEqual(false, set1.Result);
-                Assert.AreEqual("value2", (string)val2.Result);
+                Assert.Null((string)val0.Result);
+                Assert.True(set0.Result);
+                Assert.Equal("value1", val1.Result);
+                Assert.False(set1.Result);
+                Assert.Equal("value2", val2.Result);
 
-                Assert.AreEqual(true, set2.Result);
-                Assert.AreEqual("value3", (string)val3.Result);
+                Assert.True(set2.Result);
+                Assert.Equal("value3", val3.Result);
 
-                Assert.AreEqual(true, set3.Result);
-                Assert.AreEqual("", (string)val4.Result);
-                Assert.AreEqual(true, set4.Result);
-                Assert.AreEqual("", (string)val5.Result);
+                Assert.True(set3.Result);
+                Assert.Equal("", val4.Result);
+                Assert.True(set4.Result);
+                Assert.Equal("", val5.Result);
             }
         }
-        [Test]
+        [Fact]
         public void TestSetNotExists() // http://redis.io/commands/hsetnx
         {
             using (var muxer = Config.GetUnsecuredConnection())
@@ -218,19 +221,19 @@ namespace Tests
                 var val3 = conn.HashGetAsync("hashkey", "field-blob");
                 var set3 = conn.HashSetAsync("hashkey", "field-blob", Encoding.UTF8.GetBytes("value3"), When.NotExists);
 
-                Assert.AreEqual(null, (string)val0.Result);
-                Assert.AreEqual(true, set0.Result);
-                Assert.AreEqual("value1", (string)val1.Result);
-                Assert.AreEqual(false, set1.Result);
-                Assert.AreEqual("value1", (string)val2.Result);
+                Assert.Null((string)val0.Result);
+                Assert.True(set0.Result);
+                Assert.Equal("value1", val1.Result);
+                Assert.False(set1.Result);
+                Assert.Equal("value1", val2.Result);
 
-                Assert.AreEqual(true, set2.Result);
-                Assert.AreEqual("value3", (string)val3.Result);
-                Assert.AreEqual(false, set3.Result);
+                Assert.True(set2.Result);
+                Assert.Equal("value3", val3.Result);
+                Assert.False(set3.Result);
 
             }
         }
-        [Test]
+        [Fact]
         public void TestDelSingle() // http://redis.io/commands/hdel
         {
             using (var muxer = Config.GetUnsecuredConnection())
@@ -244,13 +247,13 @@ namespace Tests
                 var del1 = conn.HashDeleteAsync("hashkey", "field");
                 var del2 = conn.HashDeleteAsync("hashkey", "field");
 
-                Assert.AreEqual(false, del0.Result);
-                Assert.AreEqual(true, del1.Result);
-                Assert.AreEqual(false, del2.Result);
+                Assert.False(del0.Result);
+                Assert.True(del1.Result);
+                Assert.False(del2.Result);
 
             }
         }
-        [Test]
+        [Fact]
         public void TestDelMulti() // http://redis.io/commands/hdel
         {
             using (var muxer = Config.GetUnsecuredConnection())
@@ -270,24 +273,24 @@ namespace Tests
                 var d2 = conn.HashExistsAsync("TestDelMulti", "key2");
                 var d3 = conn.HashExistsAsync("TestDelMulti", "key3");
 
-                Assert.IsTrue(conn.Wait(s1));
-                Assert.IsTrue(conn.Wait(s2));
-                Assert.IsTrue(conn.Wait(s3));
+                Assert.True(conn.Wait(s1));
+                Assert.True(conn.Wait(s2));
+                Assert.True(conn.Wait(s3));
 
-                Assert.AreEqual(2, conn.Wait(removed));
+                Assert.Equal(2, conn.Wait(removed));
 
-                Assert.IsFalse(conn.Wait(d1));
-                Assert.IsTrue(conn.Wait(d2));
-                Assert.IsFalse(conn.Wait(d3));
+                Assert.False(conn.Wait(d1));
+                Assert.True(conn.Wait(d2));
+                Assert.False(conn.Wait(d3));
 
                 var removeFinal = conn.HashDeleteAsync("TestDelMulti", new RedisValue[] { "key2" });
 
-                Assert.AreEqual(0, conn.Wait(conn.HashLengthAsync("TestDelMulti")));
-                Assert.AreEqual(1, conn.Wait(removeFinal));
+                Assert.Equal(0, conn.Wait(conn.HashLengthAsync("TestDelMulti")));
+                Assert.Equal(1, conn.Wait(removeFinal));
             }
         }
 
-        [Test]
+        [Fact]
         public void TestDelMultiInsideTransaction() // http://redis.io/commands/hdel
         {
             using (var outer = Config.GetUnsecuredConnection())
@@ -311,20 +314,20 @@ namespace Tests
 
                     conn.Execute();
 
-                    Assert.IsTrue(conn.Wait(s1));
-                    Assert.IsTrue(conn.Wait(s2));
-                    Assert.IsTrue(conn.Wait(s3));
+                    Assert.True(conn.Wait(s1));
+                    Assert.True(conn.Wait(s2));
+                    Assert.True(conn.Wait(s3));
 
-                    Assert.AreEqual(2, conn.Wait(removed));
+                    Assert.Equal(2, conn.Wait(removed));
 
-                    Assert.IsFalse(conn.Wait(d1));
-                    Assert.IsTrue(conn.Wait(d2));
-                    Assert.IsFalse(conn.Wait(d3));
+                    Assert.False(conn.Wait(d1));
+                    Assert.True(conn.Wait(d2));
+                    Assert.False(conn.Wait(d3));
                 }
 
             }
         }
-        [Test]
+        [Fact]
         public void TestExists() // http://redis.io/commands/hexists
         {
             using (var muxer = Config.GetUnsecuredConnection())
@@ -337,14 +340,14 @@ namespace Tests
                 conn.HashDeleteAsync("hashkey", "field");
                 var ex2 = conn.HashExistsAsync("hashkey", "field");
 
-                Assert.AreEqual(false, ex0.Result);
-                Assert.AreEqual(true, ex1.Result);
-                Assert.AreEqual(false, ex0.Result);
+                Assert.False(ex0.Result);
+                Assert.True(ex1.Result);
+                Assert.False(ex0.Result);
 
             }
         }
 
-        [Test]
+        [Fact]
         public void TestHashKeys() // http://redis.io/commands/hkeys
         {
             using (var muxer = Config.GetUnsecuredConnection())
@@ -359,17 +362,17 @@ namespace Tests
 
                 var keys1 = conn.HashKeysAsync("hashkey");
 
-                Assert.AreEqual(0, keys0.Result.Length);
+                Assert.Empty(keys0.Result);
 
                 var arr = keys1.Result;
-                Assert.AreEqual(2, arr.Length);
-                Assert.AreEqual("foo", (string)arr[0]);
-                Assert.AreEqual("bar", (string)arr[1]);
+                Assert.Equal(2, arr.Length);
+                Assert.Equal("foo", arr[0]);
+                Assert.Equal("bar", arr[1]);
 
             }
         }
 
-        [Test]
+        [Fact]
         public void TestHashValues() // http://redis.io/commands/hvals
         {
             using (var muxer = Config.GetUnsecuredConnection())
@@ -384,17 +387,16 @@ namespace Tests
 
                 var keys1 = conn.HashValuesAsync("hashkey");
 
-                Assert.AreEqual(0, keys0.Result.Length);
+                Assert.Empty(keys0.Result);
 
                 var arr = keys1.Result;
-                Assert.AreEqual(2, arr.Length);
-                Assert.AreEqual("abc", Encoding.UTF8.GetString(arr[0]));
-                Assert.AreEqual("def", Encoding.UTF8.GetString(arr[1]));
-
+                Assert.Equal(2, arr.Length);
+                Assert.Equal("abc", Encoding.UTF8.GetString(arr[0]));
+                Assert.Equal("def", Encoding.UTF8.GetString(arr[1]));
             }
         }
 
-        [Test]
+        [Fact]
         public void TestHashLength() // http://redis.io/commands/hlen
         {
             using (var muxer = Config.GetUnsecuredConnection())
@@ -409,13 +411,12 @@ namespace Tests
 
                 var len1 = conn.HashLengthAsync("hashkey");
 
-                Assert.AreEqual(0, len0.Result);
-                Assert.AreEqual(2, len1.Result);
-
+                Assert.Equal(0, len0.Result);
+                Assert.Equal(2, len1.Result);
             }
         }
 
-        [Test]
+        [Fact]
         public void TestGetMulti() // http://redis.io/commands/hmget
         {
             using (var muxer = Config.GetUnsecuredConnection())
@@ -437,24 +438,24 @@ namespace Tests
                 var arr1 = result1.Result;
                 var arr2 = result2.Result;
 
-                Assert.AreEqual(3, arr0.Length);
-                Assert.IsNull((string)arr0[0]);
-                Assert.IsNull((string)arr0[1]);
-                Assert.IsNull((string)arr0[2]);
+                Assert.Equal(3, arr0.Length);
+                Assert.Null((string)arr0[0]);
+                Assert.Null((string)arr0[1]);
+                Assert.Null((string)arr0[2]);
 
-                Assert.AreEqual(3, arr1.Length);
-                Assert.AreEqual("abc", (string)arr1[0]);
-                Assert.AreEqual("def", (string)arr1[1]);
-                Assert.IsNull((string)arr1[2]);
+                Assert.Equal(3, arr1.Length);
+                Assert.Equal("abc", arr1[0]);
+                Assert.Equal("def", arr1[1]);
+                Assert.Null((string)arr1[2]);
 
-                Assert.AreEqual(3, arr2.Length);
-                Assert.AreEqual("abc", (string)arr2[0]);
-                Assert.AreEqual("def", (string)arr2[1]);
-                Assert.IsNull((string)arr2[2]);
+                Assert.Equal(3, arr2.Length);
+                Assert.Equal("abc", arr2[0]);
+                Assert.Equal("def", arr2[1]);
+                Assert.Null((string)arr2[2]);
             }
         }
 
-        [Test]
+        [Fact]
         public void TestGetPairs() // http://redis.io/commands/hgetall
         {
             using (var muxer = Config.GetUnsecuredConnection())
@@ -469,15 +470,15 @@ namespace Tests
 
                 var result1 = conn.HashGetAllAsync("hashkey");
 
-                Assert.AreEqual(0, result0.Result.Length);
+                Assert.Empty(result0.Result);
                 var result = result1.Result.ToStringDictionary();
-                Assert.AreEqual(2, result.Count);
-                Assert.AreEqual("abc", result["foo"]);
-                Assert.AreEqual("def", result["bar"]);
+                Assert.Equal(2, result.Count);
+                Assert.Equal("abc", result["foo"]);
+                Assert.Equal("def", result["bar"]);
             }
         }
 
-        [Test]
+        [Fact]
         public void TestSetPairs() // http://redis.io/commands/hmset
         {
             using (var muxer = Config.GetUnsecuredConnection())
@@ -495,13 +496,12 @@ namespace Tests
 
                 var result1 = conn.HashGetAllAsync("hashkey");
 
-                Assert.AreEqual(0, result0.Result.Length);
+                Assert.Empty(result0.Result);
                 var result = result1.Result.ToStringDictionary();
-                Assert.AreEqual(2, result.Count);
-                Assert.AreEqual("abc", result["foo"]);
-                Assert.AreEqual("def", result["bar"]);
+                Assert.Equal(2, result.Count);
+                Assert.Equal("abc", result["foo"]);
+                Assert.Equal("def", result["bar"]);
             }
         }
-
     }
 }

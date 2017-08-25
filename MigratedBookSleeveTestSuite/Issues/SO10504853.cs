@@ -1,14 +1,13 @@
 ﻿using System;
 using System.Diagnostics;
-using NUnit.Framework;
 using StackExchange.Redis;
+using Xunit;
 
 namespace Tests.Issues
 {
-    [TestFixture]
     public class SO10504853
     {
-        [Test]
+        [Fact]
         public void LoopLotsOfTrivialStuff()
         {
             Trace.WriteLine("### init");
@@ -24,17 +23,18 @@ namespace Tests.Issues
                 using (var muxer = Config.GetUnsecuredConnection())
                 {
                     var conn = muxer.GetDatabase(0);
-                    Assert.AreEqual(i + 1, conn.StringIncrement("lots-trivial"));
+                    Assert.Equal(i + 1, conn.StringIncrement("lots-trivial"));
                 }
             }
             Trace.WriteLine("### close");
             using (var muxer = Config.GetUnsecuredConnection())
             {
                 var conn = muxer.GetDatabase(0);
-                Assert.AreEqual(COUNT, (long)conn.StringGet("lots-trivial"));
+                Assert.Equal(COUNT, (long)conn.StringGet("lots-trivial"));
             }
         }
-        [Test]
+
+        [Fact]
         public void ExecuteWithEmptyStartingPoint()
         {
             using (var muxer = Config.GetUnsecuredConnection())
@@ -51,14 +51,14 @@ namespace Tests.Issues
 
                 var priority = Int32.Parse(taskResult.Result);
 
-                Assert.AreEqual(3, priority);
+                Assert.Equal(3, priority);
             }
         }
 
-        [Test]
+        [Fact]
         public void ExecuteWithNonHashStartingPoint()
         {
-            Assert.Throws<RedisConnectionException>(() =>
+            Assert.Throws<RedisServerException>(() =>
             {
                 using (var muxer = Config.GetUnsecuredConnection())
                 {
@@ -73,15 +73,14 @@ namespace Tests.Issues
                     try
                     {
                         conn.Wait(taskResult);
-                        Assert.Fail();
+                        Assert.True(false, "Should throw a WRONGTYPE");
                     }
                     catch (AggregateException ex)
                     {
                         throw ex.InnerExceptions[0];
                     }
                 }
-            },
-            message: "WRONGTYPE Operation against a key holding the wrong kind of value");
+            }); // WRONGTYPE Operation against a key holding the wrong kind of value
         }
     }
 }

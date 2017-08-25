@@ -4,25 +4,24 @@ using System.Diagnostics;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using NUnit.Framework;
 using StackExchange.Redis;
+using Xunit;
 
 namespace Tests
 {
-    [TestFixture]
     public class PubSub // http://redis.io/commands#pubsub
     {
-        [Test]
+        [Fact]
         public void TestPublishWithNoSubscribers()
         {
             using (var muxer = Config.GetUnsecuredConnection())
             {
                 var conn = muxer.GetSubscriber();
-                Assert.AreEqual(0, conn.Publish("channel", "message"));
+                Assert.Equal(0, conn.Publish("channel", "message"));
             }
         }
 
-        [Test]
+        [Fact]
         public void TestMassivePublishWithWithoutFlush_Local()
         {
             using (var muxer = Config.GetUnsecuredConnection(waitForOpen: true))
@@ -31,7 +30,7 @@ namespace Tests
                 TestMassivePublish(conn, "local");
             }
         }
-        [Test]
+        [Fact]
         public void TestMassivePublishWithWithoutFlush_Remote()
         {
             using (var muxer = Config.GetRemoteConnection(waitForOpen: true))
@@ -63,15 +62,14 @@ namespace Tests
                 tasks[i] = conn.PublishAsync("foo", "bar");
             conn.WaitAll(tasks);
             withAsync.Stop();
-
-            Assert.Less(1, 2, "sanity check");
-            Assert.Less(withFAF.ElapsedMilliseconds, withAsync.ElapsedMilliseconds, caption);
+            
+            Assert.True(withFAF.ElapsedMilliseconds < withAsync.ElapsedMilliseconds, caption);
             Console.WriteLine("{2}: {0}ms (F+F) vs {1}ms (async)",
                 withFAF.ElapsedMilliseconds, withAsync.ElapsedMilliseconds, caption);
         }
 
 
-        [Test]
+        [Fact]
         public void PubSubOrder()
         {
             using (var muxer = Config.GetRemoteConnection(waitForOpen: true))
@@ -109,13 +107,13 @@ namespace Tests
                         throw new TimeoutException("Items: " + data.Count);
                     }
                     for (int i = 0; i < count; i++)
-                        Assert.AreEqual(i, data[i]);
+                        Assert.Equal(i, data[i]);
                 }
             }
 
         }
 
-        [Test]
+        [Fact]
         public void TestPublishWithSubscribers()
         {
             using (var muxerA = Config.GetUnsecuredConnection())
@@ -131,11 +129,11 @@ namespace Tests
                 listenB.Wait(t2);
                 
                 var pub = conn.GetSubscriber().PublishAsync("channel", "message");
-                Assert.AreEqual(2, conn.Wait(pub), "delivery count");
+                Assert.Equal(2, conn.Wait(pub)); // delivery count
             }
         }
 
-        [Test]
+        [Fact]
         public void TestMultipleSubscribersGetMessage()
         {
             using (var muxerA = Config.GetUnsecuredConnection())
@@ -151,22 +149,22 @@ namespace Tests
                 var tB = listenB.SubscribeAsync("channel", (s, msg) => { if (msg == "message") Interlocked.Increment(ref gotB); });
                 listenA.Wait(tA);
                 listenB.Wait(tB);
-                Assert.AreEqual(2, pub.Publish("channel", "message"));
+                Assert.Equal(2, pub.Publish("channel", "message"));
                 AllowReasonableTimeToPublishAndProcess();
-                Assert.AreEqual(1, Interlocked.CompareExchange(ref gotA, 0, 0));
-                Assert.AreEqual(1, Interlocked.CompareExchange(ref gotB, 0, 0));
+                Assert.Equal(1, Interlocked.CompareExchange(ref gotA, 0, 0));
+                Assert.Equal(1, Interlocked.CompareExchange(ref gotB, 0, 0));
 
                 // and unsubscibe...
                 tA = listenA.UnsubscribeAsync("channel");
                 listenA.Wait(tA);
-                Assert.AreEqual(1, pub.Publish("channel", "message"));
+                Assert.Equal(1, pub.Publish("channel", "message"));
                 AllowReasonableTimeToPublishAndProcess();
-                Assert.AreEqual(1, Interlocked.CompareExchange(ref gotA, 0, 0));
-                Assert.AreEqual(2, Interlocked.CompareExchange(ref gotB, 0, 0));
+                Assert.Equal(1, Interlocked.CompareExchange(ref gotA, 0, 0));
+                Assert.Equal(2, Interlocked.CompareExchange(ref gotB, 0, 0));
             }
         }
 
-        [Test]
+        [Fact]
         public void Issue38()
         { // https://code.google.com/p/booksleeve/issues/detail?id=38
 
@@ -191,8 +189,8 @@ namespace Tests
 
                 AllowReasonableTimeToPublishAndProcess();
 
-                Assert.AreEqual(6, total, "sent");
-                Assert.AreEqual(6, Interlocked.CompareExchange(ref count, 0, 0), "received");
+                Assert.Equal(6, total); // sent
+                Assert.Equal(6, Interlocked.CompareExchange(ref count, 0, 0)); // received
 
 
             }
@@ -203,7 +201,7 @@ namespace Tests
             Thread.Sleep(50);
         }
 
-        [Test]
+        [Fact]
         public void TestPartialSubscriberGetMessage()
         {
             using (var muxerA = Config.GetUnsecuredConnection())
@@ -218,22 +216,22 @@ namespace Tests
                 var tB = listenB.SubscribeAsync("chann*", (s, msg) => { if (s == "channel" && msg == "message") Interlocked.Increment(ref gotB); });
                 listenA.Wait(tA);
                 listenB.Wait(tB);
-                Assert.AreEqual(2, pub.Publish("channel", "message"));
+                Assert.Equal(2, pub.Publish("channel", "message"));
                 AllowReasonableTimeToPublishAndProcess();
-                Assert.AreEqual(1, Interlocked.CompareExchange(ref gotA, 0, 0));
-                Assert.AreEqual(1, Interlocked.CompareExchange(ref gotB, 0, 0));
+                Assert.Equal(1, Interlocked.CompareExchange(ref gotA, 0, 0));
+                Assert.Equal(1, Interlocked.CompareExchange(ref gotB, 0, 0));
 
                 // and unsubscibe...
                 tB = listenB.UnsubscribeAsync("chann*", null);
                 listenB.Wait(tB);
-                Assert.AreEqual(1, pub.Publish("channel", "message"));
+                Assert.Equal(1, pub.Publish("channel", "message"));
                 AllowReasonableTimeToPublishAndProcess();
-                Assert.AreEqual(2, Interlocked.CompareExchange(ref gotA, 0, 0));
-                Assert.AreEqual(1, Interlocked.CompareExchange(ref gotB, 0, 0));
+                Assert.Equal(2, Interlocked.CompareExchange(ref gotA, 0, 0));
+                Assert.Equal(1, Interlocked.CompareExchange(ref gotB, 0, 0));
             }
         }
 
-        [Test]
+        [Fact]
         public void TestSubscribeUnsubscribeAndSubscribeAgain()
         {
             using (var pubMuxer = Config.GetUnsecuredConnection())
@@ -247,21 +245,21 @@ namespace Tests
                 sub.WaitAll(t1, t2);
                 pub.Publish("abc", "");
                 AllowReasonableTimeToPublishAndProcess();
-                Assert.AreEqual(1, Volatile.Read(ref x));
-                Assert.AreEqual(1, Volatile.Read(ref y));
+                Assert.Equal(1, Volatile.Read(ref x));
+                Assert.Equal(1, Volatile.Read(ref y));
                 t1 = sub.UnsubscribeAsync("abc", null);
                 t2 = sub.UnsubscribeAsync("ab*", null);
                 sub.WaitAll(t1, t2);
                 pub.Publish("abc", "");
-                Assert.AreEqual(1, Volatile.Read(ref x));
-                Assert.AreEqual(1, Volatile.Read(ref y));
+                Assert.Equal(1, Volatile.Read(ref x));
+                Assert.Equal(1, Volatile.Read(ref y));
                 t1 = sub.SubscribeAsync("abc", delegate { Interlocked.Increment(ref x); });
                 t2 = sub.SubscribeAsync("ab*", delegate { Interlocked.Increment(ref y); });
                 sub.WaitAll(t1, t2);
                 pub.Publish("abc", "");
                 AllowReasonableTimeToPublishAndProcess();
-                Assert.AreEqual(2, Volatile.Read(ref x));
-                Assert.AreEqual(2, Volatile.Read(ref y));
+                Assert.Equal(2, Volatile.Read(ref x));
+                Assert.Equal(2, Volatile.Read(ref y));
 
             }
         }

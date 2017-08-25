@@ -2,12 +2,11 @@
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
-using NUnit.Framework;
 using StackExchange.Redis;
+using Xunit;
 
 namespace Tests
 {
-    [TestFixture]
     public class Scripting
     {
         static ConnectionMultiplexer GetScriptConn(bool allowAdmin = false)
@@ -17,12 +16,12 @@ namespace Tests
             var muxer = Config.GetUnsecuredConnection(waitForOpen: true, allowAdmin: allowAdmin, syncTimeout: syncTimeout);
             if (!Config.GetFeatures(muxer).Scripting)
             {
-                Assert.Inconclusive("The server does not support scripting");
+                Skip.NotSupported(nameof(RedisFeatures.Scripting));
             }
             return muxer;
 
         }
-        [Test]
+        [SkippableFact]
         public void ClientScripting()
         {
             using (var conn = GetScriptConn())
@@ -31,7 +30,7 @@ namespace Tests
             }
         }
 
-        [Test]
+        [SkippableFact]
         public void BasicScripting()
         {
             using (var muxer = GetScriptConn())
@@ -42,21 +41,21 @@ namespace Tests
                 var cache = conn.ScriptEvaluateAsync("return {KEYS[1],KEYS[2],ARGV[1],ARGV[2]}",
                     new RedisKey[] { "key1", "key2" }, new RedisValue[] { "first", "second" });
                 var results = (string[])conn.Wait(noCache);
-                Assert.AreEqual(4, results.Length);
-                Assert.AreEqual("key1", results[0]);
-                Assert.AreEqual("key2", results[1]);
-                Assert.AreEqual("first", results[2]);
-                Assert.AreEqual("second", results[3]);
+                Assert.Equal(4, results.Length);
+                Assert.Equal("key1", results[0]);
+                Assert.Equal("key2", results[1]);
+                Assert.Equal("first", results[2]);
+                Assert.Equal("second", results[3]);
 
                 results = (string[])conn.Wait(cache);
-                Assert.AreEqual(4, results.Length);
-                Assert.AreEqual("key1", results[0]);
-                Assert.AreEqual("key2", results[1]);
-                Assert.AreEqual("first", results[2]);
-                Assert.AreEqual("second", results[3]);
+                Assert.Equal(4, results.Length);
+                Assert.Equal("key1", results[0]);
+                Assert.Equal("key2", results[1]);
+                Assert.Equal("first", results[2]);
+                Assert.Equal("second", results[3]);
             }
         }
-        [Test]
+        [SkippableFact]
         public void KeysScripting()
         {
             using (var muxer = GetScriptConn())
@@ -64,11 +63,11 @@ namespace Tests
                 var conn = muxer.GetDatabase();
                 conn.StringSet("foo", "bar");
                 var result = (string)conn.ScriptEvaluate("return redis.call('get', KEYS[1])", new RedisKey[] { "foo" }, null);
-                Assert.AreEqual("bar", result);
+                Assert.Equal("bar", result);
             }
         }
 
-        [Test]
+        [SkippableFact]
         public void TestRandomThingFromForum()
         {
             const string script = @"local currentVal = tonumber(redis.call('GET', KEYS[1]));
@@ -88,16 +87,16 @@ namespace Tests
 
                 var vals = conn.StringGetAsync(new RedisKey[] { "A", "B", "C" });
 
-                Assert.AreEqual(1, (long)conn.Wait(a)); // exit code when current val is non-positive
-                Assert.AreEqual(0, (long)conn.Wait(b)); // exit code when result would be negative
-                Assert.AreEqual(4, (long)conn.Wait(c)); // 10 - 6 = 4
-                Assert.AreEqual("0", (string)conn.Wait(vals)[0]);
-                Assert.AreEqual("5", (string)conn.Wait(vals)[1]);
-                Assert.AreEqual("4", (string)conn.Wait(vals)[2]);
+                Assert.Equal(1, (long)conn.Wait(a)); // exit code when current val is non-positive
+                Assert.Equal(0, (long)conn.Wait(b)); // exit code when result would be negative
+                Assert.Equal(4, (long)conn.Wait(c)); // 10 - 6 = 4
+                Assert.Equal("0", (string)conn.Wait(vals)[0]);
+                Assert.Equal("5", (string)conn.Wait(vals)[1]);
+                Assert.Equal("4", (string)conn.Wait(vals)[2]);
             }
         }
 
-        [Test]
+        [SkippableFact]
         public void HackyGetPerf()
         {
             using (var muxer = GetScriptConn())
@@ -115,11 +114,11 @@ redis.call('del', KEYS[1])
 return timeTaken
 ", new RedisKey[] { key }, null);
                 Console.WriteLine(result);
-                Assert.IsTrue(result > 0);
+                Assert.True(result > 0);
             }
         }
 
-        [Test]
+        [SkippableFact]
         public void MultiIncrWithoutReplies()
         {
             using (var muxer = GetScriptConn())
@@ -144,14 +143,14 @@ return timeTaken
                 var b = conn.StringGetAsync("b");
                 var c = conn.StringGetAsync("c");
 
-                Assert.IsTrue(conn.Wait(result).IsNull, "result");
-                Assert.AreEqual(1, (long)conn.Wait(a), "a");
-                Assert.AreEqual(2, (long)conn.Wait(b), "b");
-                Assert.AreEqual(4, (long)conn.Wait(c), "c");
+                Assert.True(conn.Wait(result).IsNull, "result");
+                Assert.Equal(1, (long)conn.Wait(a));
+                Assert.Equal(2, (long)conn.Wait(b));
+                Assert.Equal(4, (long)conn.Wait(c));
             }
         }
 
-        [Test]
+        [SkippableFact]
         public void MultiIncrByWithoutReplies()
         {
             using (var muxer = GetScriptConn())
@@ -176,14 +175,14 @@ return timeTaken
                 var b = conn.StringGetAsync("b");
                 var c = conn.StringGetAsync("c");
 
-                Assert.IsTrue(conn.Wait(result).IsNull, "result");
-                Assert.AreEqual(1, (long)conn.Wait(a), "a");
-                Assert.AreEqual(2, (long)conn.Wait(b), "b");
-                Assert.AreEqual(4, (long)conn.Wait(c), "c");
+                Assert.True(conn.Wait(result).IsNull, "result");
+                Assert.Equal(1, (long)conn.Wait(a));
+                Assert.Equal(2, (long)conn.Wait(b));
+                Assert.Equal(4, (long)conn.Wait(c));
             }
         }
 
-        [Test]
+        [SkippableFact]
         public void DisableStringInference()
         {
             using (var muxer = GetScriptConn())
@@ -191,11 +190,11 @@ return timeTaken
                 var conn = muxer.GetDatabase(0);
                 conn.StringSet("foo", "bar");
                 var result = (byte[])conn.ScriptEvaluate("return redis.call('get', KEYS[1])", new RedisKey[] { "foo" });
-                Assert.AreEqual("bar", Encoding.UTF8.GetString(result));
+                Assert.Equal("bar", Encoding.UTF8.GetString(result));
             }
         }
 
-        [Test]
+        [SkippableFact]
         public void FlushDetection()
         { // we don't expect this to handle everything; we just expect it to be predictable
             using (var muxer = GetScriptConn(allowAdmin: true))
@@ -203,7 +202,7 @@ return timeTaken
                 var conn = muxer.GetDatabase(0);
                 conn.StringSet("foo", "bar");
                 var result = (string)conn.ScriptEvaluate("return redis.call('get', KEYS[1])", new RedisKey[] { "foo" }, null);
-                Assert.AreEqual("bar", result);
+                Assert.Equal("bar", result);
 
                 // now cause all kinds of problems
                 Config.GetServer(muxer).ScriptFlush();
@@ -212,11 +211,11 @@ return timeTaken
                 conn.ScriptEvaluate("return redis.call('get', KEYS[1])", new RedisKey[] { "foo" }, null);                
 
                 result = (string)conn.ScriptEvaluate("return redis.call('get', KEYS[1])", new RedisKey[] { "foo" }, null);
-                Assert.AreEqual("bar", result);
+                Assert.Equal("bar", result);
             }
         }
 
-        [Test]
+        [SkippableFact]
         public void PrepareScript()
         {
             string[] scripts = { "return redis.call('get', KEYS[1])", "return {KEYS[1],KEYS[2],ARGV[1],ARGV[2]}" };
@@ -250,7 +249,8 @@ return timeTaken
                 server.ScriptLoad(scripts[1]);
             }
         }
-        [Test]
+
+        [SkippableFact]
         public void NonAsciiScripts()
         {
             using (var muxer = GetScriptConn())
@@ -260,11 +260,11 @@ return timeTaken
                 Config.GetServer(muxer).ScriptLoad(evil);
 
                 var result = (string)conn.ScriptEvaluate(evil, null, null);
-                Assert.AreEqual("僕", result);
+                Assert.Equal("僕", result);
             }
         }
 
-        [Test]
+        [SkippableFact]
         public void ScriptThrowsError()
         {
             Assert.Throws<RedisServerException>(() =>
@@ -282,11 +282,10 @@ return timeTaken
                         throw ex.InnerExceptions[0];
                     }
                 }
-            },
-            message: "oops");
+            });
         }
 
-        [Test]
+        [SkippableFact]
         public void ScriptThrowsErrorInsideTransaction()
         {
             using (var muxer = GetScriptConn())
@@ -296,7 +295,7 @@ return timeTaken
                 var conn = muxer.GetDatabase(db);
                 conn.KeyDeleteAsync(key);
                 var beforeTran = (string)conn.StringGet(key);
-                Assert.IsNull(beforeTran);
+                Assert.Null(beforeTran);
                 var tran = conn.CreateTransaction();
                 {
                     var a = tran.StringIncrementAsync(key);
@@ -304,27 +303,27 @@ return timeTaken
                     var c = tran.StringIncrementAsync(key);
                     var complete = tran.ExecuteAsync();
 
-                    Assert.IsTrue(tran.Wait(complete));
-                    Assert.IsTrue(a.IsCompleted);
-                    Assert.IsTrue(c.IsCompleted);
-                    Assert.AreEqual(1L, a.Result);
-                    Assert.AreEqual(2L, c.Result);
+                    Assert.True(tran.Wait(complete));
+                    Assert.True(a.IsCompleted);
+                    Assert.True(c.IsCompleted);
+                    Assert.Equal(1L, a.Result);
+                    Assert.Equal(2L, c.Result);
 
-                    Assert.IsTrue(b.IsFaulted);
-                    Assert.AreEqual(1, b.Exception.InnerExceptions.Count);
+                    Assert.True(b.IsFaulted);
+                    Assert.Single(b.Exception.InnerExceptions);
                     var ex = b.Exception.InnerExceptions.Single();
-                    Assert.IsInstanceOf<RedisException>(ex);
-                    Assert.AreEqual("oops", ex.Message);
+                    Assert.IsType<RedisException>(ex);
+                    Assert.Equal("oops", ex.Message);
 
                 }
                 var afterTran = conn.StringGetAsync(key);
-                Assert.AreEqual(2L, (long)conn.Wait(afterTran));
+                Assert.Equal(2L, (long)conn.Wait(afterTran));
             }
         }
 
 
 
-        [Test]
+        [SkippableFact]
         public void ChangeDbInScript()
         {
             using (var muxer = GetScriptConn())
@@ -337,14 +336,14 @@ return timeTaken
         return redis.call('get','foo')", null, null);
                 var getResult = conn.StringGetAsync("foo");
 
-                Assert.AreEqual("db 1", (string)conn.Wait(evalResult));
+                Assert.Equal("db 1", (string)conn.Wait(evalResult));
                 // now, our connection thought it was in db 2, but the script changed to db 1
-                Assert.AreEqual("db 2", (string)conn.Wait(getResult));
+                Assert.Equal("db 2", (string)conn.Wait(getResult));
 
             }
         }
 
-        [Test]
+        [SkippableFact]
         public void ChangeDbInTranScript()
         {
             using (var muxer = GetScriptConn())
@@ -357,11 +356,11 @@ return timeTaken
                 var evalResult = tran.ScriptEvaluateAsync(@"redis.call('select', 1)
         return redis.call('get','foo')", null, null);
                 var getResult = tran.StringGetAsync("foo");
-                Assert.IsTrue(tran.Execute());
+                Assert.True(tran.Execute());
 
-                Assert.AreEqual("db 1", (string)conn.Wait(evalResult));
+                Assert.Equal("db 1", (string)conn.Wait(evalResult));
                 // now, our connection thought it was in db 2, but the script changed to db 1
-                Assert.AreEqual("db 2", (string)conn.Wait(getResult));
+                Assert.Equal("db 2", (string)conn.Wait(getResult));
 
             }
         }

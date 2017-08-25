@@ -1,11 +1,10 @@
-﻿using NUnit.Framework;
+﻿using Xunit;
 
 namespace Tests.Issues
 {
-    [TestFixture]
     public class Issue10
     {
-        [Test]
+        [Fact]
         public void Execute()
         {
             using (var muxer = Config.GetUnsecuredConnection())
@@ -20,10 +19,10 @@ namespace Tests.Issues
                 conn.ListSetByIndexAsync(Key, 1, "jkl"); // "ghi", "jkl", "abc"
 
                 var contents = conn.Wait(conn.ListRangeAsync(Key, 0, -1));
-                Assert.AreEqual(3, contents.Length);
-                Assert.AreEqual("ghi", (string)contents[0]);
-                Assert.AreEqual("jkl", (string)contents[1]);
-                Assert.AreEqual("abc", (string)contents[2]);
+                Assert.Equal(3, contents.Length);
+                Assert.Equal("ghi", (string)contents[0]);
+                Assert.Equal("jkl", (string)contents[1]);
+                Assert.Equal("abc", (string)contents[2]);
             }
         }
     }

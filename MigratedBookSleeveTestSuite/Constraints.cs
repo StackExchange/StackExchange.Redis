@@ -1,22 +1,20 @@
 ﻿using System.Threading.Tasks;
-using NUnit.Framework;
 using StackExchange.Redis;
+using Xunit;
 
 namespace Tests
 {
-    [TestFixture]
     public class Constraints
     {
-        [Test]
+        [Fact]
         public void ValueEquals()
         {
             RedisValue x = 1, y = "1";
-            Assert.IsTrue(x.Equals(y), "equals");
-            Assert.IsTrue(x == y, "operator");
-            
+            Assert.True(x.Equals(y), "equals");
+            Assert.True(x == y, "operator");
         }
 
-        [Test]
+        [Fact]
         public void TestManualIncr()
         {
             using (var muxer = Config.GetUnsecuredConnection(syncTimeout: 120000)) // big timeout while debugging
@@ -25,12 +23,11 @@ namespace Tests
                 for (int i = 0; i < 200; i++)
                 {
                     conn.KeyDelete("foo");
-                    Assert.AreEqual(1, conn.Wait(ManualIncr(conn, "foo")));
-                    Assert.AreEqual(2, conn.Wait(ManualIncr(conn, "foo")));
-                    Assert.AreEqual(2, (long)conn.StringGet("foo"));
+                    Assert.Equal(1, conn.Wait(ManualIncr(conn, "foo")));
+                    Assert.Equal(2, conn.Wait(ManualIncr(conn, "foo")));
+                    Assert.Equal(2, (long)conn.StringGet("foo"));
                 }
             }
-
         }
 
         public async Task<long?> ManualIncr(IDatabase connection, string key)

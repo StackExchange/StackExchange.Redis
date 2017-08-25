@@ -4,23 +4,17 @@ using System.IO;
 using System.Linq;
 using System.Security.Authentication;
 using System.Threading.Tasks;
-using NUnit.Framework;
 using StackExchange.Redis;
+using Xunit;
+using Xunit.Abstractions;
 
 namespace Tests
 {
-    [TestFixture(Description = "Validates that the test environment is configured and responding")]
     public class Config
     {
-        public static string CreateUniqueName()
-        {
-            return Guid.NewGuid().ToString("N");
-        }
+        public static string CreateUniqueName() => Guid.NewGuid().ToString("N");
 
-        internal static IServer GetServer(ConnectionMultiplexer conn)
-        {
-            return conn.GetServer(conn.GetEndPoints()[0]);
-        }
+        internal static IServer GetServer(ConnectionMultiplexer conn) => conn.GetServer(conn.GetEndPoints()[0]);
 
         static readonly SocketManager socketManager = new SocketManager();
         static Config()
@@ -37,6 +31,12 @@ namespace Tests
 
         const int unsecuredPort = 6379, securedPort = 6381,
             clusterPort0 = 7000, clusterPort1 = 7001, clusterPort2 = 7002;
+
+        private ITestOutputHelper Output { get; }
+        public Config(ITestOutputHelper output)
+        {
+            Output = output;
+        }
 
 
 #if CLUSTER
@@ -56,6 +56,7 @@ namespace Tests
         {
             return GetConnection(RemoteHost, unsecuredPort, open, allowAdmin, waitForOpen, syncTimeout, ioTimeout);
         }
+
         private static ConnectionMultiplexer GetConnection(string host, int port, bool open = true, bool allowAdmin = false, bool waitForOpen = false, int syncTimeout = 5000, int ioTimeout = 5000)
         {
             var options = new ConfigurationOptions
@@ -103,7 +104,7 @@ namespace Tests
             return GetServer(muxer).Features;
         }
 
-        [Test]
+        [Fact]
         public void CanOpenUnsecuredConnection()
         {
             using (var conn = GetUnsecuredConnection(false))
@@ -113,7 +114,7 @@ namespace Tests
             }
         }
 
-        [Test]
+        [Fact]
         public void CanOpenSecuredConnection()
         {
             using (var conn = GetSecuredConnection(false))
@@ -123,7 +124,7 @@ namespace Tests
             }
         }
 
-        [Test]
+        [Fact]
         public void CanNotOpenNonsenseConnection_IP()
         {
             Assert.Throws<RedisConnectionException>(() =>
@@ -133,12 +134,12 @@ namespace Tests
                     using (var conn = ConnectionMultiplexer.Connect(Config.LocalHost + ":6500")) { }
                 }
                 finally {
-                    Console.WriteLine(log);
+                    Output.WriteLine(log.ToString());
                 }
             });
         }
 
-        [Test]
+        [Fact]
         public void CanNotOpenNonsenseConnection_DNS()
         {
             Assert.Throws<RedisConnectionException>(() =>
@@ -150,61 +151,61 @@ namespace Tests
                 }
                 finally
                 {
-                    Console.WriteLine(log);
+                    Output.WriteLine(log.ToString());
                 }
             });
         }
 
-        [Test]
+        [Fact]
         public void CreateDisconnectedNonsenseConnection_IP()
         {
             var log = new StringWriter();
             try
             {
                 using (var conn = ConnectionMultiplexer.Connect(Config.LocalHost + ":6500,abortConnect=false")) {
-                    Assert.IsFalse(conn.GetServer(conn.GetEndPoints().Single()).IsConnected);
-                    Assert.IsFalse(conn.GetDatabase().IsConnected(default(RedisKey)));
+                    Assert.False(conn.GetServer(conn.GetEndPoints().Single()).IsConnected);
+                    Assert.False(conn.GetDatabase().IsConnected(default(RedisKey)));
                 }
             }
             finally
             {
-                Console.WriteLine(log);
+                Output.WriteLine(log.ToString());
             }
         }
-        [Test]
+        [Fact]
         public void CreateDisconnectedNonsenseConnection_DNS()
         {
             var log = new StringWriter();
             try
             {
                 using (var conn = ConnectionMultiplexer.Connect("doesnot.exist.ds.aasd981230d.com:6500,abortConnect=false", log)) {
-                    Assert.IsFalse(conn.GetServer(conn.GetEndPoints().Single()).IsConnected);
-                    Assert.IsFalse(conn.GetDatabase().IsConnected(default(RedisKey)));
+                    Assert.False(conn.GetServer(conn.GetEndPoints().Single()).IsConnected);
+                    Assert.False(conn.GetDatabase().IsConnected(default(RedisKey)));
                 }
             }
             finally
             {
-                Console.WriteLine(log);
+                Output.WriteLine(log.ToString());
             }
         }
-
-        [Test]
+#if !CORE_CLR
+        [Fact]
         public void SslProtocols_SingleValue()
         {
             var log = new StringWriter();
             var options = ConfigurationOptions.Parse("myhost,sslProtocols=Tls11");
-            Assert.AreEqual(SslProtocols.Tls11, options.SslProtocols.Value);
+            Assert.Equal(SslProtocols.Tls11, options.SslProtocols.Value);
         }
 
-        [Test]
+        [Fact]
         public void SslProtocols_MultipleValues()
         {
             var log = new StringWriter();
             var options = ConfigurationOptions.Parse("myhost,sslProtocols=Tls11|Tls12");
-            Assert.AreEqual(SslProtocols.Tls11|SslProtocols.Tls12, options.SslProtocols.Value);
+            Assert.Equal(SslProtocols.Tls11|SslProtocols.Tls12, options.SslProtocols.Value);
         }
 
-        [Test]
+        [Fact]
         public void SslProtocols_UsingIntegerValue()
         {
             var log = new StringWriter();
@@ -214,76 +215,77 @@ namespace Tests
             // but the OS has been patched with support
             int integerValue = (int)(SslProtocols.Tls11 | SslProtocols.Tls12);
             var options = ConfigurationOptions.Parse("myhost,sslProtocols=" + integerValue);
-            Assert.AreEqual(SslProtocols.Tls11 | SslProtocols.Tls12, options.SslProtocols.Value);
+            Assert.Equal(SslProtocols.Tls11 | SslProtocols.Tls12, options.SslProtocols.Value);
         }
 
-        [Test]
+        [Fact]
         public void SslProtocols_InvalidValue()
         {
             var log = new StringWriter();
             Assert.Throws<ArgumentOutOfRangeException>(() => ConfigurationOptions.Parse("myhost,sslProtocols=InvalidSslProtocol"));            
         }
+#endif
 
-        [Test]
+        [Fact]
         public void ConfigurationOptionsDefaultForAzure()
         {
             var options = ConfigurationOptions.Parse("contoso.redis.cache.windows.net");
-            Assert.IsTrue(options.DefaultVersion.Equals(new Version(3, 0, 0)));
-            Assert.IsFalse(options.AbortOnConnectFail);
+            Assert.True(options.DefaultVersion.Equals(new Version(3, 0, 0)));
+            Assert.False(options.AbortOnConnectFail);
         }
 
-        [Test]
+        [Fact]
         public void ConfigurationOptionsForAzureWhenSpecified()
         {
             var options = ConfigurationOptions.Parse("contoso.redis.cache.windows.net,abortConnect=true, version=2.1.1");
-            Assert.IsTrue(options.DefaultVersion.Equals(new Version(2, 1, 1)));
-            Assert.IsTrue(options.AbortOnConnectFail);
+            Assert.True(options.DefaultVersion.Equals(new Version(2, 1, 1)));
+            Assert.True(options.AbortOnConnectFail);
         }
 
-        [Test]
+        [Fact]
         public void ConfigurationOptionsDefaultForAzureChina()
         {
             // added a few upper case chars to validate comparison
             var options = ConfigurationOptions.Parse("contoso.REDIS.CACHE.chinacloudapi.cn");
-            Assert.IsTrue(options.DefaultVersion.Equals(new Version(3, 0, 0)));
-            Assert.IsFalse(options.AbortOnConnectFail);
+            Assert.True(options.DefaultVersion.Equals(new Version(3, 0, 0)));
+            Assert.False(options.AbortOnConnectFail);
         }
 
-        [Test]
+        [Fact]
         public void ConfigurationOptionsDefaultForAzureGermany()
         {
             var options = ConfigurationOptions.Parse("contoso.redis.cache.cloudapi.de");
-            Assert.IsTrue(options.DefaultVersion.Equals(new Version(3, 0, 0)));
-            Assert.IsFalse(options.AbortOnConnectFail);
+            Assert.True(options.DefaultVersion.Equals(new Version(3, 0, 0)));
+            Assert.False(options.AbortOnConnectFail);
         }
 
-        [Test]
+        [Fact]
         public void ConfigurationOptionsDefaultForAzureUSGov()
         {
             var options = ConfigurationOptions.Parse("contoso.redis.cache.usgovcloudapi.net");
-            Assert.IsTrue(options.DefaultVersion.Equals(new Version(3, 0, 0)));
-            Assert.IsFalse(options.AbortOnConnectFail);
+            Assert.True(options.DefaultVersion.Equals(new Version(3, 0, 0)));
+            Assert.False(options.AbortOnConnectFail);
         }
 
-        [Test]
+        [Fact]
         public void ConfigurationOptionsDefaultForNonAzure()
         {
             var options = ConfigurationOptions.Parse("redis.contoso.com");
-            Assert.IsTrue(options.DefaultVersion.Equals(new Version(2, 0, 0)));
-            Assert.IsTrue(options.AbortOnConnectFail);
+            Assert.True(options.DefaultVersion.Equals(new Version(2, 0, 0)));
+            Assert.True(options.AbortOnConnectFail);
         }
 
-        [Test]
+        [Fact]
         public void ConfigurationOptionsDefaultWhenNoEndpointsSpecifiedYet()
         {
             var options = new ConfigurationOptions();
-            Assert.IsTrue(options.DefaultVersion.Equals(new Version(2, 0, 0)));
-            Assert.IsTrue(options.AbortOnConnectFail);
+            Assert.True(options.DefaultVersion.Equals(new Version(2, 0, 0)));
+            Assert.True(options.AbortOnConnectFail);
         }
 
         internal static void AssertNearlyEqual(double x, double y)
         {
-            if (Math.Abs(x - y) > 0.00001) Assert.AreEqual(x, y);
+            if (Math.Abs(x - y) > 0.00001) Assert.Equal(x, y);
         }
     }
 }

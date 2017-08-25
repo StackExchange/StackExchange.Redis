@@ -1,14 +1,13 @@
 ﻿using System;
 using System.Text;
-using NUnit.Framework;
 using StackExchange.Redis;
+using Xunit;
 
 namespace Tests.Issues
 {
-    [TestFixture]
     public class SO10825542
     {
-        [Test]
+        [Fact]
         public void Execute()
         {
             using (var muxer = Config.GetUnsecuredConnection())
@@ -23,10 +22,10 @@ namespace Tests.Issues
                 var task = con.HashGetAllAsync(key);
                 con.Wait(task);
 
-                Assert.AreEqual(2, task.Result.Length);
+                Assert.Equal(2, task.Result.Length);
                 var dict = task.Result.ToStringDictionary();
-                Assert.AreEqual("hello world", dict["field1"]);
-                Assert.AreEqual("fooobar", dict["field2"]);
+                Assert.Equal("hello world", dict["field1"]);
+                Assert.Equal("fooobar", dict["field2"]);
             }
         }
     }

@@ -1,22 +1,22 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <Description>MigratedBookSleeveTestSuite</Description>
-    <TargetFrameworks>net45;netcoreapp1.0</TargetFrameworks>
+    <TargetFrameworks>net452;netcoreapp1.0</TargetFrameworks>
     <AssemblyName>MigratedBookSleeveTestSuite</AssemblyName>
     <PackageId>MigratedBookSleeveTestSuite</PackageId>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
+    <MaxParallelThreads>1</MaxParallelThreads>
   </PropertyGroup>
-  <ItemGroup>
-    <None Include="App.config" />
-  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\StackExchange.Redis\StackExchange.Redis.csproj" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="15.0.0" />
-    <PackageReference Include="nunit" Version="3.7.1" />
+    <PackageReference Include="xunit" Version="$(xUnitVersion)" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="$(xUnitVersion)" />
+    <DotNetCliToolReference Include="dotnet-xunit" Version="$(xUnitVersion)" />
   </ItemGroup>
 
-  <ItemGroup Condition=" '$(TargetFramework)' == 'net45' ">
+  <ItemGroup Condition=" '$(TargetFramework)' == 'net452' ">
     <Reference Include="System" />
     <Reference Include="Microsoft.CSharp" />
   </ItemGroup>
@@ -34,7 +34,5 @@
     <PackageReference Include="System.Runtime.InteropServices" Version="$(CoreFxVersion)" />
     <PackageReference Include="System.Threading.Tasks.Parallel" Version="$(CoreFxVersion)" />
     <PackageReference Include="Microsoft.CSharp" Version="$(CoreFxVersion)" />
-    <PackageReference Include="NUnit3TestAdapter" Version="3.8.0" />
-    <PackageReference Include="dotnet-test-nunit" Version="3.4.0-beta-3" />
   </ItemGroup>
 </Project>

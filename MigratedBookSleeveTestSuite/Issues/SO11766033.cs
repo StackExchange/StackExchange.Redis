@@ -1,11 +1,10 @@
-﻿using NUnit.Framework;
+﻿using Xunit;
 
 namespace Tests.Issues
 {
-    [TestFixture]
     public class SO11766033
     {
-        [Test]
+        [Fact]
         public void TestNullString()
         {
             const int db = 3;
@@ -17,11 +16,11 @@ namespace Tests.Issues
                 redis.StringSetAsync(uid, "abc");
                 redis.StringSetAsync(uid, expectedTestValue);
                 string testValue = redis.StringGet(uid);
-                Assert.IsNull(testValue);
+                Assert.Null(testValue);
             }
         }
 
-        [Test]
+        [Fact]
         public void TestEmptyString()
         {
             const int db = 3;
@@ -34,7 +33,7 @@ namespace Tests.Issues
                 redis.StringSetAsync(uid, expectedTestValue);
                 string testValue = redis.StringGet(uid);
 
-                Assert.AreEqual(expectedTestValue, testValue);
+                Assert.Equal(expectedTestValue, testValue);
             }
         }
     }
