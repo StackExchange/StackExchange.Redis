@@ -6,7 +6,9 @@ init:
 install:
 - cmd: >-
     cd RedisConfigs
+
     start-all-local.cmd
+
     start-cluster.cmd
 
 skip_branch_with_pr: true
