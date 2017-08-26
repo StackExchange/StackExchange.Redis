@@ -15,7 +15,7 @@ Mono/
 *.aof
 *.orig
 redis-cli.exe
-Redis Configs/*.dat
+RedisConfigs/*.dat
 RedisQFork*.dat
 StackExchange.Redis.*.zip
 .vs/

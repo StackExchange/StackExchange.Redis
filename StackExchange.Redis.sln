@@ -9,24 +9,24 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		NuGet.Config = NuGet.Config
 	EndProjectSection
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Redis Configs", "Redis Configs", "{96E891CD-2ED7-4293-A7AB-4C6F5D8D2B05}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "RedisConfigs", "RedisConfigs", "{96E891CD-2ED7-4293-A7AB-4C6F5D8D2B05}"
 	ProjectSection(SolutionItems) = preProject
-		Redis Configs\master.conf = Redis Configs\master.conf
-		Redis Configs\redis-cli 7000.cmd = Redis Configs\redis-cli 7000.cmd
-		Redis Configs\redis-cli 7001.cmd = Redis Configs\redis-cli 7001.cmd
-		Redis Configs\redis-cli 7002.cmd = Redis Configs\redis-cli 7002.cmd
-		Redis Configs\redis-cli 7003.cmd = Redis Configs\redis-cli 7003.cmd
-		Redis Configs\redis-cli 7004.cmd = Redis Configs\redis-cli 7004.cmd
-		Redis Configs\redis-cli 7005.cmd = Redis Configs\redis-cli 7005.cmd
-		Redis Configs\redis-cli master.cmd = Redis Configs\redis-cli master.cmd
-		Redis Configs\redis-cli secure.cmd = Redis Configs\redis-cli secure.cmd
-		Redis Configs\redis-cli slave.cmd = Redis Configs\redis-cli slave.cmd
-		Redis Configs\redis-server all local.cmd = Redis Configs\redis-server all local.cmd
-		Redis Configs\redis-server master.cmd = Redis Configs\redis-server master.cmd
-		Redis Configs\redis-server secure.cmd = Redis Configs\redis-server secure.cmd
-		Redis Configs\redis-server slave.cmd = Redis Configs\redis-server slave.cmd
-		Redis Configs\secure.conf = Redis Configs\secure.conf
-		Redis Configs\slave.conf = Redis Configs\slave.conf
+		RedisConfigs\master.conf = RedisConfigs\master.conf
+		RedisConfigs\redis-cli 7000.cmd = RedisConfigs\redis-cli 7000.cmd
+		RedisConfigs\redis-cli 7001.cmd = RedisConfigs\redis-cli 7001.cmd
+		RedisConfigs\redis-cli 7002.cmd = RedisConfigs\redis-cli 7002.cmd
+		RedisConfigs\redis-cli 7003.cmd = RedisConfigs\redis-cli 7003.cmd
+		RedisConfigs\redis-cli 7004.cmd = RedisConfigs\redis-cli 7004.cmd
+		RedisConfigs\redis-cli 7005.cmd = RedisConfigs\redis-cli 7005.cmd
+		RedisConfigs\redis-cli master.cmd = RedisConfigs\redis-cli master.cmd
+		RedisConfigs\redis-cli secure.cmd = RedisConfigs\redis-cli secure.cmd
+		RedisConfigs\redis-cli slave.cmd = RedisConfigs\redis-cli slave.cmd
+		RedisConfigs\redis-server all local.cmd = RedisConfigs\redis-server all local.cmd
+		RedisConfigs\redis-server master.cmd = RedisConfigs\redis-server master.cmd
+		RedisConfigs\redis-server secure.cmd = RedisConfigs\redis-server secure.cmd
+		RedisConfigs\redis-server slave.cmd = RedisConfigs\redis-server slave.cmd
+		RedisConfigs\secure.conf = RedisConfigs\secure.conf
+		RedisConfigs\slave.conf = RedisConfigs\slave.conf
 	EndProjectSection
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "StackExchange.Redis", "StackExchange.Redis\StackExchange.Redis.csproj", "{EF84877F-59BE-41BE-9013-E765AF0BB72E}"
