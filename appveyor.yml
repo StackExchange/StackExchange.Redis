@@ -1,0 +1,25 @@
+image: Visual Studio 2017
+
+init:
+  - git config --global core.autocrlf input
+
+install:
+  - RedisConfigs\start-all-local.cmd
+  - RedisConfigs\start-cluster.cmd
+
+skip_branch_with_pr: true
+skip_tags: true
+skip_commits:
+  files:
+    - '**/*.md'
+    - docs/*
+
+nuget:
+  disable_publish_on_pr: true
+
+build_script:
+  - ps: .\build.ps1 -BuildNumber "$env:APPVEYOR_BUILD_NUMBER" -Version "$env:APPVEYOR_REPO_TAG_NAME" -PullRequestNumber "$env:APPVEYOR_PULL_REQUEST_NUMBER" -CreatePackages $true
+
+test: off
+artifacts:
+- path: .\.nupkgs\*.nupkg
