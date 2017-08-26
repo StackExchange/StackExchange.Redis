@@ -1,20 +1,21 @@
-﻿using System;
-using NUnit.Framework;
+﻿using Xunit;
+using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests.Issues
 {
-    [TestFixture]
     public class Issue6 :  TestBase
     {
-        [Test]
+        public Issue6(ITestOutputHelper output) : base (output) { }
+
+        [Fact]
         public void ShouldWorkWithoutEchoOrPing()
         {
             using(var conn = Create(proxy: Proxy.Twemproxy))
             {
-                Console.WriteLine("config: " + conn.Configuration);
+                Output.WriteLine("config: " + conn.Configuration);
                 var db = conn.GetDatabase();
                 var time = db.Ping();
-                Console.WriteLine("ping time: " + time);
+                Output.WriteLine("ping time: " + time);
             }
         }
     }

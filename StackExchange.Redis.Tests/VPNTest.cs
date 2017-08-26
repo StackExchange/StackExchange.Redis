@@ -1,16 +1,15 @@
-﻿using System;
-using System.IO;
-using NUnit.Framework;
+﻿using System.IO;
+using Xunit;
+using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    [TestFixture]
     public class VPNTest : TestBase
     {
+        public VPNTest(ITestOutputHelper output) : base (output) { }
 
-        [Test]
-        [MaxTime(100000)]
-        [TestCase("co-devredis01.ds.stackexchange.com:6379")]
+        [Theory]
+        [InlineData("co-devredis01.ds.stackexchange.com:6379")]
         public void Execute(string config)
         {
             for (int i = 0; i < 50; i++)
@@ -24,17 +23,17 @@ namespace StackExchange.Redis.Tests
                     using (var conn = ConnectionMultiplexer.Connect(options, log))
                     {
                         var ttl = conn.GetDatabase().Ping();
-                        Console.WriteLine(ttl);
+                        Output.WriteLine(ttl.ToString());
                     }
                 }
                 catch
                 {
-                    Console.WriteLine(log);
-                    Assert.Fail();
+                    Output.WriteLine(log.ToString());
+                    throw;
                 }
-                Console.WriteLine();
-                Console.WriteLine("===");
-                Console.WriteLine();
+                Output.WriteLine("");
+                Output.WriteLine("===");
+                Output.WriteLine("");
             }
         }
     }

@@ -1,15 +1,16 @@
-﻿using NUnit.Framework;
+﻿using Xunit;
+using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    [TestFixture]
     public class Databases : TestBase
     {
+        public Databases(ITestOutputHelper output) : base (output) { }
 
-        [Test]
+        [Fact]
         public void CountKeys()
         {
-            using (var muxer = Create(allowAdmin:true))
+            using (var muxer = Create(allowAdmin: true))
             {
                 var server = GetServer(muxer);
                 server.FlushDatabase(0, CommandFlags.FireAndForget);
@@ -28,13 +29,12 @@ namespace StackExchange.Redis.Tests
                 var c0 = server.DatabaseSizeAsync(0);
                 var c1 = server.DatabaseSizeAsync(1);
 
-
-                Assert.AreEqual(2, muxer.Wait(c0));
-                Assert.AreEqual(1, muxer.Wait(c1));
-
+                Assert.Equal(2, muxer.Wait(c0));
+                Assert.Equal(1, muxer.Wait(c1));
             }
         }
-        [Test]
+
+        [Fact]
         public void MultiDatabases()
         {
             using (var muxer = Create())
@@ -60,10 +60,9 @@ namespace StackExchange.Redis.Tests
                 var c = db2.StringGetAsync(key);
                 muxer.WaitAll(a, b, c);
 
-                Assert.AreEqual("a", (string)muxer.Wait(a), "db:0");
-                Assert.AreEqual("b", (string)muxer.Wait(b), "db:1");
-                Assert.AreEqual("c", (string)muxer.Wait(c), "db:2");
-
+                Assert.Equal("a", muxer.Wait(a)); // db:0
+                Assert.Equal("b", muxer.Wait(b)); // db:1
+                Assert.Equal("c", muxer.Wait(c)); // db:2
             }
         }
     }

@@ -2,23 +2,25 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
-using NUnit.Framework;
+using Xunit;
+using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    [TestFixture]
     public class PreserveOrder : TestBase
     {
-        [Test]
-        [TestCase(true)]
-        [TestCase(false)]
+        public PreserveOrder(ITestOutputHelper output) : base (output) { }
+
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
         public void Execute(bool preserveAsyncOrder)
         {
             using (var conn = Create())
             {
                 var sub = conn.GetSubscriber();
                 var received = new List<int>();
-                Console.WriteLine("Subscribing...");
+                Output.WriteLine("Subscribing...");
                 const int COUNT = 1000;
                 sub.Subscribe("foo", (channel, message) =>
                 {
@@ -32,8 +34,8 @@ namespace StackExchange.Redis.Tests
                     // the pool will end up doing everything on one thread
                 });
                 conn.PreserveAsyncOrder = preserveAsyncOrder;
-                Console.WriteLine();
-                Console.WriteLine("Sending ({0})...", (preserveAsyncOrder ? "preserved order" : "any order"));
+                Output.WriteLine("");
+                Output.WriteLine("Sending ({0})...", preserveAsyncOrder ? "preserved order" : "any order");
                 lock (received)
                 {
                     received.Clear();
@@ -46,25 +48,25 @@ namespace StackExchange.Redis.Tests
                         sub.Publish("foo", i);
                     }
 
-                    Console.WriteLine("Allowing time for delivery etc...");
+                    Output.WriteLine("Allowing time for delivery etc...");
                     var watch = Stopwatch.StartNew();
                     if (!Monitor.Wait(received, 10000))
                     {
-                        Console.WriteLine("Timed out; expect less data");
+                        Output.WriteLine("Timed out; expect less data");
                     }
                     watch.Stop();
-                    Console.WriteLine("Checking...");
+                    Output.WriteLine("Checking...");
                     lock (received)
                     {
-                        Console.WriteLine("Received: {0} in {1}ms", received.Count, watch.ElapsedMilliseconds);
+                        Output.WriteLine("Received: {0} in {1}ms", received.Count, watch.ElapsedMilliseconds);
                         int wrongOrder = 0;
                         for (int i = 0; i < Math.Min(COUNT, received.Count); i++)
                         {
                             if (received[i] != i) wrongOrder++;
                         }
-                        Console.WriteLine("Out of order: " + wrongOrder);
-                        if (preserveAsyncOrder) Assert.AreEqual(0, wrongOrder);
-                        else Assert.AreNotEqual(0, wrongOrder);
+                        Output.WriteLine("Out of order: " + wrongOrder);
+                        if (preserveAsyncOrder) Assert.Equal(0, wrongOrder);
+                        else Assert.NotEqual(0, wrongOrder);
                     }
                 }
             }

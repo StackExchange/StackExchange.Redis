@@ -4,66 +4,68 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography.X509Certificates;
-using NUnit.Framework;
+using Xunit;
+using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    [TestFixture]
     public class SSL : TestBase
     {
-        [Test]
-        [TestCase(null, true)]
-        [TestCase(null, false)]
-        [TestCase(6380, true)]
-        [TestCase(6379, false)]
+        public SSL(ITestOutputHelper output) : base (output) { }
+
+        [Theory]
+        [InlineData(null, true)]
+        [InlineData(null, false)]
+        [InlineData(6380, true)]
+        [InlineData(6379, false)]
         public void ConnectToAzure(int? port, bool ssl)
         {
-            string name, password;
-            GetAzureCredentials(out name, out password);
+            GetAzureCredentials(out string name, out string password);
             var options = new ConfigurationOptions();
             if (port == null)
             {
                 options.EndPoints.Add(name + ".redis.cache.windows.net");
-            } else
+            }
+            else
             {
                 options.EndPoints.Add(name + ".redis.cache.windows.net", port.Value);
             }
             options.Ssl = ssl;
             options.Password = password;
-            Console.WriteLine(options);
-            using(var connection = ConnectionMultiplexer.Connect(options))
+            Output.WriteLine(options.ToString());
+            using (var connection = ConnectionMultiplexer.Connect(options))
             {
                 var ttl = connection.GetDatabase().Ping();
-                Console.WriteLine(ttl);
+                Output.WriteLine(ttl.ToString());
             }
         }
 
-        [Test]
-        [TestCase(false, false)]
-        [TestCase(true, false)]
-        [TestCase(true, true)]
+        [Theory]
+        [InlineData(false, false)]
+        [InlineData(true, false)]
+        [InlineData(true, true)]
         public void ConnectToSSLServer(bool useSsl, bool specifyHost)
         {
             string host = null;
-            
+
             const string path = @"D:\RedisSslHost.txt"; // because I choose not to advertise my server here!
             if (File.Exists(path)) host = File.ReadLines(path).First();
-            if (string.IsNullOrWhiteSpace(host)) Assert.Inconclusive("no ssl host specified at: " + path);
+            if (string.IsNullOrWhiteSpace(host)) Skip.Inconclusive("no ssl host specified at: " + path);
 
             var config = new ConfigurationOptions
             {
                 CommandMap = CommandMap.Create( // looks like "config" is disabled
                     new Dictionary<string, string>
                     {
-                        { "config", null },
-                        { "cluster", null }
+                        ["config"] = null,
+                        ["cluster"] = null
                     }
                 ),
                 EndPoints = { { host } },
                 AllowAdmin = true,
                 SyncTimeout = Debugger.IsAttached ? int.MaxValue : 5000
             };
-            if(useSsl)
+            if (useSsl)
             {
                 config.Ssl = useSsl;
                 if (specifyHost)
@@ -72,23 +74,23 @@ namespace StackExchange.Redis.Tests
                 }
                 config.CertificateValidation += (sender, cert, chain, errors) =>
                 {
-                    Console.WriteLine("errors: " + errors);
-                    Console.WriteLine("cert issued to: " + cert.Subject);
+                    Output.WriteLine("errors: " + errors);
+                    Output.WriteLine("cert issued to: " + cert.Subject);
                     return true; // fingers in ears, pretend we don't know this is wrong
                 };
             }
 
             var configString = config.ToString();
-            Console.WriteLine("config: " + configString);
+            Output.WriteLine("config: " + configString);
             var clone = ConfigurationOptions.Parse(configString);
-            Assert.AreEqual(configString, clone.ToString(), "config string");
+            Assert.Equal(configString, clone.ToString());
 
-            using(var log = new StringWriter())
+            using (var log = new StringWriter())
             using (var muxer = ConnectionMultiplexer.Connect(config, log))
             {
-                Console.WriteLine("Connect log:");
-                Console.WriteLine(log);
-                Console.WriteLine("====");
+                Output.WriteLine("Connect log:");
+                Output.WriteLine(log.ToString());
+                Output.WriteLine("====");
                 muxer.ConnectionFailed += OnConnectionFailed;
                 muxer.InternalError += OnInternalError;
                 var db = muxer.GetDatabase();
@@ -110,8 +112,8 @@ namespace StackExchange.Redis.Tests
                 // need to do this inside the timer to measure the TTLB
                 long value = (long)db.StringGet(key);
                 watch.Stop();
-                Assert.AreEqual(AsyncLoop, value);
-                Console.WriteLine("F&F: {0} INCR, {1:###,##0}ms, {2} ops/s; final value: {3}",
+                Assert.Equal(AsyncLoop, value);
+                Output.WriteLine("F&F: {0} INCR, {1:###,##0}ms, {2} ops/s; final value: {3}",
                     AsyncLoop,
                     (long)watch.ElapsedMilliseconds,
                     (long)(AsyncLoop / watch.Elapsed.TotalSeconds),
@@ -126,8 +128,7 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-
-        private static void TestConcurrent(IDatabase db, RedisKey key, int SyncLoop, int Threads)
+        private void TestConcurrent(IDatabase db, RedisKey key, int SyncLoop, int Threads)
         {
             long value;
             db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -139,23 +140,21 @@ namespace StackExchange.Redis.Tests
                 }
             }, Threads, timeout: 45000);
             value = (long)db.StringGet(key);
-            Assert.AreEqual(SyncLoop * Threads, value);
-            Console.WriteLine("Sync: {0} INCR using {1} threads, {2:###,##0}ms, {3} ops/s; final value: {4}",
+            Assert.Equal(SyncLoop * Threads, value);
+            Output.WriteLine("Sync: {0} INCR using {1} threads, {2:###,##0}ms, {3} ops/s; final value: {4}",
                 SyncLoop * Threads, Threads,
                 (long)time.TotalMilliseconds,
                 (long)((SyncLoop * Threads) / time.TotalSeconds),
                 value);
         }
 
+        private const string RedisLabsSslHostFile = @"d:\RedisLabsSslHost.txt";
+        private const string RedisLabsPfxPath = @"d:\RedisLabsUser.pfx";
 
-
-        const string RedisLabsSslHostFile = @"d:\RedisLabsSslHost.txt";
-        const string RedisLabsPfxPath = @"d:\RedisLabsUser.pfx";
-
-        [Test]
+        [SkippableFact]
         public void RedisLabsSSL()
         {
-            if (!File.Exists(RedisLabsSslHostFile)) Assert.Inconclusive();
+            if (!File.Exists(RedisLabsSslHostFile)) Skip.Inconclusive("SSL Hosts File does not exist");
             string hostAndPort = File.ReadAllText(RedisLabsSslHostFile);
             int timeout = 5000;
             if (Debugger.IsAttached) timeout *= 100;
@@ -173,22 +172,23 @@ namespace StackExchange.Redis.Tests
             ConnectionMultiplexer.EchoPath = Me();
 #endif
             options.Ssl = true;
-            options.CertificateSelection += delegate {
+            options.CertificateSelection += delegate
+            {
                 return new X509Certificate2(RedisLabsPfxPath, "");
             };
             RedisKey key = Me();
-            using(var conn = ConnectionMultiplexer.Connect(options))
+            using (var conn = ConnectionMultiplexer.Connect(options))
             {
                 var db = conn.GetDatabase();
                 db.KeyDelete(key);
                 string s = db.StringGet(key);
-                Assert.IsNull(s);
+                Assert.Null(s);
                 db.StringSet(key, "abc");
                 s = db.StringGet(key);
-                Assert.AreEqual("abc", s);
-                
+                Assert.Equal("abc", s);
+
                 var latency = db.Ping();
-                Console.WriteLine("RedisLabs latency: {0:###,##0.##}ms", latency.TotalMilliseconds);
+                Output.WriteLine("RedisLabs latency: {0:###,##0.##}ms", latency.TotalMilliseconds);
 
                 using (var file = File.Create("RedisLabs.zip"))
                 {
@@ -197,9 +197,9 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [Test]
-        [TestCase(false)]
-        [TestCase(true)]
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
         public void RedisLabsEnvironmentVariableClientCertificate(bool setEnv)
         {
             try
@@ -208,7 +208,7 @@ namespace StackExchange.Redis.Tests
                 {
                     Environment.SetEnvironmentVariable("SERedis_ClientCertPfxPath", RedisLabsPfxPath);
                 }
-                if (!File.Exists(RedisLabsSslHostFile)) Assert.Inconclusive();
+                if (!File.Exists(RedisLabsSslHostFile)) Skip.Inconclusive("SSL Hosts File does not exist");
                 string hostAndPort = File.ReadAllText(RedisLabsSslHostFile);
                 int timeout = 5000;
                 if (Debugger.IsAttached) timeout *= 100;
@@ -218,8 +218,8 @@ namespace StackExchange.Redis.Tests
                     ConnectTimeout = timeout,
                     AllowAdmin = true,
                     CommandMap = CommandMap.Create(new HashSet<string> {
-                    "subscribe", "unsubscribe", "cluster"
-                }, false)
+                        "subscribe", "unsubscribe", "cluster"
+                    }, false)
                 };
                 if (!Directory.Exists(Me())) Directory.CreateDirectory(Me());
 #if LOGOUTPUT
@@ -229,18 +229,18 @@ namespace StackExchange.Redis.Tests
                 RedisKey key = Me();
                 using (var conn = ConnectionMultiplexer.Connect(options))
                 {
-                    if (!setEnv) Assert.Fail();
+                    if (!setEnv) Assert.True(false, "Could not set environment");
 
                     var db = conn.GetDatabase();
                     db.KeyDelete(key);
                     string s = db.StringGet(key);
-                    Assert.IsNull(s);
+                    Assert.Null(s);
                     db.StringSet(key, "abc");
                     s = db.StringGet(key);
-                    Assert.AreEqual("abc", s);
+                    Assert.Equal("abc", s);
 
                     var latency = db.Ping();
-                    Console.WriteLine("RedisLabs latency: {0:###,##0.##}ms", latency.TotalMilliseconds);
+                    Output.WriteLine("RedisLabs latency: {0:###,##0.##}ms", latency.TotalMilliseconds);
 
                     using (var file = File.Create("RedisLabs.zip"))
                     {
@@ -248,9 +248,9 @@ namespace StackExchange.Redis.Tests
                     }
                 }
             }
-            catch(RedisConnectionException ex)
+            catch (RedisConnectionException ex)
             {
-                if(setEnv || ex.FailureType != ConnectionFailureType.UnableToConnect)
+                if (setEnv || ex.FailureType != ConnectionFailureType.UnableToConnect)
                 {
                     throw;
                 }
@@ -259,27 +259,28 @@ namespace StackExchange.Redis.Tests
             {
                 Environment.SetEnvironmentVariable("SERedis_ClientCertPfxPath", null);
             }
-
         }
 
-        [Test]
-        public void SSLHostInferredFromEndpoints() {
-            var options = new ConfigurationOptions() {
-                EndPoints = { 
+        [Fact]
+        public void SSLHostInferredFromEndpoints()
+        {
+            var options = new ConfigurationOptions()
+            {
+                EndPoints = {
                               { "mycache.rediscache.windows.net", 15000},
                               { "mycache.rediscache.windows.net", 15001 },
                               { "mycache.rediscache.windows.net", 15002 },
                             }
-                };
+            };
             options.Ssl = true;
             Assert.True(options.SslHost == "mycache.rediscache.windows.net");
-            options = new ConfigurationOptions() {
-                EndPoints = { 
+            options = new ConfigurationOptions()
+            {
+                EndPoints = {
                               { "121.23.23.45", 15000},
                             }
             };
             Assert.True(options.SslHost == null);
         }
-
     }
 }

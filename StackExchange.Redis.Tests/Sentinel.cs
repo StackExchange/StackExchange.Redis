@@ -2,13 +2,17 @@
 using System.Linq;
 using System.Net;
 using System.Threading;
-using NUnit.Framework;
+using Xunit;
+using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    [TestFixture, Ignore("reason?")]
+    //[TestFixture, Ignore("reason?")]
     public class Sentinel
     {
+        public ITestOutputHelper Output { get; }
+        public Sentinel(ITestOutputHelper output) => Output = output;
+
         // TODO fill in these constants before running tests
         private const string IP = "127.0.0.1";
         private const int Port = 26379;
@@ -31,76 +35,76 @@ namespace StackExchange.Redis.Tests
             };
             var connection = ConnectionMultiplexer.Connect(options, Console.Out);
             Thread.Sleep(3000);
-            Assert.IsTrue(connection.IsConnected);
+            Assert.True(connection.IsConnected);
             return connection;
         }
 
-        [Test]
+        [Fact]
         public void PingTest()
         {
             var test = Server.Ping();
-            Console.WriteLine("ping took {0} ms", test.TotalMilliseconds);
+            Output.WriteLine("ping took {0} ms", test.TotalMilliseconds);
         }
 
-        [Test]
+        [Fact]
         public void SentinelGetMasterAddressByNameTest()
         {
             var endpoint = Server.SentinelGetMasterAddressByName(ServiceName);
-            Assert.IsNotNull(endpoint);
+            Assert.NotNull(endpoint);
             var ipEndPoint = endpoint as IPEndPoint;
-            Assert.IsNotNull(ipEndPoint);
-            Console.WriteLine("{0}:{1}", ipEndPoint.Address, ipEndPoint.Port);
+            Assert.NotNull(ipEndPoint);
+            Output.WriteLine("{0}:{1}", ipEndPoint.Address, ipEndPoint.Port);
         }
 
-        [Test]
-        public void SentinelGetMasterAddressByNameNegativeTest() 
+        [Fact]
+        public void SentinelGetMasterAddressByNameNegativeTest()
         {
             var endpoint = Server.SentinelGetMasterAddressByName("FakeServiceName");
-            Assert.IsNull(endpoint);
+            Assert.Null(endpoint);
         }
 
-        [Test]
+        [Fact]
         public void SentinelMasterTest()
         {
             var dict = Server.SentinelMaster(ServiceName).ToDictionary();
-            Assert.AreEqual(ServiceName, dict["name"]);
+            Assert.Equal(ServiceName, dict["name"]);
             foreach (var kvp in dict)
             {
-                Console.WriteLine("{0}:{1}", kvp.Key, kvp.Value);
+                Output.WriteLine("{0}:{1}", kvp.Key, kvp.Value);
             }
         }
 
-        [Test]
+        [Fact]
         public void SentinelMastersTest()
         {
             var masterConfigs = Server.SentinelMasters();
-            Assert.IsTrue(masterConfigs.First().ToDictionary().ContainsKey("name"));
+            Assert.True(masterConfigs[0].ToDictionary().ContainsKey("name"));
             foreach (var config in masterConfigs)
             {
                 foreach (var kvp in config)
                 {
-                    Console.WriteLine("{0}:{1}", kvp.Key, kvp.Value);
+                    Output.WriteLine("{0}:{1}", kvp.Key, kvp.Value);
                 }
             }
         }
 
-        [Test]
-        public void SentinelSlavesTest() 
+        [Fact]
+        public void SentinelSlavesTest()
         {
             var slaveConfigs = Server.SentinelSlaves(ServiceName);
-            if (slaveConfigs.Any()) 
+            if (slaveConfigs.Length > 0)
             {
-                Assert.IsTrue(slaveConfigs.First().ToDictionary().ContainsKey("name"));
+                Assert.True(slaveConfigs[0].ToDictionary().ContainsKey("name"));
             }
-            foreach (var config in slaveConfigs) 
+            foreach (var config in slaveConfigs)
             {
                 foreach (var kvp in config) {
-                    Console.WriteLine("{0}:{1}", kvp.Key, kvp.Value);
+                    Output.WriteLine("{0}:{1}", kvp.Key, kvp.Value);
                 }
             }
         }
 
-        [Test, Ignore("reason?")]
+        [Fact(Skip = "Isolated Test")]
         public void SentinelFailoverTest()
         {
             Server.SentinelFailover(ServiceName);

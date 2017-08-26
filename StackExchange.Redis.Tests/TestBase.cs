@@ -1,4 +1,5 @@
-﻿using System;
+﻿using StackExchange.Redis.Tests.Helpers;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -8,16 +9,28 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Xunit;
+using Xunit.Abstractions;
+
 #if FEATURE_BOOKSLEEVE
 using BookSleeve;
 #endif
-using NUnit.Framework;
 
 namespace StackExchange.Redis.Tests
 {
-
     public abstract class TestBase : IDisposable
     {
+        protected ITestOutputHelper Output { get; }
+        protected TextWriterOutputHelper Writer { get; }
+        protected virtual string GetConfiguration() => PrimaryServer + ":" + PrimaryPort + "," + PrimaryServer + ":" + SlavePort;
+
+        protected TestBase(ITestOutputHelper output)
+        {
+            Output = output;
+            Writer = new TextWriterOutputHelper(output);
+            socketManager = new SocketManager(GetType().Name);
+            ClearAmbientFailures();
+        }
 
         protected void CollectGarbage()
         {
@@ -27,26 +40,25 @@ namespace StackExchange.Redis.Tests
                 GC.WaitForPendingFinalizers();
             }
         }
-        private readonly SocketManager socketManager;
 
-        protected TestBase()
-        {
-            socketManager = new SocketManager(GetType().Name);
-        }
+        private readonly SocketManager socketManager;
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1063:ImplementIDisposableCorrectly")]
         public void Dispose()
         {
-            socketManager.Dispose();
+            socketManager?.Dispose();
+            Teardown();
         }
+
 #if VERBOSE
         protected const int AsyncOpsQty = 100, SyncOpsQty = 10;
 #else
         protected const int AsyncOpsQty = 100000, SyncOpsQty = 10000;
 #endif
+
         static TestBase()
         {
-            TaskScheduler.UnobservedTaskException += (sender,args)=>
+            TaskScheduler.UnobservedTaskException += (sender, args) =>
             {
                 Console.WriteLine("Unobserved: " + args.Exception);
                 args.SetObserved();
@@ -62,7 +74,7 @@ namespace StackExchange.Redis.Tests
         }
 
 #if CORE_CLR
-        static Func<Exception, bool>[] IgnorableExceptionPredicates = new Func<Exception, bool>[]
+        private static readonly Func<Exception, bool>[] IgnorableExceptionPredicates = new Func<Exception, bool>[]
         {
             e => e != null && e is ObjectDisposedException && e.Message.Equals("Cannot access a disposed object.\r\nObject name: 'System.Net.Sockets.NetworkStream'."),
             e => e != null && e is IOException && e.Message.StartsWith("Unable to read data from the transport connection:")
@@ -72,7 +84,7 @@ namespace StackExchange.Redis.Tests
         protected void OnConnectionFailed(object sender, ConnectionFailedEventArgs e)
         {
             Interlocked.Increment(ref failCount);
-            lock(exceptions)
+            lock (exceptions)
             {
                 exceptions.Add("Connection failed: " + EndPointCollection.ToString(e.EndPoint) + "/" + e.ConnectionType);
             }
@@ -87,77 +99,78 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        static int failCount;
-        volatile int expectedFailCount;
-        [SetUp]
-        public void Setup()
-        {
-            ClearAmbientFailures();
-        }
+        private static int failCount;
+        private volatile int expectedFailCount;
+
         public void ClearAmbientFailures()
         {
             Collect();
             Interlocked.Exchange(ref failCount, 0);
             expectedFailCount = 0;
-            lock(exceptions)
+            lock (exceptions)
             {
                 exceptions.Clear();
             }
         }
+
         private static readonly List<string> exceptions = new List<string>();
         public void SetExpectedAmbientFailureCount(int count)
         {
             expectedFailCount = count;
         }
-        static void Collect() {
+
+        private static void Collect()
+        {
             for (int i = 0; i < GC.MaxGeneration; i++)
             {
                 GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, true);
                 GC.WaitForPendingFinalizers();
             }
         }
-        [TearDown]
+
         public void Teardown()
         {
             Collect();
             if (expectedFailCount >= 0 && Interlocked.CompareExchange(ref failCount, 0, 0) != expectedFailCount)
             {
                 var sb = new StringBuilder("There were ").Append(failCount).Append(" general ambient exceptions; expected ").Append(expectedFailCount);
-                lock(exceptions)
+                lock (exceptions)
                 {
-                    foreach(var item in exceptions.Take(5))
+                    foreach (var item in exceptions.Take(5))
                     {
                         sb.Append("; ").Append(item);
                     }
                 }
-                Assert.Fail(sb.ToString());
-            }            
+                Assert.True(false, sb.ToString());
+            }
         }
 
         protected const int PrimaryPort = 6379, SlavePort = 6380, SecurePort = 6381;
         protected const string PrimaryServer = "127.0.0.1", SecurePassword = "changeme", PrimaryPortString = "6379", SlavePortString = "6380", SecurePortString = "6381";
         internal static Task Swallow(Task task)
         {
-            if (task != null) task.ContinueWith(swallowErrors, TaskContinuationOptions.OnlyOnFaulted);
+            task?.ContinueWith(swallowErrors, TaskContinuationOptions.OnlyOnFaulted);
             return task;
         }
+
         private static readonly Action<Task> swallowErrors = SwallowErrors;
         private static void SwallowErrors(Task task)
         {
             if (task != null) GC.KeepAlive(task.Exception);
         }
+
         protected IServer GetServer(ConnectionMultiplexer muxer)
         {
             EndPoint[] endpoints = muxer.GetEndPoints();
             IServer result = null;
-            foreach(var endpoint in endpoints)
+            foreach (var endpoint in endpoints)
             {
                 var server = muxer.GetServer(endpoint);
                 if (server.IsSlave || !server.IsConnected) continue;
-                if(result != null) throw new InvalidOperationException("Requires exactly one master endpoint (found " + server.EndPoint + " and " + result.EndPoint + ")");
+                if (result != null) throw new InvalidOperationException("Requires exactly one master endpoint (found " + server.EndPoint + " and " + result.EndPoint + ")");
                 result = server;
             }
-            if(result == null) throw new InvalidOperationException("Requires exactly one master endpoint (found none)");
+            if (result == null) throw new InvalidOperationException("Requires exactly one master endpoint (found none)");
             return result;
         }
 
@@ -168,18 +181,19 @@ namespace StackExchange.Redis.Tests
             bool checkConnect = true, bool pause = true, string failMessage = null,
             string channelPrefix = null, bool useSharedSocketManager = true, Proxy? proxy = null)
         {
-            if(pause) Thread.Sleep(250); // get a lot of glitches when hammering new socket creations etc; pace it out a bit
+            if (pause) Thread.Sleep(250); // get a lot of glitches when hammering new socket creations etc; pace it out a bit
             string configuration = GetConfiguration();
             var config = ConfigurationOptions.Parse(configuration);
             if (disabledCommands != null && disabledCommands.Length != 0)
             {
                 config.CommandMap = CommandMap.Create(new HashSet<string>(disabledCommands), false);
-            } else if (enabledCommands != null && enabledCommands.Length != 0)
+            }
+            else if (enabledCommands != null && enabledCommands.Length != 0)
             {
                 config.CommandMap = CommandMap.Create(new HashSet<string>(enabledCommands), true);
             }
 
-            if(Debugger.IsAttached)
+            if (Debugger.IsAttached)
             {
                 syncTimeout = int.MaxValue;
             }
@@ -195,7 +209,7 @@ namespace StackExchange.Redis.Tests
             if (connectTimeout != null) config.ConnectTimeout = connectTimeout.Value;
             if (proxy != null) config.Proxy = proxy.Value;
             var watch = Stopwatch.StartNew();
-            var task = ConnectionMultiplexer.ConnectAsync(config, log ?? Console.Out);
+            var task = ConnectionMultiplexer.ConnectAsync(config, log ?? Writer);
             if (!task.Wait(config.ConnectTimeout >= (int.MaxValue / 2) ? int.MaxValue : config.ConnectTimeout * 2))
             {
                 task.ContinueWith(x =>
@@ -210,24 +224,21 @@ namespace StackExchange.Redis.Tests
                 throw new TimeoutException("Connect timeout");
             }
             watch.Stop();
-            Console.WriteLine("Connect took: " + watch.ElapsedMilliseconds + "ms");
-            var muxer = task.Result;
-            if (checkConnect)
+            if (Output == null)
             {
-                if (!muxer.IsConnected)
-                {
-                    if (fail) Assert.Fail(failMessage + "Server is not available");
-                    Assert.Inconclusive(failMessage + "Server is not available");
-                }
+                Assert.True(false, "Failure: Be sure to call the TestBase constuctor like this: BasicOpsTests(ITestOutputHelper output) : base(output) { }");
+            }
+            Output.WriteLine("Connect took: " + watch.ElapsedMilliseconds + "ms");
+            var muxer = task.Result;
+            if (checkConnect && (muxer == null || !muxer.IsConnected))
+            {
+                // If fail is true, we throw.
+                Assert.False(fail, failMessage + "Server is not available");
+                Skip.Inconclusive(failMessage + "Server is not available");
             }
             muxer.InternalError += OnInternalError;
             muxer.ConnectionFailed += OnConnectionFailed;
             return muxer;
-        }
-
-        protected virtual string GetConfiguration()
-        {
-            return PrimaryServer + ":" + PrimaryPort + "," + PrimaryServer + ":" + SlavePort;
         }
 
         protected static string Me([CallerMemberName] string caller = null)
@@ -259,7 +270,7 @@ namespace StackExchange.Redis.Tests
         {
             if (work == null) throw new ArgumentNullException(nameof(work));
             if (threads < 1) throw new ArgumentOutOfRangeException(nameof(threads));
-            if(string.IsNullOrWhiteSpace(caller)) caller = Me();
+            if (string.IsNullOrWhiteSpace(caller)) caller = Me();
             Stopwatch watch = null;
             ManualResetEvent allDone = new ManualResetEvent(false);
             object token = new object();
@@ -287,11 +298,13 @@ namespace StackExchange.Redis.Tests
                 }
             };
 
-            Thread[] threadArr = new Thread[threads];
+            var threadArr = new Thread[threads];
             for (int i = 0; i < threads; i++)
             {
-                var thd = new Thread(callback);
-                thd.Name = caller;
+                var thd = new Thread(callback)
+                {
+                    Name = caller
+                };
                 threadArr[i] = thd;
                 thd.Start();
             }
@@ -310,15 +323,13 @@ namespace StackExchange.Redis.Tests
             return watch.Elapsed;
         }
 
-        
         protected virtual void GetAzureCredentials(out string name, out string password)
         {
             var lines = File.ReadAllLines(@"d:\dev\azure.txt");
             if (lines == null || lines.Length != 2)
-                Assert.Inconclusive("azure credentials missing");
+                Skip.Inconclusive("azure credentials missing");
             name = lines[0];
             password = lines[1];
         }
-
     }
 }

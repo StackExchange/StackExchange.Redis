@@ -1,28 +1,27 @@
 ﻿using System;
 using System.Threading.Tasks;
-using NUnit.Framework;
+using Xunit;
+using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests.Issues
 {
-    [TestFixture]
     public class SO25567566 : TestBase
     {
-        protected override string GetConfiguration()
-        {
-            return "127.0.0.1:6379";
-        }
-        [Test]
-        public async void Execute()
-        {
-            using(var conn = ConnectionMultiplexer.Connect(GetConfiguration())) // Create())
-            {
-                for(int i = 0; i < 100; i++)
-                {
-                    Assert.AreEqual("ok", await DoStuff(conn).ConfigureAwait(false));
+        protected override string GetConfiguration() => "127.0.0.1:6379";
+        public SO25567566(ITestOutputHelper output) : base(output) { }
 
+        [Fact]
+        public async Task Execute()
+        {
+            using (var conn = ConnectionMultiplexer.Connect(GetConfiguration())) // Create())
+            {
+                for (int i = 0; i < 100; i++)
+                {
+                    Assert.Equal("ok", await DoStuff(conn).ConfigureAwait(false));
                 }
             }
         }
+
         private async Task<string> DoStuff(ConnectionMultiplexer conn)
         {
             var db = conn.GetDatabase();
@@ -35,7 +34,6 @@ namespace StackExchange.Redis.Tests.Issues
                 return "Timeout getting length";
             }
 
-            
             if ((await len.ConfigureAwait(false)) == 0)
             {
                 db.ListRightPush("list", "foo", flags: CommandFlags.FireAndForget);

@@ -1,16 +1,18 @@
-﻿using NUnit.Framework;
+﻿using Xunit;
+using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests.Issues
 {
-    [TestFixture]
     public class BgSaveResponse : TestBase
     {
-        [Test]
+        public BgSaveResponse(ITestOutputHelper output) : base (output) { }
+
+        [Theory]
 #pragma warning disable 0618
-        [TestCase(SaveType.ForegroundSave)]
+        [InlineData(SaveType.ForegroundSave)]
 #pragma warning restore 0618
-        [TestCase(SaveType.BackgroundSave)]
-        [TestCase(SaveType.BackgroundRewriteAppendOnlyFile)]
+        [InlineData(SaveType.BackgroundSave)]
+        [InlineData(SaveType.BackgroundRewriteAppendOnlyFile)]
         public void ShouldntThrowException(SaveType saveType)
         {
             using (var conn = Create(null, null, true))

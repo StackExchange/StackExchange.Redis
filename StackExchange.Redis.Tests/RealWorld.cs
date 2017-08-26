@@ -1,32 +1,34 @@
 ﻿using System;
 using System.IO;
 using System.Threading;
-using NUnit.Framework;
+using Xunit;
+using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    [TestFixture]
     public class RealWorld
     {
-        [Test]
+        public ITestOutputHelper Output { get; }
+        public RealWorld(ITestOutputHelper output) => Output = output;
+
+        [Fact]
         public void WhyDoesThisNotWork()
         {
             var sw = new StringWriter();
-            Console.WriteLine("first:");
+            Output.WriteLine("first:");
             using (var conn = ConnectionMultiplexer.Connect("localhost:6379,localhost:6380,name=Core (Q&A),tiebreaker=:RedisMaster,abortConnect=False", sw))
             {
-                Console.WriteLine(sw);
-                Console.WriteLine();
-                Console.WriteLine("pausing...");
+                Output.WriteLine(sw.ToString());
+                Output.WriteLine("");
+                Output.WriteLine("pausing...");
                 Thread.Sleep(200);
-                Console.WriteLine("second:");
+                Output.WriteLine("second:");
 
                 sw = new StringWriter();
                 bool result = conn.Configure(sw);
-                Console.WriteLine("Returned: {0}", result);
-                Console.WriteLine(sw);
+                Output.WriteLine("Returned: {0}", result);
+                Output.WriteLine(sw.ToString());
             }
-            
         }
     }
 }

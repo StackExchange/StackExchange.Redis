@@ -1,56 +1,52 @@
-﻿using NUnit.Framework;
-using System.Threading;
+﻿using System.Threading;
+using Xunit;
+using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    [TestFixture]
     public class ConnectionFailedErrors : TestBase
     {
-        [Test]
-        [TestCase(true)]
-        [TestCase(false)]
+        public ConnectionFailedErrors(ITestOutputHelper output) : base (output) { }
+
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
         public void SSLCertificateValidationError(bool isCertValidationSucceeded)
         {
-            string name, password;
-            GetAzureCredentials(out name, out password);
+            GetAzureCredentials(out string name, out string password);
             var options = new ConfigurationOptions();
             options.EndPoints.Add(name + ".redis.cache.windows.net");
             options.Ssl = true;
             options.Password = password;
-            options.CertificateValidation += (sender, cert, chain, errors) => { return isCertValidationSucceeded; };
+            options.CertificateValidation += (sender, cert, chain, errors) => isCertValidationSucceeded;
             options.AbortOnConnectFail = false;
 
             using (var connection = ConnectionMultiplexer.Connect(options))
             {
                 connection.ConnectionFailed += (object sender, ConnectionFailedEventArgs e) =>
-                {
-                    Assert.That(e.FailureType, Is.EqualTo(ConnectionFailureType.AuthenticationFailure));
-                };
+                    Assert.Equal(ConnectionFailureType.AuthenticationFailure, e.FailureType);
                 if (!isCertValidationSucceeded)
                 {
                     //validate that in this case it throws an certificatevalidation exception
                     var ex = Assert.Throws<RedisConnectionException>(() => connection.GetDatabase().Ping());
                     var rde = (RedisConnectionException)ex.InnerException;
-                    Assert.That(rde.FailureType, Is.EqualTo(ConnectionFailureType.AuthenticationFailure));
-                    Assert.That(rde.InnerException.Message, Is.EqualTo("The remote certificate is invalid according to the validation procedure."));
+                    Assert.Equal(ConnectionFailureType.AuthenticationFailure, rde.FailureType);
+                    Assert.Equal("The remote certificate is invalid according to the validation procedure.", rde.InnerException.Message);
                 }
                 else
                 {
-                    Assert.DoesNotThrow(() => connection.GetDatabase().Ping());
+                    connection.GetDatabase().Ping();
                 }
 
                 //wait for a second for connectionfailed event to fire
                 Thread.Sleep(1000);
             }
-
-
         }
 
-        [Test]
+        [Fact]
         public void AuthenticationFailureError()
         {
-            string name, password;
-            GetAzureCredentials(out name, out password);
+            GetAzureCredentials(out string name, out string password);
             var options = new ConfigurationOptions();
             options.EndPoints.Add(name + ".redis.cache.windows.net");
             options.Ssl = true;
@@ -59,20 +55,18 @@ namespace StackExchange.Redis.Tests
             using (var muxer = ConnectionMultiplexer.Connect(options))
             {
                 muxer.ConnectionFailed += (object sender, ConnectionFailedEventArgs e) =>
-                {
-                    Assert.That(e.FailureType, Is.EqualTo(ConnectionFailureType.AuthenticationFailure));
-                };
+                    Assert.Equal(ConnectionFailureType.AuthenticationFailure, e.FailureType);
                 var ex = Assert.Throws<RedisConnectionException>(() => muxer.GetDatabase().Ping());
                 var rde = (RedisConnectionException)ex.InnerException;
-                Assert.That(ex.CommandStatus, Is.EqualTo(CommandStatus.WaitingToBeSent));
-                Assert.That(rde.FailureType, Is.EqualTo(ConnectionFailureType.AuthenticationFailure));
-                Assert.That(rde.InnerException.Message, Is.EqualTo("Error: NOAUTH Authentication required. Verify if the Redis password provided is correct."));
+                Assert.Equal(CommandStatus.WaitingToBeSent, ex.CommandStatus);
+                Assert.Equal(ConnectionFailureType.AuthenticationFailure, rde.FailureType);
+                Assert.Equal("Error: NOAUTH Authentication required. Verify if the Redis password provided is correct.", rde.InnerException.Message);
                 //wait for a second  for connectionfailed event to fire
                 Thread.Sleep(1000);
             }
         }
 
-        [Test]
+        [Fact]
         public void SocketFailureError()
         {
             var options = new ConfigurationOptions();
@@ -84,15 +78,14 @@ namespace StackExchange.Redis.Tests
             {
                 var ex = Assert.Throws<RedisConnectionException>(() => muxer.GetDatabase().Ping());
                 var rde = (RedisConnectionException)ex.InnerException;
-                Assert.That(rde.FailureType, Is.EqualTo(ConnectionFailureType.SocketFailure));
+                Assert.Equal(ConnectionFailureType.SocketFailure, rde.FailureType);
             }
         }
 #if DEBUG // needs AllowConnect, which is DEBUG only
-        [Test]
+        [Fact]
         public void AbortOnConnectFailFalseConnectTimeoutError()
         {
-            string name, password;
-            GetAzureCredentials(out name, out password);
+            GetAzureCredentials(out string name, out string password);
             var options = new ConfigurationOptions();
             options.EndPoints.Add(name + ".redis.cache.windows.net");
             options.Ssl = true;
@@ -101,11 +94,11 @@ namespace StackExchange.Redis.Tests
             using (var muxer = ConnectionMultiplexer.Connect(options))
             {
                 var ex = Assert.Throws<RedisConnectionException>(() => muxer.GetDatabase().Ping());
-                Assert.That(ex.Message, Does.Contain("ConnectTimeout"));
+                Assert.Contains("ConnectTimeout", ex.Message);
             }
         }
 
-        [Test]
+        [Fact]
         public void CheckFailureRecovered()
         {
             try
@@ -120,7 +113,7 @@ namespace StackExchange.Redis.Tests
 
                     server.SimulateConnectionFailure();
 
-                    Assert.AreEqual(ConnectionFailureType.SocketFailure, ((RedisConnectionException)muxer.GetServerSnapshot()[0].LastException).FailureType);
+                    Assert.Equal(ConnectionFailureType.SocketFailure, ((RedisConnectionException)muxer.GetServerSnapshot()[0].LastException).FailureType);
 
                     // should reconnect within 1 keepalive interval
                     muxer.AllowConnect = true;
@@ -137,10 +130,10 @@ namespace StackExchange.Redis.Tests
         }
 
 #endif
-        [Test]
+        [Fact]
         public void TryGetAzureRoleInstanceIdNoThrow()
         {
-            Assert.IsNull(ConnectionMultiplexer.TryGetAzureRoleInstanceIdNoThrow());
+            Assert.Null(ConnectionMultiplexer.TryGetAzureRoleInstanceIdNoThrow());
         }
     }
 }

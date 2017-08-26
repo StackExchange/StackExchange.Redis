@@ -1,13 +1,15 @@
 ﻿using System;
 using System.Threading;
-using NUnit.Framework;
+using Xunit;
+using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests.Issues
 {
-    [TestFixture]
     public class SO25113323 : TestBase
     {
-        [Test]
+        public SO25113323(ITestOutputHelper output) : base (output) { }
+
+        [Fact]
         public void SetExpirationToPassed()
         {
             var key = Me();
@@ -29,10 +31,10 @@ namespace StackExchange.Redis.Tests.Issues
                 var ttl = cache.KeyTimeToLive(key);
 
                 // Then
-                Assert.IsTrue(firstResult, "first"); // could set the first time, but this nukes the key
-                Assert.IsFalse(secondResult, "second"); // can't set, since nuked
-                Assert.IsFalse(exists, "exists"); // does not exist since nuked
-                Assert.IsNull(ttl, "ttl"); // no expiry since nuked
+                Assert.True(firstResult); // could set the first time, but this nukes the key
+                Assert.False(secondResult); // can't set, since nuked
+                Assert.False(exists); // does not exist since nuked
+                Assert.Null(ttl); // no expiry since nuked
             }
         }
     }
