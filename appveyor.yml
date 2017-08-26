@@ -5,19 +5,19 @@ init:
 
 install:
 - cmd: >-
-    cd RedisConfigs
+    cd RedisConfigs\3.0.503
 
-    3.0.503\redis-server.exe --service-install --service-name redis-master "master.conf"
+    redis-server.exe --service-install --service-name "redis-master" "..\master.conf"
 
-    3.0.503\redis-server.exe --service-start --service-name redis-master
+    redis-server.exe --service-install --service-name "redis-slave" "..\slave.conf"
 
-    3.0.503\redis-server.exe --service-install --service-name redis-slave "slave.conf"
+    redis-server.exe --service-install --service-name "redis-secure" "..\secure.conf"
 
-    3.0.503\redis-server.exe --service-start --service-name redis-slave
+    redis-server.exe --service-start --service-name "redis-master"
 
-    3.0.503\redis-server.exe --service-install --service-name redis-secure "secure.conf"
+    redis-server.exe --service-start --service-name "redis-slave"
 
-    3.0.503\redis-server.exe --service-start --service-name redis-secure
+    redis-server.exe --service-start --service-name "redis-secure"
 
 skip_branch_with_pr: true
 skip_tags: true
