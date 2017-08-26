@@ -27,9 +27,9 @@ namespace Tests
         }
 
         public const string LocalHost = "127.0.0.1"; //"192.168.0.10"; //"127.0.0.1";
-        public const string RemoteHost = "ubuntu";
+        public const string RemoteHost = "127.0.0.1"; // "ubuntu";
 
-        const int unsecuredPort = 6379, securedPort = 6381,
+        private const int unsecuredPort = 6379, securedPort = 6381,
             clusterPort0 = 7000, clusterPort1 = 7001, clusterPort2 = 7002;
 
         private ITestOutputHelper Output { get; }

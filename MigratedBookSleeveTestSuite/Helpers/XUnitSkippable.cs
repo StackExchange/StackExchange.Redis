@@ -21,12 +21,12 @@ namespace Tests
     {
     }
 
+#pragma warning disable RCS1194 // Implement exception constructors.
     public class SkipTestException : Exception
     {
-        public SkipTestException(string reason) : base(reason)
-        {
-        }
+        public SkipTestException(string reason) : base(reason) {}
     }
+#pragma warning restore RCS1194 // Implement exception constructors.
 
     // Most of the below is a direct copy & port from the wonderful examples by Brad Wilson at
     // https://github.com/xunit/samples.xunit/tree/master/DynamicSkipExample

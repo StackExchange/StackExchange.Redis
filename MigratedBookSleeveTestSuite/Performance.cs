@@ -47,7 +47,7 @@ namespace Tests
                 }
             }
 
-            using (var conn = new Redis(Config.LocalHost, 6379))
+            using (var conn = new RedisSharp.Redis(Config.LocalHost, 6379))
             {
                 // do these outside the timings, just to ensure the core methods are JITted etc
                 for (int db = 0; db < 5; db++)
