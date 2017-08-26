@@ -4,8 +4,10 @@ init:
   - git config --global core.autocrlf input
 
 install:
-  - cmd: RedisConfigs\start-all-local.cmd
-  - cmd: RedisConfigs\start-cluster.cmd
+- cmd: >-
+    cd RedisConfigs
+    start-all-local.cmd
+    start-cluster.cmd
 
 skip_branch_with_pr: true
 skip_tags: true
