@@ -7,9 +7,11 @@ install:
 - cmd: >-
     cd RedisConfigs
 
-    start-all-local.cmd
+    redis-server --service-name redis-master --service-install master.conf
 
-    start-cluster.cmd
+    redis-server --service-name redis-slave --service-install slave.conf
+
+    redis-server --service-name redis-secure --service-install secure.conf
 
 skip_branch_with_pr: true
 skip_tags: true
