@@ -19,6 +19,8 @@ install:
 
     redis-server.exe --service-start --service-name "redis-secure"
 
+    cd ..\..
+
 skip_branch_with_pr: true
 skip_tags: true
 skip_commits:
