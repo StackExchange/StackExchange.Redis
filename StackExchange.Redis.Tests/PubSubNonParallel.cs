@@ -8,7 +8,7 @@ namespace StackExchange.Redis.Tests
     [Collection(NonParallelCollection.Name)]
     public class PubSubNonParallel : TestBase
     {
-        public PubSubNonParallel(ITestOutputHelper output) : base (output) { }
+        public PubSubNonParallel(ITestOutputHelper output) : base(output) { }
 
         [Theory]
         [InlineData(false)]
@@ -114,4 +114,5 @@ namespace StackExchange.Redis.Tests
                 }
             }
         }
+    }
 }
