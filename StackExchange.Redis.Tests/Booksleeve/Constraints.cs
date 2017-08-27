@@ -1,11 +1,13 @@
 ﻿using System.Threading.Tasks;
-using StackExchange.Redis;
 using Xunit;
+using Xunit.Abstractions;
 
-namespace Tests
+namespace StackExchange.Redis.Tests.Booksleeve
 {
-    public class Constraints
+    public class Constraints : BookSleeveTestBase
     {
+        public Constraints(ITestOutputHelper output) : base(output) { }
+
         [Fact]
         public void ValueEquals()
         {
@@ -17,7 +19,7 @@ namespace Tests
         [Fact]
         public void TestManualIncr()
         {
-            using (var muxer = Config.GetUnsecuredConnection(syncTimeout: 120000)) // big timeout while debugging
+            using (var muxer = GetUnsecuredConnection(syncTimeout: 120000)) // big timeout while debugging
             {
                 var conn = muxer.GetDatabase(0);
                 for (int i = 0; i < 200; i++)
@@ -36,7 +38,6 @@ namespace Tests
             var newVal = (oldVal ?? 0) + 1;
             var tran = connection.CreateTransaction();
             { // check hasn't changed
-
 #pragma warning disable 4014
                 tran.AddCondition(Condition.StringEqual(key, oldVal));
                 tran.StringSetAsync(key, newVal);

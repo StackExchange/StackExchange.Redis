@@ -4,17 +4,19 @@ using System.Diagnostics;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using StackExchange.Redis;
 using Xunit;
+using Xunit.Abstractions;
 
-namespace Tests
+namespace StackExchange.Redis.Tests.Booksleeve
 {
-    public class PubSub // http://redis.io/commands#pubsub
+    public class PubSub : BookSleeveTestBase // http://redis.io/commands#pubsub
     {
+        public PubSub(ITestOutputHelper output) : base(output) { }
+
         [Fact]
         public void TestPublishWithNoSubscribers()
         {
-            using (var muxer = Config.GetUnsecuredConnection())
+            using (var muxer = GetUnsecuredConnection())
             {
                 var conn = muxer.GetSubscriber();
                 Assert.Equal(0, conn.Publish("channel", "message"));
@@ -24,16 +26,17 @@ namespace Tests
         [Fact]
         public void TestMassivePublishWithWithoutFlush_Local()
         {
-            using (var muxer = Config.GetUnsecuredConnection(waitForOpen: true))
+            using (var muxer = GetUnsecuredConnection(waitForOpen: true))
             {
                 var conn = muxer.GetSubscriber();
                 TestMassivePublish(conn, "local");
             }
         }
+
         [Fact]
         public void TestMassivePublishWithWithoutFlush_Remote()
         {
-            using (var muxer = Config.GetRemoteConnection(waitForOpen: true))
+            using (var muxer = GetRemoteConnection(waitForOpen: true))
             {
                 var conn = muxer.GetSubscriber();
                 TestMassivePublish(conn, "remote");
@@ -51,7 +54,9 @@ namespace Tests
 
             var withFAF = Stopwatch.StartNew();
             for (int i = 0; i < loop; i++)
+            {
                 conn.Publish("foo", "bar", CommandFlags.FireAndForget);
+            }
             withFAF.Stop();
 
             GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced);
@@ -59,41 +64,46 @@ namespace Tests
 
             var withAsync = Stopwatch.StartNew();
             for (int i = 0; i < loop; i++)
+            {
                 tasks[i] = conn.PublishAsync("foo", "bar");
+            }
             conn.WaitAll(tasks);
             withAsync.Stop();
-            
+
             Assert.True(withFAF.ElapsedMilliseconds < withAsync.ElapsedMilliseconds, caption);
-            Console.WriteLine("{2}: {0}ms (F+F) vs {1}ms (async)",
+            Output.WriteLine("{2}: {0}ms (F+F) vs {1}ms (async)",
                 withFAF.ElapsedMilliseconds, withAsync.ElapsedMilliseconds, caption);
         }
 
-
         [Fact]
-        public void PubSubOrder()
+        public async Task PubSubOrder()
         {
-            using (var muxer = Config.GetRemoteConnection(waitForOpen: true))
+            using (var muxer = GetRemoteConnection(waitForOpen: true))
             {
                 var sub = muxer.GetSubscriber();
-                string channel = "PubSubOrder";
+                const string channel = "PubSubOrder";
                 const int count = 500000;
-                object syncLock = new object();
+                var syncLock = new object();
 
-                List<int> data = new List<int>(count);
+                var data = new List<int>(count);
                 muxer.PreserveAsyncOrder = true;
-                sub.SubscribeAsync(channel, (key, val) =>
+                await sub.SubscribeAsync(channel, (key, val) =>
                 {
                     bool pulse;
                     lock (data)
                     {
                         data.Add(int.Parse(Encoding.UTF8.GetString(val)));
                         pulse = data.Count == count;
-                        if ((data.Count % 10) == 99) Console.WriteLine(data.Count);
+                        if ((data.Count % 10) == 99) Output.WriteLine(data.Count.ToString());
                     }
                     if (pulse)
+                    {
                         lock (syncLock)
+                        {
                             Monitor.PulseAll(syncLock);
-                }).Wait();
+                        }
+                    }
+                }).ConfigureAwait(false);
 
                 lock (syncLock)
                 {
@@ -102,23 +112,24 @@ namespace Tests
                         sub.Publish(channel, i.ToString(), CommandFlags.FireAndForget);
                     }
                     sub.Ping();
-                    if (!Monitor.Wait(syncLock, 10000))
+                    if (!Monitor.Wait(syncLock, 20000))
                     {
                         throw new TimeoutException("Items: " + data.Count);
                     }
                     for (int i = 0; i < count; i++)
+                    {
                         Assert.Equal(i, data[i]);
+                    }
                 }
             }
-
         }
 
         [Fact]
         public void TestPublishWithSubscribers()
         {
-            using (var muxerA = Config.GetUnsecuredConnection())
-            using (var muxerB = Config.GetUnsecuredConnection())
-            using (var conn = Config.GetUnsecuredConnection())
+            using (var muxerA = GetUnsecuredConnection())
+            using (var muxerB = GetUnsecuredConnection())
+            using (var conn = GetUnsecuredConnection())
             {
                 var listenA = muxerA.GetSubscriber();
                 var listenB = muxerB.GetSubscriber();
@@ -127,7 +138,7 @@ namespace Tests
 
                 listenA.Wait(t1);
                 listenB.Wait(t2);
-                
+
                 var pub = conn.GetSubscriber().PublishAsync("channel", "message");
                 Assert.Equal(2, conn.Wait(pub)); // delivery count
             }
@@ -136,9 +147,9 @@ namespace Tests
         [Fact]
         public void TestMultipleSubscribersGetMessage()
         {
-            using (var muxerA = Config.GetUnsecuredConnection())
-            using (var muxerB = Config.GetUnsecuredConnection())
-            using (var conn = Config.GetUnsecuredConnection())
+            using (var muxerA = GetUnsecuredConnection())
+            using (var muxerB = GetUnsecuredConnection())
+            using (var conn = GetUnsecuredConnection())
             {
                 var listenA = muxerA.GetSubscriber();
                 var listenB = muxerB.GetSubscriber();
@@ -167,8 +178,7 @@ namespace Tests
         [Fact]
         public void Issue38()
         { // https://code.google.com/p/booksleeve/issues/detail?id=38
-
-            using (var pub = Config.GetUnsecuredConnection(waitForOpen: true))
+            using (var pub = GetUnsecuredConnection(waitForOpen: true))
             {
                 var sub = pub.GetSubscriber();
                 int count = 0;
@@ -191,8 +201,6 @@ namespace Tests
 
                 Assert.Equal(6, total); // sent
                 Assert.Equal(6, Interlocked.CompareExchange(ref count, 0, 0)); // received
-
-
             }
         }
 
@@ -204,9 +212,9 @@ namespace Tests
         [Fact]
         public void TestPartialSubscriberGetMessage()
         {
-            using (var muxerA = Config.GetUnsecuredConnection())
-            using (var muxerB = Config.GetUnsecuredConnection())
-            using (var conn = Config.GetUnsecuredConnection())
+            using (var muxerA = GetUnsecuredConnection())
+            using (var muxerB = GetUnsecuredConnection())
+            using (var conn = GetUnsecuredConnection())
             {
                 int gotA = 0, gotB = 0;
                 var listenA = muxerA.GetSubscriber();
@@ -234,8 +242,8 @@ namespace Tests
         [Fact]
         public void TestSubscribeUnsubscribeAndSubscribeAgain()
         {
-            using (var pubMuxer = Config.GetUnsecuredConnection())
-            using (var subMuxer = Config.GetUnsecuredConnection())
+            using (var pubMuxer = GetUnsecuredConnection())
+            using (var subMuxer = GetUnsecuredConnection())
             {
                 var pub = pubMuxer.GetSubscriber();
                 var sub = subMuxer.GetSubscriber();
@@ -260,7 +268,6 @@ namespace Tests
                 AllowReasonableTimeToPublishAndProcess();
                 Assert.Equal(2, Volatile.Read(ref x));
                 Assert.Equal(2, Volatile.Read(ref y));
-
             }
         }
     }

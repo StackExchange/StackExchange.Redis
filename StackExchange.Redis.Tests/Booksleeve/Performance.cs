@@ -1,19 +1,20 @@
-﻿using System;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Text;
 using System.Threading.Tasks;
-using StackExchange.Redis;
 using Xunit;
+using Xunit.Abstractions;
 
-namespace Tests
+namespace StackExchange.Redis.Tests.Booksleeve
 {
-    public class Performance
+    public class Performance : BookSleeveTestBase
     {
+        public Performance(ITestOutputHelper output) : base(output) { }
+
         [Fact]
         public void VerifyPerformanceImprovement()
         {
             int asyncTimer, sync, op = 0, asyncFaF, syncFaF;
-            using (var muxer= Config.GetUnsecuredConnection())
+            using (var muxer = GetUnsecuredConnection())
             {
                 // do these outside the timings, just to ensure the core methods are JITted etc
                 for (int db = 0; db < 5; db++)
@@ -34,20 +35,20 @@ namespace Tests
                     }
                 }
                 asyncFaF = (int)timer.ElapsedMilliseconds;
-                Task<RedisValue>[] final = new Task<RedisValue>[5];
+                var final = new Task<RedisValue>[5];
                 for (int db = 0; db < 5; db++)
                     final[db] = muxer.GetDatabase(db).StringGetAsync("perftest");
                 muxer.WaitAll(final);
                 timer.Stop();
                 asyncTimer = (int)timer.ElapsedMilliseconds;
-                Console.WriteLine("async to completion (local): {0}ms", timer.ElapsedMilliseconds);
+                Output.WriteLine("async to completion (local): {0}ms", timer.ElapsedMilliseconds);
                 for (int db = 0; db < 5; db++)
                 {
                     Assert.Equal(1000, (long)final[db].Result); // "async, db:" + db
                 }
             }
 
-            using (var conn = new RedisSharp.Redis(Config.LocalHost, 6379))
+            using (var conn = new RedisSharp.Redis(LocalHost, 6379))
             {
                 // do these outside the timings, just to ensure the core methods are JITted etc
                 for (int db = 0; db < 5; db++)
@@ -81,7 +82,7 @@ namespace Tests
                 }
                 timer.Stop();
                 sync = (int)timer.ElapsedMilliseconds;
-                Console.WriteLine("sync to completion (local): {0}ms", timer.ElapsedMilliseconds);
+                Output.WriteLine("sync to completion (local): {0}ms", timer.ElapsedMilliseconds);
                 for (int db = 0; db < 5; db++)
                 {
                     Assert.Equal("1000", final[db]); // "async, db:" + db
@@ -89,9 +90,9 @@ namespace Tests
             }
             int effectiveAsync = ((10 * asyncTimer) + 3) / 10;
             int effectiveSync = ((10 * sync) + (op * 3)) / 10;
-            Console.WriteLine("async to completion with assumed 0.3ms LAN latency: " + effectiveAsync);
-            Console.WriteLine("sync to completion with assumed 0.3ms LAN latency: " + effectiveSync);
-            Console.WriteLine("fire-and-forget: {0}ms sync vs {1}ms async ", syncFaF, asyncFaF);
+            Output.WriteLine("async to completion with assumed 0.3ms LAN latency: " + effectiveAsync);
+            Output.WriteLine("sync to completion with assumed 0.3ms LAN latency: " + effectiveSync);
+            Output.WriteLine("fire-and-forget: {0}ms sync vs {1}ms async ", syncFaF, asyncFaF);
             Assert.True(effectiveAsync < effectiveSync, "Everything");
             Assert.True(asyncFaF < syncFaF, "Fire and Forget");
         }

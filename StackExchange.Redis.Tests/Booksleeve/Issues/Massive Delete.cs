@@ -1,18 +1,18 @@
-﻿using System;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
+using Xunit.Abstractions;
 
-namespace Tests.Issues
+namespace StackExchange.Redis.Tests.Booksleeve.Issues
 {
-    public class Massive_Delete
+    public class Massive_Delete : BookSleeveTestBase
     {
-        public Massive_Delete()
+        public Massive_Delete(ITestOutputHelper output) : base(output)
         {
-            using (var muxer = Config.GetUnsecuredConnection(allowAdmin: true))
+            using (var muxer = GetUnsecuredConnection(allowAdmin: true))
             {
-                Config.GetServer(muxer).FlushDatabase(db);
+                GetServer(muxer).FlushDatabase(db);
                 Task last = null;
                 var conn = muxer.GetDatabase(db);
                 for (int i = 0; i < 100000; i++)
@@ -25,14 +25,14 @@ namespace Tests.Issues
             }
         }
 
-        const int db = 4;
-        const string todoKey = "todo";
+        private const int db = 4;
+        private const string todoKey = "todo";
 
         [Fact]
         public void ExecuteMassiveDelete()
         {
             var watch = Stopwatch.StartNew();
-            using (var muxer = Config.GetUnsecuredConnection())
+            using (var muxer = GetUnsecuredConnection())
             using (var throttle = new SemaphoreSlim(1))
             {
                 var conn = muxer.GetDatabase(db);
@@ -65,11 +65,11 @@ namespace Tests.Issues
                 watch.Stop();
                 long originally = conn.Wait(originallyTask),
                     remaining = conn.SetLength(todoKey);
-                Console.WriteLine("From {0} to {1}; {2}ms", originally, remaining,
+                Output.WriteLine("From {0} to {1}; {2}ms", originally, remaining,
                     watch.ElapsedMilliseconds);
 
-                var counters = Config.GetServer(muxer).GetCounters();
-                Console.WriteLine("Completions: {0} sync, {1} async", counters.Interactive.CompletedSynchronously, counters.Interactive.CompletedAsynchronously);
+                var counters = GetServer(muxer).GetCounters();
+                Output.WriteLine("Completions: {0} sync, {1} async", counters.Interactive.CompletedSynchronously, counters.Interactive.CompletedAsynchronously);
             }
         }
     }

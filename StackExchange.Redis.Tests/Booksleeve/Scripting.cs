@@ -2,25 +2,27 @@
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
-using StackExchange.Redis;
 using Xunit;
+using Xunit.Abstractions;
 
-namespace Tests
+namespace StackExchange.Redis.Tests.Booksleeve
 {
-    public class Scripting
+    public class Scripting : BookSleeveTestBase
     {
-        static ConnectionMultiplexer GetScriptConn(bool allowAdmin = false)
+        public Scripting(ITestOutputHelper output) : base(output) { }
+
+        private static ConnectionMultiplexer GetScriptConn(bool allowAdmin = false)
         {
             int syncTimeout = 5000;
             if (Debugger.IsAttached) syncTimeout = 500000;
-            var muxer = Config.GetUnsecuredConnection(waitForOpen: true, allowAdmin: allowAdmin, syncTimeout: syncTimeout);
-            if (!Config.GetFeatures(muxer).Scripting)
+            var muxer = GetUnsecuredConnection(waitForOpen: true, allowAdmin: allowAdmin, syncTimeout: syncTimeout);
+            if (!GetFeatures(muxer).Scripting)
             {
                 Skip.NotSupported(nameof(RedisFeatures.Scripting));
             }
             return muxer;
-
         }
+
         [SkippableFact]
         public void ClientScripting()
         {
@@ -55,6 +57,7 @@ namespace Tests
                 Assert.Equal("second", results[3]);
             }
         }
+
         [SkippableFact]
         public void KeysScripting()
         {
@@ -90,9 +93,9 @@ namespace Tests
                 Assert.Equal(1, (long)conn.Wait(a)); // exit code when current val is non-positive
                 Assert.Equal(0, (long)conn.Wait(b)); // exit code when result would be negative
                 Assert.Equal(4, (long)conn.Wait(c)); // 10 - 6 = 4
-                Assert.Equal("0", (string)conn.Wait(vals)[0]);
-                Assert.Equal("5", (string)conn.Wait(vals)[1]);
-                Assert.Equal("4", (string)conn.Wait(vals)[2]);
+                Assert.Equal("0", conn.Wait(vals)[0]);
+                Assert.Equal("5", conn.Wait(vals)[1]);
+                Assert.Equal("4", conn.Wait(vals)[2]);
             }
         }
 
@@ -103,7 +106,7 @@ namespace Tests
             {
                 var conn = muxer.GetDatabase();
                 conn.StringSetAsync("foo", "bar");
-                var key = Config.CreateUniqueName();
+                var key = CreateUniqueName();
                 var result = (long)conn.ScriptEvaluate(@"
 redis.call('psetex', KEYS[1], 60000, 'timing')
 for i = 1,100000 do
@@ -113,7 +116,7 @@ local timeTaken = 60000 - redis.call('pttl', KEYS[1])
 redis.call('del', KEYS[1])
 return timeTaken
 ", new RedisKey[] { key }, null);
-                Console.WriteLine(result);
+                Output.WriteLine(result.ToString());
                 Assert.True(result > 0);
             }
         }
@@ -134,7 +137,7 @@ return timeTaken
                 // run the script, passing "a", "b", "c", "c" to
                 // increment a & b by 1, c twice
                 var result = conn.ScriptEvaluateAsync(
-                    @"for i,key in ipairs(KEYS) do redis.call('incr', key) end",
+                    "for i,key in ipairs(KEYS) do redis.call('incr', key) end",
                     new RedisKey[] { "a", "b", "c", "c" }, // <== aka "KEYS" in the script
                     null); // <== aka "ARGV" in the script
 
@@ -166,7 +169,7 @@ return timeTaken
                 //run the script, passing "a", "b", "c" and 1,2,3
                 // increment a &b by 1, c twice
                 var result = conn.ScriptEvaluateAsync(
-                    @"for i,key in ipairs(KEYS) do redis.call('incrby', key, ARGV[i]) end",
+                    "for i,key in ipairs(KEYS) do redis.call('incrby', key, ARGV[i]) end",
                     new RedisKey[] { "a", "b", "c" }, // <== aka "KEYS" in the script
                     new RedisValue[] { 1, 1, 2 }); // <== aka "ARGV" in the script
 
@@ -205,10 +208,10 @@ return timeTaken
                 Assert.Equal("bar", result);
 
                 // now cause all kinds of problems
-                Config.GetServer(muxer).ScriptFlush();
+                GetServer(muxer).ScriptFlush();
 
                 //expect this one to <strike>fail</strike> just work fine (self-fix)
-                conn.ScriptEvaluate("return redis.call('get', KEYS[1])", new RedisKey[] { "foo" }, null);                
+                conn.ScriptEvaluate("return redis.call('get', KEYS[1])", new RedisKey[] { "foo" }, null);
 
                 result = (string)conn.ScriptEvaluate("return redis.call('get', KEYS[1])", new RedisKey[] { "foo" }, null);
                 Assert.Equal("bar", result);
@@ -221,7 +224,7 @@ return timeTaken
             string[] scripts = { "return redis.call('get', KEYS[1])", "return {KEYS[1],KEYS[2],ARGV[1],ARGV[2]}" };
             using (var muxer = GetScriptConn(allowAdmin: true))
             {
-                var server = Config.GetServer(muxer);
+                var server = GetServer(muxer);
                 server.ScriptFlush();
 
                 // when vanilla
@@ -234,7 +237,7 @@ return timeTaken
             }
             using (var muxer = GetScriptConn())
             {
-                var server = Config.GetServer(muxer);
+                var server = GetServer(muxer);
 
                 //when vanilla
                 server.ScriptLoad(scripts[0]);
@@ -257,7 +260,7 @@ return timeTaken
             {
                 const string evil = "return '僕'";
                 var conn = muxer.GetDatabase(0);
-                Config.GetServer(muxer).ScriptLoad(evil);
+                GetServer(muxer).ScriptLoad(evil);
 
                 var result = (string)conn.ScriptEvaluate(evil, null, null);
                 Assert.Equal("僕", result);
@@ -314,14 +317,11 @@ return timeTaken
                     var ex = b.Exception.InnerExceptions.Single();
                     Assert.IsType<RedisException>(ex);
                     Assert.Equal("oops", ex.Message);
-
                 }
                 var afterTran = conn.StringGetAsync(key);
                 Assert.Equal(2L, (long)conn.Wait(afterTran));
             }
         }
-
-
 
         [SkippableFact]
         public void ChangeDbInScript()
@@ -338,8 +338,7 @@ return timeTaken
 
                 Assert.Equal("db 1", (string)conn.Wait(evalResult));
                 // now, our connection thought it was in db 2, but the script changed to db 1
-                Assert.Equal("db 2", (string)conn.Wait(getResult));
-
+                Assert.Equal("db 2", conn.Wait(getResult));
             }
         }
 
@@ -360,8 +359,7 @@ return timeTaken
 
                 Assert.Equal("db 1", (string)conn.Wait(evalResult));
                 // now, our connection thought it was in db 2, but the script changed to db 1
-                Assert.Equal("db 2", (string)conn.Wait(getResult));
-
+                Assert.Equal("db 2", conn.Wait(getResult));
             }
         }
     }

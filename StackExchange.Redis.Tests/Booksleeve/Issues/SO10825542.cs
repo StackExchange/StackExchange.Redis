@@ -1,18 +1,20 @@
 ﻿using System;
 using System.Text;
-using StackExchange.Redis;
 using Xunit;
+using Xunit.Abstractions;
 
-namespace Tests.Issues
+namespace StackExchange.Redis.Tests.Booksleeve.Issues
 {
-    public class SO10825542
+    public class SO10825542 : BookSleeveTestBase
     {
+        public SO10825542(ITestOutputHelper output) : base(output) { }
+
         [Fact]
         public void Execute()
         {
-            using (var muxer = Config.GetUnsecuredConnection())
+            using (var muxer = GetUnsecuredConnection())
             {
-                var key = "somekey1";
+                const string key = "somekey1";
 
                 var con = muxer.GetDatabase(1);
                 // set the field value and expiration

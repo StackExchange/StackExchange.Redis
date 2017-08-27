@@ -2,35 +2,38 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Xunit;
+using Xunit.Abstractions;
 
-namespace Tests
+namespace StackExchange.Redis.Tests.Booksleeve
 {
-    public class Batches
+    public class Batches : BookSleeveTestBase
     {
+        public Batches(ITestOutputHelper output) : base(output) { }
+
         [Fact]
         public void TestBatchNotSent()
         {
-            using (var muxer = Config.GetUnsecuredConnection())
+            using (var muxer = GetUnsecuredConnection())
             {
                 var conn = muxer.GetDatabase(0);
                 conn.KeyDeleteAsync("batch");
                 conn.StringSetAsync("batch", "batch-not-sent");
                 var tasks = new List<Task>();
                 var batch = conn.CreateBatch();
-                
+
                 tasks.Add(batch.KeyDeleteAsync("batch"));
                 tasks.Add(batch.SetAddAsync("batch", "a"));
                 tasks.Add(batch.SetAddAsync("batch", "b"));
                 tasks.Add(batch.SetAddAsync("batch", "c"));
 
-                Assert.Equal("batch-not-sent", (string)conn.StringGet("batch"));
+                Assert.Equal("batch-not-sent", conn.StringGet("batch"));
             }
         }
 
         [Fact]
         public void TestBatchSent()
         {
-            using (var muxer = Config.GetUnsecuredConnection())
+            using (var muxer = GetUnsecuredConnection())
             {
                 var conn = muxer.GetDatabase(0);
                 conn.KeyDeleteAsync("batch");
@@ -42,7 +45,7 @@ namespace Tests
                 tasks.Add(batch.SetAddAsync("batch", "b"));
                 tasks.Add(batch.SetAddAsync("batch", "c"));
                 batch.Execute();
-                
+
                 var result = conn.SetMembersAsync("batch");
                 tasks.Add(result);
                 Task.WhenAll(tasks.ToArray());
@@ -50,9 +53,9 @@ namespace Tests
                 var arr = result.Result;
                 Array.Sort(arr, (x, y) => string.Compare(x, y));
                 Assert.Equal(3, arr.Length);
-                Assert.Equal("a", (string)arr[0]);
-                Assert.Equal("b", (string)arr[1]);
-                Assert.Equal("c", (string)arr[2]);
+                Assert.Equal("a", arr[0]);
+                Assert.Equal("b", arr[1]);
+                Assert.Equal("c", arr[2]);
             }
         }
     }

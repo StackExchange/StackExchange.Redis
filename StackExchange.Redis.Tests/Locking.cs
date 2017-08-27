@@ -70,7 +70,7 @@ namespace StackExchange.Redis.Tests
         //[Test]
         //public void TestOpCountByVersionLocal_DownLevel()
         //{
-        //    using (var conn = Config.GetUnsecuredConnection(open: false))
+        //    using (var conn = GetUnsecuredConnection(open: false))
         //    {
         //        conn.SetServerVersion(new Version(2, 6, 0), ServerType.Master);
         //        TestLockOpCountByVersion(conn, 5, false);
@@ -83,7 +83,7 @@ namespace StackExchange.Redis.Tests
         //[Test]
         //public void TestOpCountByVersionRemote()
         //{
-        //    using (var conn = Config.GetRemoteConnection(open: false))
+        //    using (var conn = GetRemoteConnection(open: false))
         //    {
         //        TestLockOpCountByVersion(conn, 1, false);
         //        TestLockOpCountByVersion(conn, 1, true);
@@ -193,11 +193,11 @@ namespace StackExchange.Redis.Tests
         //    const string Key = "TestManualLockOpCountByVersion";
         //    conn.Wait(conn.Open());
         //    conn.Keys.Remove(DB, Key);
-        //    var newVal = "us:" + Config.CreateUniqueName();
+        //    var newVal = "us:" + CreateUniqueName();
         //    string expectedVal = newVal;
         //    if (existFirst)
         //    {
-        //        expectedVal = "other:" + Config.CreateUniqueName();
+        //        expectedVal = "other:" + CreateUniqueName();
         //        conn.Strings.Set(DB, Key, expectedVal, LockDuration);
         //    }
         //    int countBefore = conn.GetCounters().MessagesSent;

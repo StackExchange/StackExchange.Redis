@@ -1,36 +1,31 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
-using StackExchange.Redis;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace Tests
+namespace StackExchange.Redis.Tests.Booksleeve
 {
-    public class Locking
+    public class Locking : BookSleeveTestBase
     {
-        private ITestOutputHelper Output { get; }
-        public Locking(ITestOutputHelper output)
-        {
-            Output = output;
-        }
+        public Locking(ITestOutputHelper output) : base(output) { }
 
         [Fact]
         public void AggressiveParallel()
         {
             int count = 2;
             int errorCount = 0;
-            
-            ManualResetEvent evt = new ManualResetEvent(false);
-            using (var c1 = Config.GetUnsecuredConnection(waitForOpen: true))
-            using (var c2 = Config.GetUnsecuredConnection(waitForOpen: true))
+
+            var evt = new ManualResetEvent(false);
+            using (var c1 = GetUnsecuredConnection(waitForOpen: true))
+            using (var c2 = GetUnsecuredConnection(waitForOpen: true))
             {
                 WaitCallback cb = obj =>
                 {
                     var conn = (ConnectionMultiplexer)obj;
                     conn.InternalError += (o, e) =>
                     {
-                        Output.WriteLine("Error: " + e.Exception.ToString());
+                        Output.WriteLine("Error: " + e.Exception);
                         Interlocked.Increment(ref errorCount);
                     };
                     conn.ErrorMessage += (o, e) =>
@@ -57,7 +52,7 @@ namespace Tests
         [Fact]
         public void TestOpCountByVersionLocal_UpLevel()
         {
-            using (var conn = Config.GetUnsecuredConnection(open: false))
+            using (var conn = GetUnsecuredConnection(open: false))
             {
                 TestLockOpCountByVersion(conn, 1, false);
                 TestLockOpCountByVersion(conn, 1, true);
@@ -70,7 +65,7 @@ namespace Tests
         //{
         //    var config = new ConfigurationOptions
         //    {
-        //        EndPoints = { { Config.LocalHost } },
+        //        EndPoints = { { LocalHost } },
         //        DefaultVersion = new Version(2, 6, 0),
         //        CommandMap = CommandMap.Create(
         //            new HashSet<string> { "info" }, false)
@@ -87,7 +82,7 @@ namespace Tests
         //[Fact]
         //public void TestOpCountByVersionRemote()
         //{
-        //    using (var conn = Config.GetRemoteConnection(open: false))
+        //    using (var conn = GetRemoteConnection(open: false))
         //    {
         //        TestLockOpCountByVersion(conn, 1, false);
         //        TestLockOpCountByVersion(conn, 1, true);
@@ -102,11 +97,11 @@ namespace Tests
 
             var db = conn.GetDatabase(DB);
             db.KeyDelete(Key);
-            var newVal = "us:" + Config.CreateUniqueName();
+            var newVal = "us:" + CreateUniqueName();
             string expectedVal = newVal;
             if (existFirst)
             {
-                expectedVal = "other:" + Config.CreateUniqueName();
+                expectedVal = "other:" + CreateUniqueName();
                 db.StringSet(Key, expectedVal, TimeSpan.FromSeconds(LockDuration));
             }
             long countBefore = conn.GetCounters().Interactive.OperationCount;
@@ -115,15 +110,15 @@ namespace Tests
             string valAfter = db.StringGet(Key);
             Assert.Equal(!existFirst, taken); // lock taken
             Assert.Equal(expectedVal, valAfter); // taker
-            Console.WriteLine("{0} ops before, {1} ops after", countBefore, countAfter);
-            Assert.Equal(expected, (countAfter - countBefore)); // expected ops (including ping)
+            Output.WriteLine("{0} ops before, {1} ops after", countBefore, countAfter);
+            Assert.Equal(expected, countAfter - countBefore); // expected ops (including ping)
             // note we get a ping from GetCounters
         }
 
         [Fact]
         public void TakeLockAndExtend()
         {
-            using (var conn = Config.GetUnsecuredConnection())
+            using (var conn = GetUnsecuredConnection())
             {
                 string right = Guid.NewGuid().ToString(),
                     wrong = Guid.NewGuid().ToString();
@@ -149,7 +144,7 @@ namespace Tests
                 var t11 = db.LockReleaseAsync(Key, right);
                 var t12 = db.StringGetAsync(Key);
                 var t13 = db.LockTakeAsync(Key, wrong, TimeSpan.FromSeconds(10));
-                
+
                 Assert.NotNull(right);
                 Assert.NotNull(wrong);
                 Assert.NotEqual(right, wrong);
@@ -172,18 +167,17 @@ namespace Tests
             }
         }
 
-
         ////public void TestManualLockOpCountByVersion(RedisConnection conn, int expected, bool existFirst)
         ////{
         ////    const int DB = 0, LockDuration = 30;
         ////    const string Key = "TestManualLockOpCountByVersion";
         ////    conn.Wait(conn.Open());
         ////    conn.Keys.Remove(DB, Key);
-        ////    var newVal = "us:" + Config.CreateUniqueName();
+        ////    var newVal = "us:" + CreateUniqueName();
         ////    string expectedVal = newVal;
         ////    if (existFirst)
         ////    {
-        ////        expectedVal = "other:" + Config.CreateUniqueName();
+        ////        expectedVal = "other:" + CreateUniqueName();
         ////        conn.Strings.Set(DB, Key, expectedVal, LockDuration);
         ////    }
         ////    int countBefore = conn.GetCounters().MessagesSent;
@@ -201,12 +195,10 @@ namespace Tests
         ////    // note we get a ping from GetCounters
         ////}
 
-
-
         [Fact]
         public void TestBasicLockNotTaken()
         {
-            using (var conn = Config.GetUnsecuredConnection())
+            using (var conn = GetUnsecuredConnection())
             {
                 int errorCount = 0;
 
@@ -237,7 +229,7 @@ namespace Tests
         [Fact]
         public void TestBasicLockTaken()
         {
-            using (var conn = Config.GetUnsecuredConnection())
+            using (var conn = GetUnsecuredConnection())
             {
                 var db = conn.GetDatabase(0);
                 db.KeyDelete("lock-exists");
