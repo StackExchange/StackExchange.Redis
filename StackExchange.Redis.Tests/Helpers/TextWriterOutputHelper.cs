@@ -13,11 +13,13 @@ namespace StackExchange.Redis.Tests.Helpers
 
         public override void Write(char value)
         {
-            if (value == '\n')
+            if (value == '\n' || value == '\r')
             {
-                var text = Buffer.ToString();
-                Output.WriteLine(text);
-                Buffer.Clear();
+                // Ignore empty lines
+                if (Buffer.Length > 0)
+                {
+                    FlushBuffer();
+                }
             }
             else
             {
@@ -29,11 +31,16 @@ namespace StackExchange.Redis.Tests.Helpers
         {
             if (Buffer.Length > 0)
             {
-                var text = Buffer.ToString();
-                Output.WriteLine(text);
-                Buffer.Clear();
+                FlushBuffer();
             }
             base.Dispose(disposing);
+        }
+
+        private void FlushBuffer()
+        {
+            var text = Buffer.ToString();
+            Output.WriteLine(text);
+            Buffer.Clear();
         }
     }
 }
