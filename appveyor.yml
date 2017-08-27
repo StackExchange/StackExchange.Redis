@@ -19,6 +19,30 @@ install:
 
     redis-server.exe --service-start --service-name "redis-secure"
 
+    redis-server.exe --service-install --service-name "redis-7000" "..\Cluster\7000\redis.conf"
+
+    redis-server.exe --service-install --service-name "redis-7001" "..\Cluster\7001\redis.conf"
+
+    redis-server.exe --service-install --service-name "redis-7002" "..\Cluster\7002\redis.conf"
+
+    redis-server.exe --service-install --service-name "redis-7003" "..\Cluster\7003\redis.conf"
+
+    redis-server.exe --service-install --service-name "redis-7004" "..\Cluster\7004\redis.conf"
+
+    redis-server.exe --service-install --service-name "redis-7005" "..\Cluster\7005\redis.conf"
+
+    redis-server.exe --service-start --service-name "redis-7000"
+
+    redis-server.exe --service-start --service-name "redis-7001"
+
+    redis-server.exe --service-start --service-name "redis-7002"
+
+    redis-server.exe --service-start --service-name "redis-7003"
+
+    redis-server.exe --service-start --service-name "redis-7004"
+
+    redis-server.exe --service-start --service-name "redis-7005"
+
     cd ..\..
 
 skip_branch_with_pr: true
