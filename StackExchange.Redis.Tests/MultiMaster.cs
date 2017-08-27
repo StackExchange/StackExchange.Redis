@@ -7,6 +7,7 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
+    [Collection(NonParallelCollection.Name)]
     public class MultiMaster : TestBase
     {
         protected override string GetConfiguration() =>

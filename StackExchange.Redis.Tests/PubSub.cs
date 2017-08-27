@@ -8,6 +8,7 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
+    [Collection(NonParallelCollection.Name)]
     public class PubSub : TestBase
     {
         public PubSub(ITestOutputHelper output) : base (output) { }
