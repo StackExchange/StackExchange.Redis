@@ -16,13 +16,14 @@ namespace StackExchange.Redis.Tests
         [InlineData(CompletionType.Async)]
         public void ConnectToUnexistingHostFailsWithinTimeout(CompletionType completionType)
         {
+            const int timeout = 1000;
             var sw = Stopwatch.StartNew();
             try
             {
                 var config = new ConfigurationOptions
                 {
                     EndPoints = { { "invalid", 1234 } },
-                    ConnectTimeout = 1000
+                    ConnectTimeout = timeout
                 };
 
                 SocketManager.ConnectCompletionType = completionType;
@@ -37,6 +38,8 @@ namespace StackExchange.Redis.Tests
             catch (RedisConnectionException)
             {
                 var elapsed = sw.ElapsedMilliseconds;
+                Output.WriteLine("Elapsed time: " + elapsed);
+                Output.WriteLine("Timeout: " + timeout);
                 Assert.True(elapsed < 9000, "Connect should fail within ConnectTimeout");
             }
             finally
