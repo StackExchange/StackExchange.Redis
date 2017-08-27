@@ -151,7 +151,7 @@ namespace StackExchange.Redis.Tests
         private const string RedisLabsSslHostFile = @"d:\RedisLabsSslHost.txt";
         private const string RedisLabsPfxPath = @"d:\RedisLabsUser.pfx";
 
-        [SkippableFact]
+        [Fact]
         public void RedisLabsSSL()
         {
             if (!File.Exists(RedisLabsSslHostFile)) Skip.Inconclusive("SSL Hosts File does not exist");

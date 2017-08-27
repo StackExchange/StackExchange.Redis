@@ -16,14 +16,12 @@ namespace StackExchange.Redis.Tests.Booksleeve
             int syncTimeout = 5000;
             if (Debugger.IsAttached) syncTimeout = 500000;
             var muxer = GetUnsecuredConnection(waitForOpen: true, allowAdmin: allowAdmin, syncTimeout: syncTimeout);
-            if (!GetFeatures(muxer).Scripting)
-            {
-                Skip.NotSupported(nameof(RedisFeatures.Scripting));
-            }
+
+            Skip.IfMissingFeature(muxer, nameof(RedisFeatures.Scripting), r => r.Scripting);
             return muxer;
         }
 
-        [SkippableFact]
+        [Fact]
         public void ClientScripting()
         {
             using (var conn = GetScriptConn())
@@ -32,7 +30,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
             }
         }
 
-        [SkippableFact]
+        [Fact]
         public void BasicScripting()
         {
             using (var muxer = GetScriptConn())
@@ -58,7 +56,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
             }
         }
 
-        [SkippableFact]
+        [Fact]
         public void KeysScripting()
         {
             using (var muxer = GetScriptConn())
@@ -70,7 +68,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
             }
         }
 
-        [SkippableFact]
+        [Fact]
         public void TestRandomThingFromForum()
         {
             const string script = @"local currentVal = tonumber(redis.call('GET', KEYS[1]));
@@ -99,7 +97,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
             }
         }
 
-        [SkippableFact]
+        [Fact]
         public void HackyGetPerf()
         {
             using (var muxer = GetScriptConn())
@@ -121,7 +119,7 @@ return timeTaken
             }
         }
 
-        [SkippableFact]
+        [Fact]
         public void MultiIncrWithoutReplies()
         {
             using (var muxer = GetScriptConn())
@@ -153,7 +151,7 @@ return timeTaken
             }
         }
 
-        [SkippableFact]
+        [Fact]
         public void MultiIncrByWithoutReplies()
         {
             using (var muxer = GetScriptConn())
@@ -185,7 +183,7 @@ return timeTaken
             }
         }
 
-        [SkippableFact]
+        [Fact]
         public void DisableStringInference()
         {
             using (var muxer = GetScriptConn())
@@ -197,7 +195,7 @@ return timeTaken
             }
         }
 
-        [SkippableFact]
+        [Fact]
         public void FlushDetection()
         { // we don't expect this to handle everything; we just expect it to be predictable
             using (var muxer = GetScriptConn(allowAdmin: true))
@@ -218,7 +216,7 @@ return timeTaken
             }
         }
 
-        [SkippableFact]
+        [Fact]
         public void PrepareScript()
         {
             string[] scripts = { "return redis.call('get', KEYS[1])", "return {KEYS[1],KEYS[2],ARGV[1],ARGV[2]}" };
@@ -253,7 +251,7 @@ return timeTaken
             }
         }
 
-        [SkippableFact]
+        [Fact]
         public void NonAsciiScripts()
         {
             using (var muxer = GetScriptConn())
@@ -267,7 +265,7 @@ return timeTaken
             }
         }
 
-        [SkippableFact]
+        [Fact]
         public void ScriptThrowsError()
         {
             Assert.Throws<RedisServerException>(() =>
@@ -288,7 +286,7 @@ return timeTaken
             });
         }
 
-        [SkippableFact]
+        [Fact]
         public void ScriptThrowsErrorInsideTransaction()
         {
             using (var muxer = GetScriptConn())
@@ -315,7 +313,7 @@ return timeTaken
                     Assert.True(b.IsFaulted);
                     Assert.Single(b.Exception.InnerExceptions);
                     var ex = b.Exception.InnerExceptions.Single();
-                    Assert.IsType<RedisException>(ex);
+                    Assert.IsType<RedisServerException>(ex);
                     Assert.Equal("oops", ex.Message);
                 }
                 var afterTran = conn.StringGetAsync(key);
@@ -323,7 +321,7 @@ return timeTaken
             }
         }
 
-        [SkippableFact]
+        [Fact]
         public void ChangeDbInScript()
         {
             using (var muxer = GetScriptConn())
@@ -342,7 +340,7 @@ return timeTaken
             }
         }
 
-        [SkippableFact]
+        [Fact]
         public void ChangeDbInTranScript()
         {
             using (var muxer = GetScriptConn())

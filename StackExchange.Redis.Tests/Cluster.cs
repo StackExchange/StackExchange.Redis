@@ -205,7 +205,7 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [SkippableFact]
+        [Fact]
         public void TransactionWithMultiServerKeys()
         {
             var ex = Assert.Throws<RedisCommandException>(() =>

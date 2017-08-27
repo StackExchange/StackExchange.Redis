@@ -7,9 +7,9 @@ namespace StackExchange.Redis.Tests.Issues
     {
         public BgSaveResponse(ITestOutputHelper output) : base (output) { }
 
-        [Theory]
+        [Theory (Skip = "We don't need to test this, and it really screws local testing hard.")]
 #pragma warning disable 0618
-        [InlineData(SaveType.ForegroundSave)]
+        //[InlineData(SaveType.ForegroundSave)]
 #pragma warning restore 0618
         [InlineData(SaveType.BackgroundSave)]
         [InlineData(SaveType.BackgroundRewriteAppendOnlyFile)]

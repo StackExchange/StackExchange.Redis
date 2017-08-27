@@ -97,10 +97,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         {
             using (var muxer = GetUnsecuredConnection(waitForOpen: true))
             {
-                if (!GetFeatures(muxer).StringSetRange)
-                {
-                    Skip.NotSupported(nameof(RedisFeatures.StringSetRange));
-                }
+                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.StringSetRange), r => r.StringSetRange);
                 var conn = muxer.GetDatabase(2);
 
                 conn.KeyDeleteAsync("range");
@@ -142,15 +139,12 @@ namespace StackExchange.Redis.Tests.Booksleeve
             }
         }
 
-        [SkippableFact]
+        [Fact]
         public void IncrDecrFloat()
         {
             using (var muxer = GetUnsecuredConnection(waitForOpen: true))
             {
-                if (!GetFeatures(muxer).IncrementFloat)
-                {
-                    Skip.NotSupported(nameof(RedisFeatures.IncrementFloat));
-                }
+                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.IncrementFloat), r => r.IncrementFloat);
                 var conn = muxer.GetDatabase(2);
                 conn.KeyDelete("incr");
 
@@ -191,15 +185,12 @@ namespace StackExchange.Redis.Tests.Booksleeve
             }
         }
 
-        [SkippableFact]
+        [Fact]
         public void BitCount()
         {
             using (var muxer = GetUnsecuredConnection(waitForOpen: true))
             {
-                if (!GetFeatures(muxer).BitwiseOperations)
-                {
-                    Skip.NotSupported(nameof(RedisFeatures.BitwiseOperations));
-                }
+                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.BitwiseOperations), r => r.BitwiseOperations);
 
                 var conn = muxer.GetDatabase(0);
                 conn.StringSetAsync("mykey", "foobar");
@@ -213,15 +204,12 @@ namespace StackExchange.Redis.Tests.Booksleeve
             }
         }
 
-        [SkippableFact]
+        [Fact]
         public void BitOp()
         {
             using (var muxer = GetUnsecuredConnection(waitForOpen: true))
             {
-                if (!GetFeatures(muxer).BitwiseOperations)
-                {
-                    Skip.NotSupported(nameof(RedisFeatures.BitwiseOperations));
-                }
+                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.BitwiseOperations), r => r.BitwiseOperations);
                 var conn = muxer.GetDatabase(0);
                 conn.StringSetAsync("key1", new byte[] { 3 });
                 conn.StringSetAsync("key2", new byte[] { 6 });

@@ -318,6 +318,7 @@ namespace StackExchange.Redis.Tests
                 {
                     try
                     {
+                        Output.WriteLine("Key: " + (string)key);
                         var async = db.Wait(db.StringGetWithExpiryAsync(key));
                     }
                     catch (AggregateException e)

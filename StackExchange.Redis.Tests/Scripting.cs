@@ -15,6 +15,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
                 RedisValue newId = Guid.NewGuid().ToString();
                 RedisKey custKey = Me();
                 var db = conn.GetDatabase();
@@ -40,6 +41,7 @@ namespace StackExchange.Redis.Tests
             using (var conn0 = Create(allowAdmin: true))
             using (var conn1 = Create(allowAdmin: true))
             {
+                Skip.IfMissingFeature(conn0, nameof(RedisFeatures.Scripting), f => f.Scripting);
                 // note that these are on different connections (so we wouldn't expect
                 // the flush to drop the local cache - assume it is a surprise!)
                 var server = conn0.GetServer(PrimaryServer, PrimaryPort);
@@ -99,6 +101,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create(allowAdmin: true))
             {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
                 var server = conn.GetServer(PrimaryServer, PrimaryPort);
                 server.FlushAllDatabases();
                 server.ScriptFlush();
@@ -152,6 +155,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create(allowAdmin: true))
             {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
                 var server = conn.GetServer(PrimaryServer, PrimaryPort);
                 server.FlushAllDatabases();
                 server.ScriptFlush();
@@ -179,6 +183,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create(allowAdmin: true))
             {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
                 var server = conn.GetServer(PrimaryServer, PrimaryPort);
                 server.FlushAllDatabases();
                 server.ScriptFlush();
@@ -226,6 +231,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create(allowAdmin: true))
             {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
                 var server = conn.GetServer(PrimaryServer, PrimaryPort);
                 server.FlushAllDatabases();
                 server.ScriptFlush();
@@ -254,6 +260,7 @@ namespace StackExchange.Redis.Tests
             const string Script = "redis.call('set', @key, 'hello@example')";
             using (var conn = Create(allowAdmin: true))
             {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
                 var server = conn.GetServer(PrimaryServer, PrimaryPort);
                 server.FlushAllDatabases();
                 server.ScriptFlush();
@@ -288,6 +295,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create(allowAdmin: true))
             {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
                 var server = conn.GetServer(PrimaryServer, PrimaryPort);
                 server.FlushAllDatabases();
                 server.ScriptFlush();
@@ -336,6 +344,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create(allowAdmin: true))
             {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
                 var server = conn.GetServer(PrimaryServer, PrimaryPort);
                 server.FlushAllDatabases();
                 server.ScriptFlush();
@@ -409,6 +418,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create(allowAdmin: true))
             {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
                 var script = LuaScript.Prepare(Script);
                 var db = conn.GetDatabase();
                 db.ScriptEvaluate(script, new { key = (RedisKey)"key", value = "value" });
@@ -430,6 +440,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create(allowAdmin: true))
             {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
                 var script = LuaScript.Prepare(Script);
                 var server = conn.GetServer(conn.GetEndPoints()[0]);
                 var db = conn.GetDatabase();
@@ -466,8 +477,9 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create(allowAdmin: true))
             {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
                 var db = conn.GetDatabase(0);
-                var wrappedDb = StackExchange.Redis.KeyspaceIsolation.DatabaseExtensions.WithKeyPrefix(db, "prefix-");
+                var wrappedDb = KeyspaceIsolation.DatabaseExtensions.WithKeyPrefix(db, "prefix-");
 
                 var prepared = LuaScript.Prepare(Script);
                 wrappedDb.ScriptEvaluate(prepared, new { key = (RedisKey)"mykey", value = 123 });
@@ -489,8 +501,9 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create(allowAdmin: true))
             {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
                 var db = conn.GetDatabase(0);
-                var wrappedDb = StackExchange.Redis.KeyspaceIsolation.DatabaseExtensions.WithKeyPrefix(db, "prefix2-");
+                var wrappedDb = KeyspaceIsolation.DatabaseExtensions.WithKeyPrefix(db, "prefix2-");
 
                 var server = conn.GetServer(conn.GetEndPoints()[0]);
                 var prepared = LuaScript.Prepare(Script).Load(server);

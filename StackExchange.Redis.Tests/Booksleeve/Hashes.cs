@@ -29,15 +29,13 @@ namespace StackExchange.Redis.Tests.Booksleeve
             }
         }
 
-        [SkippableFact]
+        [Fact]
         public void Scan()
         {
             using (var muxer = GetUnsecuredConnection(waitForOpen: true))
             {
-                if (!GetFeatures(muxer).Scan)
-                {
-                    Skip.NotSupported(nameof(RedisFeatures.Scan));
-                }
+                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.Scan), r => r.Scan);
+
                 const int db = 3;
                 var conn = muxer.GetDatabase(db);
 
@@ -87,16 +85,13 @@ namespace StackExchange.Redis.Tests.Booksleeve
             }
         }
 
-        [SkippableFact]
+        [Fact]
         public void TestIncrByFloat()
         {
             using (var muxer = GetUnsecuredConnection(waitForOpen: true))
             {
+                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.IncrementFloat), r => r.IncrementFloat);
                 var conn = muxer.GetDatabase(5);
-                if (!GetFeatures(muxer).IncrementFloat)
-                {
-                    Skip.NotSupported(nameof(RedisFeatures.Scan));
-                }
                 conn.KeyDeleteAsync("hash-test");
                 for (int i = 1; i < 1000; i++)
                 {

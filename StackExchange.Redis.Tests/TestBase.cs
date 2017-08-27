@@ -241,10 +241,7 @@ namespace StackExchange.Redis.Tests
             return muxer;
         }
 
-        protected static string Me([CallerMemberName] string caller = null)
-        {
-            return caller;
-        }
+        protected static string Me([CallerMemberName] string caller = null) => caller;
 
 #if FEATURE_BOOKSLEEVE
         protected static RedisConnection GetOldStyleConnection(bool open = true, bool allowAdmin = false, bool waitForOpen = false, int syncTimeout = 5000, int ioTimeout = 5000)
