@@ -75,7 +75,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
                 withFAF.ElapsedMilliseconds, withAsync.ElapsedMilliseconds, caption);
         }
 
-        [Fact]
+        [FactLongRunning]
         public async Task PubSubOrder()
         {
             using (var muxer = GetRemoteConnection(waitForOpen: true))

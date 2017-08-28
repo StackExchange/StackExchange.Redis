@@ -2,6 +2,7 @@
 using Jil;
 using System;
 using System.Reflection;
+using System.Collections.Generic;
 
 namespace StackExchange.Redis.Tests
 {
@@ -70,6 +71,8 @@ namespace StackExchange.Redis.Tests
 
             public string SSDBServer { get; set; }
             public int SSDBPort { get; set; } = 8888;
+
+            public List<string> VPNConfigs { get; set; }
         }
     }
 }

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 
 namespace StackExchange.Redis.Tests
 {
@@ -9,6 +10,13 @@ namespace StackExchange.Redis.Tests
         public static void IfNoConfig(string prop, string value)
         {
             if (string.IsNullOrEmpty(value))
+            {
+                throw new SkipTestException($"Config.{prop} is not set, skipping test.");
+            }
+        }
+        public static void IfNoConfig(string prop, List<string> values)
+        {
+            if (values == null || values.Count == 0)
             {
                 throw new SkipTestException($"Config.{prop} is not set, skipping test.");
             }
