@@ -13,11 +13,13 @@ namespace StackExchange.Redis.Tests
         [InlineData(false)]
         public void SSLCertificateValidationError(bool isCertValidationSucceeded)
         {
-            GetAzureCredentials(out string name, out string password);
+            Skip.IfNoConfig(nameof(TestConfig.Config.AzureCacheServer), TestConfig.Current.AzureCacheServer);
+            Skip.IfNoConfig(nameof(TestConfig.Config.AzureCachePassword), TestConfig.Current.AzureCachePassword);
+
             var options = new ConfigurationOptions();
-            options.EndPoints.Add(name + ".redis.cache.windows.net");
+            options.EndPoints.Add(TestConfig.Current.AzureCacheServer);
             options.Ssl = true;
-            options.Password = password;
+            options.Password = TestConfig.Current.AzureCachePassword;
             options.CertificateValidation += (sender, cert, chain, errors) => isCertValidationSucceeded;
             options.AbortOnConnectFail = false;
 
@@ -46,9 +48,10 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void AuthenticationFailureError()
         {
-            GetAzureCredentials(out string name, out string password);
+            Skip.IfNoConfig(nameof(TestConfig.Config.AzureCacheServer), TestConfig.Current.AzureCacheServer);
+            
             var options = new ConfigurationOptions();
-            options.EndPoints.Add(name + ".redis.cache.windows.net");
+            options.EndPoints.Add(TestConfig.Current.AzureCacheServer);
             options.Ssl = true;
             options.Password = "";
             options.AbortOnConnectFail = false;
@@ -85,12 +88,14 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void AbortOnConnectFailFalseConnectTimeoutError()
         {
-            GetAzureCredentials(out string name, out string password);
+            Skip.IfNoConfig(nameof(TestConfig.Config.AzureCacheServer), TestConfig.Current.AzureCacheServer);
+            Skip.IfNoConfig(nameof(TestConfig.Config.AzureCachePassword), TestConfig.Current.AzureCachePassword);
+
             var options = new ConfigurationOptions();
-            options.EndPoints.Add(name + ".redis.cache.windows.net");
+            options.EndPoints.Add(TestConfig.Current.AzureCacheServer);
             options.Ssl = true;
             options.ConnectTimeout = 0;
-            options.Password = password;
+            options.Password = TestConfig.Current.AzureCachePassword;
             using (var muxer = ConnectionMultiplexer.Connect(options))
             {
                 var ex = Assert.Throws<RedisConnectionException>(() => muxer.GetDatabase().Ping());

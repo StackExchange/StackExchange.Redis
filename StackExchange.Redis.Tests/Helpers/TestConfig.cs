@@ -57,6 +57,9 @@ namespace StackExchange.Redis.Tests
             public string RedisLabsSslServer { get; set; }
             public int RedisLabsSslPort { get; set; } = 6379;
             public string RedisLabsPfxPath { get; set; }
+
+            public string AzureCacheServer { get; set; }
+            public string AzureCachePassword { get; set; }
         }
     }
 }

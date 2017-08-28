@@ -19,18 +19,20 @@ namespace StackExchange.Redis.Tests
         [InlineData(6379, false)]
         public void ConnectToAzure(int? port, bool ssl)
         {
-            GetAzureCredentials(out string name, out string password);
+            Skip.IfNoConfig(nameof(TestConfig.Config.AzureCacheServer), TestConfig.Current.AzureCacheServer);
+            Skip.IfNoConfig(nameof(TestConfig.Config.AzureCachePassword), TestConfig.Current.AzureCachePassword);
+
             var options = new ConfigurationOptions();
             if (port == null)
             {
-                options.EndPoints.Add(name + ".redis.cache.windows.net");
+                options.EndPoints.Add(TestConfig.Current.AzureCacheServer);
             }
             else
             {
-                options.EndPoints.Add(name + ".redis.cache.windows.net", port.Value);
+                options.EndPoints.Add(TestConfig.Current.AzureCacheServer, port.Value);
             }
             options.Ssl = ssl;
-            options.Password = password;
+            options.Password = TestConfig.Current.AzureCachePassword;
             Output.WriteLine(options.ToString());
             using (var connection = ConnectionMultiplexer.Connect(options))
             {
@@ -45,10 +47,7 @@ namespace StackExchange.Redis.Tests
         [InlineData(true, true)]
         public void ConnectToSSLServer(bool useSsl, bool specifyHost)
         {
-            if (string.IsNullOrWhiteSpace(TestConfig.Current.SslServer))
-            {
-                Skip.Inconclusive("Config.SslServer is not set, skipping test.");
-            }
+            Skip.IfNoConfig(nameof(TestConfig.Config.SslServer), TestConfig.Current.SslServer);
 
             var config = new ConfigurationOptions
             {
@@ -149,14 +148,8 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void RedisLabsSSL()
         {
-            if (string.IsNullOrEmpty(TestConfig.Current.RedisLabsSslServer))
-            {
-                Skip.Inconclusive("Config.RedisLabsSslServer is not set, skipping test.");
-            }
-            if (string.IsNullOrEmpty(TestConfig.Current.RedisLabsPfxPath))
-            {
-                Skip.Inconclusive("Config.RedisLabsPfxPath is not set, skipping test.");
-            }
+            Skip.IfNoConfig(nameof(TestConfig.Config.RedisLabsSslServer), TestConfig.Current.RedisLabsSslServer);
+            Skip.IfNoConfig(nameof(TestConfig.Config.RedisLabsPfxPath), TestConfig.Current.RedisLabsPfxPath);
 
             int timeout = 5000;
             if (Debugger.IsAttached) timeout *= 100;
@@ -206,14 +199,8 @@ namespace StackExchange.Redis.Tests
         {
             try
             {
-                if (string.IsNullOrEmpty(TestConfig.Current.RedisLabsSslServer))
-                {
-                    Skip.Inconclusive("Config.RedisLabsSslServer is not set, skipping test.");
-                }
-                if (string.IsNullOrEmpty(TestConfig.Current.RedisLabsPfxPath))
-                {
-                    Skip.Inconclusive("Config.RedisLabsPfxPath is not set, skipping test.");
-                }
+                Skip.IfNoConfig(nameof(TestConfig.Config.RedisLabsSslServer), TestConfig.Current.RedisLabsSslServer);
+                Skip.IfNoConfig(nameof(TestConfig.Config.RedisLabsPfxPath), TestConfig.Current.RedisLabsPfxPath);
 
                 if (setEnv)
                 {

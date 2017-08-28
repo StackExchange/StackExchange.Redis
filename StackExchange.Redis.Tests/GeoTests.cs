@@ -16,17 +16,20 @@ namespace StackExchange.Redis.Tests
 
         private ConnectionMultiplexer Create()
         {
-            GetAzureCredentials(out string name, out string password);
+            Skip.IfNoConfig(nameof(TestConfig.Config.AzureCacheServer), TestConfig.Current.AzureCacheServer);
+            Skip.IfNoConfig(nameof(TestConfig.Config.AzureCachePassword), TestConfig.Current.AzureCachePassword);
+            
             var options = new ConfigurationOptions();
-            options.EndPoints.Add(name + ".redis.cache.windows.net");
+            options.EndPoints.Add(TestConfig.Current.AzureCacheServer);
             options.Ssl = true;
             options.ConnectTimeout = 5000;
-            options.Password = password;
+            options.Password = TestConfig.Current.AzureCachePassword;
             options.TieBreaker = "";
             var log = new StringWriter();
             var conn = ConnectionMultiplexer.Connect(options, log);
             var s = log.ToString();
             Output.WriteLine(s);
+            Skip.IfMissingFeature(conn, nameof(RedisFeatures.Geo), r => r.Geo);
             return conn;
         }
 
