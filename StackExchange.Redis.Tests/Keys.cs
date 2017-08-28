@@ -14,15 +14,16 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create(allowAdmin: true))
             {
-                const int Database = 4;
+                const int Database = 43;
                 var db = muxer.GetDatabase(Database);
-                GetServer(muxer).FlushDatabase(flags: CommandFlags.FireAndForget);
+                var server = GetAnyMaster(muxer);
+                server.FlushDatabase(flags: CommandFlags.FireAndForget);
 
                 const int Count = 1000;
                 for (int i = 0; i < Count; i++)
                     db.StringSet("x" + i, "y" + i, flags: CommandFlags.FireAndForget);
 
-                var count = GetServer(muxer).Keys(Database).Count();
+                var count = server.Keys(Database).Count();
                 Assert.Equal(Count, count);
             }
         }

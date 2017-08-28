@@ -79,10 +79,14 @@ namespace StackExchange.Redis.Tests
 
                 switch (method.Name)
                 {
-                    case "KeyRandom":
-                    case "KeyRandomAsync":
-                    case "Publish":
-                    case "PublishAsync":
+                    case nameof(IDatabase.KeyRandom):
+                    case nameof(IDatabaseAsync.KeyRandomAsync):
+                    case nameof(IDatabase.Publish):
+                    case nameof(IDatabaseAsync.PublishAsync):
+                    case nameof(IDatabase.Execute):
+                    case nameof(IDatabaseAsync.ExecuteAsync):
+                    case nameof(IDatabase.ScriptEvaluate):
+                    case nameof(IDatabaseAsync.ScriptEvaluateAsync):
                         continue; // they're fine, but don't want to widen check to return type
                 }
 
@@ -113,13 +117,15 @@ namespace StackExchange.Redis.Tests
             if (name.StartsWith("get_") || name.StartsWith("set_") || name.StartsWith("add_") || name.StartsWith("remove_")) return true;
             switch (name)
             {
-                case "CreateBatch":
-                case "CreateTransaction":
-                case "IsConnected":
-                case "SetScan":
-                case "SortedSetScan":
-                case "HashScan":
-                case "SubscribedEndpoint":
+                case nameof(IDatabase.CreateBatch):
+                case nameof(IDatabase.CreateTransaction):
+                case nameof(IDatabase.Execute):
+                case nameof(IDatabaseAsync.ExecuteAsync):
+                case nameof(IDatabase.IsConnected):
+                case nameof(IDatabase.SetScan):
+                case nameof(IDatabase.SortedSetScan):
+                case nameof(IDatabase.HashScan):
+                case nameof(ISubscriber.SubscribedEndpoint):
                     return true;
             }
             return false;
@@ -160,6 +166,7 @@ namespace StackExchange.Redis.Tests
                 }
                 var pFrom = method.GetParameters();
                 Type[] args = pFrom.Select(x => x.ParameterType).ToArray();
+                Output.WriteLine("Checking: {0}.{1}", from.Name, method.Name);
                 Assert.Equal(typeof(CommandFlags), args.Last());
 #if !CORE_CLR
                 var found = to.GetMethod(huntName, flags, null, method.CallingConvention, args, null);
@@ -206,11 +213,20 @@ namespace StackExchange.Redis.Tests
             CheckName(method, isAsync);
             if (!ignorePrefix)
             {
-                Assert.True(shortName.StartsWith("Hash") || shortName.StartsWith("Key")
-                    || shortName.StartsWith("String") || shortName.StartsWith("List")
-                    || shortName.StartsWith("SortedSet") || shortName.StartsWith("Set")
-                    || shortName.StartsWith("Debug") || shortName.StartsWith("Lock")
-                    || shortName.StartsWith("Script") || shortName.StartsWith("HyperLogLog")
+                Assert.True(
+                    shortName.StartsWith("Debug")
+                    || shortName.StartsWith("Execute")
+                    || shortName.StartsWith("Geo")
+                    || shortName.StartsWith("Hash")
+                    || shortName.StartsWith("HyperLogLog")
+                    || shortName.StartsWith("Key")
+                    || shortName.StartsWith("List")
+                    || shortName.StartsWith("Lock")
+                    || shortName.StartsWith("Publish")
+                    || shortName.StartsWith("Set")
+                    || shortName.StartsWith("Script")
+                    || shortName.StartsWith("SortedSet")
+                    || shortName.StartsWith("String") 
                     , fullName + ":Prefix");
             }
 

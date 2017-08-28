@@ -326,7 +326,7 @@ namespace StackExchange.Redis.Tests
                         throw e.InnerExceptions[0];
                     }
                 });
-                Assert.Equal("A null key is not valid in this context", ex.Message);
+                Assert.Equal("WRONGTYPE Operation against a key holding the wrong kind of value", ex.Message);
             }
         }
 

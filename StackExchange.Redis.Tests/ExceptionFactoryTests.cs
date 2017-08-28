@@ -98,7 +98,7 @@ namespace StackExchange.Redis.Tests
 
                     var ex = ExceptionFactory.NoConnectionAvailable(true, true, new RedisCommand(), null, muxer.GetServerSnapshot()[0], muxer.GetServerSnapshot());
                     Assert.IsType<RedisConnectionException>(ex);
-                    Assert.IsType<Exception>(ex.InnerException);
+                    Assert.IsType<RedisConnectionException>(ex.InnerException);
                     Assert.Equal(ex.InnerException, muxer.GetServerSnapshot()[0].LastException);
                 }
             }

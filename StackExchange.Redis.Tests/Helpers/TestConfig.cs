@@ -50,7 +50,7 @@ namespace StackExchange.Redis.Tests
             public string RemoteServer { get; set; } = "127.0.0.1";
             public int RemotePort { get; set; } = 6379;
 
-            public string SentinelServer { get; set; } = "127.0.0.1";
+            public string SentinelServer { get; set; }
             public int SentinelPort { get; set; } = 26379;
             public string SentinelSeviceName { get; set; } = "mymaster";
 
@@ -67,6 +67,9 @@ namespace StackExchange.Redis.Tests
 
             public string AzureCacheServer { get; set; }
             public string AzureCachePassword { get; set; }
+
+            public string SSDBServer { get; set; }
+            public int SSDBPort { get; set; } = 8888;
         }
     }
 }

@@ -8,8 +8,6 @@ namespace StackExchange.Redis.Tests
 {
     public class Sentinel
     {
-        private string ServerName => TestConfig.Current.SentinelServer;
-        private int Port => TestConfig.Current.SentinelPort;
         private string ServiceName => TestConfig.Current.SentinelSeviceName;
 
         private ConnectionMultiplexer Conn { get; }
@@ -19,19 +17,23 @@ namespace StackExchange.Redis.Tests
         public Sentinel(ITestOutputHelper output)
         {
             Output = output;
+
+            Skip.IfNoConfig(nameof(TestConfig.Config.SentinelServer), TestConfig.Current.SentinelServer);
+            Skip.IfNoConfig(nameof(TestConfig.Config.SentinelSeviceName), TestConfig.Current.SentinelSeviceName);
+
             var options = new ConfigurationOptions()
             {
                 CommandMap = CommandMap.Sentinel,
-                EndPoints = { { ServerName, Port } },
+                EndPoints = { { TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPort } },
                 AllowAdmin = true,
                 TieBreaker = "",
-                ServiceName = ServiceName,
+                ServiceName = TestConfig.Current.SentinelSeviceName,
                 SyncTimeout = 5000
             };
             Conn = ConnectionMultiplexer.Connect(options, Console.Out);
             Thread.Sleep(3000);
             Assert.True(Conn.IsConnected);
-            Server = Conn.GetServer(ServerName, Port);
+            Server = Conn.GetServer(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPort);
         }
 
         [Fact]

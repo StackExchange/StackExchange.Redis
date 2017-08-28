@@ -24,7 +24,8 @@ namespace StackExchange.Redis.Tests
                 using (var conn = ConnectionMultiplexer.Connect(config))
                 {
                     var servers = conn.GetEndPoints().Select(e => conn.GetServer(e));
-                    var slave = servers.First(x => x.IsSlave);
+                    var slave = servers.FirstOrDefault(x => x.IsSlave);
+                    Assert.NotNull(slave); // Slave not found, ruh roh
                     slave.FlushDatabase();
                 }
             });
@@ -77,7 +78,7 @@ namespace StackExchange.Redis.Tests
                 }
                 catch (RedisConnectionException ex)
                 {
-                    Assert.Equal("No connection is available to service this operation: EXISTS DeslaveGoesToPrimary", ex.Message);
+                    Assert.StartsWith("No connection is available to service this operation: EXISTS DeslaveGoesToPrimary", ex.Message);
                 }
 
                 primary.MakeMaster(ReplicationChangeOptions.Broadcast | ReplicationChangeOptions.EnslaveSubordinates | ReplicationChangeOptions.SetTiebreaker);

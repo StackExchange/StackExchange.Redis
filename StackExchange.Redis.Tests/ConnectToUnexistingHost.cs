@@ -14,7 +14,7 @@ namespace StackExchange.Redis.Tests
         [InlineData(CompletionType.Any)]
         [InlineData(CompletionType.Sync)]
         [InlineData(CompletionType.Async)]
-        public void ConnectToUnexistingHostFailsWithinTimeout(CompletionType completionType)
+        public void FailsWithinTimeout(CompletionType completionType)
         {
             const int timeout = 1000;
             var sw = Stopwatch.StartNew();

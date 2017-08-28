@@ -275,7 +275,7 @@ namespace StackExchange.Redis.Tests
             return anyContext;
         }
 
-        [Fact]
+        [FactLongRunning]
         public void LeaksCollectedAndRePooled()
         {
             const int ThreadCount = 16;

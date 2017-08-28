@@ -60,7 +60,7 @@ namespace StackExchange.Redis.Tests
             using (var muxer = Create(channelPrefix: channelPrefix))
             {
                 muxer.PreserveAsyncOrder = preserveOrder;
-                var pub = GetServer(muxer);
+                var pub = GetAnyMaster(muxer);
                 var sub = muxer.GetSubscriber();
                 Ping(muxer, pub, sub);
                 HashSet<string> received = new HashSet<string>();
@@ -132,7 +132,7 @@ namespace StackExchange.Redis.Tests
             using (var muxer = Create())
             {
                 muxer.PreserveAsyncOrder = preserveOrder;
-                var pub = GetServer(muxer);
+                var pub = GetAnyMaster(muxer);
                 var sub = muxer.GetSubscriber();
 
                 RedisChannel key = Guid.NewGuid().ToString();
@@ -207,7 +207,7 @@ namespace StackExchange.Redis.Tests
             using (var muxer = Create())
             {
                 muxer.PreserveAsyncOrder = preserveOrder;
-                var pub = GetServer(muxer);
+                var pub = GetAnyMaster(muxer);
                 var sub = muxer.GetSubscriber();
 
                 HashSet<string> received = new HashSet<string>();

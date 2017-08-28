@@ -1,4 +1,5 @@
-﻿using Xunit;
+﻿using System.Threading.Tasks;
+using Xunit;
 using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
@@ -8,29 +9,29 @@ namespace StackExchange.Redis.Tests
         public Databases(ITestOutputHelper output) : base (output) { }
 
         [Fact]
-        public void CountKeys()
+        public async Task CountKeys()
         {
             using (var muxer = Create(allowAdmin: true))
             {
-                var server = GetServer(muxer);
+                var server = GetAnyMaster(muxer);
                 server.FlushDatabase(0, CommandFlags.FireAndForget);
                 server.FlushDatabase(1, CommandFlags.FireAndForget);
             }
             using (var muxer = Create())
             {
                 RedisKey key = Me();
-                var db0 = muxer.GetDatabase(0);
-                var db1 = muxer.GetDatabase(1);
-                db0.StringSet("abc", "def", flags: CommandFlags.FireAndForget);
-                db0.StringIncrement(key, flags: CommandFlags.FireAndForget);
-                db1.StringIncrement(key, flags: CommandFlags.FireAndForget);
+                var db61 = muxer.GetDatabase(61);
+                var db62 = muxer.GetDatabase(62);
+                db61.StringSet("abc", "def", flags: CommandFlags.FireAndForget);
+                db61.StringIncrement(key, flags: CommandFlags.FireAndForget);
+                db62.StringIncrement(key, flags: CommandFlags.FireAndForget);
 
-                var server = GetServer(muxer);
-                var c0 = server.DatabaseSizeAsync(0);
-                var c1 = server.DatabaseSizeAsync(1);
+                var server = GetAnyMaster(muxer);
+                var c0 = server.DatabaseSizeAsync(61);
+                var c1 = server.DatabaseSizeAsync(62);
 
-                Assert.Equal(2, muxer.Wait(c0));
-                Assert.Equal(1, muxer.Wait(c1));
+                Assert.Equal(2, await c0);
+                Assert.Equal(1, await c1);
             }
         }
 

@@ -10,9 +10,11 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void ConnectToSSDB()
         {
+            Skip.IfNoConfig(nameof(TestConfig.Config.SSDBServer), TestConfig.Current.SSDBServer);
+
             var config = new ConfigurationOptions
             {
-                EndPoints = { { "ubuntu", 8888 } },
+                EndPoints = { { TestConfig.Current.SSDBServer, TestConfig.Current.SSDBPort } },
                 CommandMap = CommandMap.SSDB
             };
             RedisKey key = Me();
@@ -22,7 +24,7 @@ namespace StackExchange.Redis.Tests
                 db.KeyDelete(key);
                 Assert.True(db.StringGet(key).IsNull);
                 db.StringSet(key, "abc");
-                Assert.Equal("abc", (string)db.StringGet(key));
+                Assert.Equal("abc", db.StringGet(key));
             }
         }
     }
