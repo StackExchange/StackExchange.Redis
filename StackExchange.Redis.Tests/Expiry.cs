@@ -66,7 +66,7 @@ namespace StackExchange.Redis.Tests
 
                 var offset = utc ? TimeSpan.Zero : TimeZoneInfo.FindSystemTimeZoneById("Tokyo Standard Time").BaseUtcOffset;
                 var now = utc ? DateTime.UtcNow : new DateTime(DateTime.UtcNow.Ticks + offset.Ticks, DateTimeKind.Local);
-                var resultOffset = now - DateTime.Now;
+                var resultOffset = utc ? TimeSpan.Zero : now - DateTime.Now;
                 Output.WriteLine("Now: {0}", now);
                 conn.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
                 var a = conn.KeyTimeToLiveAsync(key);
