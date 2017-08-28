@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Security.Cryptography.X509Certificates;
 using Xunit;
 using Xunit.Abstractions;
@@ -46,11 +45,10 @@ namespace StackExchange.Redis.Tests
         [InlineData(true, true)]
         public void ConnectToSSLServer(bool useSsl, bool specifyHost)
         {
-            string host = null;
-
-            const string path = @"D:\RedisSslHost.txt"; // because I choose not to advertise my server here!
-            if (File.Exists(path)) host = File.ReadLines(path).First();
-            if (string.IsNullOrWhiteSpace(host)) Skip.Inconclusive("no ssl host specified at: " + path);
+            if (string.IsNullOrWhiteSpace(TestConfig.Current.SslServer))
+            {
+                Skip.Inconclusive("Config.SslServer is not set, skipping test.");
+            }
 
             var config = new ConfigurationOptions
             {
@@ -61,7 +59,7 @@ namespace StackExchange.Redis.Tests
                         ["cluster"] = null
                     }
                 ),
-                EndPoints = { { host } },
+                EndPoints = { { TestConfig.Current.SslServer, TestConfig.Current.SslPort } },
                 AllowAdmin = true,
                 SyncTimeout = Debugger.IsAttached ? int.MaxValue : 5000
             };
@@ -70,7 +68,7 @@ namespace StackExchange.Redis.Tests
                 config.Ssl = useSsl;
                 if (specifyHost)
                 {
-                    config.SslHost = host;
+                    config.SslHost = TestConfig.Current.SslServer;
                 }
                 config.CertificateValidation += (sender, cert, chain, errors) =>
                 {
@@ -148,19 +146,23 @@ namespace StackExchange.Redis.Tests
                 value);
         }
 
-        private const string RedisLabsSslHostFile = @"d:\RedisLabsSslHost.txt";
-        private const string RedisLabsPfxPath = @"d:\RedisLabsUser.pfx";
-
         [Fact]
         public void RedisLabsSSL()
         {
-            if (!File.Exists(RedisLabsSslHostFile)) Skip.Inconclusive("SSL Hosts File does not exist");
-            string hostAndPort = File.ReadAllText(RedisLabsSslHostFile);
+            if (string.IsNullOrEmpty(TestConfig.Current.RedisLabsSslServer))
+            {
+                Skip.Inconclusive("Config.RedisLabsSslServer is not set, skipping test.");
+            }
+            if (string.IsNullOrEmpty(TestConfig.Current.RedisLabsPfxPath))
+            {
+                Skip.Inconclusive("Config.RedisLabsPfxPath is not set, skipping test.");
+            }
+
             int timeout = 5000;
             if (Debugger.IsAttached) timeout *= 100;
             var options = new ConfigurationOptions
             {
-                EndPoints = { hostAndPort },
+                EndPoints = { { TestConfig.Current.RedisLabsSslServer, TestConfig.Current.RedisLabsSslPort } },
                 ConnectTimeout = timeout,
                 AllowAdmin = true,
                 CommandMap = CommandMap.Create(new HashSet<string> {
@@ -174,7 +176,7 @@ namespace StackExchange.Redis.Tests
             options.Ssl = true;
             options.CertificateSelection += delegate
             {
-                return new X509Certificate2(RedisLabsPfxPath, "");
+                return new X509Certificate2(TestConfig.Current.RedisLabsPfxPath, "");
             };
             RedisKey key = Me();
             using (var conn = ConnectionMultiplexer.Connect(options))
@@ -204,17 +206,24 @@ namespace StackExchange.Redis.Tests
         {
             try
             {
+                if (string.IsNullOrEmpty(TestConfig.Current.RedisLabsSslServer))
+                {
+                    Skip.Inconclusive("Config.RedisLabsSslServer is not set, skipping test.");
+                }
+                if (string.IsNullOrEmpty(TestConfig.Current.RedisLabsPfxPath))
+                {
+                    Skip.Inconclusive("Config.RedisLabsPfxPath is not set, skipping test.");
+                }
+
                 if (setEnv)
                 {
-                    Environment.SetEnvironmentVariable("SERedis_ClientCertPfxPath", RedisLabsPfxPath);
+                    Environment.SetEnvironmentVariable("SERedis_ClientCertPfxPath", TestConfig.Current.RedisLabsPfxPath);
                 }
-                if (!File.Exists(RedisLabsSslHostFile)) Skip.Inconclusive("SSL Hosts File does not exist");
-                string hostAndPort = File.ReadAllText(RedisLabsSslHostFile);
                 int timeout = 5000;
                 if (Debugger.IsAttached) timeout *= 100;
                 var options = new ConfigurationOptions
                 {
-                    EndPoints = { hostAndPort },
+                    EndPoints = { { TestConfig.Current.RedisLabsSslServer, TestConfig.Current.RedisLabsSslPort } },
                     ConnectTimeout = timeout,
                     AllowAdmin = true,
                     CommandMap = CommandMap.Create(new HashSet<string> {

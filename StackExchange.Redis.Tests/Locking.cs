@@ -9,7 +9,7 @@ namespace StackExchange.Redis.Tests
 {
     public class Locking : TestBase
     {
-        protected override string GetConfiguration() => PrimaryServer + ":" + PrimaryPortString;
+        protected override string GetConfiguration() => TestConfig.Current.MasterServer + ":" + TestConfig.Current.MasterPort;
         public Locking(ITestOutputHelper output) : base (output) { }
 
         public enum TestMode

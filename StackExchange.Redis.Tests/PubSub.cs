@@ -196,7 +196,7 @@ namespace StackExchange.Redis.Tests
 
         //protected override string GetConfiguration()
         //{
-        //    return PrimaryServer + ":" + PrimaryPortString;
+        //    return TestConfig.Current.MasterServer + ":" + TestConfig.Current.MasterPort;
         //}
 
         [Theory]

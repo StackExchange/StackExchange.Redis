@@ -48,7 +48,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
                 }
             }
 
-            using (var conn = new RedisSharp.Redis(LocalHost, 6379))
+            using (var conn = new RedisSharp.Redis(TestConfig.Current.MasterServer, TestConfig.Current.MasterPort))
             {
                 // do these outside the timings, just to ensure the core methods are JITted etc
                 for (int db = 0; db < 5; db++)

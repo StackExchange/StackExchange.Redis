@@ -173,7 +173,7 @@ namespace StackExchange.Redis.Tests
 
                 Assert.True(pairs.ContainsKey("port"), "port");
                 val = int.Parse(pairs["port"]);
-                Assert.Equal(PrimaryPort, val);
+                Assert.Equal(TestConfig.Current.MasterPort, val);
             }
         }
 

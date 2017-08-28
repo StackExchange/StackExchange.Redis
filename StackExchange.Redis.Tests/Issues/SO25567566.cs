@@ -7,7 +7,7 @@ namespace StackExchange.Redis.Tests.Issues
 {
     public class SO25567566 : TestBase
     {
-        protected override string GetConfiguration() => "127.0.0.1:6379";
+        protected override string GetConfiguration() => $"{TestConfig.Current.MasterServer}:{TestConfig.Current.MasterPort}";
         public SO25567566(ITestOutputHelper output) : base(output) { }
 
         [Fact]

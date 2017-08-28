@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net;
 using Xunit;
@@ -10,7 +11,7 @@ namespace StackExchange.Redis.Tests
     public class MultiMaster : TestBase
     {
         protected override string GetConfiguration() =>
-            PrimaryServer + ":" + SecurePort + "," + PrimaryServer + ":" + PrimaryPort + ",password=" + SecurePassword;
+            TestConfig.Current.MasterServer + ":" + TestConfig.Current.SecurePort + "," + TestConfig.Current.MasterServer + ":" + TestConfig.Current.MasterPort + ",password=" + TestConfig.Current.SecurePassword;
 
         public MultiMaster(ITestOutputHelper output) : base (output) { }
 
@@ -36,8 +37,8 @@ namespace StackExchange.Redis.Tests
             ConfigurationOptions config = GetMasterSlaveConfig();
             using (var conn = ConnectionMultiplexer.Connect(config))
             {
-                var primary = conn.GetServer(new IPEndPoint(IPAddress.Parse(PrimaryServer), PrimaryPort));
-                var secondary = conn.GetServer(new IPEndPoint(IPAddress.Parse(PrimaryServer), SlavePort));
+                var primary = conn.GetServer(new IPEndPoint(IPAddress.Parse(TestConfig.Current.MasterServer), TestConfig.Current.MasterPort));
+                var secondary = conn.GetServer(new IPEndPoint(IPAddress.Parse(TestConfig.Current.MasterServer), TestConfig.Current.SlavePort));
 
                 primary.Ping();
                 secondary.Ping();
@@ -53,7 +54,7 @@ namespace StackExchange.Redis.Tests
                     conn.Configure(writer);
                     string log = writer.ToString();
 
-                    Assert.True(log.Contains("tie-break is unanimous at " + PrimaryServer + ":" + PrimaryPort), "unanimous");
+                    Assert.True(log.Contains("tie-break is unanimous at " + TestConfig.Current.MasterServer + ":" + TestConfig.Current.MasterPort), "unanimous");
                 }
                 // k, so we know everyone loves 6379; is that what we get?
 
@@ -104,8 +105,8 @@ namespace StackExchange.Redis.Tests
                 SyncTimeout = 100000,
                 EndPoints =
                 {
-                    { PrimaryServer, PrimaryPort },
-                    { PrimaryServer, SlavePort },
+                    { TestConfig.Current.MasterServer, TestConfig.Current.MasterPort },
+                    { TestConfig.Current.MasterServer, TestConfig.Current.SlavePort },
                 }
             };
         }
@@ -121,27 +122,30 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [Theory]
-        [InlineData(PrimaryServer + ":" + PrimaryPortString, PrimaryServer + ":" + PrimaryPortString, PrimaryServer + ":" + PrimaryPortString)]
-        [InlineData(PrimaryServer + ":" + SecurePortString, PrimaryServer + ":" + SecurePortString, PrimaryServer + ":" + SecurePortString)]
-        [InlineData(PrimaryServer + ":" + SecurePortString, PrimaryServer + ":" + PrimaryPortString, null)]
-        [InlineData(PrimaryServer + ":" + PrimaryPortString, PrimaryServer + ":" + SecurePortString, null)]
+        public static IEnumerable<object[]> GetConnections()
+        {
+            yield return new object[] { TestConfig.Current.MasterServer + ":" + TestConfig.Current.MasterPort, TestConfig.Current.MasterServer + ":" + TestConfig.Current.MasterPort, TestConfig.Current.MasterServer + ":" + TestConfig.Current.MasterPort };
+            yield return new object[] { TestConfig.Current.MasterServer + ":" + TestConfig.Current.SecurePort, TestConfig.Current.MasterServer + ":" + TestConfig.Current.SecurePort, TestConfig.Current.MasterServer + ":" + TestConfig.Current.SecurePort };
+            yield return new object[] { TestConfig.Current.MasterServer + ":" + TestConfig.Current.SecurePort, TestConfig.Current.MasterServer + ":" + TestConfig.Current.MasterPort, null };
+            yield return new object[] { TestConfig.Current.MasterServer + ":" + TestConfig.Current.MasterPort, TestConfig.Current.MasterServer + ":" + TestConfig.Current.SecurePort, null };
 
-        [InlineData(null, PrimaryServer + ":" + PrimaryPortString, PrimaryServer + ":" + PrimaryPortString)]
-        [InlineData(PrimaryServer + ":" + PrimaryPortString, null, PrimaryServer + ":" + PrimaryPortString)]
-        [InlineData(null, PrimaryServer + ":" + SecurePortString, PrimaryServer + ":" + SecurePortString)]
-        [InlineData(PrimaryServer + ":" + SecurePortString, null, PrimaryServer + ":" + SecurePortString)]
-        [InlineData(null, null, null)]
+            yield return new object[] { null, TestConfig.Current.MasterServer + ":" + TestConfig.Current.MasterPort, TestConfig.Current.MasterServer + ":" + TestConfig.Current.MasterPort };
+            yield return new object[] { TestConfig.Current.MasterServer + ":" + TestConfig.Current.MasterPort, null, TestConfig.Current.MasterServer + ":" + TestConfig.Current.MasterPort };
+            yield return new object[] { null, TestConfig.Current.MasterServer + ":" + TestConfig.Current.SecurePort, TestConfig.Current.MasterServer + ":" + TestConfig.Current.SecurePort };
+            yield return new object[] { TestConfig.Current.MasterServer + ":" + TestConfig.Current.SecurePort, null, TestConfig.Current.MasterServer + ":" + TestConfig.Current.SecurePort };
+            yield return new object[] { null, null, null };
+        }
 
+        [Theory, MemberData(nameof(GetConnections))]
         public void TestMultiWithTiebreak(string a, string b, string elected)
         {
             const string TieBreak = "__tie__";
             // set the tie-breakers to the expected state
-            using (var aConn = ConnectionMultiplexer.Connect(PrimaryServer + ":" + PrimaryPort))
+            using (var aConn = ConnectionMultiplexer.Connect(TestConfig.Current.MasterServer + ":" + TestConfig.Current.MasterPort))
             {
                 aConn.GetDatabase().StringSet(TieBreak, a);
             }
-            using (var aConn = ConnectionMultiplexer.Connect(PrimaryServer + ":" + SecurePort + ",password=" + SecurePassword))
+            using (var aConn = ConnectionMultiplexer.Connect(TestConfig.Current.MasterServer + ":" + TestConfig.Current.SecurePort + ",password=" + TestConfig.Current.SecurePassword))
             {
                 aConn.GetDatabase().StringSet(TieBreak, b);
             }

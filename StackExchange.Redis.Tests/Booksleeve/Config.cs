@@ -41,7 +41,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
                 var log = new StringWriter();
                 try
                 {
-                    using (var conn = ConnectionMultiplexer.Connect(LocalHost + ":6500")) { }
+                    using (var conn = ConnectionMultiplexer.Connect(TestConfig.Current.MasterServer + ":6500")) { }
                 }
                 finally
                 {
@@ -73,7 +73,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
             var log = new StringWriter();
             try
             {
-                using (var conn = ConnectionMultiplexer.Connect(LocalHost + ":6500,abortConnect=false"))
+                using (var conn = ConnectionMultiplexer.Connect(TestConfig.Current.MasterServer + ":6500,abortConnect=false"))
                 {
                     Assert.False(conn.GetServer(conn.GetEndPoints().Single()).IsConnected);
                     Assert.False(conn.GetDatabase().IsConnected(default(RedisKey)));

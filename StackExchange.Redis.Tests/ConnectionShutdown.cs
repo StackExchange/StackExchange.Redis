@@ -7,7 +7,7 @@ namespace StackExchange.Redis.Tests
 {
     public class ConnectionShutdown : TestBase
     {
-        protected override string GetConfiguration() => PrimaryServer + ":" + PrimaryPortString;
+        protected override string GetConfiguration() => TestConfig.Current.MasterServer + ":" + TestConfig.Current.MasterPort;
         public ConnectionShutdown(ITestOutputHelper output) : base (output) { }
 
         [Fact(Skip="Unfriendly")]
@@ -34,7 +34,7 @@ namespace StackExchange.Redis.Tests
 
 #if DEBUG
                 conn.AllowConnect = false;
-                var server = conn.GetServer(PrimaryServer, PrimaryPort);
+                var server = conn.GetServer(TestConfig.Current.MasterServer, TestConfig.Current.MasterPort);
 
                 SetExpectedAmbientFailureCount(2);
                 server.SimulateConnectionFailure();

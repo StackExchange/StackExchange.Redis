@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Linq;
 using System.Net;
 using System.Threading;
 using Xunit;
@@ -7,36 +6,32 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    //[TestFixture, Ignore("reason?")]
     public class Sentinel
     {
+        private string ServerName => TestConfig.Current.SentinelServer;
+        private int Port => TestConfig.Current.SentinelPort;
+        private string ServiceName => TestConfig.Current.SentinelSeviceName;
+
+        private ConnectionMultiplexer Conn { get; }
+        private IServer Server { get; }
+
         public ITestOutputHelper Output { get; }
-        public Sentinel(ITestOutputHelper output) => Output = output;
-
-        // TODO fill in these constants before running tests
-        private const string IP = "127.0.0.1";
-        private const int Port = 26379;
-        private const string ServiceName = "mymaster";
-
-        private static readonly ConnectionMultiplexer Conn = GetConn();
-        private static readonly IServer Server = Conn.GetServer(IP, Port);
-
-        public static ConnectionMultiplexer GetConn()
+        public Sentinel(ITestOutputHelper output)
         {
-            // create a connection
+            Output = output;
             var options = new ConfigurationOptions()
             {
                 CommandMap = CommandMap.Sentinel,
-                EndPoints = { { IP, Port } },
+                EndPoints = { { ServerName, Port } },
                 AllowAdmin = true,
                 TieBreaker = "",
                 ServiceName = ServiceName,
                 SyncTimeout = 5000
             };
-            var connection = ConnectionMultiplexer.Connect(options, Console.Out);
+            Conn = ConnectionMultiplexer.Connect(options, Console.Out);
             Thread.Sleep(3000);
-            Assert.True(connection.IsConnected);
-            return connection;
+            Assert.True(Conn.IsConnected);
+            Server = Conn.GetServer(ServerName, Port);
         }
 
         [Fact]

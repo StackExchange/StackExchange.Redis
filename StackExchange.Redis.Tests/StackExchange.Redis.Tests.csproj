@@ -9,7 +9,7 @@
   </PropertyGroup>
   
   <ItemGroup>
-    <None Update="xunit.runner.json" CopyToOutputDirectory="Always" />
+    <None Update="*.json" CopyToOutputDirectory="Always" />
   </ItemGroup>
   
   <PropertyGroup Condition=" '$(TargetFramework)' == 'net462' ">
@@ -21,10 +21,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\StackExchange.Redis\StackExchange.Redis.csproj" />
+    <PackageReference Include="Jil" Version="2.15.4" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="15.0.0" />
     <PackageReference Include="Moq" Version="4.7.99" />
-    <PackageReference Include="redis-64" Version="3.0.503" />
-
     <!-- Temp workaround for analyzer issue -->
     <PackageReference Include="xunit.analyzers" Version="0.6.1" />
     <PackageReference Include="xunit" Version="$(xUnitVersion)" />

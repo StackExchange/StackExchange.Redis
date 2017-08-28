@@ -22,7 +22,7 @@ namespace StackExchange.Redis.Tests
     {
         protected ITestOutputHelper Output { get; }
         protected TextWriterOutputHelper Writer { get; }
-        protected virtual string GetConfiguration() => PrimaryServer + ":" + PrimaryPort + "," + PrimaryServer + ":" + SlavePort;
+        protected virtual string GetConfiguration() => TestConfig.Current.MasterServer + ":" + TestConfig.Current.MasterPort + "," + TestConfig.Current.MasterServer + ":" + TestConfig.Current.SlavePort;
 
         protected TestBase(ITestOutputHelper output)
         {
@@ -145,8 +145,6 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        protected const int PrimaryPort = 6379, SlavePort = 6380, SecurePort = 6381;
-        protected const string PrimaryServer = "127.0.0.1", SecurePassword = "changeme", PrimaryPortString = "6379", SlavePortString = "6380", SecurePortString = "6381";
         internal static Task Swallow(Task task)
         {
             task?.ContinueWith(swallowErrors, TaskContinuationOptions.OnlyOnFaulted);
@@ -246,7 +244,7 @@ namespace StackExchange.Redis.Tests
 #if FEATURE_BOOKSLEEVE
         protected static RedisConnection GetOldStyleConnection(bool open = true, bool allowAdmin = false, bool waitForOpen = false, int syncTimeout = 5000, int ioTimeout = 5000)
         {
-            return GetOldStyleConnection(PrimaryServer, PrimaryPort, open, allowAdmin, waitForOpen, syncTimeout, ioTimeout);
+            return GetOldStyleConnection(TestConfig.Current.MasterServer, TestConfig.Current.MasterPort, open, allowAdmin, waitForOpen, syncTimeout, ioTimeout);
         }
         private static RedisConnection GetOldStyleConnection(string host, int port, bool open = true, bool allowAdmin = false, bool waitForOpen = false, int syncTimeout = 5000, int ioTimeout = 5000)
         {

@@ -42,10 +42,10 @@ namespace StackExchange.Redis.Tests
                     Interlocked.Increment(ref bCount);
                 });
 
-                Assert.False(a.GetServer(PrimaryServer, PrimaryPort).IsSlave, PrimaryPortString + " is master via a");
-                Assert.True(a.GetServer(PrimaryServer, SlavePort).IsSlave, SlavePortString + " is slave via a");
-                Assert.False(b.GetServer(PrimaryServer, PrimaryPort).IsSlave, PrimaryPortString + " is master via b");
-                Assert.True(b.GetServer(PrimaryServer, SlavePort).IsSlave, SlavePortString + " is slave via b");
+                Assert.False(a.GetServer(TestConfig.Current.MasterServer, TestConfig.Current.MasterPort).IsSlave, TestConfig.Current.MasterPort + " is master via a");
+                Assert.True(a.GetServer(TestConfig.Current.MasterServer, TestConfig.Current.SlavePort).IsSlave, TestConfig.Current.SlavePort + " is slave via a");
+                Assert.False(b.GetServer(TestConfig.Current.MasterServer, TestConfig.Current.MasterPort).IsSlave, TestConfig.Current.MasterPort + " is master via b");
+                Assert.True(b.GetServer(TestConfig.Current.MasterServer, TestConfig.Current.SlavePort).IsSlave, TestConfig.Current.SlavePort + " is slave via b");
 
                 var epA = subA.SubscribedEndpoint(channel);
                 var epB = subB.SubscribedEndpoint(channel);
@@ -68,7 +68,7 @@ namespace StackExchange.Redis.Tests
                     Output.WriteLine("Changing master...");
                     using (var sw = new StringWriter())
                     {
-                        a.GetServer(PrimaryServer, SlavePort).MakeMaster(ReplicationChangeOptions.All, sw);
+                        a.GetServer(TestConfig.Current.MasterServer, TestConfig.Current.SlavePort).MakeMaster(ReplicationChangeOptions.All, sw);
                         Output.WriteLine(sw.ToString());
                     }
                     subA.Ping();
@@ -76,10 +76,10 @@ namespace StackExchange.Redis.Tests
                     Output.WriteLine("Pausing...");
                     Thread.Sleep(2000);
 
-                    Assert.True(a.GetServer(PrimaryServer, PrimaryPort).IsSlave, PrimaryPortString + " is slave via a");
-                    Assert.False(a.GetServer(PrimaryServer, SlavePort).IsSlave, SlavePortString + " is master via a");
-                    Assert.True(b.GetServer(PrimaryServer, PrimaryPort).IsSlave, PrimaryPortString + " is slave via b");
-                    Assert.False(b.GetServer(PrimaryServer, SlavePort).IsSlave, SlavePortString + " is master via b");
+                    Assert.True(a.GetServer(TestConfig.Current.MasterServer, TestConfig.Current.MasterPort).IsSlave, TestConfig.Current.MasterPort + " is slave via a");
+                    Assert.False(a.GetServer(TestConfig.Current.MasterServer, TestConfig.Current.SlavePort).IsSlave, TestConfig.Current.SlavePort + " is master via a");
+                    Assert.True(b.GetServer(TestConfig.Current.MasterServer, TestConfig.Current.MasterPort).IsSlave, TestConfig.Current.MasterPort + " is slave via b");
+                    Assert.False(b.GetServer(TestConfig.Current.MasterServer, TestConfig.Current.SlavePort).IsSlave, TestConfig.Current.SlavePort + " is master via b");
 
                     Output.WriteLine("Pause complete");
                     var counters = a.GetCounters();
@@ -107,7 +107,7 @@ namespace StackExchange.Redis.Tests
                     Output.WriteLine("Restoring configuration...");
                     try
                     {
-                        a.GetServer(PrimaryServer, PrimaryPort).MakeMaster(ReplicationChangeOptions.All);
+                        a.GetServer(TestConfig.Current.MasterServer, TestConfig.Current.MasterPort).MakeMaster(ReplicationChangeOptions.All);
                     }
                     catch
                     { }

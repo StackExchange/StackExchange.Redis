@@ -20,23 +20,13 @@ namespace StackExchange.Redis.Tests.Booksleeve
             };
         }
 
-        public const string LocalHost = "127.0.0.1"; //"192.168.0.10"; //"127.0.0.1";
-        public const string RemoteHost = "127.0.0.1"; // "ubuntu";
-
-        private const int
-            unsecuredPort = 6379,
-            securedPort = 6381,
-            clusterPort0 = 7000,
-            clusterPort1 = 7001,
-            clusterPort2 = 7002;
-
         public static string CreateUniqueName() => Guid.NewGuid().ToString("N");
         internal static IServer GetServer(ConnectionMultiplexer conn) => conn.GetServer(conn.GetEndPoints()[0]);
         private static readonly SocketManager socketManager = new SocketManager();
 
         internal static ConnectionMultiplexer GetRemoteConnection(bool open = true, bool allowAdmin = false, bool waitForOpen = false, int syncTimeout = 5000, int ioTimeout = 5000)
         {
-            return GetConnection(RemoteHost, unsecuredPort, open, allowAdmin, waitForOpen, syncTimeout, ioTimeout);
+            return GetConnection(TestConfig.Current.RemoteServer, TestConfig.Current.RemotePort, open, allowAdmin, waitForOpen, syncTimeout, ioTimeout);
         }
 
         private static ConnectionMultiplexer GetConnection(string host, int port, bool open = true, bool allowAdmin = false, bool waitForOpen = false, int syncTimeout = 5000, int ioTimeout = 5000)
@@ -60,14 +50,14 @@ namespace StackExchange.Redis.Tests.Booksleeve
 
         internal static ConnectionMultiplexer GetUnsecuredConnection(bool open = true, bool allowAdmin = false, bool waitForOpen = false, int syncTimeout = 5000, int ioTimeout = 5000)
         {
-            return GetConnection(LocalHost, unsecuredPort, open, allowAdmin, waitForOpen, syncTimeout, ioTimeout);
+            return GetConnection(TestConfig.Current.MasterServer, TestConfig.Current.MasterPort, open, allowAdmin, waitForOpen, syncTimeout, ioTimeout);
         }
 
         internal static ConnectionMultiplexer GetSecuredConnection()
         {
             var options = new ConfigurationOptions
             {
-                EndPoints = { { LocalHost, securedPort } },
+                EndPoints = { { TestConfig.Current.SecureServer, TestConfig.Current.SecurePort } },
                 Password = "changeme",
                 SyncTimeout = 6000,
                 SocketManager = socketManager

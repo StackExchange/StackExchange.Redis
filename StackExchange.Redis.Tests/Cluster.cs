@@ -12,22 +12,18 @@ namespace StackExchange.Redis.Tests
 {
     public class Cluster : TestBase
     {
-        //private const string ClusterIp = "192.168.0.15";  // marc
-        //private const string ClusterIp = "10.110.11.102";   // kmontrose
-        private const string ClusterIp = "127.0.0.1";
-        private const int ServerCount = 6, FirstPort = 7000;
-
         public Cluster(ITestOutputHelper output) : base (output) { }
 
         protected override string GetConfiguration()
         {
-            var server = ClusterIp;
+            var server = TestConfig.Current.ClusterServer;
+            // TODO: Make TestConfig read JSON overrides in .gitignore here
             if (string.Equals(Environment.MachineName, "MARC-LAPTOP", StringComparison.OrdinalIgnoreCase))
             {
                 server = "192.168.56.101";
             }
             return string.Join(",",
-            from port in Enumerable.Range(FirstPort, ServerCount)
+            from port in Enumerable.Range(TestConfig.Current.ClusterStartPort, TestConfig.Current.ClusterServerCount)
             select server + ":" + port) + ",connectTimeout=10000";
         }
 
@@ -81,8 +77,8 @@ namespace StackExchange.Redis.Tests
             {
                 var endpoints = muxer.GetEndPoints();
 
-                Assert.Equal(ServerCount, endpoints.Length);
-                var expectedPorts = new HashSet<int>(Enumerable.Range(FirstPort, ServerCount));
+                Assert.Equal(TestConfig.Current.ClusterServerCount, endpoints.Length);
+                var expectedPorts = new HashSet<int>(Enumerable.Range(TestConfig.Current.ClusterStartPort, TestConfig.Current.ClusterServerCount));
                 int masters = 0, slaves = 0;
                 var failed = new List<EndPoint>();
                 foreach (var endpoint in endpoints)
@@ -117,8 +113,8 @@ namespace StackExchange.Redis.Tests
                     Assert.True(false, "not all servers connected");
                 }
 
-                Assert.Equal(ServerCount / 2, slaves);
-                Assert.Equal(ServerCount / 2, masters);
+                Assert.Equal(TestConfig.Current.ClusterServerCount / 2, slaves);
+                Assert.Equal(TestConfig.Current.ClusterServerCount / 2, masters);
             }
         }
 

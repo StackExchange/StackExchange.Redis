@@ -8,7 +8,7 @@ namespace StackExchange.Redis.Tests
     {
         public AsyncTests(ITestOutputHelper output) : base (output) { }
 
-        protected override string GetConfiguration() => PrimaryServer + ":" + PrimaryPortString;
+        protected override string GetConfiguration() => TestConfig.Current.MasterServer + ":" + TestConfig.Current.MasterPort;
 
 #if DEBUG // IRedisServerDebug and AllowConnect are only available if DEBUG is defined
         [Fact]
@@ -18,7 +18,7 @@ namespace StackExchange.Redis.Tests
 
             using (var conn = Create(allowAdmin: true))
             {
-                var server = conn.GetServer(PrimaryServer, PrimaryPort);
+                var server = conn.GetServer(TestConfig.Current.MasterServer, TestConfig.Current.MasterPort);
 
                 RedisKey key = Me();
                 var db = conn.GetDatabase();
