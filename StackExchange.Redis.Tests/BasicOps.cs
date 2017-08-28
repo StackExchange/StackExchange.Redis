@@ -557,7 +557,7 @@ namespace StackExchange.Redis.Tests
         [Theory]
         [InlineData(true)]
         [InlineData(false)]
-        public void TestSevered(bool preserveOrder)
+        public async Task TestSevered(bool preserveOrder)
         {
             SetExpectedAmbientFailureCount(2);
             using (var muxer = Create(allowAdmin: true))
@@ -573,9 +573,9 @@ namespace StackExchange.Redis.Tests
                 watch.Stop();
                 Output.WriteLine("Time to re-establish: {0}ms ({1})", watch.ElapsedMilliseconds,
                     preserveOrder ? "preserve order" : "any order");
-                Thread.Sleep(20);
+                await Task.Delay(200);
                 Debug.WriteLine("Pinging...");
-                Assert.Equal(key, (string)db.StringGet(key));
+                Assert.Equal(key, db.StringGet(key));
             }
         }
 #endif
