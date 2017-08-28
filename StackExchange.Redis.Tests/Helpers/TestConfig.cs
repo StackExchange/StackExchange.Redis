@@ -1,12 +1,13 @@
 ﻿using System.IO;
 using Jil;
 using System;
+using System.Reflection;
 
 namespace StackExchange.Redis.Tests
 {
     public static class TestConfig
     {
-        private const string FilePath = "_TestConfig.json";
+        private const string FileName = "_TestConfig.json";
 
         public static Config Current { get; }
 
@@ -15,11 +16,15 @@ namespace StackExchange.Redis.Tests
             Current = new Config();
             try
             {
-                if (File.Exists(FilePath))
+                using (var stream = typeof(TestConfig).GetTypeInfo().Assembly.GetManifestResourceStream("StackExchange.Redis.Tests." + FileName))
                 {
-                    var file = File.ReadAllText(FilePath);
-                    Current = JSON.Deserialize<Config>(file);
-                    return;
+                    if (stream != null)
+                    {
+                        using (var reader = new StreamReader(stream))
+                        {
+                            Current = JSON.Deserialize<Config>(reader);
+                        }
+                    }
                 }
             }
             catch (Exception ex)
