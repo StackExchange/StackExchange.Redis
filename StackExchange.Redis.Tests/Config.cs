@@ -95,7 +95,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create(allowAdmin: true))
             {
-                var rows = GetServer(muxer).SlowlogGet(count);
+                var rows = GetAnyMaster(muxer).SlowlogGet(count);
                 Assert.NotNull(rows);
             }
         }
@@ -105,7 +105,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create(allowAdmin: true))
             {
-                GetServer(muxer).SlowlogReset();
+                GetAnyMaster(muxer).SlowlogReset();
             }
         }
 
@@ -119,7 +119,7 @@ namespace StackExchange.Redis.Tests
                 var conn = muxer.GetDatabase();
                 conn.Ping();
 #if DEBUG
-                var name = GetServer(muxer).ClientGetName();
+                var name = GetAnyMaster(muxer).ClientGetName();
                 Assert.Equal("TestRig", name);
 #endif
             }
@@ -134,7 +134,7 @@ namespace StackExchange.Redis.Tests
                 var conn = muxer.GetDatabase();
                 conn.Ping();
 #if DEBUG
-                var name = GetServer(muxer).ClientGetName();
+                var name = GetAnyMaster(muxer).ClientGetName();
                 Assert.Equal(Environment.MachineName, name);
 #endif
             }
@@ -145,7 +145,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create(allowAdmin: true, disabledCommands: new[] { "config", "info" }))
             {
-                var conn = GetServer(muxer);
+                var conn = GetAnyMaster(muxer);
                 var ex = Assert.Throws<RedisCommandException>(() => conn.ConfigGet());
                 Assert.Equal("This operation has been disabled in the command-map and cannot be used: CONFIG", ex.Message);
             }
@@ -157,7 +157,7 @@ namespace StackExchange.Redis.Tests
             using (var muxer = Create(allowAdmin: true))
             {
                 Output.WriteLine("about to get config");
-                var conn = GetServer(muxer);
+                var conn = GetAnyMaster(muxer);
                 var all = conn.ConfigGet();
                 Assert.True(all.Length > 0, "any");
 
@@ -206,7 +206,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create())
             {
-                var server = GetServer(muxer);
+                var server = GetAnyMaster(muxer);
                 var serverTime = server.Time();
                 Output.WriteLine(serverTime.ToString());
                 var delta = Math.Abs((DateTime.UtcNow - serverTime).TotalSeconds);
@@ -235,7 +235,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create(allowAdmin: true))
             {
-                var server = GetServer(muxer);
+                var server = GetAnyMaster(muxer);
                 var info1 = server.Info();
                 Assert.True(info1.Length > 5);
                 Output.WriteLine("All sections");
@@ -265,7 +265,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create(allowAdmin: true))
             {
-                var server = GetServer(muxer);
+                var server = GetAnyMaster(muxer);
                 var info = server.InfoRaw();
                 Assert.Contains("used_cpu_sys", info);
                 Assert.Contains("used_cpu_user", info);
@@ -278,7 +278,7 @@ namespace StackExchange.Redis.Tests
             var name = Guid.NewGuid().ToString();
             using (var muxer = Create(clientName: name, allowAdmin: true))
             {
-                var server = GetServer(muxer);
+                var server = GetAnyMaster(muxer);
                 var clients = server.ClientList();
                 Assert.True(clients.Length > 0, "no clients"); // ourselves!
                 Assert.True(clients.Any(x => x.Name == name), "expected: " + name);
@@ -290,7 +290,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create(allowAdmin: true))
             {
-                var server = GetServer(muxer);
+                var server = GetAnyMaster(muxer);
                 var slowlog = server.SlowlogGet();
                 server.SlowlogReset();
             }
@@ -305,7 +305,7 @@ namespace StackExchange.Redis.Tests
                 try
                 {
                     var conn = configMuxer.GetDatabase();
-                    var srv = GetServer(configMuxer);
+                    var srv = GetAnyMaster(configMuxer);
                     oldTimeout = srv.ConfigGet("timeout")[0].Value;
                     srv.ConfigSet("timeout", 5);
 
@@ -327,7 +327,7 @@ namespace StackExchange.Redis.Tests
                 {
                     if (!oldTimeout.IsNull)
                     {
-                        var srv = GetServer(configMuxer);
+                        var srv = GetAnyMaster(configMuxer);
                         srv.ConfigSet("timeout", oldTimeout);
                     }
                 }

@@ -172,6 +172,16 @@ namespace StackExchange.Redis.Tests
             return result;
         }
 
+        protected IServer GetAnyMaster(ConnectionMultiplexer muxer)
+        {
+            foreach (var endpoint in muxer.GetEndPoints())
+            {
+                var server = muxer.GetServer(endpoint);
+                if (!server.IsSlave) return server;
+            }
+            throw new InvalidOperationException("Requires a master endpoint (found none)");
+        }
+
         protected virtual ConnectionMultiplexer Create(
             string clientName = null, int? syncTimeout = null, bool? allowAdmin = null, int? keepAlive = null,
             int? connectTimeout = null, string password = null, string tieBreaker = null, TextWriter log = null,

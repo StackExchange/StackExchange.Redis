@@ -13,7 +13,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                var server = GetServer(conn);
+                var server = GetAnyMaster(conn);
 
                 RedisKey key = "a";
                 var db = conn.GetDatabase();
