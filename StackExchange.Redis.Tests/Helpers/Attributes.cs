@@ -19,7 +19,16 @@ namespace StackExchange.Redis.Tests
     [XunitTestCaseDiscoverer("StackExchange.Redis.Tests.FactDiscoverer", "StackExchange.Redis.Tests")]
     public class FactAttribute : Xunit.FactAttribute
     {
-        public RedisFeatures Requires { get; set; }
+    }
+
+    [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
+    public class FactLongRunningAttribute : FactAttribute
+    {
+        public override string Skip
+        {
+            get => TestConfig.Current.RunLongRunning ? base.Skip : "Config.RunLongRunning is false - skipping long test.";
+            set => base.Skip = value;
+        }
     }
 
     /// <summary>

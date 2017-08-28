@@ -10,7 +10,7 @@ namespace StackExchange.Redis.Tests.Issues
         protected override string GetConfiguration() => $"{TestConfig.Current.MasterServer}:{TestConfig.Current.MasterPort}";
         public SO25567566(ITestOutputHelper output) : base(output) { }
 
-        [Fact]
+        [FactLongRunning]
         public async Task Execute()
         {
             using (var conn = ConnectionMultiplexer.Connect(GetConfiguration())) // Create())

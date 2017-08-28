@@ -11,7 +11,7 @@ namespace StackExchange.Redis.Tests.Issues
 
         public Issue182(ITestOutputHelper output) : base (output) { }
 
-        [Fact]
+        [FactLongRunning]
         public void SetMembers()
         {
             using (var conn = Create())
@@ -39,7 +39,7 @@ namespace StackExchange.Redis.Tests.Issues
             }
         }
 
-        [Fact]
+        [FactLongRunning]
         public void SetUnion()
         {
             using (var conn = Create())
