@@ -55,6 +55,8 @@ namespace StackExchange.Redis.Tests.Booksleeve
 
         internal static ConnectionMultiplexer GetSecuredConnection()
         {
+            Skip.IfNoConfig(nameof(TestConfig.Config.SecureServer), TestConfig.Current.SecureServer);
+
             var options = new ConfigurationOptions
             {
                 EndPoints = { { TestConfig.Current.SecureServer, TestConfig.Current.SecurePort } },
