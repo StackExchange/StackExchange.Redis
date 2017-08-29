@@ -10,7 +10,7 @@
   
   <ItemGroup>
     <None Update="*.json" CopyToOutputDirectory="Always" />
-    <EmbeddedResource Include="_*.json" />
+    <EmbeddedResource Include="*Config.json" />
   </ItemGroup>
   
   <PropertyGroup Condition=" '$(TargetFramework)' == 'net462' ">

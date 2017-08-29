@@ -21,4 +21,4 @@ StackExchange.Redis.*.zip
 .vs/
 *.lock.json
 packages/
-StackExchange.Redis.Tests/_TestConfig.json
+StackExchange.Redis.Tests/*Config.json
