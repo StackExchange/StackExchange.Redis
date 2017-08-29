@@ -14,8 +14,8 @@ namespace StackExchange.Redis.Tests
             using (var muxer = Create(allowAdmin: true))
             {
                 var server = GetAnyMaster(muxer);
-                server.FlushDatabase(0, CommandFlags.FireAndForget);
-                server.FlushDatabase(1, CommandFlags.FireAndForget);
+                server.FlushDatabase(61, CommandFlags.FireAndForget);
+                server.FlushDatabase(62, CommandFlags.FireAndForget);
             }
             using (var muxer = Create())
             {

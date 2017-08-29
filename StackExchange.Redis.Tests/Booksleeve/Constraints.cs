@@ -34,7 +34,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
 
         public async Task<long?> ManualIncr(IDatabase connection, string key)
         {
-            var oldVal = (long?)await connection.StringGetAsync(key).ConfigureAwait(false);
+            var oldVal = (long?)await connection.StringGetAsync(key).ForAwait();
             var newVal = (oldVal ?? 0) + 1;
             var tran = connection.CreateTransaction();
             { // check hasn't changed
@@ -42,7 +42,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
                 tran.AddCondition(Condition.StringEqual(key, oldVal));
                 tran.StringSetAsync(key, newVal);
 #pragma warning restore 4014
-                if (!await tran.ExecuteAsync().ConfigureAwait(false)) return null; // aborted
+                if (!await tran.ExecuteAsync().ForAwait()) return null; // aborted
                 return newVal;
             }
         }

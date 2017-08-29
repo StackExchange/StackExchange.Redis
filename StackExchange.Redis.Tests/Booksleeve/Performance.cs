@@ -10,7 +10,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
     {
         public Performance(ITestOutputHelper output) : base(output) { }
 
-        [Fact (Skip = "Proven")]
+        [FactLongRunning]
         public void VerifyPerformanceImprovement()
         {
             int asyncTimer, sync, op = 0, asyncFaF, syncFaF;

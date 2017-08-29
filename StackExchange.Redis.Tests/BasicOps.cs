@@ -220,7 +220,7 @@ namespace StackExchange.Redis.Tests
         [InlineData(true, false)]
         [InlineData(false, true)]
         [InlineData(false, false)]
-        public void MassiveBulkOpsAsync(bool preserveOrder, bool withContinuation)
+        public async Task MassiveBulkOpsAsync(bool preserveOrder, bool withContinuation)
         {
 #if DEBUG
             var oldAsyncCompletionCount = ConnectionMultiplexer.GetAsyncCompletionWorkerCount();
@@ -230,8 +230,7 @@ namespace StackExchange.Redis.Tests
                 muxer.PreserveAsyncOrder = preserveOrder;
                 RedisKey key = "MBOA";
                 var conn = muxer.GetDatabase();
-                muxer.Wait(conn.PingAsync());
-
+                await conn.PingAsync().ForAwait();
 #if CORE_CLR
                 int number = 0;
 #endif
@@ -250,10 +249,11 @@ namespace StackExchange.Redis.Tests
                 for (int i = 0; i <= AsyncOpsQty; i++)
                 {
                     var t = conn.StringSetAsync(key, i);
+#pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
                     if (withContinuation) t.ContinueWith(nonTrivial);
+#pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
                 }
-                int val = (int)muxer.Wait(conn.StringGetAsync(key));
-                Assert.Equal(AsyncOpsQty, val);
+                Assert.Equal(AsyncOpsQty, await conn.StringGetAsync(key).ForAwait());
                 watch.Stop();
                 Output.WriteLine("{2}: Time for {0} ops: {1}ms ({3}, {4}); ops/s: {5}", AsyncOpsQty, watch.ElapsedMilliseconds, Me(),
                     withContinuation ? "with continuation" : "no continuation", preserveOrder ? "preserve order" : "any order",
@@ -306,7 +306,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void GetWithExpiryWrongTypeAsync()
+        public async Task GetWithExpiryWrongTypeAsync()
         {
             using (var conn = Create())
             {
@@ -314,18 +314,18 @@ namespace StackExchange.Redis.Tests
                 RedisKey key = Me();
                 db.KeyDelete(key);
                 db.SetAdd(key, "abc");
-                var ex = Assert.Throws<RedisServerException>(() =>
+                var ex = await Assert.ThrowsAsync<RedisServerException>(async () =>
                 {
                     try
                     {
                         Output.WriteLine("Key: " + (string)key);
-                        var async = db.Wait(db.StringGetWithExpiryAsync(key));
+                        var async = await db.StringGetWithExpiryAsync(key).ForAwait();
                     }
                     catch (AggregateException e)
                     {
                         throw e.InnerExceptions[0];
                     }
-                });
+                }).ForAwait();
                 Assert.Equal("WRONGTYPE Operation against a key holding the wrong kind of value", ex.Message);
             }
         }
@@ -573,7 +573,7 @@ namespace StackExchange.Redis.Tests
                 watch.Stop();
                 Output.WriteLine("Time to re-establish: {0}ms ({1})", watch.ElapsedMilliseconds,
                     preserveOrder ? "preserve order" : "any order");
-                await Task.Delay(200);
+                await Task.Delay(200).ForAwait();
                 Debug.WriteLine("Pinging...");
                 Assert.Equal(key, db.StringGet(key));
             }
@@ -583,7 +583,7 @@ namespace StackExchange.Redis.Tests
         [Theory]
         [InlineData(true)]
         [InlineData(false)]
-        public void IncrAsync(bool preserveOrder)
+        public async Task IncrAsync(bool preserveOrder)
         {
             using (var muxer = Create())
             {
@@ -591,25 +591,25 @@ namespace StackExchange.Redis.Tests
                 var conn = muxer.GetDatabase();
                 RedisKey key = Me();
                 conn.KeyDelete(key, CommandFlags.FireAndForget);
-                var nix = conn.KeyExistsAsync(key);
-                var a = conn.StringGetAsync(key);
-                var b = conn.StringIncrementAsync(key);
-                var c = conn.StringGetAsync(key);
-                var d = conn.StringIncrementAsync(key, 10);
-                var e = conn.StringGetAsync(key);
-                var f = conn.StringDecrementAsync(key, 11);
-                var g = conn.StringGetAsync(key);
-                var h = conn.KeyExistsAsync(key);
-                Assert.False(muxer.Wait(nix));
-                Assert.True(muxer.Wait(a).IsNull);
-                Assert.Equal(0, (long)muxer.Wait(a));
-                Assert.Equal(1, muxer.Wait(b));
-                Assert.Equal(1, (long)muxer.Wait(c));
-                Assert.Equal(11, muxer.Wait(d));
-                Assert.Equal(11, (long)muxer.Wait(e));
-                Assert.Equal(0, muxer.Wait(f));
-                Assert.Equal(0, (long)muxer.Wait(g));
-                Assert.True(muxer.Wait(h));
+                var nix = conn.KeyExistsAsync(key).ForAwait();
+                var a = conn.StringGetAsync(key).ForAwait();
+                var b = conn.StringIncrementAsync(key).ForAwait();
+                var c = conn.StringGetAsync(key).ForAwait();
+                var d = conn.StringIncrementAsync(key, 10).ForAwait();
+                var e = conn.StringGetAsync(key).ForAwait();
+                var f = conn.StringDecrementAsync(key, 11).ForAwait();
+                var g = conn.StringGetAsync(key).ForAwait();
+                var h = conn.KeyExistsAsync(key).ForAwait();
+                Assert.False(await nix);
+                Assert.True((await a).IsNull);
+                Assert.Equal(0, (long)(await a));
+                Assert.Equal(1, await b);
+                Assert.Equal(1, (long)(await c));
+                Assert.Equal(11, await d);
+                Assert.Equal(11, (long)(await e));
+                Assert.Equal(0, await f);
+                Assert.Equal(0, (long)(await g));
+                Assert.True(await h);
             }
         }
 

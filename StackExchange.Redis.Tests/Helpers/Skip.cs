@@ -14,6 +14,7 @@ namespace StackExchange.Redis.Tests
                 throw new SkipTestException($"Config.{prop} is not set, skipping test.");
             }
         }
+
         public static void IfNoConfig(string prop, List<string> values)
         {
             if (values == null || values.Count == 0)

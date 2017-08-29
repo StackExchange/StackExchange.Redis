@@ -59,7 +59,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
                 var log = new StringWriter();
                 try
                 {
-                    using (var conn = await ConnectionMultiplexer.ConnectAsync("doesnot.exist.ds.aasd981230d.com:6500", log).ConfigureAwait(false))
+                    using (var conn = await ConnectionMultiplexer.ConnectAsync("doesnot.exist.ds.aasd981230d.com:6500", log).ForAwait())
                     {
                     }
                 }
@@ -67,7 +67,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
                 {
                     Output.WriteLine(log.ToString());
                 }
-            }).ConfigureAwait(false);
+            }).ForAwait();
         }
 
         [Fact]

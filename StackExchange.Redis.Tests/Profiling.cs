@@ -417,7 +417,7 @@ namespace StackExchange.Redis.Tests
                     var t =
                         db.StringSetAsync("foo" + i, "bar" + i)
                           .ContinueWith(
-                            async _ => (string)(await db.StringGetAsync("foo" + i).ConfigureAwait(false))
+                            async _ => (string)(await db.StringGetAsync("foo" + i).ForAwait())
                           );
 
                     var finalResult = t.Unwrap();

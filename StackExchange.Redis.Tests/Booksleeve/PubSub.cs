@@ -103,7 +103,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
                             Monitor.PulseAll(syncLock);
                         }
                     }
-                }).ConfigureAwait(false);
+                }).ForAwait();
 
                 lock (syncLock)
                 {

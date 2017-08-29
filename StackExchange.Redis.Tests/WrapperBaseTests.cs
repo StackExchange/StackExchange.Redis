@@ -7,6 +7,7 @@ using System.Text;
 using Moq;
 using StackExchange.Redis.KeyspaceIsolation;
 using Xunit;
+using System.Threading.Tasks;
 
 namespace StackExchange.Redis.Tests
 {
@@ -259,11 +260,9 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void KeyRandomAsync()
+        public Task KeyRandomAsync()
         {
-            Assert.Throws<NotSupportedException>(() => {
-                wrapper.KeyRandomAsync();
-            });
+            return Assert.ThrowsAsync<NotSupportedException>(() => wrapper.KeyRandomAsync());
         }
 
         [Fact]

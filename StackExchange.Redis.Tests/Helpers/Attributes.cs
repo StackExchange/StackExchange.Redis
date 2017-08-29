@@ -90,7 +90,7 @@ namespace StackExchange.Redis.Tests
             CancellationTokenSource cancellationTokenSource)
         {
             var skipMessageBus = new SkippableMessageBus(messageBus);
-            var result = await base.RunAsync(diagnosticMessageSink, skipMessageBus, constructorArguments, aggregator, cancellationTokenSource).ConfigureAwait(false);
+            var result = await base.RunAsync(diagnosticMessageSink, skipMessageBus, constructorArguments, aggregator, cancellationTokenSource).ForAwait();
             return result.Update(skipMessageBus);
         }
     }
@@ -114,7 +114,7 @@ namespace StackExchange.Redis.Tests
             CancellationTokenSource cancellationTokenSource)
         {
             var skipMessageBus = new SkippableMessageBus(messageBus);
-            var result = await base.RunAsync(diagnosticMessageSink, skipMessageBus, constructorArguments, aggregator, cancellationTokenSource).ConfigureAwait(false);
+            var result = await base.RunAsync(diagnosticMessageSink, skipMessageBus, constructorArguments, aggregator, cancellationTokenSource).ForAwait();
             return result.Update(skipMessageBus);
         }
     }

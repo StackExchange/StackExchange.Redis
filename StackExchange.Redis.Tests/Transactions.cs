@@ -735,12 +735,12 @@ namespace StackExchange.Redis.Tests
 
                 var g = db.KeyExists(key);
 
-                Assert.Equal(10, await a.ConfigureAwait(false));
-                Assert.Equal(15, await b.ConfigureAwait(false));
-                Assert.Equal(15, (long)await c.ConfigureAwait(false));
-                Assert.True(await d.ConfigureAwait(false));
-                Assert.True(await e.ConfigureAwait(false));
-                Assert.False(await f.ConfigureAwait(false));
+                Assert.Equal(10, await a.ForAwait());
+                Assert.Equal(15, await b.ForAwait());
+                Assert.Equal(15, (long)await c.ForAwait());
+                Assert.True(await d.ForAwait());
+                Assert.True(await e.ForAwait());
+                Assert.False(await f.ForAwait());
                 Assert.False(g);
             }
         }
