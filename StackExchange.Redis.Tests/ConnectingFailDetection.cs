@@ -10,7 +10,7 @@ namespace StackExchange.Redis.Tests
 
 #if DEBUG
         [Fact]
-        public void FastNoticesFailOnConnectingSync()
+        public void FastNoticesFailOnConnectingSyncComlpetion()
         {
             try
             {
@@ -20,12 +20,20 @@ namespace StackExchange.Redis.Tests
                     conn.Ping();
 
                     var server = muxer.GetServer(muxer.GetEndPoints()[0]);
+                    var server2 = muxer.GetServer(muxer.GetEndPoints()[1]);
 
                     muxer.AllowConnect = false;
                     SocketManager.ConnectCompletionType = CompletionType.Sync;
 
+                    // muxer.IsConnected is true of *any* are connected, simulate failure for all cases.
                     server.SimulateConnectionFailure();
+                    Assert.False(server.IsConnected);
+                    Assert.True(server2.IsConnected);
+                    Assert.True(muxer.IsConnected);
 
+                    server2.SimulateConnectionFailure();
+                    Assert.False(server.IsConnected);
+                    Assert.False(server2.IsConnected);
                     Assert.False(muxer.IsConnected);
 
                     // should reconnect within 1 keepalive interval
@@ -66,7 +74,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void FastNoticesFailOnConnectingAsync()
+        public void FastNoticesFailOnConnectingAsyncComlpetion()
         {
             try
             {
@@ -76,12 +84,20 @@ namespace StackExchange.Redis.Tests
                     conn.Ping();
 
                     var server = muxer.GetServer(muxer.GetEndPoints()[0]);
+                    var server2 = muxer.GetServer(muxer.GetEndPoints()[1]);
 
                     muxer.AllowConnect = false;
                     SocketManager.ConnectCompletionType = CompletionType.Async;
 
+                    // muxer.IsConnected is true of *any* are connected, simulate failure for all cases.
                     server.SimulateConnectionFailure();
+                    Assert.False(server.IsConnected);
+                    Assert.True(server2.IsConnected);
+                    Assert.True(muxer.IsConnected);
 
+                    server2.SimulateConnectionFailure();
+                    Assert.False(server.IsConnected);
+                    Assert.False(server2.IsConnected);
                     Assert.False(muxer.IsConnected);
 
                     // should reconnect within 1 keepalive interval
