@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 #if !CORE_CLR
@@ -51,20 +52,22 @@ namespace StackExchange.Redis.Tests.Booksleeve
         }
 
         [Fact]
-        public void CanNotOpenNonsenseConnection_DNS()
+        public async Task CanNotOpenNonsenseConnection_DNS()
         {
-            Assert.Throws<RedisConnectionException>(() =>
+            await Assert.ThrowsAsync<RedisConnectionException>(async () =>
             {
                 var log = new StringWriter();
                 try
                 {
-                    using (var conn = ConnectionMultiplexer.Connect("doesnot.exist.ds.aasd981230d.com:6500", log)) { }
+                    using (var conn = await ConnectionMultiplexer.ConnectAsync("doesnot.exist.ds.aasd981230d.com:6500", log).ConfigureAwait(false))
+                    {
+                    }
                 }
                 finally
                 {
                     Output.WriteLine(log.ToString());
                 }
-            });
+            }).ConfigureAwait(false);
         }
 
         [Fact]
