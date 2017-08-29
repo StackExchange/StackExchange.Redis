@@ -1,14 +1,16 @@
 ﻿using System.IO;
 using Jil;
 using System;
-using System.Reflection;
 using System.Collections.Generic;
+#if CORE_CLR
+using System.Reflection;
+#endif
 
 namespace StackExchange.Redis.Tests
 {
     public static class TestConfig
     {
-        private const string FileName = "_TestConfig.json";
+        private const string FileName = "TestConfig.json";
 
         public static Config Current { get; }
 
@@ -30,7 +32,7 @@ namespace StackExchange.Redis.Tests
             }
             catch (Exception ex)
             {
-                Console.WriteLine("Error Deserializing _TestConfig.json: " + ex);
+                Console.WriteLine("Error Deserializing TestConfig.json: " + ex);
             }
         }
 
