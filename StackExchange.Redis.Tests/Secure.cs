@@ -84,7 +84,7 @@ namespace StackExchange.Redis.Tests
             Assert.Single(ex.InnerExceptions);
             var rce = Assert.IsType<RedisConnectionException>(ex.InnerException);
             Output.WriteLine("Exception: " + rce.Message);
-            Assert.Equal("It was not possible to connect to the redis server(s); to create a disconnected multiplexer, disable AbortOnConnectFail. SocketFailure on PING", rce.Message);
+            Assert.Equal("It was not possible to connect to the redis server(s); to create a disconnected multiplexer, disable AbortOnConnectFail. AuthenticationFailure on PING", rce.Message);
         }
     }
 }
