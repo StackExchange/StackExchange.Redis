@@ -65,10 +65,10 @@ namespace StackExchange.Redis.Tests
 #if CORE_CLR
                 if (IgnorableExceptionPredicates.Any(predicate => predicate(args.Exception.InnerException))) return;
 #endif
-                Interlocked.Increment(ref failCount);
-                lock (exceptions)
+                Interlocked.Increment(ref sharedFailCount);
+                lock (backgroundExceptions)
                 {
-                    exceptions.Add(args.Exception.Message);
+                    backgroundExceptions.Add(args.Exception.ToString());
                 }
             };
         }
@@ -83,37 +83,45 @@ namespace StackExchange.Redis.Tests
 
         protected void OnConnectionFailed(object sender, ConnectionFailedEventArgs e)
         {
-            Interlocked.Increment(ref failCount);
-            lock (exceptions)
+            Interlocked.Increment(ref privateFailCount);
+            lock (privateExceptions)
             {
-                exceptions.Add("Connection failed: " + EndPointCollection.ToString(e.EndPoint) + "/" + e.ConnectionType);
+                privateExceptions.Add("Connection failed: " + EndPointCollection.ToString(e.EndPoint) + "/" + e.ConnectionType);
             }
         }
 
         protected void OnInternalError(object sender, InternalErrorEventArgs e)
         {
-            Interlocked.Increment(ref failCount);
-            lock (exceptions)
+            Interlocked.Increment(ref privateFailCount);
+            lock (privateExceptions)
             {
-                exceptions.Add("Internal error: " + e.Origin + ", " + EndPointCollection.ToString(e.EndPoint) + "/" + e.ConnectionType);
+                privateExceptions.Add("Internal error: " + e.Origin + ", " + EndPointCollection.ToString(e.EndPoint) + "/" + e.ConnectionType);
             }
         }
 
-        private static int failCount;
+        private int privateFailCount;
+        private static int sharedFailCount;
         private volatile int expectedFailCount;
+
+        private static readonly List<string> privateExceptions = new List<string>();
+        private static readonly List<string> backgroundExceptions = new List<string>();
 
         public void ClearAmbientFailures()
         {
             Collect();
-            Interlocked.Exchange(ref failCount, 0);
+            Interlocked.Exchange(ref privateFailCount, 0);
+            Interlocked.Exchange(ref sharedFailCount, 0);
             expectedFailCount = 0;
-            lock (exceptions)
+            lock (privateExceptions)
             {
-                exceptions.Clear();
+                privateExceptions.Clear();
+            }
+            lock (backgroundExceptions)
+            {
+                backgroundExceptions.Clear();
             }
         }
 
-        private static readonly List<string> exceptions = new List<string>();
         public void SetExpectedAmbientFailureCount(int count)
         {
             expectedFailCount = count;
@@ -131,30 +139,33 @@ namespace StackExchange.Redis.Tests
         public void Teardown()
         {
             Collect();
-            if (expectedFailCount >= 0 && Interlocked.CompareExchange(ref failCount, 0, 0) != expectedFailCount)
+            if (expectedFailCount >= 0 && (Interlocked.CompareExchange(ref sharedFailCount, 0, 0) + privateFailCount) != expectedFailCount)
             {
-                var sb = new StringBuilder("There were ").Append(failCount).Append(" general ambient exceptions; expected ").Append(expectedFailCount);
-                lock (exceptions)
+                lock (privateExceptions)
                 {
-                    foreach (var item in exceptions.Take(5))
+                    foreach (var item in privateExceptions.Take(5))
                     {
-                        sb.Append("; ").Append(item);
+                        Output.WriteLine(item);
                     }
                 }
-                Assert.True(false, sb.ToString());
+                lock (backgroundExceptions)
+                {
+                    foreach (var item in backgroundExceptions.Take(5))
+                    {
+                        Output.WriteLine(item);
+                    }
+                }
+                Assert.True(false, $"There were {privateFailCount} private and {sharedFailCount} ambient exceptions; expected {expectedFailCount}.");
             }
         }
 
         internal static Task Swallow(Task task)
         {
-            task?.ContinueWith(swallowErrors, TaskContinuationOptions.OnlyOnFaulted);
+            task?.ContinueWith(t =>
+            {
+                if (t != null) GC.KeepAlive(t.Exception);
+            }, TaskContinuationOptions.OnlyOnFaulted);
             return task;
-        }
-
-        private static readonly Action<Task> swallowErrors = SwallowErrors;
-        private static void SwallowErrors(Task task)
-        {
-            if (task != null) GC.KeepAlive(task.Exception);
         }
 
         protected IServer GetServer(ConnectionMultiplexer muxer)
