@@ -148,6 +148,7 @@ namespace StackExchange.Redis.Tests
                 int slot = conn.HashSlot(key);
                 var rightMasterNode = config.GetBySlot(key);
                 Assert.NotNull(rightMasterNode);
+                Output.WriteLine("Right Master: {0} {1}", rightMasterNode.EndPoint, rightMasterNode.NodeId);
 
 #if DEBUG
                 string a = conn.GetServer(rightMasterNode.EndPoint).StringGet(db.Database, key);
@@ -155,6 +156,7 @@ namespace StackExchange.Redis.Tests
 
                 var node = config.Nodes.FirstOrDefault(x => !x.IsSlave && x.NodeId != rightMasterNode.NodeId);
                 Assert.NotNull(node);
+                Output.WriteLine("Using Master: {0}", node.EndPoint, node.NodeId);
                 if (node != null)
                 {
                     string b = conn.GetServer(node.EndPoint).StringGet(db.Database, key);
