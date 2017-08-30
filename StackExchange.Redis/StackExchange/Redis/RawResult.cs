@@ -265,7 +265,7 @@ namespace StackExchange.Redis
             {
                 return null;
             }            
-            return new GeoPosition((double)coords[0].AsRedisValue(), (double)coords[1].AsRedisValue());
+            return new GeoPosition((double)coords[1].AsRedisValue(), (double)coords[0].AsRedisValue());
         }
         internal GeoPosition?[] GetItemsAsGeoPositionArray()
         {
@@ -290,7 +290,7 @@ namespace StackExchange.Redis
                     }
                     else
                     {
-                        arr[i] = new GeoPosition((double)item[0].AsRedisValue(), (double)item[1].AsRedisValue());
+                        arr[i] = new GeoPosition((double)item[1].AsRedisValue(), (double)item[0].AsRedisValue());
                     }
                 }
                 return arr;
