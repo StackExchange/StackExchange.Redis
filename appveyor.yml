@@ -1,0 +1,63 @@
+image: Visual Studio 2017
+
+init:
+  - git config --global core.autocrlf input
+
+install:
+- cmd: >-
+    cd RedisConfigs\3.0.503
+
+    redis-server.exe --service-install --service-name "redis-master" "..\master.conf"
+
+    redis-server.exe --service-install --service-name "redis-slave" "..\slave.conf"
+
+    redis-server.exe --service-install --service-name "redis-secure" "..\secure.conf"
+
+    redis-server.exe --service-start --service-name "redis-master"
+
+    redis-server.exe --service-start --service-name "redis-slave"
+
+    redis-server.exe --service-start --service-name "redis-secure"
+
+    redis-server.exe --service-install --service-name "redis-7000" "..\Cluster\7000\redis.conf" --dir "..\Cluster\7000"
+
+    redis-server.exe --service-install --service-name "redis-7001" "..\Cluster\7001\redis.conf" --dir "..\Cluster\7001"
+
+    redis-server.exe --service-install --service-name "redis-7002" "..\Cluster\7002\redis.conf" --dir "..\Cluster\7002"
+
+    redis-server.exe --service-install --service-name "redis-7003" "..\Cluster\7003\redis.conf" --dir "..\Cluster\7003"
+
+    redis-server.exe --service-install --service-name "redis-7004" "..\Cluster\7004\redis.conf" --dir "..\Cluster\7004"
+
+    redis-server.exe --service-install --service-name "redis-7005" "..\Cluster\7005\redis.conf" --dir "..\Cluster\7005"
+
+    redis-server.exe --service-start --service-name "redis-7000"
+
+    redis-server.exe --service-start --service-name "redis-7001"
+
+    redis-server.exe --service-start --service-name "redis-7002"
+
+    redis-server.exe --service-start --service-name "redis-7003"
+
+    redis-server.exe --service-start --service-name "redis-7004"
+
+    redis-server.exe --service-start --service-name "redis-7005"
+
+    cd ..\..
+
+skip_branch_with_pr: true
+skip_tags: true
+skip_commits:
+  files:
+    - '**/*.md'
+    - docs/*
+
+nuget:
+  disable_publish_on_pr: true
+
+build_script:
+  - ps: .\build.ps1 -BuildNumber "$env:APPVEYOR_BUILD_NUMBER" -Version "$env:APPVEYOR_REPO_TAG_NAME" -PullRequestNumber "$env:APPVEYOR_PULL_REQUEST_NUMBER" -CreatePackages $true
+
+test: off
+artifacts:
+- path: .\.nupkgs\*.nupkg

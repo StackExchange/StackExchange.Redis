@@ -449,8 +449,7 @@ namespace StackExchange.Redis
             foreach (var endpoint in endpoints) if (endpoint is DnsEndPoint) return true;
             return false;
         }
-
-#pragma warning disable 1998 // NET40 is sync, not async, currently
+        
         internal async Task ResolveEndPointsAsync(ConnectionMultiplexer multiplexer, TextWriter log)
         {
             Dictionary<string, IPAddress> cache = new Dictionary<string, IPAddress>(StringComparer.OrdinalIgnoreCase);
@@ -473,11 +472,7 @@ namespace StackExchange.Redis
                         else
                         {
                             multiplexer.LogLocked(log, "Using DNS to resolve '{0}'...", dns.Host);
-#if NET40
-                            var ips = Dns.GetHostAddresses(dns.Host);
-#else
                             var ips = await Dns.GetHostAddressesAsync(dns.Host).ObserveErrors().ForAwait();
-#endif
                             if (ips.Length == 1)
                             {
                                 ip = ips[0];
@@ -495,7 +490,7 @@ namespace StackExchange.Redis
                 }
             }
         }
-#pragma warning restore 1998
+
         static void Append(StringBuilder sb, object value)
         {
             if (value == null) return;

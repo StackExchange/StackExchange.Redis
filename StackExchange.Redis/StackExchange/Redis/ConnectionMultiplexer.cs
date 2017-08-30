@@ -9,12 +9,8 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Reflection;
-#if NET40
-using Microsoft.Runtime.CompilerServices;
-#else
 using System.IO.Compression;
 using System.Runtime.CompilerServices;
-#endif
 
 namespace StackExchange.Redis
 {
@@ -104,8 +100,10 @@ namespace StackExchange.Redis
             return defaultClientName;
         }
 
+        /// <summary>
         /// Tries to get the Roleinstance Id if Microsoft.WindowsAzure.ServiceRuntime is loaded.
         /// In case of any failure, swallows the exception and returns null
+        /// </summary>
         internal static string TryGetAzureRoleInstanceIdNoThrow()
         {
             string roleInstanceId = null;
@@ -127,7 +125,9 @@ namespace StackExchange.Redis
 
                 var type = asm.GetType("Microsoft.WindowsAzure.ServiceRuntime.RoleEnvironment");
 
-                // https://msdn.microsoft.com/en-us/library/microsoft.windowsazure.serviceruntime.roleenvironment.isavailable.aspx                if (!(bool)type.GetProperty("IsAvailable").GetValue(null, null))                    return null;
+                // https://msdn.microsoft.com/en-us/library/microsoft.windowsazure.serviceruntime.roleenvironment.isavailable.aspx
+                if (!(bool)type.GetProperty("IsAvailable").GetValue(null, null))
+                    return null;
 
                 var currentRoleInstanceProp = type.GetProperty("CurrentRoleInstance");
                 var currentRoleInstanceId = currentRoleInstanceProp.GetValue(null, null);
@@ -235,7 +235,6 @@ namespace StackExchange.Redis
             }
         }
 
-#if !NET40
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")]
         static void Write<T>(ZipArchive zip, string name, Task task, Action<T, StreamWriter> callback)
         {
@@ -342,7 +341,6 @@ namespace StackExchange.Redis
                 }
             }
         }
-#endif
 
         internal void MakeMaster(ServerEndPoint server, ReplicationChangeOptions options, TextWriter log)
         {
@@ -664,14 +662,9 @@ namespace StackExchange.Redis
 #endif
                     return false;
                 }
-
-#if NET40
-                var allTasks = TaskEx.WhenAll(tasks).ObserveErrors();
-                var any = TaskEx.WhenAny(allTasks, TaskEx.Delay(remaining)).ObserveErrors();
-#else
+                
                 var allTasks = Task.WhenAll(tasks).ObserveErrors();
                 var any = Task.WhenAny(allTasks, Task.Delay(remaining)).ObserveErrors();
-#endif
                 bool all = await any.ForAwait() == allTasks;
 #if !CORE_CLR
                 LogLockedWithThreadPoolStats(log, all ? "All tasks completed cleanly" : "Not all tasks completed cleanly", out busyWorkerCount);
@@ -698,12 +691,7 @@ namespace StackExchange.Redis
                     }
                     try
                     {
-#if NET40
-                        var any = TaskEx.WhenAny(task, TaskEx.Delay(remaining)).ObserveErrors();
-#else
-                        var any = Task.WhenAny(task, Task.Delay(remaining)).ObserveErrors();
-#endif
-                        await any.ForAwait();
+                        await Task.WhenAny(task, Task.Delay(remaining)).ObserveErrors().ForAwait();
                     }
                     catch
                     { }
@@ -1259,12 +1247,7 @@ namespace StackExchange.Redis
                     if (configuration.ResolveDns && configuration.HasDnsEndPoints())
                     {
                         var dns = configuration.ResolveEndPointsAsync(this, log).ObserveErrors();
-#if NET40
-                        var any = TaskEx.WhenAny(dns, TaskEx.Delay(timeoutMilliseconds));
-#else
-                        var any = Task.WhenAny(dns, Task.Delay(timeoutMilliseconds));
-#endif
-                        if ((await any.ForAwait()) != dns)
+                        if ((await Task.WhenAny(dns, Task.Delay(timeoutMilliseconds)).ForAwait()) != dns)
                         {
                             throw new TimeoutException("Timeout resolving endpoints");
                         }

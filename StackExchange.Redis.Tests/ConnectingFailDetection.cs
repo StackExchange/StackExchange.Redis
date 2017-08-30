@@ -1,15 +1,16 @@
-﻿using System;
-using System.Threading;
-using NUnit.Framework;
+﻿using System.Threading;
+using Xunit;
+using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    [TestFixture]
     public class ConnectingFailDetection : TestBase
     {
+        public ConnectingFailDetection(ITestOutputHelper output) : base (output) { }
+
 #if DEBUG
-        [Test]
-        public void FastNoticesFailOnConnectingSync()
+        [Fact]
+        public void FastNoticesFailOnConnectingSyncComlpetion()
         {
             try
             {
@@ -19,30 +20,38 @@ namespace StackExchange.Redis.Tests
                     conn.Ping();
 
                     var server = muxer.GetServer(muxer.GetEndPoints()[0]);
+                    var server2 = muxer.GetServer(muxer.GetEndPoints()[1]);
 
                     muxer.AllowConnect = false;
                     SocketManager.ConnectCompletionType = CompletionType.Sync;
 
+                    // muxer.IsConnected is true of *any* are connected, simulate failure for all cases.
                     server.SimulateConnectionFailure();
+                    Assert.False(server.IsConnected);
+                    Assert.True(server2.IsConnected);
+                    Assert.True(muxer.IsConnected);
 
-                    Assert.IsFalse(muxer.IsConnected);
+                    server2.SimulateConnectionFailure();
+                    Assert.False(server.IsConnected);
+                    Assert.False(server2.IsConnected);
+                    Assert.False(muxer.IsConnected);
 
                     // should reconnect within 1 keepalive interval
                     muxer.AllowConnect = true;
-                    Console.WriteLine("Waiting for reconnect");
+                    Output.WriteLine("Waiting for reconnect");
                     Thread.Sleep(2000);
 
-                    Assert.IsTrue(muxer.IsConnected);
+                    Assert.True(muxer.IsConnected);
                 }
             }
-            finally 
+            finally
             {
                 SocketManager.ConnectCompletionType = CompletionType.Any;
                 ClearAmbientFailures();
             }
         }
 
-        [Test]
+        [Fact]
         public void ConnectsWhenBeginConnectCompletesSynchronously()
         {
             try
@@ -54,7 +63,7 @@ namespace StackExchange.Redis.Tests
                     var conn = muxer.GetDatabase();
                     conn.Ping();
 
-                    Assert.IsTrue(muxer.IsConnected);
+                    Assert.True(muxer.IsConnected);
                 }
             }
             finally
@@ -64,32 +73,39 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [Test]
-        public void FastNoticesFailOnConnectingAsync()
+        [Fact]
+        public void FastNoticesFailOnConnectingAsyncComlpetion()
         {
             try
             {
-
                 using (var muxer = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true))
                 {
                     var conn = muxer.GetDatabase();
                     conn.Ping();
 
                     var server = muxer.GetServer(muxer.GetEndPoints()[0]);
+                    var server2 = muxer.GetServer(muxer.GetEndPoints()[1]);
 
                     muxer.AllowConnect = false;
                     SocketManager.ConnectCompletionType = CompletionType.Async;
 
+                    // muxer.IsConnected is true of *any* are connected, simulate failure for all cases.
                     server.SimulateConnectionFailure();
+                    Assert.False(server.IsConnected);
+                    Assert.True(server2.IsConnected);
+                    Assert.True(muxer.IsConnected);
 
-                    Assert.IsFalse(muxer.IsConnected);
+                    server2.SimulateConnectionFailure();
+                    Assert.False(server.IsConnected);
+                    Assert.False(server2.IsConnected);
+                    Assert.False(muxer.IsConnected);
 
                     // should reconnect within 1 keepalive interval
                     muxer.AllowConnect = true;
-                    Console.WriteLine("Waiting for reconnect");
+                    Output.WriteLine("Waiting for reconnect");
                     Thread.Sleep(2000);
 
-                    Assert.IsTrue(muxer.IsConnected);
+                    Assert.True(muxer.IsConnected);
                 }
             }
             finally
@@ -99,7 +115,7 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [Test]
+        [Fact]
         public void ReconnectsOnStaleConnection()
         {
             try
@@ -109,15 +125,15 @@ namespace StackExchange.Redis.Tests
                     var conn = muxer.GetDatabase();
                     conn.Ping();
 
-                    Assert.IsTrue(muxer.IsConnected);
+                    Assert.True(muxer.IsConnected);
 
                     PhysicalConnection.EmulateStaleConnection = true;
                     Thread.Sleep(500);
-                    Assert.IsFalse(muxer.IsConnected);
+                    Assert.False(muxer.IsConnected);
 
                     PhysicalConnection.EmulateStaleConnection = false;
                     Thread.Sleep(1000);
-                    Assert.IsTrue(muxer.IsConnected);
+                    Assert.True(muxer.IsConnected);
                 }
             }
             finally
@@ -126,7 +142,6 @@ namespace StackExchange.Redis.Tests
                 ClearAmbientFailures();
             }
         }
-
 #endif
     }
 }

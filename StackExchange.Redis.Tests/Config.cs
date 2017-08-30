@@ -3,26 +3,27 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
-using NUnit.Framework;
+using Xunit;
+using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    [TestFixture]
+    [Collection(NonParallelCollection.Name)]
     public class Config : TestBase
     {
+        public Config(ITestOutputHelper output) : base (output) { }
 
-        [Test]
+        [Fact]
         public void VerifyReceiveConfigChangeBroadcast()
         {
-
-            var config = this.GetConfiguration();
+            var config = GetConfiguration();
             using (var sender = Create(allowAdmin: true))
             using (var receiver = Create(syncTimeout: 2000))
             {
                 int total = 0;
                 receiver.ConfigurationChangedBroadcast += (s, a) =>
                 {
-                    Console.WriteLine("Config changed: " + (a.EndPoint == null ? "(none)" : a.EndPoint.ToString()));
+                    Output.WriteLine("Config changed: " + (a.EndPoint == null ? "(none)" : a.EndPoint.ToString()));
                     Interlocked.Increment(ref total);
                 };
                 Thread.Sleep(500);
@@ -30,23 +31,23 @@ namespace StackExchange.Redis.Tests
                 long count = sender.PublishReconfigure();
                 GetServer(receiver).Ping();
                 GetServer(receiver).Ping();
-                Assert.IsTrue(count == -1 || count >= 2, "subscribers");
-                Assert.IsTrue(Interlocked.CompareExchange(ref total, 0, 0) >= 1, "total (1st)");
+                Assert.True(count == -1 || count >= 2, "subscribers");
+                Assert.True(Interlocked.CompareExchange(ref total, 0, 0) >= 1, "total (1st)");
 
                 Interlocked.Exchange(ref total, 0);
 
                 // and send a second time via a re-master operation
                 var server = GetServer(sender);
-                if (server.IsSlave) Assert.Inconclusive("didn't expect a slave");
+                if (server.IsSlave) Skip.Inconclusive("didn't expect a slave");
                 server.MakeMaster(ReplicationChangeOptions.Broadcast);
                 Thread.Sleep(100);
                 GetServer(receiver).Ping();
                 GetServer(receiver).Ping();
-                Assert.IsTrue(Interlocked.CompareExchange(ref total, 0, 0) >= 1, "total (2nd)");
+                Assert.True(Interlocked.CompareExchange(ref total, 0, 0) >= 1, "total (2nd)");
             }
         }
 
-        [Test]
+        [Fact]
         public void TalkToNonsenseServer()
         {
             var config = new ConfigurationOptions
@@ -59,14 +60,14 @@ namespace StackExchange.Redis.Tests
                 ConnectTimeout = 200
             };
             var log = new StringWriter();
-            using(var conn = ConnectionMultiplexer.Connect(config, log))
+            using (var conn = ConnectionMultiplexer.Connect(config, log))
             {
-                Console.WriteLine(log);
-                Assert.IsFalse(conn.IsConnected);
+                Output.WriteLine(log.ToString());
+                Assert.False(conn.IsConnected);
             }
         }
 
-        [Test]
+        [Fact]
         public void TestManaulHeartbeat()
         {
             using (var muxer = Create(keepAlive: 2))
@@ -76,91 +77,89 @@ namespace StackExchange.Redis.Tests
 
                 var before = muxer.OperationCount;
 
-                Console.WriteLine("sleeping to test heartbeat...");
+                Output.WriteLine("sleeping to test heartbeat...");
                 Thread.Sleep(TimeSpan.FromSeconds(5));
 
                 var after = muxer.OperationCount;
 
-                Assert.IsTrue(after >= before + 4);
-
+                Assert.True(after >= before + 4);
             }
         }
 
-        [Test]
-        [TestCase(0)]
-        [TestCase(10)]
-        [TestCase(100)]
-        [TestCase(200)]
+        [Theory]
+        [InlineData(0)]
+        [InlineData(10)]
+        [InlineData(100)]
+        [InlineData(200)]
         public void GetSlowlog(int count)
         {
-            using(var muxer = Create(allowAdmin: true))
+            using (var muxer = Create(allowAdmin: true))
             {
-                var rows = GetServer(muxer).SlowlogGet(count);
-                Assert.IsNotNull(rows);
+                var rows = GetAnyMaster(muxer).SlowlogGet(count);
+                Assert.NotNull(rows);
             }
         }
-        [Test]
+
+        [Fact]
         public void ClearSlowlog()
         {
             using (var muxer = Create(allowAdmin: true))
             {
-                GetServer(muxer).SlowlogReset();
+                GetAnyMaster(muxer).SlowlogReset();
             }
         }
 
-        [Test]
+        [Fact]
         public void ClientName()
         {
             using (var muxer = Create(clientName: "Test Rig", allowAdmin: true))
             {
-                Assert.AreEqual("Test Rig", muxer.ClientName);
+                Assert.Equal("Test Rig", muxer.ClientName);
 
                 var conn = muxer.GetDatabase();
                 conn.Ping();
 #if DEBUG
-                var name = GetServer(muxer).ClientGetName();
-                Assert.AreEqual("TestRig", name);
+                var name = GetAnyMaster(muxer).ClientGetName();
+                Assert.Equal("TestRig", name);
 #endif
             }
         }
 
-        [Test]
+        [Fact]
         public void DefaultClientName()
         {
             using (var muxer = Create(allowAdmin: true))
             {
-                Assert.AreEqual(Environment.MachineName, muxer.ClientName);
+                Assert.Equal(Environment.MachineName, muxer.ClientName);
                 var conn = muxer.GetDatabase();
                 conn.Ping();
 #if DEBUG
-                var name = GetServer(muxer).ClientGetName();
-                Assert.AreEqual(Environment.MachineName, name);
+                var name = GetAnyMaster(muxer).ClientGetName();
+                Assert.Equal(Environment.MachineName, name);
 #endif
             }
         }
-        
-        [Test]
+
+        [Fact]
         public void ReadConfigWithConfigDisabled()
         {
             using (var muxer = Create(allowAdmin: true, disabledCommands: new[] { "config", "info" }))
             {
-                var conn = GetServer(muxer);
-                Assert.Throws<RedisCommandException>(() =>
-                {
-                    var all = conn.ConfigGet();
-                },
-                "This operation has been disabled in the command-map and cannot be used: CONFIG");
+                var conn = GetAnyMaster(muxer);
+                var ex = Assert.Throws<RedisCommandException>(() => conn.ConfigGet());
+                Assert.Equal("This operation has been disabled in the command-map and cannot be used: CONFIG", ex.Message);
             }
         }
-        [Test]
+
+        [Fact]
         public void ReadConfig()
         {
             using (var muxer = Create(allowAdmin: true))
             {
-                Console.WriteLine("about to get config");
-                var conn = GetServer(muxer);
+                Output.WriteLine("about to get config");
+                var conn = GetAnyMaster(muxer);
                 var all = conn.ConfigGet();
-                Assert.IsTrue(all.Length > 0, "any");
+                Assert.True(all.Length > 0, "any");
 
 #if !CORE_CLR
                 var pairs = all.ToDictionary(x => (string)x.Key, x => (string)x.Value, StringComparer.InvariantCultureIgnoreCase);
@@ -168,28 +167,29 @@ namespace StackExchange.Redis.Tests
                 var pairs = all.ToDictionary(x => (string)x.Key, x => (string)x.Value, StringComparer.OrdinalIgnoreCase);
 #endif
 
-                Assert.AreEqual(all.Length, pairs.Count);
-                Assert.IsTrue(pairs.ContainsKey("timeout"), "timeout");
+                Assert.Equal(all.Length, pairs.Count);
+                Assert.True(pairs.ContainsKey("timeout"), "timeout");
                 var val = int.Parse(pairs["timeout"]);
 
-                Assert.IsTrue(pairs.ContainsKey("port"), "port");
+                Assert.True(pairs.ContainsKey("port"), "port");
                 val = int.Parse(pairs["port"]);
-                Assert.AreEqual(PrimaryPort, val);
+                Assert.Equal(TestConfig.Current.MasterPort, val);
             }
         }
 
-        [Test]
+        [Fact]
         public async System.Threading.Tasks.Task TestConfigureAsync()
         {
-            using(var muxer = Create())
+            using (var muxer = Create())
             {
                 Thread.Sleep(1000);
                 Debug.WriteLine("About to reconfigure.....");
-                await muxer.ConfigureAsync().ConfigureAwait(false);
+                await muxer.ConfigureAsync().ForAwait();
                 Debug.WriteLine("Reconfigured");
             }
         }
-        [Test]
+
+        [Fact]
         public void TestConfigureSync()
         {
             using (var muxer = Create())
@@ -201,21 +201,21 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [Test]
+        [Fact]
         public void GetTime()
         {
             using (var muxer = Create())
             {
-                var server = GetServer(muxer);
+                var server = GetAnyMaster(muxer);
                 var serverTime = server.Time();
-                Console.WriteLine(serverTime);
+                Output.WriteLine(serverTime.ToString());
                 var delta = Math.Abs((DateTime.UtcNow - serverTime).TotalSeconds);
 
-                Assert.IsTrue(delta < 5);
+                Assert.True(delta < 5);
             }
         }
 
-        [Test]
+        [Fact]
         public void DebugObject()
         {
             using (var muxer = Create(allowAdmin: true))
@@ -225,78 +225,78 @@ namespace StackExchange.Redis.Tests
                 db.KeyDelete(key, CommandFlags.FireAndForget);
                 db.StringIncrement(key, flags: CommandFlags.FireAndForget);
                 var debug = (string)db.DebugObject(key);
-                Assert.IsNotNull(debug);
-                Assert.IsTrue(debug.Contains("encoding:int serializedlength:2"));
+                Assert.NotNull(debug);
+                Assert.Contains("encoding:int serializedlength:2", debug);
             }
         }
 
-        [Test]
+        [Fact]
         public void GetInfo()
         {
-            using(var muxer = Create(allowAdmin: true))
+            using (var muxer = Create(allowAdmin: true))
             {
-                var server = GetServer(muxer);
+                var server = GetAnyMaster(muxer);
                 var info1 = server.Info();
-                Assert.IsTrue(info1.Length > 5);
-                Console.WriteLine("All sections");
-                foreach(var group in info1)
+                Assert.True(info1.Length > 5);
+                Output.WriteLine("All sections");
+                foreach (var group in info1)
                 {
-                    Console.WriteLine(group.Key);
+                    Output.WriteLine(group.Key);
                 }
-                var first = info1.First();
-                Console.WriteLine("Full info for: " + first.Key);
+                var first = info1[0];
+                Output.WriteLine("Full info for: " + first.Key);
                 foreach (var setting in first)
                 {
-                    Console.WriteLine("{0}  ==>  {1}", setting.Key, setting.Value);
+                    Output.WriteLine("{0}  ==>  {1}", setting.Key, setting.Value);
                 }
 
                 var info2 = server.Info("cpu");
-                Assert.AreEqual(1, info2.Length);
+                Assert.Single(info2);
                 var cpu = info2.Single();
-                Assert.IsTrue(cpu.Count() > 2);
-                Assert.AreEqual("CPU", cpu.Key);
-                Assert.IsTrue(cpu.Any(x => x.Key == "used_cpu_sys"));
-                Assert.IsTrue(cpu.Any(x => x.Key == "used_cpu_user"));
+                Assert.True(cpu.Count() > 2);
+                Assert.Equal("CPU", cpu.Key);
+                Assert.Contains(cpu, x => x.Key == "used_cpu_sys");
+                Assert.Contains(cpu, x => x.Key == "used_cpu_user");
             }
         }
 
-        [Test]
+        [Fact]
         public void GetInfoRaw()
         {
             using (var muxer = Create(allowAdmin: true))
             {
-                var server = GetServer(muxer);
+                var server = GetAnyMaster(muxer);
                 var info = server.InfoRaw();
-                Assert.IsTrue(info.Contains("used_cpu_sys"));
-                Assert.IsTrue(info.Contains("used_cpu_user"));
+                Assert.Contains("used_cpu_sys", info);
+                Assert.Contains("used_cpu_user", info);
             }
         }
 
-        [Test]
+        [Fact]
         public void GetClients()
         {
             var name = Guid.NewGuid().ToString();
-            using (var muxer = Create(clientName:  name, allowAdmin: true))
+            using (var muxer = Create(clientName: name, allowAdmin: true))
             {
-                var server = GetServer(muxer);
+                var server = GetAnyMaster(muxer);
                 var clients = server.ClientList();
-                Assert.IsTrue(clients.Length > 0, "no clients"); // ourselves!
-                Assert.IsTrue(clients.Any(x => x.Name == name), "expected: " + name);
+                Assert.True(clients.Length > 0, "no clients"); // ourselves!
+                Assert.True(clients.Any(x => x.Name == name), "expected: " + name);
             }
         }
 
-        [Test]
+        [Fact]
         public void SlowLog()
         {
             using (var muxer = Create(allowAdmin: true))
             {
-                var server = GetServer(muxer);
+                var server = GetAnyMaster(muxer);
                 var slowlog = server.SlowlogGet();
                 server.SlowlogReset();
             }
         }
 
-        [Test]
+        [Fact]
         public void TestAutomaticHeartbeat()
         {
             RedisValue oldTimeout = RedisValue.Null;
@@ -305,30 +305,29 @@ namespace StackExchange.Redis.Tests
                 try
                 {
                     var conn = configMuxer.GetDatabase();
-                    var srv = GetServer(configMuxer);
+                    var srv = GetAnyMaster(configMuxer);
                     oldTimeout = srv.ConfigGet("timeout")[0].Value;
                     srv.ConfigSet("timeout", 5);
 
-                    using(var innerMuxer = Create())
+                    using (var innerMuxer = Create())
                     {
                         var innerConn = innerMuxer.GetDatabase();
                         innerConn.Ping(); // need to wait to pick up configuration etc
 
                         var before = innerMuxer.OperationCount;
 
-                        Console.WriteLine("sleeping to test heartbeat...");
+                        Output.WriteLine("sleeping to test heartbeat...");
                         Thread.Sleep(TimeSpan.FromSeconds(8));
 
                         var after = innerMuxer.OperationCount;
-                        Assert.IsTrue(after >= before + 4);
-
+                        Assert.True(after >= before + 4);
                     }
                 }
                 finally
                 {
-                    if(!oldTimeout.IsNull)
+                    if (!oldTimeout.IsNull)
                     {
-                        var srv = GetServer(configMuxer);
+                        var srv = GetAnyMaster(configMuxer);
                         srv.ConfigSet("timeout", oldTimeout);
                     }
                 }

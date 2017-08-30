@@ -1,16 +1,20 @@
 ﻿using System;
-using NUnit.Framework;
+using System.Threading.Tasks;
+using Xunit;
+using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    [TestFixture]
     public class FloatingPoint : TestBase
     {
-        static bool Within(double x, double y, double delta)
+        public FloatingPoint(ITestOutputHelper output) : base (output) { }
+
+        private static bool Within(double x, double y, double delta)
         {
             return Math.Abs(x - y) <= delta;
         }
-        [Test]
+
+        [Fact]
         public void IncrDecrFloatingPoint()
         {
             using (var conn = Create())
@@ -43,12 +47,12 @@ namespace StackExchange.Redis.Tests
                 }
                 var val = (double)db.StringGet(key);
 
-                Assert.IsTrue(Within(sum, val, 0.0001));
+                Assert.True(Within(sum, val, 0.0001));
             }
         }
 
-        [Test]
-        public async void IncrDecrFloatingPointAsync()
+        [Fact]
+        public async Task IncrDecrFloatingPointAsync()
         {
             using (var conn = Create())
             {
@@ -70,21 +74,21 @@ namespace StackExchange.Redis.Tests
                 double sum = 0;
                 foreach (var value in incr)
                 {
-                    await db.StringIncrementAsync(key, value).ConfigureAwait(false);
+                    await db.StringIncrementAsync(key, value).ForAwait();
                     sum += value;
                 }
                 foreach (var value in decr)
                 {
-                    await db.StringDecrementAsync(key, value).ConfigureAwait(false);
+                    await db.StringDecrementAsync(key, value).ForAwait();
                     sum -= value;
                 }
-                var val = (double)await db.StringGetAsync(key).ConfigureAwait(false);
+                var val = (double)await db.StringGetAsync(key).ForAwait();
 
-                Assert.IsTrue(Within(sum, val, 0.0001));
+                Assert.True(Within(sum, val, 0.0001));
             }
         }
 
-        [Test]
+        [Fact]
         public void HashIncrDecrFloatingPoint()
         {
             using (var conn = Create())
@@ -118,12 +122,12 @@ namespace StackExchange.Redis.Tests
                 }
                 var val = (double)db.HashGet(key, field);
 
-                Assert.IsTrue(Within(sum, val, 0.0001));
+                Assert.True(Within(sum, val, 0.0001));
             }
         }
 
-        [Test]
-        public async void HashIncrDecrFloatingPointAsync()
+        [Fact]
+        public async Task HashIncrDecrFloatingPointAsync()
         {
             using (var conn = Create())
             {
@@ -146,17 +150,17 @@ namespace StackExchange.Redis.Tests
                 double sum = 0;
                 foreach (var value in incr)
                 {
-                    await db.HashIncrementAsync(key, field, value).ConfigureAwait(false);
+                    await db.HashIncrementAsync(key, field, value).ForAwait();
                     sum += value;
                 }
                 foreach (var value in decr)
                 {
-                    await db.HashDecrementAsync(key, field, value).ConfigureAwait(false);
+                    await db.HashDecrementAsync(key, field, value).ForAwait();
                     sum -= value;
                 }
-                var val = (double)await db.HashGetAsync(key, field).ConfigureAwait(false);
+                var val = (double)await db.HashGetAsync(key, field).ForAwait();
 
-                Assert.IsTrue(Within(sum, val, 0.0001));
+                Assert.True(Within(sum, val, 0.0001));
             }
         }
     }

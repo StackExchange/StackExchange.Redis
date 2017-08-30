@@ -1,15 +1,16 @@
-﻿using NUnit.Framework;
+﻿using Xunit;
+using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    [TestFixture]
     public class Lex : TestBase
     {
+        public Lex(ITestOutputHelper output) : base(output) { }
 
-        [Test]
+        [Fact]
         public void QueryRangeAndLengthByLex()
         {
-            using(var conn = Create())
+            using (var conn = Create())
             {
                 var db = conn.GetDatabase();
                 RedisKey key = Me();
@@ -44,7 +45,7 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [Test]
+        [Fact]
         public void RemoveRangeByLex()
         {
             using (var conn = Create())
@@ -76,22 +77,20 @@ namespace StackExchange.Redis.Tests
                 Equate(set, set.Length, "ALPHA", "aaaa", "alpha", "b", "c", "d", "e", "foo", "zap", "zip");
 
                 long removed = db.SortedSetRemoveRangeByValue(key, "alpha", "omega");
-                Assert.AreEqual(6, removed);
+                Assert.Equal(6, removed);
 
                 set = db.SortedSetRangeByRank(key);
                 Equate(set, set.Length, "ALPHA", "aaaa", "zap", "zip");
             }
         }
 
-
-
         private void Equate(RedisValue[] actual, long count, params string[] expected)
         {
-            Assert.AreEqual(count, expected.Length);
-            Assert.AreEqual(expected.Length, actual.Length);
-            for(int i = 0; i < actual.Length; i++)
+            Assert.Equal(count, expected.Length);
+            Assert.Equal(expected.Length, actual.Length);
+            for (int i = 0; i < actual.Length; i++)
             {
-                Assert.AreEqual(expected[i], (string)actual[i]);
+                Assert.Equal(expected[i], (string)actual[i]);
             }
         }
     }

@@ -1,11 +1,13 @@
-﻿using NUnit.Framework;
+﻿using Xunit;
+using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    [TestFixture]
     public class Bits : TestBase
     {
-        [Test]
+        public Bits(ITestOutputHelper output) : base (output) { }
+
+        [Fact]
         public void BasicOps()
         {
             using (var conn = Create())

@@ -1,32 +1,33 @@
 ﻿using System;
-using System.Linq;
-using NUnit.Framework;
+using Xunit;
+using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    [TestFixture]
     public class PubSubCommand : TestBase
     {
-        [Test]
+        public PubSubCommand(ITestOutputHelper output) : base (output) { }
+
+        [Fact]
         public void SubscriberCount()
         {
-            using(var conn = Create())
+            using (var conn = Create())
             {
                 RedisChannel channel = Me() + Guid.NewGuid();
                 var server = conn.GetServer(conn.GetEndPoints()[0]);
 
                 var channels = server.SubscriptionChannels(Me() + "*");
-                Assert.IsFalse(channels.Contains(channel));
+                Assert.DoesNotContain(channel, channels);
 
                 long justWork = server.SubscriptionPatternCount();
                 var count = server.SubscriptionSubscriberCount(channel);
-                Assert.AreEqual(0, count);
+                Assert.Equal(0, count);
                 conn.GetSubscriber().Subscribe(channel, delegate { });
                 count = server.SubscriptionSubscriberCount(channel);
-                Assert.AreEqual(1, count);
+                Assert.Equal(1, count);
 
                 channels = server.SubscriptionChannels(Me() + "*");
-                Assert.IsTrue(channels.Contains(channel));
+                Assert.Contains(channel, channels);
             }
         }
     }

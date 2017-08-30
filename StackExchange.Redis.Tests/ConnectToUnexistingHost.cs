@@ -1,27 +1,29 @@
-﻿using NUnit.Framework;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Threading;
+using Xunit;
+using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    [TestFixture]
     public class ConnectToUnexistingHost : TestBase
     {
-#if DEBUG
-        [Test]
-        [TestCase(CompletionType.Any)]
-        [TestCase(CompletionType.Sync)]
-        [TestCase(CompletionType.Async)]
-        public void ConnectToUnexistingHostFailsWithinTimeout(CompletionType completionType)
-        {
-            var sw = Stopwatch.StartNew();
+        public ConnectToUnexistingHost(ITestOutputHelper output) : base (output) { }
 
+#if DEBUG
+        [Theory]
+        [InlineData(CompletionType.Any)]
+        [InlineData(CompletionType.Sync)]
+        [InlineData(CompletionType.Async)]
+        public void FailsWithinTimeout(CompletionType completionType)
+        {
+            const int timeout = 1000;
+            var sw = Stopwatch.StartNew();
             try
             {
                 var config = new ConfigurationOptions
                 {
                     EndPoints = { { "invalid", 1234 } },
-                    ConnectTimeout = 1000
+                    ConnectTimeout = timeout
                 };
 
                 SocketManager.ConnectCompletionType = completionType;
@@ -31,15 +33,14 @@ namespace StackExchange.Redis.Tests
                     Thread.Sleep(10000);
                 }
 
-                Assert.Fail("Connect should fail with RedisConnectionException exception");
+                Assert.True(false, "Connect should fail with RedisConnectionException exception");
             }
             catch (RedisConnectionException)
             {
                 var elapsed = sw.ElapsedMilliseconds;
-                if (elapsed > 9000) 
-                {
-                    Assert.Fail("Connect should fail within ConnectTimeout");
-                }
+                Output.WriteLine("Elapsed time: " + elapsed);
+                Output.WriteLine("Timeout: " + timeout);
+                Assert.True(elapsed < 9000, "Connect should fail within ConnectTimeout");
             }
             finally
             {

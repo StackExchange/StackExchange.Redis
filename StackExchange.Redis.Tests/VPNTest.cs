@@ -1,18 +1,28 @@
-﻿using System;
+﻿using System.Collections.Generic;
 using System.IO;
-using NUnit.Framework;
+using System.Linq;
+using Xunit;
+using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    [TestFixture]
     public class VPNTest : TestBase
     {
+        public VPNTest(ITestOutputHelper output) : base (output) { }
 
-        [Test]
-        [MaxTime(100000)]
-        [TestCase("co-devredis01.ds.stackexchange.com:6379")]
+        public static IEnumerable<object[]> GetVPNConfigs =>
+            TestConfig.Current.VPNConfigs?.Select(c => new object[] { c })
+            ?? new[] { new[] { "" } }; // xUnit errors on an empty theory and I'm tired of it
+
+        [Theory]
+        [MemberData(nameof(GetVPNConfigs))]
         public void Execute(string config)
         {
+            if (string.IsNullOrEmpty(config))
+            {
+                Skip.IfNoConfig(nameof(TestConfig.Config.VPNConfigs), TestConfig.Current.VPNConfigs);
+            }
+
             for (int i = 0; i < 50; i++)
             {
                 var log = new StringWriter();
@@ -24,17 +34,17 @@ namespace StackExchange.Redis.Tests
                     using (var conn = ConnectionMultiplexer.Connect(options, log))
                     {
                         var ttl = conn.GetDatabase().Ping();
-                        Console.WriteLine(ttl);
+                        Output.WriteLine(ttl.ToString());
                     }
                 }
                 catch
                 {
-                    Console.WriteLine(log);
-                    Assert.Fail();
+                    Output.WriteLine(log.ToString());
+                    throw;
                 }
-                Console.WriteLine();
-                Console.WriteLine("===");
-                Console.WriteLine();
+                Output.WriteLine("");
+                Output.WriteLine("===");
+                Output.WriteLine("");
             }
         }
     }

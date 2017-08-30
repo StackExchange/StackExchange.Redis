@@ -1,12 +1,13 @@
-﻿using NUnit.Framework;
-using System.IO;
+﻿using Xunit;
+using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    [TestFixture]
     public class HyperLogLog : TestBase
     {
-        [Test]
+        public HyperLogLog(ITestOutputHelper output) : base (output) { }
+
+        [Fact]
         public void SingleKeyLength()
         {
             using (var conn = Create())
@@ -18,11 +19,11 @@ namespace StackExchange.Redis.Tests
                 db.HyperLogLogAdd(key, "b");
                 db.HyperLogLogAdd(key, "c");
 
-                Assert.IsTrue(db.HyperLogLogLength(key) > 0);
+                Assert.True(db.HyperLogLogLength(key) > 0);
             }
         }
 
-        [Test]
+        [Fact]
         public void MultiKeyLength()
         {
             using (var conn = Create(useSharedSocketManager: true))
@@ -34,7 +35,7 @@ namespace StackExchange.Redis.Tests
                 db.HyperLogLogAdd(keys[1], "b");
                 db.HyperLogLogAdd(keys[2], "c");
 
-                Assert.IsTrue(db.HyperLogLogLength(keys) > 0);
+                Assert.True(db.HyperLogLogLength(keys) > 0);
             }
         }
     }

@@ -1,106 +1,107 @@
 ﻿using System;
-using System.Linq;
 using System.Net;
 using System.Threading;
-using NUnit.Framework;
+using Xunit;
+using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    [TestFixture, Ignore("reason?")]
     public class Sentinel
     {
-        // TODO fill in these constants before running tests
-        private const string IP = "127.0.0.1";
-        private const int Port = 26379;
-        private const string ServiceName = "mymaster";
+        private string ServiceName => TestConfig.Current.SentinelSeviceName;
 
-        private static readonly ConnectionMultiplexer Conn = GetConn();
-        private static readonly IServer Server = Conn.GetServer(IP, Port);
+        private ConnectionMultiplexer Conn { get; }
+        private IServer Server { get; }
 
-        public static ConnectionMultiplexer GetConn()
+        public ITestOutputHelper Output { get; }
+        public Sentinel(ITestOutputHelper output)
         {
-            // create a connection
+            Output = output;
+
+            Skip.IfNoConfig(nameof(TestConfig.Config.SentinelServer), TestConfig.Current.SentinelServer);
+            Skip.IfNoConfig(nameof(TestConfig.Config.SentinelSeviceName), TestConfig.Current.SentinelSeviceName);
+
             var options = new ConfigurationOptions()
             {
                 CommandMap = CommandMap.Sentinel,
-                EndPoints = { { IP, Port } },
+                EndPoints = { { TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPort } },
                 AllowAdmin = true,
                 TieBreaker = "",
-                ServiceName = ServiceName,
+                ServiceName = TestConfig.Current.SentinelSeviceName,
                 SyncTimeout = 5000
             };
-            var connection = ConnectionMultiplexer.Connect(options, Console.Out);
+            Conn = ConnectionMultiplexer.Connect(options, Console.Out);
             Thread.Sleep(3000);
-            Assert.IsTrue(connection.IsConnected);
-            return connection;
+            Assert.True(Conn.IsConnected);
+            Server = Conn.GetServer(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPort);
         }
 
-        [Test]
+        [Fact]
         public void PingTest()
         {
             var test = Server.Ping();
-            Console.WriteLine("ping took {0} ms", test.TotalMilliseconds);
+            Output.WriteLine("ping took {0} ms", test.TotalMilliseconds);
         }
 
-        [Test]
+        [Fact]
         public void SentinelGetMasterAddressByNameTest()
         {
             var endpoint = Server.SentinelGetMasterAddressByName(ServiceName);
-            Assert.IsNotNull(endpoint);
+            Assert.NotNull(endpoint);
             var ipEndPoint = endpoint as IPEndPoint;
-            Assert.IsNotNull(ipEndPoint);
-            Console.WriteLine("{0}:{1}", ipEndPoint.Address, ipEndPoint.Port);
+            Assert.NotNull(ipEndPoint);
+            Output.WriteLine("{0}:{1}", ipEndPoint.Address, ipEndPoint.Port);
         }
 
-        [Test]
-        public void SentinelGetMasterAddressByNameNegativeTest() 
+        [Fact]
+        public void SentinelGetMasterAddressByNameNegativeTest()
         {
             var endpoint = Server.SentinelGetMasterAddressByName("FakeServiceName");
-            Assert.IsNull(endpoint);
+            Assert.Null(endpoint);
         }
 
-        [Test]
+        [Fact]
         public void SentinelMasterTest()
         {
             var dict = Server.SentinelMaster(ServiceName).ToDictionary();
-            Assert.AreEqual(ServiceName, dict["name"]);
+            Assert.Equal(ServiceName, dict["name"]);
             foreach (var kvp in dict)
             {
-                Console.WriteLine("{0}:{1}", kvp.Key, kvp.Value);
+                Output.WriteLine("{0}:{1}", kvp.Key, kvp.Value);
             }
         }
 
-        [Test]
+        [Fact]
         public void SentinelMastersTest()
         {
             var masterConfigs = Server.SentinelMasters();
-            Assert.IsTrue(masterConfigs.First().ToDictionary().ContainsKey("name"));
+            Assert.True(masterConfigs[0].ToDictionary().ContainsKey("name"));
             foreach (var config in masterConfigs)
             {
                 foreach (var kvp in config)
                 {
-                    Console.WriteLine("{0}:{1}", kvp.Key, kvp.Value);
+                    Output.WriteLine("{0}:{1}", kvp.Key, kvp.Value);
                 }
             }
         }
 
-        [Test]
-        public void SentinelSlavesTest() 
+        [Fact]
+        public void SentinelSlavesTest()
         {
             var slaveConfigs = Server.SentinelSlaves(ServiceName);
-            if (slaveConfigs.Any()) 
+            if (slaveConfigs.Length > 0)
             {
-                Assert.IsTrue(slaveConfigs.First().ToDictionary().ContainsKey("name"));
+                Assert.True(slaveConfigs[0].ToDictionary().ContainsKey("name"));
             }
-            foreach (var config in slaveConfigs) 
+            foreach (var config in slaveConfigs)
             {
                 foreach (var kvp in config) {
-                    Console.WriteLine("{0}:{1}", kvp.Key, kvp.Value);
+                    Output.WriteLine("{0}:{1}", kvp.Key, kvp.Value);
                 }
             }
         }
 
-        [Test, Ignore("reason?")]
+        [Fact(Skip = "Isolated Test")]
         public void SentinelFailoverTest()
         {
             Server.SentinelFailover(ServiceName);

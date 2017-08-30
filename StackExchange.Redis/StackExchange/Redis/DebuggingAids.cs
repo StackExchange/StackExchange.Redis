@@ -310,7 +310,7 @@ namespace StackExchange.Redis
             value = -1;
 
             try
-            {   
+            {
                 if (!_disabled && _cpu == null)
                 {
                     lock (staticLock)
@@ -330,9 +330,10 @@ namespace StackExchange.Redis
                 // Some environments don't allow access to Performance Counters, so stop trying.
                 _disabled = true;
             }
-            catch (Exception)
+            catch (Exception e)
             {
                 // this shouldn't happen, but just being safe...
+                Trace.WriteLine(e);
             }
 
             if (!_disabled && _cpu != null)
