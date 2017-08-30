@@ -573,7 +573,7 @@ namespace StackExchange.Redis.Tests
                 watch.Stop();
                 Output.WriteLine("Time to re-establish: {0}ms ({1})", watch.ElapsedMilliseconds,
                     preserveOrder ? "preserve order" : "any order");
-                await Task.Delay(200).ForAwait();
+                await Task.Delay(2000).ForAwait();
                 Debug.WriteLine("Pinging...");
                 Assert.Equal(key, db.StringGet(key));
             }
