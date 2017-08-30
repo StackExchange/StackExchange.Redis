@@ -1,1 +1,1 @@
-@.\3.0.503\redis-server.exe slave.conf
+@%~dp0\3.0.503\redis-server.exe %~dp0\slave.conf
