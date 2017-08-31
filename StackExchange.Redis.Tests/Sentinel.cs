@@ -101,7 +101,7 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [Fact(Skip = "Isolated Test")]
+        [Fact]
         public void SentinelFailoverTest()
         {
             Server.SentinelFailover(ServiceName);
