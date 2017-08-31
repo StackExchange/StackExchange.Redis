@@ -14,7 +14,7 @@ nuget:
   disable_publish_on_pr: true
 
 build_script:
-- cmd: .\RedisConfigs\start-all.cmd
+- cmd: .\RedisConfigs\start-all.cmd && exit 0
 - ps: .\build.ps1 -BuildNumber "$env:APPVEYOR_BUILD_NUMBER" -Version "$env:APPVEYOR_REPO_TAG_NAME" -PullRequestNumber "$env:APPVEYOR_PULL_REQUEST_NUMBER" -CreatePackages $true
 
 test: off
