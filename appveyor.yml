@@ -7,11 +7,11 @@ install:
 - cmd: >-
     cd RedisConfigs\3.0.503
 
-    redis-server.exe --service-install --service-name "redis-master" "..\Basic\master-6379.conf"
+    redis-server.exe --service-install --service-name "redis-6379" "..\Basic\master-6379.conf"
 
-    redis-server.exe --service-install --service-name "redis-slave" "..\Basic\slave-6380.conf"
+    redis-server.exe --service-install --service-name "redis-6380" "..\Basic\slave-6380.conf"
 
-    redis-server.exe --service-install --service-name "redis-secure" "..\Basic\secure-6381.conf"
+    redis-server.exe --service-install --service-name "redis-6381" "..\Basic\secure-6381.conf"
 
     redis-server.exe --service-install --service-name "redis-7000" "..\Cluster\cluster-7000.conf" --dir "..\Cluster"
 
@@ -24,6 +24,16 @@ install:
     redis-server.exe --service-install --service-name "redis-7004" "..\Cluster\cluster-7004.conf" --dir "..\Cluster"
 
     redis-server.exe --service-install --service-name "redis-7005" "..\Cluster\cluster-7005.conf" --dir "..\Cluster"
+
+    redis-server.exe --service-install --service-name "redis-7010" "..\Sentinel\redis-7010.conf"
+
+    redis-server.exe --service-install --service-name "redis-7011" "..\Sentinel\redis-7011.conf"
+
+    redis-server.exe --service-install --service-name "redis-26379" "..\Sentinel\sentinel-26379.conf" --sentinel
+
+    redis-server.exe --service-install --service-name "redis-26380" "..\Sentinel\sentinel-26380.conf" --sentinel
+
+    cd ..\..
 - ps: Start-Service redis-*
 
 skip_branch_with_pr: true
