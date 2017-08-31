@@ -18,6 +18,7 @@ redis-cli.exe
 RedisConfigs/*.dat
 RedisQFork*.dat
 StackExchange.Redis.*.zip
+.idea/
 .vs/
 *.lock.json
 packages/
