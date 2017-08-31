@@ -6,7 +6,6 @@ obj
 *.user
 *.nupkg
 nupkgs/
-packages/NuGet.CommandLine.*
 *.sln.docstates
 _ReSharper.*
 Mono/
@@ -14,7 +13,6 @@ Mono/
 *.rdb
 *.aof
 *.orig
-redis-cli.exe
 RedisConfigs/*.dat
 RedisQFork*.dat
 StackExchange.Redis.*.zip
