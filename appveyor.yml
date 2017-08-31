@@ -2,7 +2,9 @@ image: Visual Studio 2017
 
 init:
   - git config --global core.autocrlf input
-  - ps: iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
+
+install:
+- ps: Start-Job -ScriptBlock {.\RedisConfigs\appveyor.cmd}
 
 skip_branch_with_pr: true
 skip_tags: true
@@ -15,7 +17,6 @@ nuget:
   disable_publish_on_pr: true
 
 build_script:
-- cmd: .\RedisConfigs\appveyor.cmd
 - ps: .\build.ps1 -BuildNumber "$env:APPVEYOR_BUILD_NUMBER" -Version "$env:APPVEYOR_REPO_TAG_NAME" -PullRequestNumber "$env:APPVEYOR_PULL_REQUEST_NUMBER" -CreatePackages $true
 
 test: off
