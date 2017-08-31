@@ -4,7 +4,6 @@ param(
     [string] $BuildNumber,
     [bool] $CreatePackages,
     [bool] $RunTests = $true,
-    [switch] $LaunchServers,
     [string] $PullRequestNumber
 )
 
@@ -63,10 +62,6 @@ if (!$Version -and !$BuildNumber) {
 if ($PullRequestNumber) {
     Write-Host "Building for a pull request (#$PullRequestNumber), skipping packaging." -ForegroundColor Yellow
     $CreatePackages = $false
-}
-
-if ($LaunchServers) {
-    & .\RedisConfigs\start-all.cmd
 }
 
 if ($RunTests) {
