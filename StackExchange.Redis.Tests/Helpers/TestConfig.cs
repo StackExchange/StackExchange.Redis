@@ -50,6 +50,11 @@ namespace StackExchange.Redis.Tests
             public int SecurePort { get; set; } = 6381;
             public string SecurePassword { get; set; } = "changeme";
 
+            public string IPv4Server { get; set; } = "127.0.0.1";
+            public int IPv4Port { get; set; } = 6379;
+            public string IPv6Server { get; set; } = "::1";
+            public int IPv6Port { get; set; } = 6379;
+
             public string RemoteServer { get; set; } = "127.0.0.1";
             public int RemotePort { get; set; } = 6379;
 
