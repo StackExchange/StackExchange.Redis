@@ -295,8 +295,8 @@ namespace StackExchange.Redis
             {
                 if (exception is AggregateException) exception = exception.InnerException ?? exception;
                 if (exception is AuthenticationException) failureType = ConnectionFailureType.AuthenticationFailure;
-                else if (exception is SocketException || exception is IOException) failureType = ConnectionFailureType.SocketFailure;
                 else if (exception is EndOfStreamException) failureType = ConnectionFailureType.SocketClosed;
+                else if (exception is SocketException || exception is IOException) failureType = ConnectionFailureType.SocketFailure;
                 else if (exception is ObjectDisposedException) failureType = ConnectionFailureType.SocketClosed;
             }
         }
