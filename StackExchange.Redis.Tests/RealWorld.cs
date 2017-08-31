@@ -1,33 +1,31 @@
-﻿using System;
-using System.IO;
-using System.Threading;
+﻿using System.Threading;
 using Xunit;
 using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    public class RealWorld
+    public class RealWorld : TestBase
     {
-        public ITestOutputHelper Output { get; }
-        public RealWorld(ITestOutputHelper output) => Output = output;
+        public RealWorld(ITestOutputHelper output) : base(output) { }
 
         [Fact]
         public void WhyDoesThisNotWork()
         {
-            var sw = new StringWriter();
             Output.WriteLine("first:");
-            using (var conn = ConnectionMultiplexer.Connect("localhost:6379,localhost:6380,name=Core (Q&A),tiebreaker=:RedisMaster,abortConnect=False", sw))
+            var config = ConfigurationOptions.Parse("localhost:6379,localhost:6380,name=Core (Q&A),tiebreaker=:RedisMaster,abortConnect=False");
+            Assert.Equal(2, config.EndPoints.Count);
+            Output.WriteLine("Endpoint 0: {0} (AddressFamily: {1})", config.EndPoints[0], config.EndPoints[0].AddressFamily);
+            Output.WriteLine("Endpoint 1: {0} (AddressFamily: {1})", config.EndPoints[1], config.EndPoints[1].AddressFamily);
+
+            using (var conn = ConnectionMultiplexer.Connect("localhost:6379,localhost:6380,name=Core (Q&A),tiebreaker=:RedisMaster,abortConnect=False", Writer))
             {
-                Output.WriteLine(sw.ToString());
                 Output.WriteLine("");
                 Output.WriteLine("pausing...");
                 Thread.Sleep(200);
                 Output.WriteLine("second:");
 
-                sw = new StringWriter();
-                bool result = conn.Configure(sw);
+                bool result = conn.Configure(Writer);
                 Output.WriteLine("Returned: {0}", result);
-                Output.WriteLine(sw.ToString());
             }
         }
     }

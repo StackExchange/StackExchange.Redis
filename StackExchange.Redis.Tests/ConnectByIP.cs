@@ -14,14 +14,17 @@ namespace StackExchange.Redis.Tests
             var eps = new EndPointCollection
             {
                 { "127.0.0.1", 1000 },
-                { "::1", 1001 }
+                { "::1", 1001 },
+                { "localhost", 1002 }
             };
 
             Assert.Equal(AddressFamily.InterNetwork, eps[0].AddressFamily);
             Assert.Equal(AddressFamily.InterNetworkV6, eps[1].AddressFamily);
+            Assert.Equal(AddressFamily.Unspecified, eps[2].AddressFamily);
 
             Assert.Equal("127.0.0.1:1000", eps[0].ToString());
             Assert.Equal("[::1]:1001", eps[1].ToString());
+            Assert.Equal("Unspecified/localhost:1002", eps[2].ToString());
         }
 
         [Fact]

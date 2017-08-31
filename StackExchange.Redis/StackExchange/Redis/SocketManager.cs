@@ -174,7 +174,8 @@ namespace StackExchange.Redis
 
         internal SocketToken BeginConnect(EndPoint endpoint, ISocketCallback callback, ConnectionMultiplexer multiplexer, TextWriter log)
         {
-            var socket = new Socket(endpoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+            var addressFamily = endpoint.AddressFamily == AddressFamily.Unspecified ? AddressFamily.InterNetwork : endpoint.AddressFamily;
+            var socket = new Socket(addressFamily, SocketType.Stream, ProtocolType.Tcp);
             SetFastLoopbackOption(socket);
             socket.NoDelay = true;
             try
