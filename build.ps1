@@ -4,6 +4,7 @@ param(
     [string] $BuildNumber,
     [bool] $CreatePackages,
     [bool] $RunTests = $true,
+    [switch] $LaunchServers,
     [string] $PullRequestNumber
 )
 
@@ -64,7 +65,11 @@ if ($PullRequestNumber) {
     $CreatePackages = $false
 }
 
-if ($RunTests) {   
+if ($LaunchServers) {
+    & .\RedisConfigs\start-all.cmd
+}
+
+if ($RunTests) {
     dotnet restore /ConsoleLoggerParameters:Verbosity=Quiet
     foreach ($project in $testsToRun) {
         Write-Host "Running tests: $project (all frameworks)" -ForegroundColor "Magenta"
