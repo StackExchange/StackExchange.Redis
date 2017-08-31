@@ -35,7 +35,7 @@ The tests are run (by default) as part of the build. You can simply run this in 
 To specifically run the tests with far more options, from the repository root:
 ```cmd
 dotnet build
-.\RedisConfigs\start-for-tests.cmd
+.\RedisConfigs\start-all.cmd
 cd StackExchange.Redis.Tests
 dotnet xunit
 ```
