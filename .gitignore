@@ -16,6 +16,7 @@ Mono/
 RedisConfigs/*.dat
 RedisQFork*.dat
 StackExchange.Redis.*.zip
+.idea/
 .vs/
 *.lock.json
 packages/
