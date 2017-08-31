@@ -7,26 +7,20 @@ using System.Threading.Tasks;
 namespace StackExchange.Redis
 {
 #if DEBUG
-
-    partial class ResultBox
+    internal partial class ResultBox
     {
         internal static long allocations;
-
-        public static long GetAllocationCount()
-        {
-            return Interlocked.Read(ref allocations);
-        }
-        static partial void OnAllocated()
-        {
-            Interlocked.Increment(ref allocations);
-        }
+        public static long GetAllocationCount() => Interlocked.Read(ref allocations);
+        static partial void OnAllocated() => Interlocked.Increment(ref allocations);
     }
-    partial interface IServer
+
+    public partial interface IServer
     {
         /// <summary>
         /// Show what is in the pending (unsent) queue
         /// </summary>
         string ListPending(int maxCount);
+
         /// <summary>
         /// Get the value of key. If the key does not exist the special value nil is returned. An error is returned if the value stored at key is not a string, because GET only handles string values.
         /// </summary>
@@ -58,7 +52,8 @@ namespace StackExchange.Redis
         /// <remarks>http://redis.io/commands/client-pause</remarks>
         void Hang(TimeSpan duration, CommandFlags flags = CommandFlags.None);
     }
-    partial interface IRedis
+
+    public partial interface IRedis
     {
         /// <summary>
         /// The CLIENT GETNAME returns the name of the current connection as set by CLIENT SETNAME. Since every new connection starts without an associated name, if no name was assigned a null string is returned.
@@ -74,7 +69,7 @@ namespace StackExchange.Redis
         void Quit(CommandFlags flags = CommandFlags.None);
     }
 
-    partial interface IRedisAsync
+    public partial interface IRedisAsync
     {
         /// <summary>
         /// The CLIENT GETNAME returns the name of the current connection as set by CLIENT SETNAME. Since every new connection starts without an associated name, if no name was assigned a null string is returned.
@@ -83,7 +78,8 @@ namespace StackExchange.Redis
         /// <returns>The connection name, or a null string if no name is set.</returns>
         Task<string> ClientGetNameAsync(CommandFlags flags = CommandFlags.None);
     }
-    partial class RedisBase
+
+    internal partial class RedisBase
     {
         string IRedis.ClientGetName(CommandFlags flags)
         {
@@ -98,9 +94,8 @@ namespace StackExchange.Redis
         }
     }
 
-    partial class ServerEndPoint
+    internal partial class ServerEndPoint
     {
-
         internal void SimulateConnectionFailure()
         {
             var tmp = interactive;
@@ -108,6 +103,7 @@ namespace StackExchange.Redis
             tmp = subscription;
             tmp?.SimulateConnectionFailure();
         }
+
         internal string ListPending(int maxCount)
         {
             var sb = new StringBuilder();
@@ -119,22 +115,18 @@ namespace StackExchange.Redis
         }
     }
 
-    partial class RedisServer
+    internal partial class RedisServer
     {
-        void IServer.SimulateConnectionFailure()
-        {
-            server.SimulateConnectionFailure();
-        }
-        string IServer.ListPending(int maxCount)
-        {
-            return server.ListPending(maxCount);
-        }
+        void IServer.SimulateConnectionFailure() => server.SimulateConnectionFailure();
+        string IServer.ListPending(int maxCount) => server.ListPending(maxCount);
+
         void IServer.Crash()
         {
             // using DB-0 because we also use "DEBUG OBJECT", which is db-centric
             var msg = Message.Create(0, CommandFlags.FireAndForget, RedisCommand.DEBUG, RedisLiterals.SEGFAULT);
             ExecuteSync(msg, ResultProcessor.DemandOK);
         }
+
         void IServer.Hang(TimeSpan duration, CommandFlags flags)
         {
             var msg = Message.Create(-1, flags, RedisCommand.CLIENT, RedisLiterals.PAUSE, (long)duration.TotalMilliseconds);
@@ -142,7 +134,7 @@ namespace StackExchange.Redis
         }
     }
 
-    partial class CompletionManager
+    internal partial class CompletionManager
     {
         private static long asyncCompletionWorkerCount;
 
@@ -156,7 +148,7 @@ namespace StackExchange.Redis
         }
     }
 
-    partial class ConnectionMultiplexer
+    public partial class ConnectionMultiplexer
     {
         /// <summary>
         /// Gets how many result-box instances were allocated
@@ -184,7 +176,7 @@ namespace StackExchange.Redis
         public bool IgnoreConnect { get { return ignoreConnect; } set { ignoreConnect = value; } }
     }
 
-    partial class SocketManager
+    public partial class SocketManager
     {
         partial void ShouldIgnoreConnect(ISocketCallback callback, ref bool ignore)
         {
@@ -201,12 +193,13 @@ namespace StackExchange.Redis
             completionType = SocketManager.ConnectCompletionType;
         }
     }
-    partial interface ISocketCallback
+
+    internal partial interface ISocketCallback
     {
         bool IgnoreConnect { get; }
     }
 
-    partial class MessageQueue
+    internal partial class MessageQueue
     {
         internal void ListPending(StringBuilder sb, int maxCount)
         {
@@ -228,7 +221,7 @@ namespace StackExchange.Redis
         }
     }
 
-    partial class PhysicalBridge
+    internal partial class PhysicalBridge
     {
         internal void SimulateConnectionFailure()
         {
@@ -238,13 +231,14 @@ namespace StackExchange.Redis
             }
             physical?.RecordConnectionFailed(ConnectionFailureType.SocketFailure);
         }
+
         internal void ListPending(StringBuilder sb, int maxCount)
         {
             queue.ListPending(sb, maxCount);
         }
     }
 
-    partial class PhysicalConnection
+    internal partial class PhysicalConnection
     {
         partial void OnDebugAbort()
         {
@@ -257,16 +251,10 @@ namespace StackExchange.Redis
         bool ISocketCallback.IgnoreConnect => Multiplexer.IgnoreConnect;
 
         private static volatile bool emulateStaleConnection;
-        public static bool EmulateStaleConnection 
+        public static bool EmulateStaleConnection
         {
-            get
-            {
-                return emulateStaleConnection;
-            }
-            set
-            {
-                emulateStaleConnection = value;
-            }
+            get => emulateStaleConnection;
+            set => emulateStaleConnection = value;
         }
 
         partial void DebugEmulateStaleConnection(ref int firstUnansweredWrite)
@@ -301,9 +289,9 @@ namespace StackExchange.Redis
 
     internal static class PerfCounterHelper
     {
-        static object staticLock = new object();
-        static volatile PerformanceCounter _cpu;
-        static volatile bool _disabled;
+        private static readonly object staticLock = new object();
+        private static volatile PerformanceCounter _cpu;
+        private static volatile bool _disabled;
 
         public static bool TryGetSystemCPU(out float value)
         {
@@ -341,16 +329,14 @@ namespace StackExchange.Redis
                 value = _cpu.NextValue();
                 return true;
             }
-
             return false;
         }
     }
-    
-    internal class CompletionTypeHelper
-    {
 
+    internal static class CompletionTypeHelper
+    {
         public static void RunWithCompletionType(Func<AsyncCallback, IAsyncResult> beginAsync, AsyncCallback callback, CompletionType completionType)
-        { 
+        {
             AsyncCallback proxyCallback;
             if (completionType == CompletionType.Any)
             {
@@ -377,17 +363,15 @@ namespace StackExchange.Redis
             result.AsyncWaitHandle.WaitOne();
 
             switch (completionType)
-            { 
+            {
                 case CompletionType.Async:
-                    ThreadPool.QueueUserWorkItem((s) => { callback(result); });
+                    ThreadPool.QueueUserWorkItem((s) => callback(result));
                     break;
                 case CompletionType.Any:
                 case CompletionType.Sync:
                     callback(result);
                     break;
             }
-
-            return;
         }
     }
 #endif
@@ -418,7 +402,6 @@ namespace StackExchange.Redis
         }
     }
 #endif
-
 
 #if LOGOUTPUT
     partial class ConnectionMultiplexer
