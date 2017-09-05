@@ -71,7 +71,8 @@ The `ConfigurationOptions` object has a wide range of properties, all of which a
 | connectTimeout={int}   | `ConnectTimeout`       | `5000`                       | Timeout (ms) for connect operations                                                                       |
 | configChannel={string} | `ConfigurationChannel` | `__Booksleeve_MasterChanged` | Broadcast channel name for communicating configuration changes                                            |
 | defaultDatabase={int}  | `DefaultDatabase`      | `null`                       | Default database index, from `0` to `databases - 1`                                                       |
-| keepAlive={int}        | `KeepAlive`            | `-1`                         | Time (seconds) at which to send a message to help keep sockets alive                                      |
+| keepAlive={int}        | `KeepAlive`            | `-1`                         | Time (seconds) at which to send a message to help keep sockets alive (60 sec default)                            |
+| configCheckSeconds={int} | `ConfigCheckSeconds`  | `60`                         | Time (seconds) to check configuration. This serves as a keep-alive for interactive sockets, if it is supported.                            |
 | name={string}          | `ClientName`           | `null`                       | Identification for the connection within redis                                                            |
 | password={string}      | `Password`             | `null`                       | Password for the redis server                                                                             |
 | proxy={proxy type}     | `Proxy`                | `Proxy.None`                 | Type of proxy in use (if any); for example "twemproxy"                                                    |
