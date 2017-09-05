@@ -40,6 +40,8 @@ In the above example, you can see that for IOCP thread there are 6 busy threads 
 
 Note that StackExchange.Redis can hit timeouts if growth of either IOCP or WORKER threads gets throttled.
 
+Also note that the IOCP and WORKER threads will not be shown on .NET Core if using `netstandard` < 2.0.
+
 Recommendation:
 Given the above information, it's recommend to set the minimum configuration value for IOCP and WORKER threads to something larger than the default value.  We can't give one-size-fits-all guidance on what this value should be because the right value for one application will be too high/low for another application.  This setting can also impact the performance of other parts of complicated applications, so you need to fine-tune this setting to your specific needs.  A good starting place is 200 or 300, then test and tweak as needed.
 
