@@ -70,8 +70,9 @@ The `ConfigurationOptions` object has a wide range of properties, all of which a
 | connectRetry={int}     | `ConnectRetry`         | `3`                          | The number of times to repeat connect attempts during initial `Connect`                                   |
 | connectTimeout={int}   | `ConnectTimeout`       | `5000`                       | Timeout (ms) for connect operations                                                                       |
 | configChannel={string} | `ConfigurationChannel` | `__Booksleeve_MasterChanged` | Broadcast channel name for communicating configuration changes                                            |
+| configCheckSeconds={int} | `ConfigCheckSeconds`  | `60`                         | Time (seconds) to check configuration. This serves as a keep-alive for interactive sockets, if it is supported.     |
 | defaultDatabase={int}  | `DefaultDatabase`      | `null`                       | Default database index, from `0` to `databases - 1`                                                       |
-| keepAlive={int}        | `KeepAlive`            | `-1`                         | Time (seconds) at which to send a message to help keep sockets alive                                      |
+| keepAlive={int}        | `KeepAlive`            | `-1`                         | Time (seconds) at which to send a message to help keep sockets alive (60 sec default)                            |
 | name={string}          | `ClientName`           | `null`                       | Identification for the connection within redis                                                            |
 | password={string}      | `Password`             | `null`                       | Password for the redis server                                                                             |
 | proxy={proxy type}     | `Proxy`                | `Proxy.None`                 | Type of proxy in use (if any); for example "twemproxy"                                                    |
@@ -184,12 +185,12 @@ config.ReconnectRetryPolicy = new ExponentialRetry(5000); // defaults maxDeltaBa
 //5	        a random value between 5000 and 10000, since maxDeltaBackoff was 10000 ms
 //6	        a random value between 5000 and 10000
 
-config.ReconnectRetryPolicy = new LinearRetry(5000); 
+config.ReconnectRetryPolicy = new LinearRetry(5000);
 //retry#    retry to re-connect after time in milliseconds
-//1	        5000 
+//1	        5000
 //2	        5000 	   
 //3	        5000 	   
-//4	        5000 
-//5	        5000 
-//6	        5000 
+//4	        5000
+//5	        5000
+//6	        5000
 ```
