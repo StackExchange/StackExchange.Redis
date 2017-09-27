@@ -143,6 +143,31 @@ namespace StackExchange.Redis
 
             this.stateOrCompletionSource = stateOrCompletionSource;
         }
-    }
 
+        internal async Task TimeoutAfter(int millisecondsTimeout, ServerEndPoint server, Message message, ConnectionMultiplexer mux)
+        {
+            var t = ((TaskCompletionSource<T>)stateOrCompletionSource).Task;
+            if (!t.IsCompleted && !t.IsFaulted && !t.IsCanceled)
+            {
+                CancellationTokenSource cts = mux.cancellationTokenSourcePool.Get();
+                try
+                {
+                    Task delay = Task.Delay(millisecondsTimeout, cts.Token);
+                    if (t == await Task.WhenAny(t, delay))
+                    {
+                        cts.Cancel();
+                    }
+                    else
+                    {
+                        SetException(mux.GenerateTimeoutException(message, server, true));
+                        TryComplete(true);
+                    }
+                }
+                finally
+                {
+                    mux.cancellationTokenSourcePool.Return(cts);
+                }
+            }
+        }
+    }
 }
