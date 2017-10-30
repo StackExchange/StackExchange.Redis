@@ -48,7 +48,7 @@ namespace StackExchange.Redis
         {
             if (Arguments == null || Arguments.Length == 0) return null;
 
-            const string BaseUrl = "http://redis.io/commands/";
+            const string BaseUrl = "https://redis.io/commands/";
 
             string encoded0 = Uri.EscapeUriString(((string)Arguments[0]).ToLowerInvariant());
 

@@ -25,14 +25,14 @@ namespace StackExchange.Redis
         /// Get the value of key. If the key does not exist the special value nil is returned. An error is returned if the value stored at key is not a string, because GET only handles string values.
         /// </summary>
         /// <returns>the value of key, or nil when key does not exist.</returns>
-        /// <remarks>http://redis.io/commands/get</remarks>
+        /// <remarks>https://redis.io/commands/get</remarks>
         RedisValue StringGet(int db, RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Get the value of key. If the key does not exist the special value nil is returned. An error is returned if the value stored at key is not a string, because GET only handles string values.
         /// </summary>
         /// <returns>the value of key, or nil when key does not exist.</returns>
-        /// <remarks>http://redis.io/commands/get</remarks>
+        /// <remarks>https://redis.io/commands/get</remarks>
         Task<RedisValue> StringGetAsync(int db, RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -43,13 +43,13 @@ namespace StackExchange.Redis
         /// <summary>
         /// DEBUG SEGFAULT performs an invalid memory access that crashes Redis. It is used to simulate bugs during the development.
         /// </summary>
-        /// <remarks>http://redis.io/commands/debug-segfault</remarks>
+        /// <remarks>https://redis.io/commands/debug-segfault</remarks>
         void Crash();
 
         /// <summary>
         /// CLIENT PAUSE is a connections control command able to suspend all the Redis clients for the specified amount of time (in milliseconds).
         /// </summary>
-        /// <remarks>http://redis.io/commands/client-pause</remarks>
+        /// <remarks>https://redis.io/commands/client-pause</remarks>
         void Hang(TimeSpan duration, CommandFlags flags = CommandFlags.None);
     }
 
@@ -58,14 +58,14 @@ namespace StackExchange.Redis
         /// <summary>
         /// The CLIENT GETNAME returns the name of the current connection as set by CLIENT SETNAME. Since every new connection starts without an associated name, if no name was assigned a null string is returned.
         /// </summary>
-        /// <remarks>http://redis.io/commands/client-getname</remarks>
+        /// <remarks>https://redis.io/commands/client-getname</remarks>
         /// <returns>The connection name, or a null string if no name is set.</returns>
         string ClientGetName(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Ask the server to close the connection. The connection is closed as soon as all pending replies have been written to the client.
         /// </summary>
-        /// <remarks>http://redis.io/commands/quit</remarks>
+        /// <remarks>https://redis.io/commands/quit</remarks>
         void Quit(CommandFlags flags = CommandFlags.None);
     }
 
@@ -74,7 +74,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The CLIENT GETNAME returns the name of the current connection as set by CLIENT SETNAME. Since every new connection starts without an associated name, if no name was assigned a null string is returned.
         /// </summary>
-        /// <remarks>http://redis.io/commands/client-getname</remarks>
+        /// <remarks>https://redis.io/commands/client-getname</remarks>
         /// <returns>The connection name, or a null string if no name is set.</returns>
         Task<string> ClientGetNameAsync(CommandFlags flags = CommandFlags.None);
     }

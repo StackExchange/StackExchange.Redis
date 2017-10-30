@@ -34,26 +34,26 @@ namespace StackExchange.Redis
         /// Posts a message to the given channel.
         /// </summary>
         /// <returns>the number of clients that received the message.</returns>
-        /// <remarks>http://redis.io/commands/publish</remarks>
+        /// <remarks>https://redis.io/commands/publish</remarks>
         long Publish(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None);
         /// <summary>
         /// Posts a message to the given channel.
         /// </summary>
         /// <returns>the number of clients that received the message.</returns>
-        /// <remarks>http://redis.io/commands/publish</remarks>
+        /// <remarks>https://redis.io/commands/publish</remarks>
         Task<long> PublishAsync(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None);
         /// <summary>
         /// Subscribe to perform some operation when a change to the preferred/active node is broadcast.
         /// </summary>
-        /// <remarks>http://redis.io/commands/subscribe</remarks>
-        /// <remarks>http://redis.io/commands/psubscribe</remarks>
+        /// <remarks>https://redis.io/commands/subscribe</remarks>
+        /// <remarks>https://redis.io/commands/psubscribe</remarks>
         void Subscribe(RedisChannel channel, Action<RedisChannel, RedisValue> handler, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Subscribe to perform some operation when a change to the preferred/active node is broadcast.
         /// </summary>
-        /// <remarks>http://redis.io/commands/subscribe</remarks>
-        /// <remarks>http://redis.io/commands/psubscribe</remarks>
+        /// <remarks>https://redis.io/commands/subscribe</remarks>
+        /// <remarks>https://redis.io/commands/psubscribe</remarks>
         Task SubscribeAsync(RedisChannel channel, Action<RedisChannel, RedisValue> handler, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -68,22 +68,22 @@ namespace StackExchange.Redis
         /// of the subscribers; if a handler is specified, the subscription is only cancelled if this handler is the 
         /// last handler remaining against the channel
         /// </summary>
-        /// <remarks>http://redis.io/commands/unsubscribe</remarks>
-        /// <remarks>http://redis.io/commands/punsubscribe</remarks>
+        /// <remarks>https://redis.io/commands/unsubscribe</remarks>
+        /// <remarks>https://redis.io/commands/punsubscribe</remarks>
         void Unsubscribe(RedisChannel channel, Action<RedisChannel, RedisValue> handler = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Unsubscribe all subscriptions on this instance
         /// </summary>
-        /// <remarks>http://redis.io/commands/unsubscribe</remarks>
-        /// <remarks>http://redis.io/commands/punsubscribe</remarks>
+        /// <remarks>https://redis.io/commands/unsubscribe</remarks>
+        /// <remarks>https://redis.io/commands/punsubscribe</remarks>
         void UnsubscribeAll(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Unsubscribe all subscriptions on this instance
         /// </summary>
-        /// <remarks>http://redis.io/commands/unsubscribe</remarks>
-        /// <remarks>http://redis.io/commands/punsubscribe</remarks>
+        /// <remarks>https://redis.io/commands/unsubscribe</remarks>
+        /// <remarks>https://redis.io/commands/punsubscribe</remarks>
         Task UnsubscribeAllAsync(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -91,8 +91,8 @@ namespace StackExchange.Redis
         /// of the subscribers; if a handler is specified, the subscription is only cancelled if this handler is the 
         /// last handler remaining against the channel
         /// </summary>
-        /// <remarks>http://redis.io/commands/unsubscribe</remarks>
-        /// <remarks>http://redis.io/commands/punsubscribe</remarks>
+        /// <remarks>https://redis.io/commands/unsubscribe</remarks>
+        /// <remarks>https://redis.io/commands/punsubscribe</remarks>
         Task UnsubscribeAsync(RedisChannel channel, Action<RedisChannel, RedisValue> handler = null, CommandFlags flags = CommandFlags.None);
     }
 }

@@ -8,7 +8,7 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests.Booksleeve
 {
-    public class Hashes : BookSleeveTestBase // http://redis.io/commands#hash
+    public class Hashes : BookSleeveTestBase // https://redis.io/commands#hash
     {
         public Hashes(ITestOutputHelper output) : base(output) { }
 
@@ -166,7 +166,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         }
 
         [Fact]
-        public void TestSet() // http://redis.io/commands/hset
+        public void TestSet() // https://redis.io/commands/hset
         {
             using (var muxer = GetUnsecuredConnection())
             {
@@ -204,7 +204,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         }
 
         [Fact]
-        public void TestSetNotExists() // http://redis.io/commands/hsetnx
+        public void TestSetNotExists() // https://redis.io/commands/hsetnx
         {
             using (var muxer = GetUnsecuredConnection())
             {
@@ -234,7 +234,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         }
 
         [Fact]
-        public void TestDelSingle() // http://redis.io/commands/hdel
+        public void TestDelSingle() // https://redis.io/commands/hdel
         {
             using (var muxer = GetUnsecuredConnection())
             {
@@ -254,7 +254,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         }
 
         [Fact]
-        public void TestDelMulti() // http://redis.io/commands/hdel
+        public void TestDelMulti() // https://redis.io/commands/hdel
         {
             using (var muxer = GetUnsecuredConnection())
             {
@@ -291,7 +291,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         }
 
         [Fact]
-        public void TestDelMultiInsideTransaction() // http://redis.io/commands/hdel
+        public void TestDelMultiInsideTransaction() // https://redis.io/commands/hdel
         {
             using (var outer = GetUnsecuredConnection())
             {
@@ -327,7 +327,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         }
 
         [Fact]
-        public void TestExists() // http://redis.io/commands/hexists
+        public void TestExists() // https://redis.io/commands/hexists
         {
             using (var muxer = GetUnsecuredConnection())
             {
@@ -346,7 +346,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         }
 
         [Fact]
-        public void TestHashKeys() // http://redis.io/commands/hkeys
+        public void TestHashKeys() // https://redis.io/commands/hkeys
         {
             using (var muxer = GetUnsecuredConnection())
             {
@@ -370,7 +370,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         }
 
         [Fact]
-        public void TestHashValues() // http://redis.io/commands/hvals
+        public void TestHashValues() // https://redis.io/commands/hvals
         {
             using (var muxer = GetUnsecuredConnection())
             {
@@ -394,7 +394,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         }
 
         [Fact]
-        public void TestHashLength() // http://redis.io/commands/hlen
+        public void TestHashLength() // https://redis.io/commands/hlen
         {
             using (var muxer = GetUnsecuredConnection())
             {
@@ -414,7 +414,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         }
 
         [Fact]
-        public void TestGetMulti() // http://redis.io/commands/hmget
+        public void TestGetMulti() // https://redis.io/commands/hmget
         {
             using (var muxer = GetUnsecuredConnection())
             {
@@ -453,7 +453,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         }
 
         [Fact]
-        public void TestGetPairs() // http://redis.io/commands/hgetall
+        public void TestGetPairs() // https://redis.io/commands/hgetall
         {
             using (var muxer = GetUnsecuredConnection())
             {
@@ -476,7 +476,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         }
 
         [Fact]
-        public void TestSetPairs() // http://redis.io/commands/hmset
+        public void TestSetPairs() // https://redis.io/commands/hmset
         {
             using (var muxer = GetUnsecuredConnection())
             {

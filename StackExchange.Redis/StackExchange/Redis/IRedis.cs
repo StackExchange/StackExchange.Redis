@@ -12,7 +12,7 @@ namespace StackExchange.Redis
         /// This command is often used to test if a connection is still alive, or to measure latency.
         /// </summary>
         /// <returns>The observed latency.</returns>
-        /// <remarks>http://redis.io/commands/ping</remarks>
+        /// <remarks>https://redis.io/commands/ping</remarks>
         TimeSpan Ping(CommandFlags flags = CommandFlags.None);
     }
 

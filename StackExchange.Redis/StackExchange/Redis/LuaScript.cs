@@ -11,7 +11,7 @@ namespace StackExchange.Redis
     /// Unlike normal Redis Lua scripts, LuaScript can have named parameters (prefixed by a @).
     /// Public fields and properties of the passed in object are treated as parameters.
     /// 
-    /// Parameters of type RedisKey are sent to Redis as KEY (http://redis.io/commands/eval) in addition to arguments, 
+    /// Parameters of type RedisKey are sent to Redis as KEY (https://redis.io/commands/eval) in addition to arguments, 
     /// so as to play nicely with Redis Cluster.
     /// 
     /// All members of this class are thread safe.
@@ -218,7 +218,7 @@ namespace StackExchange.Redis
     /// Unlike normal Redis Lua scripts, LoadedLuaScript can have named parameters (prefixed by a @).
     /// Public fields and properties of the passed in object are treated as parameters.
     /// 
-    /// Parameters of type RedisKey are sent to Redis as KEY (http://redis.io/commands/eval) in addition to arguments, 
+    /// Parameters of type RedisKey are sent to Redis as KEY (https://redis.io/commands/eval) in addition to arguments, 
     /// so as to play nicely with Redis Cluster.
     /// 
     /// All members of this class are thread safe.

@@ -68,11 +68,11 @@ namespace StackExchange.Redis
         }, true);
 
         /// <summary>
-        /// The commands available to <a href="Sentinel">http://redis.io/topics/sentinel</a>
+        /// The commands available to <a href="Sentinel">https://redis.io/topics/sentinel</a>
         /// </summary>
-        /// <remarks>http://redis.io/topics/sentinel</remarks>
+        /// <remarks>https://redis.io/topics/sentinel</remarks>
         public static CommandMap Sentinel { get; } = Create(new HashSet<string> {
-            // see http://redis.io/topics/sentinel
+            // see https://redis.io/topics/sentinel
             "ping", "info", "sentinel", "subscribe", "psubscribe", "unsubscribe", "punsubscribe" }, true);
 
         /// <summary>

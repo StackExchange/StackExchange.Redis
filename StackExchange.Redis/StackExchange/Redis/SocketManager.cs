@@ -249,7 +249,7 @@ namespace StackExchange.Redis
         }
         internal void SetFastLoopbackOption(Socket socket)
         {
-            // SIO_LOOPBACK_FAST_PATH (http://msdn.microsoft.com/en-us/library/windows/desktop/jj841212%28v=vs.85%29.aspx)
+            // SIO_LOOPBACK_FAST_PATH (https://msdn.microsoft.com/en-us/library/windows/desktop/jj841212%28v=vs.85%29.aspx)
             // Speeds up localhost operations significantly. OK to apply to a socket that will not be hooked up to localhost, 
             // or will be subject to WFP filtering.
             const int SIO_LOOPBACK_FAST_PATH = -1744830448;
