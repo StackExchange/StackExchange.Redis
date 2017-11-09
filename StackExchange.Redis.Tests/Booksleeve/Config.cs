@@ -200,5 +200,19 @@ namespace StackExchange.Redis.Tests.Booksleeve
             Assert.True(options.DefaultVersion.Equals(new Version(2, 0, 0)));
             Assert.True(options.AbortOnConnectFail);
         }
+
+        [Fact]
+        public void ConfigurationOptionsForAllowAsynctimeout()
+        {
+            var options = ConfigurationOptions.Parse("contoso.redis.cache.windows.net,allowAsynctimeout=1000");
+            Assert.NotNull(options.AsyncTimeout);
+        }
+
+        [Fact]
+        public void ConfigurationOptionsForAllowAsynctimeoutDefaultValue()
+        {
+            var options = ConfigurationOptions.Parse("contoso.redis.cache.windows.net");
+            Assert.Null(options.AsyncTimeout);
+        }
     }
 }

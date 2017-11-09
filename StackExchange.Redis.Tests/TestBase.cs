@@ -198,7 +198,7 @@ namespace StackExchange.Redis.Tests
             int? connectTimeout = null, string password = null, string tieBreaker = null, TextWriter log = null,
             bool fail = true, string[] disabledCommands = null, string[] enabledCommands = null,
             bool checkConnect = true, bool pause = true, string failMessage = null,
-            string channelPrefix = null, bool useSharedSocketManager = true, Proxy? proxy = null)
+            string channelPrefix = null, bool useSharedSocketManager = true, Proxy? proxy = null, int? asynctimeout = null)
         {
             if (pause) Thread.Sleep(250); // get a lot of glitches when hammering new socket creations etc; pace it out a bit
             string configuration = GetConfiguration();
@@ -224,6 +224,7 @@ namespace StackExchange.Redis.Tests
             if (clientName != null) config.ClientName = clientName;
             if (syncTimeout != null) config.SyncTimeout = syncTimeout.Value;
             if (allowAdmin != null) config.AllowAdmin = allowAdmin.Value;
+            if (asynctimeout != null) config.AsyncTimeout = asynctimeout.Value;
             if (keepAlive != null) config.KeepAlive = keepAlive.Value;
             if (connectTimeout != null) config.ConnectTimeout = connectTimeout.Value;
             if (proxy != null) config.Proxy = proxy.Value;
