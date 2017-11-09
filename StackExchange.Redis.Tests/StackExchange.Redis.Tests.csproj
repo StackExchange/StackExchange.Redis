@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <Description>StackExchange.Redis.Tests</Description>
-    <TargetFrameworks>net462;netcoreapp1.0</TargetFrameworks>
+    <TargetFrameworks>net462;netcoreapp1.0;netcoreapp2.0</TargetFrameworks>
     <AssemblyName>StackExchange.Redis.Tests</AssemblyName>
     <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
@@ -18,6 +18,9 @@
   </PropertyGroup>
   <PropertyGroup Condition=" '$(TargetFramework)' == 'netcoreapp1.0' ">
     <DefineConstants>$(DefineConstants);FEATURE_MOQ;CORE_CLR</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(TargetFramework)' == 'netcoreapp2.0' ">
+    <DefineConstants>$(DefineConstants);FEATURE_MOQ</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>

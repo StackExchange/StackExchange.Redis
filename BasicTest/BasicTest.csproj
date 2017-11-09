@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <Description>StackExchange.Redis.BasicTest .NET Core</Description>
-    <TargetFrameworks>netcoreapp1.1</TargetFrameworks>
+    <TargetFrameworks>netcoreapp1.1;netcoreapp2.0</TargetFrameworks>
     <AssemblyName>BasicTest</AssemblyName>
     <OutputType>Exe</OutputType>
     <PackageId>BasicTest</PackageId>
@@ -16,6 +16,10 @@
 
   <PropertyGroup Condition=" '$(TargetFramework)' == 'netcoreapp1.1' ">
     <DefineConstants>$(DefineConstants);CORE_CLR</DefineConstants>
+  </PropertyGroup>
+
+  <PropertyGroup Condition=" '$(TargetFramework)' == 'netcoreapp2.0' ">
+    <DefineConstants>$(DefineConstants)</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup Condition=" '$(TargetFramework)' == 'netcoreapp1.1' ">
