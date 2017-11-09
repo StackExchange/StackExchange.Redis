@@ -285,7 +285,7 @@ namespace StackExchange.Redis
         /// </summary>
         Async = 2
     }
-#if !CORE_CLR
+#if FEATURE_PERFCOUNTER
 
     internal static class PerfCounterHelper
     {
@@ -332,8 +332,9 @@ namespace StackExchange.Redis
             return false;
         }
     }
-
-    internal static class CompletionTypeHelper
+#endif
+#if FEATURE_THREADPOOL
+    internal class CompletionTypeHelper
     {
         public static void RunWithCompletionType(Func<AsyncCallback, IAsyncResult> beginAsync, AsyncCallback callback, CompletionType completionType)
         {

@@ -190,7 +190,7 @@ namespace StackExchange.Redis
                     // A work-around for a Mono bug in BeginConnect(EndPoint endpoint, AsyncCallback callback, object state)
                     DnsEndPoint dnsEndpoint = (DnsEndPoint)endpoint;
 
-#if CORE_CLR
+#if !FEATURE_THREADPOOL
                     multiplexer.LogLocked(log, "BeginConnect: {0}", formattedEndpoint);
                     socket.ConnectAsync(dnsEndpoint.Host, dnsEndpoint.Port).ContinueWith(t =>
                     {
@@ -214,7 +214,7 @@ namespace StackExchange.Redis
                 }
                 else
                 {
-#if CORE_CLR
+#if !FEATURE_THREADPOOL
                     multiplexer.LogLocked(log, "BeginConnect: {0}", formattedEndpoint);
                     socket.ConnectAsync(endpoint).ContinueWith(t =>
                     {
