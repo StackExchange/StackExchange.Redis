@@ -137,7 +137,7 @@ namespace StackExchange.Redis
 
             var certificateCollection = new X509CertificateCollection();
             const bool checkCertRevocation = true;
-#if CORE_CLR
+#if NETSTANDARD1_5
             ssl.AuthenticateAsClientAsync(host, certificateCollection, allowedProtocols.Value, checkCertRevocation)
                                 .GetAwaiter().GetResult();
 #else
@@ -147,7 +147,7 @@ namespace StackExchange.Redis
 
         private static void AuthenticateAsClientUsingDefaultProtocols(SslStream ssl, string host)
         {
-#if CORE_CLR
+#if NETSTANDARD1_5
             ssl.AuthenticateAsClientAsync(host).GetAwaiter().GetResult();
 #else
             ssl.AuthenticateAsClient(host);

@@ -1,5 +1,5 @@
 using System;
-#if CORE_CLR
+#if NETSTANDARD1_5
 using System.Collections.Generic;
 using System.Reflection;
 #endif
@@ -301,7 +301,7 @@ namespace StackExchange.Redis
                     if (otherType == CompareType.Double) return thisDouble.CompareTo(otherDouble);
                 }
                 // otherwise, compare as strings
-#if !CORE_CLR
+#if !NETSTANDARD1_5
                 return StringComparer.InvariantCulture.Compare((string)this, (string)other);
 #else
                 var compareInfo = System.Globalization.CultureInfo.InvariantCulture.CompareInfo;
@@ -682,7 +682,7 @@ namespace StackExchange.Redis
 
     internal static class ReflectionExtensions
     {
-#if CORE_CLR
+#if NETSTANDARD1_5
         internal static TypeCode GetTypeCode(this Type type)
         {
             if (type == null) return TypeCode.Empty;

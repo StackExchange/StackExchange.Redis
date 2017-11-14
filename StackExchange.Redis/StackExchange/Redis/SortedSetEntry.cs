@@ -37,7 +37,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The score against the element
         /// </summary>
-#if !CORE_CLR
+#if !NETSTANDARD1_5
         [Browsable(false)]
 #endif
         [EditorBrowsable(EditorBrowsableState.Never), Obsolete("Please use Score", false)]
@@ -46,7 +46,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The unique element stored in the sorted set
         /// </summary>
-#if !CORE_CLR
+#if !NETSTANDARD1_5
         [Browsable(false)]
 #endif
         [EditorBrowsable(EditorBrowsableState.Never), Obsolete("Please use Element", false)]

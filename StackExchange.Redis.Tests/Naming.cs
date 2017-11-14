@@ -168,7 +168,7 @@ namespace StackExchange.Redis.Tests
                 Type[] args = pFrom.Select(x => x.ParameterType).ToArray();
                 Output.WriteLine("Checking: {0}.{1}", from.Name, method.Name);
                 Assert.Equal(typeof(CommandFlags), args.Last());
-#if !CORE_CLR
+#if !NETCOREAPP1_0
                 var found = to.GetMethod(huntName, flags, null, method.CallingConvention, args, null);
 #else
                 var found = to.GetMethods(flags)
@@ -192,14 +192,14 @@ namespace StackExchange.Redis.Tests
         private void CheckMethod(MethodInfo method, bool isAsync)
         {
 #if DEBUG
-#if !CORE_CLR
+#if !NETCOREAPP1_0
             bool ignorePrefix = ignoreType != null && Attribute.IsDefined(method, ignoreType);
 #else
             bool ignorePrefix = ignoreType != null && method.IsDefined(ignoreType);
 #endif
             if (ignorePrefix)
             {
-#if !CORE_CLR
+#if !NETCOREAPP1_0
                 Attribute attrib = Attribute.GetCustomAttribute(method, ignoreType);
 #else
                 Attribute attrib = method.GetCustomAttribute(ignoreType);
@@ -253,7 +253,7 @@ namespace StackExchange.Redis.Tests
 
     public static class ReflectionExtensions
     {
-#if !CORE_CLR
+#if !NETCOREAPP1_0
         public static Type GetTypeInfo(this Type type)
         {
             return type;

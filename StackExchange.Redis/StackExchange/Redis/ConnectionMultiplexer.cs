@@ -111,7 +111,7 @@ namespace StackExchange.Redis
         {
             string roleInstanceId = null;
             // TODO: CoreCLR port pending https://github.com/dotnet/coreclr/issues/919
-#if !CORE_CLR
+#if !NETSTANDARD1_5
             try
             {
                 Assembly asm = null;
