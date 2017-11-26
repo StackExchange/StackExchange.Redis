@@ -48,7 +48,7 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed partial class ConnectionMultiplexer : IConnectionMultiplexer, IDisposable
     {
-        private static readonly string timeoutHelpLink = "http://stackexchange.github.io/StackExchange.Redis/Timeouts";
+        private static readonly string timeoutHelpLink = "https://stackexchange.github.io/StackExchange.Redis/Timeouts";
 
         private static TaskFactory _factory = null;
 

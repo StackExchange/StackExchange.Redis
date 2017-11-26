@@ -9,7 +9,7 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests.Booksleeve
 {
-    public class PubSub : BookSleeveTestBase // http://redis.io/commands#pubsub
+    public class PubSub : BookSleeveTestBase // https://redis.io/commands#pubsub
     {
         public PubSub(ITestOutputHelper output) : base(output) { }
 

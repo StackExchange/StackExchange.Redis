@@ -5,7 +5,7 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests.Booksleeve
 {
-    public class Strings : BookSleeveTestBase // http://redis.io/commands#string
+    public class Strings : BookSleeveTestBase // https://redis.io/commands#string
     {
         public Strings(ITestOutputHelper output) : base(output) { }
 

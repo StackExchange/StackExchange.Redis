@@ -10,7 +10,7 @@ namespace StackExchange.Redis
     /// aborted (DISCARD) or not applied in the first place (UNWATCH) until the responses from
     /// the constraint checks have arrived.
     /// </summary>
-    /// <remarks>http://redis.io/topics/transactions</remarks>
+    /// <remarks>https://redis.io/topics/transactions</remarks>
     /// <remarks>Note that on a cluster, it may be required that all keys involved in the transaction
     /// (including constraints) are in the same hash-slot</remarks>
     public interface ITransaction : IBatch

@@ -302,7 +302,7 @@ namespace StackExchange.Redis
         internal ClusterNode() { }
         internal ClusterNode(ClusterConfiguration configuration, string raw, EndPoint origin)
         {
-            // http://redis.io/commands/cluster-nodes
+            // https://redis.io/commands/cluster-nodes
             this.configuration = configuration;
             this.Raw = raw;
             var parts = raw.Split(StringSplits.Space);
