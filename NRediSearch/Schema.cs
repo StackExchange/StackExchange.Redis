@@ -15,7 +15,8 @@ namespace NRediSearch
         {
             FullText,
             Geo,
-            Numeric
+            Numeric,
+            TAG
         }
 
         public class Field
@@ -40,6 +41,7 @@ namespace NRediSearch
                         case FieldType.FullText: return "TEXT".Literal();
                         case FieldType.Geo: return "GEO".Literal();
                         case FieldType.Numeric: return "NUMERIC".Literal();
+                        case FieldType.TAG: return "TAG".Literal();
                         default: throw new ArgumentOutOfRangeException(nameof(type));
                     }
                 }
@@ -128,6 +130,18 @@ namespace NRediSearch
             Fields.Add(new Field(name, FieldType.Numeric, true));
             return this;
         }
+
+        /// <summary>
+        /// Add a TAG field
+        /// </summary>
+        /// <param name="name">the field's name</param>
+        /// <returns>the schema object</returns>
+        public Schema AddTagField(string name)
+        {
+            Fields.Add(new Field(name, FieldType.TAG, false));
+            return this;
+        }
+
 
     }
 }

@@ -139,6 +139,39 @@ namespace NRediSearch
         }
 
         /// <summary>
+        /// Return Distinct Values in a TAG field
+        /// </summary>
+        /// <param name="fieldName">TAG field name</param>
+        /// <returns>List of TAG field values</returns>
+        public RedisValue[] TagVals(string fieldName)
+        {
+            var args = new List<object>();
+            args.Add(_boxedIndexName);
+            args.Add(fieldName);
+
+            var resp = (RedisValue[])DbSync.Execute("FT.TAGVALS", args);
+            
+            return resp;
+        }
+
+        /// <summary>
+        /// Return Distinct Values in a TAG field
+        /// </summary>
+        /// <param name="fieldName">TAG field name</param>
+        /// <returns>List of TAG field values</returns>
+        public async Task<RedisValue[]> TagValsAsync(string fieldName)
+        {
+            var args = new List<object>();
+            args.Add(_boxedIndexName);
+            args.Add(fieldName);
+
+            var resp = (RedisValue[])await _db.ExecuteAsync("FT.TAGVALS", args).ConfigureAwait(false);
+            
+            return resp;
+        }
+
+
+        /// <summary>
         /// Add a single document to the query
         /// </summary>
         /// <param name="docId">the id of the document. It cannot belong to a document already in the index unless replace is set</param>
