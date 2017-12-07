@@ -145,11 +145,7 @@ namespace NRediSearch
         /// <returns>List of TAG field values</returns>
         public RedisValue[] TagVals(string fieldName)
         {
-            var args = new List<object>();
-            args.Add(_boxedIndexName);
-            args.Add(fieldName);
-
-            var resp = (RedisValue[])DbSync.Execute("FT.TAGVALS", args);
+            var resp = (RedisValue[])DbSync.Execute("FT.TAGVALS", _boxedIndexName, fieldName);
             
             return resp;
         }
@@ -161,11 +157,7 @@ namespace NRediSearch
         /// <returns>List of TAG field values</returns>
         public async Task<RedisValue[]> TagValsAsync(string fieldName)
         {
-            var args = new List<object>();
-            args.Add(_boxedIndexName);
-            args.Add(fieldName);
-
-            var resp = (RedisValue[])await _db.ExecuteAsync("FT.TAGVALS", args).ConfigureAwait(false);
+            var resp = (RedisValue[])await _db.ExecuteAsync("FT.TAGVALS", _boxedIndexName, fieldName).ConfigureAwait(false);
             
             return resp;
         }
