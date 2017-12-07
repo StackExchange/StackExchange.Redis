@@ -131,14 +131,33 @@ namespace NRediSearch
             return this;
         }
 
+        public class TagField : Field
+        {
+            public string Separator { get; }
+            internal TagField(string name, string separator = ",") : base(name, FieldType.TAG, false)
+            {
+                Separator = separator;
+            }
+            internal override void SerializeRedisArgs(List<object> args)
+            {
+                base.SerializeRedisArgs(args);
+                if (!Separator.Equals(","))
+                {
+                    args.Add("SEPARATOR".Literal());
+                    args.Add(Separator);
+                }
+            }
+        }
+
         /// <summary>
         /// Add a TAG field
         /// </summary>
         /// <param name="name">the field's name</param>
+        /// <param name="separator">tag separator</param>
         /// <returns>the schema object</returns>
-        public Schema AddTagField(string name)
+        public Schema AddTagField(string name, string separator = ",")
         {
-            Fields.Add(new Field(name, FieldType.TAG, false));
+            Fields.Add(new TagField(name, separator));
             return this;
         }
 
