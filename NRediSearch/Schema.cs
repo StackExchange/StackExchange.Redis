@@ -15,7 +15,8 @@ namespace NRediSearch
         {
             FullText,
             Geo,
-            Numeric
+            Numeric,
+            Tag
         }
 
         public class Field
@@ -40,6 +41,7 @@ namespace NRediSearch
                         case FieldType.FullText: return "TEXT".Literal();
                         case FieldType.Geo: return "GEO".Literal();
                         case FieldType.Numeric: return "NUMERIC".Literal();
+                        case FieldType.Tag: return "TAG".Literal();
                         default: throw new ArgumentOutOfRangeException(nameof(type));
                     }
                 }
@@ -128,6 +130,37 @@ namespace NRediSearch
             Fields.Add(new Field(name, FieldType.Numeric, true));
             return this;
         }
+
+        public class TagField : Field
+        {
+            public string Separator { get; }
+            internal TagField(string name, string separator = ",") : base(name, FieldType.Tag, false)
+            {
+                Separator = separator;
+            }
+            internal override void SerializeRedisArgs(List<object> args)
+            {
+                base.SerializeRedisArgs(args);
+                if (Separator != ",")
+                {
+                    args.Add("SEPARATOR".Literal());
+                    args.Add(Separator);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Add a TAG field
+        /// </summary>
+        /// <param name="name">the field's name</param>
+        /// <param name="separator">tag separator</param>
+        /// <returns>the schema object</returns>
+        public Schema AddTagField(string name, string separator = ",")
+        {
+            Fields.Add(new TagField(name, separator));
+            return this;
+        }
+
 
     }
 }
