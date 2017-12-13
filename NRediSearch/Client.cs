@@ -34,7 +34,11 @@ namespace NRediSearch
             /// <summary>
             /// The default indexing options - use term offsets and keep fields flags
             /// </summary>
-            Default = UseTermOffsets | KeepFieldFlags
+            Default = UseTermOffsets | KeepFieldFlags ,
+            /// <summary>
+            /// If set, we will disable the Stop-Words completely
+            /// </summary>
+            DisableStopWords = 7
         }
         private static void SerializeRedisArgs(IndexOptions flags, List<object> args)
         {
@@ -49,6 +53,11 @@ namespace NRediSearch
             if ((flags & IndexOptions.UseScoreIndexes) == 0)
             {
                 args.Add("NOSCOREIDX".Literal());
+            }
+            if ((flags & IndexOptions.DisableStopWords) == IndexOptions.DisableStopWords)
+            {
+                args.Add("STOPWORDS".Literal());
+                args.Add(0);
             }
         }
         private readonly IDatabaseAsync _db;
