@@ -38,7 +38,7 @@ namespace NRediSearch
             /// <summary>
             /// If set, we will disable the Stop-Words completely
             /// </summary>
-            DisableStopWords = 7
+            DisableStopWords = 8
         }
         private static void SerializeRedisArgs(IndexOptions flags, List<object> args)
         {
