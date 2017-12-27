@@ -95,7 +95,10 @@ namespace StackExchange.Redis
         {
             if (defaultClientName == null)
             {
-                defaultClientName =  TryGetAzureRoleInstanceIdNoThrow() ?? Environment.GetEnvironmentVariable("ComputerName");
+                defaultClientName = TryGetAzureRoleInstanceIdNoThrow()
+                    ?? Environment.MachineName
+                    ?? Environment.GetEnvironmentVariable("ComputerName")
+                    ?? "StackExchange.Redis";
             }
             return defaultClientName;
         }
