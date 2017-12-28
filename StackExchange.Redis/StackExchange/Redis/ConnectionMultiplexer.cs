@@ -1805,8 +1805,10 @@ namespace StackExchange.Redis
                 switch(server.ServerType)
                 {
                     case ServerType.Cluster:
-                    case ServerType.Twemproxy: // strictly speaking twemproxy uses a different hashing algo, but the hash-tag behavior is
-                                               // the same, so this does a pretty good job of spotting illegal commands before sending them
+#if !CODIS
+                        case ServerType.Twemproxy: // strictly speaking twemproxy uses a different hashing algo, but the hash-tag behavior is
+                                                   // the same, so this does a pretty good job of spotting illegal commands before sending them
+#endif
                         if (message.GetHashSlot(ServerSelectionStrategy) == ServerSelectionStrategy.MultipleSlots)
                         {
                             throw ExceptionFactory.MultiSlot(IncludeDetailInExceptions, message);

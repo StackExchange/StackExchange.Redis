@@ -1,0 +1,71 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>$(LibraryTargetFrameworks)</TargetFrameworks>
+    <Description>High performance Redis client, incorporating both synchronous and asynchronous usage.</Description>
+    <AssemblyTitle>StackExchange.Redis.Codis</AssemblyTitle>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <PackageId>StackExchange.Redis.Codis</PackageId>
+    <PackageTags>Async;Redis;Cache;PubSub;Messaging</PackageTags>
+    <OutputTypeEx>Library</OutputTypeEx>
+    <DefineConstants>$(DefineConstants);CODIS</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="..\StackExchange.Redis\obj\**\*;..\StackExchange.Redis\Properties\AssemblyInfo.cs" />
+    <Compile Include="..\StackExchange.Redis\**\*.cs" Exclude="..\StackExchange.Redis\obj\**\*;bin\**;obj\**;**\*.xproj;packages\**;..\StackExchange.Redis\Properties\AssemblyInfo.cs" />
+  </ItemGroup>
+
+  <ItemGroup Condition=" '$(TargetFramework)' == 'net40' ">
+    <PackageReference Include="Microsoft.Bcl" Version="1.1.10" />
+    <PackageReference Include="Microsoft.Bcl.Async" Version="1.0.168" />
+    <Reference Include="System" />
+    <Reference Include="Microsoft.CSharp" />
+  </ItemGroup>
+
+  <ItemGroup Condition=" '$(TargetFramework)' == 'net45' ">
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System" />
+    <Reference Include="Microsoft.CSharp" />
+  </ItemGroup>
+
+  <ItemGroup Condition=" '$(TargetFramework)' == 'net46' ">
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System" />
+    <Reference Include="Microsoft.CSharp" />
+  </ItemGroup>
+
+  <PropertyGroup Condition=" '$(TargetFramework)' == 'net40' or  '$(TargetFramework)' == 'net45' or '$(TargetFramework)' == 'net46'">
+    <DefineConstants>$(DefineConstants);FEATURE_SERIALIZATION;FEATURE_SOCKET_MODE_POLL</DefineConstants>
+  </PropertyGroup>
+
+  <PropertyGroup Condition=" '$(TargetFramework)' == 'netstandard1.5' ">
+    <DefineConstants>$(DefineConstants);CORE_CLR</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup Condition=" '$(TargetFramework)' == 'netstandard1.5' ">
+    <PackageReference Include="System.Collections" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Collections.Concurrent" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Collections.NonGeneric" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Diagnostics.Tools" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.IO.Compression" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.IO.FileSystem" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Linq" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Net.NameResolution" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Net.Security" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Net.Sockets" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Reflection.Emit" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Reflection.Emit.Lightweight" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Reflection.TypeExtensions" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Runtime.Extensions" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Runtime.InteropServices.RuntimeInformation" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Security.Cryptography.Algorithms" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Security.Cryptography.X509Certificates" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Text.RegularExpressions" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Threading" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Threading.Thread" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Threading.ThreadPool" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Threading.Timer" Version="$(CoreFxVersion)" />
+  </ItemGroup>
+
+</Project>
