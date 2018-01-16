@@ -1,5 +1,4 @@
-﻿#if FEATURE_MOQ
-using System.Text;
+﻿using System.Text;
 using Moq;
 using StackExchange.Redis.KeyspaceIsolation;
 
@@ -89,4 +88,3 @@ namespace StackExchange.Redis.Tests
     }
 #pragma warning restore RCS1047 // Non-asynchronous method name should not end with 'Async'.
 }
-#endif
