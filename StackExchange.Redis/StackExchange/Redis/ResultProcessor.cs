@@ -153,6 +153,7 @@ namespace StackExchange.Redis
                 bool log = !message.IsInternalCall;
                 bool isMoved = result.AssertStarts(MOVED);
                 string err = string.Empty;
+                bool unableToConnectError = false;
                 if (isMoved || result.AssertStarts(ASK))
                 {
                     message.SetResponseReceived();
@@ -175,6 +176,7 @@ namespace StackExchange.Redis
                             }
                             else
                             {
+                                unableToConnectError = true;
                                 err = string.Format("Endpoint {0} serving hashslot {1} is not reachable at this point of time. Please check connectTimeout value. If it is low, try increasing it to give the ConnectionMultiplexer a chance to recover from the network disconnect.  ", endpoint, hashSlot);
 #if !CORE_CLR
                                 err += ConnectionMultiplexer.GetThreadPoolAndCPUSummary(bridge.Multiplexer.IncludePerformanceCountersInExceptions);
@@ -194,7 +196,14 @@ namespace StackExchange.Redis
                     bridge.Multiplexer.OnErrorMessage(server.EndPoint, err);
                 }
                 connection.Multiplexer.Trace("Completed with error: " + err + " (" + GetType().Name + ")", ToString());
-                ServerFail(message, err);
+                if (unableToConnectError)
+                {
+                    ConnectionFail(message, ConnectionFailureType.UnableToConnect, err);
+                }
+                else
+                {
+                    ServerFail(message, err);
+                }
             }
             else
             {
