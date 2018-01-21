@@ -547,7 +547,7 @@ namespace StackExchange.Redis
                     }
                     //The parent message (next) may be returned from GetMessages
                     //and should not be marked as sent again below
-                    messageIsSent = subCommand == next;
+                    messageIsSent = messageIsSent || subCommand == next;
                 }
                 if (!messageIsSent)
                 {
