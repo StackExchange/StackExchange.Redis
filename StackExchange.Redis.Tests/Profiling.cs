@@ -35,39 +35,42 @@ namespace StackExchange.Redis.Tests
                 db.StringSet("hello", "world");
                 var val = db.StringGet("hello");
                 Assert.Equal("world", (string)val);
+                var result=db.ScriptEvaluate(LuaScript.Prepare("return redis.call('get', @key)"), new { key = (RedisKey)"hello" });
+                Assert.Equal("world", result.AsString());
 
                 var cmds = conn.FinishProfiling(profiler.MyContext);
-                Assert.Equal(2, cmds.Count());
+                Assert.Equal(3, cmds.Count());
 
                 var set = cmds.SingleOrDefault(cmd => cmd.Command == "SET");
                 Assert.NotNull(set);
                 var get = cmds.SingleOrDefault(cmd => cmd.Command == "GET");
                 Assert.NotNull(get);
+                var eval = cmds.SingleOrDefault(cmd => cmd.Command == "EVAL");
+                Assert.NotNull(eval);
 
                 Assert.True(set.CommandCreated <= get.CommandCreated);
+                Assert.True(get.CommandCreated <= eval.CommandCreated);
 
-                Assert.Equal(4, set.Db);
-                Assert.Equal(conn.GetEndPoints()[0], set.EndPoint);
-                Assert.True(set.CreationToEnqueued > TimeSpan.Zero);
-                Assert.True(set.EnqueuedToSending > TimeSpan.Zero);
-                Assert.True(set.SentToResponse > TimeSpan.Zero);
-                Assert.True(set.ResponseToCompletion > TimeSpan.Zero);
-                Assert.True(set.ElapsedTime > TimeSpan.Zero);
-                Assert.True(set.ElapsedTime > set.CreationToEnqueued && set.ElapsedTime > set.EnqueuedToSending && set.ElapsedTime > set.SentToResponse);
-                Assert.True(set.RetransmissionOf == null);
-                Assert.True(set.RetransmissionReason == null);
+                AssertProfiledCommandValues(set, conn);
 
-                Assert.Equal(4, get.Db);
-                Assert.Equal(conn.GetEndPoints()[0], get.EndPoint);
-                Assert.True(get.CreationToEnqueued > TimeSpan.Zero);
-                Assert.True(get.EnqueuedToSending > TimeSpan.Zero);
-                Assert.True(get.SentToResponse > TimeSpan.Zero);
-                Assert.True(get.ResponseToCompletion > TimeSpan.Zero);
-                Assert.True(get.ElapsedTime > TimeSpan.Zero);
-                Assert.True(get.ElapsedTime > get.CreationToEnqueued && get.ElapsedTime > get.EnqueuedToSending && get.ElapsedTime > get.SentToResponse);
-                Assert.True(get.RetransmissionOf == null);
-                Assert.True(get.RetransmissionReason == null);
+                AssertProfiledCommandValues(get, conn);
+
+                AssertProfiledCommandValues(eval, conn);
             }
+        }
+
+        private static void AssertProfiledCommandValues(IProfiledCommand command, ConnectionMultiplexer conn)
+        {
+            Assert.Equal(4, command.Db);
+            Assert.Equal(conn.GetEndPoints()[0], command.EndPoint);
+            Assert.True(command.CreationToEnqueued > TimeSpan.Zero);
+            Assert.True(command.EnqueuedToSending > TimeSpan.Zero);
+            Assert.True(command.SentToResponse > TimeSpan.Zero);
+            Assert.True(command.ResponseToCompletion > TimeSpan.Zero);
+            Assert.True(command.ElapsedTime > TimeSpan.Zero);
+            Assert.True(command.ElapsedTime > command.CreationToEnqueued && command.ElapsedTime > command.EnqueuedToSending && command.ElapsedTime > command.SentToResponse);
+            Assert.True(command.RetransmissionOf == null);
+            Assert.True(command.RetransmissionReason == null);
         }
 
         [Fact]

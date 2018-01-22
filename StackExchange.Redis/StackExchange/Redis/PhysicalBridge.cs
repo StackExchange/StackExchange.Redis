@@ -530,6 +530,7 @@ namespace StackExchange.Redis
         internal bool WriteMessageDirect(PhysicalConnection tmp, Message next)
         {
             Trace("Writing: " + next);
+            var messageIsSent = false;
             if (next is IMultiMessage)
             {
                 SelectDatabase(tmp, next); // need to switch database *before* the transaction
@@ -544,9 +545,14 @@ namespace StackExchange.Redis
                         CompleteSyncOrAsync(next);
                         return false;
                     }
+                    //The parent message (next) may be returned from GetMessages
+                    //and should not be marked as sent again below
+                    messageIsSent = messageIsSent || subCommand == next;
                 }
-
-                next.SetRequestSent();
+                if (!messageIsSent)
+                {
+                    next.SetRequestSent();
+                }
 
                 return true;
             }
