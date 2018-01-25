@@ -11,7 +11,6 @@
   </PropertyGroup>
 
   <ItemGroup Condition=" '$(TargetFramework)' == 'net45' OR '$(TargetFramework)' == 'net46' ">
-    <Reference Include="System.IO.Compression" />
     <Reference Include="System" />
     <Reference Include="Microsoft.CSharp" />
   </ItemGroup>
@@ -23,7 +22,10 @@
   <PropertyGroup Condition=" '$(TargetFramework)' == 'netstandard1.5' ">
     <DefineConstants>$(DefineConstants);CORE_CLR</DefineConstants>
   </PropertyGroup>
-
+  
+  <ItemGroup>
+    <PackageReference Include="System.IO.Compression" Version="$(CoreFxVersion)" />
+  </ItemGroup>
   <ItemGroup Condition=" '$(TargetFramework)' == 'netstandard1.5' ">
     <PackageReference Include="System.Collections.NonGeneric" Version="$(CoreFxVersion)" />
     <PackageReference Include="System.Net.NameResolution" Version="$(CoreFxVersion)" />
