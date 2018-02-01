@@ -90,6 +90,7 @@ namespace StackExchange.Redis
         /// </summary>
         public string ClientName => configuration.ClientName ?? ConnectionMultiplexer.GetDefaultClientName();
 
+        internal CancellationTokenSourcePool cancellationTokenSourcePool;
         private static string defaultClientName;
         private static string GetDefaultClientName()
         {
@@ -519,6 +520,11 @@ namespace StackExchange.Redis
         public int TimeoutMilliseconds => timeoutMilliseconds;
 
         /// <summary>
+        /// Gets the asynctimeout associated with the connections
+        /// </summary>
+        public int? AsyncTimeoutMilliseconds => asyncTimeoutMilliseconds;
+
+        /// <summary>
         /// Gets all endpoints defined on the server
         /// </summary>
         /// <returns></returns>
@@ -530,6 +536,7 @@ namespace StackExchange.Redis
         }
 
         private readonly int timeoutMilliseconds;
+        private readonly int? asyncTimeoutMilliseconds;
 
         private readonly ConfigurationOptions configuration;
 
@@ -938,6 +945,7 @@ namespace StackExchange.Redis
 
             PreserveAsyncOrder = true; // safest default
             timeoutMilliseconds = configuration.SyncTimeout;
+            asyncTimeoutMilliseconds = configuration.AsyncTimeout;
 
             OnCreateReaderWriter(configuration);
             unprocessableCompletionManager = new CompletionManager(this, "multiplexer");
@@ -949,6 +957,7 @@ namespace StackExchange.Redis
                 ConfigurationChangedChannel = Encoding.UTF8.GetBytes(configChannel);
             }
             lastHeartbeatTicks = Environment.TickCount;
+            cancellationTokenSourcePool = new CancellationTokenSourcePool();
         }
 
         partial void OnCreateReaderWriter(ConfigurationOptions configuration);
@@ -1933,7 +1942,7 @@ namespace StackExchange.Redis
             if (allowCommandsToComplete)
             {
                 var quits = QuitAllServers();
-                await WaitAllIgnoreErrorsAsync(quits, configuration.SyncTimeout, null).ForAwait();
+                await WaitAllIgnoreErrorsAsync(quits,Math.Max(configuration.SyncTimeout, configuration.AsyncTimeout ?? configuration.SyncTimeout), null).ForAwait();
             }
 
             DisposeAndClearServers();
@@ -1970,6 +1979,11 @@ namespace StackExchange.Redis
                 {
                     ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(IncludeDetailInExceptions, IncludePerformanceCountersInExceptions, message.Command, message, server, GetServerSnapshot()));
                 }
+
+                if (asyncTimeoutMilliseconds != null)
+                {
+                    var t = source.TimeoutAfter(asyncTimeoutMilliseconds.GetValueOrDefault(), server, message, this);
+                }
                 return tcs.Task;
             }
         }
@@ -1986,6 +2000,94 @@ namespace StackExchange.Redis
                 GC.SuppressFinalize(source.Task);
             }
         }
+
+        internal Exception GenerateTimeoutException(Message message, ServerEndPoint server, bool isAsync)
+        {
+            Trace("Timeout performing " + message.ToString());
+            Interlocked.Increment(ref syncTimeouts);
+            string errMessage;
+            List<Tuple<string, string>> data = null;
+            if (server == null || !IncludeDetailInExceptions)
+            {
+                errMessage = "Timeout performing " + message.Command.ToString();
+            }
+            else
+            {
+                int inst, qu, qs, qc, wr, wq, @in, ar;
+#if FEATURE_SOCKET_MODE_POLL
+                var mgrState = socketManager.State;
+                var lastError = socketManager.LastErrorTimeRelative();
+
+#endif
+                var sb = new StringBuilder("Timeout performing ").Append(isAsync ? "async " : "sync ").Append(message.CommandAndKey);
+                data = new List<Tuple<string, string>> { Tuple.Create("Message", message.CommandAndKey) };
+                Action<string, string, string> add = (lk, sk, v) =>
+                {
+                    data.Add(Tuple.Create(lk, v));
+                    sb.Append(", " + sk + ": " + v);
+                };
+
+                int queue = server.GetOutstandingCount(message.Command, out inst, out qu, out qs, out qc, out wr, out wq, out @in, out ar);
+                add("Instantaneous", "inst", inst.ToString());
+#if FEATURE_SOCKET_MODE_POLL
+                add("Manager-State", "mgr", mgrState.ToString());
+                add("Last-Error", "err", lastError);
+#endif
+                add("Queue-Length", "queue", queue.ToString());
+                add("Queue-Outstanding", "qu", qu.ToString());
+                add("Queue-Awaiting-Response", "qs", qs.ToString());
+                add("Queue-Completion-Outstanding", "qc", qc.ToString());
+                add("Active-Writers", "wr", wr.ToString());
+                add("Write-Queue", "wq", wq.ToString());
+                add("Inbound-Bytes", "in", @in.ToString());
+                add("Active-Readers", "ar", ar.ToString());
+
+                add("Client-Name", "clientName", ClientName);
+                add("Server-Endpoint", "serverEndpoint", server.EndPoint.ToString());
+                var hashSlot = message.GetHashSlot(this.ServerSelectionStrategy);
+                // only add keyslot if its a valid cluster key slot
+                if (hashSlot != ServerSelectionStrategy.NoSlot)
+                {
+                    add("Key-HashSlot", "keyHashSlot", message.GetHashSlot(this.ServerSelectionStrategy).ToString());
+                }
+#if !CORE_CLR
+                string iocp, worker;
+                int busyWorkerCount = GetThreadPoolStats(out iocp, out worker);
+                add("ThreadPool-IO-Completion", "IOCP", iocp);
+                add("ThreadPool-Workers", "WORKER", worker);
+                data.Add(Tuple.Create("Busy-Workers", busyWorkerCount.ToString()));
+
+                if (IncludePerformanceCountersInExceptions)
+                {
+                    add("Local-CPU", "Local-CPU", GetSystemCpuPercent());
+                }
+#endif
+                sb.Append(" (Please take a look at this article for some common client-side issues that can cause timeouts: ");
+                sb.Append(timeoutHelpLink);
+                sb.Append(")");
+                errMessage = sb.ToString();
+                if (stormLogThreshold >= 0 && queue >= stormLogThreshold && Interlocked.CompareExchange(ref haveStormLog, 1, 0) == 0)
+                {
+                    var log = server.GetStormLog(message.Command);
+                    if (string.IsNullOrWhiteSpace(log)) Interlocked.Exchange(ref haveStormLog, 0);
+                    else Interlocked.Exchange(ref stormLogSnapshot, log);
+                }
+
+            }
+            var timeoutEx = ExceptionFactory.Timeout(IncludeDetailInExceptions, errMessage, message, server);
+            timeoutEx.HelpLink = timeoutHelpLink;
+
+
+            if (data != null)
+            {
+                foreach (var kv in data)
+                {
+                    timeoutEx.Data["Redis-" + kv.Item1] = kv.Item2;
+                }
+            }
+            return timeoutEx;
+        }
+
         internal T ExecuteSyncImpl<T>(Message message, ResultProcessor<T> processor, ServerEndPoint server)
         {
             if (isDisposed) throw new ObjectDisposedException(ToString());
@@ -2018,87 +2120,7 @@ namespace StackExchange.Redis
                     }
                     else
                     {
-                        Trace("Timeout performing " + message.ToString());
-                        Interlocked.Increment(ref syncTimeouts);
-                        string errMessage;
-                        List<Tuple<string, string>> data = null;
-                        if (server == null || !IncludeDetailInExceptions)
-                        {
-                            errMessage = "Timeout performing " + message.Command.ToString();
-                        }
-                        else
-                        {
-                            int inst, qu, qs, qc, wr, wq, @in, ar;
-#if FEATURE_SOCKET_MODE_POLL
-                            var mgrState = socketManager.State;
-                            var lastError = socketManager.LastErrorTimeRelative();
-
-#endif
-                            var sb = new StringBuilder("Timeout performing ").Append(message.CommandAndKey);
-                            data = new List<Tuple<string, string>> {Tuple.Create("Message", message.CommandAndKey)};
-                            Action<string, string, string> add = (lk, sk, v) =>
-                            {
-                                data.Add(Tuple.Create(lk, v));
-                                sb.Append(", " + sk + ": " + v);
-                            };
-
-                            int queue = server.GetOutstandingCount(message.Command, out inst, out qu, out qs, out qc, out wr, out wq, out @in, out ar);
-                            add("Instantaneous", "inst", inst.ToString());
-#if FEATURE_SOCKET_MODE_POLL
-                            add("Manager-State", "mgr", mgrState.ToString());
-                            add("Last-Error", "err", lastError);
-#endif
-                            add("Queue-Length", "queue", queue.ToString());
-                            add("Queue-Outstanding", "qu", qu.ToString());
-                            add("Queue-Awaiting-Response", "qs", qs.ToString());
-                            add("Queue-Completion-Outstanding", "qc", qc.ToString());
-                            add("Active-Writers", "wr", wr.ToString());
-                            add("Write-Queue", "wq", wq.ToString());
-                            add("Inbound-Bytes", "in", @in.ToString());
-                            add("Active-Readers", "ar", ar.ToString());
-
-                            add("Client-Name", "clientName", ClientName);
-                            add("Server-Endpoint", "serverEndpoint", server.EndPoint.ToString());
-                            var hashSlot = message.GetHashSlot(this.ServerSelectionStrategy);
-                            // only add keyslot if its a valid cluster key slot
-                            if (hashSlot != ServerSelectionStrategy.NoSlot)
-                            {
-                                add("Key-HashSlot", "keyHashSlot", message.GetHashSlot(this.ServerSelectionStrategy).ToString());
-                            }
-#if !CORE_CLR
-                            string iocp, worker;
-                            int busyWorkerCount = GetThreadPoolStats(out iocp, out worker);
-                            add("ThreadPool-IO-Completion", "IOCP", iocp);
-                            add("ThreadPool-Workers", "WORKER", worker);
-                            data.Add(Tuple.Create("Busy-Workers", busyWorkerCount.ToString()));
-
-                            if (IncludePerformanceCountersInExceptions)
-                            {
-                                add("Local-CPU", "Local-CPU", GetSystemCpuPercent());
-                            }
-#endif
-                            sb.Append(" (Please take a look at this article for some common client-side issues that can cause timeouts: ");
-                            sb.Append(timeoutHelpLink);
-                            sb.Append(")");
-                            errMessage = sb.ToString();
-                            if (stormLogThreshold >= 0 && queue >= stormLogThreshold && Interlocked.CompareExchange(ref haveStormLog, 1, 0) == 0)
-                            {
-                                var log = server.GetStormLog(message.Command);
-                                if (string.IsNullOrWhiteSpace(log)) Interlocked.Exchange(ref haveStormLog, 0);
-                                else Interlocked.Exchange(ref stormLogSnapshot, log);
-                            }
-                        }
-                        var timeoutEx = ExceptionFactory.Timeout(IncludeDetailInExceptions, errMessage, message, server);
-                        timeoutEx.HelpLink = timeoutHelpLink;
-
-                        if (data != null)
-                        {
-                            foreach (var kv in data)
-                            {
-                                timeoutEx.Data["Redis-" + kv.Item1] = kv.Item2;
-                            }
-                        }
-                        throw timeoutEx;
+                        throw GenerateTimeoutException(message, server, false);
                         // very important not to return "source" to the pool here
                     }
                 }

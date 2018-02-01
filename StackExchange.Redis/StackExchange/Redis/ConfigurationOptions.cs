@@ -83,7 +83,7 @@ namespace StackExchange.Redis
                 throw new ArgumentException("Keyword '" + key + "' is not supported");
             }
 
-            internal const string AllowAdmin = "allowAdmin", SyncTimeout = "syncTimeout",
+            internal const string AllowAdmin = "allowAdmin", SyncTimeout = "syncTimeout", asyncTimeout = "asyncTimeout",
                                 ServiceName = "serviceName", ClientName = "name", KeepAlive = "keepAlive",
                         Version = "version", ConnectTimeout = "connectTimeout", Password = "password",
                         TieBreaker = "tiebreaker", WriteBuffer = "writeBuffer", Ssl = "ssl", SslHost = "sslHost", HighPrioritySocketThreads = "highPriorityThreads",
@@ -94,7 +94,7 @@ namespace StackExchange.Redis
 
             private static readonly Dictionary<string, string> normalizedOptions = new[]
             {
-                AllowAdmin, SyncTimeout,
+                AllowAdmin, SyncTimeout, asyncTimeout,
                 ServiceName, ClientName, KeepAlive,
                 Version, ConnectTimeout, Password,
                 TieBreaker, WriteBuffer, Ssl, SslHost, HighPrioritySocketThreads,
@@ -126,7 +126,7 @@ namespace StackExchange.Redis
 
         private Version defaultVersion;
 
-        private int? keepAlive, syncTimeout, connectTimeout, responseTimeout, writeBuffer, connectRetry, configCheckSeconds, defaultDatabase;
+        private int? keepAlive, syncTimeout, asyncTimeout, connectTimeout, responseTimeout, writeBuffer, connectRetry, configCheckSeconds, defaultDatabase;
 
         private Proxy? proxy;
 
@@ -219,12 +219,13 @@ namespace StackExchange.Redis
         public string ConfigurationChannel { get { return configChannel ?? DefaultConfigurationChannel; } set { configChannel = value; } }
 
         /// <summary>
-        /// Specifies the time in milliseconds that should be allowed for connection (defaults to 5 seconds unless SyncTimeout is higher)
+        /// Specifies the time in milliseconds that should be allowed for connection (defaults to 5 seconds unless SyncTimeout or AsyncTimeout is higher)
         /// </summary>
         public int ConnectTimeout {
             get {
                 if (connectTimeout.HasValue) return connectTimeout.GetValueOrDefault();
-                return Math.Max(5000, SyncTimeout);
+                var timeout = Math.Max(SyncTimeout, AsyncTimeout ?? SyncTimeout);
+                return Math.Max(5000, timeout);
             }
             set { connectTimeout = value; }
         }
@@ -293,6 +294,12 @@ namespace StackExchange.Redis
         public int SyncTimeout { get { return syncTimeout.GetValueOrDefault(1000); } set { syncTimeout = value; } }
 
         /// <summary>
+        /// Specifies the time in milliseconds that the system should allow for asynchronous operations (defaults to 1 second)
+        /// </summary>
+        public int? AsyncTimeout { get { return asyncTimeout; } set { asyncTimeout = value; } }
+
+
+        /// <summary>
         /// Specifies the time in milliseconds that the system should allow for responses before concluding that the socket is unhealthy
         /// (defaults to SyncTimeout)
         /// </summary>
@@ -356,6 +363,7 @@ namespace StackExchange.Redis
                 serviceName = serviceName,
                 keepAlive = keepAlive,
                 syncTimeout = syncTimeout,
+                asyncTimeout = asyncTimeout,
                 allowAdmin = allowAdmin,
                 defaultVersion = defaultVersion,
                 connectTimeout = connectTimeout,
@@ -422,6 +430,7 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.ServiceName, serviceName);
             Append(sb, OptionKeys.KeepAlive, keepAlive);
             Append(sb, OptionKeys.SyncTimeout, syncTimeout);
+            Append(sb, OptionKeys.asyncTimeout, asyncTimeout);
             Append(sb, OptionKeys.AllowAdmin, allowAdmin);
             Append(sb, OptionKeys.Version, defaultVersion);
             Append(sb, OptionKeys.ConnectTimeout, connectTimeout);
@@ -526,7 +535,7 @@ namespace StackExchange.Redis
         void Clear()
         {
             clientName = serviceName = password = tieBreaker = sslHost = configChannel = null;
-            keepAlive = syncTimeout = connectTimeout = writeBuffer = connectRetry = configCheckSeconds = defaultDatabase = null;
+            keepAlive = syncTimeout = asyncTimeout = connectTimeout = writeBuffer = connectRetry = configCheckSeconds = defaultDatabase = null;
             allowAdmin = abortOnConnectFail = highPrioritySocketThreads = resolveDns = ssl = null;
             defaultVersion = null;
             endpoints.Clear();
@@ -576,6 +585,9 @@ namespace StackExchange.Redis
                     {
                         case OptionKeys.SyncTimeout:
                             SyncTimeout = OptionKeys.ParseInt32(key, value, minValue: 1);
+                            break;
+                        case OptionKeys.asyncTimeout:
+                            asyncTimeout = OptionKeys.ParseInt32(key, value);
                             break;
                         case OptionKeys.AllowAdmin:
                             AllowAdmin = OptionKeys.ParseBoolean(key, value);

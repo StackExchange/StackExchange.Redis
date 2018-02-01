@@ -1,4 +1,6 @@
-﻿using System.Linq;
+﻿using System;
+using System.Linq;
+using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -40,5 +42,39 @@ namespace StackExchange.Redis.Tests
             }
         }
 #endif
+        [Fact]
+        public void AsyncTimeout()
+        {
+            using (var conn = Create(allowAdmin:true, asynctimeout: 0))
+            {
+                var server = conn.GetServer(TestConfig.Current.MasterServer, TestConfig.Current.MasterPort);
+
+                RedisKey key = Me();
+                var db = conn.GetDatabase();
+                byte[] b = new byte[10 * 1024 * 1024];
+                Random r = new Random();
+                r.NextBytes(b);
+                var exception = Assert.ThrowsAsync<RedisTimeoutException>(async ()=> await db.StringSetAsync(key, b)).Result;
+                Assert.StartsWith("StackExchange.Redis.RedisTimeoutException: Timeout performing async SET AsyncTimeout", exception.ToString());
+            }
+        }
+
+        [Fact]
+        public void NoAsyncTimeout()
+        {
+            using (var conn = Create(allowAdmin: true, syncTimeout: 1))
+            {
+                var server = conn.GetServer(TestConfig.Current.MasterServer, TestConfig.Current.MasterPort);
+
+                RedisKey key = Me();
+                var db = conn.GetDatabase();
+                db.KeyDelete(key);
+                byte[] b = new byte[10 * 1024 * 1024];
+                Random r = new Random();
+                r.NextBytes(b);
+                //this should complete and not throw any exception.
+                db.StringSetAsync(key, b).Wait(5000);
+            }
+        }
     }
 }
