@@ -57,7 +57,8 @@ namespace StackExchange.Redis
         }
 
         public ServerType ServerType { get { return serverType; } set { serverType = value; } }
-        internal int TotalSlots { get { return RedisClusterSlotCount; } }
+        internal int TotalSlots => RedisClusterSlotCount;
+
         /// <summary>
         /// Computes the hash-slot that would be used by the given key
         /// </summary>
@@ -89,7 +90,7 @@ namespace StackExchange.Redis
 
         public ServerEndPoint Select(Message message)
         {
-            if (message == null) throw new ArgumentNullException("message");
+            if (message == null) throw new ArgumentNullException(nameof(message));
             int slot = NoSlot;
             switch (serverType)
             {
@@ -163,7 +164,7 @@ namespace StackExchange.Redis
                         arr[hashSlot] = server;
                         if (oldServer != server)
                         {
-                            multiplexer.OnHashSlotMoved(hashSlot, oldServer == null ? null : oldServer.EndPoint, endpoint);
+                            multiplexer.OnHashSlotMoved(hashSlot, oldServer?.EndPoint, endpoint);
                         }
                     }
 
@@ -239,9 +240,11 @@ namespace StackExchange.Redis
             if (endpoint.IsSlave && endpoint.IsSelectable(command)) return endpoint;
 
             var slaves = endpoint.Slaves;
-            for (int i = 0; i < slaves.Length; i++)
+            var len = slaves.Length;
+            uint startOffset = len <= 1 ? 0 : endpoint.NextReplicaOffset();
+            for (int i = 0; i < len; i++)
             {
-                endpoint = slaves[i];
+                endpoint = slaves[(int)(((uint)i + startOffset) % len)];
                 if (endpoint.IsSlave && endpoint.IsSelectable(command)) return endpoint;
             }
             return null;

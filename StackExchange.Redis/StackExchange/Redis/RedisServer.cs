@@ -16,25 +16,19 @@ namespace StackExchange.Redis
 
         internal RedisServer(ConnectionMultiplexer multiplexer, ServerEndPoint server, object asyncState) : base(multiplexer, asyncState)
         {
-            if (server == null) throw new ArgumentNullException("server");
+            if (server == null) throw new ArgumentNullException(nameof(server));
             this.server = server;
         }
 
-        public ClusterConfiguration ClusterConfiguration
-        {
-            get { return server.ClusterConfiguration; }
-        }
+        public ClusterConfiguration ClusterConfiguration => server.ClusterConfiguration;
 
-        public EndPoint EndPoint { get { return server.EndPoint; } }
+        public EndPoint EndPoint => server.EndPoint;
 
-        public RedisFeatures Features
-        {
-            get { return server.GetFeatures(); }
-        }
+        public RedisFeatures Features => server.GetFeatures();
 
-        public bool IsConnected { get { return server.IsConnected; } }
+        public bool IsConnected => server.IsConnected;
 
-        public bool IsSlave { get { return server.IsSlave; } }
+        public bool IsSlave => server.IsSlave;
 
         public bool AllowSlaveWrites
         {
@@ -42,9 +36,9 @@ namespace StackExchange.Redis
             set { server.AllowSlaveWrites = value; }
         }
 
-        public ServerType ServerType { get { return server.ServerType; } }
+        public ServerType ServerType => server.ServerType;
 
-        public Version Version { get { return server.Version; } }
+        public Version Version => server.Version;
 
         public void ClientKill(EndPoint endpoint, CommandFlags flags = CommandFlags.None)
         {
@@ -71,8 +65,10 @@ namespace StackExchange.Redis
         }
         Message GetClientKillMessage(EndPoint endpoint, long? id, ClientType? clientType, bool skipMe, CommandFlags flags)
         {
-            List<RedisValue> parts = new List<RedisValue>(9);
-            parts.Add(RedisLiterals.KILL);
+            List<RedisValue> parts = new List<RedisValue>(9)
+            {
+                RedisLiterals.KILL
+            };
             if(id != null)
             {
                 parts.Add(RedisLiterals.ID);
@@ -93,7 +89,7 @@ namespace StackExchange.Redis
                         parts.Add(RedisLiterals.pubsub);
                         break;
                     default:
-                        throw new ArgumentOutOfRangeException("clientType");
+                        throw new ArgumentOutOfRangeException(nameof(clientType));
                 }
                 parts.Add(id.Value);
             }
@@ -210,6 +206,17 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
+        public RedisValue Echo(RedisValue message, CommandFlags flags)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.ECHO, message);
+            return ExecuteSync(msg, ResultProcessor.RedisValue);
+        }
+        public Task<RedisValue> EchoAsync(RedisValue message, CommandFlags flags)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.ECHO, message);
+            return ExecuteAsync(msg, ResultProcessor.RedisValue);
+        }
+
         public void FlushAllDatabases(CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(-1, flags, RedisCommand.FLUSHALL);
@@ -281,7 +288,7 @@ namespace StackExchange.Redis
 
         public IEnumerable<RedisKey> Keys(int database = 0, RedisValue pattern = default(RedisValue), int pageSize = CursorUtils.DefaultPageSize, long cursor = CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
         {
-            if (pageSize <= 0) throw new ArgumentOutOfRangeException("pageSize");
+            if (pageSize <= 0) throw new ArgumentOutOfRangeException(nameof(pageSize));
             if (CursorUtils.IsNil(pattern)) pattern = RedisLiterals.Wildcard;
 
             if (multiplexer.CommandMap.IsAvailable(RedisCommand.SCAN))
@@ -399,7 +406,7 @@ namespace StackExchange.Redis
                     msg = Message.Create(-1, flags, RedisCommand.SHUTDOWN, RedisLiterals.NOSAVE);
                     break;
                 default:
-                    throw new ArgumentOutOfRangeException("shutdownMode");
+                    throw new ArgumentOutOfRangeException(nameof(shutdownMode));
             }
             try
             {
@@ -546,7 +553,7 @@ namespace StackExchange.Redis
 
                 // no need to deny exec-sync here; will be complete before they see if
                 var tcs = TaskSource.Create<T>(asyncState);
-                ConnectionMultiplexer.ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(multiplexer.IncludeDetailInExceptions, message.Command, message, server));
+                ConnectionMultiplexer.ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(multiplexer.IncludeDetailInExceptions, multiplexer.IncludePerformanceCountersInExceptions, message.Command, message, server, multiplexer.GetServerSnapshot()));
                 return tcs.Task;
             }
             return base.ExecuteAsync<T>(message, processor, server);
@@ -559,7 +566,7 @@ namespace StackExchange.Redis
             if (!server.IsConnected)
             {
                 if (message == null || message.IsFireAndForget) return default(T);
-                throw ExceptionFactory.NoConnectionAvailable(multiplexer.IncludeDetailInExceptions, message.Command, message, server);
+                throw ExceptionFactory.NoConnectionAvailable(multiplexer.IncludeDetailInExceptions, multiplexer.IncludePerformanceCountersInExceptions, message.Command, message, server, multiplexer.GetServerSnapshot());
             }
             return base.ExecuteSync<T>(message, processor, server);
         }
@@ -638,7 +645,7 @@ namespace StackExchange.Redis
 #pragma warning disable 0618
                 case SaveType.ForegroundSave: return Message.Create(-1, flags, RedisCommand.SAVE);
 #pragma warning restore 0618
-                default:  throw new ArgumentOutOfRangeException("type");
+                default:  throw new ArgumentOutOfRangeException(nameof(type));
             }
         }
 
@@ -651,7 +658,7 @@ namespace StackExchange.Redis
 #pragma warning disable 0618
                 case SaveType.ForegroundSave: return ResultProcessor.DemandOK;
 #pragma warning restore 0618
-                default: throw new ArgumentOutOfRangeException("type");
+                default: throw new ArgumentOutOfRangeException(nameof(type));
             }
         }
 
@@ -719,10 +726,7 @@ namespace StackExchange.Redis
                     }
                 }
             }
-            protected override ResultProcessor<ScanResult> Processor
-            {
-                get { return processor; }
-            }
+            protected override ResultProcessor<ScanResult> Processor => processor;
 
             public static readonly ResultProcessor<ScanResult> processor = new KeysResultProcessor();
             private class KeysResultProcessor : ResultProcessor<ScanResult>

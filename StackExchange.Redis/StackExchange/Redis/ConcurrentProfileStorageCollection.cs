@@ -1,9 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+﻿using System.Collections.Generic;
 using System.Threading;
-using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
@@ -31,8 +27,8 @@ namespace StackExchange.Redis
             ProfileStorage Head;
             ProfileStorage CurrentBacker;
 
-            bool IsEmpty { get { return Head == null; } }
-            bool IsUnstartedOrFinished { get { return CurrentBacker == null; } }
+            bool IsEmpty => Head == null;
+            bool IsUnstartedOrFinished => CurrentBacker == null;
 
             internal Enumerator(ProfileStorage head)
             {
@@ -43,15 +39,9 @@ namespace StackExchange.Redis
             /// <summary>
             /// The current element.
             /// </summary>
-            public IProfiledCommand Current
-            {
-                get { return CurrentBacker; }
-            }
+            public IProfiledCommand Current => CurrentBacker;
 
-            object System.Collections.IEnumerator.Current 
-            {
-                get { return CurrentBacker; }
-            }
+            object System.Collections.IEnumerator.Current => CurrentBacker;
 
             /// <summary>
             /// Advances the enumeration, returning true if there is a new element to consume and false

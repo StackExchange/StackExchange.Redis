@@ -1,15 +1,17 @@
 ﻿using System.Linq;
-using NUnit.Framework;
+using Xunit;
+using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    [TestFixture]
     public class MultiAdd : TestBase
     {
-        [Test]
+        public MultiAdd(ITestOutputHelper output) : base(output) { }
+
+        [Fact]
         public void AddSortedSetEveryWay()
         {
-            using(var conn = Create())
+            using (var conn = Create())
             {
                 var db = conn.GetDatabase(3);
 
@@ -32,13 +34,13 @@ namespace StackExchange.Redis.Tests
                     new SortedSetEntry("k", 11)});
                 var vals = db.SortedSetRangeByScoreWithScores(key);
                 string s = string.Join(",", vals.OrderByDescending(x => x.Score).Select(x => x.Element));
-                Assert.AreEqual("k,j,i,h,g,f,e,d,c,b,a", s);
+                Assert.Equal("k,j,i,h,g,f,e,d,c,b,a", s);
                 s = string.Join(",", vals.OrderBy(x => x.Score).Select(x => x.Score));
-                Assert.AreEqual("1,2,3,4,5,6,7,8,9,10,11", s);
+                Assert.Equal("1,2,3,4,5,6,7,8,9,10,11", s);
             }
         }
 
-        [Test]
+        [Fact]
         public void AddHashEveryWay()
         {
             using (var conn = Create())
@@ -64,13 +66,13 @@ namespace StackExchange.Redis.Tests
                     new HashEntry("k", 11)});
                 var vals = db.HashGetAll(key);
                 string s = string.Join(",", vals.OrderByDescending(x => (double)x.Value).Select(x => x.Name));
-                Assert.AreEqual("k,j,i,h,g,f,e,d,c,b,a", s);
+                Assert.Equal("k,j,i,h,g,f,e,d,c,b,a", s);
                 s = string.Join(",", vals.OrderBy(x => (double)x.Value).Select(x => x.Value));
-                Assert.AreEqual("1,2,3,4,5,6,7,8,9,10,11", s);
+                Assert.Equal("1,2,3,4,5,6,7,8,9,10,11", s);
             }
         }
 
-        [Test]
+        [Fact]
         public void AddSetEveryWay()
         {
             using (var conn = Create())
@@ -83,15 +85,15 @@ namespace StackExchange.Redis.Tests
                 db.SetAdd(key, new RedisValue[] { "b" });
                 db.SetAdd(key, new RedisValue[] { "c", "d" });
                 db.SetAdd(key, new RedisValue[] { "e", "f", "g" });
-                db.SetAdd(key, new RedisValue[] { "h", "i", "j","k" });
+                db.SetAdd(key, new RedisValue[] { "h", "i", "j", "k" });
 
                 var vals = db.SetMembers(key);
                 string s = string.Join(",", vals.OrderByDescending(x => x));
-                Assert.AreEqual("k,j,i,h,g,f,e,d,c,b,a", s);
+                Assert.Equal("k,j,i,h,g,f,e,d,c,b,a", s);
             }
         }
 
-        [Test]
+        [Fact]
         public void AddSetEveryWayNumbers()
         {
             using (var conn = Create())
@@ -108,7 +110,7 @@ namespace StackExchange.Redis.Tests
 
                 var vals = db.SetMembers(key);
                 string s = string.Join(",", vals.OrderByDescending(x => x));
-                Assert.AreEqual("t,s,a,11,10,3,2.2,2,1.5,1,-1", s);
+                Assert.Equal("t,s,a,11,10,3,2.2,2,1.5,1,-1", s);
             }
         }
     }

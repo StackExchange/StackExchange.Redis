@@ -1,62 +1,73 @@
 ﻿using System;
-using NUnit.Framework;
 using StackExchange.Redis.KeyspaceIsolation;
+using Xunit;
+using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-
-    [TestFixture]
     public class WithKeyPrefixTests : TestBase
     {
-        [Test]
+        public WithKeyPrefixTests(ITestOutputHelper output) : base (output) { }
+
+        [Fact]
         public void BlankPrefixYieldsSame_Bytes()
         {
             using (var conn = Create())
             {
                 var raw = conn.GetDatabase(1);
                 var prefixed = raw.WithKeyPrefix(new byte[0]);
-                Assert.AreSame(raw, prefixed);
+                Assert.Same(raw, prefixed);
             }
         }
-        [Test]
+
+        [Fact]
         public void BlankPrefixYieldsSame_String()
         {
             using (var conn = Create())
             {
                 var raw = conn.GetDatabase(1);
                 var prefixed = raw.WithKeyPrefix("");
-                Assert.AreSame(raw, prefixed);
-            }
-        }
-        [Test, ExpectedException(typeof(ArgumentNullException))]
-        public void NullPrefixIsError_Bytes()
-        {
-            using (var conn = Create())
-            {
-                var raw = conn.GetDatabase(1);
-                var prefixed = raw.WithKeyPrefix((byte[])null);
-            }
-        }
-        [Test, ExpectedException(typeof(ArgumentNullException))]
-        public void NullPrefixIsError_String()
-        {
-            using (var conn = Create())
-            {
-                var raw = conn.GetDatabase(1);
-                var prefixed = raw.WithKeyPrefix((string)null);
+                Assert.Same(raw, prefixed);
             }
         }
 
-        [Test, ExpectedException(typeof(ArgumentNullException))]
-        [TestCase("abc")]
-        [TestCase("")]
-        [TestCase(null)]
+        [Fact]
+        public void NullPrefixIsError_Bytes()
+        {
+            Assert.Throws<ArgumentNullException>(() => {
+                using (var conn = Create())
+                {
+                    var raw = conn.GetDatabase(1);
+                    var prefixed = raw.WithKeyPrefix((byte[])null);
+                }
+            });
+        }
+
+        [Fact]
+        public void NullPrefixIsError_String()
+        {
+            Assert.Throws<ArgumentNullException>(() => {
+                using (var conn = Create())
+                {
+                    var raw = conn.GetDatabase(1);
+                    var prefixed = raw.WithKeyPrefix((string)null);
+                }
+            });
+        }
+
+        [Theory]
+        [InlineData("abc")]
+        [InlineData("")]
+        [InlineData(null)]
         public void NullDatabaseIsError(string prefix)
         {
-            IDatabase raw = null;
-            var prefixed = raw.WithKeyPrefix(prefix);
+            Assert.Throws<ArgumentNullException>(() => {
+                IDatabase raw = null;
+                var prefixed = raw.WithKeyPrefix(prefix);
+            });
         }
-        [Test]
+
+        [Fact]
         public void BasicSmokeTest()
         {
             using(var conn = Create())
@@ -72,23 +83,24 @@ namespace StackExchange.Redis.Tests
 
                 foo.StringSet(key, s);
                 var val = (string)foo.StringGet(key);
-                Assert.AreEqual(s, val); // fooBasicSmokeTest
+                Assert.Equal(s, val); // fooBasicSmokeTest
 
                 foobar.StringSet(key, t);
                 val = (string)foobar.StringGet(key);
-                Assert.AreEqual(t, val); // foobarBasicSmokeTest
+                Assert.Equal(t, val); // foobarBasicSmokeTest
 
                 val = (string)foo.StringGet("bar" + key);
-                Assert.AreEqual(t, val); // foobarBasicSmokeTest
+                Assert.Equal(t, val); // foobarBasicSmokeTest
 
                 val = (string)raw.StringGet("foo" + key);
-                Assert.AreEqual(s, val); // fooBasicSmokeTest
+                Assert.Equal(s, val); // fooBasicSmokeTest
 
                 val = (string)raw.StringGet("foobar" + key);
-                Assert.AreEqual(t, val); // foobarBasicSmokeTest
+                Assert.Equal(t, val); // foobarBasicSmokeTest
             }
         }
-        [Test]
+
+        [Fact]
         public void ConditionTest()
         {
             using(var conn = Create())
@@ -108,7 +120,7 @@ namespace StackExchange.Redis.Tests
                 tran.Execute();
 
                 int i = (int)raw.StringGet("tran:i");
-                Assert.AreEqual(1, i);
+                Assert.Equal(1, i);
 
                 // repeat without key
                 raw.KeyDelete("tran:abc");
@@ -118,7 +130,7 @@ namespace StackExchange.Redis.Tests
                 tran.Execute();
 
                 i = (int)raw.StringGet("tran:i");
-                Assert.AreEqual(1, i);
+                Assert.Equal(1, i);
             }
         }
     }

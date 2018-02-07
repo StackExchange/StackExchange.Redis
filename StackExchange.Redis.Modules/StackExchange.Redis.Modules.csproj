@@ -1,0 +1,12 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  
+  <PropertyGroup>
+    <TargetFrameworks>$(LibraryTargetFrameworks)</TargetFrameworks>
+    <VersionPrefix>0.1</VersionPrefix>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <PackageTags>Redis;Search;Modules;RediSearch</PackageTags>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\StackExchange.Redis\StackExchange.Redis.csproj" />
+  </ItemGroup>
+</Project>

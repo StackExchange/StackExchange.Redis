@@ -1,4 +1,4 @@
-﻿#if __MonoCS__
+﻿#if !FEATURE_SOCKET_MODE_POLL
 
 namespace StackExchange.Redis
 {

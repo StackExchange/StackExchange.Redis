@@ -51,10 +51,8 @@ namespace StackExchange.Redis
 
         internal void ResetNonConnected()
         {
-            var tmp = interactive;
-            if (tmp != null) tmp.ResetNonConnected();
-            tmp = subscription;
-            if (tmp != null) tmp.ResetNonConnected();
+            interactive?.ResetNonConnected();
+            subscription?.ResetNonConnected();
         }
         public ServerEndPoint(ConnectionMultiplexer multiplexer, EndPoint endpoint, TextWriter log)
         {
@@ -81,9 +79,9 @@ namespace StackExchange.Redis
 
         public int Databases { get { return databases; } set { SetConfig(ref databases, value); } }
 
-        public EndPoint EndPoint { get { return endpoint; } }
+        public EndPoint EndPoint => endpoint;
 
-        public bool HasDatabases { get { return serverType == ServerType.Standalone; } }
+        public bool HasDatabases => serverType == ServerType.Standalone;
 
         public bool IsConnected
         {
@@ -91,6 +89,34 @@ namespace StackExchange.Redis
             {
                 var tmp = interactive;
                 return tmp != null && tmp.IsConnected;
+            }
+        }
+
+        internal Exception LastException
+        {
+            get
+            {
+                var tmp1 = interactive;
+                var tmp2 = subscription;
+
+                //check if subscription endpoint has a better lastexception
+                if (tmp2 != null && tmp2.LastException != null)
+                {
+                    if (tmp2.LastException.Data.Contains("Redis-FailureType") && !tmp2.LastException.Data["Redis-FailureType"].ToString().Equals(ConnectionFailureType.UnableToConnect.ToString()))
+                    {
+                        return tmp2.LastException;
+                    }
+                }
+                return tmp1?.LastException;
+            }
+        }
+
+        internal PhysicalBridge.State ConnectionState
+        {
+            get
+            {
+                var tmp = interactive;
+                return tmp.ConnectionState;
             }
         }
 
@@ -109,7 +135,7 @@ namespace StackExchange.Redis
             }
         }
 
-        public bool RequiresReadMode { get { return serverType == ServerType.Cluster && IsSlave; } }
+        public bool RequiresReadMode => serverType == ServerType.Cluster && IsSlave;
 
         public ServerType ServerType { get { return serverType; } set { SetConfig(ref serverType, value); } }
 
@@ -120,7 +146,7 @@ namespace StackExchange.Redis
         public Version Version { get { return version; } set { SetConfig(ref version, value); } }
 
         public int WriteEverySeconds { get { return writeEverySeconds; } set { SetConfig(ref writeEverySeconds, value); } }
-        internal ConnectionMultiplexer Multiplexer { get { return multiplexer; } }
+        internal ConnectionMultiplexer Multiplexer => multiplexer;
 
         public void ClearUnselectable(UnselectableFlags flags)
         {
@@ -140,11 +166,11 @@ namespace StackExchange.Redis
             isDisposed = true;
             var tmp = interactive;
             interactive = null;
-            if (tmp != null) tmp.Dispose();
+            tmp?.Dispose();
 
             tmp = subscription;
             subscription = null;
-            if (tmp != null) tmp.Dispose();
+            tmp?.Dispose();
         }
 
         public PhysicalBridge GetBridge(ConnectionType type, bool create = true, TextWriter log = null)
@@ -189,7 +215,7 @@ namespace StackExchange.Redis
                 multiplexer.Trace("Updating cluster ranges...");
                 multiplexer.UpdateClusterRange(configuration);
                 multiplexer.Trace("Resolving genealogy...");
-                var thisNode = configuration.Nodes.FirstOrDefault(x => x.EndPoint == this.EndPoint);
+                var thisNode = configuration.Nodes.FirstOrDefault(x => x.EndPoint.Equals(this.EndPoint));
                 if (thisNode != null)
                 {
                     List<ServerEndPoint> slaves = null;
@@ -207,7 +233,7 @@ namespace StackExchange.Redis
                         }
                     }
                     Master = master;
-                    Slaves = slaves == null ? NoSlaves : slaves.ToArray();
+                    Slaves = slaves?.ToArray() ?? NoSlaves;
                 }
                 multiplexer.Trace("Cluster configured");
             }
@@ -315,6 +341,10 @@ namespace StackExchange.Redis
             }
         }
 
+        int _nextReplicaOffset;
+        internal uint NextReplicaOffset() // used to round-robin between multiple replicas
+            => (uint) System.Threading.Interlocked.Increment(ref _nextReplicaOffset);
+
         internal Task Close()
         {
             var tmp = interactive;
@@ -358,10 +388,8 @@ namespace StackExchange.Redis
         internal ServerCounters GetCounters()
         {
             var counters = new ServerCounters(endpoint);
-            var tmp = interactive;
-            if (tmp != null) tmp.GetCounters(counters.Interactive);
-            tmp = subscription;
-            if (tmp != null) tmp.GetCounters(counters.Subscription);
+            interactive?.GetCounters(counters.Interactive);
+            subscription?.GetCounters(counters.Subscription);
             return counters;
         }
 
@@ -380,11 +408,9 @@ namespace StackExchange.Redis
         {
             var sb = new StringBuilder();
             sb.Append("Circular op-count snapshot; int:");
-            var tmp = interactive;
-            if (tmp != null) tmp.AppendProfile(sb);
+            interactive?.AppendProfile(sb);
             sb.Append("; sub:");
-            tmp = subscription;
-            if (tmp != null) tmp.AppendProfile(sb);
+            subscription?.AppendProfile(sb);
             return sb.ToString();
         }
 
@@ -406,7 +432,7 @@ namespace StackExchange.Redis
         internal string GetStormLog(RedisCommand command)
         {
             var bridge = GetBridge(command);
-            return bridge == null ? null : bridge.GetStormLog();
+            return bridge?.GetStormLog();
         }
 
         internal Message GetTracerMessage(bool assertIdentity)
@@ -480,11 +506,10 @@ namespace StackExchange.Redis
                 connection.RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
             }
         }
-
         
         internal int LastInfoReplicationCheckSecondsAgo
         {
-            get { return unchecked(Environment.TickCount - Thread.VolatileRead(ref lastInfoReplicationCheckTicks)) / 1000; }
+            get { return unchecked(Environment.TickCount - VolatileWrapper.Read(ref lastInfoReplicationCheckTicks)) / 1000; }
         }
 
         private EndPoint masterEndPoint;
@@ -511,19 +536,28 @@ namespace StackExchange.Redis
         }
         private int lastInfoReplicationCheckTicks;
 
+        private int _heartBeatActive;
         internal void OnHeartbeat()
         {
-            try
+            // don't overlap operations on an endpoint
+            if (Interlocked.CompareExchange(ref _heartBeatActive, 1, 0) == 0)
             {
-                var tmp = interactive;
-                if (tmp != null) tmp.OnHeartbeat(false);
-                tmp = subscription;
-                if (tmp != null) tmp.OnHeartbeat(false);
-            } catch(Exception ex)
-            {
-                multiplexer.OnInternalError(ex, EndPoint);
-            }
+                try
+                {
 
+
+                    interactive?.OnHeartbeat(false);
+                    subscription?.OnHeartbeat(false);
+                }
+                catch (Exception ex)
+                {
+                    multiplexer.OnInternalError(ex, EndPoint);
+                }
+                finally
+                {
+                    Interlocked.Exchange(ref _heartBeatActive, 0);
+                }
+            }
         }
 
         internal Task<T> QueueDirectAsync<T>(Message message, ResultProcessor<T> processor, object asyncState = null, PhysicalBridge bridge = null)
@@ -534,7 +568,7 @@ namespace StackExchange.Redis
             if (bridge == null) bridge = GetBridge(message.Command);
             if (!bridge.TryEnqueue(message, isSlave))
             {
-                ConnectionMultiplexer.ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(multiplexer.IncludeDetailInExceptions, message.Command, message, this));
+                ConnectionMultiplexer.ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(multiplexer.IncludeDetailInExceptions, multiplexer.IncludePerformanceCountersInExceptions, message.Command, message, this, multiplexer.GetServerSnapshot()));
             }
             return tcs.Task;
         }
@@ -551,10 +585,8 @@ namespace StackExchange.Redis
 
         internal void ReportNextFailure()
         {
-            var tmp = interactive;
-            if (tmp != null) tmp.ReportNextFailure();
-            tmp = subscription;
-            if (tmp != null) tmp.ReportNextFailure();
+            interactive?.ReportNextFailure();
+            subscription?.ReportNextFailure();
         }
 
         internal Task<bool> SendTracer(TextWriter log = null)
@@ -574,7 +606,7 @@ namespace StackExchange.Redis
             if (writeEverySeconds > 0)
                 sb.Append("; keep-alive: ").Append(TimeSpan.FromSeconds(writeEverySeconds));
             var tmp = interactive;
-            sb.Append("; int: ").Append(tmp == null ? "n/a" : tmp.ConnectionState.ToString());
+            sb.Append("; int: ").Append(tmp?.ConnectionState.ToString() ?? "n/a");
             tmp = subscription;
             if(tmp == null)
             {

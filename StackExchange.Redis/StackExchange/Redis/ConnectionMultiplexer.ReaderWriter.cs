@@ -2,20 +2,20 @@
 {
     partial class ConnectionMultiplexer
     {
-        internal SocketManager SocketManager {  get {  return socketManager; } }
+        internal SocketManager SocketManager => socketManager;
 
         private SocketManager socketManager;
         private bool ownsSocketManager;
 
         partial void OnCreateReaderWriter(ConfigurationOptions configuration)
         {
-            this.ownsSocketManager = configuration.SocketManager == null;
-            this.socketManager = configuration.SocketManager ?? new SocketManager(ClientName);
+            ownsSocketManager = configuration.SocketManager == null;
+            socketManager = configuration.SocketManager ?? new SocketManager(ClientName, configuration.HighPrioritySocketThreads);
         }
 
         partial void OnCloseReaderWriter()
         {
-            if (ownsSocketManager && socketManager != null) socketManager.Dispose();
+            if (ownsSocketManager) socketManager?.Dispose();
             socketManager = null;
         }
 
@@ -30,7 +30,5 @@
             }
         }
         partial void OnWriterCreated();
-
-        
     }
 }

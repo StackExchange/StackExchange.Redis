@@ -1,11 +1,21 @@
 ﻿using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Text;
 
 namespace StackExchange.Redis
 {
     internal static class ExceptionFactory
     {
         const string DataCommandKey = "redis-command",
-            DataServerKey = "redis-server";
+            DataServerKey = "redis-server",
+            DataServerEndpoint = "server-endpoint",
+            DataConnectionState = "connection-state",
+            DataLastFailure = "last-failure",
+            DataLastInnerException = "last-innerexception",
+            DataSentStatusKey = "request-sent-status";
+
 
         internal static Exception AdminModeNotEnabled(bool includeDetail, RedisCommand command, Message message, ServerEndPoint server)
         {
@@ -15,6 +25,20 @@ namespace StackExchange.Redis
             return ex;
         }
         internal static Exception CommandDisabled(bool includeDetail, RedisCommand command, Message message, ServerEndPoint server)
+        {
+            string s = GetLabel(includeDetail, command, message);
+            var ex = new RedisCommandException("This operation has been disabled in the command-map and cannot be used: " + s);
+            if (includeDetail) AddDetail(ex, message, server, s);
+            return ex;
+        }
+        internal static Exception TooManyArgs(bool includeDetail, string command, Message message, ServerEndPoint server, int required)
+        {
+            string s = GetLabel(includeDetail, command, message);
+            var ex = new RedisCommandException($"This operation would involve too many arguments ({required} vs the redis limit of {PhysicalConnection.REDIS_MAX_ARGS}): {s}");
+            if (includeDetail) AddDetail(ex, message, server, s);
+            return ex;
+        }
+        internal static Exception CommandDisabled(bool includeDetail, string command, Message message, ServerEndPoint server)
         {
             string s = GetLabel(includeDetail, command, message);
             var ex = new RedisCommandException("This operation has been disabled in the command-map and cannot be used: " + s);
@@ -67,12 +91,86 @@ namespace StackExchange.Redis
             return ex;
         }
 
-        internal static Exception NoConnectionAvailable(bool includeDetail, RedisCommand command, Message message, ServerEndPoint server)
+        internal static string GetInnerMostExceptionMessage(Exception e)
         {
-            string s = GetLabel(includeDetail, command, message);
-            var ex = new RedisConnectionException(ConnectionFailureType.UnableToResolvePhysicalConnection, "No connection is available to service this operation: " + s);
-            if (includeDetail) AddDetail(ex, message, server, s);
+            if (e == null)
+            {
+                return "";
+            }
+            else
+            {
+                while (e.InnerException != null)
+                {
+                    e = e.InnerException;
+                }
+                return e.Message;
+            }
+        }
+        
+        internal static Exception NoConnectionAvailable(bool includeDetail, bool includePerformanceCounters, RedisCommand command, Message message, ServerEndPoint server, ServerEndPoint[] serverSnapshot)
+        {
+            string commandLabel = GetLabel(includeDetail, command, message);
+
+            if (server != null)
+            {
+                //if we already have the serverEndpoint for connection failure use that
+                //otherwise it would output state of all the endpoints
+                serverSnapshot = new ServerEndPoint[] { server };
+            }
+
+            var innerException = PopulateInnerExceptions(serverSnapshot);
+
+            StringBuilder exceptionmessage = new StringBuilder("No connection is available to service this operation: ").Append(commandLabel);
+            string innermostExceptionstring = GetInnerMostExceptionMessage(innerException);
+            if (!string.IsNullOrEmpty(innermostExceptionstring))
+            {
+                exceptionmessage.Append("; ").Append(innermostExceptionstring);
+            }
+
+#if !CORE_CLR
+            if (includeDetail)
+            {
+                exceptionmessage.Append("; ").Append(ConnectionMultiplexer.GetThreadPoolAndCPUSummary(includePerformanceCounters));
+            }
+#endif
+
+            var ex = new RedisConnectionException(ConnectionFailureType.UnableToResolvePhysicalConnection, exceptionmessage.ToString(), innerException, message?.Status ?? CommandStatus.Unknown);
+            
+            if (includeDetail)
+            {
+                AddDetail(ex, message, server, commandLabel);
+            }
             return ex;
+        }
+
+        internal static Exception PopulateInnerExceptions(ServerEndPoint[] serverSnapshot)
+        {
+            List<Exception> innerExceptions = new List<Exception>();
+            if (serverSnapshot != null)
+            {
+                if (serverSnapshot.Length > 0 && serverSnapshot[0].Multiplexer.LastException != null)
+                {
+                    innerExceptions.Add(serverSnapshot[0].Multiplexer.LastException);
+                }
+
+                for (int i = 0; i < serverSnapshot.Length; i++)
+                {
+                    if (serverSnapshot[i].LastException != null)
+                    {
+                        var lastException = serverSnapshot[i].LastException;
+                        innerExceptions.Add(lastException);
+                    }
+                }
+            }
+            if (innerExceptions.Count == 1)
+            {
+                return innerExceptions[0];
+            }
+            else if(innerExceptions.Count > 1)
+            {
+                return new AggregateException(innerExceptions);
+            }
+            return null;
         }
 
         internal static Exception NotSupported(bool includeDetail, RedisCommand command)
@@ -91,7 +189,7 @@ namespace StackExchange.Redis
 
         internal static Exception Timeout(bool includeDetail, string errorMessage, Message message, ServerEndPoint server)
         {
-            var ex = new TimeoutException(errorMessage);
+            var ex = new RedisTimeoutException(errorMessage, message?.Status ?? CommandStatus.Unknown);
             if (includeDetail) AddDetail(ex, message, server, null);
             return ex;
         }
@@ -100,7 +198,11 @@ namespace StackExchange.Redis
         {
             if (exception != null)
             {
-                if (message != null) exception.Data.Add(DataCommandKey, message.CommandAndKey);
+                if (message != null)
+                {
+                    exception.Data.Add(DataCommandKey, message.CommandAndKey);
+                    exception.Data.Add(DataSentStatusKey, message.Status);
+                }
                 else if (label != null) exception.Data.Add(DataCommandKey, label);
 
                 if (server != null) exception.Data.Add(DataServerKey, Format.ToString(server.EndPoint));
@@ -111,11 +213,16 @@ namespace StackExchange.Redis
         {
             return message == null ? command.ToString() : (includeDetail ? message.CommandAndKey : message.Command.ToString());
         }
-
-        internal static Exception UnableToConnect(string failureMessage=null)
+        static string GetLabel(bool includeDetail, string command, Message message)
         {
+            return message == null ? command : (includeDetail ? message.CommandAndKey : message.Command.ToString());
+        }
+
+        internal static Exception UnableToConnect(bool abortOnConnect, string failureMessage=null)
+        {
+            var abortOnConnectionFailure = abortOnConnect ? "to create a disconnected multiplexer, disable AbortOnConnectFail. " : "";
             return new RedisConnectionException(ConnectionFailureType.UnableToConnect,
-                "It was not possible to connect to the redis server(s); to create a disconnected multiplexer, disable AbortOnConnectFail. " + failureMessage);
+                string.Format("It was not possible to connect to the redis server(s); {0}{1}", abortOnConnectionFailure, failureMessage));
         }
 
         internal static Exception BeganProfilingWithDuplicateContext(object forContext)

@@ -1,63 +1,38 @@
-﻿using System;
-using System.Diagnostics;
+﻿using StackExchange.Redis;
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using System.Threading;
-using System.Threading.Tasks;
-using StackExchange.Redis;
+using System;
 
 [assembly: AssemblyVersion("1.0.0")]
 
 namespace BasicTest
 {
-    class Program
+    static class Program
     {
-        static void Main(string[] args)
+        static void Main()
         {
-            int AsyncOpsQty = 10000;
-            if(args.Length == 1)
+            using (var conn = ConnectionMultiplexer.Connect("127.0.0.1:6379"))
             {
-                int tmp;
-                if(int.TryParse(args[0], out tmp))
-                    AsyncOpsQty = tmp;
-            }
-            MassiveBulkOpsAsync(AsyncOpsQty, true, true);
-            MassiveBulkOpsAsync(AsyncOpsQty, true, false);
-            MassiveBulkOpsAsync(AsyncOpsQty, false, true);
-            MassiveBulkOpsAsync(AsyncOpsQty, false, false);
-        }
-        static void MassiveBulkOpsAsync(int AsyncOpsQty, bool preserveOrder, bool withContinuation)
-        {            
-            using (var muxer = ConnectionMultiplexer.Connect("localhost,resolvedns=1"))
-            {
-                muxer.PreserveAsyncOrder = preserveOrder;
-                RedisKey key = "MBOA";
-                var conn = muxer.GetDatabase();
-                muxer.Wait(conn.PingAsync());
+                var db = conn.GetDatabase();
 
-                Action<Task> nonTrivial = delegate
-                {
-                    Thread.SpinWait(5);
-                };
-                var watch = Stopwatch.StartNew();
-                for (int i = 0; i <= AsyncOpsQty; i++)
-                {
-                    var t = conn.StringSetAsync(key, i);
-                    if (withContinuation) t.ContinueWith(nonTrivial);
-                }
-                int val = (int)muxer.Wait(conn.StringGetAsync(key));
-                watch.Stop();
+                RedisKey key = Me();
+                db.KeyDelete(key);
+                db.StringSet(key, "abc");
 
-                Console.WriteLine("After {0}: {1}", AsyncOpsQty, val);
-                Console.WriteLine("({3}, {4})\r\n{2}: Time for {0} ops: {1}ms; ops/s: {5}", AsyncOpsQty, watch.ElapsedMilliseconds, Me(),
-                    withContinuation ? "with continuation" : "no continuation", preserveOrder ? "preserve order" : "any order",
-                    AsyncOpsQty / watch.Elapsed.TotalSeconds);
+                string s = (string)db.ScriptEvaluate(@"
+    local val = redis.call('get', KEYS[1])
+    redis.call('del', KEYS[1])
+    return val", new RedisKey[] { key }, flags: CommandFlags.NoScriptCache);
+
+                Console.WriteLine(s);
+                Console.WriteLine(db.KeyExists(key));
+
             }
         }
-        protected static string Me([CallerMemberName] string caller = null)
+
+        internal static string Me([CallerMemberName] string caller = null)
         {
             return caller;
         }
-
     }
 }

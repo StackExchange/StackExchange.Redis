@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Net;
 
@@ -9,6 +10,20 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed class EndPointCollection : Collection<EndPoint>
     {
+        /// <summary>
+        /// Create a new EndPointCollection
+        /// </summary>
+        public EndPointCollection() : base()
+        {
+        }
+
+        /// <summary>
+        /// Create a new EndPointCollection
+        /// </summary>
+        public EndPointCollection(IList<EndPoint> endpoints) : base(endpoints)
+        {
+        }
+
         /// <summary>
         /// Format an endpoint
         /// </summary>
@@ -49,16 +64,14 @@ namespace StackExchange.Redis
         {
             Add(new IPEndPoint(host, port));
         }
-
-
-
+        
         /// <summary>
         /// See Collection&lt;T&gt;.InsertItem()
         /// </summary>
         protected override void InsertItem(int index, EndPoint item)
         {
-            if (item == null) throw new ArgumentNullException("item");
-            if (Contains(item)) throw new ArgumentException("EndPoints must be unique", "item");
+            if (item == null) throw new ArgumentNullException(nameof(item));
+            if (Contains(item)) throw new ArgumentException("EndPoints must be unique", nameof(item));
             base.InsertItem(index, item);
         }
         /// <summary>
@@ -66,7 +79,7 @@ namespace StackExchange.Redis
         /// </summary>
         protected override void SetItem(int index, EndPoint item)
         {
-            if (item == null) throw new ArgumentNullException("item");
+            if (item == null) throw new ArgumentNullException(nameof(item));
             int existingIndex;
             try
             {
@@ -76,7 +89,7 @@ namespace StackExchange.Redis
                 // mono has a nasty bug in DnsEndPoint.Equals; if they do bad things here: sorry, I can't help
                 existingIndex = -1;
             }
-            if (existingIndex >= 0 && existingIndex != index) throw new ArgumentException("EndPoints must be unique", "item");
+            if (existingIndex >= 0 && existingIndex != index) throw new ArgumentException("EndPoints must be unique", nameof(item));
             base.SetItem(index, item);
         }
 
@@ -86,22 +99,16 @@ namespace StackExchange.Redis
             {
                 var endpoint = this[i];
                 var dns = endpoint as DnsEndPoint;
-                if (dns != null)
+                if (dns?.Port == 0)
                 {
-                    if (dns.Port == 0)
-                    {
-                        this[i] = new DnsEndPoint(dns.Host, defaultPort, dns.AddressFamily);
-                        continue;
-                    }
+                    this[i] = new DnsEndPoint(dns.Host, defaultPort, dns.AddressFamily);
+                    continue;
                 }
                 var ip = endpoint as IPEndPoint;
-                if (ip != null)
+                if (ip?.Port == 0)
                 {
-                    if (ip.Port == 0)
-                    {
-                        this[i] = new IPEndPoint(ip.Address, defaultPort);
-                        continue;
-                    }
+                    this[i] = new IPEndPoint(ip.Address, defaultPort);
+                    continue;
                 }
             }
         }

@@ -1,10 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
@@ -140,7 +137,7 @@ namespace StackExchange.Redis
         private long lastCleanupSweep;
         private ConcurrentDictionary<ProfileContextCell, ConcurrentProfileStorageCollection> profiledCommands;
 
-        public int ContextCount { get { return profiledCommands.Count;  } }
+        public int ContextCount => profiledCommands.Count;
 
         public ProfileContextTracker()
         {

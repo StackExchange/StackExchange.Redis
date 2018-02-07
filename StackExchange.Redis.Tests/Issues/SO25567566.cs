@@ -1,28 +1,27 @@
 ﻿using System;
 using System.Threading.Tasks;
-using NUnit.Framework;
+using Xunit;
+using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests.Issues
 {
-    [TestFixture]
     public class SO25567566 : TestBase
     {
-        protected override string GetConfiguration()
-        {
-            return "127.0.0.1";
-        }
-        [Test]
-        public async void Execute()
-        {
-            using(var conn = ConnectionMultiplexer.Connect(GetConfiguration())) // Create())
-            {
-                for(int i = 0; i < 100; i++)
-                {
-                    Assert.AreEqual("ok", await DoStuff(conn));
+        protected override string GetConfiguration() => $"{TestConfig.Current.MasterServer}:{TestConfig.Current.MasterPort}";
+        public SO25567566(ITestOutputHelper output) : base(output) { }
 
+        [FactLongRunning]
+        public async Task Execute()
+        {
+            using (var conn = ConnectionMultiplexer.Connect(GetConfiguration())) // Create())
+            {
+                for (int i = 0; i < 100; i++)
+                {
+                    Assert.Equal("ok", await DoStuff(conn).ForAwait());
                 }
             }
         }
+
         private async Task<string> DoStuff(ConnectionMultiplexer conn)
         {
             var db = conn.GetDatabase();
@@ -30,13 +29,12 @@ namespace StackExchange.Redis.Tests.Issues
             var timeout = Task.Delay(5000);
             var len = db.ListLengthAsync("list");
 
-            if (await Task.WhenAny(timeout, len) != len)
+            if (await Task.WhenAny(timeout, len).ForAwait() != len)
             {
                 return "Timeout getting length";
             }
 
-            
-            if ((await len) == 0)
+            if ((await len.ForAwait()) == 0)
             {
                 db.ListRightPush("list", "foo", flags: CommandFlags.FireAndForget);
             }
@@ -48,14 +46,14 @@ namespace StackExchange.Redis.Tests.Issues
 
             var exec = tran.ExecuteAsync();
             // SWAP THESE TWO
-            bool ok = await Task.WhenAny(exec, timeout) == exec;
+            bool ok = await Task.WhenAny(exec, timeout).ForAwait() == exec;
             //bool ok = true;
 
             if (ok)
             {
-                if (await exec)
+                if (await exec.ForAwait())
                 {
-                    await Task.WhenAll(x, y, z);
+                    await Task.WhenAll(x, y, z).ForAwait();
 
                     var db2 = conn.GetDatabase();
                     db2.HashGet("hash", "whatever");

@@ -21,10 +21,7 @@ namespace StackExchange.Redis
         {
             return new RedisKey((byte[])this, null);
         }
-        internal bool IsNull
-        {
-            get { return keyPrefix == null && keyValue == null; }
-        }
+        internal bool IsNull => keyPrefix == null && keyValue == null;
 
         internal bool IsEmpty
         {
@@ -37,8 +34,8 @@ namespace StackExchange.Redis
             }
         }
 
-        internal byte[] KeyPrefix { get { return keyPrefix; } }
-        internal object KeyValue { get { return keyValue; } }
+        internal byte[] KeyPrefix => keyPrefix;
+        internal object KeyValue => keyValue;
 
         /// <summary>
         /// Indicate whether two keys are not equal
@@ -164,7 +161,7 @@ namespace StackExchange.Redis
         /// </summary>
         public override int GetHashCode()
         {
-            int chk0 = (keyPrefix == null) ? 0 : RedisValue.GetHashCode(this.keyPrefix),
+            int chk0 = keyPrefix == null ? 0 : RedisValue.GetHashCode(this.keyPrefix),
                 chk1 = keyValue is string ? keyValue.GetHashCode() : RedisValue.GetHashCode((byte[])keyValue);
 
             return unchecked((17 * chk0) + chk1);
@@ -272,11 +269,11 @@ namespace StackExchange.Redis
                 return (byte[])b;
             }
 
-            int aLen = a == null ? 0 : a.Length,
+            int aLen = a?.Length ?? 0,
                 bLen = b == null ? 0 : (b is string
                 ? Encoding.UTF8.GetByteCount((string)b)
                 : ((byte[])b).Length),
-                cLen = c == null ? 0 : c.Length;
+                cLen = c?.Length ?? 0;
 
             byte[] result = new byte[aLen + bLen + cLen];
             if (aLen != 0) Buffer.BlockCopy(a, 0, result, 0, aLen);

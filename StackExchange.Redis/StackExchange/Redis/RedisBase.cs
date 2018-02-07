@@ -16,7 +16,8 @@ namespace StackExchange.Redis
             this.asyncState = asyncState;
         }
 
-        ConnectionMultiplexer IRedisAsync.Multiplexer { get { return multiplexer; } }
+        ConnectionMultiplexer IRedisAsync.Multiplexer => multiplexer;
+
         public virtual TimeSpan Ping(CommandFlags flags = CommandFlags.None)
         {
             var msg = GetTimerMessage(flags);
@@ -163,14 +164,14 @@ namespace StackExchange.Redis
 
             protected CursorEnumerable(RedisBase redis, ServerEndPoint server, int db, int pageSize, long cursor, int pageOffset, CommandFlags flags)
             {
-                if (pageOffset < 0) throw new ArgumentOutOfRangeException("pageOffset");
+                if (pageOffset < 0) throw new ArgumentOutOfRangeException(nameof(pageOffset));
                 this.redis = redis;
                 this.server = server;
                 this.db = db;
                 this.pageSize = pageSize;
                 this.flags = flags;
-                this.initialCursor = cursor;
-                this.initialOffset = pageOffset;
+                initialCursor = cursor;
+                initialOffset = pageOffset;
             }
 
             public IEnumerator<T> GetEnumerator()
@@ -187,8 +188,8 @@ namespace StackExchange.Redis
                 public readonly T[] Values;
                 public ScanResult(long cursor, T[] values)
                 {
-                    this.Cursor = cursor;
-                    this.Values = values;
+                    Cursor = cursor;
+                    Values = values;
                 }
             }
 
@@ -199,12 +200,12 @@ namespace StackExchange.Redis
 
             protected ScanResult GetNextPageSync(IScanningCursor obj, long cursor)
             {
-                this.activeCursor = obj;
+                activeCursor = obj;
                 return redis.ExecuteSync(CreateMessage(cursor), Processor, server);
             }
             protected Task<ScanResult> GetNextPageAsync(IScanningCursor obj, long cursor)
             {
-                this.activeCursor = obj;
+                activeCursor = obj;
                 return redis.ExecuteAsync(CreateMessage(cursor), Processor, server);
             }
             protected ScanResult Wait(Task<ScanResult> pending)
@@ -217,21 +218,15 @@ namespace StackExchange.Redis
                 private CursorEnumerable<T> parent;
                 public CursorEnumerator(CursorEnumerable<T> parent)
                 {
-                    if (parent == null) throw new ArgumentNullException("parent");
+                    if (parent == null) throw new ArgumentNullException(nameof(parent));
                     this.parent = parent;
                     Reset();
                 }
-                public T Current
-                {
-                    get { return page[pageIndex]; }
-                }
+                public T Current => page[pageIndex];
 
                 void IDisposable.Dispose() { parent = null; state = State.Disposed; }
 
-                object System.Collections.IEnumerator.Current
-                {
-                    get { return page[pageIndex]; }
-                }
+                object System.Collections.IEnumerator.Current => page[pageIndex];
 
                 private void LoadNextPageAsync()
                 {
@@ -322,34 +317,23 @@ namespace StackExchange.Redis
                     pending = null;
                 }
 
-                long IScanningCursor.Cursor
-                {
-                    get { return currentCursor; }
-                }
+                long IScanningCursor.Cursor => currentCursor;
 
-                int IScanningCursor.PageSize
-                {
-                    get { return parent.pageSize; }
-                }
+                int IScanningCursor.PageSize => parent.pageSize;
 
-                int IScanningCursor.PageOffset
-                {
-                    get { return pageIndex; }
-                }
+                int IScanningCursor.PageOffset => pageIndex;
             }
 
             long IScanningCursor.Cursor
             {
-                get { var tmp = activeCursor; return tmp == null ? initialCursor : tmp.Cursor; }
+                get { var tmp = activeCursor; return tmp?.Cursor ?? initialCursor; }
             }
 
-            int IScanningCursor.PageSize
-            {
-                get { return pageSize; }
-            }
+            int IScanningCursor.PageSize => pageSize;
+
             int IScanningCursor.PageOffset
             {
-                get { var tmp = activeCursor; return tmp == null ? initialOffset : tmp.PageOffset; }
+                get { var tmp = activeCursor; return tmp?.PageOffset ?? initialOffset; }
             }
         }
     }

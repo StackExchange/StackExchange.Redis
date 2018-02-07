@@ -18,7 +18,7 @@
         /// </summary>
         SocketFailure,
         /// <summary>
-        /// The connection did not authenticate correctly
+        /// Either SSL Stream or Redis authentication failed
         /// </summary>
         AuthenticationFailure,
         /// <summary>

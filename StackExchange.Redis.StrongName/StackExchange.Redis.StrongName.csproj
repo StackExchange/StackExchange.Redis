@@ -1,0 +1,44 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>$(LibraryTargetFrameworks)</TargetFrameworks>
+    <Description>High performance Redis client, incorporating both synchronous and asynchronous usage.</Description>
+    <AssemblyTitle>StackExchange.Redis.StrongName</AssemblyTitle>
+    <DefineConstants>$(DefineConstants);STRONG_NAME</DefineConstants>
+    <SignAssembly>true</SignAssembly>
+    <PublicSign Condition=" '$(OS)' != 'Windows_NT' ">true</PublicSign>
+    <PackageId>StackExchange.Redis.StrongName</PackageId>
+    <PackageTags>Async;Redis;Cache;PubSub;Messaging</PackageTags>
+    <OutputTypeEx>Library</OutputTypeEx>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\StackExchange.Redis\**\*.cs" Exclude="..\StackExchange.Redis\obj\**\*" />
+  </ItemGroup>
+
+  <ItemGroup Condition=" '$(TargetFramework)' == 'net45' OR '$(TargetFramework)' == 'net46' ">
+    <Reference Include="System" />
+    <Reference Include="Microsoft.CSharp" />
+  </ItemGroup>
+
+  <PropertyGroup Condition=" '$(TargetFramework)' == 'net45' or '$(TargetFramework)' == 'net46'">
+    <DefineConstants>$(DefineConstants);FEATURE_SERIALIZATION;FEATURE_SOCKET_MODE_POLL</DefineConstants>
+  </PropertyGroup>
+
+  <PropertyGroup Condition=" '$(TargetFramework)' == 'netstandard1.5' ">
+    <DefineConstants>$(DefineConstants);CORE_CLR</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.IO.Compression" Version="$(CoreFxVersion)" />
+  </ItemGroup>
+  <ItemGroup Condition=" '$(TargetFramework)' == 'netstandard1.5' ">
+    <PackageReference Include="System.Collections.NonGeneric" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Net.NameResolution" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Net.Security" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Reflection.Emit" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Reflection.Emit.Lightweight" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Reflection.TypeExtensions" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Threading.Thread" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Threading.ThreadPool" Version="$(CoreFxVersion)" />
+  </ItemGroup>
+</Project>

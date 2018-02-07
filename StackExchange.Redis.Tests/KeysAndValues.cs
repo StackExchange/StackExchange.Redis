@@ -1,13 +1,12 @@
 ﻿using System;
 using System.Globalization;
-using NUnit.Framework;
+using Xunit;
 
 namespace StackExchange.Redis.Tests
 {
-    [TestFixture]
     public class KeysAndValues
     {
-        [Test]
+        [Fact]
         public void TestValues()
         {
             RedisValue @default = default(RedisValue);
@@ -29,9 +28,9 @@ namespace StackExchange.Redis.Tests
             CheckNotNull(a0);
             RedisValue a1 = new string('a', 1);
             CheckNotNull(a1);
-            RedisValue b0 = new [] { (byte)'b' };
+            RedisValue b0 = new[] { (byte)'b' };
             CheckNotNull(b0);
-            RedisValue b1 = new [] { (byte)'b' };
+            RedisValue b1 = new[] { (byte)'b' };
             CheckNotNull(b1);
 
             RedisValue i4 = 1;
@@ -64,46 +63,48 @@ namespace StackExchange.Redis.Tests
 
         private void CheckSame(RedisValue x, RedisValue y)
         {
-            Assert.IsTrue(Equals(x, y));
-            Assert.IsTrue(x.Equals(y));
-            Assert.IsTrue(y.Equals(x));
-            Assert.IsTrue(x.GetHashCode() == y.GetHashCode());
+            Assert.True(Equals(x, y));
+            Assert.True(x.Equals(y));
+            Assert.True(y.Equals(x));
+            Assert.True(x.GetHashCode() == y.GetHashCode());
         }
+
         private void CheckNotSame(RedisValue x, RedisValue y)
         {
-            Assert.IsFalse(Equals(x, y));
-            Assert.IsFalse(x.Equals(y));
-            Assert.IsFalse(y.Equals(x));
-            Assert.IsFalse(x.GetHashCode() == y.GetHashCode()); // well, very unlikely
+            Assert.False(Equals(x, y));
+            Assert.False(x.Equals(y));
+            Assert.False(y.Equals(x));
+            Assert.False(x.GetHashCode() == y.GetHashCode()); // well, very unlikely
         }
 
         private void CheckNotNull(RedisValue value)
         {
-            Assert.IsFalse(value.IsNull);
-            Assert.IsNotNull((byte[])value);
-            Assert.IsNotNull((string)value);
-            Assert.AreNotEqual(-1, value.GetHashCode());
+            Assert.False(value.IsNull);
+            Assert.NotNull((byte[])value);
+            Assert.NotNull((string)value);
+            Assert.NotEqual(-1, value.GetHashCode());
 
-            Assert.IsNotNull((string)value);
-            Assert.IsNotNull((byte[])value);
+            Assert.NotNull((string)value);
+            Assert.NotNull((byte[])value);
 
             CheckSame(value, value);
             CheckNotSame(value, default(RedisValue));
             CheckNotSame(value, (string)null);
             CheckNotSame(value, (byte[])null);
         }
+
         private void CheckNull(RedisValue value)
         {
-            Assert.IsTrue(value.IsNull);
-            Assert.IsTrue(value.IsNullOrEmpty);
-            Assert.IsFalse(value.IsInteger);
-            Assert.AreEqual(-1, value.GetHashCode());
+            Assert.True(value.IsNull);
+            Assert.True(value.IsNullOrEmpty);
+            Assert.False(value.IsInteger);
+            Assert.Equal(-1, value.GetHashCode());
 
-            Assert.IsNull((string)value);
-            Assert.IsNull((byte[])value);
+            Assert.Null((string)value);
+            Assert.Null((byte[])value);
 
-            Assert.AreEqual(0, (int)value);
-            Assert.AreEqual(0L, (long)value);
+            Assert.Equal(0, (int)value);
+            Assert.Equal(0L, (long)value);
 
             CheckSame(value, value);
             CheckSame(value, default(RedisValue));
@@ -111,97 +112,86 @@ namespace StackExchange.Redis.Tests
             CheckSame(value, (byte[])null);
         }
 
-
-        [Test]
+        [Fact]
         public void ValuesAreConvertible()
         {
             RedisValue val = 123;
             object o = val;
             byte[] blob = (byte[])Convert.ChangeType(o, typeof(byte[]));
 
-            Assert.AreEqual(3, blob.Length);
-            Assert.AreEqual((byte)'1', blob[0]);
-            Assert.AreEqual((byte)'2', blob[1]);
-            Assert.AreEqual((byte)'3', blob[2]);
+            Assert.Equal(3, blob.Length);
+            Assert.Equal((byte)'1', blob[0]);
+            Assert.Equal((byte)'2', blob[1]);
+            Assert.Equal((byte)'3', blob[2]);
 
-            Assert.AreEqual((double)123, Convert.ToDouble(o));
+            Assert.Equal((double)123, Convert.ToDouble(o));
 
             IConvertible c = (IConvertible)o;
-            Assert.AreEqual((short)123, c.ToInt16(CultureInfo.InvariantCulture));
-            Assert.AreEqual((int)123, c.ToInt32(CultureInfo.InvariantCulture));
-            Assert.AreEqual((long)123, c.ToInt64(CultureInfo.InvariantCulture));
-            Assert.AreEqual((float)123, c.ToSingle(CultureInfo.InvariantCulture));
-            Assert.AreEqual("123", c.ToString(CultureInfo.InvariantCulture));
-            Assert.AreEqual((double)123, c.ToDouble(CultureInfo.InvariantCulture));
-            Assert.AreEqual((decimal)123, c.ToDecimal(CultureInfo.InvariantCulture));
-            Assert.AreEqual((ushort)123, c.ToUInt16(CultureInfo.InvariantCulture));
-            Assert.AreEqual((uint)123, c.ToUInt32(CultureInfo.InvariantCulture));
-            Assert.AreEqual((ulong)123, c.ToUInt64(CultureInfo.InvariantCulture));
+            Assert.Equal((short)123, c.ToInt16(CultureInfo.InvariantCulture));
+            Assert.Equal((int)123, c.ToInt32(CultureInfo.InvariantCulture));
+            Assert.Equal((long)123, c.ToInt64(CultureInfo.InvariantCulture));
+            Assert.Equal((float)123, c.ToSingle(CultureInfo.InvariantCulture));
+            Assert.Equal("123", c.ToString(CultureInfo.InvariantCulture));
+            Assert.Equal((double)123, c.ToDouble(CultureInfo.InvariantCulture));
+            Assert.Equal((decimal)123, c.ToDecimal(CultureInfo.InvariantCulture));
+            Assert.Equal((ushort)123, c.ToUInt16(CultureInfo.InvariantCulture));
+            Assert.Equal((uint)123, c.ToUInt32(CultureInfo.InvariantCulture));
+            Assert.Equal((ulong)123, c.ToUInt64(CultureInfo.InvariantCulture));
 
             blob = (byte[])c.ToType(typeof(byte[]), CultureInfo.InvariantCulture);
-            Assert.AreEqual(3, blob.Length);
-            Assert.AreEqual((byte)'1', blob[0]);
-            Assert.AreEqual((byte)'2', blob[1]);
-            Assert.AreEqual((byte)'3', blob[2]);
+            Assert.Equal(3, blob.Length);
+            Assert.Equal((byte)'1', blob[0]);
+            Assert.Equal((byte)'2', blob[1]);
+            Assert.Equal((byte)'3', blob[2]);
         }
 
-        [Test]
+        [Fact]
         public void CanBeDynamic()
         {
             RedisValue val = "abc";
             object o = val;
             dynamic d = o;
             byte[] blob = (byte[])d; // could be in a try/catch
-            Assert.AreEqual(3, blob.Length);
-            Assert.AreEqual((byte)'a', blob[0]);
-            Assert.AreEqual((byte)'b', blob[1]);
-            Assert.AreEqual((byte)'c', blob[2]);
+            Assert.Equal(3, blob.Length);
+            Assert.Equal((byte)'a', blob[0]);
+            Assert.Equal((byte)'b', blob[1]);
+            Assert.Equal((byte)'c', blob[2]);
         }
 
-        [Test]
+        [Fact]
         public void TryParse()
         {
             {
                 RedisValue val = "1";
-                int i;
-                Assert.IsTrue(val.TryParse(out i));
-                Assert.AreEqual(1, i);
-                long l;
-                Assert.IsTrue(val.TryParse(out l));
-                Assert.AreEqual(1L, l);
-                double d;
-                Assert.IsTrue(val.TryParse(out d));
-                Assert.AreEqual(1.0, l);
+                Assert.True(val.TryParse(out int i));
+                Assert.Equal(1, i);
+                Assert.True(val.TryParse(out long l));
+                Assert.Equal(1L, l);
+                Assert.True(val.TryParse(out double d));
+                Assert.Equal(1.0, l);
             }
 
             {
                 RedisValue val = "8675309";
-                int i;
-                Assert.IsTrue(val.TryParse(out i));
-                Assert.AreEqual(8675309, i);
-                long l;
-                Assert.IsTrue(val.TryParse(out l));
-                Assert.AreEqual(8675309L, l);
-                double d;
-                Assert.IsTrue(val.TryParse(out d));
-                Assert.AreEqual(8675309.0, l);
+                Assert.True(val.TryParse(out int i));
+                Assert.Equal(8675309, i);
+                Assert.True(val.TryParse(out long l));
+                Assert.Equal(8675309L, l);
+                Assert.True(val.TryParse(out double d));
+                Assert.Equal(8675309.0, l);
             }
 
             {
                 RedisValue val = "3.14159";
-                double d;
-                Assert.IsTrue(val.TryParse(out d));
-                Assert.AreEqual(3.14159, d);
+                Assert.True(val.TryParse(out double d));
+                Assert.Equal(3.14159, d);
             }
 
             {
                 RedisValue val = "not a real number";
-                int i;
-                Assert.IsFalse(val.TryParse(out i));
-                long l;
-                Assert.IsFalse(val.TryParse(out l));
-                double d;
-                Assert.IsFalse(val.TryParse(out d));
+                Assert.False(val.TryParse(out int i));
+                Assert.False(val.TryParse(out long l));
+                Assert.False(val.TryParse(out double d));
             }
         }
     }

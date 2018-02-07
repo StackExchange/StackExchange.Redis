@@ -1,14 +1,16 @@
-﻿using System;
+﻿using System.Threading.Tasks;
+#if !PLAT_SAFE_CONTINUATIONS
+using System;
 using System.Diagnostics;
 using System.Reflection;
 using System.Reflection.Emit;
-using System.Threading.Tasks;
+#endif
 
 namespace StackExchange.Redis
 {
     /// <summary>
     /// We want to prevent callers hijacking the reader thread; this is a bit nasty, but works;
-    /// see http://stackoverflow.com/a/22588431/23354 for more information; a huge
+    /// see https://stackoverflow.com/a/22588431/23354 for more information; a huge
     /// thanks to Eli Arbel for spotting this (even though it is pure evil; it is *my kind of evil*)
     /// </summary>
 #if DEBUG
@@ -67,17 +69,13 @@ namespace StackExchange.Redis
 					tcs.SetResult(0);
 					if (!expectTrue || expectFalse)
 					{
-						Debug.WriteLine("IsSyncSafe reported incorrectly!");
-						Trace.WriteLine("IsSyncSafe reported incorrectly!");
 						// revert to not trusting /them
 						IsSyncSafe = null;
 					}
 				}
 			}
-			catch (Exception ex)
+			catch (Exception)
 			{
-				Debug.WriteLine(ex.Message);
-				Trace.WriteLine(ex.Message);
 				IsSyncSafe = null;
 			}
             if (IsSyncSafe == null)

@@ -9,28 +9,25 @@ namespace StackExchange.Redis
     /// </summary>
     public class EndPointEventArgs : EventArgs, ICompletable
     {
-        private readonly EndPoint endpoint;
         private readonly EventHandler<EndPointEventArgs> handler;
         private readonly object sender;
         internal EndPointEventArgs(EventHandler<EndPointEventArgs> handler, object sender, EndPoint endpoint)
         {
             this.handler = handler;
             this.sender = sender;
-            this.endpoint = endpoint;
+            EndPoint = endpoint;
         }
 
         /// <summary>
         /// The endpoint involved in this event (this can be null)
         /// </summary>
-        public EndPoint EndPoint
-        {
-            get {  return endpoint; }
-        }
+        public EndPoint EndPoint { get; }
+
         void ICompletable.AppendStormLog(StringBuilder sb)
         {
             sb.Append("event, endpoint: ");
-            if (endpoint == null) sb.Append("n/a");
-            else sb.Append(Format.ToString(endpoint));
+            if (EndPoint == null) sb.Append("n/a");
+            else sb.Append(Format.ToString(EndPoint));
         }
 
         bool ICompletable.TryComplete(bool isAsync)

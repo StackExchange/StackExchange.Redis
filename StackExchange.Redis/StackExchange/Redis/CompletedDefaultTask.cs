@@ -4,7 +4,7 @@ namespace StackExchange.Redis
 {
     internal static class CompletedTask<T>
     {
-        private readonly static Task<T> @default = FromResult(default(T), null);
+        private static readonly Task<T> @default = FromResult(default(T), null);
 
         public static Task<T> Default(object asyncState)
         {

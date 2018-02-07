@@ -2,7 +2,7 @@
 
 namespace StackExchange.Redis
 {
-    /// <summary>
+  /// <summary>
     /// Behaviour markers associated with a given command
     /// </summary>
     [Flags]
@@ -56,6 +56,11 @@ namespace StackExchange.Redis
 
         // 128: used for "internal call"; never user-specified, so not visible on the public API
 
-        // 256: used for "retry"; never user-specified, so not visible on the public API
+        // 256: used for "script unavailable"; never user-specified, so not visible on the public API
+
+        /// <summary>
+        /// Indicates that script-related operations should use EVAL, not SCRIPT LOAD + EVALSHA
+        /// </summary>
+        NoScriptCache = 512,
     }
 }

@@ -17,7 +17,7 @@ namespace StackExchange.Redis
         /// This command is often used to test if a connection is still alive, or to measure latency.
         /// </summary>
         /// <returns>The observed latency.</returns>
-        /// <remarks>http://redis.io/commands/ping</remarks>
+        /// <remarks>https://redis.io/commands/ping</remarks>
         Task<TimeSpan> PingAsync(CommandFlags flags = CommandFlags.None);
         /// <summary>
         /// Wait for a given asynchronous operation to complete (or timeout), reporting which

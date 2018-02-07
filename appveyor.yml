@@ -1,0 +1,54 @@
+image: Visual Studio 2017
+
+init:
+  - git config --global core.autocrlf input
+
+install:
+- cmd: >-
+    cd RedisConfigs\3.0.503
+
+    redis-server.exe --service-install --service-name "redis-6379" "..\Basic\master-6379.conf"
+
+    redis-server.exe --service-install --service-name "redis-6380" "..\Basic\slave-6380.conf"
+
+    redis-server.exe --service-install --service-name "redis-6381" "..\Basic\secure-6381.conf"
+
+    redis-server.exe --service-install --service-name "redis-7000" "..\Cluster\cluster-7000.conf" --dir "..\Cluster"
+
+    redis-server.exe --service-install --service-name "redis-7001" "..\Cluster\cluster-7001.conf" --dir "..\Cluster"
+
+    redis-server.exe --service-install --service-name "redis-7002" "..\Cluster\cluster-7002.conf" --dir "..\Cluster"
+
+    redis-server.exe --service-install --service-name "redis-7003" "..\Cluster\cluster-7003.conf" --dir "..\Cluster"
+
+    redis-server.exe --service-install --service-name "redis-7004" "..\Cluster\cluster-7004.conf" --dir "..\Cluster"
+
+    redis-server.exe --service-install --service-name "redis-7005" "..\Cluster\cluster-7005.conf" --dir "..\Cluster"
+
+    redis-server.exe --service-install --service-name "redis-7010" "..\Sentinel\redis-7010.conf"
+
+    redis-server.exe --service-install --service-name "redis-7011" "..\Sentinel\redis-7011.conf"
+
+    redis-server.exe --service-install --service-name "redis-26379" "..\Sentinel\sentinel-26379.conf" --sentinel
+
+    redis-server.exe --service-install --service-name "redis-26380" "..\Sentinel\sentinel-26380.conf" --sentinel
+
+    cd ..\..
+- ps: Start-Service redis-*
+
+skip_branch_with_pr: true
+skip_tags: true
+skip_commits:
+  files:
+    - '**/*.md'
+    - docs/*
+
+nuget:
+  disable_publish_on_pr: true
+
+build_script:
+- ps: .\build.ps1 -BuildNumber "$env:APPVEYOR_BUILD_NUMBER" -Version "$env:APPVEYOR_REPO_TAG_NAME" -PullRequestNumber "$env:APPVEYOR_PULL_REQUEST_NUMBER" -CreatePackages $true
+
+test: off
+artifacts:
+- path: .\.nupkgs\*.nupkg

@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Security;
+using System.Security.Authentication;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -29,7 +30,10 @@ namespace StackExchange.Redis
     /// <summary>
     /// The options relevant to a set of redis connections
     /// </summary>
-    public sealed class ConfigurationOptions : ICloneable
+    public sealed class ConfigurationOptions
+#if !CORE_CLR
+        : ICloneable
+#endif
     {
         internal const string DefaultTieBreaker = "__Booksleeve_TieBreak", DefaultConfigurationChannel = "__Booksleeve_MasterChanged";
 
@@ -63,6 +67,17 @@ namespace StackExchange.Redis
                 return tmp;
             }
 
+            internal static SslProtocols ParseSslProtocols(string key, string value)
+            {
+                SslProtocols tmp;
+                //Flags expect commas as separators, but we need to use '|' since commas are already used in the connection string to mean something else
+                value = value?.Replace("|", ","); 
+
+                if (!Enum.TryParse(value, true, out tmp)) throw new ArgumentOutOfRangeException("Keyword '" + key + "' requires an SslProtocol value (multiple values separated by '|').");
+
+                return tmp;                
+            }
+
             internal static void Unknown(string key)
             {
                 throw new ArgumentException("Keyword '" + key + "' is not supported");
@@ -71,20 +86,23 @@ namespace StackExchange.Redis
             internal const string AllowAdmin = "allowAdmin", SyncTimeout = "syncTimeout",
                                 ServiceName = "serviceName", ClientName = "name", KeepAlive = "keepAlive",
                         Version = "version", ConnectTimeout = "connectTimeout", Password = "password",
-                        TieBreaker = "tiebreaker", WriteBuffer = "writeBuffer", Ssl = "ssl", SslHost = "sslHost",
+                        TieBreaker = "tiebreaker", WriteBuffer = "writeBuffer", Ssl = "ssl", SslHost = "sslHost", HighPrioritySocketThreads = "highPriorityThreads",
                         ConfigChannel = "configChannel", AbortOnConnectFail = "abortConnect", ResolveDns = "resolveDns",
                         ChannelPrefix = "channelPrefix", Proxy = "proxy", ConnectRetry = "connectRetry",
                         ConfigCheckSeconds = "configCheckSeconds", ResponseTimeout = "responseTimeout", DefaultDatabase = "defaultDatabase";
+            internal const string SslProtocols = "sslProtocols";
+
             private static readonly Dictionary<string, string> normalizedOptions = new[]
             {
                 AllowAdmin, SyncTimeout,
                 ServiceName, ClientName, KeepAlive,
                 Version, ConnectTimeout, Password,
-                TieBreaker, WriteBuffer, Ssl, SslHost,
+                TieBreaker, WriteBuffer, Ssl, SslHost, HighPrioritySocketThreads,
                 ConfigChannel, AbortOnConnectFail, ResolveDns,
                 ChannelPrefix, Proxy, ConnectRetry,
                 ConfigCheckSeconds, DefaultDatabase,
-            }.ToDictionary(x => x, StringComparer.InvariantCultureIgnoreCase);
+                SslProtocols,
+            }.ToDictionary(x => x, StringComparer.OrdinalIgnoreCase);
 
             public static string TryNormalize(string value)
             {
@@ -100,7 +118,7 @@ namespace StackExchange.Redis
 
         private readonly EndPointCollection endpoints = new EndPointCollection();
 
-        private bool? allowAdmin, abortOnConnectFail, resolveDns, ssl;
+        private bool? allowAdmin, abortOnConnectFail, highPrioritySocketThreads, resolveDns, ssl;
 
         private string clientName, serviceName, password, tieBreaker, sslHost, configChannel;
 
@@ -111,6 +129,8 @@ namespace StackExchange.Redis
         private int? keepAlive, syncTimeout, connectTimeout, responseTimeout, writeBuffer, connectRetry, configCheckSeconds, defaultDatabase;
 
         private Proxy? proxy;
+
+        private IReconnectRetryPolicy reconnectRetryPolicy; 
 
         /// <summary>
         /// A LocalCertificateSelectionCallback delegate responsible for selecting the certificate used for authentication; note
@@ -129,23 +149,32 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets or sets whether connect/configuration timeouts should be explicitly notified via a TimeoutException
         /// </summary>
-        public bool AbortOnConnectFail { get { return abortOnConnectFail ?? true; } set { abortOnConnectFail = value; } }
+        public bool AbortOnConnectFail { get { return abortOnConnectFail ?? GetDefaultAbortOnConnectFailSetting(); } set { abortOnConnectFail = value; } }
 
         /// <summary>
         /// Indicates whether admin operations should be allowed
         /// </summary>
         public bool AllowAdmin { get { return allowAdmin.GetValueOrDefault(); } set { allowAdmin = value; } }
-
+                
         /// <summary>
         /// Indicates whether the connection should be encrypted
         /// </summary>
-        [Obsolete("Please use .Ssl instead of .UseSsl"), Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+        [Obsolete("Please use .Ssl instead of .UseSsl"),
+#if !CORE_CLR
+            Browsable(false),
+#endif
+            EditorBrowsable(EditorBrowsableState.Never)]
         public bool UseSsl { get { return Ssl; } set { Ssl = value; } }
 
         /// <summary>
         /// Indicates whether the connection should be encrypted
         /// </summary>
         public bool Ssl { get { return ssl.GetValueOrDefault(); } set { ssl = value; } }
+
+        /// <summary>
+        /// Configures which Ssl/TLS protocols should be allowed.  If not set, defaults are chosen by the .NET framework.
+        /// </summary>
+        public SslProtocols? SslProtocols { get; set; }
 
         /// <summary>
         /// Automatically encodes and decodes channels
@@ -171,7 +200,7 @@ namespace StackExchange.Redis
                 if (commandMap != null) return commandMap;
                 switch (Proxy)
                 {
-                    case Redis.Proxy.Twemproxy:
+                    case Proxy.Twemproxy:
                         return CommandMap.Twemproxy;
                     default:
                         return CommandMap.Default;
@@ -179,7 +208,7 @@ namespace StackExchange.Redis
             }
             set
             {
-                if (value == null) throw new ArgumentNullException("value");
+                if (value == null) throw new ArgumentNullException(nameof(value));
                 commandMap = value;
             }
         }
@@ -190,25 +219,36 @@ namespace StackExchange.Redis
         public string ConfigurationChannel { get { return configChannel ?? DefaultConfigurationChannel; } set { configChannel = value; } }
 
         /// <summary>
-        /// Specifies the time in milliseconds that should be allowed for connection
+        /// Specifies the time in milliseconds that should be allowed for connection (defaults to 5 seconds unless SyncTimeout is higher)
         /// </summary>
         public int ConnectTimeout {
             get {
                 if (connectTimeout.HasValue) return connectTimeout.GetValueOrDefault();
-                return Math.Max(5000, SyncTimeout); // default of 5 seconds unless SyncTimeout is higher
+                return Math.Max(5000, SyncTimeout);
             }
             set { connectTimeout = value; }
         }
 
         /// <summary>
+        /// The retry policy to be used for connection reconnects
+        /// </summary>
+        public IReconnectRetryPolicy ReconnectRetryPolicy { get { return reconnectRetryPolicy ?? (reconnectRetryPolicy = new LinearRetry(ConnectTimeout)); } set { reconnectRetryPolicy = value; } }
+
+
+        /// <summary>
         /// The server version to assume
         /// </summary>
-        public Version DefaultVersion { get { return defaultVersion ?? RedisFeatures.v2_0_0; } set { defaultVersion = value; } }
+        public Version DefaultVersion { get { return defaultVersion ?? (IsAzureEndpoint() ? RedisFeatures.v3_0_0 : RedisFeatures.v2_0_0); } set { defaultVersion = value; } }
 
         /// <summary>
         /// The endpoints defined for this configuration
         /// </summary>
-        public EndPointCollection EndPoints { get { return endpoints; } }
+        public EndPointCollection EndPoints => endpoints;
+
+        /// <summary>
+        /// Use ThreadPriority.AboveNormal for SocketManager reader and writer threads (true by default). If false, ThreadPriority.Normal will be used.
+        /// </summary>
+        public bool HighPrioritySocketThreads { get { return highPrioritySocketThreads ?? true; } set { highPrioritySocketThreads = value; } }
 
         /// <summary>
         /// Specifies the time in seconds at which connections should be pinged to ensure validity
@@ -221,12 +261,14 @@ namespace StackExchange.Redis
         public string Password { get { return password; } set { password = value; } }
 
         /// <summary>
-        /// Indicates whether admin operations should be allowed
+        /// Type of proxy to use (if any); for example Proxy.Twemproxy
         /// </summary>
         public Proxy Proxy { get { return proxy.GetValueOrDefault(); } set { proxy = value; } }
 
         /// <summary>
-        /// Indicates whether endpoints should be resolved via DNS before connecting
+        /// Indicates whether endpoints should be resolved via DNS before connecting.
+        /// If enabled the ConnectionMultiplexer will not re-resolve DNS
+        /// when attempting to re-connect after a connection failure.
         /// </summary>
         public bool ResolveDns { get { return resolveDns.GetValueOrDefault(); } set { resolveDns = value; } }
 
@@ -322,6 +364,7 @@ namespace StackExchange.Redis
                 writeBuffer = writeBuffer,
                 ssl = ssl,
                 sslHost = sslHost,
+                highPrioritySocketThreads = highPrioritySocketThreads,
                 configChannel = configChannel,
                 abortOnConnectFail = abortOnConnectFail,
                 resolveDns = resolveDns,
@@ -334,7 +377,11 @@ namespace StackExchange.Redis
                 connectRetry = connectRetry,
                 configCheckSeconds = configCheckSeconds,
                 responseTimeout = responseTimeout,
-				defaultDatabase = defaultDatabase,
+                defaultDatabase = defaultDatabase,
+                ReconnectRetryPolicy = reconnectRetryPolicy,
+#if !CORE_CLR
+                SslProtocols = SslProtocols,
+#endif
             };
             foreach (var item in endpoints)
                 options.endpoints.Add(item);
@@ -351,9 +398,20 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Returns the effective configuration string for this configuration
+        /// Returns the effective configuration string for this configuration, including Redis credentials.
         /// </summary>
         public override string ToString()
+        {
+            // include password to allow generation of configuration strings 
+            // used for connecting multiplexer
+            return ToString(includePassword: true);
+        }
+
+        /// <summary>
+        /// Returns the effective configuration string for this configuration
+        /// with the option to include or exclude the password from the string.
+        /// </summary>
+        public string ToString(bool includePassword)
         {
             var sb = new StringBuilder();
             foreach (var endpoint in endpoints)
@@ -367,11 +425,12 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.AllowAdmin, allowAdmin);
             Append(sb, OptionKeys.Version, defaultVersion);
             Append(sb, OptionKeys.ConnectTimeout, connectTimeout);
-            Append(sb, OptionKeys.Password, password);
+            Append(sb, OptionKeys.Password, includePassword ? password : "*****");
             Append(sb, OptionKeys.TieBreaker, tieBreaker);
             Append(sb, OptionKeys.WriteBuffer, writeBuffer);
             Append(sb, OptionKeys.Ssl, ssl);
-            Append(sb, OptionKeys.SslHost, sslHost);            
+            Append(sb, OptionKeys.SslHost, sslHost); 
+            Append(sb, OptionKeys.HighPrioritySocketThreads, highPrioritySocketThreads);
             Append(sb, OptionKeys.ConfigChannel, configChannel);
             Append(sb, OptionKeys.AbortOnConnectFail, abortOnConnectFail);
             Append(sb, OptionKeys.ResolveDns, resolveDns);
@@ -381,7 +440,7 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.ConfigCheckSeconds, configCheckSeconds);
             Append(sb, OptionKeys.ResponseTimeout, responseTimeout);
             Append(sb, OptionKeys.DefaultDatabase, defaultDatabase);
-            if (commandMap != null) commandMap.AppendDeltas(sb);
+            commandMap?.AppendDeltas(sb);
             return sb.ToString();
         }
 
@@ -390,11 +449,10 @@ namespace StackExchange.Redis
             foreach (var endpoint in endpoints) if (endpoint is DnsEndPoint) return true;
             return false;
         }
-
-#pragma warning disable 1998 // NET40 is sync, not async, currently
+        
         internal async Task ResolveEndPointsAsync(ConnectionMultiplexer multiplexer, TextWriter log)
         {
-            Dictionary<string, IPAddress> cache = new Dictionary<string, IPAddress>(StringComparer.InvariantCultureIgnoreCase);
+            Dictionary<string, IPAddress> cache = new Dictionary<string, IPAddress>(StringComparer.OrdinalIgnoreCase);
             for (int i = 0; i < endpoints.Count; i++)
             {
                 var dns = endpoints[i] as DnsEndPoint;
@@ -414,11 +472,7 @@ namespace StackExchange.Redis
                         else
                         {
                             multiplexer.LogLocked(log, "Using DNS to resolve '{0}'...", dns.Host);
-#if NET40
-                            var ips = Dns.GetHostAddresses(dns.Host);
-#else
                             var ips = await Dns.GetHostAddressesAsync(dns.Host).ObserveErrors().ForAwait();
-#endif
                             if (ips.Length == 1)
                             {
                                 ip = ips[0];
@@ -436,7 +490,7 @@ namespace StackExchange.Redis
                 }
             }
         }
-#pragma warning restore 1998
+
         static void Append(StringBuilder sb, object value)
         {
             if (value == null) return;
@@ -450,8 +504,7 @@ namespace StackExchange.Redis
 
         static void Append(StringBuilder sb, string prefix, object value)
         {
-            if (value == null) return;
-            string s = value.ToString();
+            string s = value?.ToString();
             if (!string.IsNullOrWhiteSpace(s))
             {
                 if (sb.Length != 0) sb.Append(',');
@@ -463,15 +516,18 @@ namespace StackExchange.Redis
             }
         }
 
+#if !CORE_CLR
         static bool IsOption(string option, string prefix)
         {
             return option.StartsWith(prefix, StringComparison.InvariantCultureIgnoreCase);
         }
+#endif
+
         void Clear()
         {
             clientName = serviceName = password = tieBreaker = sslHost = configChannel = null;
             keepAlive = syncTimeout = connectTimeout = writeBuffer = connectRetry = configCheckSeconds = defaultDatabase = null;
-            allowAdmin = abortOnConnectFail = resolveDns = ssl = null;
+            allowAdmin = abortOnConnectFail = highPrioritySocketThreads = resolveDns = ssl = null;
             defaultVersion = null;
             endpoints.Clear();
             commandMap = null;
@@ -482,13 +538,15 @@ namespace StackExchange.Redis
             SocketManager = null;
         }
 
+#if !CORE_CLR
         object ICloneable.Clone() { return Clone(); }
+#endif
 
         private void DoParse(string configuration, bool ignoreUnknown)
         {
             if (configuration == null)
             {
-                throw new ArgumentNullException("configuration");
+                throw new ArgumentNullException(nameof(configuration));
             }
 
             if (string.IsNullOrWhiteSpace(configuration))
@@ -567,6 +625,9 @@ namespace StackExchange.Redis
                         case OptionKeys.SslHost:
                             SslHost = value;
                             break;
+                        case OptionKeys.HighPrioritySocketThreads:
+                            HighPrioritySocketThreads = OptionKeys.ParseBoolean(key, value);
+                            break;
                         case OptionKeys.WriteBuffer:
                             WriteBuffer = OptionKeys.ParseInt32(key, value);
                             break;
@@ -579,6 +640,11 @@ namespace StackExchange.Redis
                         case OptionKeys.DefaultDatabase:
                             defaultDatabase = OptionKeys.ParseInt32(key, value);
                             break;
+#if !CORE_CLR
+                        case OptionKeys.SslProtocols:
+                            SslProtocols = OptionKeys.ParseSslProtocols(key, value);
+                            break;
+#endif
                         default:
                             if (!string.IsNullOrEmpty(key) && key[0] == '$')
                             {
@@ -586,7 +652,7 @@ namespace StackExchange.Redis
                                 var cmdName = option.Substring(1, idx - 1);
                                 if (Enum.TryParse(cmdName, true, out cmd))
                                 {
-                                    if (map == null) map = new Dictionary<string, string>(StringComparer.InvariantCultureIgnoreCase);
+                                    if (map == null) map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                                     map[cmdName] = value;
                                 }
                             }
@@ -605,13 +671,46 @@ namespace StackExchange.Redis
             }
             if (map != null && map.Count != 0)
             {
-                this.CommandMap = CommandMap.Create(map);
+                CommandMap = CommandMap.Create(map);
             }
+        }
+
+        private bool GetDefaultAbortOnConnectFailSetting()
+        {
+            // Microsoft Azure team wants abortConnect=false by default
+            if (IsAzureEndpoint())
+                return false;
+
+            return true;
+        }
+        
+        private bool IsAzureEndpoint()
+        {
+            var result = false; 
+            var dnsEndpoints = endpoints.Select(endpoint => endpoint as DnsEndPoint).Where(ep => ep != null);
+            foreach(var ep in dnsEndpoints)
+            {
+                int firstDot = ep.Host.IndexOf('.');
+                if (firstDot >= 0)
+                {
+                    var domain = ep.Host.Substring(firstDot).ToLowerInvariant();
+                    switch(domain)
+                    {
+                        case ".redis.cache.windows.net":
+                        case ".redis.cache.chinacloudapi.cn":
+                        case ".redis.cache.usgovcloudapi.net":
+                        case ".redis.cache.cloudapi.de":
+                            return true;
+                    }
+                }
+            }
+
+            return result; 
         }
 
         private string InferSslHostFromEndpoints() {
             var dnsEndpoints = endpoints.Select(endpoint => endpoint as DnsEndPoint);
-            string dnsHost = dnsEndpoints.First() != null ? dnsEndpoints.First().Host : null;
+            string dnsHost = dnsEndpoints.FirstOrDefault()?.Host;
             if (dnsEndpoints.All(dnsEndpoint => (dnsEndpoint != null && dnsEndpoint.Host == dnsHost))) {
                 return dnsHost;
             }

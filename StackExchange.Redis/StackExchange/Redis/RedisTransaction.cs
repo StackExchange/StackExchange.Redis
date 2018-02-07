@@ -23,7 +23,7 @@ namespace StackExchange.Redis
 
         public ConditionResult AddCondition(Condition condition)
         {
-            if (condition == null) throw new ArgumentNullException("condition");
+            if (condition == null) throw new ArgumentNullException(nameof(condition));
 
             var commandMap = multiplexer.CommandMap;
             if (conditions == null)
@@ -90,6 +90,7 @@ namespace StackExchange.Redis
 
             switch(message.Command)
             {
+                case RedisCommand.UNKNOWN:
                 case RedisCommand.EVAL:
                 case RedisCommand.EVALSHA:
                     // people can do very naughty things in an EVAL
@@ -146,7 +147,8 @@ namespace StackExchange.Redis
                 set { wasQueued = value; }
             }
 
-            public Message Wrapped { get { return wrapped; } }
+            public Message Wrapped => wrapped;
+
             internal override void WriteImpl(PhysicalConnection physical)
             {
                 wrapped.WriteImpl(physical);
@@ -176,8 +178,6 @@ namespace StackExchange.Redis
 
             static readonly QueuedMessage[] NixMessages = new QueuedMessage[0];
 
-            static readonly Message SharedMulti = Message.Create(-1, CommandFlags.None, RedisCommand.MULTI);
-
             private ConditionResult[] conditions;
 
             private QueuedMessage[] operations;
@@ -189,12 +189,9 @@ namespace StackExchange.Redis
                 this.conditions = (conditions == null || conditions.Count == 0) ? NixConditions : conditions.ToArray();
             }
 
-            public QueuedMessage[] InnerOperations { get { return operations; } }
+            public QueuedMessage[] InnerOperations => operations;
 
-            public bool IsAborted
-            {
-                get { return command != RedisCommand.EXEC; }
-            }
+            public bool IsAborted => command != RedisCommand.EXEC;
 
             public override void AppendStormLog(StringBuilder sb)
             {
@@ -278,7 +275,7 @@ namespace StackExchange.Redis
                     if (!IsAborted)
                     {
                         multiplexer.Trace("Begining transaction");
-                        yield return SharedMulti;
+                        yield return Message.Create(-1, CommandFlags.None, RedisCommand.MULTI);
                     }
 
                     // PART 3: issue the commands

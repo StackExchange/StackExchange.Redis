@@ -1,0 +1,29 @@
+<Project>
+  <PropertyGroup>
+    <VersionPrefix>1.2.7</VersionPrefix>
+
+    <Copyright>2017 Stack Exchange, Inc.</Copyright>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <AssemblyOriginatorKeyFile>../StackExchange.Redis.snk</AssemblyOriginatorKeyFile>
+    <PackageId>$(AssemblyName)</PackageId>
+    <Authors>Stack Exchange, Inc.; marc.gravell</Authors>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>    
+    
+    <PackageReleaseNotes>https://stackexchange.github.io/StackExchange.Redis/ReleaseNotes</PackageReleaseNotes>
+    <PackageProjectUrl>https://github.com/StackExchange/StackExchange.Redis/</PackageProjectUrl>
+    <PackageLicenseUrl>https://raw.github.com/StackExchange/StackExchange.Redis/master/LICENSE</PackageLicenseUrl>
+    
+    <RepositoryType>git</RepositoryType>
+    <RepositoryUrl>https://github.com/StackExchange/StackExchange.Redis/</RepositoryUrl>
+    
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>embedded</DebugType>
+    <DefaultLanguage>en-US</DefaultLanguage>
+    <IncludeSymbols>false</IncludeSymbols>
+
+    <LibraryTargetFrameworks>net45;net46;netstandard1.5</LibraryTargetFrameworks>
+    <CoreFxVersion>4.3.0</CoreFxVersion>
+    <xUnitVersion>2.3.1</xUnitVersion>
+  </PropertyGroup>
+</Project>

@@ -1,25 +1,23 @@
-﻿using System;
+﻿#if FEATURE_MOQ
 using Moq;
-using NUnit.Framework;
 using StackExchange.Redis.KeyspaceIsolation;
 using System.Text;
+using Xunit;
 
 namespace StackExchange.Redis.Tests
 {
-    [TestFixture]
     public sealed class BatchWrapperTests
     {
-        private Mock<IBatch> mock;
-        private BatchWrapper wrapper;
+        private readonly Mock<IBatch> mock;
+        private readonly BatchWrapper wrapper;
 
-        [TestFixtureSetUp]
-        public void Initialize()
+        public BatchWrapperTests()
         {
             mock = new Mock<IBatch>();
             wrapper = new BatchWrapper(mock.Object, Encoding.UTF8.GetBytes("prefix:"));
         }
 
-        [Test]
+        [Fact]
         public void Execute()
         {
             wrapper.Execute();
@@ -27,3 +25,4 @@ namespace StackExchange.Redis.Tests
         }
     }
 }
+#endif
