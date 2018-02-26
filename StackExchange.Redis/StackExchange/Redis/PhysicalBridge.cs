@@ -71,6 +71,8 @@ namespace StackExchange.Redis
 
         public bool IsConnected => state == (int)State.ConnectedEstablished;
 
+        public bool IsConnecting => state == (int)State.ConnectedEstablished || state == (int)State.Connecting;
+
         public ConnectionMultiplexer Multiplexer { get; }
 
         public ServerEndPoint ServerEndPoint { get; }
