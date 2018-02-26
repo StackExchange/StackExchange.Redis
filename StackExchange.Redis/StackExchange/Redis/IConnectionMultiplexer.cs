@@ -53,6 +53,11 @@ namespace StackExchange.Redis
         bool IsConnected { get; }
 
         /// <summary>
+        /// IsConnecting whether any servers are currently connecting
+        /// </summary>
+        bool IsConnecting { get; }
+
+        /// <summary>
         /// Should exceptions include identifiable details? (key names, additional .Data annotations)
         /// </summary>
         bool IncludeDetailInExceptions { get; set; }

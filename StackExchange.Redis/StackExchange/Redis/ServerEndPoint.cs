@@ -92,6 +92,15 @@ namespace StackExchange.Redis
             }
         }
 
+        public bool IsConnecting
+        {
+            get
+            {
+                var tmp = interactive;
+                return tmp != null && tmp.IsConnecting;
+            }
+        }
+
         internal Exception LastException
         {
             get
