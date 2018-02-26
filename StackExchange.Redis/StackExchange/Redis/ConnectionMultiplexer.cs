@@ -533,6 +533,7 @@ namespace StackExchange.Redis
 
         private readonly ConfigurationOptions configuration;
 
+        private readonly IBackgroundWorkQueue backgroundWorkQueue;
 
         internal bool TryResend(int hashSlot, Message message, EndPoint endpoint, bool isMoved)
         {
@@ -772,12 +773,12 @@ namespace StackExchange.Redis
         /// <summary>
         /// Create a new ConnectionMultiplexer instance
         /// </summary>
-        public static async Task<ConnectionMultiplexer> ConnectAsync(string configuration, TextWriter log = null)
+        public static async Task<ConnectionMultiplexer> ConnectAsync(string configuration, TextWriter log = null, IBackgroundWorkQueue backgroundWorkQueue = null)
         {
             IDisposable killMe = null;
             try
             {
-                var muxer = CreateMultiplexer(configuration);
+                var muxer = CreateMultiplexer(configuration, backgroundWorkQueue ?? ThreadPoolBackgroundWorkQueue.Instance);
                 killMe = muxer;
                 bool configured = await muxer.ReconfigureAsync(true, false, log, null, "connect").ObserveErrors().ForAwait();
                 if (!configured)
@@ -795,12 +796,12 @@ namespace StackExchange.Redis
         /// <summary>
         /// Create a new ConnectionMultiplexer instance
         /// </summary>
-        public static async Task<ConnectionMultiplexer> ConnectAsync(ConfigurationOptions configuration, TextWriter log = null)
+        public static async Task<ConnectionMultiplexer> ConnectAsync(ConfigurationOptions configuration, TextWriter log = null, IBackgroundWorkQueue backgroundWorkQueue = null)
         {
             IDisposable killMe = null;
             try
             {
-                var muxer = CreateMultiplexer(configuration);
+                var muxer = CreateMultiplexer(configuration, backgroundWorkQueue ?? ThreadPoolBackgroundWorkQueue.Instance);
                 killMe = muxer;
                 bool configured = await muxer.ReconfigureAsync(true, false, log, null, "connect").ObserveErrors().ForAwait();
                 if (!configured)
@@ -815,9 +816,10 @@ namespace StackExchange.Redis
             }
         }
 
-        static ConnectionMultiplexer CreateMultiplexer(object configuration)
+        static ConnectionMultiplexer CreateMultiplexer(object configuration, IBackgroundWorkQueue backgroundWorkQueue)
         {
             if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            if (backgroundWorkQueue == null) throw new ArgumentNullException(nameof(backgroundWorkQueue));
             ConfigurationOptions config;
             if (configuration is string)
             {
@@ -831,22 +833,22 @@ namespace StackExchange.Redis
             }
             if (config.EndPoints.Count == 0) throw new ArgumentException("No endpoints specified", nameof(configuration));
             config.SetDefaultPorts();
-            return new ConnectionMultiplexer(config);
+            return new ConnectionMultiplexer(config, backgroundWorkQueue);
         }
         /// <summary>
         /// Create a new ConnectionMultiplexer instance
         /// </summary>
-        public static ConnectionMultiplexer Connect(string configuration, TextWriter log = null)
+        public static ConnectionMultiplexer Connect(string configuration, TextWriter log = null, IBackgroundWorkQueue backgroundWorkQueue = null)
         {
-            return ConnectImpl(() => CreateMultiplexer(configuration), log);
+            return ConnectImpl(() => CreateMultiplexer(configuration, backgroundWorkQueue ?? ThreadPoolBackgroundWorkQueue.Instance), log);
         }
 
         /// <summary>
         /// Create a new ConnectionMultiplexer instance
         /// </summary>
-        public static ConnectionMultiplexer Connect(ConfigurationOptions configuration, TextWriter log = null)
+        public static ConnectionMultiplexer Connect(ConfigurationOptions configuration, TextWriter log = null, IBackgroundWorkQueue backgroundWorkQueue = null)
         {
-            return ConnectImpl(() => CreateMultiplexer(configuration), log);
+            return ConnectImpl(() => CreateMultiplexer(configuration, backgroundWorkQueue ?? ThreadPoolBackgroundWorkQueue.Instance), log);
         }
 
         private static ConnectionMultiplexer ConnectImpl(Func<ConnectionMultiplexer> multiplexerFactory, TextWriter log)
@@ -900,7 +902,7 @@ namespace StackExchange.Redis
                     {
                         if (isDisposed) throw new ObjectDisposedException(ToString());
 
-                        server = new ServerEndPoint(this, endpoint, null);
+                        server = new ServerEndPoint(this, endpoint, null, backgroundWorkQueue);
                         // ^^ this could indirectly cause servers to become changes, so treble-check!
                         if (!servers.ContainsKey(endpoint))
                         {
@@ -919,9 +921,10 @@ namespace StackExchange.Redis
         }
 
         internal readonly CommandMap CommandMap;
-        private ConnectionMultiplexer(ConfigurationOptions configuration)
+        private ConnectionMultiplexer(ConfigurationOptions configuration, IBackgroundWorkQueue backgroundWorkQueue)
         {
             if (configuration == null) throw new ArgumentNullException(nameof(configuration));
+            this.backgroundWorkQueue = backgroundWorkQueue ?? throw new ArgumentNullException(nameof(backgroundWorkQueue));
             IncludeDetailInExceptions = true;
             IncludePerformanceCountersInExceptions = false;
             
@@ -940,7 +943,7 @@ namespace StackExchange.Redis
             timeoutMilliseconds = configuration.SyncTimeout;
 
             OnCreateReaderWriter(configuration);
-            unprocessableCompletionManager = new CompletionManager(this, "multiplexer");
+            unprocessableCompletionManager = new CompletionManager(this, backgroundWorkQueue, "multiplexer");
             serverSelectionStrategy = new ServerSelectionStrategy(this);
 
             var configChannel = configuration.ConfigurationChannel;
@@ -1261,7 +1264,7 @@ namespace StackExchange.Redis
                             var server = (ServerEndPoint)servers[endpoint];
                             if (server == null)
                             {
-                                server = new ServerEndPoint(this, endpoint, log);
+                                server = new ServerEndPoint(this, endpoint, log, backgroundWorkQueue);
                                 // ^^ this could indirectly cause servers to become changes, so treble-check!
                                 if (!servers.ContainsKey(endpoint))
                                 {

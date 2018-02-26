@@ -117,6 +117,8 @@ namespace StackExchange.Redis
 
         private readonly Queue<PhysicalBridge> writeQueue = new Queue<PhysicalBridge>();
 
+        private readonly IBackgroundWorkQueue backgroundWorkQueue;
+
         bool isDisposed;
         private bool useHighPrioritySocketThreads = true;
 
@@ -128,11 +130,17 @@ namespace StackExchange.Redis
         /// <summary>
         /// Creates a new SocketManager instance
         /// </summary>
-        public SocketManager(string name, bool useHighPrioritySocketThreads)
+        public SocketManager(string name, bool useHighPrioritySocketThreads) : this(name, useHighPrioritySocketThreads, ThreadPoolBackgroundWorkQueue.Instance) { }
+
+        /// <summary>
+        /// Creates a new SocketManager instance.
+        /// </summary>
+        public SocketManager(string name, bool useHighPrioritySocketThreads, IBackgroundWorkQueue backgroundWorkQueue)
         {
             if (string.IsNullOrWhiteSpace(name)) name = GetType().Name;
             this.name = name;
             this.useHighPrioritySocketThreads = useHighPrioritySocketThreads;
+            this.backgroundWorkQueue = backgroundWorkQueue ?? throw new ArgumentNullException(nameof(backgroundWorkQueue));
 
             // we need a dedicated writer, because when under heavy ambient load
             // (a busy asp.net site, for example), workers are not reliable enough
@@ -302,7 +310,7 @@ namespace StackExchange.Redis
                     }
                     else if (writeQueue.Count >= 2)
                     { // struggling are we? let's have some help dealing with the backlog
-                        ThreadPool.QueueUserWorkItem(writeOneQueue, this);
+                        backgroundWorkQueue.QueueItem(writeOneQueue, this);
                     }
                 }
             }

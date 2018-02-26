@@ -349,7 +349,7 @@ namespace StackExchange.Redis
                     lock (obj)
                     {
                         managerState = ManagerState.RequestAssistance;
-                        ThreadPool.QueueUserWorkItem(HelpProcessItems, obj);
+                        backgroundWorkQueue.QueueItem(HelpProcessItems, obj);
                         managerState = ManagerState.ProcessQueues;
                         ProcessItems(true);
                         if (!obj.Consume())
