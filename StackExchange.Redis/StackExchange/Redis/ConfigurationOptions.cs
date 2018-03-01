@@ -91,6 +91,7 @@ namespace StackExchange.Redis
                         ChannelPrefix = "channelPrefix", Proxy = "proxy", ConnectRetry = "connectRetry",
                         ConfigCheckSeconds = "configCheckSeconds", ResponseTimeout = "responseTimeout", DefaultDatabase = "defaultDatabase";
             internal const string SslProtocols = "sslProtocols";
+            internal const string PreserveAsyncOrder = "preserveAsyncOrder";
 
             private static readonly Dictionary<string, string> normalizedOptions = new[]
             {
@@ -101,7 +102,7 @@ namespace StackExchange.Redis
                 ConfigChannel, AbortOnConnectFail, ResolveDns,
                 ChannelPrefix, Proxy, ConnectRetry,
                 ConfigCheckSeconds, DefaultDatabase,
-                SslProtocols,
+                SslProtocols, PreserveAsyncOrder
             }.ToDictionary(x => x, StringComparer.OrdinalIgnoreCase);
 
             public static string TryNormalize(string value)
@@ -118,7 +119,7 @@ namespace StackExchange.Redis
 
         private readonly EndPointCollection endpoints = new EndPointCollection();
 
-        private bool? allowAdmin, abortOnConnectFail, highPrioritySocketThreads, resolveDns, ssl;
+        private bool? allowAdmin, abortOnConnectFail, highPrioritySocketThreads, resolveDns, ssl, preserveAsyncOrder;
 
         private string clientName, serviceName, password, tieBreaker, sslHost, configChannel;
 
@@ -311,6 +312,11 @@ namespace StackExchange.Redis
         /// Specifies the default database to be used when calling ConnectionMultiplexer.GetDatabase() without any parameters
         /// </summary>
         public int? DefaultDatabase { get { return defaultDatabase; } set { defaultDatabase = value; } }
+        
+        /// <summary>
+        /// Specifies whether asynchronous operations should be invoked in a way that guarantees their original delivery order
+        /// </summary>
+        public bool PreserveAsyncOrder { get { return preserveAsyncOrder.GetValueOrDefault(true); } set { preserveAsyncOrder = value; } }
 
         internal LocalCertificateSelectionCallback CertificateSelectionCallback { get { return CertificateSelection; } private set { CertificateSelection = value; } }
 
@@ -379,6 +385,7 @@ namespace StackExchange.Redis
                 responseTimeout = responseTimeout,
                 defaultDatabase = defaultDatabase,
                 ReconnectRetryPolicy = reconnectRetryPolicy,
+                preserveAsyncOrder = preserveAsyncOrder,
 #if !CORE_CLR
                 SslProtocols = SslProtocols,
 #endif
@@ -440,6 +447,7 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.ConfigCheckSeconds, configCheckSeconds);
             Append(sb, OptionKeys.ResponseTimeout, responseTimeout);
             Append(sb, OptionKeys.DefaultDatabase, defaultDatabase);
+            Append(sb, OptionKeys.PreserveAsyncOrder, preserveAsyncOrder);
             commandMap?.AppendDeltas(sb);
             return sb.ToString();
         }
@@ -527,7 +535,7 @@ namespace StackExchange.Redis
         {
             clientName = serviceName = password = tieBreaker = sslHost = configChannel = null;
             keepAlive = syncTimeout = connectTimeout = writeBuffer = connectRetry = configCheckSeconds = defaultDatabase = null;
-            allowAdmin = abortOnConnectFail = highPrioritySocketThreads = resolveDns = ssl = null;
+            allowAdmin = abortOnConnectFail = highPrioritySocketThreads = resolveDns = ssl = preserveAsyncOrder = null;
             defaultVersion = null;
             endpoints.Clear();
             commandMap = null;
@@ -639,6 +647,9 @@ namespace StackExchange.Redis
                             break;
                         case OptionKeys.DefaultDatabase:
                             defaultDatabase = OptionKeys.ParseInt32(key, value);
+                            break;
+                        case OptionKeys.PreserveAsyncOrder:
+                            PreserveAsyncOrder = OptionKeys.ParseBoolean(key, value);
                             break;
 #if !CORE_CLR
                         case OptionKeys.SslProtocols:
