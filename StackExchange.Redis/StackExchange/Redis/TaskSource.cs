@@ -13,10 +13,7 @@ namespace StackExchange.Redis
     /// see https://stackoverflow.com/a/22588431/23354 for more information; a huge
     /// thanks to Eli Arbel for spotting this (even though it is pure evil; it is *my kind of evil*)
     /// </summary>
-#if DEBUG
-    public // for the unit tests in TaskTests.cs
-#endif
-    static class TaskSource
+    internal static class TaskSource
     {
 #if !PLAT_SAFE_CONTINUATIONS
         // on .NET < 4.6, it was possible to have threads hijacked; this is no longer a problem in 4.6 and core-clr 5,
@@ -92,16 +89,6 @@ namespace StackExchange.Redis
 #else
             return new TaskCompletionSource<T>(asyncState, TaskCreationOptions.None);
 #endif
-        }        
-
-        /// <summary>
-        /// Create a new TaskCompletionSource that will not allow result-setting threads to be hijacked
-        /// </summary>
-        public static TaskCompletionSource<T> CreateDenyExecSync<T>(object asyncState)
-        {
-            var source = new TaskCompletionSource<T>(asyncState);
-            //DenyExecSync(source.Task);
-            return source;
         }
     }
 }

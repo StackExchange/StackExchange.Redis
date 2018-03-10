@@ -1967,7 +1967,7 @@ namespace StackExchange.Redis
             }
             else
             {
-                var tcs = TaskSource.CreateDenyExecSync<T>(state);
+                var tcs = TaskSource.Create<T>(state);
                 var source = ResultBox<T>.Get(tcs);
                 if (!TryPushMessageToBridge(message, processor, source, ref server))
                 {
