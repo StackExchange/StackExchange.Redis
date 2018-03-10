@@ -17,7 +17,7 @@ namespace StackExchange.Redis
         /// <returns></returns>
         public static TOutput[] ConvertAll<TInput, TOutput>(TInput[] source, Func<TInput, TOutput> selector)
         {
-#if CORE_CLR
+#if NETSTANDARD1_5
             TOutput[] arr = new TOutput[source.Length];
             for(int i = 0 ; i < arr.Length ; i++)
                 arr[i] = selector(source[i]);

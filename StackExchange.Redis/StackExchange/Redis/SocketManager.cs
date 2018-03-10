@@ -4,7 +4,7 @@ using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
-#if CORE_CLR
+#if NETSTANDARD1_5
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 #endif
@@ -136,7 +136,7 @@ namespace StackExchange.Redis
 
             // we need a dedicated writer, because when under heavy ambient load
             // (a busy asp.net site, for example), workers are not reliable enough
-#if !CORE_CLR
+#if !NETSTANDARD1_5
             Thread dedicatedWriter = new Thread(writeAllQueues, 32 * 1024); // don't need a huge stack;
             dedicatedWriter.Priority = useHighPrioritySocketThreads ? ThreadPriority.AboveNormal : ThreadPriority.Normal;
 #else
@@ -190,7 +190,7 @@ namespace StackExchange.Redis
                     // A work-around for a Mono bug in BeginConnect(EndPoint endpoint, AsyncCallback callback, object state)
                     DnsEndPoint dnsEndpoint = (DnsEndPoint)endpoint;
 
-#if CORE_CLR
+#if !FEATURE_THREADPOOL
                     multiplexer.LogLocked(log, "BeginConnect: {0}", formattedEndpoint);
                     socket.ConnectAsync(dnsEndpoint.Host, dnsEndpoint.Port).ContinueWith(t =>
                     {
@@ -214,7 +214,7 @@ namespace StackExchange.Redis
                 }
                 else
                 {
-#if CORE_CLR
+#if !FEATURE_THREADPOOL
                     multiplexer.LogLocked(log, "BeginConnect: {0}", formattedEndpoint);
                     socket.ConnectAsync(endpoint).ContinueWith(t =>
                     {
@@ -254,7 +254,7 @@ namespace StackExchange.Redis
             // or will be subject to WFP filtering.
             const int SIO_LOOPBACK_FAST_PATH = -1744830448;
 
-#if !CORE_CLR
+#if !NETSTANDARD1_5
             // windows only
             if (Environment.OSVersion.Platform == PlatformID.Win32NT)
             {
@@ -322,7 +322,7 @@ namespace StackExchange.Redis
                 if (ignoreConnect) return;
                 var socket = tuple.Item1;
                 var callback = tuple.Item2;
-#if CORE_CLR
+#if NETSTANDARD1_5
                 multiplexer.Wait((Task)ar); // make it explode if invalid (note: already complete at this point)
 #else
                 socket.EndConnect(ar);
@@ -393,7 +393,7 @@ namespace StackExchange.Redis
             {
                 OnShutdown(socket);
                 try { socket.Shutdown(SocketShutdown.Both); } catch { }
-#if !CORE_CLR
+#if !NETSTANDARD1_5
                 try { socket.Close(); } catch { }
 #endif
                 try { socket.Dispose(); } catch { }

@@ -231,12 +231,12 @@ namespace StackExchange.Redis.Tests
                 RedisKey key = "MBOA";
                 var conn = muxer.GetDatabase();
                 await conn.PingAsync().ForAwait();
-#if CORE_CLR
+#if NETCOREAPP1_0
                 int number = 0;
 #endif
                 Action<Task> nonTrivial = delegate
                 {
-#if !CORE_CLR
+#if !NETCOREAPP1_0
                     Thread.SpinWait(5);
 #else
                     for (int i = 0; i < 50; i++)

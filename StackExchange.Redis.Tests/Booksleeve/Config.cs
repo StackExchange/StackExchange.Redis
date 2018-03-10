@@ -4,7 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
-#if !CORE_CLR
+#if !NETCOREAPP1_0
 using System.Security.Authentication;
 #endif
 
@@ -106,7 +106,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
             }
         }
 
-#if !CORE_CLR
+#if !NETCOREAPP1_0
         [Fact]
         public void SslProtocols_SingleValue()
         {

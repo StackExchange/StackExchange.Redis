@@ -127,7 +127,7 @@ namespace StackExchange.Redis
                 exceptionmessage.Append("; ").Append(innermostExceptionstring);
             }
 
-#if !CORE_CLR
+#if FEATURE_PERFCOUNTER
             if (includeDetail)
             {
                 exceptionmessage.Append("; ").Append(ConnectionMultiplexer.GetThreadPoolAndCPUSummary(includePerformanceCounters));

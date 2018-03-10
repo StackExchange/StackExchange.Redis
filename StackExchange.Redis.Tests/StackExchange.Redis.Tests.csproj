@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <Description>StackExchange.Redis.Tests</Description>
-    <TargetFrameworks>net462;netcoreapp1.0</TargetFrameworks>
+    <TargetFrameworks>net462;netcoreapp1.0;netcoreapp2.0</TargetFrameworks>
     <AssemblyName>StackExchange.Redis.Tests</AssemblyName>
     <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
@@ -12,13 +12,6 @@
     <None Update="*.json" CopyToOutputDirectory="Always" />
     <EmbeddedResource Include="*Config.json" />
   </ItemGroup>
-  
-  <PropertyGroup Condition=" '$(TargetFramework)' == 'net462' ">
-    <DefineConstants>$(DefineConstants);FEATURE_MOQ</DefineConstants>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(TargetFramework)' == 'netcoreapp1.0' ">
-    <DefineConstants>$(DefineConstants);FEATURE_MOQ;CORE_CLR</DefineConstants>
-  </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\StackExchange.Redis\StackExchange.Redis.csproj" />

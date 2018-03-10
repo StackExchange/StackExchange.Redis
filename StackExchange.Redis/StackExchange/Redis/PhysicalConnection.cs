@@ -10,7 +10,7 @@ using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
-#if CORE_CLR
+#if NETSTANDARD1_5
 using System.Threading.Tasks;
 #endif
 
@@ -26,7 +26,7 @@ namespace StackExchange.Redis
 
         private static readonly byte[] Crlf = Encoding.ASCII.GetBytes("\r\n");
 
-#if CORE_CLR
+#if NETSTANDARD1_5
         readonly Action<Task<int>> endRead;
         private static Action<Task<int>> EndReadFactory(PhysicalConnection physical)
         {
@@ -110,7 +110,7 @@ namespace StackExchange.Redis
             var endpoint = bridge.ServerEndPoint.EndPoint;
             physicalName = connectionType + "#" + Interlocked.Increment(ref totalCount) + "@" + Format.ToString(endpoint);
             this.Bridge = bridge;
-#if CORE_CLR
+#if NETSTANDARD1_5
             endRead = EndReadFactory(this);
 #endif
             OnCreateEcho();
@@ -147,7 +147,7 @@ namespace StackExchange.Redis
             if (outStream != null)
             {
                 Multiplexer.Trace("Disconnecting...", physicalName);
-#if !CORE_CLR
+#if !NETSTANDARD1_5
                 try { outStream.Close(); } catch { }
 #endif
                 try { outStream.Dispose(); } catch { }
@@ -155,7 +155,7 @@ namespace StackExchange.Redis
             }
             if (netStream != null)
             {
-#if !CORE_CLR
+#if !NETSTANDARD1_5
                 try { netStream.Close(); } catch { }
 #endif
                 try { netStream.Dispose(); } catch { }
@@ -639,7 +639,7 @@ namespace StackExchange.Redis
             }
             else
             {
-#if !CORE_CLR
+#if !NETSTANDARD1_5
                 fixed (char* c = value)
                 fixed (byte* b = outScratch)
                 {
@@ -713,7 +713,7 @@ namespace StackExchange.Redis
                     keepReading = false;
                     int space = EnsureSpaceAndComputeBytesToRead();
                     Multiplexer.Trace("Beginning async read...", physicalName);
-#if CORE_CLR
+#if NETSTANDARD1_5
                     var result = netStream.ReadAsync(ioBuffer, ioBufferBytes, space);
                     switch (result.Status)
                     {
@@ -736,7 +736,7 @@ namespace StackExchange.Redis
 #endif
                 } while (keepReading);
             }
-#if CORE_CLR
+#if NETSTANDARD1_5
             catch (AggregateException ex)
             {
                 throw ex.InnerException;
@@ -835,7 +835,7 @@ namespace StackExchange.Redis
             }
         }
 
-#if CORE_CLR
+#if NETSTANDARD1_5
         private bool EndReading(Task<int> result)
         {
             try

@@ -288,7 +288,7 @@ namespace StackExchange.Redis.Tests
     {
         public static int Read(ref int location)
         {
-#if !CORE_CLR
+#if !NETCOREAPP1_0
             return Thread.VolatileRead(ref location);
 #else
             return Volatile.Read(ref location);
