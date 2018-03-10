@@ -64,7 +64,7 @@ namespace StackExchange.Redis.Tests
                 var conn = muxer.GetDatabase();
                 conn.KeyDelete(key, CommandFlags.FireAndForget);
 
-                var offset = utc ? TimeSpan.Zero : TimeZoneInfo.FindSystemTimeZoneById("Tokyo Standard Time").BaseUtcOffset;
+                var offset = utc ? TimeSpan.Zero : TimeZoneInfo.Local.BaseUtcOffset;
                 var now = utc ? DateTime.UtcNow : new DateTime(DateTime.UtcNow.Ticks + offset.Ticks, DateTimeKind.Local);
                 var resultOffset = utc ? TimeSpan.Zero : now - DateTime.Now;
                 Output.WriteLine("Now: {0}", now);
