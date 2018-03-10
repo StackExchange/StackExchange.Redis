@@ -939,7 +939,7 @@ namespace StackExchange.Redis
                 map.AssertAvailable(RedisCommand.EXISTS);
             }
 
-            PreserveAsyncOrder = true; // safest default
+            PreserveAsyncOrder = configuration.PreserveAsyncOrder;
             timeoutMilliseconds = configuration.SyncTimeout;
 
             OnCreateReaderWriter(configuration);

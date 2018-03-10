@@ -10,7 +10,7 @@ namespace StackExchange.Redis.Tests
     [Collection(NonParallelCollection.Name)]
     public class PubSub : TestBase
     {
-        public PubSub(ITestOutputHelper output) : base (output) { }
+        public PubSub(ITestOutputHelper output) : base(output) { }
 
         [Fact]
         public void ExplicitPublishMode()
@@ -252,12 +252,11 @@ namespace StackExchange.Redis.Tests
             }
         }
 
+#if DEBUG
         [Fact]
         public void SubscriptionsSurviveConnectionFailure()
         {
-#if !DEBUG
-            Assert.Inconclusive("Needs #DEBUG");
-#endif
+            
             using (var muxer = Create(allowAdmin: true))
             {
                 RedisChannel channel = Me();
@@ -273,23 +272,19 @@ namespace StackExchange.Redis.Tests
                 var server = GetServer(muxer);
                 Assert.Equal(1, server.GetCounters().Subscription.SocketCount);
 
-#if DEBUG
                 server.SimulateConnectionFailure();
                 SetExpectedAmbientFailureCount(2);
-#endif
                 Thread.Sleep(100);
                 sub.Ping();
-#if DEBUG
                 Assert.Equal(2, server.GetCounters().Subscription.SocketCount);
-#endif
                 sub.Publish(channel, "abc");
                 sub.Ping();
                 Assert.Equal(2, VolatileWrapper.Read(ref counter));
             }
         }
+#endif
     }
-
-    internal static class VolatileWrapper
+        internal static class VolatileWrapper
     {
         public static int Read(ref int location)
         {
