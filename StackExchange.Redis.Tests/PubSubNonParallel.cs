@@ -100,7 +100,8 @@ namespace StackExchange.Redis.Tests
 
                     Assert.Equal(2, Interlocked.Read(ref aCount));
                     Assert.Equal(2, Interlocked.Read(ref bCount));
-                    Assert.Equal(4, Interlocked.CompareExchange(ref masterChanged, 0, 0));
+                    // Expect 6, because a sees a, but b sees a and b due to replication
+                    Assert.Equal(6, Interlocked.CompareExchange(ref masterChanged, 0, 0));
                 }
                 finally
                 {
