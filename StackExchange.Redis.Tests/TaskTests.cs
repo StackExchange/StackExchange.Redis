@@ -11,13 +11,20 @@ namespace StackExchange.Redis.Tests
 
 #if !PLAT_SAFE_CONTINUATIONS // IsSyncSafe doesn't exist if PLAT_SAFE_CONTINUATIONS is defined
         [Theory]
-        [InlineData(SourceOrign.NewTCS, false)]
-        [InlineData(SourceOrign.Create, false)]
-        [InlineData(SourceOrign.CreateDenyExec, true)]
-        public void VerifyIsSyncSafe(SourceOrign origin, bool expected)
+        [InlineData(SourceOrign.NewTCS)]
+        [InlineData(SourceOrign.Create)]
+        public void VerifyIsSyncSafe(SourceOrign origin)
         {
             var source = Create<int>(origin);
-            Assert.Equal(expected, TaskSource.IsSyncSafe(source.Task));
+            // Yes this looks stupid, but it's the proper pattern for how we statically init now
+            // ...and if we're dropping NET45 support, we can just nuke it all.
+#if NET462
+            Assert.True(TaskSource.IsSyncSafe(source.Task));
+#elif NETCOREAPP1_0
+            Assert.True(TaskSource.IsSyncSafe(source.Task));
+#elif NETCOREAPP2_0
+            Assert.True(TaskSource.IsSyncSafe(source.Task));
+#endif
         }
 #endif
         private static TaskCompletionSource<T> Create<T>(SourceOrign origin)
