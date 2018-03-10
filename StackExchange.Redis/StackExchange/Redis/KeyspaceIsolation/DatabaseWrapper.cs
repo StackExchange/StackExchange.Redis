@@ -682,6 +682,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StringSetRange(ToInner(key), offset, value, flags);
         }
 
+        public long SyncWait(int numOfSlaves = 1, int timeoutMilliseconds = 0, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.SyncWait(numOfSlaves, timeoutMilliseconds, flags);
+        }
+
         public TimeSpan Ping(CommandFlags flags = CommandFlags.None)
         {
             return Inner.Ping(flags);

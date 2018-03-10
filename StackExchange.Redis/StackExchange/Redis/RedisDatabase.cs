@@ -1801,6 +1801,12 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.RedisValue);
         }
 
+        public long SyncWait(int numOfSlaves = 1, int timeoutMilliseconds = 0, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.WAIT, numOfSlaves, timeoutMilliseconds);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+
         public Task<RedisValue> StringSetRangeAsync(RedisKey key, long offset, RedisValue value, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.SETRANGE, key, offset, value);

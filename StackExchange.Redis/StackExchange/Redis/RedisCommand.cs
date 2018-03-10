@@ -161,6 +161,7 @@
         UNSUBSCRIBE,
         UNWATCH,
 
+        WAIT,
         WATCH,
 
         ZADD,
