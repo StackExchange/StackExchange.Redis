@@ -268,7 +268,7 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Indicates whether endpoints should be resolved via DNS before connecting.
-        /// If enabled the ConnectionMultiplexer will not re-resolve DNS
+        /// If enabled the ConnectionMultiplexer will re-resolve DNS
         /// when attempting to re-connect after a connection failure.
         /// </summary>
         public bool ResolveDns { get { return resolveDns.GetValueOrDefault(); } set { resolveDns = value; } }
