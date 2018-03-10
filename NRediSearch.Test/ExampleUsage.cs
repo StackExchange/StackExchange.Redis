@@ -8,19 +8,21 @@ namespace NRediSearch.Test
 {
     public class ExampleUsage : IDisposable
     {
-        ConnectionMultiplexer conn;
-        IDatabase db;
+        private ConnectionMultiplexer conn;
+        private IDatabase db;
         public ExampleUsage()
         {
             conn = ConnectionMultiplexer.Connect("127.0.0.1:6379");
             db = conn.GetDatabase();
         }
+
         public void Dispose()
         {
             conn?.Dispose();
             conn = null;
             db = null;
         }
+
         [Fact]
         public void BasicUsage()
         {
@@ -33,7 +35,7 @@ namespace NRediSearch.Test
                 .AddTextField("title", 5.0)
                 .AddTextField("body", 1.0)
                 .AddNumericField("price");
-            
+
             Assert.True(client.CreateIndex(sc, Client.IndexOptions.Default));
 
             // note: using java API equivalent here; it would be nice to
@@ -67,9 +69,6 @@ namespace NRediSearch.Test
             Assert.Equal("hello world", (string)item["title"]);
             Assert.Equal("lorem ipsum", (string)item["body"]);
             Assert.Equal(1337, (int)item["price"]);
-
-            
-
         }
     }
 }
