@@ -24,6 +24,6 @@
 
     <LibraryTargetFrameworks>net45;net46;netstandard1.5</LibraryTargetFrameworks>
     <CoreFxVersion>4.3.0</CoreFxVersion>
-    <xUnitVersion>2.4.0-beta1-build3908</xUnitVersion>
+    <xUnitVersion>2.4.0-beta.1.build3958</xUnitVersion>
   </PropertyGroup>
 </Project>
