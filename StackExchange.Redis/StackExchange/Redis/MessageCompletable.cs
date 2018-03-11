@@ -3,7 +3,7 @@ using System.Text;
 
 namespace StackExchange.Redis
 {
-    sealed class MessageCompletable : ICompletable
+    internal sealed class MessageCompletable : ICompletable
     {
         private readonly RedisChannel channel;
 
@@ -18,10 +18,8 @@ namespace StackExchange.Redis
             this.handler = handler;
         }
 
-        public override string ToString()
-        {
-            return (string)channel;
-        }
+        public override string ToString() => (string)channel;
+
         public bool TryComplete(bool isAsync)
         {
             if (handler == null) return true;

@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
-    sealed class LoggingMessage : Message
+    internal sealed class LoggingMessage : Message
     {
         public readonly TextWriter log;
         private readonly Message tail;
@@ -17,22 +17,20 @@ namespace StackExchange.Redis
         {
             return log == null ? tail : new LoggingMessage(log, tail);
         }
+
         private LoggingMessage(TextWriter log, Message tail) : base(tail.Db, tail.Flags, tail.Command)
         {
             this.log = log;
             this.tail = tail;
             FlagsRaw = tail.FlagsRaw;
         }
+
         public override string CommandAndKey => tail.CommandAndKey;
 
-        public override void AppendStormLog(StringBuilder sb)
-        {
-            tail.AppendStormLog(sb);
-        }
-        public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
-        {
-            return tail.GetHashSlot(serverSelectionStrategy);
-        }
+        public override void AppendStormLog(StringBuilder sb) => tail.AppendStormLog(sb);
+
+        public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => tail.GetHashSlot(serverSelectionStrategy);
+
         internal override void WriteImpl(PhysicalConnection physical)
         {
             try
@@ -46,9 +44,8 @@ namespace StackExchange.Redis
         public TextWriter Log => log;
     }
 
-    abstract class Message : ICompletable
+    internal abstract class Message : ICompletable
     {
-
         public static readonly Message[] EmptyArray = new Message[0];
         public readonly int Db;
 
@@ -58,12 +55,20 @@ namespace StackExchange.Redis
         private const CommandFlags AskingFlag = (CommandFlags)32,
                                    ScriptUnavailableFlag = (CommandFlags)256;
 
-        const CommandFlags MaskMasterServerPreference = CommandFlags.DemandMaster | CommandFlags.DemandSlave | CommandFlags.PreferMaster | CommandFlags.PreferSlave;
+        private const CommandFlags MaskMasterServerPreference = CommandFlags.DemandMaster
+                                                              | CommandFlags.DemandSlave
+                                                              | CommandFlags.PreferMaster
+                                                              | CommandFlags.PreferSlave;
 
-        private const CommandFlags UserSelectableFlags
-            = CommandFlags.None | CommandFlags.DemandMaster | CommandFlags.DemandSlave
-            | CommandFlags.PreferMaster | CommandFlags.PreferSlave
-            | CommandFlags.HighPriority | CommandFlags.FireAndForget | CommandFlags.NoRedirect | CommandFlags.NoScriptCache;
+        private const CommandFlags UserSelectableFlags = CommandFlags.None
+                                                       | CommandFlags.DemandMaster
+                                                       | CommandFlags.DemandSlave
+                                                       | CommandFlags.PreferMaster
+                                                       | CommandFlags.PreferSlave
+                                                       | CommandFlags.HighPriority
+                                                       | CommandFlags.FireAndForget
+                                                       | CommandFlags.NoRedirect
+                                                       | CommandFlags.NoScriptCache;
 
         private CommandFlags flags;
         internal CommandFlags FlagsRaw { get { return flags; } set { flags = value; } }
@@ -397,6 +402,7 @@ namespace StackExchange.Redis
             if (Db >= 0) sb.Append(Db).Append(':');
             sb.Append(CommandAndKey);
         }
+
         public virtual int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) { return ServerSelectionStrategy.NoSlot; }
         public bool IsMasterOnly()
         {
@@ -518,6 +524,7 @@ namespace StackExchange.Redis
             // for the purposes of the switch, we only care about two bits
             return flags & MaskMasterServerPreference;
         }
+
         internal static bool RequiresDatabase(RedisCommand command)
         {
             switch (command)
@@ -615,6 +622,7 @@ namespace StackExchange.Redis
         {
             flags = (flags & ~MaskMasterServerPreference) | CommandFlags.PreferSlave;
         }
+
         internal void SetSource(ResultProcessor resultProcessor, ResultBox resultBox)
         { // note order here reversed to prevent overload resolution errors
             this.resultBox = resultBox;
@@ -645,11 +653,12 @@ namespace StackExchange.Redis
                 Fail(ConnectionFailureType.InternalFailure, ex);
             }
         }
+
         internal abstract class CommandChannelBase : Message
         {
             protected readonly RedisChannel Channel;
 
-            public CommandChannelBase(int db, CommandFlags flags, RedisCommand command, RedisChannel channel) : base(db, flags, command)
+            protected CommandChannelBase(int db, CommandFlags flags, RedisCommand command, RedisChannel channel) : base(db, flags, command)
             {
                 channel.AssertNotNull();
                 Channel = channel;
@@ -662,7 +671,7 @@ namespace StackExchange.Redis
         {
             protected readonly RedisKey Key;
 
-            public CommandKeyBase(int db, CommandFlags flags, RedisCommand command, RedisKey key) : base(db, flags, command)
+            protected CommandKeyBase(int db, CommandFlags flags, RedisCommand command, RedisKey key) : base(db, flags, command)
             {
                 key.AssertNotNull();
                 Key = key;
@@ -675,7 +684,8 @@ namespace StackExchange.Redis
                 return serverSelectionStrategy.HashSlot(Key);
             }
         }
-        sealed class CommandChannelMessage : CommandChannelBase
+
+        private sealed class CommandChannelMessage : CommandChannelBase
         {
             public CommandChannelMessage(int db, CommandFlags flags, RedisCommand command, RedisChannel channel) : base(db, flags, command, channel)
             { }
@@ -686,7 +696,7 @@ namespace StackExchange.Redis
             }
         }
 
-        sealed class CommandChannelValueMessage : CommandChannelBase
+        private sealed class CommandChannelValueMessage : CommandChannelBase
         {
             private readonly RedisValue value;
             public CommandChannelValueMessage(int db, CommandFlags flags, RedisCommand command, RedisChannel channel, RedisValue value) : base(db, flags, command, channel)
@@ -694,6 +704,7 @@ namespace StackExchange.Redis
                 value.AssertNotNull();
                 this.value = value;
             }
+
             internal override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 2);
@@ -702,7 +713,7 @@ namespace StackExchange.Redis
             }
         }
 
-        sealed class CommandKeyKeyKeyMessage : CommandKeyBase
+        private sealed class CommandKeyKeyKeyMessage : CommandKeyBase
         {
             private readonly RedisKey key1, key2;
             public CommandKeyKeyKeyMessage(int db, CommandFlags flags, RedisCommand command, RedisKey key0, RedisKey key1, RedisKey key2) : base(db, flags, command, key0)
@@ -712,12 +723,12 @@ namespace StackExchange.Redis
                 this.key1 = key1;
                 this.key2 = key2;
             }
+
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
             {
                 var slot = serverSelectionStrategy.HashSlot(Key);
                 slot = serverSelectionStrategy.CombineSlot(slot, key1);
-                slot = serverSelectionStrategy.CombineSlot(slot, key2);
-                return slot;
+                return serverSelectionStrategy.CombineSlot(slot, key2);
             }
 
             internal override void WriteImpl(PhysicalConnection physical)
@@ -729,7 +740,7 @@ namespace StackExchange.Redis
             }
         }
 
-        class CommandKeyKeyMessage : CommandKeyBase
+        private class CommandKeyKeyMessage : CommandKeyBase
         {
             protected readonly RedisKey key1;
             public CommandKeyKeyMessage(int db, CommandFlags flags, RedisCommand command, RedisKey key0, RedisKey key1) : base(db, flags, command, key0)
@@ -737,11 +748,11 @@ namespace StackExchange.Redis
                 key1.AssertNotNull();
                 this.key1 = key1;
             }
+
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
             {
                 var slot = serverSelectionStrategy.HashSlot(Key);
-                slot = serverSelectionStrategy.CombineSlot(slot, key1);
-                return slot;
+                return serverSelectionStrategy.CombineSlot(slot, key1);
             }
 
             internal override void WriteImpl(PhysicalConnection physical)
@@ -751,7 +762,8 @@ namespace StackExchange.Redis
                 physical.Write(key1);
             }
         }
-        sealed class CommandKeyKeysMessage : CommandKeyBase
+
+        private sealed class CommandKeyKeysMessage : CommandKeyBase
         {
             private readonly RedisKey[] keys;
             public CommandKeyKeysMessage(int db, CommandFlags flags, RedisCommand command, RedisKey key, RedisKey[] keys) : base(db, flags, command, key)
@@ -762,6 +774,7 @@ namespace StackExchange.Redis
                 }
                 this.keys = keys;
             }
+
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
             {
                 var slot = serverSelectionStrategy.HashSlot(Key);
@@ -771,6 +784,7 @@ namespace StackExchange.Redis
                 }
                 return slot;
             }
+
             internal override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(command, keys.Length + 1);
@@ -782,7 +796,7 @@ namespace StackExchange.Redis
             }
         }
 
-        sealed class CommandKeyKeyValueMessage : CommandKeyKeyMessage
+        private sealed class CommandKeyKeyValueMessage : CommandKeyKeyMessage
         {
             private readonly RedisValue value;
             public CommandKeyKeyValueMessage(int db, CommandFlags flags, RedisCommand command, RedisKey key0, RedisKey key1, RedisValue value) : base(db, flags, command, key0, key1)
@@ -799,7 +813,8 @@ namespace StackExchange.Redis
                 physical.Write(value);
             }
         }
-        sealed class CommandKeyMessage : CommandKeyBase
+
+        private sealed class CommandKeyMessage : CommandKeyBase
         {
             public CommandKeyMessage(int db, CommandFlags flags, RedisCommand command, RedisKey key) : base(db, flags, command, key)
             { }
@@ -809,7 +824,8 @@ namespace StackExchange.Redis
                 physical.Write(Key);
             }
         }
-        sealed class CommandValuesMessage : Message
+
+        private sealed class CommandValuesMessage : Message
         {
             private readonly RedisValue[] values;
             public CommandValuesMessage(int db, CommandFlags flags, RedisCommand command, RedisValue[] values) : base(db, flags, command)
@@ -820,6 +836,7 @@ namespace StackExchange.Redis
                 }
                 this.values = values;
             }
+
             internal override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(command, values.Length);
@@ -829,7 +846,8 @@ namespace StackExchange.Redis
                 }
             }
         }
-        sealed class CommandKeysMessage : Message
+
+        private sealed class CommandKeysMessage : Message
         {
             private readonly RedisKey[] keys;
             public CommandKeysMessage(int db, CommandFlags flags, RedisCommand command, RedisKey[] keys) : base(db, flags, command)
@@ -861,7 +879,7 @@ namespace StackExchange.Redis
             }
         }
 
-        sealed class CommandKeyValueMessage : CommandKeyBase
+        private sealed class CommandKeyValueMessage : CommandKeyBase
         {
             private readonly RedisValue value;
             public CommandKeyValueMessage(int db, CommandFlags flags, RedisCommand command, RedisKey key, RedisValue value) : base(db, flags, command, key)
@@ -869,6 +887,7 @@ namespace StackExchange.Redis
                 value.AssertNotNull();
                 this.value = value;
             }
+
             internal override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 2);
@@ -876,7 +895,8 @@ namespace StackExchange.Redis
                 physical.Write(value);
             }
         }
-        sealed class CommandKeyValuesKeyMessage : CommandKeyBase
+
+        private sealed class CommandKeyValuesKeyMessage : CommandKeyBase
         {
             private readonly RedisKey key1;
             private readonly RedisValue[] values;
@@ -890,6 +910,7 @@ namespace StackExchange.Redis
                 key1.AssertNotNull();
                 this.key1 = key1;
             }
+
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
             {
                 var slot = base.GetHashSlot(serverSelectionStrategy);
@@ -905,7 +926,7 @@ namespace StackExchange.Redis
             }
         }
 
-        sealed class CommandKeyValuesMessage : CommandKeyBase
+        private sealed class CommandKeyValuesMessage : CommandKeyBase
         {
             private readonly RedisValue[] values;
             public CommandKeyValuesMessage(int db, CommandFlags flags, RedisCommand command, RedisKey key, RedisValue[] values) : base(db, flags, command, key)
@@ -916,6 +937,7 @@ namespace StackExchange.Redis
                 }
                 this.values = values;
             }
+
             internal override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, values.Length + 1);
@@ -924,7 +946,7 @@ namespace StackExchange.Redis
             }
         }
 
-        sealed class CommandKeyValueValueMessage : CommandKeyBase
+        private sealed class CommandKeyValueValueMessage : CommandKeyBase
         {
             private readonly RedisValue value0, value1;
             public CommandKeyValueValueMessage(int db, CommandFlags flags, RedisCommand command, RedisKey key, RedisValue value0, RedisValue value1) : base(db, flags, command, key)
@@ -934,6 +956,7 @@ namespace StackExchange.Redis
                 this.value0 = value0;
                 this.value1 = value1;
             }
+
             internal override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 3);
@@ -943,7 +966,7 @@ namespace StackExchange.Redis
             }
         }
 
-        sealed class CommandKeyValueValueValueMessage : CommandKeyBase
+        private sealed class CommandKeyValueValueValueMessage : CommandKeyBase
         {
             private readonly RedisValue value0, value1, value2;
             public CommandKeyValueValueValueMessage(int db, CommandFlags flags, RedisCommand command, RedisKey key, RedisValue value0, RedisValue value1, RedisValue value2) : base(db, flags, command, key)
@@ -955,6 +978,7 @@ namespace StackExchange.Redis
                 this.value1 = value1;
                 this.value2 = value2;
             }
+
             internal override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 4);
@@ -965,7 +989,7 @@ namespace StackExchange.Redis
             }
         }
 
-        sealed class CommandKeyValueValueValueValueMessage : CommandKeyBase
+        private sealed class CommandKeyValueValueValueValueMessage : CommandKeyBase
         {
             private readonly RedisValue value0, value1, value2, value3;
             public CommandKeyValueValueValueValueMessage(int db, CommandFlags flags, RedisCommand command, RedisKey key, RedisValue value0, RedisValue value1, RedisValue value2, RedisValue value3) : base(db, flags, command, key)
@@ -979,6 +1003,7 @@ namespace StackExchange.Redis
                 this.value2 = value2;
                 this.value3 = value3;
             }
+
             internal override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 5);
@@ -990,7 +1015,7 @@ namespace StackExchange.Redis
             }
         }
 
-        sealed class CommandMessage : Message
+        private sealed class CommandMessage : Message
         {
             public CommandMessage(int db, CommandFlags flags, RedisCommand command) : base(db, flags, command) { }
             internal override void WriteImpl(PhysicalConnection physical)
@@ -1014,10 +1039,12 @@ namespace StackExchange.Redis
                 }
                 this.values = values;
             }
+
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
             {
                 return slot;
             }
+
             internal override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(command, values.Length);
@@ -1028,7 +1055,7 @@ namespace StackExchange.Redis
             }
         }
 
-        sealed class CommandValueChannelMessage : CommandChannelBase
+        private sealed class CommandValueChannelMessage : CommandChannelBase
         {
             private readonly RedisValue value;
             public CommandValueChannelMessage(int db, CommandFlags flags, RedisCommand command, RedisValue value, RedisChannel channel) : base(db, flags, command, channel)
@@ -1036,6 +1063,7 @@ namespace StackExchange.Redis
                 value.AssertNotNull();
                 this.value = value;
             }
+
             internal override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 2);
@@ -1043,7 +1071,8 @@ namespace StackExchange.Redis
                 physical.Write(Channel);
             }
         }
-        sealed class CommandValueKeyMessage : CommandKeyBase
+
+        private sealed class CommandValueKeyMessage : CommandKeyBase
         {
             private readonly RedisValue value;
 
@@ -1058,6 +1087,7 @@ namespace StackExchange.Redis
                 base.AppendStormLog(sb);
                 sb.Append(" (").Append((string)value).Append(')');
             }
+
             internal override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 2);
@@ -1066,7 +1096,7 @@ namespace StackExchange.Redis
             }
         }
 
-        sealed class CommandValueMessage : Message
+        private sealed class CommandValueMessage : Message
         {
             private readonly RedisValue value;
             public CommandValueMessage(int db, CommandFlags flags, RedisCommand command, RedisValue value) : base(db, flags, command)
@@ -1074,6 +1104,7 @@ namespace StackExchange.Redis
                 value.AssertNotNull();
                 this.value = value;
             }
+
             internal override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 1);
@@ -1081,7 +1112,7 @@ namespace StackExchange.Redis
             }
         }
 
-        sealed class CommandValueValueMessage : Message
+        private sealed class CommandValueValueMessage : Message
         {
             private readonly RedisValue value0, value1;
             public CommandValueValueMessage(int db, CommandFlags flags, RedisCommand command, RedisValue value0, RedisValue value1) : base(db, flags, command)
@@ -1091,6 +1122,7 @@ namespace StackExchange.Redis
                 this.value0 = value0;
                 this.value1 = value1;
             }
+
             internal override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 2);
@@ -1099,7 +1131,7 @@ namespace StackExchange.Redis
             }
         }
 
-        sealed class CommandValueValueValueMessage : Message
+        private sealed class CommandValueValueValueMessage : Message
         {
             private readonly RedisValue value0, value1, value2;
             public CommandValueValueValueMessage(int db, CommandFlags flags, RedisCommand command, RedisValue value0, RedisValue value1, RedisValue value2) : base(db, flags, command)
@@ -1111,6 +1143,7 @@ namespace StackExchange.Redis
                 this.value1 = value1;
                 this.value2 = value2;
             }
+
             internal override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 3);
@@ -1120,7 +1153,7 @@ namespace StackExchange.Redis
             }
         }
 
-        sealed class CommandValueValueValueValueValueMessage : Message
+        private sealed class CommandValueValueValueValueValueMessage : Message
         {
             private readonly RedisValue value0, value1, value2, value3, value4;
             public CommandValueValueValueValueValueMessage(int db, CommandFlags flags, RedisCommand command, RedisValue value0, RedisValue value1, RedisValue value2, RedisValue value3, RedisValue value4) : base(db, flags, command)
@@ -1136,6 +1169,7 @@ namespace StackExchange.Redis
                 this.value3 = value3;
                 this.value4 = value4;
             }
+
             internal override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 5);
@@ -1147,11 +1181,12 @@ namespace StackExchange.Redis
             }
         }
 
-        sealed class SelectMessage : Message
+        private sealed class SelectMessage : Message
         {
             public SelectMessage(int db, CommandFlags flags) : base(db, flags, RedisCommand.SELECT)
             {
             }
+
             internal override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 1);
