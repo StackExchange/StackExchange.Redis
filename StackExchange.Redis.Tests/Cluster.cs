@@ -162,15 +162,8 @@ namespace StackExchange.Redis.Tests
                     string b = conn.GetServer(node.EndPoint).StringGet(db.Database, key);
                     Assert.Equal(value, b); // wrong master, allow redirect
 
-                    try
-                    {
-                        string c = conn.GetServer(node.EndPoint).StringGet(db.Database, key, CommandFlags.NoRedirect);
-                        Assert.True(false, "wrong master, no redirect");
-                    }
-                    catch (RedisServerException ex)
-                    {
-                        Assert.True("MOVED " + slot + " " + rightMasterNode.EndPoint == ex.Message, "wrong master, no redirect");
-                    }
+                    var ex = Assert.Throws<RedisServerException>(() => conn.GetServer(node.EndPoint).StringGet(db.Database, key, CommandFlags.NoRedirect));
+                    Assert.StartsWith($"Key has MOVED from Endpoint {rightMasterNode.EndPoint} and hashslot {slot}", ex.Message);
                 }
 
                 node = config.Nodes.FirstOrDefault(x => x.IsSlave && x.ParentNodeId == rightMasterNode.NodeId);
@@ -187,16 +180,9 @@ namespace StackExchange.Redis.Tests
                 {
                     string e = conn.GetServer(node.EndPoint).StringGet(db.Database, key);
                     Assert.Equal(value, e); // wrong slave, allow redirect
-
-                    try
-                    {
-                        string f = conn.GetServer(node.EndPoint).StringGet(db.Database, key, CommandFlags.NoRedirect);
-                        Assert.True(false, "wrong slave, no redirect");
-                    }
-                    catch (RedisServerException ex)
-                    {
-                        Assert.True("MOVED " + slot + " " + rightMasterNode.EndPoint == ex.Message, "wrong slave, no redirect");
-                    }
+                    
+                    var ex = Assert.Throws<RedisServerException>(() => conn.GetServer(node.EndPoint).StringGet(db.Database, key, CommandFlags.NoRedirect));
+                    Assert.StartsWith($"Key has MOVED from Endpoint {rightMasterNode.EndPoint} and hashslot {slot}", ex.Message);
                 }
 #endif
 

@@ -175,7 +175,14 @@ namespace StackExchange.Redis
                             }
                             else
                             {
-                                err = string.Format("Endpoint {0} serving hashslot {1} is not reachable at this point of time. Please check connectTimeout value. If it is low, try increasing it to give the ConnectionMultiplexer a chance to recover from the network disconnect.  ", endpoint, hashSlot);
+                                if (isMoved && (message.Flags & CommandFlags.NoRedirect) != 0)
+                                {
+                                    err = $"Key has MOVED from Endpoint {endpoint} and hashslot {hashSlot} but CommandFlags.NoRedirect was specified - redirect not followed. ";
+                                }
+                                else
+                                {
+                                    err = $"Endpoint {endpoint} serving hashslot {hashSlot} is not reachable at this point of time. Please check connectTimeout value. If it is low, try increasing it to give the ConnectionMultiplexer a chance to recover from the network disconnect.  ";
+                                }
 #if FEATURE_PERFCOUNTER
                                 err += ConnectionMultiplexer.GetThreadPoolAndCPUSummary(bridge.Multiplexer.IncludePerformanceCountersInExceptions);
 #endif
