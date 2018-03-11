@@ -11,13 +11,6 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
-    internal enum SocketMode
-    {
-        Abort,
-        Poll,
-        Async
-    }
-
     /// <summary>
     /// Allows callbacks from SocketManager as work is discovered
     /// </summary>
@@ -331,26 +324,26 @@ namespace StackExchange.Redis
 #endif
                 var netStream = new NetworkStream(socket, false);
                 var socketMode = callback?.Connected(netStream, log) ?? SocketMode.Abort;
-                switch (socketMode)
+                if (socketMode == SocketMode.Poll)
                 {
-                    case SocketMode.Poll:
-                        multiplexer.LogLocked(log, "Starting poll");
-                        OnAddRead(socket, callback);
-                        break;
-                    case SocketMode.Async:
-                        multiplexer.LogLocked(log, "Starting read");
-                        try
-                        { callback.StartReading(); }
-                        catch (Exception ex)
-                        {
-                            ConnectionMultiplexer.TraceWithoutContext(ex.Message);
-                            Shutdown(socket);
-                        }
-                        break;
-                    default:
-                        ConnectionMultiplexer.TraceWithoutContext("Aborting socket");
+                    multiplexer.LogLocked(log, "Starting poll");
+                    OnAddRead(socket, callback);
+                }
+                else if (socketMode == SocketMode.Async)
+                {
+                    multiplexer.LogLocked(log, "Starting read");
+                    try
+                    { callback.StartReading(); }
+                    catch (Exception ex)
+                    {
+                        ConnectionMultiplexer.TraceWithoutContext(ex.Message);
                         Shutdown(socket);
-                        break;
+                    }
+                }
+                else
+                {
+                    ConnectionMultiplexer.TraceWithoutContext("Aborting socket");
+                    Shutdown(socket);
                 }
             }
             catch (ObjectDisposedException)

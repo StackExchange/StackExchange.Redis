@@ -335,5 +335,32 @@ namespace StackExchange.Redis.Tests
                 }
             }
         }
+        
+        [Fact]
+        public void AsyncSocketMode()
+        {
+            var options = ConfigurationOptions.Parse($"socketMode={SocketMode.Async}");
+            Assert.True(options.SocketMode.Equals(SocketMode.Async));
+        }
+
+        [Fact]
+        public void PollSocketMode()
+        {
+            var options = ConfigurationOptions.Parse($"socketMode={SocketMode.Poll}");
+            Assert.True(options.SocketMode.Equals(SocketMode.Poll));
+        }
+
+        [Fact]
+        public void InvalidSocketMode()
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() => ConfigurationOptions.Parse($"socketMode={SocketMode.Abort}"));
+        }
+
+        [Fact]
+        public void DefaultSocketMode()
+        {
+            var options = new ConfigurationOptions();
+            Assert.True(options.SocketMode.Equals(SocketManager.DefaultSocketMode));
+        }
     }
 }

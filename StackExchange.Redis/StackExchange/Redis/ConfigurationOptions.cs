@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
@@ -59,6 +59,18 @@ namespace StackExchange.Redis
                 return tmp;
             }
 
+            internal static SocketMode ParseSocketMode(string key, string value)
+            {
+                if (validSocketModes.TryGetValue(value, out SocketMode socketMode))
+                {
+                    return socketMode;
+                }
+                else
+                {
+                    throw new ArgumentOutOfRangeException($"Keyword {key} requires a SocketMode value. Valid values are {string.Join(", ", validSocketModes.Keys)}.");
+                }
+            }
+
             internal static void Unknown(string key)
             {
                 throw new ArgumentException("Keyword '" + key + "' is not supported");
@@ -82,6 +94,7 @@ namespace StackExchange.Redis
                 ResolveDns = "resolveDns",
                 ResponseTimeout = "responseTimeout",
                 ServiceName = "serviceName",
+                SocketMode = "socketMode",
                 Ssl = "ssl",
                 SslHost = "sslHost",
                 SslProtocols = "sslProtocols",
@@ -89,6 +102,12 @@ namespace StackExchange.Redis
                 TieBreaker = "tiebreaker",
                 Version = "version",
                 WriteBuffer = "writeBuffer";
+
+            private static readonly Dictionary<string, SocketMode> validSocketModes = new Dictionary<string, SocketMode>(StringComparer.OrdinalIgnoreCase)
+            {
+                { nameof(Redis.SocketMode.Poll), Redis.SocketMode.Poll },
+                { nameof(Redis.SocketMode.Async), Redis.SocketMode.Async },
+            };
 
             private static readonly Dictionary<string, string> normalizedOptions = new[]
             {
@@ -108,6 +127,7 @@ namespace StackExchange.Redis
                 Proxy,
                 ResolveDns,
                 ServiceName,
+                SocketMode,
                 Ssl,
                 SslHost,
                 SslProtocols,
@@ -138,6 +158,8 @@ namespace StackExchange.Redis
         private int? keepAlive, syncTimeout, connectTimeout, responseTimeout, writeBuffer, connectRetry, configCheckSeconds;
 
         private Proxy? proxy;
+
+        private SocketMode? socketMode;
 
         private IReconnectRetryPolicy reconnectRetryPolicy;
 
@@ -247,6 +269,11 @@ namespace StackExchange.Redis
         /// Use ThreadPriority.AboveNormal for SocketManager reader and writer threads (true by default). If false, ThreadPriority.Normal will be used.
         /// </summary>
         public bool HighPrioritySocketThreads { get { return highPrioritySocketThreads ?? true; } set { highPrioritySocketThreads = value; } }
+
+        /// <summary>
+        /// Specifies the socket mode to be used
+        /// </summary>
+        public SocketMode? SocketMode { get { return socketMode ?? SocketManager.DefaultSocketMode; } set { socketMode = value; } }
 
         /// <summary>
         /// Specifies the time in seconds at which connections should be pinged to ensure validity
@@ -398,6 +425,7 @@ namespace StackExchange.Redis
                 DefaultDatabase = DefaultDatabase,
                 ReconnectRetryPolicy = reconnectRetryPolicy,
                 preserveAsyncOrder = preserveAsyncOrder,
+                socketMode = socketMode,
 #if !NETSTANDARD1_5
                 SslProtocols = SslProtocols,
 #endif
@@ -458,6 +486,7 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.ResponseTimeout, responseTimeout);
             Append(sb, OptionKeys.DefaultDatabase, DefaultDatabase);
             Append(sb, OptionKeys.PreserveAsyncOrder, preserveAsyncOrder);
+            Append(sb, OptionKeys.SocketMode, socketMode);
             commandMap?.AppendDeltas(sb);
             return sb.ToString();
         }
@@ -540,6 +569,7 @@ namespace StackExchange.Redis
             defaultVersion = null;
             EndPoints.Clear();
             commandMap = null;
+            socketMode = null;
 
             CertificateSelection = null;
             CertificateValidation = null;
@@ -651,6 +681,9 @@ namespace StackExchange.Redis
                             break;
                         case OptionKeys.PreserveAsyncOrder:
                             PreserveAsyncOrder = OptionKeys.ParseBoolean(key, value);
+                            break;
+                        case OptionKeys.SocketMode:
+                            SocketMode = OptionKeys.ParseSocketMode(key, value);
                             break;
 #if !NETSTANDARD1_5
                         case OptionKeys.SslProtocols:

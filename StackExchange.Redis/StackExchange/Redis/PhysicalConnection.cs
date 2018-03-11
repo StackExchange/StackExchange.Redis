@@ -787,14 +787,14 @@ namespace StackExchange.Redis
         {
             try
             {
-                var socketMode = SocketManager.DefaultSocketMode;
-
                 // disallow connection in some cases
                 OnDebugAbort();
 
                 // the order is important here:
                 // [network]<==[ssl]<==[logging]<==[buffered]
                 var config = Multiplexer.RawConfig;
+
+                var socketMode = config.SocketMode ?? SocketManager.DefaultSocketMode;
 
                 if (config.Ssl)
                 {
