@@ -5,6 +5,7 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
+    [Collection(NonParallelCollection.Name)]
     public class Secure : TestBase
     {
         protected override string GetConfiguration() =>
@@ -42,7 +43,7 @@ namespace StackExchange.Redis.Tests
 #if DEBUG
                 long newAlloc = ConnectionMultiplexer.GetResultBoxAllocationCount();
                 Output.WriteLine("ResultBox allocations: {0}", newAlloc - oldAlloc);
-                Assert.True(newAlloc - oldAlloc <= 2);
+                Assert.True(newAlloc - oldAlloc <= 2, $"NewAllocs: {newAlloc}, OldAllocs: {oldAlloc}");
 #endif
             }
         }
