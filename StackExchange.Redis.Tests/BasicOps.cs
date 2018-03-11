@@ -411,7 +411,7 @@ namespace StackExchange.Redis.Tests
         public void MassiveBulkOpsSync(bool preserveOrder, int threads)
         {
             int workPerThread = SyncOpsQty / threads;
-            using (var muxer = Create(syncTimeout: 20000))
+            using (var muxer = Create(syncTimeout: 30000))
             {
                 muxer.PreserveAsyncOrder = preserveOrder;
                 RedisKey key = "MBOS";
@@ -492,7 +492,7 @@ namespace StackExchange.Redis.Tests
         [InlineData(false, 5)]
         public void MassiveBulkOpsFireAndForget(bool preserveOrder, int threads)
         {
-            using (var muxer = Create(syncTimeout: 20000))
+            using (var muxer = Create(syncTimeout: 30000))
             {
                 muxer.PreserveAsyncOrder = preserveOrder;
 #if DEBUG
