@@ -33,24 +33,19 @@ namespace StackExchange.Redis.Tests
             {
                 case SourceOrign.NewTCS: return new TaskCompletionSource<T>();
                 case SourceOrign.Create: return TaskSource.Create<T>(null);
-                case SourceOrign.CreateDenyExec: return TaskSource.CreateDenyExecSync<T>(null);
                 default: throw new ArgumentOutOfRangeException(nameof(origin));
             }
         }
 
         [Theory]
         // regular framework behaviour: 2 out of 3 cause hijack
-        [InlineData(SourceOrign.NewTCS, AttachMode.ContinueWith, false)]
-        [InlineData(SourceOrign.NewTCS, AttachMode.ContinueWithExecSync, true)]
+        [InlineData(SourceOrign.NewTCS, AttachMode.ContinueWith, true)]
+        [InlineData(SourceOrign.NewTCS, AttachMode.ContinueWithExecSync, false)]
         [InlineData(SourceOrign.NewTCS, AttachMode.Await, true)]
         // Create is just a wrapper of ^^^; expect the same
-        [InlineData(SourceOrign.Create, AttachMode.ContinueWith, false)]
-        [InlineData(SourceOrign.Create, AttachMode.ContinueWithExecSync, true)]
+        [InlineData(SourceOrign.Create, AttachMode.ContinueWith, true)]
+        [InlineData(SourceOrign.Create, AttachMode.ContinueWithExecSync, false)]
         [InlineData(SourceOrign.Create, AttachMode.Await, true)]
-        // deny exec-sync: none should cause hijack
-        [InlineData(SourceOrign.CreateDenyExec, AttachMode.ContinueWith, false)]
-        [InlineData(SourceOrign.CreateDenyExec, AttachMode.ContinueWithExecSync, false)]
-        [InlineData(SourceOrign.CreateDenyExec, AttachMode.Await, false)]
         public void TestContinuationHijacking(SourceOrign origin, AttachMode attachMode, bool expectHijack)
         {
             TaskCompletionSource<int> source = Create<int>(origin);
@@ -64,19 +59,18 @@ namespace StackExchange.Redis.Tests
             Assert.NotEqual(-1, from); // not set
             if (expectHijack)
             {
-                Assert.True(settingThread == from, "expected hijack; didn't happen");
+                Assert.True(settingThread != from, $"expected hijack; didn't happen, Origin={settingThread}, Final={from}");
             }
             else
             {
-                Assert.False(settingThread == from, "setter was hijacked");
+                Assert.True(settingThread == from, $"setter was hijacked, Origin={settingThread}, Final={from}");
             }
         }
 
         public enum SourceOrign
         {
             NewTCS,
-            Create,
-            CreateDenyExec
+            Create
         }
 
         public enum AttachMode

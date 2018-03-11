@@ -562,7 +562,7 @@ namespace StackExchange.Redis
 
         internal Task<T> QueueDirectAsync<T>(Message message, ResultProcessor<T> processor, object asyncState = null, PhysicalBridge bridge = null)
         {
-            var tcs = TaskSource.CreateDenyExecSync<T>(asyncState);
+            var tcs = TaskSource.Create<T>(asyncState);
             var source = ResultBox<T>.Get(tcs);
             message.SetSource(processor, source);
             if (bridge == null) bridge = GetBridge(message.Command);
