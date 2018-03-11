@@ -285,8 +285,8 @@ namespace StackExchange.Redis
         /// </summary>
         Async = 2
     }
-#if FEATURE_PERFCOUNTER
 
+#if FEATURE_PERFCOUNTER
     internal static class PerfCounterHelper
     {
         private static readonly object staticLock = new object();
@@ -334,7 +334,7 @@ namespace StackExchange.Redis
     }
 #endif
 #if FEATURE_THREADPOOL
-    internal class CompletionTypeHelper
+    internal static class CompletionTypeHelper
     {
         public static void RunWithCompletionType(Func<AsyncCallback, IAsyncResult> beginAsync, AsyncCallback callback, CompletionType completionType)
         {

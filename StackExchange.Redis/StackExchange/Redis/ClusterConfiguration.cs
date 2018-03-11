@@ -112,9 +112,9 @@ namespace StackExchange.Redis
         /// <summary>
         /// Indicates whether two ranges are equal
         /// </summary>
-        public bool Equals(SlotRange range)
+        public bool Equals(SlotRange other)
         {
-            return range.from == this.from && range.to == this.to;
+            return other.from == this.from && other.to == this.to;
         }
 
         /// <summary>
@@ -456,11 +456,11 @@ namespace StackExchange.Redis
         /// <summary>
         /// Indicates whether two ClusterNode instances are equivalent
         /// </summary>
-        public bool Equals(ClusterNode node)
+        public bool Equals(ClusterNode other)
         {
-            if (node == null) return false;
+            if (other == null) return false;
 
-            return this.ToString() == node.ToString(); // lazy, but effective - plus only computes once
+            return this.ToString() == other.ToString(); // lazy, but effective - plus only computes once
         }
 
         /// <summary>

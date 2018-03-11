@@ -1151,7 +1151,7 @@ namespace StackExchange.Redis
 
         partial void DebugEmulateStaleConnection(ref int firstUnansweredWrite);
 
-        public void CheckForStaleConnection(ref SocketManager.ManagerState managerState)
+        public void CheckForStaleConnection(ref SocketManager.ManagerState state)
         {
             int firstUnansweredWrite = VolatileWrapper.Read(ref firstUnansweredWriteTickCount);
 
@@ -1161,7 +1161,7 @@ namespace StackExchange.Redis
 
             if (firstUnansweredWrite != 0 && (now - firstUnansweredWrite) > this.Multiplexer.RawConfig.ResponseTimeout)
             {
-                this.RecordConnectionFailed(ConnectionFailureType.SocketFailure, ref managerState, origin: "CheckForStaleConnection");
+                this.RecordConnectionFailed(ConnectionFailureType.SocketFailure, ref state, origin: "CheckForStaleConnection");
             }
         }
     }

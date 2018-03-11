@@ -254,7 +254,8 @@ namespace StackExchange.Redis.Tests
                 var info2 = server.Info("cpu");
                 Assert.Single(info2);
                 var cpu = info2.Single();
-                Assert.True(cpu.Count() > 2);
+                var cpuCount = cpu.Count();
+                Assert.True(cpuCount > 2);
                 Assert.Equal("CPU", cpu.Key);
                 Assert.Contains(cpu, x => x.Key == "used_cpu_sys");
                 Assert.Contains(cpu, x => x.Key == "used_cpu_user");

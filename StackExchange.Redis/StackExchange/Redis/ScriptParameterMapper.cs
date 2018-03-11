@@ -8,7 +8,7 @@ using System.Text.RegularExpressions;
 
 namespace StackExchange.Redis
 {
-    class ScriptParameterMapper
+    internal static class ScriptParameterMapper
     {
         public struct ScriptParameters
         {

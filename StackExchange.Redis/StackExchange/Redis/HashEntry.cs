@@ -76,9 +76,9 @@ namespace StackExchange.Redis
         /// <summary>
         /// Compares two values for equality
         /// </summary>
-        public bool Equals(HashEntry value)
+        public bool Equals(HashEntry other)
         {
-            return name == value.name && this.value == value.value;
+            return name == other.name && this.value == other.value;
         }
         /// <summary>
         /// Compares two values for equality

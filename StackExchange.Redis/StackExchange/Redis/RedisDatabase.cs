@@ -93,9 +93,9 @@ namespace StackExchange.Redis
             return SortedSetRemoveAsync(key, member, flags);
         }
 
-        public double? GeoDistance(RedisKey key, RedisValue value0, RedisValue value1, GeoUnit unit = GeoUnit.Meters, CommandFlags flags = CommandFlags.None)
+        public double? GeoDistance(RedisKey key, RedisValue member1, RedisValue member2, GeoUnit unit = GeoUnit.Meters, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(Database, flags, RedisCommand.GEODIST, key, value0, value1, StackExchange.Redis.GeoPosition.GetRedisUnit(unit));
+            var msg = Message.Create(Database, flags, RedisCommand.GEODIST, key, member1, member2, StackExchange.Redis.GeoPosition.GetRedisUnit(unit));
             return ExecuteSync(msg, ResultProcessor.NullableDouble);
         }
         public Task<double?> GeoDistanceAsync(RedisKey key, RedisValue value0, RedisValue value1, GeoUnit unit = GeoUnit.Meters, CommandFlags flags = CommandFlags.None)
@@ -1609,9 +1609,9 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
-        public long StringBitPosition(RedisKey key, bool value, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None)
+        public long StringBitPosition(RedisKey key, bool bit, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(Database, flags, RedisCommand.BITPOS, key, value, start, end);
+            var msg = Message.Create(Database, flags, RedisCommand.BITPOS, key, bit, start, end);
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
@@ -1783,9 +1783,9 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Boolean);
         }
 
-        public bool StringSetBit(RedisKey key, long offset, bool value, CommandFlags flags = CommandFlags.None)
+        public bool StringSetBit(RedisKey key, long offset, bool bit, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(Database, flags, RedisCommand.SETBIT, key, offset, value);
+            var msg = Message.Create(Database, flags, RedisCommand.SETBIT, key, offset, bit);
             return ExecuteSync(msg, ResultProcessor.Boolean);
         }
 

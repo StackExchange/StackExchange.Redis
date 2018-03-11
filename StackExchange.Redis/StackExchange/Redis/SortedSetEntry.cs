@@ -88,25 +88,25 @@ namespace StackExchange.Redis
         /// <summary>
         /// Compares two values for equality
         /// </summary>
-        public bool Equals(SortedSetEntry value)
+        public bool Equals(SortedSetEntry other)
         {
-            return score == value.score && element == value.element;
+            return score == other.score && element == other.element;
         }
 
         /// <summary>
         /// Compares two values by score
         /// </summary>
-        public int CompareTo(SortedSetEntry value)
+        public int CompareTo(SortedSetEntry other)
         {
-            return score.CompareTo(value.score);
+            return score.CompareTo(other.score);
         }
 
         /// <summary>
         /// Compares two values by score
         /// </summary>
-        public int CompareTo(object value)
+        public int CompareTo(object obj)
         {
-            return value is SortedSetEntry ? CompareTo((SortedSetEntry)value) : -1;
+            return obj is SortedSetEntry ? CompareTo((SortedSetEntry)obj) : -1;
         }
 
         /// <summary>

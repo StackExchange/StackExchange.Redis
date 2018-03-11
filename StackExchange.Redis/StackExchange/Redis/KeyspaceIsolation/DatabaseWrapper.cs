@@ -32,13 +32,13 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.GeoAdd(ToInner(key), longitude, latitude, member, flags);
         }
 
-        public long GeoAdd(RedisKey key, GeoEntry[] geoEntries, CommandFlags flags = CommandFlags.None)
+        public long GeoAdd(RedisKey key, GeoEntry[] values, CommandFlags flags = CommandFlags.None)
         {
-            return Inner.GeoAdd(ToInner(key), geoEntries, flags);
+            return Inner.GeoAdd(ToInner(key), values, flags);
         }
-        public bool GeoAdd(RedisKey key, GeoEntry geoEntry, CommandFlags flags = CommandFlags.None)
+        public bool GeoAdd(RedisKey key, GeoEntry value, CommandFlags flags = CommandFlags.None)
         {
-            return Inner.GeoAdd(ToInner(key), geoEntry, flags);
+            return Inner.GeoAdd(ToInner(key), value, flags);
         }
 
         public bool GeoRemove(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
@@ -46,9 +46,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.GeoRemove(ToInner(key), member, flags);
         }
 
-        public double? GeoDistance(RedisKey key, RedisValue value0, RedisValue value1, GeoUnit unit = GeoUnit.Meters,CommandFlags flags = CommandFlags.None)
+        public double? GeoDistance(RedisKey key, RedisValue member1, RedisValue member2, GeoUnit unit = GeoUnit.Meters,CommandFlags flags = CommandFlags.None)
         {
-            return Inner.GeoDistance(ToInner(key), value0, value1, unit, flags);
+            return Inner.GeoDistance(ToInner(key), member1, member2, unit, flags);
         }
 
         public string[] GeoHash(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)

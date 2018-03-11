@@ -577,14 +577,14 @@ namespace StackExchange.Redis
             return new RedisFeatures(server.Version);
         }
 
-        public void SlaveOf(EndPoint endpoint, CommandFlags flags = CommandFlags.None)
+        public void SlaveOf(EndPoint master, CommandFlags flags = CommandFlags.None)
         {
-            if (endpoint == server.EndPoint)
+            if (master == server.EndPoint)
             {
                 throw new ArgumentException("Cannot slave to self");
             }
             // prepare the actual slaveof message (not sent yet)
-            var slaveofMsg = CreateSlaveOfMessage(endpoint, flags);
+            var slaveofMsg = CreateSlaveOfMessage(master, flags);
 
             var configuration = this.multiplexer.RawConfig;
 
@@ -610,10 +610,10 @@ namespace StackExchange.Redis
             }
         }
 
-        public Task SlaveOfAsync(EndPoint endpoint, CommandFlags flags = CommandFlags.None)
+        public Task SlaveOfAsync(EndPoint master, CommandFlags flags = CommandFlags.None)
         {
-            var msg = CreateSlaveOfMessage(endpoint, flags);
-            if (endpoint == server.EndPoint)
+            var msg = CreateSlaveOfMessage(master, flags);
+            if (master == server.EndPoint)
             {
                 throw new ArgumentException("Cannot slave to self");
             }

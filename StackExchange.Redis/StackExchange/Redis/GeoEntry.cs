@@ -139,9 +139,9 @@ namespace StackExchange.Redis
         /// <summary>
         /// Compares two values for equality
         /// </summary>
-        public bool Equals(GeoPosition value)
+        public bool Equals(GeoPosition other)
         {
-            return this == value;
+            return this == other;
         }
         /// <summary>
         /// Compares two values for equality
@@ -220,9 +220,9 @@ namespace StackExchange.Redis
         /// <summary>
         /// Compares two values for equality
         /// </summary>
-        public bool Equals(GeoEntry value)
+        public bool Equals(GeoEntry other)
         {
-            return this == value;
+            return this == other;
         }
         /// <summary>
         /// Compares two values for equality
