@@ -74,9 +74,6 @@ namespace StackExchange.Redis.Tests
 
                 primary.MakeMaster(ReplicationChangeOptions.Broadcast | ReplicationChangeOptions.EnslaveSubordinates | ReplicationChangeOptions.SetTiebreaker, Writer);
 
-                // Give the servers a chance to sort themselves
-                await conn.ReconfigureAsync(false, false, Writer, primary.EndPoint, "Re-analyze after topology change").ConfigureAwait(false);
-
                 await Task.Delay(5000).ConfigureAwait(false);
 
                 primary.Ping();
