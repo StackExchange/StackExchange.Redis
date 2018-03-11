@@ -1,5 +1,3 @@
-using System;
-
 namespace StackExchange.Redis
 {
     /// <summary>
@@ -7,7 +5,7 @@ namespace StackExchange.Redis
     /// </summary>
     public class LinearRetry : IReconnectRetryPolicy
     {
-        private int maxRetryElapsedTimeAllowedMilliseconds;
+        private readonly int maxRetryElapsedTimeAllowedMilliseconds;
 
         /// <summary>
         /// Initializes a new instance using the specified maximum retry elapsed time allowed.
