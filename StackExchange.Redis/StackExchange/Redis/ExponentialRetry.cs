@@ -7,8 +7,8 @@ namespace StackExchange.Redis
     /// </summary>
     public class ExponentialRetry : IReconnectRetryPolicy
     {
-        private int deltaBackOffMilliseconds;
-        private int maxDeltaBackOffMilliseconds = (int)TimeSpan.FromSeconds(10).TotalMilliseconds;
+        private readonly int deltaBackOffMilliseconds;
+        private readonly int maxDeltaBackOffMilliseconds = (int)TimeSpan.FromSeconds(10).TotalMilliseconds;
         [ThreadStatic]
         private static Random r;
 
@@ -16,9 +16,7 @@ namespace StackExchange.Redis
         /// Initializes a new instance using the specified back off interval with default maxDeltaBackOffMilliseconds of 10 seconds
         /// </summary>
         /// <param name="deltaBackOffMilliseconds">time in milliseconds for the back-off interval between retries</param>
-        public ExponentialRetry(int deltaBackOffMilliseconds) : this(deltaBackOffMilliseconds, (int)TimeSpan.FromSeconds(10).TotalMilliseconds)
-        {
-        }
+        public ExponentialRetry(int deltaBackOffMilliseconds) : this(deltaBackOffMilliseconds, (int)TimeSpan.FromSeconds(10).TotalMilliseconds) {}
 
         /// <summary>
         /// Initializes a new instance using the specified back off interval.
