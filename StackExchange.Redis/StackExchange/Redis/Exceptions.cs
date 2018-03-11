@@ -23,6 +23,8 @@ namespace StackExchange.Redis
         /// <summary>
         /// Serialization implementation; not intended for general usage
         /// </summary>
+        /// <param name="info">Serialization info.</param>
+        /// <param name="context">Serialization context.</param>
         public override void GetObjectData(SerializationInfo info, StreamingContext context)
         {
             base.GetObjectData(info, context);
@@ -41,6 +43,8 @@ namespace StackExchange.Redis
         /// <summary>
         /// Serialization implementation; not intended for general usage
         /// </summary>
+        /// <param name="info">Serialization info.</param>
+        /// <param name="context">Serialization context.</param>
         public override void GetObjectData(SerializationInfo info, StreamingContext context)
         {
             base.GetObjectData(info, context);
@@ -55,6 +59,8 @@ namespace StackExchange.Redis
         /// <summary>
         /// Deserialization constructor; not intended for general usage
         /// </summary>
+        /// <param name="info">Serialization info.</param>
+        /// <param name="ctx">Serialization context.</param>
         protected RedisException(SerializationInfo info, StreamingContext ctx) : base(info, ctx) { }
     }
 
