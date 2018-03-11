@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -72,20 +73,22 @@ namespace StackExchange.Redis.Tests
         [Theory]
         [InlineData("wrong")]
         [InlineData("")]
-        public void ConnectWithWrongPassword(string password)
+        public async Task ConnectWithWrongPassword(string password)
         {
-            var ex = Assert.Throws<AggregateException>(() =>
+            var config = ConfigurationOptions.Parse(GetConfiguration());
+            config.Password = password;
+            config.ConnectRetry = 0; // we don't want to retry on closed sockets in this case.
+
+            var ex = await Assert.ThrowsAsync<RedisConnectionException>(async () =>
             {
                 SetExpectedAmbientFailureCount(-1);
-                using (var server = Create(password: password, checkConnect: false))
+                using (var conn = await ConnectionMultiplexer.ConnectAsync(config, Writer).ConfigureAwait(false))
                 {
-                    server.GetDatabase().Ping();
+                    conn.GetDatabase().Ping();
                 }
-            });
-            Assert.Single(ex.InnerExceptions);
-            var rce = Assert.IsType<RedisConnectionException>(ex.InnerException);
-            Output.WriteLine("Exception: " + rce.Message);
-            Assert.Equal("It was not possible to connect to the redis server(s); to create a disconnected multiplexer, disable AbortOnConnectFail. AuthenticationFailure on PING", rce.Message);
+            }).ConfigureAwait(false);
+            Output.WriteLine("Exception: " + ex.Message);
+            Assert.Equal("It was not possible to connect to the redis server(s); to create a disconnected multiplexer, disable AbortOnConnectFail. AuthenticationFailure on PING", ex.Message);
         }
     }
 }
