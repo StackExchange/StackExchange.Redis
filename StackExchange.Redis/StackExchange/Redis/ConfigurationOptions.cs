@@ -135,7 +135,7 @@ namespace StackExchange.Redis
 
         private Version defaultVersion;
 
-        private int? keepAlive, syncTimeout, connectTimeout, responseTimeout, writeBuffer, connectRetry, configCheckSeconds, defaultDatabase;
+        private int? keepAlive, syncTimeout, connectTimeout, responseTimeout, writeBuffer, connectRetry, configCheckSeconds;
 
         private Proxy? proxy;
 
@@ -395,7 +395,7 @@ namespace StackExchange.Redis
                 connectRetry = connectRetry,
                 configCheckSeconds = configCheckSeconds,
                 responseTimeout = responseTimeout,
-                defaultDatabase = defaultDatabase,
+                DefaultDatabase = DefaultDatabase,
                 ReconnectRetryPolicy = reconnectRetryPolicy,
                 preserveAsyncOrder = preserveAsyncOrder,
 #if !NETSTANDARD1_5
@@ -456,7 +456,7 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.Proxy, proxy);
             Append(sb, OptionKeys.ConfigCheckSeconds, configCheckSeconds);
             Append(sb, OptionKeys.ResponseTimeout, responseTimeout);
-            Append(sb, OptionKeys.DefaultDatabase, defaultDatabase);
+            Append(sb, OptionKeys.DefaultDatabase, DefaultDatabase);
             Append(sb, OptionKeys.PreserveAsyncOrder, preserveAsyncOrder);
             commandMap?.AppendDeltas(sb);
             return sb.ToString();
@@ -535,7 +535,7 @@ namespace StackExchange.Redis
         private void Clear()
         {
             ClientName = ServiceName = Password = tieBreaker = sslHost = configChannel = null;
-            keepAlive = syncTimeout = connectTimeout = writeBuffer = connectRetry = configCheckSeconds = defaultDatabase = null;
+            keepAlive = syncTimeout = connectTimeout = writeBuffer = connectRetry = configCheckSeconds = DefaultDatabase = null;
             allowAdmin = abortOnConnectFail = highPrioritySocketThreads = resolveDns = ssl = preserveAsyncOrder = null;
             defaultVersion = null;
             EndPoints.Clear();
@@ -647,7 +647,7 @@ namespace StackExchange.Redis
                             ResponseTimeout = OptionKeys.ParseInt32(key, value, minValue: 1);
                             break;
                         case OptionKeys.DefaultDatabase:
-                            defaultDatabase = OptionKeys.ParseInt32(key, value);
+                            DefaultDatabase = OptionKeys.ParseInt32(key, value);
                             break;
                         case OptionKeys.PreserveAsyncOrder:
                             PreserveAsyncOrder = OptionKeys.ParseBoolean(key, value);
