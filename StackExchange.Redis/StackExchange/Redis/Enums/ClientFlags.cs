@@ -59,8 +59,5 @@ namespace StackExchange.Redis
         /// connection to be closed ASAP
         /// </summary>
         CloseASAP = 256,
-
     }
-
-
 }
