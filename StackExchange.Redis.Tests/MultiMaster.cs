@@ -2,6 +2,7 @@
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -33,19 +34,21 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void DeslaveGoesToPrimary()
+        public async Task DeslaveGoesToPrimary()
         {
             ConfigurationOptions config = GetMasterSlaveConfig();
             using (var conn = ConnectionMultiplexer.Connect(config))
             {
                 var primary = conn.GetServer(new IPEndPoint(IPAddress.Parse(TestConfig.Current.MasterServer), TestConfig.Current.MasterPort));
-                var secondary = conn.GetServer(new IPEndPoint(IPAddress.Parse(TestConfig.Current.MasterServer), TestConfig.Current.SlavePort));
+                var secondary = conn.GetServer(new IPEndPoint(IPAddress.Parse(TestConfig.Current.SlaveServer), TestConfig.Current.SlavePort));
 
                 primary.Ping();
                 secondary.Ping();
 
                 primary.MakeMaster(ReplicationChangeOptions.SetTiebreaker);
                 secondary.MakeMaster(ReplicationChangeOptions.None);
+
+                await Task.Delay(2000).ConfigureAwait(false);
 
                 primary.Ping();
                 secondary.Ping();
@@ -62,39 +65,54 @@ namespace StackExchange.Redis.Tests
                 var db = conn.GetDatabase();
                 RedisKey key = Me();
 
-                EndPoint demandMaster, preferMaster, preferSlave, demandSlave;
-                preferMaster = db.IdentifyEndpoint(key, CommandFlags.PreferMaster);
-                demandMaster = db.IdentifyEndpoint(key, CommandFlags.DemandMaster);
-                preferSlave = db.IdentifyEndpoint(key, CommandFlags.PreferSlave);
+                Assert.Equal(primary.EndPoint, db.IdentifyEndpoint(key, CommandFlags.PreferMaster));
+                Assert.Equal(primary.EndPoint, db.IdentifyEndpoint(key, CommandFlags.DemandMaster));
+                Assert.Equal(primary.EndPoint, db.IdentifyEndpoint(key, CommandFlags.PreferSlave));
 
-                Assert.Equal(primary.EndPoint, demandMaster);
-                Assert.Equal(primary.EndPoint, preferMaster);
-                Assert.Equal(primary.EndPoint, preferSlave);
+                var ex = Assert.Throws<RedisConnectionException>(() => db.IdentifyEndpoint(key, CommandFlags.DemandSlave));
+                Assert.StartsWith("No connection is available to service this operation: EXISTS DeslaveGoesToPrimary", ex.Message);
 
-                try
-                {
-                    demandSlave = db.IdentifyEndpoint(key, CommandFlags.DemandSlave);
-                    Assert.True(false, "this should not have worked");
-                }
-                catch (RedisConnectionException ex)
-                {
-                    Assert.StartsWith("No connection is available to service this operation: EXISTS DeslaveGoesToPrimary", ex.Message);
-                }
+                primary.MakeMaster(ReplicationChangeOptions.Broadcast | ReplicationChangeOptions.EnslaveSubordinates | ReplicationChangeOptions.SetTiebreaker, Writer);
 
-                primary.MakeMaster(ReplicationChangeOptions.Broadcast | ReplicationChangeOptions.EnslaveSubordinates | ReplicationChangeOptions.SetTiebreaker);
+                // Give the servers a chance to sort themselves
+                await conn.ReconfigureAsync(false, false, Writer, primary.EndPoint, "Re-analyze after topology change").ConfigureAwait(false);
+
+                await Task.Delay(5000).ConfigureAwait(false);
 
                 primary.Ping();
                 secondary.Ping();
 
-                preferMaster = db.IdentifyEndpoint(key, CommandFlags.PreferMaster);
-                demandMaster = db.IdentifyEndpoint(key, CommandFlags.DemandMaster);
-                preferSlave = db.IdentifyEndpoint(key, CommandFlags.PreferSlave);
-                demandSlave = db.IdentifyEndpoint(key, CommandFlags.DemandSlave);
+                Assert.True(primary.IsConnected, $"{primary.EndPoint} is not connected.");
+                Assert.True(secondary.IsConnected, $"{secondary.EndPoint} is not connected.");
 
-                Assert.Equal(primary.EndPoint, demandMaster);
-                Assert.Equal(primary.EndPoint, preferMaster);
-                Assert.Equal(secondary.EndPoint, preferSlave);
-                Assert.Equal(secondary.EndPoint, preferSlave);
+                Writer.WriteLine($"{primary.EndPoint}: {primary.ServerType}");
+                Writer.WriteLine($"{secondary.EndPoint}: {secondary.ServerType}");
+
+                // Create a separate multiplexer with a valid view of the world to distinguish between failures of
+                // server topology changes from failures to recognize those changes
+                using (var conn2 = ConnectionMultiplexer.Connect(config))
+                {
+                    var primary2 = conn.GetServer(new IPEndPoint(IPAddress.Parse(TestConfig.Current.MasterServer), TestConfig.Current.MasterPort));
+                    var secondary2 = conn.GetServer(new IPEndPoint(IPAddress.Parse(TestConfig.Current.SlaveServer), TestConfig.Current.SlavePort));
+
+                    Assert.False(primary2.IsSlave, $"{primary2.EndPoint} should be a master (verification conneciton).");
+                    Assert.True(secondary2.IsSlave, $"{secondary2.EndPoint} should be a slave (verification conneciton).");
+
+                    var db2 = conn.GetDatabase();
+
+                    Assert.Equal(primary2.EndPoint, db2.IdentifyEndpoint(key, CommandFlags.PreferMaster));
+                    Assert.Equal(primary2.EndPoint, db2.IdentifyEndpoint(key, CommandFlags.DemandMaster));
+                    Assert.Equal(secondary2.EndPoint, db2.IdentifyEndpoint(key, CommandFlags.PreferSlave));
+                    Assert.Equal(secondary2.EndPoint, db2.IdentifyEndpoint(key, CommandFlags.DemandSlave));
+                }
+
+                Assert.False(primary.IsSlave, $"{primary.EndPoint} should be a master.");
+                Assert.True(secondary.IsSlave, $"{secondary.EndPoint} should be a slave.");
+
+                Assert.Equal(primary.EndPoint, db.IdentifyEndpoint(key, CommandFlags.PreferMaster));
+                Assert.Equal(primary.EndPoint, db.IdentifyEndpoint(key, CommandFlags.DemandMaster));
+                Assert.Equal(secondary.EndPoint, db.IdentifyEndpoint(key, CommandFlags.PreferSlave));
+                Assert.Equal(secondary.EndPoint, db.IdentifyEndpoint(key, CommandFlags.DemandSlave));
             }
         }
 
@@ -107,7 +125,7 @@ namespace StackExchange.Redis.Tests
                 EndPoints =
                 {
                     { TestConfig.Current.MasterServer, TestConfig.Current.MasterPort },
-                    { TestConfig.Current.MasterServer, TestConfig.Current.SlavePort },
+                    { TestConfig.Current.SlaveServer, TestConfig.Current.SlavePort },
                 }
             };
         }
