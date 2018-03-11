@@ -639,7 +639,19 @@ namespace StackExchange.Redis
             }
             else
             {
-#if !NETSTANDARD1_5
+#if NETSTANDARD1_5
+                int charsRemaining = value.Length, charOffset = 0, bytesWritten;
+                var valueCharArray = value.ToCharArray();
+                while (charsRemaining > Scratch_CharsPerBlock)
+                {
+                    bytesWritten = outEncoder.GetBytes(valueCharArray, charOffset, Scratch_CharsPerBlock, outScratch, 0, false);
+                    stream.Write(outScratch, 0, bytesWritten);
+                    charOffset += Scratch_CharsPerBlock;
+                    charsRemaining -= Scratch_CharsPerBlock;
+                }
+                bytesWritten = outEncoder.GetBytes(valueCharArray, charOffset, charsRemaining, outScratch, 0, true);
+                if (bytesWritten != 0) stream.Write(outScratch, 0, bytesWritten);
+#else
                 fixed (char* c = value)
                 fixed (byte* b = outScratch)
                 {
@@ -654,18 +666,6 @@ namespace StackExchange.Redis
                     bytesWritten = outEncoder.GetBytes(c + charOffset, charsRemaining, b, ScratchSize, true);
                     if (bytesWritten != 0) stream.Write(outScratch, 0, bytesWritten);
                 }
-#else
-                int charsRemaining = value.Length, charOffset = 0, bytesWritten;
-                var valueCharArray = value.ToCharArray();
-                while (charsRemaining > Scratch_CharsPerBlock)
-                {
-                    bytesWritten = outEncoder.GetBytes(valueCharArray, charOffset, Scratch_CharsPerBlock, outScratch, 0, false);
-                    stream.Write(outScratch, 0, bytesWritten);
-                    charOffset += Scratch_CharsPerBlock;
-                    charsRemaining -= Scratch_CharsPerBlock;
-                }
-                bytesWritten = outEncoder.GetBytes(valueCharArray, charOffset, charsRemaining, outScratch, 0, true);
-                if (bytesWritten != 0) stream.Write(outScratch, 0, bytesWritten);
 #endif
             }
         }

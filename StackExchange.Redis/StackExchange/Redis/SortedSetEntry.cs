@@ -37,18 +37,14 @@ namespace StackExchange.Redis
         /// <summary>
         /// The score against the element
         /// </summary>
-#if !NETSTANDARD1_5
         [Browsable(false)]
-#endif
         [EditorBrowsable(EditorBrowsableState.Never), Obsolete("Please use Score", false)]
         public double Value { get { return score; } }
 
         /// <summary>
         /// The unique element stored in the sorted set
         /// </summary>
-#if !NETSTANDARD1_5
         [Browsable(false)]
-#endif
         [EditorBrowsable(EditorBrowsableState.Never), Obsolete("Please use Element", false)]
         public RedisValue Key { get { return element; } }
 

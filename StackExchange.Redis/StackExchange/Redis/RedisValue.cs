@@ -301,14 +301,14 @@ namespace StackExchange.Redis
                     if (otherType == CompareType.Double) return thisDouble.CompareTo(otherDouble);
                 }
                 // otherwise, compare as strings
-#if !NETSTANDARD1_5
-                return StringComparer.InvariantCulture.Compare((string)this, (string)other);
-#else
+#if NETSTANDARD1_5
                 var compareInfo = System.Globalization.CultureInfo.InvariantCulture.CompareInfo;
                 return compareInfo.Compare((string)this, (string)other, System.Globalization.CompareOptions.Ordinal);
+#else
+                return StringComparer.InvariantCulture.Compare((string)this, (string)other);
 #endif
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 ConnectionMultiplexer.TraceWithoutContext(ex.Message);
             }

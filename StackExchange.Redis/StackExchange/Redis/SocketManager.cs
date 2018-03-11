@@ -136,11 +136,11 @@ namespace StackExchange.Redis
 
             // we need a dedicated writer, because when under heavy ambient load
             // (a busy asp.net site, for example), workers are not reliable enough
-#if !NETSTANDARD1_5
+#if NETSTANDARD1_5
+            Thread dedicatedWriter = new Thread(writeAllQueues);
+#else
             Thread dedicatedWriter = new Thread(writeAllQueues, 32 * 1024); // don't need a huge stack;
             dedicatedWriter.Priority = useHighPrioritySocketThreads ? ThreadPriority.AboveNormal : ThreadPriority.Normal;
-#else
-            Thread dedicatedWriter = new Thread(writeAllQueues);
 #endif
             dedicatedWriter.Name = name + ":Write";
             dedicatedWriter.IsBackground = true; // should not keep process alive
@@ -254,7 +254,25 @@ namespace StackExchange.Redis
             // or will be subject to WFP filtering.
             const int SIO_LOOPBACK_FAST_PATH = -1744830448;
 
-#if !NETSTANDARD1_5
+#if NETSTANDARD1_5
+            try
+            {
+                // Ioctl is not supported on other platforms at the moment
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                {
+                    byte[] optionInValue = BitConverter.GetBytes(1);
+                    socket.IOControl(SIO_LOOPBACK_FAST_PATH, optionInValue, null);
+                }
+            }
+            catch (SocketException) { }
+            catch (PlatformNotSupportedException)
+            {
+                // Fix for https://github.com/StackExchange/StackExchange.Redis/issues/582 
+                // Checking the platform can fail on some platforms. However, we don't 
+                //   care if the platform check fails because this is for a Windows 
+                //   optimization, and checking the platform will not fail on Windows.
+            }
+#else
             // windows only
             if (Environment.OSVersion.Platform == PlatformID.Win32NT)
             {
@@ -265,26 +283,6 @@ namespace StackExchange.Redis
                     byte[] optionInValue = BitConverter.GetBytes(1);
                     socket.IOControl(SIO_LOOPBACK_FAST_PATH, optionInValue, null);
                 }
-            }
-#else
-            try
-            {
-                // Ioctl is not supported on other platforms at the moment
-                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                {
-                    byte[] optionInValue = BitConverter.GetBytes(1);
-                    socket.IOControl(SIO_LOOPBACK_FAST_PATH, optionInValue, null);
-                }
-            }
-            catch (SocketException)
-            {
-            }
-            catch (PlatformNotSupportedException)
-            {
-                // Fix for https://github.com/StackExchange/StackExchange.Redis/issues/582 
-                // Checking the platform can fail on some platforms. However, we don't 
-                //   care if the platform check fails because this is for a Windows 
-                //   optimization, and checking the platform will not fail on Windows.
             }
 #endif
         }
