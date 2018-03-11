@@ -5,7 +5,7 @@ using System.Threading;
 
 namespace StackExchange.Redis
 {
-    sealed partial class CompletionManager
+    internal sealed partial class CompletionManager
     {
         private static readonly WaitCallback processAsyncCompletionQueue = ProcessAsyncCompletionQueue,
             anyOrderCompletionHandler = AnyOrderCompletionHandler;
@@ -16,13 +16,14 @@ namespace StackExchange.Redis
 
         private readonly string name;
 
-        int activeAsyncWorkerThread = 0;
-        long completedSync, completedAsync, failedAsync;
+        private int activeAsyncWorkerThread = 0;
+        private long completedSync, completedAsync, failedAsync;
         public CompletionManager(ConnectionMultiplexer multiplexer, string name)
         {
             this.multiplexer = multiplexer;
             this.name = name;
         }
+
         public void CompleteSyncOrAsync(ICompletable operation)
         {
             if (operation == null) return;
@@ -30,7 +31,6 @@ namespace StackExchange.Redis
             {
                 multiplexer.Trace("Completed synchronously: " + operation, name);
                 Interlocked.Increment(ref completedSync);
-                return;
             }
             else
             {
@@ -57,6 +57,7 @@ namespace StackExchange.Redis
                 }
             }
         }
+
         internal void GetCounters(ConnectionCounters counters)
         {
             lock (asyncCompletionQueue)
@@ -127,7 +128,7 @@ namespace StackExchange.Redis
                     Thread.Sleep(1);
                 }
                 int total = 0;
-                do
+                while (true)
                 {
                     ICompletable next;
                     lock (asyncCompletionQueue)
@@ -163,7 +164,7 @@ namespace StackExchange.Redis
                         Interlocked.Increment(ref failedAsync);
                     }
                     total++;
-                } while (true);
+                }
                 multiplexer.Trace("Async completion worker processed " + total + " operations", name);
             }
             finally
