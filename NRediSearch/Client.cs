@@ -1,5 +1,4 @@
 ﻿// .NET port of https://github.com/RedisLabs/JRediSearch/
-
 using StackExchange.Redis;
 using System;
 using System.Collections.Generic;
@@ -27,19 +26,20 @@ namespace NRediSearch
             /// </summary>
             KeepFieldFlags = 2,
             /// <summary>
+            /// The default indexing options - use term offsets and keep fields flags
+            /// </summary>
+            Default = UseTermOffsets | KeepFieldFlags,
+            /// <summary>
             /// If set, we keep an index of the top entries per term, allowing extremely fast single word queries
             /// regardless of index size, at the cost of more memory
             /// </summary>
             UseScoreIndexes = 4,
             /// <summary>
-            /// The default indexing options - use term offsets and keep fields flags
-            /// </summary>
-            Default = UseTermOffsets | KeepFieldFlags ,
-            /// <summary>
             /// If set, we will disable the Stop-Words completely
             /// </summary>
             DisableStopWords = 8
         }
+
         private static void SerializeRedisArgs(IndexOptions flags, List<object> args)
         {
             if ((flags & IndexOptions.UseTermOffsets) == 0)
@@ -60,6 +60,7 @@ namespace NRediSearch
                 args.Add(0);
             }
         }
+
         private readonly IDatabaseAsync _db;
         private IDatabase DbSync
             => (_db as IDatabase) ?? throw new InvalidOperationException("Synchronous operations are not available on this database instance");
@@ -71,6 +72,7 @@ namespace NRediSearch
             _db = db ?? throw new ArgumentNullException(nameof(db));
             _boxedIndexName = indexName; // only box once, not per-command
         }
+
         public Client(RedisKey indexName, IDatabase db) : this(indexName, (IDatabaseAsync)db) { }
 
         /// <summary>
@@ -81,9 +83,10 @@ namespace NRediSearch
         /// <returns>true if successful</returns>
         public bool CreateIndex(Schema schema, IndexOptions options)
         {
-            var args = new List<object>();
-
-            args.Add(_boxedIndexName);
+            var args = new List<object>
+            {
+                _boxedIndexName
+            };
             SerializeRedisArgs(options, args);
             args.Add("SCHEMA".Literal());
 
@@ -103,9 +106,10 @@ namespace NRediSearch
         /// <returns>true if successful</returns>
         public async Task<bool> CreateIndexAsync(Schema schema, IndexOptions options)
         {
-            var args = new List<object>();
-
-            args.Add(_boxedIndexName);
+            var args = new List<object>
+            {
+                _boxedIndexName
+            };
             SerializeRedisArgs(options, args);
             args.Add("SCHEMA".Literal());
 
@@ -124,8 +128,10 @@ namespace NRediSearch
         /// <returns>a <see cref="SearchResult"/> object with the results</returns>
         public SearchResult Search(Query q)
         {
-            var args = new List<object>();
-            args.Add(_boxedIndexName);
+            var args = new List<object>
+            {
+                _boxedIndexName
+            };
             q.SerializeRedisArgs(args);
 
             var resp = (RedisResult[])DbSync.Execute("FT.SEARCH", args);
@@ -139,8 +145,10 @@ namespace NRediSearch
         /// <returns>a <see cref="SearchResult"/> object with the results</returns>
         public async Task<SearchResult> SearchAsync(Query q)
         {
-            var args = new List<object>();
-            args.Add(_boxedIndexName);
+            var args = new List<object>
+            {
+                _boxedIndexName
+            };
             q.SerializeRedisArgs(args);
 
             var resp = (RedisResult[])await _db.ExecuteAsync("FT.SEARCH", args).ConfigureAwait(false);
@@ -152,25 +160,16 @@ namespace NRediSearch
         /// </summary>
         /// <param name="fieldName">TAG field name</param>
         /// <returns>List of TAG field values</returns>
-        public RedisValue[] TagVals(string fieldName)
-        {
-            var resp = (RedisValue[])DbSync.Execute("FT.TAGVALS", _boxedIndexName, fieldName);
-            
-            return resp;
-        }
+        public RedisValue[] TagVals(string fieldName) =>
+            (RedisValue[])DbSync.Execute("FT.TAGVALS", _boxedIndexName, fieldName);
 
         /// <summary>
         /// Return Distinct Values in a TAG field
         /// </summary>
         /// <param name="fieldName">TAG field name</param>
         /// <returns>List of TAG field values</returns>
-        public async Task<RedisValue[]> TagValsAsync(string fieldName)
-        {
-            var resp = (RedisValue[])await _db.ExecuteAsync("FT.TAGVALS", _boxedIndexName, fieldName).ConfigureAwait(false);
-            
-            return resp;
-        }
-
+        public async Task<RedisValue[]> TagValsAsync(string fieldName) =>
+            (RedisValue[])await _db.ExecuteAsync("FT.TAGVALS", _boxedIndexName, fieldName).ConfigureAwait(false);
 
         /// <summary>
         /// Add a single document to the query
@@ -230,14 +229,22 @@ namespace NRediSearch
         }
 
         /// <summary>
-        /// replaceDocument is a convenience for calling addDocument with replace=true 
+        /// Convenience method for calling AddDocument with replace=true.
         /// </summary>
+        /// <param name="docId">The ID of the document to replce.</param>
+        /// <param name="fields">The document fields.</param>
+        /// <param name="score">The new score.</param>
+        /// <param name="payload">The new payload.</param>
         public bool ReplaceDocument(string docId, Dictionary<string, RedisValue> fields, double score = 1.0, byte[] payload = null)
             => AddDocument(docId, fields, score, false, true, payload);
 
         /// <summary>
-        /// replaceDocument is a convenience for calling addDocument with replace=true 
+        /// Convenience method for calling AddDocumentAsync with replace=true.
         /// </summary>
+        /// <param name="docId">The ID of the document to replce.</param>
+        /// <param name="fields">The document fields.</param>
+        /// <param name="score">The new score.</param>
+        /// <param name="payload">The new payload.</param>
         public Task<bool> ReplaceDocumentAsync(string docId, Dictionary<string, RedisValue> fields, double score = 1.0, byte[] payload = null)
             => AddDocumentAsync(docId, fields, score, false, true, payload);
 
@@ -279,20 +286,18 @@ namespace NRediSearch
         /// </summary>
         /// <remarks>TODO: Make a class for easier access to the index properties</remarks>
         /// <returns>a map of key/value pairs</returns>
-        public Dictionary<string, RedisValue> GetInfo()
-        {
-            return ParseGetInfo(DbSync.Execute("FT.INFO", _boxedIndexName));
-        }
+        public Dictionary<string, RedisValue> GetInfo() =>
+            ParseGetInfo(DbSync.Execute("FT.INFO", _boxedIndexName));
+
         /// <summary>
         /// Get the index info, including memory consumption and other statistics.
         /// </summary>
         /// <remarks>TODO: Make a class for easier access to the index properties</remarks>
         /// <returns>a map of key/value pairs</returns>
-        public async Task<Dictionary<string, RedisValue>> GetInfoAsync()
-        {
-            return ParseGetInfo(await _db.ExecuteAsync("FT.INFO", _boxedIndexName).ConfigureAwait(false));
-        }
-        static Dictionary<string, RedisValue> ParseGetInfo(RedisResult value)
+        public async Task<Dictionary<string, RedisValue>> GetInfoAsync() =>
+            ParseGetInfo(await _db.ExecuteAsync("FT.INFO", _boxedIndexName).ConfigureAwait(false));
+
+        private static Dictionary<string, RedisValue> ParseGetInfo(RedisResult value)
         {
             var res = (RedisValue[])value;
             var info = new Dictionary<string, RedisValue>();
