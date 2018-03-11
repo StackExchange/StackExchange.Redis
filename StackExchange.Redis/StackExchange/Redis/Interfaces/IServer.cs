@@ -51,7 +51,7 @@ namespace StackExchange.Redis
         /// Gets the version of the connected server
         /// </summary>
         Version Version { get; }
-        
+
         /// <summary>
         /// The CLIENT KILL command closes a given client connection identified by ip:port.
         /// The ip:port should match a line returned by the CLIENT LIST command.
@@ -74,6 +74,7 @@ namespace StackExchange.Redis
         /// <returns>the number of clients killed.</returns>
         /// <remarks>https://redis.io/commands/client-kill</remarks>
         long ClientKill(long? id = null, ClientType? clientType = null, EndPoint endpoint = null, bool skipMe = true, CommandFlags flags = CommandFlags.None);
+
         /// <summary>
         /// The CLIENT KILL command closes multiple connections that match the specified filters
         /// </summary>
@@ -349,6 +350,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <remarks>https://redis.io/commands/slaveof</remarks>
         void SlaveOf(EndPoint master, CommandFlags flags = CommandFlags.None);
+
         /// <summary>
         /// The SLAVEOF command can change the replication settings of a slave on the fly. If a Redis server is already acting as slave, specifying a null master will turn off the replication, turning the Redis server into a MASTER. Specifying a non-null master will make the server a slave of another server listening at the specified hostname and port.
         /// </summary>
@@ -360,21 +362,25 @@ namespace StackExchange.Redis
         /// </summary>
         /// <remarks>https://redis.io/commands/slowlog</remarks>
         CommandTrace[] SlowlogGet(int count = 0, CommandFlags flags = CommandFlags.None);
+
         /// <summary>
         /// To read the slow log the SLOWLOG GET command is used, that returns every entry in the slow log. It is possible to return only the N most recent entries passing an additional argument to the command (for instance SLOWLOG GET 10).
         /// </summary>
         /// <remarks>https://redis.io/commands/slowlog</remarks>
         Task<CommandTrace[]> SlowlogGetAsync(int count = 0, CommandFlags flags = CommandFlags.None);
+
         /// <summary>
         /// You can reset the slow log using the SLOWLOG RESET command. Once deleted the information is lost forever.
         /// </summary>
         /// <remarks>https://redis.io/commands/slowlog</remarks>
         void SlowlogReset(CommandFlags flags = CommandFlags.None);
+
         /// <summary>
         /// You can reset the slow log using the SLOWLOG RESET command. Once deleted the information is lost forever.
         /// </summary>
         /// <remarks>https://redis.io/commands/slowlog</remarks>
         Task SlowlogResetAsync(CommandFlags flags = CommandFlags.None);
+
         /// <summary>
         /// Lists the currently active channels. An active channel is a Pub/Sub channel with one ore more subscribers (not including clients subscribed to patterns).
         /// </summary>
@@ -421,6 +427,7 @@ namespace StackExchange.Redis
         /// <returns>The server's current time.</returns>
         /// <remarks>https://redis.io/commands/time</remarks>
         DateTime Time(CommandFlags flags = CommandFlags.None);
+
         /// <summary>
         /// The TIME command returns the current server time.
         /// </summary>
@@ -523,7 +530,4 @@ namespace StackExchange.Redis
 
         #endregion
     }
-
-
-
 }

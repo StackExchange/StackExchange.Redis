@@ -10,7 +10,6 @@ namespace StackExchange.Redis
     /// </summary>
     public interface IConnectionMultiplexer
     {
-
 #if DEBUG
         /// <summary>
         /// For debugging; when not enabled, servers cannot connect

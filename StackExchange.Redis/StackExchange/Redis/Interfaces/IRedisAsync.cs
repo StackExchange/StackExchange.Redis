@@ -19,6 +19,7 @@ namespace StackExchange.Redis
         /// <returns>The observed latency.</returns>
         /// <remarks>https://redis.io/commands/ping</remarks>
         Task<TimeSpan> PingAsync(CommandFlags flags = CommandFlags.None);
+
         /// <summary>
         /// Wait for a given asynchronous operation to complete (or timeout), reporting which
         /// </summary>
@@ -28,14 +29,15 @@ namespace StackExchange.Redis
         /// Wait for a given asynchronous operation to complete (or timeout)
         /// </summary>
         void Wait(Task task);
+
         /// <summary>
         /// Wait for a given asynchronous operation to complete (or timeout)
         /// </summary>
         T Wait<T>(Task<T> task);
+
         /// <summary>
         /// Wait for the given asynchronous operations to complete (or timeout)
         /// </summary>
-
         void WaitAll(params Task[] tasks);
     }
 }

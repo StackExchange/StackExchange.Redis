@@ -9,7 +9,6 @@ namespace StackExchange.Redis
     /// </summary>
     public interface ISubscriber : IRedis
     {
-
         /// <summary>
         /// Inidicate exactly which redis server we are talking to
         /// </summary>
@@ -36,12 +35,14 @@ namespace StackExchange.Redis
         /// <returns>the number of clients that received the message.</returns>
         /// <remarks>https://redis.io/commands/publish</remarks>
         long Publish(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None);
+
         /// <summary>
         /// Posts a message to the given channel.
         /// </summary>
         /// <returns>the number of clients that received the message.</returns>
         /// <remarks>https://redis.io/commands/publish</remarks>
         Task<long> PublishAsync(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None);
+
         /// <summary>
         /// Subscribe to perform some operation when a change to the preferred/active node is broadcast.
         /// </summary>
