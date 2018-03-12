@@ -5,7 +5,7 @@ using System.Threading;
 
 namespace StackExchange.Redis
 {
-    class ProfileStorage : IProfiledCommand
+    internal class ProfileStorage : IProfiledCommand
     {
         #region IProfiledCommand Impl
         public EndPoint EndPoint => Server.EndPoint;
@@ -37,8 +37,8 @@ namespace StackExchange.Redis
         public ProfileStorage NextElement { get; set; }
 
         private Message Message;
-        private ServerEndPoint Server;
-        private ProfileStorage OriginalProfiling;
+        private readonly ServerEndPoint Server;
+        private readonly ProfileStorage OriginalProfiling;
 
         private DateTime MessageCreatedDateTime;
         private long MessageCreatedTimeStamp;
@@ -47,7 +47,7 @@ namespace StackExchange.Redis
         private long ResponseReceivedTimeStamp;
         private long CompletedTimeStamp;
 
-        private ConcurrentProfileStorageCollection PushToWhenFinished;
+        private readonly ConcurrentProfileStorageCollection PushToWhenFinished;
 
         private ProfileStorage(ConcurrentProfileStorageCollection pushTo, ServerEndPoint server, ProfileStorage resentFor, RetransmissionReasonType? reason)
         {
