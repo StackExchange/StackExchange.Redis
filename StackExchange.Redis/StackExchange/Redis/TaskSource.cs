@@ -76,12 +76,16 @@ namespace StackExchange.Redis
 				IsSyncSafe = null;
 			}
             if (IsSyncSafe == null)
-                IsSyncSafe = t => false; // assume: not
+            {
+                IsSyncSafe = _ => false; // assume: not
+            }
         }
 #endif
         /// <summary>
         /// Create a new TaskCompletion source
         /// </summary>
+        /// <typeparam name="T">The type for the created <see cref="TaskCompletionSource{TResult}"/>.</typeparam>
+        /// <param name="asyncState">The state for the created <see cref="TaskCompletionSource{TResult}"/>.</param>
         public static TaskCompletionSource<T> Create<T>(object asyncState)
         {
 #if PLAT_SAFE_CONTINUATIONS
