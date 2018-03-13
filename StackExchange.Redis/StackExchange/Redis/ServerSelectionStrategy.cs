@@ -49,14 +49,12 @@ namespace StackExchange.Redis
 
         private ServerEndPoint[] map;
 
-        private ServerType serverType = ServerType.Standalone;
-
         public ServerSelectionStrategy(ConnectionMultiplexer multiplexer)
         {
             this.multiplexer = multiplexer;
         }
 
-        public ServerType ServerType { get { return serverType; } set { serverType = value; } }
+        public ServerType ServerType { get; set; } = ServerType.Standalone;
         internal int TotalSlots => RedisClusterSlotCount;
 
         /// <summary>
@@ -93,7 +91,7 @@ namespace StackExchange.Redis
         {
             if (message == null) throw new ArgumentNullException(nameof(message));
             int slot = NoSlot;
-            switch (serverType)
+            switch (ServerType)
             {
                 case ServerType.Cluster:
                 case ServerType.Twemproxy: // strictly speaking twemproxy uses a different hashing algo, but the hash-tag behavior is
@@ -108,7 +106,7 @@ namespace StackExchange.Redis
 
         public ServerEndPoint Select(int db, RedisCommand command, RedisKey key, CommandFlags flags)
         {
-            int slot = serverType == ServerType.Cluster ? HashSlot(key) : NoSlot;
+            int slot = ServerType == ServerType.Cluster ? HashSlot(key) : NoSlot;
             return Select(slot, command, flags);
         }
 
@@ -116,7 +114,7 @@ namespace StackExchange.Redis
         {
             try
             {
-                if (serverType == ServerType.Standalone || hashSlot < 0 || hashSlot >= RedisClusterSlotCount) return false;
+                if (ServerType == ServerType.Standalone || hashSlot < 0 || hashSlot >= RedisClusterSlotCount) return false;
 
                 ServerEndPoint server = multiplexer.GetServerEndPoint(endpoint);
                 if (server != null)
@@ -222,7 +220,7 @@ namespace StackExchange.Redis
 
         private ServerEndPoint Any(RedisCommand command, CommandFlags flags)
         {
-            return multiplexer.AnyConnected(serverType, (uint)Interlocked.Increment(ref anyStartOffset), command, flags);
+            return multiplexer.AnyConnected(ServerType, (uint)Interlocked.Increment(ref anyStartOffset), command, flags);
         }
 
         private ServerEndPoint FindMaster(ServerEndPoint endpoint, RedisCommand command)
