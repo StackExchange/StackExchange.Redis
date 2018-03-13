@@ -1,7 +1,7 @@
 # From https://github.com/redisson/redisson/blob/master/.travis.yml
 language: csharp
 
-dotnet: 2.0.4
+dotnet: 2.0.3
 
 notifications:
   email: false
