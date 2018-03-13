@@ -58,10 +58,12 @@ namespace NRediSearch.Test
             // use meta-programming / reflection instead in .NET
 
             // Adding documents to the index:
-            var fields = new Dictionary<string, RedisValue>();
-            fields.Add("title", "hello world");
-            fields.Add("body", "lorem ipsum");
-            fields.Add("price", 1337);
+            var fields = new Dictionary<string, RedisValue>
+            {
+                ["title"] = "hello world",
+                ["body"] = "lorem ipsum",
+                ["price"] = 1337
+            };
 
             Assert.True(client.AddDocument("doc1", fields));
 
