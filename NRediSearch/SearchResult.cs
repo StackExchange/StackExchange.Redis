@@ -1,5 +1,4 @@
 ﻿// .NET port of https://github.com/RedisLabs/JRediSearch/
-
 using StackExchange.Redis;
 using System.Collections.Generic;
 
@@ -15,7 +14,6 @@ namespace NRediSearch
         public long TotalResults { get; }
         public List<Document> Documents { get; }
 
-
         internal SearchResult(RedisResult[] resp, bool hasContent, bool hasScores, bool hasPayloads)
         {
             // Calculate the step distance to walk over the results.
@@ -26,18 +24,18 @@ namespace NRediSearch
             int payloadOffset = 0;
             if (hasScores)
             {
-                step += 1;
+                step++;
                 scoreOffset = 1;
-                contentOffset += 1;
+                contentOffset++;
             }
             if (hasContent)
             {
-                step += 1;
+                step++;
                 if (hasPayloads)
                 {
                     payloadOffset = scoreOffset + 1;
-                    step += 1;
-                    contentOffset += 1;
+                    step++;
+                    contentOffset++;
                 }
             }
 
@@ -47,7 +45,6 @@ namespace NRediSearch
             Documents = docs;
             for (int i = 1; i < resp.Length; i += step)
             {
-
                 var id = (string)resp[i];
                 double score = 1.0;
                 byte[] payload = null;
@@ -68,8 +65,6 @@ namespace NRediSearch
 
                 docs.Add(Document.Load(id, score, payload, fields));
             }
-
-
         }
     }
 }
