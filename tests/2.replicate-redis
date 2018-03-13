@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -e
+kubectl exec -it redis-testing-1 -c redis -- redis-cli slaveof \
+  $(kubectl get pods redis-testing-0 -o jsonpath='{.status.podIP} 6379')
+kubectl exec -it redis-testing-2 -c redis -- redis-cli slaveof \
+  $(kubectl get pods redis-testing-0 -o jsonpath='{.status.podIP} 6379')

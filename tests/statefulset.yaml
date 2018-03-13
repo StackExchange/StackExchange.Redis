@@ -1,0 +1,91 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis-testing
+  labels:
+    app: redis-testing
+
+spec:
+  selector:
+    matchLabels:
+      app: redis-testing
+
+  serviceName: redis-testing
+  replicas: 3
+
+  # https://kubernetes.io/docs/tutorials/stateful-application/basic-stateful-set/#updating-statefulsets
+  # This may not be what we want in production - have a discussion about how to manage Redis generally
+  updateStrategy:
+    type: RollingUpdate
+
+  template:
+    metadata:
+      labels:
+        app: redis-testing
+
+    spec:
+      terminationGracePeriodSeconds: 5
+
+      containers:
+      - name: trib
+        image: haaf/redis-trib:latest
+
+      - name: redis
+        image: redis:4.0-alpine
+        resources:
+          requests:
+            memory: 100Mi
+            cpu: 100m
+
+        ports:
+        - containerPort: 6379
+          name: client
+
+        - containerPort: 16379
+          name: gossip
+
+        command: ["redis-server"]
+        args: ["/conf/redis.conf"]
+        readinessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - "redis-cli -h $(hostname) ping"
+          initialDelaySeconds: 15
+          timeoutSeconds: 5
+        livenessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - "redis-cli -h $(hostname) ping"
+          initialDelaySeconds: 20
+          periodSeconds: 3
+
+        volumeMounts:
+        - name: conf
+          mountPath: /conf
+          readOnly: false
+        - name: data
+          mountPath: /data
+          readOnly: false
+
+      volumes:
+      - name: conf
+        configMap:
+          name: redis-testing
+          items:
+          - key: redis.conf
+            path: redis.conf
+
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+      labels:
+        name: redis-testing
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 10Gi
