@@ -11,6 +11,19 @@ namespace StackExchange.Redis
     public interface IDatabaseAsync : IRedisAsync
     {
         /// <summary>
+        /// Indicates whether the instance can communicate with the server (resolved
+        /// using the supplied key and optional flags)
+        /// </summary>
+        [IgnoreNamePrefix(true)]
+        bool IsConnected(RedisKey key, CommandFlags flags = CommandFlags.None);
+		
+        /// <summary>
+        /// Atomically transfer a key from a source Redis instance to a destination Redis instance. On success the key is deleted from the original instance by default, and is guaranteed to exist in the target instance.
+        /// </summary>
+        /// <remarks>https://redis.io/commands/MIGRATE</remarks>
+        Task KeyMigrateAsync(RedisKey key, EndPoint toServer, int toDatabase = 0, int timeoutMilliseconds = 0, MigrateOptions migrateOptions = MigrateOptions.None, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Returns the raw DEBUG OBJECT output for a key; this command is not fully documented and should be avoided unless you have good reason, and then avoided anyway.
         /// </summary>
         /// <remarks>https://redis.io/commands/debug-object</remarks>
@@ -94,10 +107,10 @@ namespace StackExchange.Redis
         Task<GeoRadiusResult[]> GeoRadiusAsync(RedisKey key, double longitude, double latitude, double radius, GeoUnit unit = GeoUnit.Meters, int count = -1, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Increments the number stored at field in the hash stored at key by increment. If key does not exist, a new key holding a hash is created. If field does not exist or holds a string that cannot be interpreted as integer, the value is set to 0 before the operation is performed.
+        /// Decrements the number stored at field in the hash stored at key by decrement. If key does not exist, a new key holding a hash is created. If field does not exist or holds a string that cannot be interpreted as integer, the value is set to 0 before the operation is performed.
         /// </summary>
         /// <remarks>The range of values supported by HINCRBY is limited to 64 bit signed integers.</remarks>
-        /// <returns>the value at field after the increment operation.</returns>
+        /// <returns>The value at field after the decrement operation.</returns>
         /// <remarks>https://redis.io/commands/hincrby</remarks>
         Task<long> HashDecrementAsync(RedisKey key, RedisValue hashField, long value = 1, CommandFlags flags = CommandFlags.None);
 
@@ -131,13 +144,6 @@ namespace StackExchange.Redis
         Task<bool> HashExistsAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Returns all fields and values of the hash stored at key. 
-        /// </summary>
-        /// <returns>list of fields and their values stored in the hash, or an empty list when key does not exist.</returns>
-        /// <remarks>https://redis.io/commands/hgetall</remarks>
-        Task<HashEntry[]> HashGetAllAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
         /// Returns the value associated with field in the hash stored at key.
         /// </summary>
         /// <returns>the value associated with field, or nil when field is not present in the hash or key does not exist.</returns>
@@ -151,6 +157,13 @@ namespace StackExchange.Redis
         /// <returns>list of values associated with the given fields, in the same order as they are requested.</returns>
         /// <remarks>https://redis.io/commands/hmget</remarks>
         Task<RedisValue[]> HashGetAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns all fields and values of the hash stored at key. 
+        /// </summary>
+        /// <returns>list of fields and their values stored in the hash, or an empty list when key does not exist.</returns>
+        /// <remarks>https://redis.io/commands/hgetall</remarks>
+        Task<HashEntry[]> HashGetAllAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Increments the number stored at field in the hash stored at key by increment. If key does not exist, a new key holding a hash is created. If field does not exist or holds a string that cannot be interpreted as integer, the value is set to 0 before the operation is performed.
@@ -250,13 +263,6 @@ namespace StackExchange.Redis
         Task<EndPoint> IdentifyEndpointAsync(RedisKey key = default(RedisKey), CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Indicates whether the instance can communicate with the server (resolved
-        /// using the supplied key and optional flags)
-        /// </summary>
-        [IgnoreNamePrefix(true)]
-        bool IsConnected(RedisKey key, CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
         /// Removes the specified key. A key is ignored if it does not exist.
         /// </summary>
         /// <returns>True if the key was removed.</returns>
@@ -305,12 +311,6 @@ namespace StackExchange.Redis
         /// <remarks>https://redis.io/commands/pexpireat</remarks>
         /// <remarks>https://redis.io/commands/persist</remarks>
         Task<bool> KeyExpireAsync(RedisKey key, DateTime? expiry, CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
-        /// Atomically transfer a key from a source Redis instance to a destination Redis instance. On success the key is deleted from the original instance by default, and is guaranteed to exist in the target instance.
-        /// </summary>
-        /// <remarks>https://redis.io/commands/MIGRATE</remarks>
-        Task KeyMigrateAsync(RedisKey key, EndPoint toServer, int toDatabase = 0, int timeoutMilliseconds = 0, MigrateOptions migrateOptions = MigrateOptions.None, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Move key from the currently selected database (see SELECT) to the specified destination database. When key already exists in the destination database, or it does not exist in the source database, it does nothing. It is possible to use MOVE as a locking primitive because of this.
@@ -502,13 +502,6 @@ namespace StackExchange.Redis
         Task<long> PublishAsync(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Execute a Lua script against the server
-        /// </summary>
-        /// <remarks>https://redis.io/commands/eval, https://redis.io/commands/evalsha</remarks>
-        /// <returns>A dynamic representation of the script's result</returns>
-        Task<RedisResult> ScriptEvaluateAsync(string script, RedisKey[] keys = null, RedisValue[] values = null, CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
         /// Execute an arbitrary command against the server; this is primarily intended for
         /// executing modules, but may also be used to provide access to new features that lack
         /// a direct API
@@ -523,6 +516,13 @@ namespace StackExchange.Redis
         /// </summary>
         /// <returns>A dynamic representation of the command's result</returns>
         Task<RedisResult> ExecuteAsync(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Execute a Lua script against the server
+        /// </summary>
+        /// <remarks>https://redis.io/commands/eval, https://redis.io/commands/evalsha</remarks>
+        /// <returns>A dynamic representation of the script's result</returns>
+        Task<RedisResult> ScriptEvaluateAsync(string script, RedisKey[] keys = null, RedisValue[] values = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Execute a Lua script against the server using just the SHA1 hash
@@ -559,24 +559,6 @@ namespace StackExchange.Redis
         Task<long> SetAddAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// This command is equal to SetCombine, but instead of returning the resulting set, it is stored in destination. If destination already exists, it is overwritten.
-        /// </summary>
-        /// <returns>the number of elements in the resulting set.</returns>
-        /// <remarks>https://redis.io/commands/sunionstore</remarks>
-        /// <remarks>https://redis.io/commands/sinterstore</remarks>
-        /// <remarks>https://redis.io/commands/sdiffstore</remarks>
-        Task<long> SetCombineAndStoreAsync(SetOperation operation, RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
-        /// This command is equal to SetCombine, but instead of returning the resulting set, it is stored in destination. If destination already exists, it is overwritten.
-        /// </summary>
-        /// <returns>the number of elements in the resulting set.</returns>
-        /// <remarks>https://redis.io/commands/sunionstore</remarks>
-        /// <remarks>https://redis.io/commands/sinterstore</remarks>
-        /// <remarks>https://redis.io/commands/sdiffstore</remarks>
-        Task<long> SetCombineAndStoreAsync(SetOperation operation, RedisKey destination, RedisKey[] keys, CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
         /// Returns the members of the set resulting from the specified operation against the given sets.
         /// </summary>
         /// <returns>list with members of the resulting set.</returns>
@@ -593,6 +575,24 @@ namespace StackExchange.Redis
         /// <remarks>https://redis.io/commands/sinter</remarks>
         /// <remarks>https://redis.io/commands/sdiff</remarks>
         Task<RedisValue[]> SetCombineAsync(SetOperation operation, RedisKey[] keys, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// This command is equal to SetCombine, but instead of returning the resulting set, it is stored in destination. If destination already exists, it is overwritten.
+        /// </summary>
+        /// <returns>the number of elements in the resulting set.</returns>
+        /// <remarks>https://redis.io/commands/sunionstore</remarks>
+        /// <remarks>https://redis.io/commands/sinterstore</remarks>
+        /// <remarks>https://redis.io/commands/sdiffstore</remarks>
+        Task<long> SetCombineAndStoreAsync(SetOperation operation, RedisKey destination, RedisKey first, RedisKey second, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// This command is equal to SetCombine, but instead of returning the resulting set, it is stored in destination. If destination already exists, it is overwritten.
+        /// </summary>
+        /// <returns>the number of elements in the resulting set.</returns>
+        /// <remarks>https://redis.io/commands/sunionstore</remarks>
+        /// <remarks>https://redis.io/commands/sinterstore</remarks>
+        /// <remarks>https://redis.io/commands/sdiffstore</remarks>
+        Task<long> SetCombineAndStoreAsync(SetOperation operation, RedisKey destination, RedisKey[] keys, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns if member is a member of the set stored at key.
@@ -659,17 +659,6 @@ namespace StackExchange.Redis
         /// <remarks>https://redis.io/commands/srem</remarks>
         Task<long> SetRemoveAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None);
 
-        /// <summary>
-        /// Sorts a list, set or sorted set (numerically or alphabetically, ascending by default); By default, the elements themselves are compared, but the values can also be
-        /// used to perform external key-lookups using the <c>by</c> parameter. By default, the elements themselves are returned, but external key-lookups (one or many) can
-        /// be performed instead by specifying the <c>get</c> parameter (note that <c>#</c> specifies the element itself, when used in <c>get</c>).
-        /// Referring to the <a href="https://redis.io/commands/sort">redis SORT documentation </a> for examples is recommended. When used in hashes, <c>by</c> and <c>get</c>
-        /// can be used to specify fields using <c>-&gt;</c> notation (again, refer to redis documentation).
-        /// </summary>
-        /// <remarks>https://redis.io/commands/sort</remarks>
-        /// <returns>Returns the number of elements stored in the new list</returns>
-        [IgnoreNamePrefix]
-        Task<long> SortAndStoreAsync(RedisKey destination, RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default(RedisValue), RedisValue[] get = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Sorts a list, set or sorted set (numerically or alphabetically, ascending by default); By default, the elements themselves are compared, but the values can also be
@@ -682,6 +671,18 @@ namespace StackExchange.Redis
         /// <returns>Returns the sorted elements, or the external values if <c>get</c> is specified</returns>
         [IgnoreNamePrefix]
         Task<RedisValue[]> SortAsync(RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default(RedisValue), RedisValue[] get = null, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Sorts a list, set or sorted set (numerically or alphabetically, ascending by default); By default, the elements themselves are compared, but the values can also be
+        /// used to perform external key-lookups using the <c>by</c> parameter. By default, the elements themselves are returned, but external key-lookups (one or many) can
+        /// be performed instead by specifying the <c>get</c> parameter (note that <c>#</c> specifies the element itself, when used in <c>get</c>).
+        /// Referring to the <a href="https://redis.io/commands/sort">redis SORT documentation </a> for examples is recommended. When used in hashes, <c>by</c> and <c>get</c>
+        /// can be used to specify fields using <c>-&gt;</c> notation (again, refer to redis documentation).
+        /// </summary>
+        /// <remarks>https://redis.io/commands/sort</remarks>
+        /// <returns>Returns the number of elements stored in the new list</returns>
+        [IgnoreNamePrefix]
+        Task<long> SortAndStoreAsync(RedisKey destination, RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default(RedisValue), RedisValue[] get = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Adds the specified member with the specified score to the sorted set stored at key. If the specified member is already a member of the sorted set, the score is updated and the element reinserted at the right position to ensure the correct ordering.
@@ -850,6 +851,7 @@ namespace StackExchange.Redis
         /// <remarks>https://redis.io/commands/zremrangebylex</remarks>
         /// <returns>the number of elements removed.</returns>
         Task<long> SortedSetRemoveRangeByValueAsync(RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None);
+
         /// <summary>
         /// Returns the score of member in the sorted set at key; If member does not exist in the sorted set, or key does not exist, nil is returned.
         /// </summary>
@@ -895,7 +897,7 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Return the position of the first bit set to 1 or 0 in a string.
-        /// The position is returned thinking at the string as an array of bits from left to right where the first byte most significant bit is at position 0, the second byte most significant big is at position 8 and so forth.
+        /// The position is returned thinking at the string as an array of bits from left to right where the first byte most significant bit is at position 0, the second byte most significant bit is at position 8 and so forth.
         /// An start and end may be specified; these are in bytes, not bits; start and end can contain negative values in order to index bytes starting from the end of the string, where -1 is the last byte, -2 is the penultimate, and so forth.
         /// </summary>
         /// <returns>The command returns the position of the first bit set to 1 or 0 according to the request.
@@ -904,17 +906,18 @@ namespace StackExchange.Redis
         Task<long> StringBitPositionAsync(RedisKey key, bool bit, long start = 0, long end = -1, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Decrements the number stored at key by decrement. If the key does not exist, it is set to 0 before performing the operation. An error is returned if the key contains a value of the wrong type or contains a string that is not representable as integer. This operation is limited to 64 bit signed integers.
+        /// Decrements the number stored at key by decrement. If the key does not exist, it is set to 0 before performing the operation.
+        /// An error is returned if the key contains a value of the wrong type or contains a string that is not representable as integer. This operation is limited to 64 bit signed integers.
         /// </summary>
-        /// <returns> the value of key after the increment</returns>
+        /// <returns>The value of key after the decrement.</returns>
         /// <remarks>https://redis.io/commands/decrby</remarks>
         /// <remarks>https://redis.io/commands/decr</remarks>
         Task<long> StringDecrementAsync(RedisKey key, long value = 1, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Decrements the string representing a floating point number stored at key by the specified increment. If the key does not exist, it is set to 0 before performing the operation. The precision of the output is fixed at 17 digits after the decimal point regardless of the actual internal precision of the computation.
+        /// Decrements the string representing a floating point number stored at key by the specified decrement. If the key does not exist, it is set to 0 before performing the operation. The precision of the output is fixed at 17 digits after the decimal point regardless of the actual internal precision of the computation.
         /// </summary>
-        /// <returns>the value of key after the increment</returns>
+        /// <returns>The value of key after the decrement.</returns>
         /// <remarks>https://redis.io/commands/incrbyfloat</remarks>
         Task<double> StringDecrementAsync(RedisKey key, double value, CommandFlags flags = CommandFlags.None);
 
@@ -962,17 +965,18 @@ namespace StackExchange.Redis
         /// <summary>
         /// Increments the number stored at key by increment. If the key does not exist, it is set to 0 before performing the operation. An error is returned if the key contains a value of the wrong type or contains a string that is not representable as integer. This operation is limited to 64 bit signed integers.
         /// </summary>
-        /// <returns>the value of key after the increment</returns>
+        /// <returns>The value of key after the increment.</returns>
         /// <remarks>https://redis.io/commands/incrby</remarks>
         /// <remarks>https://redis.io/commands/incr</remarks>
         Task<long> StringIncrementAsync(RedisKey key, long value = 1, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Increment the string representing a floating point number stored at key by the specified increment. If the key does not exist, it is set to 0 before performing the operation. The precision of the output is fixed at 17 digits after the decimal point regardless of the actual internal precision of the computation.
+        /// Increments the string representing a floating point number stored at key by the specified increment. If the key does not exist, it is set to 0 before performing the operation. The precision of the output is fixed at 17 digits after the decimal point regardless of the actual internal precision of the computation.
         /// </summary>
-        /// <returns>the value of key after the increment</returns>
+        /// <returns>The value of key after the increment.</returns>
         /// <remarks>https://redis.io/commands/incrbyfloat</remarks>
         Task<double> StringIncrementAsync(RedisKey key, double value, CommandFlags flags = CommandFlags.None);
+
         /// <summary>
         /// Returns the length of the string value stored at key.
         /// </summary>
@@ -1006,27 +1010,5 @@ namespace StackExchange.Redis
         /// <returns>the length of the string after it was modified by the command.</returns>
         /// <remarks>https://redis.io/commands/setrange</remarks>
         Task<RedisValue> StringSetRangeAsync(RedisKey key, long offset, RedisValue value, CommandFlags flags = CommandFlags.None);
-    }
-
-    /// <summary>
-    /// Describes a value/expiry pair
-    /// </summary>
-    public struct RedisValueWithExpiry
-    {
-        internal RedisValueWithExpiry(RedisValue value, TimeSpan? expiry)
-        {
-            Value = value;
-            Expiry = expiry;
-        }
-
-        /// <summary>
-        /// The expiry of this record
-        /// </summary>
-        public TimeSpan? Expiry { get; }
-
-        /// <summary>
-        /// The value of this record
-        /// </summary>
-        public RedisValue Value { get; }
     }
 }
