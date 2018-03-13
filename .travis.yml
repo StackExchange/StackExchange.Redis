@@ -12,6 +12,7 @@ matrix:
 
 env:
   global:
+  - REDIS_VERSION: 4.0.8
   - DOTNET_CLI_TELEMETRY_OPTOUT: 1
   - DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
   - TMPDIR=/tmp
