@@ -42,5 +42,4 @@
         /// </summary>
         Unknown,
     }
-
 }
