@@ -36,6 +36,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
         {
             return Inner.GeoAdd(ToInner(key), values, flags);
         }
+
         public bool GeoAdd(RedisKey key, GeoEntry value, CommandFlags flags = CommandFlags.None)
         {
             return Inner.GeoAdd(ToInner(key), value, flags);
@@ -75,6 +76,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
         {
             return Inner.GeoRadius(ToInner(key), member, radius, unit, count, order, options, flags);
         }
+
         public GeoRadiusResult[] GeoRadius(RedisKey key, double longitude, double latitude, double radius, GeoUnit unit = GeoUnit.Meters, int count = -1, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None)
         {
             return Inner.GeoRadius(ToInner(key), longitude, latitude, radius, unit, count, order, options, flags);
@@ -365,7 +367,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public RedisResult Execute(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
             => Inner.Execute(command, ToInner(args), flags);
-            
+
         public RedisResult ScriptEvaluate(byte[] hash, RedisKey[] keys = null, RedisValue[] values = null, CommandFlags flags = CommandFlags.None)
         {
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
@@ -474,10 +476,12 @@ namespace StackExchange.Redis.KeyspaceIsolation
         {
             return Inner.Sort(ToInner(key), skip, take, order, sortType, SortByToInner(by), SortGetToInner(get), flags);
         }
+
         public long SortedSetAdd(RedisKey key, SortedSetEntry[] values, CommandFlags flags)
         {
             return Inner.SortedSetAdd(ToInner(key), values, flags);
         }
+
         public long SortedSetAdd(RedisKey key, SortedSetEntry[] values, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
             return Inner.SortedSetAdd(ToInner(key), values, when, flags);
@@ -487,6 +491,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
         {
             return Inner.SortedSetAdd(ToInner(key), member, score, flags);
         }
+
         public bool SortedSetAdd(RedisKey key, RedisValue member, double score, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
             return Inner.SortedSetAdd(ToInner(key), member, score, when, flags);
@@ -687,11 +692,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.Ping(flags);
         }
 
-
         IEnumerable<HashEntry> IDatabase.HashScan(RedisKey key, RedisValue pattern, int pageSize, CommandFlags flags)
         {
             return HashScan(key, pattern, pageSize, RedisBase.CursorUtils.Origin, 0, flags);
         }
+
         public IEnumerable<HashEntry> HashScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = RedisBase.CursorUtils.DefaultPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
         {
             return Inner.HashScan(ToInner(key), pattern, pageSize, cursor, pageOffset, flags);
@@ -701,6 +706,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
         {
             return SetScan(key, pattern, pageSize, RedisBase.CursorUtils.Origin, 0, flags);
         }
+
         public IEnumerable<RedisValue> SetScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = RedisBase.CursorUtils.DefaultPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
         {
             return Inner.SetScan(ToInner(key), pattern, pageSize, cursor, pageOffset, flags);
@@ -710,11 +716,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
         {
             return SortedSetScan(key, pattern, pageSize, RedisBase.CursorUtils.Origin, 0, flags);
         }
+
         public IEnumerable<SortedSetEntry> SortedSetScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = RedisBase.CursorUtils.DefaultPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
         {
             return Inner.SortedSetScan(ToInner(key), pattern, pageSize, cursor, pageOffset, flags);
         }
-
 
 #if DEBUG
         public string ClientGetName(CommandFlags flags = CommandFlags.None)
