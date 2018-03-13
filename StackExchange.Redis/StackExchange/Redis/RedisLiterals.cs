@@ -65,7 +65,8 @@ namespace StackExchange.Redis
             SLAVES = "SLAVES",
             GETMASTERADDRBYNAME = "GET-MASTER-ADDR-BY-NAME",
 //            RESET = "RESET",
-            FAILOVER = "FAILOVER",
+            FAILOVER = "FAILOVER", 
+            SENTINELS = "SENTINELS",
 
             // Sentinel Literals as of 2.8.4
             MONITOR = "MONITOR",

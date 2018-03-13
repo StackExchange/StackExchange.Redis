@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis-testing
+  labels:
+    app: redis-testing
+
+spec:
+  selector:
+    matchLabels:
+      app: redis-testing
+
+  serviceName: redis-testing
+  replicas: 3
+
+  # https://kubernetes.io/docs/tutorials/stateful-application/basic-stateful-set/#updating-statefulsets
+  # This may not be what we want in production - have a discussion about how to manage Redis generally
+  updateStrategy:
+    type: RollingUpdate
+
+  template:
+    metadata:
+      labels:
+        app: redis-testing
+
+    spec:
+      terminationGracePeriodSeconds: 5
+
+      containers:
+      - name: trib
+        image: haaf/redis-trib:4.0.1
+        imagePullPolicy: Always
+
+      - name: redis
+        image: haaf/redis:4.0.8
+        imagePullPolicy: Always
+
+        command:
+        - /opt/bin/k8s-redis-ha-server
+        args:
+        - /opt/redis.conf
+        env:
+          - name: SERVICE
+            value: redis-server
+          - name: SERVICE_PORT
+            value: redis-server
+          - name: SENTINEL
+            value: redis-sentinel
+          - name: SENTINEL_PORT
+            value: redis-sentinel
+
+        ports:
+        - containerPort: 6379 # sufficient for primary/replica
+          name: client
+        - containerPort: 16379 # for sharding aka. clustering if you enable it
+          name: gossip
+
+        readinessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - "redis-cli -h $(hostname) ping"
+
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        - name: opt
+          mountPath: /opt
+
+      volumes:
+      - name: opt
+        emptyDir: {}
+
+      initContainers:
+      - name: init
+        image: haaf/redis:4.0.8
+        imagePullPolicy: Always
+
+        volumeMounts:
+        - name: opt
+          mountPath: /opt
+
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+      labels:
+        name: redis-testing
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 10Gi

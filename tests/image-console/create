@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -e
+
+docker build . -t haaf/redis-console:latest -t haaf/redis-console:4.0.8
+docker push haaf/redis-console

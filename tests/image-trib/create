@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -e
+
+docker build . -t haaf/redis-trib:latest -t haaf/redis-trib:4.0.1
+docker push haaf/redis-trib
