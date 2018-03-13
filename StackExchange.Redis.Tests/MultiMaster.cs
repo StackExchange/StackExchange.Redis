@@ -92,8 +92,8 @@ namespace StackExchange.Redis.Tests
                     var primary2 = conn.GetServer(new IPEndPoint(IPAddress.Parse(TestConfig.Current.MasterServer), TestConfig.Current.MasterPort));
                     var secondary2 = conn.GetServer(new IPEndPoint(IPAddress.Parse(TestConfig.Current.SlaveServer), TestConfig.Current.SlavePort));
 
-                    Assert.False(primary2.IsSlave, $"{primary2.EndPoint} should be a master (verification conneciton).");
-                    Assert.True(secondary2.IsSlave, $"{secondary2.EndPoint} should be a slave (verification conneciton).");
+                    Assert.False(primary2.IsSlave, $"{primary2.EndPoint} should be a master (verification connection).");
+                    Assert.True(secondary2.IsSlave, $"{secondary2.EndPoint} should be a slave (verification connection).");
 
                     var db2 = conn.GetDatabase();
 
