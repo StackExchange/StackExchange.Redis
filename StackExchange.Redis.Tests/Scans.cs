@@ -37,7 +37,8 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        private void ScansIScanning()
+        [Fact]
+        public void ScansIScanning()
         {
             using (var conn = Create(allowAdmin: true))
             {
@@ -83,7 +84,8 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        private void ScanResume()
+        [Fact]
+        public void ScanResume()
         {
             using (var conn = Create(allowAdmin: true))
             {

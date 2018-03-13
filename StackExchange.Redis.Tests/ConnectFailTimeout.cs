@@ -29,7 +29,7 @@ namespace StackExchange.Redis.Tests
                 Assert.Throws<RedisConnectionException>(() => server.Ping());
 
                 // Heartbeat should reconnect by now
-                await Task.Delay(5000);
+                await Task.Delay(5000).ConfigureAwait(false);
 
                 var time = server.Ping();
                 Output.WriteLine(time.ToString());

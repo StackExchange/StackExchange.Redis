@@ -49,7 +49,7 @@ namespace StackExchange.Redis.Tests
         public void AuthenticationFailureError()
         {
             Skip.IfNoConfig(nameof(TestConfig.Config.AzureCacheServer), TestConfig.Current.AzureCacheServer);
-            
+
             var options = new ConfigurationOptions();
             options.EndPoints.Add(TestConfig.Current.AzureCacheServer);
             options.Ssl = true;

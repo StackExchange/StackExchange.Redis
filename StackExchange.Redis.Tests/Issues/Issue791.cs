@@ -7,7 +7,6 @@ namespace StackExchange.Redis.Tests.Issues
     {
         public Issue791(ITestOutputHelper output) : base(output) { }
 
-        
         [Fact]
         public void PreserveAsyncOrderImplicitValue_ParsedFromConnectionString()
         {
@@ -20,15 +19,13 @@ namespace StackExchange.Redis.Tests.Issues
             Assert.Equal("preserveAsyncOrder=False", options.ToString());
         }
 
-
         [Fact]
         public void DefaultValue_IsTrue()
         {
             var options = ConfigurationOptions.Parse("ssl=true");
-            Assert.True(options.PreserveAsyncOrder);            
+            Assert.True(options.PreserveAsyncOrder);
         }
 
-        
         [Fact]
         public void PreserveAsyncOrder_SetConnectionMultiplexerProperty()
         {

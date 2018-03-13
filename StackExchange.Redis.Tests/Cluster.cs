@@ -180,7 +180,7 @@ namespace StackExchange.Redis.Tests
                 {
                     string e = conn.GetServer(node.EndPoint).StringGet(db.Database, key);
                     Assert.Equal(value, e); // wrong slave, allow redirect
-                    
+
                     var ex = Assert.Throws<RedisServerException>(() => conn.GetServer(node.EndPoint).StringGet(db.Database, key, CommandFlags.NoRedirect));
                     Assert.StartsWith($"Key has MOVED from Endpoint {rightMasterNode.EndPoint} and hashslot {slot}", ex.Message);
                 }

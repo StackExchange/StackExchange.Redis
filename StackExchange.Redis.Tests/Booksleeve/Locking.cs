@@ -20,7 +20,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
             using (var c1 = GetUnsecuredConnection(waitForOpen: true))
             using (var c2 = GetUnsecuredConnection(waitForOpen: true))
             {
-                WaitCallback cb = obj =>
+                void cb(object obj)
                 {
                     var conn = (ConnectionMultiplexer)obj;
                     conn.InternalError += (o, e) =>
@@ -41,7 +41,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
                     db.Ping();
                     conn.Close(false);
                     if (Interlocked.Decrement(ref count) == 0) evt.Set();
-                };
+                }
                 ThreadPool.QueueUserWorkItem(cb, c1);
                 ThreadPool.QueueUserWorkItem(cb, c2);
                 evt.WaitOne(8000);

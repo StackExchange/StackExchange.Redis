@@ -31,11 +31,11 @@ namespace StackExchange.Redis.Tests
         {
             int count = 2;
             int errorCount = 0;
-            ManualResetEvent evt = new ManualResetEvent(false);
+            var evt = new ManualResetEvent(false);
             using (var c1 = Create(testMode))
             using (var c2 = Create(testMode))
             {
-                WaitCallback cb = obj =>
+                void cb(object obj)
                 {
                     var conn = (IDatabase)obj;
                     conn.Multiplexer.ErrorMessage += delegate { Interlocked.Increment(ref errorCount); };
@@ -46,7 +46,7 @@ namespace StackExchange.Redis.Tests
                     }
                     conn.Ping();
                     if (Interlocked.Decrement(ref count) == 0) evt.Set();
-                };
+                }
                 int db = testMode == TestMode.Twemproxy ? 0 : 2;
                 ThreadPool.QueueUserWorkItem(cb, c1.GetDatabase(db));
                 ThreadPool.QueueUserWorkItem(cb, c2.GetDatabase(db));

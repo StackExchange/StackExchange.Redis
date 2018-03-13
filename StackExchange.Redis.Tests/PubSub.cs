@@ -256,7 +256,6 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void SubscriptionsSurviveConnectionFailure()
         {
-            
             using (var muxer = Create(allowAdmin: true))
             {
                 RedisChannel channel = Me();
@@ -284,7 +283,8 @@ namespace StackExchange.Redis.Tests
         }
 #endif
     }
-        internal static class VolatileWrapper
+
+    internal static class VolatileWrapper
     {
         public static int Read(ref int location)
         {
