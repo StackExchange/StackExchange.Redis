@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: redis-console
+spec:
+  restartPolicy: Always
+  containers:
+    - name: redis-console
+      image: haaf/redis-console:4.0.8

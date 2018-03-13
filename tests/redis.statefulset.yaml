@@ -28,56 +28,58 @@ spec:
 
       containers:
       - name: trib
-        image: haaf/redis-trib:latest
+        image: haaf/redis-trib:4.0.1
+        imagePullPolicy: Always
 
       - name: redis
-        image: redis:4.0-alpine
-        resources:
-          requests:
-            memory: 100Mi
-            cpu: 100m
+        image: haaf/redis:4.0.8
+        imagePullPolicy: Always
+
+        command:
+        - /opt/bin/k8s-redis-ha-server
+        args:
+        - /opt/redis.conf
+        env:
+          - name: SERVICE
+            value: redis-server
+          - name: SERVICE_PORT
+            value: redis-server
+          - name: SENTINEL
+            value: redis-sentinel
+          - name: SENTINEL_PORT
+            value: redis-sentinel
 
         ports:
-        - containerPort: 6379
+        - containerPort: 6379 # sufficient for primary/replica
           name: client
-
-        - containerPort: 16379
+        - containerPort: 16379 # for sharding aka. clustering if you enable it
           name: gossip
 
-        command: ["redis-server"]
-        args: ["/conf/redis.conf"]
         readinessProbe:
           exec:
             command:
             - sh
             - -c
             - "redis-cli -h $(hostname) ping"
-          initialDelaySeconds: 15
-          timeoutSeconds: 5
-        livenessProbe:
-          exec:
-            command:
-            - sh
-            - -c
-            - "redis-cli -h $(hostname) ping"
-          initialDelaySeconds: 20
-          periodSeconds: 3
 
         volumeMounts:
-        - name: conf
-          mountPath: /conf
-          readOnly: false
         - name: data
           mountPath: /data
-          readOnly: false
+        - name: opt
+          mountPath: /opt
 
       volumes:
-      - name: conf
-        configMap:
-          name: redis-testing
-          items:
-          - key: redis.conf
-            path: redis.conf
+      - name: opt
+        emptyDir: {}
+
+      initContainers:
+      - name: init
+        image: haaf/redis:4.0.8
+        imagePullPolicy: Always
+
+        volumeMounts:
+        - name: opt
+          mountPath: /opt
 
   volumeClaimTemplates:
   - metadata:

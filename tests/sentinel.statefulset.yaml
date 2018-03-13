@@ -1,0 +1,74 @@
+# From https://github.com/tarosky/k8s-redis-ha/blob/master/example/sentinel.yaml
+
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis-testing-sentinel
+
+spec:
+  selector:
+    matchLabels:
+      app: redis-testing-sentinel
+
+  serviceName: redis-testing-sentinel
+  replicas: 3
+
+  template:
+    metadata:
+      labels:
+        app: redis-testing-sentinel
+
+    spec:
+      containers:
+      - name: sentinel
+        image: haaf/redis-sentinel:latest
+        imagePullPolicy: Always
+
+        command:
+        - /opt/bin/k8s-redis-ha-sentinel
+        args:
+        - /opt/sentinel.conf
+        env:
+        - name: SERVICE
+          value: redis-testing
+        - name: SERVICE_PORT
+          value: redis-testing
+        ports:
+        - containerPort: 26379
+          name: sentinel
+        readinessProbe:
+          exec:
+            command: ['redis-cli', '-p', '26379', 'info', 'server']
+        volumeMounts:
+        - name: opt
+          mountPath: /opt
+
+      - name: arbiter
+        image: haaf/redis-arbiter:latest
+        imagePullPolicy: Always
+
+        env:
+        - name: SERVICE
+          value: redis-testing
+        - name: SERVICE_PORT
+          value: redis-testing
+        - name: SENTINEL
+          value: redis-testing-sentinel
+        - name: SENTINEL_PORT
+          value: redis-testing-sentinel
+        volumeMounts:
+        - name: opt
+          mountPath: /opt
+
+      initContainers:
+      - name: init
+        image: haaf/redis-sentinel:latest
+        imagePullPolicy: Always
+
+        volumeMounts:
+        - name: opt
+          mountPath: /opt
+
+      volumes:
+      - name: opt
+        emptyDir: {}

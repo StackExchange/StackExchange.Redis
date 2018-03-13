@@ -6,4 +6,3 @@ RUN gem install redis -v 4.0.1
 
 WORKDIR /usr/local/bin
 ENTRYPOINT tail -f /dev/null
-
