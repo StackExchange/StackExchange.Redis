@@ -8,4 +8,4 @@ COPY ["run.sh", "/"]
 
 CMD ["/run.sh"]
 
-ENTRYPOINT ["bash", "-c"]
+ENTRYPOINT ["/bin/bash", "-c"]

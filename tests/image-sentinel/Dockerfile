@@ -7,4 +7,4 @@ COPY ["sentinel.template.conf", "k8s-redis-ha-sentinel", "run.sh", "/"]
 
 CMD ["/run.sh"]
 
-ENTRYPOINT ["bash", "-c"]
+ENTRYPOINT ["/bin/bash", "-c"]
