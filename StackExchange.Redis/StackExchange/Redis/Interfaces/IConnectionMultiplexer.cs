@@ -69,6 +69,7 @@ namespace StackExchange.Redis
         /// IProfiledCommand with.  See BeginProfiling(object) and FinishProfiling(object)
         /// for more details.
         /// </summary>
+        /// <param name="profiler">The profiler to register.</param>
         void RegisterProfiler(IProfiler profiler);
 
         /// <summary>
@@ -81,6 +82,7 @@ namespace StackExchange.Redis
         /// 
         /// Note that forContext cannot be a WeakReference or a WeakReference&lt;T&gt;
         /// </summary>
+        /// <param name="forContext">The context to begin profiling for.</param>
         void BeginProfiling(object forContext);
 
         /// <summary>
@@ -88,6 +90,8 @@ namespace StackExchange.Redis
         /// 
         /// By default this may do a sweep for dead profiling contexts, you can disable this by passing "allowCleanupSweep: false".
         /// </summary>
+        /// <param name="forContext">The context to finish profiling for.</param>
+        /// <param name="allowCleanupSweep">Whether to allow a cleanup sweep of dead profiling contexts.</param>
         ProfiledCommandEnumerable FinishProfiling(object forContext, bool allowCleanupSweep = true);
 
         /// <summary>
@@ -99,7 +103,7 @@ namespace StackExchange.Redis
         /// A server replied with an error message;
         /// </summary>
         event EventHandler<RedisErrorEventArgs> ErrorMessage;
-        
+
         /// <summary>
         /// Raised whenever a physical connection fails
         /// </summary>
@@ -129,22 +133,26 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets all endpoints defined on the server
         /// </summary>
-        /// <returns></returns>
+        /// <param name="configuredOnly">Whether to return only the explicitly configured endpoints.</param>
         EndPoint[] GetEndPoints(bool configuredOnly = false);
 
         /// <summary>
         /// Wait for a given asynchronous operation to complete (or timeout)
         /// </summary>
+        /// <param name="task">The task to wait on.</param>
         void Wait(Task task);
 
         /// <summary>
         /// Wait for a given asynchronous operation to complete (or timeout)
         /// </summary>
+        /// <typeparam name="T">The type in <paramref name="task"/>.</typeparam>
+        /// <param name="task">The task to wait on.</param>
         T Wait<T>(Task<T> task);
 
         /// <summary>
         /// Wait for the given asynchronous operations to complete (or timeout)
         /// </summary>
+        /// <param name="tasks">The tasks to wait on.</param>
         void WaitAll(params Task[] tasks);
 
         /// <summary>
@@ -155,46 +163,61 @@ namespace StackExchange.Redis
         /// <summary>
         /// Compute the hash-slot of a specified key
         /// </summary>
+        /// <param name="key">The key to get a slot ID for.</param>
         int HashSlot(RedisKey key);
 
         /// <summary>
         /// Obtain a pub/sub subscriber connection to the specified server
         /// </summary>
+        /// <param name="asyncState">The async state to pass to the created <see cref="ISubscriber"/>.</param>
         ISubscriber GetSubscriber(object asyncState = null);
 
         /// <summary>
         /// Obtain an interactive connection to a database inside redis
         /// </summary>
+        /// <param name="db">The database ID to get.</param>
+        /// <param name="asyncState">The async state to pass to the created <see cref="IDatabase"/>.</param>
         IDatabase GetDatabase(int db = -1, object asyncState = null);
 
         /// <summary>
         /// Obtain a configuration API for an individual server
         /// </summary>
+        /// <param name="host">The host to get a server for.</param>
+        /// <param name="port">The specific port for <paramref name="host"/> to get a server for.</param>
+        /// <param name="asyncState">The async state to pass to the created <see cref="IServer"/>.</param>
         IServer GetServer(string host, int port, object asyncState = null);
 
         /// <summary>
         /// Obtain a configuration API for an individual server
         /// </summary>
+        /// <param name="hostAndPort">The "host:port" string to get a server for.</param>
+        /// <param name="asyncState">The async state to pass to the created <see cref="IServer"/>.</param>
         IServer GetServer(string hostAndPort, object asyncState = null);
 
         /// <summary>
         /// Obtain a configuration API for an individual server
         /// </summary>
+        /// <param name="host">The host to get a server for.</param>
+        /// <param name="port">The specific port for <paramref name="host"/> to get a server for.</param>
         IServer GetServer(IPAddress host, int port);
 
         /// <summary>
         /// Obtain a configuration API for an individual server
         /// </summary>
+        /// <param name="endpoint">The endpoint to get a server for.</param>
+        /// <param name="asyncState">The async state to pass to the created <see cref="IServer"/>.</param>
         IServer GetServer(EndPoint endpoint, object asyncState = null);
 
         /// <summary>
         /// Reconfigure the current connections based on the existing configuration
         /// </summary>
+        /// <param name="log">The log to write output to.</param>
         Task<bool> ConfigureAsync(TextWriter log = null);
 
         /// <summary>
         /// Reconfigure the current connections based on the existing configuration
         /// </summary>
+        /// <param name="log">The log to write output to.</param>
         bool Configure(TextWriter log = null);
 
         /// <summary>
@@ -205,6 +228,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Provides a text overview of the status of all connections
         /// </summary>
+        /// <param name="log">The log to write output to.</param>
         void GetStatus(TextWriter log);
 
         /// <summary>
@@ -215,11 +239,13 @@ namespace StackExchange.Redis
         /// <summary>
         /// Close all connections and release all resources associated with this object
         /// </summary>
+        /// <param name="allowCommandsToComplete">Whether to allow in-queue commadns to complete first.</param>
         void Close(bool allowCommandsToComplete = true);
 
         /// <summary>
         /// Close all connections and release all resources associated with this object
         /// </summary>
+        /// <param name="allowCommandsToComplete">Whether to allow in-queue commadns to complete first.</param>
         Task CloseAsync(bool allowCommandsToComplete = true);
 
         /// <summary>
@@ -240,12 +266,14 @@ namespace StackExchange.Redis
         /// <summary>
         /// Request all compatible clients to reconfigure or reconnect
         /// </summary>
+        /// <param name="flags">The command flags to use.</param>
         /// <returns>The number of instances known to have received the message (however, the actual number can be higher; returns -1 if the operation is pending)</returns>
         long PublishReconfigure(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Request all compatible clients to reconfigure or reconnect
         /// </summary>
+        /// <param name="flags">The command flags to use.</param>
         /// <returns>The number of instances known to have received the message (however, the actual number can be higher)</returns>
         Task<long> PublishReconfigureAsync(CommandFlags flags = CommandFlags.None);
     }
