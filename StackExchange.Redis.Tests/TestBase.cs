@@ -12,10 +12,6 @@ using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
-#if FEATURE_BOOKSLEEVE
-using BookSleeve;
-#endif
-
 namespace StackExchange.Redis.Tests
 {
     public abstract class TestBase : IDisposable
@@ -262,26 +258,6 @@ namespace StackExchange.Redis.Tests
 
         protected static string Me([CallerMemberName] string caller = null) => caller;
 
-#if FEATURE_BOOKSLEEVE
-        protected static RedisConnection GetOldStyleConnection(bool open = true, bool allowAdmin = false, bool waitForOpen = false, int syncTimeout = 5000, int ioTimeout = 5000)
-        {
-            return GetOldStyleConnection(TestConfig.Current.MasterServer, TestConfig.Current.MasterPort, open, allowAdmin, waitForOpen, syncTimeout, ioTimeout);
-        }
-        private static RedisConnection GetOldStyleConnection(string host, int port, bool open = true, bool allowAdmin = false, bool waitForOpen = false, int syncTimeout = 5000, int ioTimeout = 5000)
-        {
-            var conn = new RedisConnection(host, port, syncTimeout: syncTimeout, ioTimeout: ioTimeout, allowAdmin: allowAdmin);
-            conn.Error += (s, args) =>
-            {
-                Trace.WriteLine(args.Exception.Message, args.Cause);
-            };
-            if (open)
-            {
-                var openAsync = conn.Open();
-                if (waitForOpen) conn.Wait(openAsync);
-            }
-            return conn;
-        }
-#endif
         protected static TimeSpan RunConcurrent(Action work, int threads, int timeout = 10000, [CallerMemberName] string caller = null)
         {
             if (work == null) throw new ArgumentNullException(nameof(work));

@@ -1,10 +1,5 @@
 ﻿using System;
-using System.Diagnostics;
-using System.Threading;
 using System.Threading.Tasks;
-#if FEATURE_BOOKSLEEVE
-using BookSleeve;
-#endif
 using StackExchange.Redis.KeyspaceIsolation;
 using Xunit;
 using Xunit.Abstractions;
