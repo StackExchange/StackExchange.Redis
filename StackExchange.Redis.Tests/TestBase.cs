@@ -23,6 +23,7 @@ namespace StackExchange.Redis.Tests
         protected TestBase(ITestOutputHelper output)
         {
             Output = output;
+            Output.WriteFrameworkVersion();
             Writer = new TextWriterOutputHelper(output);
             socketManager = new SocketManager(GetType().Name);
             ClearAmbientFailures();

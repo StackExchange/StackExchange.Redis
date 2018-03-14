@@ -54,7 +54,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         [Fact]
         public async Task CanNotOpenNonsenseConnection_DNS()
         {
-            await Assert.ThrowsAsync<RedisConnectionException>(async () =>
+            var ex = await Assert.ThrowsAsync<RedisConnectionException>(async () =>
             {
                 var log = new StringWriter();
                 try
@@ -68,6 +68,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
                     Output.WriteLine(log.ToString());
                 }
             }).ForAwait();
+            Output.WriteLine(ex.ToString());
         }
 
         [Fact]
