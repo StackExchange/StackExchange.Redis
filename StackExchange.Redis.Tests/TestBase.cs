@@ -106,7 +106,7 @@ namespace StackExchange.Redis.Tests
         private static AsyncLocal<int> sharedFailCount = new AsyncLocal<int>();
         private volatile int expectedFailCount;
 
-        private static readonly List<string> privateExceptions = new List<string>();
+        private readonly List<string> privateExceptions = new List<string>();
         private static readonly List<string> backgroundExceptions = new List<string>();
 
         public void ClearAmbientFailures()
@@ -167,7 +167,7 @@ namespace StackExchange.Redis.Tests
                         Output.WriteLine(item);
                     }
                 }
-                Assert.True(false, $"There were {privateFailCount} private and {sharedFailCount} ambient exceptions; expected {expectedFailCount}.");
+                Assert.True(false, $"There were {privateFailCount} private and {sharedFailCount.Value} ambient exceptions; expected {expectedFailCount}.");
             }
         }
 
