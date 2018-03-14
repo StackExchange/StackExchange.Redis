@@ -62,7 +62,13 @@ namespace StackExchange.Redis.Tests
 #if NETCOREAPP1_0
                 if (IgnorableExceptionPredicates.Any(predicate => predicate(args.Exception.InnerException))) return;
 #endif
-                Interlocked.Increment(ref sharedFailCount);
+                lock (sharedFailCount)
+                {
+                    if (sharedFailCount != null)
+                    {
+                        sharedFailCount.Value++;
+                    }
+                }
                 lock (backgroundExceptions)
                 {
                     backgroundExceptions.Add(args.Exception.ToString());
@@ -97,7 +103,7 @@ namespace StackExchange.Redis.Tests
         }
 
         private int privateFailCount;
-        private static int sharedFailCount;
+        private static AsyncLocal<int> sharedFailCount = new AsyncLocal<int>();
         private volatile int expectedFailCount;
 
         private static readonly List<string> privateExceptions = new List<string>();
@@ -107,7 +113,10 @@ namespace StackExchange.Redis.Tests
         {
             Collect();
             Interlocked.Exchange(ref privateFailCount, 0);
-            Interlocked.Exchange(ref sharedFailCount, 0);
+            lock (sharedFailCount)
+            {
+                sharedFailCount.Value = 0;
+            }
             expectedFailCount = 0;
             lock (privateExceptions)
             {
@@ -136,7 +145,13 @@ namespace StackExchange.Redis.Tests
         public void Teardown()
         {
             Collect();
-            if (expectedFailCount >= 0 && (Interlocked.CompareExchange(ref sharedFailCount, 0, 0) + privateFailCount) != expectedFailCount)
+            int sharedFails;
+            lock (sharedFailCount)
+            {
+                sharedFails = sharedFailCount.Value;
+                sharedFailCount.Value = 0;
+            }
+            if (expectedFailCount >= 0 && (sharedFails + privateFailCount) != expectedFailCount)
             {
                 lock (privateExceptions)
                 {
