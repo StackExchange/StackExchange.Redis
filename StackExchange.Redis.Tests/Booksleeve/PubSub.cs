@@ -33,7 +33,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
             }
         }
 
-        [Fact]
+        [FactLongRunning]
         public void TestMassivePublishWithWithoutFlush_Remote()
         {
             using (var muxer = GetRemoteConnection(waitForOpen: true))
