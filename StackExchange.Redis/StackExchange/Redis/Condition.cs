@@ -29,7 +29,7 @@ namespace StackExchange.Redis
         public static Condition HashExists(RedisKey key, RedisValue hashField)
         {
             if (hashField.IsNull) throw new ArgumentNullException(nameof(hashField));
-            return new ExistsCondition(key, hashField, true);
+            return new ExistsCondition(key, RedisType.Hash, hashField, true);
         }
 
         /// <summary>
@@ -48,7 +48,7 @@ namespace StackExchange.Redis
         public static Condition HashNotExists(RedisKey key, RedisValue hashField)
         {
             if (hashField.IsNull) throw new ArgumentNullException(nameof(hashField));
-            return new ExistsCondition(key, hashField, false);
+            return new ExistsCondition(key, RedisType.Hash, hashField, false);
         }
 
         /// <summary>
@@ -56,7 +56,7 @@ namespace StackExchange.Redis
         /// </summary>
         public static Condition KeyExists(RedisKey key)
         {
-            return new ExistsCondition(key, RedisValue.Null, true);
+            return new ExistsCondition(key, RedisType.None, RedisValue.Null, true);
         }
 
         /// <summary>
@@ -64,7 +64,7 @@ namespace StackExchange.Redis
         /// </summary>
         public static Condition KeyNotExists(RedisKey key)
         {
-            return new ExistsCondition(key, RedisValue.Null, false);
+            return new ExistsCondition(key, RedisType.None, RedisValue.Null, false);
         }
 
         /// <summary>
@@ -214,6 +214,22 @@ namespace StackExchange.Redis
         }
                 
         /// <summary>
+        /// Enforces that the given set contains a certain member
+        /// </summary>
+        public static Condition SetContains(RedisKey key, RedisValue member)
+        {
+            return new ExistsCondition(key, RedisType.Set, member, true);
+        }
+        
+        /// <summary>
+        /// Enforces that the given set does not contain a certain member
+        /// </summary>
+        public static Condition SetNotContains(RedisKey key, RedisValue member)
+        {
+            return new ExistsCondition(key, RedisType.Set, member, false);
+        }
+        
+        /// <summary>
         /// Enforces that the given sorted set cardinality is a certain value
         /// </summary>
         public static Condition SortedSetLengthEqual(RedisKey key, long length)
@@ -237,6 +253,22 @@ namespace StackExchange.Redis
             return new LengthCondition(key, RedisType.SortedSet, -1, length);
         }
 
+        /// <summary>
+        /// Enforces that the given sorted set contains a certain member
+        /// </summary>
+        public static Condition SortedSetContains(RedisKey key, RedisValue member)
+        {
+            return new ExistsCondition(key, RedisType.SortedSet, member, true);
+        }
+        
+        /// <summary>
+        /// Enforces that the given sorted set does not contain a certain member
+        /// </summary>
+        public static Condition SortedSetNotContains(RedisKey key, RedisValue member)
+        {
+            return new ExistsCondition(key, RedisType.SortedSet, member, false);
+        }
+        
         internal abstract void CheckCommands(CommandMap commandMap);
 
         internal abstract IEnumerable<Message> CreateMessages(int db, ResultBox resultBox);
@@ -298,38 +330,62 @@ namespace StackExchange.Redis
         internal class ExistsCondition : Condition
         {
             private readonly bool expectedResult;
-            private readonly RedisValue hashField;
+            private readonly RedisValue expectedValue;
             private readonly RedisKey key;
+            private readonly RedisType type;
+            private readonly RedisCommand cmd;
 
             internal override Condition MapKeys(Func<RedisKey,RedisKey> map)
             {
-                return new ExistsCondition(map(key), hashField, expectedResult);
+                return new ExistsCondition(map(key), type, expectedValue, expectedResult);
             }
-            public ExistsCondition(RedisKey key, RedisValue hashField, bool expectedResult)
+            public ExistsCondition(RedisKey key, RedisType type, RedisValue expectedValue, bool expectedResult)
             {
                 if (key.IsNull) throw new ArgumentException("key");
                 this.key = key;
-                this.hashField = hashField;
+                this.type = type;
+                this.expectedValue = expectedValue;
                 this.expectedResult = expectedResult;
+
+                if (expectedValue.IsNull) {
+                    cmd = RedisCommand.EXISTS;
+                }
+                else {
+                    switch (type) {
+                        case RedisType.Hash:
+                            cmd = RedisCommand.HEXISTS;
+                            break;
+
+                        case RedisType.Set:
+                            cmd = RedisCommand.SISMEMBER;
+                            break;
+
+                        case RedisType.SortedSet:
+                            cmd = RedisCommand.ZSCORE;
+                            break;
+
+                        default:
+                            throw new ArgumentException(nameof(type));
+                    }
+                }
             }
 
             public override string ToString()
             {
-                return (hashField.IsNull ? key.ToString() : ((string)key) + " > " + hashField)
+                return (expectedValue.IsNull ? key.ToString() : ((string)key) + " " + type + " > " + expectedValue)
                     + (expectedResult ? " exists" : " does not exists");
             }
 
             internal override void CheckCommands(CommandMap commandMap)
             {
-                commandMap.AssertAvailable(hashField.IsNull ? RedisCommand.EXISTS : RedisCommand.HEXISTS);
+                commandMap.AssertAvailable(cmd);
             }
 
             internal override IEnumerable<Message> CreateMessages(int db, ResultBox resultBox)
             {
                 yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key);
 
-                var cmd = hashField.IsNull ? RedisCommand.EXISTS : RedisCommand.HEXISTS;
-                var message = ConditionProcessor.CreateMessage(this, db, CommandFlags.None, cmd, key, hashField);
+                var message = ConditionProcessor.CreateMessage(this, db, CommandFlags.None, cmd, key, expectedValue);
                 message.SetSource(ConditionProcessor.Default, resultBox);
                 yield return message;
             }
@@ -340,15 +396,24 @@ namespace StackExchange.Redis
             }
             internal override bool TryValidate(RawResult result, out bool value)
             {
-                bool parsed;
-                if (ResultProcessor.DemandZeroOrOneProcessor.TryGet(result, out parsed))
-                {
-                    value = parsed == expectedResult;
-                    ConnectionMultiplexer.TraceWithoutContext("exists: " + parsed + "; expected: " + expectedResult + "; voting: " + value);
-                    return true;
+                switch (type) {
+                    case RedisType.SortedSet:
+                        var parsedValue = result.AsRedisValue();
+                        value = (parsedValue.IsNull != expectedResult);
+                        ConnectionMultiplexer.TraceWithoutContext("exists: " + parsedValue + "; expected: " + expectedResult + "; voting: " + value);
+                        return true;
+
+                    default:
+                        bool parsed;
+                        if (ResultProcessor.DemandZeroOrOneProcessor.TryGet(result, out parsed))
+                        {
+                            value = parsed == expectedResult;
+                            ConnectionMultiplexer.TraceWithoutContext("exists: " + parsed + "; expected: " + expectedResult + "; voting: " + value);
+                            return true;
+                        }
+                        value = false;
+                        return false;
                 }
-                value = false;
-                return false;
             }
         }
 
