@@ -77,6 +77,8 @@ namespace StackExchange.Redis
 
         public bool IsConnected => interactive?.IsConnected == true;
 
+        public bool IsConnecting => interactive?.IsConnecting == true;
+        
         internal Exception LastException
         {
             get

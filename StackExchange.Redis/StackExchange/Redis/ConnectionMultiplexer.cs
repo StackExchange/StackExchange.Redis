@@ -1839,6 +1839,20 @@ namespace StackExchange.Redis
             }
         }
 
+        /// <summary>
+        /// Indicates whether any servers are currently trying to connect
+        /// </summary>
+        public bool IsConnecting
+        {
+            get
+            {
+                var tmp = serverSnapshot;
+                for (int i = 0; i < tmp.Length; i++)
+                    if (tmp[i].IsConnecting) return true;
+                return false;
+            }
+        }
+
         internal ConfigurationOptions RawConfig => configuration;
 
         internal ServerSelectionStrategy ServerSelectionStrategy => serverSelectionStrategy;
