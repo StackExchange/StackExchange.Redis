@@ -34,14 +34,14 @@ namespace StackExchange.Redis.Tests
         public void AddCondition_HashExists()
         {
             wrapper.AddCondition(Condition.HashExists("key", "field"));
-            mock.Verify(_ => _.AddCondition(It.Is<Condition>(value => "prefix:key > field exists" == value.ToString())));
+            mock.Verify(_ => _.AddCondition(It.Is<Condition>(value => "prefix:key Hash > field exists" == value.ToString())));
         }
 
         [Fact]
         public void AddCondition_HashNotExists()
         {
             wrapper.AddCondition(Condition.HashNotExists("key", "field"));
-            mock.Verify(_ => _.AddCondition(It.Is<Condition>(value => "prefix:key > field does not exists" == value.ToString())));
+            mock.Verify(_ => _.AddCondition(It.Is<Condition>(value => "prefix:key Hash > field does not exists" == value.ToString())));
         }
 
         [Fact]
