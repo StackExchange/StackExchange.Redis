@@ -1,4 +1,5 @@
-﻿using Xunit.Abstractions;
+﻿using System.Runtime.InteropServices;
+using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests.Helpers
 {
@@ -15,6 +16,7 @@ namespace StackExchange.Redis.Tests.Helpers
 #else
             output.WriteLine("Compiled under <unknown framework>");
 #endif
+            output.WriteLine("Running on: " + RuntimeInformation.OSDescription);
         }
     }
 }

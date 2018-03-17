@@ -18,6 +18,7 @@
     <PackageReference Include="Jil" Version="2.15.4" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="15.0.0" />
     <PackageReference Include="Moq" Version="4.7.99" />
+    <PackageReference Include="System.Runtime.InteropServices.RuntimeInformation" Version="4.3.0" />
     <PackageReference Include="xunit" Version="$(xUnitVersion)" />
     <PackageReference Include="xunit.runner.visualstudio" Version="$(xUnitVersion)" />
     <DotNetCliToolReference Include="dotnet-xunit" Version="$(xUnitVersion)" />
