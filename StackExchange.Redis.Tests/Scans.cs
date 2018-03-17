@@ -104,7 +104,7 @@ namespace StackExchange.Redis.Tests
                 int snapOffset = 0, snapPageSize = 0;
 
                 i = 0;
-                var seq = server.Keys(DB, pageSize: 15);
+                var seq = server.Keys(DB, "ScanResume:*", pageSize: 15);
                 foreach (var key in seq)
                 {
                     if (i == 57)
@@ -124,7 +124,7 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(11, snapOffset);
                 Assert.Equal(15, snapPageSize);
 
-                seq = server.Keys(DB, pageSize: 15, cursor: snapCursor, pageOffset: snapOffset);
+                seq = server.Keys(DB, "ScanResume:*", pageSize: 15, cursor: snapCursor, pageOffset: snapOffset);
                 var seqCur = (IScanningCursor)seq;
                 Assert.Equal(snapCursor, seqCur.Cursor);
                 Assert.Equal(snapPageSize, seqCur.PageSize);
