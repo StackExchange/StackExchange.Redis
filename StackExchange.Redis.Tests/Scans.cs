@@ -107,17 +107,19 @@ namespace StackExchange.Redis.Tests
                 var seq = server.Keys(DB, pageSize: 15);
                 foreach (var key in seq)
                 {
-                    i++;
-                    if (i < 57) continue;
                     if (i == 57)
                     {
                         snapCursor = ((IScanningCursor)seq).Cursor;
                         snapOffset = ((IScanningCursor)seq).PageOffset;
                         snapPageSize = ((IScanningCursor)seq).PageSize;
                     }
-                    expected.Add((string)key);
+                    if (i >= 57)
+                    {
+                        expected.Add((string)key);
+                    }
+                    i++;
                 }
-                Assert.NotEqual(43, expected.Count);
+                Assert.Equal(43, expected.Count);
                 Assert.NotEqual(0, snapCursor);
                 Assert.Equal(11, snapOffset);
                 Assert.Equal(15, snapPageSize);
@@ -155,7 +157,7 @@ namespace StackExchange.Redis.Tests
                     count++;
                 }
                 Assert.Empty(expected);
-                Assert.Equal(44, count); // expect the initial item to be repeated
+                Assert.Equal(43, count);
             }
         }
 
