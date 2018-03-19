@@ -39,8 +39,8 @@ namespace StackExchange.Redis.Tests
             ConfigurationOptions config = GetMasterSlaveConfig();
             using (var conn = ConnectionMultiplexer.Connect(config))
             {
-                var primary = conn.GetServer(new IPEndPoint(IPAddress.Parse(TestConfig.Current.MasterServer), TestConfig.Current.MasterPort));
-                var secondary = conn.GetServer(new IPEndPoint(IPAddress.Parse(TestConfig.Current.SlaveServer), TestConfig.Current.SlavePort));
+                var primary = conn.GetServer(TestConfig.Current.MasterServer, TestConfig.Current.MasterPort);
+                var secondary = conn.GetServer(TestConfig.Current.SlaveServer, TestConfig.Current.SlavePort);
 
                 primary.Ping();
                 secondary.Ping();
@@ -74,7 +74,7 @@ namespace StackExchange.Redis.Tests
 
                 primary.MakeMaster(ReplicationChangeOptions.Broadcast | ReplicationChangeOptions.EnslaveSubordinates | ReplicationChangeOptions.SetTiebreaker, Writer);
 
-                await Task.Delay(5000).ConfigureAwait(false);
+                await Task.Delay(2000).ConfigureAwait(false);
 
                 primary.Ping();
                 secondary.Ping();
@@ -82,15 +82,18 @@ namespace StackExchange.Redis.Tests
                 Assert.True(primary.IsConnected, $"{primary.EndPoint} is not connected.");
                 Assert.True(secondary.IsConnected, $"{secondary.EndPoint} is not connected.");
 
-                Writer.WriteLine($"{primary.EndPoint}: {primary.ServerType}");
-                Writer.WriteLine($"{secondary.EndPoint}: {secondary.ServerType}");
+                Writer.WriteLine($"{primary.EndPoint}: {primary.ServerType}, Mode: {(primary.IsSlave ? "Slave" : "Master")}");
+                Writer.WriteLine($"{secondary.EndPoint}: {secondary.ServerType}, Mode: {(secondary.IsSlave ? "Slave" : "Master")}");
 
                 // Create a separate multiplexer with a valid view of the world to distinguish between failures of
                 // server topology changes from failures to recognize those changes
                 using (var conn2 = ConnectionMultiplexer.Connect(config))
                 {
-                    var primary2 = conn.GetServer(new IPEndPoint(IPAddress.Parse(TestConfig.Current.MasterServer), TestConfig.Current.MasterPort));
-                    var secondary2 = conn.GetServer(new IPEndPoint(IPAddress.Parse(TestConfig.Current.SlaveServer), TestConfig.Current.SlavePort));
+                    var primary2 = conn.GetServer(TestConfig.Current.MasterServer, TestConfig.Current.MasterPort);
+                    var secondary2 = conn.GetServer(TestConfig.Current.SlaveServer, TestConfig.Current.SlavePort);
+
+                    Writer.WriteLine($"Check: {primary2.EndPoint}: {primary2.ServerType}, Mode: {(primary2.IsSlave ? "Slave" : "Master")}");
+                    Writer.WriteLine($"Check: {secondary2.EndPoint}: {secondary2.ServerType}, Mode: {(secondary2.IsSlave ? "Slave" : "Master")}");
 
                     Assert.False(primary2.IsSlave, $"{primary2.EndPoint} should be a master (verification connection).");
                     Assert.True(secondary2.IsSlave, $"{secondary2.EndPoint} should be a slave (verification connection).");
