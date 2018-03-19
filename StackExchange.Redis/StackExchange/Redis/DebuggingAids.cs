@@ -110,19 +110,15 @@ namespace StackExchange.Redis
     {
         internal void SimulateConnectionFailure()
         {
-            var tmp = interactive;
-            tmp?.SimulateConnectionFailure();
-            tmp = subscription;
-            tmp?.SimulateConnectionFailure();
+            interactive?.SimulateConnectionFailure();
+            subscription?.SimulateConnectionFailure();
         }
 
         internal string ListPending(int maxCount)
         {
             var sb = new StringBuilder();
-            var tmp = interactive;
-            tmp?.ListPending(sb, maxCount);
-            tmp = subscription;
-            tmp?.ListPending(sb, maxCount);
+            interactive?.ListPending(sb, maxCount);
+            subscription?.ListPending(sb, maxCount);
             return sb.ToString();
         }
     }
