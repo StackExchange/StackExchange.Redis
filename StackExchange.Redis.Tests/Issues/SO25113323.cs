@@ -16,7 +16,7 @@ namespace StackExchange.Redis.Tests.Issues
             using (var conn =  Create())
             {
                 // Given
-                var cache = conn.GetDatabase(61);
+                var cache = conn.GetDatabase(59);
                 cache.KeyDelete(key);
                 cache.HashSet(key, "full", "test", When.NotExists, CommandFlags.PreferMaster);
 
