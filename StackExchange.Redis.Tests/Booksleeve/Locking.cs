@@ -123,7 +123,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
                 string right = Guid.NewGuid().ToString(),
                     wrong = Guid.NewGuid().ToString();
 
-                const int DB = 7;
+                const int DB = 58;
                 const string Key = "lock-key";
 
                 //conn.SuspendFlush();
