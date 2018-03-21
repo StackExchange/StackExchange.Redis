@@ -42,13 +42,16 @@ namespace StackExchange.Redis.Tests
 
             public string MasterServer { get; set; } = "127.0.0.1";
             public int MasterPort { get; set; } = 6379;
+            public string MasterServerAndPort => MasterServer + ":" + MasterPort.ToString();
 
             public string SlaveServer { get; set; } = "127.0.0.1";
             public int SlavePort { get; set; } = 6380;
+            public string SlaveServerAndPort => SlaveServer + ":" + SlavePort.ToString();
 
             public string SecureServer { get; set; } = "127.0.0.1";
             public int SecurePort { get; set; } = 6381;
             public string SecurePassword { get; set; } = "changeme";
+            public string SecureServerAndPort => SecureServer + ":" + SecurePort.ToString();
 
             public string IPv4Server { get; set; } = "127.0.0.1";
             public int IPv4Port { get; set; } = 6379;

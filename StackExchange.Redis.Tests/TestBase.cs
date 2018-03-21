@@ -18,7 +18,7 @@ namespace StackExchange.Redis.Tests
     {
         protected ITestOutputHelper Output { get; }
         protected TextWriterOutputHelper Writer { get; }
-        protected virtual string GetConfiguration() => TestConfig.Current.MasterServer + ":" + TestConfig.Current.MasterPort + "," + TestConfig.Current.SlaveServer + ":" + TestConfig.Current.SlavePort;
+        protected virtual string GetConfiguration() => TestConfig.Current.MasterServerAndPort + "," + TestConfig.Current.SlaveServerAndPort;
 
         protected TestBase(ITestOutputHelper output)
         {

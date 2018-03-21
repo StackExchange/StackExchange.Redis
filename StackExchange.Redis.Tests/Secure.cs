@@ -10,7 +10,7 @@ namespace StackExchange.Redis.Tests
     public class Secure : TestBase
     {
         protected override string GetConfiguration() =>
-            TestConfig.Current.MasterServer + ":" + TestConfig.Current.SecurePort + ",password=" + TestConfig.Current.SecurePassword + ",name=MyClient";
+            TestConfig.Current.SecureServerAndPort + ",password=" + TestConfig.Current.SecurePassword + ",name=MyClient";
 
         public Secure(ITestOutputHelper output) : base (output) { }
 

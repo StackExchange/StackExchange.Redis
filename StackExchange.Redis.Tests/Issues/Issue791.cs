@@ -29,7 +29,7 @@ namespace StackExchange.Redis.Tests.Issues
         [Fact]
         public void PreserveAsyncOrder_SetConnectionMultiplexerProperty()
         {
-            var multiplexer = ConnectionMultiplexer.Connect(TestConfig.Current.MasterServer + ":" + TestConfig.Current.MasterPort + ",preserveAsyncOrder=false");
+            var multiplexer = ConnectionMultiplexer.Connect(TestConfig.Current.MasterServerAndPort + ",preserveAsyncOrder=false");
             Assert.False(multiplexer.PreserveAsyncOrder);
         }
     }

@@ -8,7 +8,7 @@ namespace StackExchange.Redis.Tests
     {
         public AsyncTests(ITestOutputHelper output) : base (output) { }
 
-        protected override string GetConfiguration() => TestConfig.Current.MasterServer + ":" + TestConfig.Current.MasterPort;
+        protected override string GetConfiguration() => TestConfig.Current.MasterServerAndPort;
 
 #if DEBUG // IRedisServerDebug and AllowConnect are only available if DEBUG is defined
         [Fact]

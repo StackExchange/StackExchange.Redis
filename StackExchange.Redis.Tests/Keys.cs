@@ -34,7 +34,7 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create(allowAdmin: true))
             {
                 var db = conn.GetDatabase();
-                conn.GetServer(TestConfig.Current.MasterServer, TestConfig.Current.MasterPort).FlushDatabase();
+                conn.GetServer(TestConfig.Current.MasterServerAndPort).FlushDatabase();
                 string anyKey = db.KeyRandom();
 
                 Assert.Null(anyKey);

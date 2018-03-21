@@ -44,7 +44,7 @@ namespace StackExchange.Redis.Tests
                 Skip.IfMissingFeature(conn0, nameof(RedisFeatures.Scripting), f => f.Scripting);
                 // note that these are on different connections (so we wouldn't expect
                 // the flush to drop the local cache - assume it is a surprise!)
-                var server = conn0.GetServer(TestConfig.Current.MasterServer, TestConfig.Current.MasterPort);
+                var server = conn0.GetServer(TestConfig.Current.MasterServerAndPort);
                 var db = conn1.GetDatabase();
                 const string script = "return 1;";
 
@@ -102,7 +102,7 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create(allowAdmin: true))
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
-                var server = conn.GetServer(TestConfig.Current.MasterServer, TestConfig.Current.MasterPort);
+                var server = conn.GetServer(TestConfig.Current.MasterServerAndPort);
                 server.FlushAllDatabases();
                 server.ScriptFlush();
 
@@ -156,7 +156,7 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create(allowAdmin: true))
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
-                var server = conn.GetServer(TestConfig.Current.MasterServer, TestConfig.Current.MasterPort);
+                var server = conn.GetServer(TestConfig.Current.MasterServerAndPort);
                 server.FlushAllDatabases();
                 server.ScriptFlush();
 
@@ -184,7 +184,7 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create(allowAdmin: true))
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
-                var server = conn.GetServer(TestConfig.Current.MasterServer, TestConfig.Current.MasterPort);
+                var server = conn.GetServer(TestConfig.Current.MasterServerAndPort);
                 server.FlushAllDatabases();
                 server.ScriptFlush();
 
@@ -232,7 +232,7 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create(allowAdmin: true))
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
-                var server = conn.GetServer(TestConfig.Current.MasterServer, TestConfig.Current.MasterPort);
+                var server = conn.GetServer(TestConfig.Current.MasterServerAndPort);
                 server.FlushAllDatabases();
                 server.ScriptFlush();
 
@@ -261,7 +261,7 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create(allowAdmin: true))
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
-                var server = conn.GetServer(TestConfig.Current.MasterServer, TestConfig.Current.MasterPort);
+                var server = conn.GetServer(TestConfig.Current.MasterServerAndPort);
                 server.FlushAllDatabases();
                 server.ScriptFlush();
 
@@ -296,7 +296,7 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create(allowAdmin: true))
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
-                var server = conn.GetServer(TestConfig.Current.MasterServer, TestConfig.Current.MasterPort);
+                var server = conn.GetServer(TestConfig.Current.MasterServerAndPort);
                 server.FlushAllDatabases();
                 server.ScriptFlush();
 
@@ -345,7 +345,7 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create(allowAdmin: true))
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
-                var server = conn.GetServer(TestConfig.Current.MasterServer, TestConfig.Current.MasterPort);
+                var server = conn.GetServer(TestConfig.Current.MasterServerAndPort);
                 server.FlushAllDatabases();
                 server.ScriptFlush();
 

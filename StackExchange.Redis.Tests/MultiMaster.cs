@@ -12,7 +12,7 @@ namespace StackExchange.Redis.Tests
     public class MultiMaster : TestBase
     {
         protected override string GetConfiguration() =>
-            TestConfig.Current.MasterServer + ":" + TestConfig.Current.SecurePort + "," + TestConfig.Current.MasterServer + ":" + TestConfig.Current.MasterPort + ",password=" + TestConfig.Current.SecurePassword;
+            TestConfig.Current.MasterServerAndPort + "," + TestConfig.Current.SecureServerAndPort + ",password=" + TestConfig.Current.SecurePassword;
 
         public MultiMaster(ITestOutputHelper output) : base (output) { }
 
@@ -39,8 +39,8 @@ namespace StackExchange.Redis.Tests
             ConfigurationOptions config = GetMasterSlaveConfig();
             using (var conn = ConnectionMultiplexer.Connect(config))
             {
-                var primary = conn.GetServer(TestConfig.Current.MasterServer, TestConfig.Current.MasterPort);
-                var secondary = conn.GetServer(TestConfig.Current.SlaveServer, TestConfig.Current.SlavePort);
+                var primary = conn.GetServer(TestConfig.Current.MasterServerAndPort);
+                var secondary = conn.GetServer(TestConfig.Current.SlaveServerAndPort);
 
                 primary.Ping();
                 secondary.Ping();
@@ -58,7 +58,7 @@ namespace StackExchange.Redis.Tests
                     conn.Configure(writer);
                     string log = writer.ToString();
 
-                    Assert.True(log.Contains("tie-break is unanimous at " + TestConfig.Current.MasterServer + ":" + TestConfig.Current.MasterPort), "unanimous");
+                    Assert.True(log.Contains("tie-break is unanimous at " + TestConfig.Current.MasterServerAndPort), "unanimous");
                 }
                 // k, so we know everyone loves 6379; is that what we get?
 
@@ -89,8 +89,8 @@ namespace StackExchange.Redis.Tests
                 // server topology changes from failures to recognize those changes
                 using (var conn2 = ConnectionMultiplexer.Connect(config))
                 {
-                    var primary2 = conn.GetServer(TestConfig.Current.MasterServer, TestConfig.Current.MasterPort);
-                    var secondary2 = conn.GetServer(TestConfig.Current.SlaveServer, TestConfig.Current.SlavePort);
+                    var primary2 = conn.GetServer(TestConfig.Current.MasterServerAndPort);
+                    var secondary2 = conn.GetServer(TestConfig.Current.SlaveServerAndPort);
 
                     Writer.WriteLine($"Check: {primary2.EndPoint}: {primary2.ServerType}, Mode: {(primary2.IsSlave ? "Slave" : "Master")}");
                     Writer.WriteLine($"Check: {secondary2.EndPoint}: {secondary2.ServerType}, Mode: {(secondary2.IsSlave ? "Slave" : "Master")}");
@@ -143,15 +143,15 @@ namespace StackExchange.Redis.Tests
 
         public static IEnumerable<object[]> GetConnections()
         {
-            yield return new object[] { TestConfig.Current.MasterServer + ":" + TestConfig.Current.MasterPort, TestConfig.Current.MasterServer + ":" + TestConfig.Current.MasterPort, TestConfig.Current.MasterServer + ":" + TestConfig.Current.MasterPort };
-            yield return new object[] { TestConfig.Current.MasterServer + ":" + TestConfig.Current.SecurePort, TestConfig.Current.MasterServer + ":" + TestConfig.Current.SecurePort, TestConfig.Current.MasterServer + ":" + TestConfig.Current.SecurePort };
-            yield return new object[] { TestConfig.Current.MasterServer + ":" + TestConfig.Current.SecurePort, TestConfig.Current.MasterServer + ":" + TestConfig.Current.MasterPort, null };
-            yield return new object[] { TestConfig.Current.MasterServer + ":" + TestConfig.Current.MasterPort, TestConfig.Current.MasterServer + ":" + TestConfig.Current.SecurePort, null };
+            yield return new object[] { TestConfig.Current.MasterServerAndPort, TestConfig.Current.MasterServerAndPort, TestConfig.Current.MasterServerAndPort };
+            yield return new object[] { TestConfig.Current.SecureServerAndPort, TestConfig.Current.SecureServerAndPort, TestConfig.Current.SecureServerAndPort };
+            yield return new object[] { TestConfig.Current.SecureServerAndPort, TestConfig.Current.MasterServerAndPort, null };
+            yield return new object[] { TestConfig.Current.MasterServerAndPort, TestConfig.Current.SecureServerAndPort, null };
 
-            yield return new object[] { null, TestConfig.Current.MasterServer + ":" + TestConfig.Current.MasterPort, TestConfig.Current.MasterServer + ":" + TestConfig.Current.MasterPort };
-            yield return new object[] { TestConfig.Current.MasterServer + ":" + TestConfig.Current.MasterPort, null, TestConfig.Current.MasterServer + ":" + TestConfig.Current.MasterPort };
-            yield return new object[] { null, TestConfig.Current.MasterServer + ":" + TestConfig.Current.SecurePort, TestConfig.Current.MasterServer + ":" + TestConfig.Current.SecurePort };
-            yield return new object[] { TestConfig.Current.MasterServer + ":" + TestConfig.Current.SecurePort, null, TestConfig.Current.MasterServer + ":" + TestConfig.Current.SecurePort };
+            yield return new object[] { null, TestConfig.Current.MasterServerAndPort, TestConfig.Current.MasterServerAndPort };
+            yield return new object[] { TestConfig.Current.MasterServerAndPort, null, TestConfig.Current.MasterServerAndPort };
+            yield return new object[] { null, TestConfig.Current.SecureServerAndPort, TestConfig.Current.SecureServerAndPort };
+            yield return new object[] { TestConfig.Current.SecureServerAndPort, null, TestConfig.Current.SecureServerAndPort };
             yield return new object[] { null, null, null };
         }
 
@@ -160,11 +160,11 @@ namespace StackExchange.Redis.Tests
         {
             const string TieBreak = "__tie__";
             // set the tie-breakers to the expected state
-            using (var aConn = ConnectionMultiplexer.Connect(TestConfig.Current.MasterServer + ":" + TestConfig.Current.MasterPort))
+            using (var aConn = ConnectionMultiplexer.Connect(TestConfig.Current.MasterServerAndPort))
             {
                 aConn.GetDatabase().StringSet(TieBreak, a);
             }
-            using (var aConn = ConnectionMultiplexer.Connect(TestConfig.Current.MasterServer + ":" + TestConfig.Current.SecurePort + ",password=" + TestConfig.Current.SecurePassword))
+            using (var aConn = ConnectionMultiplexer.Connect(TestConfig.Current.SecureServerAndPort + ",password=" + TestConfig.Current.SecurePassword))
             {
                 aConn.GetDatabase().StringSet(TieBreak, b);
             }
