@@ -71,13 +71,16 @@ namespace StackExchange.Redis.Tests
 
                 var ex = Assert.Throws<RedisConnectionException>(() => db.IdentifyEndpoint(key, CommandFlags.DemandSlave));
                 Assert.StartsWith("No connection is available to service this operation: EXISTS DeslaveGoesToPrimary", ex.Message);
-
+                Writer.WriteLine("Invoking MakeMaster()...");
                 primary.MakeMaster(ReplicationChangeOptions.Broadcast | ReplicationChangeOptions.EnslaveSubordinates | ReplicationChangeOptions.SetTiebreaker, Writer);
+                Writer.WriteLine("Finished MakeMaster() call.");
 
                 await Task.Delay(2000).ConfigureAwait(false);
 
+                Writer.WriteLine("Invoking Ping() (post-master)");
                 primary.Ping();
                 secondary.Ping();
+                Writer.WriteLine("Finished Ping() (post-master)");
 
                 Assert.True(primary.IsConnected, $"{primary.EndPoint} is not connected.");
                 Assert.True(secondary.IsConnected, $"{secondary.EndPoint} is not connected.");
@@ -87,6 +90,7 @@ namespace StackExchange.Redis.Tests
 
                 // Create a separate multiplexer with a valid view of the world to distinguish between failures of
                 // server topology changes from failures to recognize those changes
+                Writer.WriteLine("Connecting to secondary validation connection.");
                 using (var conn2 = ConnectionMultiplexer.Connect(config))
                 {
                     var primary2 = conn.GetServer(TestConfig.Current.MasterServerAndPort);
