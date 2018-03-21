@@ -10,7 +10,7 @@ namespace StackExchange.Redis
 {
     public partial class SocketManager
     {
-        internal const SocketMode DefaultSocketMode = SocketMode.Poll;
+        internal static readonly SocketMode DefaultSocketMode = SocketMode.Poll;
         private static readonly IntPtr[] EmptyPointers = new IntPtr[0];
         private static readonly WaitCallback HelpProcessItems = state =>
         {
