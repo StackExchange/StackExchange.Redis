@@ -103,7 +103,7 @@ namespace StackExchange.Redis.Tests
         }
 
         private int privateFailCount;
-        private static AsyncLocal<int> sharedFailCount = new AsyncLocal<int>();
+        private static readonly AsyncLocal<int> sharedFailCount = new AsyncLocal<int>();
         private volatile int expectedFailCount;
 
         private readonly List<string> privateExceptions = new List<string>();

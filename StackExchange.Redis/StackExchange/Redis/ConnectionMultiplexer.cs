@@ -98,7 +98,7 @@ namespace StackExchange.Redis
                 var currentRoleInstanceId = currentRoleInstanceProp.GetValue(null, null);
                 roleInstanceId = currentRoleInstanceId.GetType().GetProperty("Id").GetValue(currentRoleInstanceId, null).ToString();
 
-                if (String.IsNullOrEmpty(roleInstanceId))
+                if (string.IsNullOrEmpty(roleInstanceId))
                 {
                     roleInstanceId = null;
                 }
@@ -2050,7 +2050,7 @@ namespace StackExchange.Redis
 
                             add("Client-Name", "clientName", ClientName);
                             add("Server-Endpoint", "serverEndpoint", server.EndPoint.ToString());
-                            var hashSlot = message.GetHashSlot(this.ServerSelectionStrategy);
+                            var hashSlot = message.GetHashSlot(ServerSelectionStrategy);
                             // only add keyslot if its a valid cluster key slot
                             if (hashSlot != ServerSelectionStrategy.NoSlot)
                             {

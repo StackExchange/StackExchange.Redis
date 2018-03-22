@@ -185,8 +185,8 @@ namespace StackExchange.Redis
             socket.NoDelay = true;
             try
             {
-                CompletionType connectCompletionType = CompletionType.Any;
-                this.ShouldForceConnectCompletionType(ref connectCompletionType);
+                var connectCompletionType = CompletionType.Any;
+                ShouldForceConnectCompletionType(ref connectCompletionType);
 
                 var formattedEndpoint = Format.ToString(endpoint);
                 var tuple = Tuple.Create(socket, callback);

@@ -309,7 +309,7 @@ namespace StackExchange.Redis
                 public TimerMessage(int db, CommandFlags flags, RedisCommand command, RedisValue value)
                     : base(db, flags, command)
                 {
-                    this.Watch = Stopwatch.StartNew();
+                    Watch = Stopwatch.StartNew();
                     this.value = value;
                 }
 
@@ -1313,7 +1313,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                         return true;
                     case ResultType.MultiBulk:
                         var arr = result.GetItems();
-                        if(arr.Length == 1)
+                        if (arr.Length == 1)
                         {
                             SetResult(message, arr[0].GetString());
                             return true;

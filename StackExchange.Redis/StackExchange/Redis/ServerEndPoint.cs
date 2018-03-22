@@ -199,7 +199,7 @@ namespace StackExchange.Redis
                 multiplexer.Trace("Updating cluster ranges...");
                 multiplexer.UpdateClusterRange(configuration);
                 multiplexer.Trace("Resolving genealogy...");
-                var thisNode = configuration.Nodes.FirstOrDefault(x => x.EndPoint.Equals(this.EndPoint));
+                var thisNode = configuration.Nodes.FirstOrDefault(x => x.EndPoint.Equals(EndPoint));
                 if (thisNode != null)
                 {
                     List<ServerEndPoint> slaves = null;
@@ -212,8 +212,7 @@ namespace StackExchange.Redis
                         }
                         else if (node.ParentNodeId == thisNode.NodeId)
                         {
-                            if (slaves == null) slaves = new List<ServerEndPoint>();
-                            slaves.Add(multiplexer.GetServerEndPoint(node.EndPoint));
+                            (slaves ?? (slaves = new List<ServerEndPoint>())).Add(multiplexer.GetServerEndPoint(node.EndPoint));
                         }
                     }
                     Master = master;

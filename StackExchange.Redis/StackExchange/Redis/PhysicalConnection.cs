@@ -943,7 +943,7 @@ namespace StackExchange.Redis
                 msg = outstanding.Dequeue();
             }
 
-            Multiplexer.Trace("Response to: " + msg.ToString(), physicalName);
+            Multiplexer.Trace("Response to: " + msg, physicalName);
             if (msg.ComputeResult(this, result))
             {
                 Bridge.CompleteSyncOrAsync(msg);

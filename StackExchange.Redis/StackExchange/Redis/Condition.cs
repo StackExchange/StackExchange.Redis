@@ -8,7 +8,7 @@ namespace StackExchange.Redis
     /// </summary>
     public abstract class Condition
     {
-        internal abstract Condition MapKeys(Func<RedisKey,RedisKey> map);
+        internal abstract Condition MapKeys(Func<RedisKey, RedisKey> map);
 
         private Condition() { }
 
@@ -293,7 +293,7 @@ namespace StackExchange.Redis
                 public ConditionMessage(Condition condition, int db, CommandFlags flags, RedisCommand command, RedisKey key, RedisValue value)
                     : base(db, flags, command, key)
                 {
-                    this.Condition = condition;
+                    Condition = condition;
                     this.value = value; // note no assert here
                 }
 
@@ -322,7 +322,7 @@ namespace StackExchange.Redis
             private readonly RedisType type;
             private readonly RedisCommand cmd;
 
-            internal override Condition MapKeys(Func<RedisKey,RedisKey> map)
+            internal override Condition MapKeys(Func<RedisKey, RedisKey> map)
             {
                 return new ExistsCondition(map(key), type, expectedValue, expectedResult);
             }
@@ -335,11 +335,14 @@ namespace StackExchange.Redis
                 this.expectedValue = expectedValue;
                 this.expectedResult = expectedResult;
 
-                if (expectedValue.IsNull) {
+                if (expectedValue.IsNull)
+                {
                     cmd = RedisCommand.EXISTS;
                 }
-                else {
-                    switch (type) {
+                else
+                {
+                    switch (type)
+                    {
                         case RedisType.Hash:
                             cmd = RedisCommand.HEXISTS;
                             break;
@@ -403,7 +406,7 @@ namespace StackExchange.Redis
 
         internal class EqualsCondition : Condition
         {
-            internal override Condition MapKeys(Func<RedisKey,RedisKey> map)
+            internal override Condition MapKeys(Func<RedisKey, RedisKey> map)
             {
                 return new EqualsCondition(map(key), hashField, expectedEqual, expectedValue);
             }
@@ -467,7 +470,7 @@ namespace StackExchange.Redis
 
         internal class ListCondition : Condition
         {
-            internal override Condition MapKeys(Func<RedisKey,RedisKey> map)
+            internal override Condition MapKeys(Func<RedisKey, RedisKey> map)
             {
                 return new ListCondition(map(key), index, expectedResult, expectedValue);
             }
@@ -535,7 +538,7 @@ namespace StackExchange.Redis
 
         internal class LengthCondition : Condition
         {
-            internal override Condition MapKeys(Func<RedisKey,RedisKey> map)
+            internal override Condition MapKeys(Func<RedisKey, RedisKey> map)
             {
                 return new LengthCondition(map(key), type, compareToResult, expectedLength);
             }
@@ -553,7 +556,8 @@ namespace StackExchange.Redis
                 this.compareToResult = compareToResult;
                 this.expectedLength = expectedLength;
                 this.type = type;
-                switch (type) {
+                switch (type)
+                {
                     case RedisType.Hash:
                         cmd = RedisCommand.HLEN;
                         break;
@@ -616,7 +620,7 @@ namespace StackExchange.Redis
                     case ResultType.SimpleString:
                     case ResultType.Integer:
                         var parsed = result.AsRedisValue();
-                        value = parsed.IsInteger && (expectedLength.CompareTo((long) parsed) == compareToResult);
+                        value = parsed.IsInteger && (expectedLength.CompareTo((long)parsed) == compareToResult);
                         ConnectionMultiplexer.TraceWithoutContext("actual: " + (string)parsed + "; expected: " + expectedLength +
                             "; wanted: " + GetComparisonString() + "; voting: " + value);
                         return true;
@@ -640,7 +644,7 @@ namespace StackExchange.Redis
 
         internal ConditionResult(Condition condition)
         {
-            this.Condition = condition;
+            Condition = condition;
             resultBox = ResultBox<bool>.Get(condition);
         }
 

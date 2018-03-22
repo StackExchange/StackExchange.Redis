@@ -97,8 +97,8 @@ namespace StackExchange.Redis
         /// <param name="other">The other slot range to compare to.</param>
         public int CompareTo(SlotRange other)
         {
-            int delta = (int)this.from - (int)other.from;
-            return delta == 0 ? (int)this.to - (int)other.to : delta;
+            int delta = (int)from - (int)other.from;
+            return delta == 0 ? (int)to - (int)other.to : delta;
         }
 
         /// <summary>
@@ -161,7 +161,7 @@ namespace StackExchange.Redis
         {
             // Beware: Any exception thrown here will wreak silent havoc like inability to connect to cluster nodes or non returning calls
             this.serverSelectionStrategy = serverSelectionStrategy;
-            this.Origin = origin;
+            Origin = origin;
             using (var reader = new StringReader(nodes))
             {
                 string line;
@@ -178,7 +178,7 @@ namespace StackExchange.Redis
                     // make sure that things like clusterConfiguration[clusterConfiguration.Origin]
                     // will work as expected.
                     if (node.IsMyself)
-                        this.Origin = node.EndPoint;
+                        Origin = node.EndPoint;
 
                     if (nodeLookup.ContainsKey(node.EndPoint))
                     {
@@ -286,7 +286,7 @@ namespace StackExchange.Redis
         {
             // https://redis.io/commands/cluster-nodes
             this.configuration = configuration;
-            this.Raw = raw;
+            Raw = raw;
             var parts = raw.Split(StringSplits.Space);
 
             var flags = parts[2].Split(StringSplits.Comma);
@@ -319,8 +319,7 @@ namespace StackExchange.Redis
             {
                 if (SlotRange.TryParse(parts[i], out SlotRange range))
                 {
-                    if (slots == null) slots = new List<SlotRange>(parts.Length - i);
-                    slots.Add(range);
+                    (slots ?? (slots = new List<SlotRange>(parts.Length - i))).Add(range);
                 }
             }
             Slots = slots?.AsReadOnly() ?? NoSlots;
@@ -338,10 +337,9 @@ namespace StackExchange.Redis
                 List<ClusterNode> nodes = null;
                 foreach (var node in configuration.Nodes)
                 {
-                    if (node.ParentNodeId == this.NodeId)
+                    if (node.ParentNodeId == NodeId)
                     {
-                        if (nodes == null) nodes = new List<ClusterNode>();
-                        nodes.Add(node);
+                        (nodes ?? (nodes = new List<ClusterNode>())).Add(node);
                     }
                 }
                 children = nodes?.AsReadOnly() ?? NoNodes;
@@ -416,14 +414,14 @@ namespace StackExchange.Redis
         {
             if (other == null) return -1;
 
-            if (this.IsSlave != other.IsSlave) return IsSlave ? 1 : -1; // masters first
+            if (IsSlave != other.IsSlave) return IsSlave ? 1 : -1; // masters first
 
             if (IsSlave) // both slaves? compare by parent, so we get masters A, B, C and then slaves of A, B, C
             {
-                int i = string.CompareOrdinal(this.ParentNodeId, other.ParentNodeId);
+                int i = string.CompareOrdinal(ParentNodeId, other.ParentNodeId);
                 if (i != 0) return i;
             }
-            return string.CompareOrdinal(this.NodeId, other.NodeId);
+            return string.CompareOrdinal(NodeId, other.NodeId);
         }
 
         /// <summary>
