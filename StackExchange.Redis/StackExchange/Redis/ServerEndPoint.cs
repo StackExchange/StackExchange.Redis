@@ -27,10 +27,8 @@ namespace StackExchange.Redis
         internal volatile ServerEndPoint[] Slaves = NoSlaves;
         private static readonly Regex nameSanitizer = new Regex("[^!-~]", RegexOptions.Compiled);
         private static readonly ServerEndPoint[] NoSlaves = new ServerEndPoint[0];
-        private readonly EndPoint endpoint;
 
         private readonly Hashtable knownScripts = new Hashtable(StringComparer.Ordinal);
-        private readonly ConnectionMultiplexer multiplexer;
 
         private int databases, writeEverySeconds;
         private PhysicalBridge interactive, subscription;
@@ -48,8 +46,8 @@ namespace StackExchange.Redis
 
         public ServerEndPoint(ConnectionMultiplexer multiplexer, EndPoint endpoint, TextWriter log)
         {
-            this.multiplexer = multiplexer;
-            this.endpoint = endpoint;
+            Multiplexer = multiplexer;
+            EndPoint = endpoint;
             var config = multiplexer.RawConfig;
             version = config.DefaultVersion;
             slaveReadOnly = true;
@@ -71,7 +69,7 @@ namespace StackExchange.Redis
 
         public int Databases { get { return databases; } set { SetConfig(ref databases, value); } }
 
-        public EndPoint EndPoint => endpoint;
+        public EndPoint EndPoint { get; }
 
         public bool HasDatabases => serverType == ServerType.Standalone;
 
@@ -130,7 +128,8 @@ namespace StackExchange.Redis
         public Version Version { get { return version; } set { SetConfig(ref version, value); } }
 
         public int WriteEverySeconds { get { return writeEverySeconds; } set { SetConfig(ref writeEverySeconds, value); } }
-        internal ConnectionMultiplexer Multiplexer => multiplexer;
+
+        internal ConnectionMultiplexer Multiplexer { get; }
 
         public void ClearUnselectable(UnselectableFlags flags)
         {
@@ -140,7 +139,7 @@ namespace StackExchange.Redis
                 unselectableReasons &= ~flags;
                 if (unselectableReasons != oldFlags)
                 {
-                    multiplexer.Trace(unselectableReasons == 0 ? "Now usable" : ("Now unusable: " + flags), ToString());
+                    Multiplexer.Trace(unselectableReasons == 0 ? "Now usable" : ("Now unusable: " + flags), ToString());
                 }
             }
         }
@@ -196,9 +195,9 @@ namespace StackExchange.Redis
 
             if (configuration != null)
             {
-                multiplexer.Trace("Updating cluster ranges...");
-                multiplexer.UpdateClusterRange(configuration);
-                multiplexer.Trace("Resolving genealogy...");
+                Multiplexer.Trace("Updating cluster ranges...");
+                Multiplexer.UpdateClusterRange(configuration);
+                Multiplexer.Trace("Resolving genealogy...");
                 var thisNode = configuration.Nodes.FirstOrDefault(x => x.EndPoint.Equals(EndPoint));
                 if (thisNode != null)
                 {
@@ -208,17 +207,17 @@ namespace StackExchange.Redis
                     {
                         if (node.NodeId == thisNode.ParentNodeId)
                         {
-                            master = multiplexer.GetServerEndPoint(node.EndPoint);
+                            master = Multiplexer.GetServerEndPoint(node.EndPoint);
                         }
                         else if (node.ParentNodeId == thisNode.NodeId)
                         {
-                            (slaves ?? (slaves = new List<ServerEndPoint>())).Add(multiplexer.GetServerEndPoint(node.EndPoint));
+                            (slaves ?? (slaves = new List<ServerEndPoint>())).Add(Multiplexer.GetServerEndPoint(node.EndPoint));
                         }
                     }
                     Master = master;
                     Slaves = slaves?.ToArray() ?? NoSlaves;
                 }
-                multiplexer.Trace("Cluster configured");
+                Multiplexer.Trace("Cluster configured");
             }
         }
 
@@ -230,7 +229,7 @@ namespace StackExchange.Redis
                 unselectableReasons |= flags;
                 if (unselectableReasons != oldFlags)
                 {
-                    multiplexer.Trace(unselectableReasons == 0 ? "Now usable" : ("Now unusable: " + flags), ToString());
+                    Multiplexer.Trace(unselectableReasons == 0 ? "Now usable" : ("Now unusable: " + flags), ToString());
                 }
             }
         }
@@ -261,7 +260,7 @@ namespace StackExchange.Redis
                 return;
             }
 
-            var commandMap = multiplexer.CommandMap;
+            var commandMap = Multiplexer.CommandMap;
             const CommandFlags flags = CommandFlags.FireAndForget | CommandFlags.HighPriority | CommandFlags.NoRedirect;
 
             var features = GetFeatures();
@@ -269,7 +268,7 @@ namespace StackExchange.Redis
 
             if (commandMap.IsAvailable(RedisCommand.CONFIG))
             {
-                if (multiplexer.RawConfig.KeepAlive <= 0)
+                if (Multiplexer.RawConfig.KeepAlive <= 0)
                 {
                     msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.GET, RedisLiterals.timeout);
                     msg.SetInternalCall();
@@ -325,7 +324,7 @@ namespace StackExchange.Redis
         internal Task Close()
         {
             var tmp = interactive;
-            if (tmp == null || !tmp.IsConnected || !multiplexer.CommandMap.IsAvailable(RedisCommand.QUIT))
+            if (tmp == null || !tmp.IsConnected || !Multiplexer.CommandMap.IsAvailable(RedisCommand.QUIT))
             {
                 return CompletedTask<bool>.Default(null);
             }
@@ -362,7 +361,7 @@ namespace StackExchange.Redis
 
         internal ServerCounters GetCounters()
         {
-            var counters = new ServerCounters(endpoint);
+            var counters = new ServerCounters(EndPoint);
             interactive?.GetCounters(counters.Interactive);
             subscription?.GetCounters(counters.Subscription);
             return counters;
@@ -416,12 +415,12 @@ namespace StackExchange.Redis
             // we'll do the best with what we have available.
             // note that the muxer-ctor asserts that one of ECHO, PING, TIME of GET is available
             // see also: TracerProcessor
-            var map = multiplexer.CommandMap;
+            var map = Multiplexer.CommandMap;
             Message msg;
             const CommandFlags flags = CommandFlags.NoRedirect | CommandFlags.FireAndForget;
             if (assertIdentity && map.IsAvailable(RedisCommand.ECHO))
             {
-                msg = Message.Create(-1, flags, RedisCommand.ECHO, (RedisValue)multiplexer.UniqueId);
+                msg = Message.Create(-1, flags, RedisCommand.ECHO, (RedisValue)Multiplexer.UniqueId);
             }
             else if (map.IsAvailable(RedisCommand.PING))
             {
@@ -434,12 +433,12 @@ namespace StackExchange.Redis
             else if (!assertIdentity && map.IsAvailable(RedisCommand.ECHO))
             {
                 // we'll use echo as a PING substitute if it is all we have (in preference to EXISTS)
-                msg = Message.Create(-1, flags, RedisCommand.ECHO, (RedisValue)multiplexer.UniqueId);
+                msg = Message.Create(-1, flags, RedisCommand.ECHO, (RedisValue)Multiplexer.UniqueId);
             }
             else
             {
                 map.AssertAvailable(RedisCommand.EXISTS);
-                msg = Message.Create(0, flags, RedisCommand.EXISTS, (RedisValue)multiplexer.UniqueId);
+                msg = Message.Create(0, flags, RedisCommand.EXISTS, (RedisValue)Multiplexer.UniqueId);
             }
             msg.SetInternalCall();
             return msg;
@@ -472,9 +471,9 @@ namespace StackExchange.Redis
                 var bridge = connection.Bridge;
                 if (bridge == subscription)
                 {
-                    multiplexer.ResendSubscriptions(this);
+                    Multiplexer.ResendSubscriptions(this);
                 }
-                multiplexer.OnConnectionRestored(endpoint, bridge.ConnectionType);
+                Multiplexer.OnConnectionRestored(EndPoint, bridge.ConnectionType);
             }
             catch (Exception ex)
             {
@@ -498,7 +497,7 @@ namespace StackExchange.Redis
         {
             lastInfoReplicationCheckTicks = Environment.TickCount;
             PhysicalBridge bridge;
-            if (version >= RedisFeatures.v2_8_0 && multiplexer.CommandMap.IsAvailable(RedisCommand.INFO)
+            if (version >= RedisFeatures.v2_8_0 && Multiplexer.CommandMap.IsAvailable(RedisCommand.INFO)
                 && (bridge = GetBridge(ConnectionType.Interactive, false)) != null)
             {
                 var msg = Message.Create(-1, CommandFlags.FireAndForget | CommandFlags.HighPriority | CommandFlags.NoRedirect, RedisCommand.INFO, RedisLiterals.replication);
@@ -524,7 +523,7 @@ namespace StackExchange.Redis
                 }
                 catch (Exception ex)
                 {
-                    multiplexer.OnInternalError(ex, EndPoint);
+                    Multiplexer.OnInternalError(ex, EndPoint);
                 }
                 finally
                 {
@@ -541,7 +540,7 @@ namespace StackExchange.Redis
             if (bridge == null) bridge = GetBridge(message.Command);
             if (!bridge.TryEnqueue(message, isSlave))
             {
-                ConnectionMultiplexer.ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(multiplexer.IncludeDetailInExceptions, multiplexer.IncludePerformanceCountersInExceptions, message.Command, message, this, multiplexer.GetServerSnapshot()));
+                ConnectionMultiplexer.ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(Multiplexer.IncludeDetailInExceptions, Multiplexer.IncludePerformanceCountersInExceptions, message.Command, message, this, Multiplexer.GetServerSnapshot()));
             }
             return tcs.Task;
         }
@@ -551,7 +550,7 @@ namespace StackExchange.Redis
             if (message != null)
             {
                 message.SetSource(processor, null);
-                multiplexer.Trace("Enqueue: " + message);
+                Multiplexer.Trace("Enqueue: " + message);
                 (bridge ?? GetBridge(message.Command)).TryEnqueue(message, isSlave);
             }
         }
@@ -571,7 +570,7 @@ namespace StackExchange.Redis
 
         internal string Summary()
         {
-            var sb = new StringBuilder(Format.ToString(endpoint))
+            var sb = new StringBuilder(Format.ToString(EndPoint))
                 .Append(": ").Append(serverType).Append(" v").Append(version).Append(", ").Append(isSlave ? "slave" : "master");
 
             if (databases > 0) sb.Append("; ").Append(databases).Append(" databases");
@@ -609,12 +608,12 @@ namespace StackExchange.Redis
                 message.SetSource(processor, null);
                 if (connection == null)
                 {
-                    multiplexer.Trace("Enqueue: " + message);
+                    Multiplexer.Trace("Enqueue: " + message);
                     GetBridge(message.Command).TryEnqueue(message, isSlave);
                 }
                 else
                 {
-                    multiplexer.Trace("Writing direct: " + message);
+                    Multiplexer.Trace("Writing direct: " + message);
                     connection.Bridge.WriteMessageDirect(connection, message);
                 }
             }
@@ -622,7 +621,7 @@ namespace StackExchange.Redis
 
         private PhysicalBridge CreateBridge(ConnectionType type, TextWriter log)
         {
-            multiplexer.Trace(type.ToString());
+            Multiplexer.Trace(type.ToString());
             var bridge = new PhysicalBridge(this, type);
             bridge.TryConnect(log);
             return bridge;
@@ -630,30 +629,30 @@ namespace StackExchange.Redis
 
         private void Handshake(PhysicalConnection connection, TextWriter log)
         {
-            multiplexer.LogLocked(log, "Server handshake");
+            Multiplexer.LogLocked(log, "Server handshake");
             if (connection == null)
             {
-                multiplexer.Trace("No connection!?");
+                Multiplexer.Trace("No connection!?");
                 return;
             }
             Message msg;
-            string password = multiplexer.RawConfig.Password;
+            string password = Multiplexer.RawConfig.Password;
             if (!string.IsNullOrWhiteSpace(password))
             {
-                multiplexer.LogLocked(log, "Authenticating (password)");
+                Multiplexer.LogLocked(log, "Authenticating (password)");
                 msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.AUTH, (RedisValue)password);
                 msg.SetInternalCall();
                 WriteDirectOrQueueFireAndForget(connection, msg, ResultProcessor.DemandOK);
             }
-            if (multiplexer.CommandMap.IsAvailable(RedisCommand.CLIENT))
+            if (Multiplexer.CommandMap.IsAvailable(RedisCommand.CLIENT))
             {
-                string name = multiplexer.ClientName;
+                string name = Multiplexer.ClientName;
                 if (!string.IsNullOrWhiteSpace(name))
                 {
                     name = nameSanitizer.Replace(name, "");
                     if (!string.IsNullOrWhiteSpace(name))
                     {
-                        multiplexer.LogLocked(log, "Setting client name: {0}", name);
+                        Multiplexer.LogLocked(log, "Setting client name: {0}", name);
                         msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.CLIENT, RedisLiterals.SETNAME, (RedisValue)name);
                         msg.SetInternalCall();
                         WriteDirectOrQueueFireAndForget(connection, msg, ResultProcessor.DemandOK);
@@ -665,10 +664,10 @@ namespace StackExchange.Redis
 
             if (connType == ConnectionType.Interactive)
             {
-                multiplexer.LogLocked(log, "Auto-configure...");
+                Multiplexer.LogLocked(log, "Auto-configure...");
                 AutoConfigure(connection);
             }
-            multiplexer.LogLocked(log, "Sending critical tracer: {0}", connection.Bridge);
+            Multiplexer.LogLocked(log, "Sending critical tracer: {0}", connection.Bridge);
             var tracer = GetTracerMessage(true);
             tracer = LoggingMessage.Create(log, tracer);
             WriteDirectOrQueueFireAndForget(connection, tracer, ResultProcessor.EstablishConnection);
@@ -677,14 +676,14 @@ namespace StackExchange.Redis
             // we will be in subscriber mode: regular commands cannot be sent
             if (connType == ConnectionType.Subscription)
             {
-                var configChannel = multiplexer.ConfigurationChangedChannel;
+                var configChannel = Multiplexer.ConfigurationChangedChannel;
                 if (configChannel != null)
                 {
                     msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.SUBSCRIBE, (RedisChannel)configChannel);
                     WriteDirectOrQueueFireAndForget(connection, msg, ResultProcessor.TrackSubscriptions);
                 }
             }
-            multiplexer.LogLocked(log, "Flushing outbound buffer");
+            Multiplexer.LogLocked(log, "Flushing outbound buffer");
             connection.Flush();
         }
 
@@ -692,9 +691,9 @@ namespace StackExchange.Redis
         {
             if (!EqualityComparer<T>.Default.Equals(field, value))
             {
-                multiplexer.Trace(caller + " changed from " + field + " to " + value, "Configuration");
+                Multiplexer.Trace(caller + " changed from " + field + " to " + value, "Configuration");
                 field = value;
-                multiplexer.ReconfigureIfNeeded(endpoint, false, caller);
+                Multiplexer.ReconfigureIfNeeded(EndPoint, false, caller);
             }
         }
     }

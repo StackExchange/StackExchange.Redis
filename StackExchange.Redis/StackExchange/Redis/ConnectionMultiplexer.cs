@@ -45,7 +45,7 @@ namespace StackExchange.Redis
             {
                 counters.Add(snapshot[i].GetCounters());
             }
-            unprocessableCompletionManager.GetCounters(counters.Other);
+            UnprocessableCompletionManager.GetCounters(counters.Other);
             return counters;
         }
 
@@ -123,7 +123,7 @@ namespace StackExchange.Redis
             var handler = ConnectionFailed;
             if (handler != null)
             {
-                unprocessableCompletionManager.CompleteSyncOrAsync(
+                UnprocessableCompletionManager.CompleteSyncOrAsync(
                     new ConnectionFailedEventArgs(handler, this, endpoint, connectionType, failureType, exception)
                 );
             }
@@ -142,7 +142,7 @@ namespace StackExchange.Redis
                 var handler = InternalError;
                 if (handler != null)
                 {
-                    unprocessableCompletionManager.CompleteSyncOrAsync(
+                    UnprocessableCompletionManager.CompleteSyncOrAsync(
                         new InternalErrorEventArgs(handler, this, endpoint, connectionType, exception, origin)
                     );
                 }
@@ -158,7 +158,7 @@ namespace StackExchange.Redis
             var handler = ConnectionRestored;
             if (handler != null)
             {
-                unprocessableCompletionManager.CompleteSyncOrAsync(
+                UnprocessableCompletionManager.CompleteSyncOrAsync(
                     new ConnectionFailedEventArgs(handler, this, endpoint, connectionType, ConnectionFailureType.None, null)
                 );
             }
@@ -170,7 +170,7 @@ namespace StackExchange.Redis
             if (isDisposed) return;
             if (handler != null)
             {
-                unprocessableCompletionManager.CompleteSyncOrAsync(
+                UnprocessableCompletionManager.CompleteSyncOrAsync(
                     new EndPointEventArgs(handler, this, endpoint)
                 );
             }
@@ -189,7 +189,7 @@ namespace StackExchange.Redis
             var handler = ErrorMessage;
             if (handler != null)
             {
-                unprocessableCompletionManager.CompleteSyncOrAsync(
+                UnprocessableCompletionManager.CompleteSyncOrAsync(
                     new RedisErrorEventArgs(handler, this, endpoint, message)
                 );
             }
@@ -481,7 +481,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets the timeout associated with the connections
         /// </summary>
-        public int TimeoutMilliseconds => timeoutMilliseconds;
+        public int TimeoutMilliseconds { get; }
 
         /// <summary>
         /// Gets all endpoints defined on the server
@@ -494,13 +494,11 @@ namespace StackExchange.Redis
             return ConvertHelper.ConvertAll(serverSnapshot, x => x.EndPoint);
         }
 
-        private readonly int timeoutMilliseconds;
-
         private readonly ConfigurationOptions configuration;
 
         internal bool TryResend(int hashSlot, Message message, EndPoint endpoint, bool isMoved)
         {
-            return serverSelectionStrategy.TryResend(hashSlot, message, endpoint, isMoved);
+            return ServerSelectionStrategy.TryResend(hashSlot, message, endpoint, isMoved);
         }
 
         /// <summary>
@@ -510,7 +508,7 @@ namespace StackExchange.Redis
         public void Wait(Task task)
         {
             if (task == null) throw new ArgumentNullException(nameof(task));
-            if (!task.Wait(timeoutMilliseconds)) throw new TimeoutException();
+            if (!task.Wait(TimeoutMilliseconds)) throw new TimeoutException();
         }
 
         /// <summary>
@@ -521,7 +519,7 @@ namespace StackExchange.Redis
         public T Wait<T>(Task<T> task)
         {
             if (task == null) throw new ArgumentNullException(nameof(task));
-            if (!task.Wait(timeoutMilliseconds)) throw new TimeoutException();
+            if (!task.Wait(TimeoutMilliseconds)) throw new TimeoutException();
             return task.Result;
         }
 
@@ -533,10 +531,10 @@ namespace StackExchange.Redis
         {
             if (tasks == null) throw new ArgumentNullException(nameof(tasks));
             if (tasks.Length == 0) return;
-            if (!Task.WaitAll(tasks, timeoutMilliseconds)) throw new TimeoutException();
+            if (!Task.WaitAll(tasks, TimeoutMilliseconds)) throw new TimeoutException();
         }
 
-        private bool WaitAllIgnoreErrors(Task[] tasks) => WaitAllIgnoreErrors(tasks, timeoutMilliseconds);
+        private bool WaitAllIgnoreErrors(Task[] tasks) => WaitAllIgnoreErrors(tasks, TimeoutMilliseconds);
 
         private static bool WaitAllIgnoreErrors(Task[] tasks, int timeout)
         {
@@ -677,7 +675,7 @@ namespace StackExchange.Redis
             var handler = HashSlotMoved;
             if (handler != null)
             {
-                unprocessableCompletionManager.CompleteSyncOrAsync(
+                UnprocessableCompletionManager.CompleteSyncOrAsync(
                     new HashSlotMovedEventArgs(handler, this, hashSlot, old, @new)
                 );
             }
@@ -687,7 +685,7 @@ namespace StackExchange.Redis
         /// Compute the hash-slot of a specified key
         /// </summary>
         /// <param name="key">The key to get a hash slot ID for.</param>
-        public int HashSlot(RedisKey key) => serverSelectionStrategy.HashSlot(key);
+        public int HashSlot(RedisKey key) => ServerSelectionStrategy.HashSlot(key);
 
         internal ServerEndPoint AnyConnected(ServerType serverType, uint startOffset, RedisCommand command, CommandFlags flags)
         {
@@ -910,11 +908,11 @@ namespace StackExchange.Redis
             }
 
             PreserveAsyncOrder = configuration.PreserveAsyncOrder;
-            timeoutMilliseconds = configuration.SyncTimeout;
+            TimeoutMilliseconds = configuration.SyncTimeout;
 
             OnCreateReaderWriter(configuration);
-            unprocessableCompletionManager = new CompletionManager(this, "multiplexer");
-            serverSelectionStrategy = new ServerSelectionStrategy(this);
+            UnprocessableCompletionManager = new CompletionManager(this, "multiplexer");
+            ServerSelectionStrategy = new ServerSelectionStrategy(this);
 
             var configChannel = configuration.ConfigurationChannel;
             if (!string.IsNullOrWhiteSpace(configChannel))
@@ -975,7 +973,7 @@ namespace StackExchange.Redis
 
         internal static long LastGlobalHeartbeatSecondsAgo => unchecked(Environment.TickCount - VolatileWrapper.Read(ref lastGlobalHeartbeatTicks)) / 1000;
 
-        internal CompletionManager UnprocessableCompletionManager => unprocessableCompletionManager;
+        internal CompletionManager UnprocessableCompletionManager { get; }
 
         /// <summary>
         /// Obtain a pub/sub subscriber connection to the specified server
@@ -1085,8 +1083,6 @@ namespace StackExchange.Redis
         {
             if (condition) OnTraceWithoutContext(message, category);
         }
-
-        private readonly CompletionManager unprocessableCompletionManager;
 
         /// <summary>
         /// The number of operations that have been performed on all connections
@@ -1234,7 +1230,7 @@ namespace StackExchange.Redis
                     if (configuration.ResolveDns && configuration.HasDnsEndPoints())
                     {
                         var dns = configuration.ResolveEndPointsAsync(this, log).ObserveErrors();
-                        if ((await Task.WhenAny(dns, Task.Delay(timeoutMilliseconds)).ForAwait()) != dns)
+                        if ((await Task.WhenAny(dns, Task.Delay(TimeoutMilliseconds)).ForAwait()) != dns)
                         {
                             throw new TimeoutException("Timeout resolving endpoints");
                         }
@@ -1443,15 +1439,15 @@ namespace StackExchange.Redis
                         // set the serverSelectionStrategy
                         if (RawConfig.Proxy == Proxy.Twemproxy)
                         {
-                            serverSelectionStrategy.ServerType = ServerType.Twemproxy;
+                            ServerSelectionStrategy.ServerType = ServerType.Twemproxy;
                         }
                         else if (standaloneCount == 0 && sentinelCount > 0)
                         {
-                            serverSelectionStrategy.ServerType = ServerType.Sentinel;
+                            ServerSelectionStrategy.ServerType = ServerType.Sentinel;
                         }
                         else
                         {
-                            serverSelectionStrategy.ServerType = ServerType.Standalone;
+                            ServerSelectionStrategy.ServerType = ServerType.Standalone;
                         }
                         var preferred = await NominatePreferredMaster(log, servers, useTieBreakers, tieBreakers, masters).ObserveErrors().ForAwait();
                         foreach (var master in masters)
@@ -1468,10 +1464,10 @@ namespace StackExchange.Redis
                     }
                     else
                     {
-                        serverSelectionStrategy.ServerType = ServerType.Cluster;
-                        long coveredSlots = serverSelectionStrategy.CountCoveredSlots();
+                        ServerSelectionStrategy.ServerType = ServerType.Cluster;
+                        long coveredSlots = ServerSelectionStrategy.CountCoveredSlots();
                         LogLocked(log, "Cluster: {0} of {1} slots covered",
-                            coveredSlots, serverSelectionStrategy.TotalSlots);
+                            coveredSlots, ServerSelectionStrategy.TotalSlots);
                     }
                     if (!first)
                     {
@@ -1724,14 +1720,12 @@ namespace StackExchange.Redis
                 foreach (var slot in node.Slots)
                 {
                     var server = GetServerEndPoint(node.EndPoint);
-                    if (server != null) serverSelectionStrategy.UpdateClusterRange(slot.From, slot.To, server);
+                    if (server != null) ServerSelectionStrategy.UpdateClusterRange(slot.From, slot.To, server);
                 }
             }
         }
 
         private Timer pulse;
-
-        private readonly ServerSelectionStrategy serverSelectionStrategy;
 
         internal ServerEndPoint[] GetServerSnapshot()
         {
@@ -1742,12 +1736,12 @@ namespace StackExchange.Redis
         internal ServerEndPoint SelectServer(Message message)
         {
             if (message == null) return null;
-            return serverSelectionStrategy.Select(message);
+            return ServerSelectionStrategy.Select(message);
         }
 
         internal ServerEndPoint SelectServer(int db, RedisCommand command, CommandFlags flags, RedisKey key)
         {
-            return serverSelectionStrategy.Select(db, command, key, flags);
+            return ServerSelectionStrategy.Select(db, command, key, flags);
         }
 
         private bool TryPushMessageToBridge<T>(Message message, ResultProcessor<T> processor, ResultBox<T> resultBox, ref ServerEndPoint server)
@@ -1855,7 +1849,7 @@ namespace StackExchange.Redis
 
         internal ConfigurationOptions RawConfig => configuration;
 
-        internal ServerSelectionStrategy ServerSelectionStrategy => serverSelectionStrategy;
+        internal ServerSelectionStrategy ServerSelectionStrategy { get; }
 
         /// <summary>
         /// Close all connections and release all resources associated with this object
@@ -2005,7 +1999,7 @@ namespace StackExchange.Redis
                         throw ExceptionFactory.NoConnectionAvailable(IncludeDetailInExceptions, IncludePerformanceCountersInExceptions, message.Command, message, server, GetServerSnapshot());
                     }
 
-                    if (Monitor.Wait(source, timeoutMilliseconds))
+                    if (Monitor.Wait(source, TimeoutMilliseconds))
                     {
                         Trace("Timeley response to " + message);
                     }

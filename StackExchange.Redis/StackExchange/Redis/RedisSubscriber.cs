@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Threading;
@@ -74,7 +74,7 @@ namespace StackExchange.Redis
                     completable = sub.ForInvoke(channel, payload);
                 }
             }
-            if (completable != null) unprocessableCompletionManager.CompleteSyncOrAsync(completable);
+            if (completable != null) UnprocessableCompletionManager.CompleteSyncOrAsync(completable);
         }
 
         internal Task RemoveAllSubscriptions(CommandFlags flags, object asyncState)
