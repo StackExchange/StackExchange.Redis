@@ -369,6 +369,13 @@ namespace StackExchange.Redis
                 server.QueueDirectFireAndForget(msg, ResultProcessor.DemandOK);
             }
 
+            // There's an inherent race here in zero-lantency environments (e.g. when Redis is on localhost) when a broadcast is specified
+            // The broadast can get back from redis and trigger a reconfigure before we get a chance to get to ReconfigureAsync() below
+            // This results in running an outdated reconfig and the .CompareExchange() (due to already running a reconfig) failing...making our needed reconfig a no-op.
+            // If we don't block *that* run, then *our* run (at low latency) gets blocked. Then we're waiting on the
+            // ConfigurationOptions.ConfigCheckSeconds interval to identify the current (created by this method call) topology correctly.
+            var blockingReconfig = Interlocked.CompareExchange(ref activeConfigCause, "Block: Pending Master Reconfig", null) == null;
+
             // try and broadcast this everywhere, to catch the maximum audience
             if ((options & ReplicationChangeOptions.Broadcast) != 0 && ConfigurationChangedChannel != null
                 && CommandMap.IsAvailable(RedisCommand.PUBLISH))
@@ -397,6 +404,12 @@ namespace StackExchange.Redis
 
             // and reconfigure the muxer
             LogLocked(log, "Reconfiguring all endpoints...");
+            // Yes, there is a tiny latency race possible between this code and the next call, but it's far more minute than before.
+            // The effective gap between 0 and > 0 (likely off-box) latency is something that may never get hit here by anyone.
+            if (blockingReconfig)
+            {
+                Interlocked.Exchange(ref activeConfigCause, null);
+            }
             if (!ReconfigureAsync(false, true, log, srv.EndPoint, "make master").ObserveErrors().Wait(5000))
             {
                 LogLocked(log, "Verifying the configuration was incomplete; please verify");
@@ -1216,7 +1229,7 @@ namespace StackExchange.Redis
 
                 if (!ranThisCall)
                 {
-                    LogLocked(log, "Reconfiguration was already in progress");
+                    LogLocked(log, "Reconfiguration was already in progress due to: " + activeConfigCause + ", attempted to run for: " + cause);
                     return false;
                 }
                 Trace("Starting reconfiguration...");
