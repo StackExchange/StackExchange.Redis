@@ -75,7 +75,7 @@ namespace StackExchange.Redis.Tests
                     subA.Ping();
                     subB.Ping();
                     Output.WriteLine("Pausing...");
-                    await Task.Delay(4000).ForAwait();
+                    await Task.Delay(6000).ForAwait();
 
                     Assert.True(a.GetServer(TestConfig.Current.MasterServerAndPort).IsSlave, $"{TestConfig.Current.MasterServerAndPort} should be a slave via a");
                     Assert.False(a.GetServer(TestConfig.Current.SlaveServerAndPort).IsSlave, $"{TestConfig.Current.SlaveServerAndPort} should be a master via a");

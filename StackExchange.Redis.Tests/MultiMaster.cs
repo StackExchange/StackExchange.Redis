@@ -48,7 +48,7 @@ namespace StackExchange.Redis.Tests
                 primary.MakeMaster(ReplicationChangeOptions.SetTiebreaker);
                 secondary.MakeMaster(ReplicationChangeOptions.None);
 
-                await Task.Delay(2000).ConfigureAwait(false);
+                await Task.Delay(100).ConfigureAwait(false);
 
                 primary.Ping();
                 secondary.Ping();
@@ -75,7 +75,7 @@ namespace StackExchange.Redis.Tests
                 primary.MakeMaster(ReplicationChangeOptions.Broadcast | ReplicationChangeOptions.EnslaveSubordinates | ReplicationChangeOptions.SetTiebreaker, Writer);
                 Writer.WriteLine("Finished MakeMaster() call.");
 
-                await Task.Delay(2000).ConfigureAwait(false);
+                await Task.Delay(100).ConfigureAwait(false);
 
                 Writer.WriteLine("Invoking Ping() (post-master)");
                 primary.Ping();
