@@ -78,7 +78,7 @@ namespace StackExchange.Redis
         public bool IsConnected => interactive?.IsConnected == true;
 
         public bool IsConnecting => interactive?.IsConnecting == true;
-        
+
         internal Exception LastException
         {
             get
@@ -321,7 +321,7 @@ namespace StackExchange.Redis
 
         private int _nextReplicaOffset;
         internal uint NextReplicaOffset() // used to round-robin between multiple replicas
-            => (uint) System.Threading.Interlocked.Increment(ref _nextReplicaOffset);
+            => (uint)System.Threading.Interlocked.Increment(ref _nextReplicaOffset);
 
         internal Task Close()
         {
@@ -393,11 +393,11 @@ namespace StackExchange.Redis
         internal byte[] GetScriptHash(string script, RedisCommand command)
         {
             var found = (byte[])knownScripts[script];
-            if(found == null && command == RedisCommand.EVALSHA)
+            if (found == null && command == RedisCommand.EVALSHA)
             {
                 // the script provided is a hex sha; store and re-use the ascii for that
                 found = Encoding.ASCII.GetBytes(script);
-                lock(knownScripts)
+                lock (knownScripts)
                 {
                     knownScripts[script] = found;
                 }
@@ -581,14 +581,15 @@ namespace StackExchange.Redis
             var tmp = interactive;
             sb.Append("; int: ").Append(tmp?.ConnectionState.ToString() ?? "n/a");
             tmp = subscription;
-            if(tmp == null)
+            if (tmp == null)
             {
                 sb.Append("; sub: n/a");
-            } else
+            }
+            else
             {
                 var state = tmp.ConnectionState;
                 sb.Append("; sub: ").Append(state);
-                if(state == PhysicalBridge.State.ConnectedEstablished)
+                if (state == PhysicalBridge.State.ConnectedEstablished)
                 {
                     sb.Append(", ").Append(tmp.SubscriptionCount).Append(" active");
                 }
@@ -678,7 +679,7 @@ namespace StackExchange.Redis
             if (connType == ConnectionType.Subscription)
             {
                 var configChannel = multiplexer.ConfigurationChangedChannel;
-                if(configChannel != null)
+                if (configChannel != null)
                 {
                     msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.SUBSCRIBE, (RedisChannel)configChannel);
                     WriteDirectOrQueueFireAndForget(connection, msg, ResultProcessor.TrackSubscriptions);
@@ -690,7 +691,7 @@ namespace StackExchange.Redis
 
         private void SetConfig<T>(ref T field, T value, [CallerMemberName] string caller = null)
         {
-            if(!EqualityComparer<T>.Default.Equals(field, value))
+            if (!EqualityComparer<T>.Default.Equals(field, value))
             {
                 multiplexer.Trace(caller + " changed from " + field + " to " + value, "Configuration");
                 field = value;
