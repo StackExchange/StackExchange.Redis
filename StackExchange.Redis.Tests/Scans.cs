@@ -96,7 +96,7 @@ namespace StackExchange.Redis.Tests
                 int i;
                 for (i = 0; i < 100; i++)
                 {
-                    db.StringSet("ScanResume:" + i, Guid.NewGuid().ToString(), flags: CommandFlags.FireAndForget);
+                    db.StringSet("ScanResume:" + i, Guid.NewGuid().ToString());
                 }
 
                 var expected = new HashSet<string>();
@@ -123,7 +123,7 @@ namespace StackExchange.Redis.Tests
                 Output.WriteLine($"Expected: 43, Actual: {expected.Count}, Cursor: {snapCursor}, Offset: {snapOffset}, PageSize: {snapPageSize}");
                 Assert.Equal(43, expected.Count);
                 Assert.NotEqual(0, snapCursor);
-                Assert.Equal(11, snapOffset);
+                Assert.Equal(12, snapOffset);
                 Assert.Equal(15, snapPageSize);
 
                 seq = server.Keys(DB, "ScanResume:*", pageSize: 15, cursor: snapCursor, pageOffset: snapOffset);
