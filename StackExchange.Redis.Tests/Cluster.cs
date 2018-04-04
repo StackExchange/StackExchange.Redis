@@ -439,11 +439,17 @@ namespace StackExchange.Redis.Tests
                 var server = muxer.GetServer(endpoints[0]);
                 var nodes = server.ClusterNodes();
 
-                Assert.Equal(endpoints.Length, nodes.Nodes.Count);
+                Output.WriteLine("Endpoints:");
+                foreach (var endpoint in endpoints)
+                {
+                    Output.WriteLine(endpoint.ToString());
+                }
+                Output.WriteLine("Nodes:");
                 foreach (var node in nodes.Nodes.OrderBy(x => x))
                 {
                     Output.WriteLine(node.ToString());
                 }
+                Assert.Equal(endpoints.Length, nodes.Nodes.Count);
             }
         }
 
