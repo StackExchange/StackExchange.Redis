@@ -37,15 +37,22 @@ namespace StackExchange.Redis.Tests
             {
                 void cb(object obj)
                 {
-                    var conn = (IDatabase)obj;
-                    conn.Multiplexer.ErrorMessage += delegate { Interlocked.Increment(ref errorCount); };
-
-                    for (int i = 0; i < 1000; i++)
+                    try
                     {
-                        conn.LockTakeAsync("abc", "def", TimeSpan.FromSeconds(5));
+                        var conn = (IDatabase)obj;
+                        conn.Multiplexer.ErrorMessage += delegate { Interlocked.Increment(ref errorCount); };
+
+                        for (int i = 0; i < 1000; i++)
+                        {
+                            conn.LockTakeAsync("abc", "def", TimeSpan.FromSeconds(5));
+                        }
+                        conn.Ping();
+                        if (Interlocked.Decrement(ref count) == 0) evt.Set();
                     }
-                    conn.Ping();
-                    if (Interlocked.Decrement(ref count) == 0) evt.Set();
+                    catch (Exception ex)
+                    {
+                        Assert.True(false, "Exception in AggressiveParallel callback: " + ex.Message);
+                    }
                 }
                 int db = testMode == TestMode.Twemproxy ? 0 : 2;
                 ThreadPool.QueueUserWorkItem(cb, c1.GetDatabase(db));
