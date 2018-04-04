@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
@@ -144,7 +145,7 @@ namespace StackExchange.Redis
         private sealed class Subscription
         {
             private Action<RedisChannel, RedisValue> handler;
-            private ServerEndPoint owner;
+            private List<ServerEndPoint> owners = new List<ServerEndPoint>();
 
             public Subscription(Action<RedisChannel, RedisValue> value) => handler = value;
 
@@ -171,32 +172,80 @@ namespace StackExchange.Redis
 
             public Task SubscribeToServer(ConnectionMultiplexer multiplexer, RedisChannel channel, CommandFlags flags, object asyncState, bool internalCall)
             {
+                // subscribe to all masters in cluster for keyspace/keyevent notifications
+                if (channel.IsKeyspaceChannel) {
+                    return SubscribeToMasters(multiplexer, channel, flags, asyncState, internalCall);
+                }
+                return SubscribeToSingleServer(multiplexer, channel, flags, asyncState, internalCall);
+            }
+
+            private Task SubscribeToSingleServer(ConnectionMultiplexer multiplexer, RedisChannel channel, CommandFlags flags, object asyncState, bool internalCall)
+            {
                 var cmd = channel.IsPatternBased ? RedisCommand.PSUBSCRIBE : RedisCommand.SUBSCRIBE;
                 var selected = multiplexer.SelectServer(-1, cmd, flags, default(RedisKey));
 
-                if (selected == null || Interlocked.CompareExchange(ref owner, selected, null) != null) return null;
+                lock (owners)
+                {
+                    if (selected == null || owners.Contains(selected)) return null;
+                    owners.Add(selected);
+                }
 
                 var msg = Message.Create(-1, flags, cmd, channel);
-
+                if (internalCall) msg.SetInternalCall();
                 return selected.QueueDirectAsync(msg, ResultProcessor.TrackSubscriptions, asyncState);
+            }
+
+            private Task SubscribeToMasters(ConnectionMultiplexer multiplexer, RedisChannel channel, CommandFlags flags, object asyncState, bool internalCall)
+            {
+                List<Task> subscribeTasks = new List<Task>();
+                var cmd = channel.IsPatternBased ? RedisCommand.PSUBSCRIBE : RedisCommand.SUBSCRIBE;
+                var masters = multiplexer.GetServerSnapshot().Where(s => !s.IsSlave && s.EndPoint.Equals(s.ClusterConfiguration.Origin));
+
+                lock (owners)
+                {
+                    foreach (var master in masters)
+                    {
+                        if (owners.Contains(master)) continue;
+                        owners.Add(master);
+                        var msg = Message.Create(-1, flags, cmd, channel);
+                        if (internalCall) msg.SetInternalCall();
+                        subscribeTasks.Add(master.QueueDirectAsync(msg, ResultProcessor.TrackSubscriptions, asyncState));
+                    }
+                }
+
+                return Task.WhenAll(subscribeTasks);
             }
 
             public Task UnsubscribeFromServer(RedisChannel channel, CommandFlags flags, object asyncState, bool internalCall)
             {
-                var oldOwner = Interlocked.Exchange(ref owner, null);
-                if (oldOwner == null) return null;
+                if (owners.Count == 0) return null;
 
+                List<Task> queuedTasks = new List<Task>();
                 var cmd = channel.IsPatternBased ? RedisCommand.PUNSUBSCRIBE : RedisCommand.UNSUBSCRIBE;
                 var msg = Message.Create(-1, flags, cmd, channel);
                 if (internalCall) msg.SetInternalCall();
-                return oldOwner.QueueDirectAsync(msg, ResultProcessor.TrackSubscriptions, asyncState);
+                foreach (var owner in owners)
+                    queuedTasks.Add(owner.QueueDirectAsync(msg, ResultProcessor.TrackSubscriptions, asyncState));
+                owners.Clear();
+                return Task.WhenAll(queuedTasks.ToArray());
             }
 
-            internal ServerEndPoint GetOwner() => Interlocked.CompareExchange(ref owner, null, null);
+            internal ServerEndPoint GetOwner()
+            {
+                var owner = owners?[0]; // we subscribe to arbitrary server, so why not return one
+                return Interlocked.CompareExchange(ref owner, null, null);
+            }
 
             internal void Resubscribe(RedisChannel channel, ServerEndPoint server)
             {
-                if (server != null && Interlocked.CompareExchange(ref owner, server, server) == server)
+                bool hasOwner; 
+
+                lock (owners)
+                {
+                    hasOwner = owners.Contains(server);
+                }
+
+                if (server != null && hasOwner)
                 {
                     var cmd = channel.IsPatternBased ? RedisCommand.PSUBSCRIBE : RedisCommand.SUBSCRIBE;
                     var msg = Message.Create(-1, CommandFlags.FireAndForget, cmd, channel);
@@ -208,16 +257,15 @@ namespace StackExchange.Redis
             internal bool Validate(ConnectionMultiplexer multiplexer, RedisChannel channel)
             {
                 bool changed = false;
-                var oldOwner = Interlocked.CompareExchange(ref owner, null, null);
-                if (oldOwner != null && !oldOwner.IsSelectable(RedisCommand.PSUBSCRIBE))
+                if (owners.Count != 0 && !owners.All(o => o.IsSelectable(RedisCommand.PSUBSCRIBE)))
                 {
                     if (UnsubscribeFromServer(channel, CommandFlags.FireAndForget, null, true) != null)
                     {
                         changed = true;
                     }
-                    oldOwner = null;
+                    owners.Clear();
                 }
-                if (oldOwner == null && SubscribeToServer(multiplexer, channel, CommandFlags.FireAndForget, null, true) != null)
+                if (owners.Count == 0 && SubscribeToServer(multiplexer, channel, CommandFlags.FireAndForget, null, true) != null)
                 {
                     changed = true;
                 }

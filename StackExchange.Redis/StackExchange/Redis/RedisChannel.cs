@@ -12,6 +12,7 @@ namespace StackExchange.Redis
 
         internal readonly byte[] Value;
         internal readonly bool IsPatternBased;
+        internal readonly bool IsKeyspaceChannel;
 
         /// <summary>
         /// Indicates whether the channel-name is either null or a zero-length value
@@ -38,6 +39,7 @@ namespace StackExchange.Redis
         {
             Value = value;
             IsPatternBased = isPatternBased;
+            IsKeyspaceChannel = value != null && Encoding.UTF8.GetString(value).ToLower().StartsWith("__key");
         }
 
         private static bool DeterminePatternBased(byte[] value, PatternMode mode)
