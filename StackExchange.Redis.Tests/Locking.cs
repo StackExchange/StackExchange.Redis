@@ -31,6 +31,7 @@ namespace StackExchange.Redis.Tests
         {
             int count = 2;
             int errorCount = 0;
+            int bgErrorCount = 0;
             var evt = new ManualResetEvent(false);
             using (var c1 = Create(testMode))
             using (var c2 = Create(testMode))
@@ -49,9 +50,9 @@ namespace StackExchange.Redis.Tests
                         conn.Ping();
                         if (Interlocked.Decrement(ref count) == 0) evt.Set();
                     }
-                    catch (Exception ex)
+                    catch
                     {
-                        Assert.True(false, "Exception in AggressiveParallel callback: " + ex.Message);
+                        Interlocked.Increment(ref bgErrorCount);
                     }
                 }
                 int db = testMode == TestMode.Twemproxy ? 0 : 2;
@@ -60,6 +61,7 @@ namespace StackExchange.Redis.Tests
                 evt.WaitOne(8000);
             }
             Assert.Equal(0, Interlocked.CompareExchange(ref errorCount, 0, 0));
+            Assert.Equal(0, bgErrorCount);
         }
 
         [Fact]
