@@ -17,14 +17,9 @@ namespace StackExchange.Redis.Tests
         protected override string GetConfiguration()
         {
             var server = TestConfig.Current.ClusterServer;
-            // TODO: Make TestConfig read JSON overrides in .gitignore here
-            if (string.Equals(Environment.MachineName, "MARC-LAPTOP", StringComparison.OrdinalIgnoreCase))
-            {
-                server = "192.168.56.101";
-            }
             return string.Join(",",
-            from port in Enumerable.Range(TestConfig.Current.ClusterStartPort, TestConfig.Current.ClusterServerCount)
-            select server + ":" + port) + ",connectTimeout=10000";
+                Enumerable.Range(TestConfig.Current.ClusterStartPort, TestConfig.Current.ClusterServerCount).Select(port => server + ":" + port)
+            ) + ",connectTimeout=10000";
         }
 
         [Fact]
@@ -449,7 +444,8 @@ namespace StackExchange.Redis.Tests
                 {
                     Output.WriteLine(node.ToString());
                 }
-                Assert.Equal(endpoints.Length, nodes.Nodes.Count);
+                Assert.Equal(TestConfig.Current.ClusterServerCount, endpoints.Length);
+                Assert.Equal(TestConfig.Current.ClusterServerCount, nodes.Nodes.Count);
             }
         }
 
