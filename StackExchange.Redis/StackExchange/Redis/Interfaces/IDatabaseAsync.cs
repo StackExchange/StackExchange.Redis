@@ -292,7 +292,7 @@ namespace StackExchange.Redis
         Task<long> HashLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Sets the specified fields to their respective values in the hash stored at key. This command overwrites any existing fields in the hash. If key does not exist, a new key holding a hash is created.
+        /// Sets the specified fields to their respective values in the hash stored at key. This command overwrites any specified fields that already exist in the hash, leaving other unspecified fields untouched. If key does not exist, a new key holding a hash is created.
         /// </summary>
         /// <param name="key">The key of the hash.</param>
         /// <param name="hashFields">The entries to set in the hash.</param>
