@@ -213,42 +213,47 @@ namespace StackExchange.Redis
                     lastBeat = VolatileWrapper.Read(ref lastBeatTickCount);
                 int unansweredRead = VolatileWrapper.Read(ref firstUnansweredWriteTickCount);
 
-                var exMessage = new StringBuilder(failureType + " on " + Format.ToString(Bridge.ServerEndPoint.EndPoint) + "/" + connectionType);
-                var data = new List<Tuple<string, string>>
-                {
-                    Tuple.Create("FailureType", failureType.ToString()),
-                    Tuple.Create("EndPoint", Format.ToString(Bridge.ServerEndPoint.EndPoint))
-                };
-                void add(string lk, string sk, string v)
-                {
-                    data.Add(Tuple.Create(lk, v));
-                    exMessage.Append(", ").Append(sk).Append(": ").Append(v);
-                }
+                var exMessage = new StringBuilder(failureType.ToString());
 
-                add("Origin", "origin", origin);
-                add("Input-Buffer", "input-buffer", ioBufferBytes.ToString());
-                add("Outstanding-Responses", "outstanding", GetSentAwaitingResponseCount().ToString());
-                add("Last-Read", "last-read", (unchecked(now - lastRead) / 1000) + "s ago");
-                add("Last-Write", "last-write", (unchecked(now - lastWrite) / 1000) + "s ago");
-                add("Unanswered-Write", "unanswered-write", (unchecked(now - unansweredRead) / 1000) + "s ago");
-                add("Keep-Alive", "keep-alive", Bridge.ServerEndPoint.WriteEverySeconds + "s");
-                add("Pending", "pending", Bridge.GetPendingCount().ToString());
-                add("Previous-Physical-State", "state", oldState.ToString());
-
-                if (@in >= 0)
+                var data = new List<Tuple<string, string>>();
+                if (Multiplexer.IncludeDetailInExceptions)
                 {
-                    add("Inbound-Bytes", "in", @in.ToString());
-                    add("Active-Readers", "ar", ar.ToString());
-                }
+                    exMessage.Append(" on " + Format.ToString(Bridge.ServerEndPoint.EndPoint) + "/" + connectionType);
 
-                add("Last-Heartbeat", "last-heartbeat", (lastBeat == 0 ? "never" : ((unchecked(now - lastBeat) / 1000) + "s ago")) + (Bridge.IsBeating ? " (mid-beat)" : ""));
-                add("Last-Multiplexer-Heartbeat", "last-mbeat", Multiplexer.LastHeartbeatSecondsAgo + "s ago");
-                add("Last-Global-Heartbeat", "global", ConnectionMultiplexer.LastGlobalHeartbeatSecondsAgo + "s ago");
+                    data.Add(Tuple.Create("FailureType", failureType.ToString()));
+                    data.Add(Tuple.Create("EndPoint", Format.ToString(Bridge.ServerEndPoint.EndPoint)));
+
+                    void add(string lk, string sk, string v)
+                    {
+                        data.Add(Tuple.Create(lk, v));
+                        exMessage.Append(", ").Append(sk).Append(": ").Append(v);
+                    }
+
+                    add("Origin", "origin", origin);
+                    add("Input-Buffer", "input-buffer", ioBufferBytes.ToString());
+                    add("Outstanding-Responses", "outstanding", GetSentAwaitingResponseCount().ToString());
+                    add("Last-Read", "last-read", (unchecked(now - lastRead) / 1000) + "s ago");
+                    add("Last-Write", "last-write", (unchecked(now - lastWrite) / 1000) + "s ago");
+                    add("Unanswered-Write", "unanswered-write", (unchecked(now - unansweredRead) / 1000) + "s ago");
+                    add("Keep-Alive", "keep-alive", Bridge.ServerEndPoint.WriteEverySeconds + "s");
+                    add("Pending", "pending", Bridge.GetPendingCount().ToString());
+                    add("Previous-Physical-State", "state", oldState.ToString());
+
+                    if (@in >= 0)
+                    {
+                        add("Inbound-Bytes", "in", @in.ToString());
+                        add("Active-Readers", "ar", ar.ToString());
+                    }
+
+                    add("Last-Heartbeat", "last-heartbeat", (lastBeat == 0 ? "never" : ((unchecked(now - lastBeat) / 1000) + "s ago")) + (Bridge.IsBeating ? " (mid-beat)" : ""));
+                    add("Last-Multiplexer-Heartbeat", "last-mbeat", Multiplexer.LastHeartbeatSecondsAgo + "s ago");
+                    add("Last-Global-Heartbeat", "global", ConnectionMultiplexer.LastGlobalHeartbeatSecondsAgo + "s ago");
 #if FEATURE_SOCKET_MODE_POLL
-                var mgr = Bridge.Multiplexer.SocketManager;
-                add("SocketManager-State", "mgr", mgr.State.ToString());
-                add("Last-Error", "err", mgr.LastErrorTimeRelative());
+                    var mgr = Bridge.Multiplexer.SocketManager;
+                    add("SocketManager-State", "mgr", mgr.State.ToString());
+                    add("Last-Error", "err", mgr.LastErrorTimeRelative());
 #endif
+                }
 
                 var ex = innerException == null
                     ? new RedisConnectionException(failureType, exMessage.ToString())
