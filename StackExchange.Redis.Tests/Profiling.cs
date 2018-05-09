@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-#if CORE_CLR
+#if NETCOREAPP1_0
 using System.Reflection;
 #endif
 using System.Threading.Tasks;

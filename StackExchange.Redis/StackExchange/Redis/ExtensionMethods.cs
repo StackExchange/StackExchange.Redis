@@ -14,6 +14,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Create a dictionary from an array of HashEntry values 
         /// </summary>
+        /// <param name="hash">The entry to convert to a dictionary.</param>
         public static Dictionary<string,string> ToStringDictionary(this HashEntry[] hash)
         {
             if (hash == null) return null;
@@ -28,6 +29,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Create a dictionary from an array of HashEntry values 
         /// </summary>
+        /// <param name="hash">The entry to convert to a dictionary.</param>
         public static Dictionary<RedisValue, RedisValue> ToDictionary(this HashEntry[] hash)
         {
             if (hash == null) return null;
@@ -43,6 +45,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Create a dictionary from an array of SortedSetEntry values 
         /// </summary>
+        /// <param name="sortedSet">The set entries to convert to a dictionary.</param>
         public static Dictionary<string, double> ToStringDictionary(this SortedSetEntry[] sortedSet)
         {
             if (sortedSet == null) return null;
@@ -58,6 +61,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Create a dictionary from an array of SortedSetEntry values 
         /// </summary>
+        /// <param name="sortedSet">The set entries to convert to a dictionary.</param>
         public static Dictionary<RedisValue, double> ToDictionary(this SortedSetEntry[] sortedSet)
         {
             if (sortedSet == null) return null;
@@ -73,6 +77,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Create a dictionary from an array of key/value pairs
         /// </summary>
+        /// <param name="pairs">The pairs to convert to a dictionary.</param>
         public static Dictionary<string, string> ToStringDictionary(this KeyValuePair<RedisKey, RedisValue>[] pairs)
         {
             if (pairs == null) return null;
@@ -88,6 +93,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Create a dictionary from an array of key/value pairs
         /// </summary>
+        /// <param name="pairs">The pairs to convert to a dictionary.</param>
         public static Dictionary<RedisKey, RedisValue> ToDictionary(this KeyValuePair<RedisKey, RedisValue>[] pairs)
         {
             if (pairs == null) return null;
@@ -103,6 +109,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Create a dictionary from an array of string pairs
         /// </summary>
+        /// <param name="pairs">The pairs to convert to a dictionary.</param>
         public static Dictionary<string, string> ToDictionary(this KeyValuePair<string, string>[] pairs)
         {
             if (pairs == null) return null;
@@ -115,10 +122,11 @@ namespace StackExchange.Redis
             return result;
         }
 
-        static readonly string[] nix = new string[0];
+        private static readonly string[] nix = new string[0];
         /// <summary>
         /// Create an array of strings from an array of values
         /// </summary>
+        /// <param name="values">The values to convert to an array.</param>
         public static string[] ToStringArray(this RedisValue[] values)
         {
             if (values == null) return null;
@@ -137,7 +145,7 @@ namespace StackExchange.Redis
 
             var certificateCollection = new X509CertificateCollection();
             const bool checkCertRevocation = true;
-#if CORE_CLR
+#if NETSTANDARD1_5
             ssl.AuthenticateAsClientAsync(host, certificateCollection, allowedProtocols.Value, checkCertRevocation)
                                 .GetAwaiter().GetResult();
 #else
@@ -147,7 +155,7 @@ namespace StackExchange.Redis
 
         private static void AuthenticateAsClientUsingDefaultProtocols(SslStream ssl, string host)
         {
-#if CORE_CLR
+#if NETSTANDARD1_5
             ssl.AuthenticateAsClientAsync(host).GetAwaiter().GetResult();
 #else
             ssl.AuthenticateAsClient(host);

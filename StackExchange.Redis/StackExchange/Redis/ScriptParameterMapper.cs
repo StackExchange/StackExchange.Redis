@@ -8,7 +8,7 @@ using System.Text.RegularExpressions;
 
 namespace StackExchange.Redis
 {
-    class ScriptParameterMapper
+    internal static class ScriptParameterMapper
     {
         public struct ScriptParameters
         {
@@ -23,8 +23,8 @@ namespace StackExchange.Redis
             }
         }
 
-        static readonly Regex ParameterExtractor = new Regex(@"@(?<paramName> ([a-z]|_) ([a-z]|_|\d)*)", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace);
-        static string[] ExtractParameters(string script)
+        private static readonly Regex ParameterExtractor = new Regex(@"@(?<paramName> ([a-z]|_) ([a-z]|_|\d)*)", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace);
+        private static string[] ExtractParameters(string script)
         {
             var ps = ParameterExtractor.Matches(script);
             if (ps.Count == 0) return null;
@@ -38,10 +38,10 @@ namespace StackExchange.Redis
                 if (ix >= 0)
                 {
                     var prevChar = script[ix];
-                    
+
                     // don't consider this a parameter if it's in the middle of word (ie. if it's preceeded by a letter)
                     if (char.IsLetterOrDigit(prevChar) || prevChar == '_') continue;
-                    
+
                     // this is an escape, ignore it
                     if (prevChar == '@') continue;
                 }
@@ -53,7 +53,7 @@ namespace StackExchange.Redis
             return ret.ToArray();
         }
 
-        static string MakeOrdinalScriptWithoutKeys(string rawScript, string[] args)
+        private static string MakeOrdinalScriptWithoutKeys(string rawScript, string[] args)
         {
             var ps = ParameterExtractor.Matches(rawScript);
             if (ps.Count == 0) return rawScript;
@@ -67,7 +67,7 @@ namespace StackExchange.Redis
                 var name = capture.Groups["paramName"].Value;
 
                 var ix = capture.Index;
-                ret.Append(rawScript.Substring(upTo, ix - upTo));
+                ret.Append(rawScript, upTo, ix - upTo);
 
                 var argIx = Array.IndexOf(args, name);
 
@@ -101,25 +101,23 @@ namespace StackExchange.Redis
                 upTo = capture.Index + capture.Length;
             }
 
-            ret.Append(rawScript.Substring(upTo, rawScript.Length - upTo));
+            ret.Append(rawScript, upTo, rawScript.Length - upTo);
 
             return ret.ToString();
         }
 
-        static void LoadMember(ILGenerator il, MemberInfo member)
+        private static void LoadMember(ILGenerator il, MemberInfo member)
         {
             // stack starts:
             // T(*?)
 
-            var asField = member as FieldInfo;
-            if (asField != null)
+            if (member is FieldInfo asField)
             {
                 il.Emit(OpCodes.Ldfld, asField);        // typeof(member)
                 return;
             }
 
-            var asProp = member as PropertyInfo;
-            if (asProp != null)
+            if (member is PropertyInfo asProp)
             {
                 var getter = asProp.GetGetMethod();
                 if (getter.IsVirtual)
@@ -137,18 +135,18 @@ namespace StackExchange.Redis
             throw new Exception("Should't be possible");
         }
 
-        static readonly MethodInfo RedisValue_FromInt = typeof(RedisValue).GetMethod("op_Implicit", new[] { typeof(int) });
-        static readonly MethodInfo RedisValue_FromNullableInt = typeof(RedisValue).GetMethod("op_Implicit", new[] { typeof(int?) });
-        static readonly MethodInfo RedisValue_FromLong = typeof(RedisValue).GetMethod("op_Implicit", new[] { typeof(long) });
-        static readonly MethodInfo RedisValue_FromNullableLong = typeof(RedisValue).GetMethod("op_Implicit", new[] { typeof(long?) });
-        static readonly MethodInfo RedisValue_FromDouble= typeof(RedisValue).GetMethod("op_Implicit", new[] { typeof(double) });
-        static readonly MethodInfo RedisValue_FromNullableDouble = typeof(RedisValue).GetMethod("op_Implicit", new[] { typeof(double?) });
-        static readonly MethodInfo RedisValue_FromString = typeof(RedisValue).GetMethod("op_Implicit", new[] { typeof(string) });
-        static readonly MethodInfo RedisValue_FromByteArray = typeof(RedisValue).GetMethod("op_Implicit", new[] { typeof(byte[]) });
-        static readonly MethodInfo RedisValue_FromBool = typeof(RedisValue).GetMethod("op_Implicit", new[] { typeof(bool) });
-        static readonly MethodInfo RedisValue_FromNullableBool = typeof(RedisValue).GetMethod("op_Implicit", new[] { typeof(bool?) });
-        static readonly MethodInfo RedisKey_AsRedisValue = typeof(RedisKey).GetMethod("AsRedisValue", BindingFlags.NonPublic | BindingFlags.Instance);
-        static void ConvertToRedisValue(MemberInfo member, ILGenerator il, LocalBuilder needsPrefixBool, ref LocalBuilder redisKeyLoc)
+        private static readonly MethodInfo RedisValue_FromInt = typeof(RedisValue).GetMethod("op_Implicit", new[] { typeof(int) });
+        private static readonly MethodInfo RedisValue_FromNullableInt = typeof(RedisValue).GetMethod("op_Implicit", new[] { typeof(int?) });
+        private static readonly MethodInfo RedisValue_FromLong = typeof(RedisValue).GetMethod("op_Implicit", new[] { typeof(long) });
+        private static readonly MethodInfo RedisValue_FromNullableLong = typeof(RedisValue).GetMethod("op_Implicit", new[] { typeof(long?) });
+        private static readonly MethodInfo RedisValue_FromDouble= typeof(RedisValue).GetMethod("op_Implicit", new[] { typeof(double) });
+        private static readonly MethodInfo RedisValue_FromNullableDouble = typeof(RedisValue).GetMethod("op_Implicit", new[] { typeof(double?) });
+        private static readonly MethodInfo RedisValue_FromString = typeof(RedisValue).GetMethod("op_Implicit", new[] { typeof(string) });
+        private static readonly MethodInfo RedisValue_FromByteArray = typeof(RedisValue).GetMethod("op_Implicit", new[] { typeof(byte[]) });
+        private static readonly MethodInfo RedisValue_FromBool = typeof(RedisValue).GetMethod("op_Implicit", new[] { typeof(bool) });
+        private static readonly MethodInfo RedisValue_FromNullableBool = typeof(RedisValue).GetMethod("op_Implicit", new[] { typeof(bool?) });
+        private static readonly MethodInfo RedisKey_AsRedisValue = typeof(RedisKey).GetMethod("AsRedisValue", BindingFlags.NonPublic | BindingFlags.Instance);
+        private static void ConvertToRedisValue(MemberInfo member, ILGenerator il, LocalBuilder needsPrefixBool, ref LocalBuilder redisKeyLoc)
         {
             // stack starts:
             // typeof(member)
@@ -182,7 +180,7 @@ namespace StackExchange.Redis
             if (t == typeof(byte[])) convertOp = RedisValue_FromByteArray;
             if (t == typeof(bool)) convertOp = RedisValue_FromBool;
             if (t == typeof(bool?)) convertOp = RedisValue_FromNullableBool;
-            
+
             il.Emit(OpCodes.Call, convertOp);
 
             // stack ends:
@@ -193,6 +191,7 @@ namespace StackExchange.Redis
         /// Turns a script with @namedParameters into a LuaScript that can be executed
         /// against a given IDatabase(Async) object
         /// </summary>
+        /// <param name="script">The script to prepare.</param>
         public static LuaScript PrepareScript(string script)
         {
             var ps = ExtractParameters(script);
@@ -201,7 +200,7 @@ namespace StackExchange.Redis
             return new LuaScript(script, ordinalScript, ps);
         }
 
-        static readonly HashSet<Type> ConvertableTypes =
+        private static readonly HashSet<Type> ConvertableTypes =
             new HashSet<Type> {
                 typeof(int),
                 typeof(int?),
@@ -221,6 +220,10 @@ namespace StackExchange.Redis
         /// <summary>
         /// Determines whether or not the given type can be used to provide parameters for the given LuaScript.
         /// </summary>
+        /// <param name="t">The type of the parameter.</param>
+        /// <param name="script">The script to match against.</param>
+        /// <param name="missingMember">The first missing member, if any.</param>
+        /// <param name="badTypeMember">The first type mismatched member, if any.</param>
         public static bool IsValidParameterHash(Type t, LuaScript script, out string missingMember, out string badTypeMember)
         {
             for (var i = 0; i < script.Arguments.Length; i++)
@@ -246,7 +249,7 @@ namespace StackExchange.Redis
             return true;
         }
 
-        static void PrefixIfNeeded(ILGenerator il, LocalBuilder needsPrefixBool, ref LocalBuilder redisKeyLoc)
+        private static void PrefixIfNeeded(ILGenerator il, LocalBuilder needsPrefixBool, ref LocalBuilder redisKeyLoc)
         {
             // top of stack is
             // RedisKey
@@ -265,7 +268,6 @@ namespace StackExchange.Redis
             il.Emit(OpCodes.Call, getVal);              // RedisKey* RedisKey
             il.Emit(OpCodes.Call, prepend);             // RedisKey
 
-
             il.MarkLabel(doNothing);                    // RedisKey
         }
 
@@ -281,10 +283,11 @@ namespace StackExchange.Redis
         /// The created Func takes a RedisKey, which will be prefixed to all keys (and arguments of type RedisKey) for 
         /// keyspace isolation.
         /// </summary>
+        /// <param name="t">The type to extract for.</param>
+        /// <param name="script">The script to extract for.</param>
         public static Func<object, RedisKey?, ScriptParameters> GetParameterExtractor(Type t, LuaScript script)
         {
-            string ignored;
-            if (!IsValidParameterHash(t, script, out ignored, out ignored)) throw new Exception("Shouldn't be possible");
+            if (!IsValidParameterHash(t, script, out _, out _)) throw new Exception("Shouldn't be possible");
 
             var keys = new List<MemberInfo>();
             var args = new List<MemberInfo>();
@@ -313,10 +316,10 @@ namespace StackExchange.Redis
             LocalBuilder redisKeyLoc = null;
             var loc = il.DeclareLocal(t);
             il.Emit(OpCodes.Ldarg_0);               // object
-#if !CORE_CLR
-            if (t.IsValueType)
-#else
+#if NETSTANDARD1_5
             if (t.GetTypeInfo().IsValueType)
+#else
+            if (t.IsValueType)
 #endif
             {
                 il.Emit(OpCodes.Unbox_Any, t);      // T
@@ -328,7 +331,7 @@ namespace StackExchange.Redis
             il.Emit(OpCodes.Stloc, loc);            // --empty--
 
             var needsKeyPrefixLoc = il.DeclareLocal(typeof(bool));
-            
+
             il.Emit(OpCodes.Ldarga_S, 1);                       // RedisKey?*
             il.Emit(OpCodes.Call, nullableRedisKeyHasValue);    // bool
             il.Emit(OpCodes.Stloc, needsKeyPrefixLoc);          // --empty--
@@ -348,10 +351,10 @@ namespace StackExchange.Redis
             {
                 il.Emit(OpCodes.Dup);                       // RedisKey[] RedisKey[]
                 il.Emit(OpCodes.Ldc_I4, i);                 // RedisKey[] RedisKey[] int
-#if !CORE_CLR
-                if (t.IsValueType)
-#else
+#if NETSTANDARD1_5
                 if (t.GetTypeInfo().IsValueType)
+#else
+                if (t.IsValueType)
 #endif
                 {
                     il.Emit(OpCodes.Ldloca, loc);           // RedisKey[] RedisKey[] int T*
@@ -380,10 +383,10 @@ namespace StackExchange.Redis
             {
                 il.Emit(OpCodes.Dup);                       // RedisKey[] RedisValue[] RedisValue[]
                 il.Emit(OpCodes.Ldc_I4, i);                 // RedisKey[] RedisValue[] RedisValue[] int
-#if !CORE_CLR
-                if (t.IsValueType)
-#else
+#if NETSTANDARD1_5
                 if (t.GetTypeInfo().IsValueType)
+#else
+                if (t.IsValueType)
 #endif
                 {
                     il.Emit(OpCodes.Ldloca, loc);           // RedisKey[] RedisValue[] RedisValue[] int T*
@@ -392,7 +395,7 @@ namespace StackExchange.Redis
                 {
                     il.Emit(OpCodes.Ldloc, loc);            // RedisKey[] RedisValue[] RedisValue[] int T
                 }
-                
+
                 var member = args[i];
                 LoadMember(il, member);                                                 // RedisKey[] RedisValue[] RedisValue[] int memberType
                 ConvertToRedisValue(member, il, needsKeyPrefixLoc, ref redisKeyLoc);   // RedisKey[] RedisValue[] RedisValue[] int RedisValue

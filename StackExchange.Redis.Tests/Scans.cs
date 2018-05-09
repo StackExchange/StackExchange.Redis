@@ -37,7 +37,8 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        private void ScansIScanning()
+        [Fact]
+        public void ScansIScanning()
         {
             using (var conn = Create(allowAdmin: true))
             {
@@ -83,7 +84,8 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        private void ScanResume()
+        [Fact(Skip = "Windows Redis 3.x is flaky here. The test runs fine against other servers...")]
+        public void ScanResume()
         {
             using (var conn = Create(allowAdmin: true))
             {
@@ -94,7 +96,7 @@ namespace StackExchange.Redis.Tests
                 int i;
                 for (i = 0; i < 100; i++)
                 {
-                    db.StringSet("ScanResume:" + i, Guid.NewGuid().ToString(), flags: CommandFlags.FireAndForget);
+                    db.StringSet("ScanResume:" + i, Guid.NewGuid().ToString());
                 }
 
                 var expected = new HashSet<string>();
@@ -102,25 +104,29 @@ namespace StackExchange.Redis.Tests
                 int snapOffset = 0, snapPageSize = 0;
 
                 i = 0;
-                var seq = server.Keys(DB, pageSize: 15);
+                var seq = server.Keys(DB, "ScanResume:*", pageSize: 15);
                 foreach (var key in seq)
                 {
-                    i++;
-                    if (i < 57) continue;
                     if (i == 57)
                     {
                         snapCursor = ((IScanningCursor)seq).Cursor;
                         snapOffset = ((IScanningCursor)seq).PageOffset;
                         snapPageSize = ((IScanningCursor)seq).PageSize;
+                        Output.WriteLine($"i: {i}, Cursor: {snapCursor}, Offset: {snapOffset}, PageSize: {snapPageSize}");
                     }
-                    expected.Add((string)key);
+                    if (i >= 57)
+                    {
+                        expected.Add((string)key);
+                    }
+                    i++;
                 }
-                Assert.NotEqual(43, expected.Count);
+                Output.WriteLine($"Expected: 43, Actual: {expected.Count}, Cursor: {snapCursor}, Offset: {snapOffset}, PageSize: {snapPageSize}");
+                Assert.Equal(43, expected.Count);
                 Assert.NotEqual(0, snapCursor);
-                Assert.Equal(11, snapOffset);
+                Assert.Equal(12, snapOffset);
                 Assert.Equal(15, snapPageSize);
 
-                seq = server.Keys(DB, pageSize: 15, cursor: snapCursor, pageOffset: snapOffset);
+                seq = server.Keys(DB, "ScanResume:*", pageSize: 15, cursor: snapCursor, pageOffset: snapOffset);
                 var seqCur = (IScanningCursor)seq;
                 Assert.Equal(snapCursor, seqCur.Cursor);
                 Assert.Equal(snapPageSize, seqCur.PageSize);
@@ -153,7 +159,7 @@ namespace StackExchange.Redis.Tests
                     count++;
                 }
                 Assert.Empty(expected);
-                Assert.Equal(44, count); // expect the initial item to be repeated
+                Assert.Equal(43, count);
             }
         }
 

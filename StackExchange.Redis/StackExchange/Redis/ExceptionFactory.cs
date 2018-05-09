@@ -1,21 +1,15 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Text;
 
 namespace StackExchange.Redis
 {
     internal static class ExceptionFactory
     {
-        const string DataCommandKey = "redis-command",
-            DataServerKey = "redis-server",
-            DataServerEndpoint = "server-endpoint",
-            DataConnectionState = "connection-state",
-            DataLastFailure = "last-failure",
-            DataLastInnerException = "last-innerexception",
-            DataSentStatusKey = "request-sent-status";
-
+        private const string
+            DataCommandKey = "redis-command",
+            DataSentStatusKey = "request-sent-status",
+            DataServerKey = "redis-server";
 
         internal static Exception AdminModeNotEnabled(bool includeDetail, RedisCommand command, Message message, ServerEndPoint server)
         {
@@ -24,6 +18,7 @@ namespace StackExchange.Redis
             if (includeDetail) AddDetail(ex, message, server, s);
             return ex;
         }
+
         internal static Exception CommandDisabled(bool includeDetail, RedisCommand command, Message message, ServerEndPoint server)
         {
             string s = GetLabel(includeDetail, command, message);
@@ -31,6 +26,7 @@ namespace StackExchange.Redis
             if (includeDetail) AddDetail(ex, message, server, s);
             return ex;
         }
+
         internal static Exception TooManyArgs(bool includeDetail, string command, Message message, ServerEndPoint server, int required)
         {
             string s = GetLabel(includeDetail, command, message);
@@ -38,6 +34,7 @@ namespace StackExchange.Redis
             if (includeDetail) AddDetail(ex, message, server, s);
             return ex;
         }
+
         internal static Exception CommandDisabled(bool includeDetail, string command, Message message, ServerEndPoint server)
         {
             string s = GetLabel(includeDetail, command, message);
@@ -106,7 +103,7 @@ namespace StackExchange.Redis
                 return e.Message;
             }
         }
-        
+
         internal static Exception NoConnectionAvailable(bool includeDetail, bool includePerformanceCounters, RedisCommand command, Message message, ServerEndPoint server, ServerEndPoint[] serverSnapshot)
         {
             string commandLabel = GetLabel(includeDetail, command, message);
@@ -127,7 +124,7 @@ namespace StackExchange.Redis
                 exceptionmessage.Append("; ").Append(innermostExceptionstring);
             }
 
-#if !CORE_CLR
+#if FEATURE_PERFCOUNTER
             if (includeDetail)
             {
                 exceptionmessage.Append("; ").Append(ConnectionMultiplexer.GetThreadPoolAndCPUSummary(includePerformanceCounters));
@@ -135,7 +132,7 @@ namespace StackExchange.Redis
 #endif
 
             var ex = new RedisConnectionException(ConnectionFailureType.UnableToResolvePhysicalConnection, exceptionmessage.ToString(), innerException, message?.Status ?? CommandStatus.Unknown);
-            
+
             if (includeDetail)
             {
                 AddDetail(ex, message, server, commandLabel);
@@ -145,7 +142,7 @@ namespace StackExchange.Redis
 
         internal static Exception PopulateInnerExceptions(ServerEndPoint[] serverSnapshot)
         {
-            List<Exception> innerExceptions = new List<Exception>();
+            var innerExceptions = new List<Exception>();
             if (serverSnapshot != null)
             {
                 if (serverSnapshot.Length > 0 && serverSnapshot[0].Multiplexer.LastException != null)
@@ -180,11 +177,11 @@ namespace StackExchange.Redis
             if (includeDetail) AddDetail(ex, null, null, s);
             return ex;
         }
+
         internal static Exception NoCursor(RedisCommand command)
         {
             string s = GetLabel(false, command, null);
-            var ex = new RedisCommandException("Command cannot be used with a cursor: " + s);
-            return ex;
+            return new RedisCommandException("Command cannot be used with a cursor: " + s);
         }
 
         internal static Exception Timeout(bool includeDetail, string errorMessage, Message message, ServerEndPoint server)
@@ -203,17 +200,21 @@ namespace StackExchange.Redis
                     exception.Data.Add(DataCommandKey, message.CommandAndKey);
                     exception.Data.Add(DataSentStatusKey, message.Status);
                 }
-                else if (label != null) exception.Data.Add(DataCommandKey, label);
+                else if (label != null)
+                {
+                    exception.Data.Add(DataCommandKey, label);
+                }
 
                 if (server != null) exception.Data.Add(DataServerKey, Format.ToString(server.EndPoint));
             }
         }
 
-        static string GetLabel(bool includeDetail, RedisCommand command, Message message)
+        private static string GetLabel(bool includeDetail, RedisCommand command, Message message)
         {
             return message == null ? command.ToString() : (includeDetail ? message.CommandAndKey : message.Command.ToString());
         }
-        static string GetLabel(bool includeDetail, string command, Message message)
+
+        private static string GetLabel(bool includeDetail, string command, Message message)
         {
             return message == null ? command : (includeDetail ? message.CommandAndKey : message.Command.ToString());
         }

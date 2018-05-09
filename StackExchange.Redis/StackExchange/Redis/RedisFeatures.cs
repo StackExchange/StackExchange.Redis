@@ -34,10 +34,10 @@ namespace StackExchange.Redis
         /// <summary>
         /// Create a new RedisFeatures instance for the given version
         /// </summary>
+        /// <param name="version">The version of redis to base the feature set on.</param>
         public RedisFeatures(Version version)
         {
-            if (version == null) throw new ArgumentNullException(nameof(version));
-            this.version = version;
+            this.version = version ?? throw new ArgumentNullException(nameof(version));
         }
 
         /// <summary>

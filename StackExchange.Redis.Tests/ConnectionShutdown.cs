@@ -7,7 +7,7 @@ namespace StackExchange.Redis.Tests
 {
     public class ConnectionShutdown : TestBase
     {
-        protected override string GetConfiguration() => TestConfig.Current.MasterServer + ":" + TestConfig.Current.MasterPort;
+        protected override string GetConfiguration() => TestConfig.Current.MasterServerAndPort;
         public ConnectionShutdown(ITestOutputHelper output) : base (output) { }
 
         [Fact(Skip="Unfriendly")]

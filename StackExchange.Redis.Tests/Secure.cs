@@ -1,14 +1,16 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
+    [Collection(NonParallelCollection.Name)]
     public class Secure : TestBase
     {
         protected override string GetConfiguration() =>
-            TestConfig.Current.MasterServer + ":" + TestConfig.Current.SecurePort + ",password=" + TestConfig.Current.SecurePassword + ",name=MyClient";
+            TestConfig.Current.SecureServerAndPort + ",password=" + TestConfig.Current.SecurePassword + ",name=MyClient";
 
         public Secure(ITestOutputHelper output) : base (output) { }
 
@@ -42,7 +44,7 @@ namespace StackExchange.Redis.Tests
 #if DEBUG
                 long newAlloc = ConnectionMultiplexer.GetResultBoxAllocationCount();
                 Output.WriteLine("ResultBox allocations: {0}", newAlloc - oldAlloc);
-                Assert.True(newAlloc - oldAlloc <= 2);
+                Assert.True(newAlloc - oldAlloc <= 2, $"NewAllocs: {newAlloc}, OldAllocs: {oldAlloc}");
 #endif
             }
         }
@@ -71,20 +73,22 @@ namespace StackExchange.Redis.Tests
         [Theory]
         [InlineData("wrong")]
         [InlineData("")]
-        public void ConnectWithWrongPassword(string password)
+        public async Task ConnectWithWrongPassword(string password)
         {
-            var ex = Assert.Throws<AggregateException>(() =>
+            var config = ConfigurationOptions.Parse(GetConfiguration());
+            config.Password = password;
+            config.ConnectRetry = 0; // we don't want to retry on closed sockets in this case.
+
+            var ex = await Assert.ThrowsAsync<RedisConnectionException>(async () =>
             {
                 SetExpectedAmbientFailureCount(-1);
-                using (var server = Create(password: password, checkConnect: false))
+                using (var conn = await ConnectionMultiplexer.ConnectAsync(config, Writer).ConfigureAwait(false))
                 {
-                    server.GetDatabase().Ping();
+                    conn.GetDatabase().Ping();
                 }
-            });
-            Assert.Single(ex.InnerExceptions);
-            var rce = Assert.IsType<RedisConnectionException>(ex.InnerException);
-            Output.WriteLine("Exception: " + rce.Message);
-            Assert.Equal("It was not possible to connect to the redis server(s); to create a disconnected multiplexer, disable AbortOnConnectFail. AuthenticationFailure on PING", rce.Message);
+            }).ConfigureAwait(false);
+            Output.WriteLine("Exception: " + ex.Message);
+            Assert.Equal("It was not possible to connect to the redis server(s); to create a disconnected multiplexer, disable AbortOnConnectFail. AuthenticationFailure on PING", ex.Message);
         }
     }
 }

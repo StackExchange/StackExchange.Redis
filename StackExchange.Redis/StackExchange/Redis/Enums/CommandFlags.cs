@@ -22,7 +22,6 @@ namespace StackExchange.Redis
         /// </summary>
         FireAndForget = 2,
 
-
         /// <summary>
         /// This operation should be performed on the master if it is available, but read operations may
         /// be performed on a slave if no master is available. This is the default option.

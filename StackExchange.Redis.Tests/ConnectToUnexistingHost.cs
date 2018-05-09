@@ -28,7 +28,7 @@ namespace StackExchange.Redis.Tests
 
                 SocketManager.ConnectCompletionType = completionType;
 
-                using (var muxer = ConnectionMultiplexer.Connect(config))
+                using (var muxer = ConnectionMultiplexer.Connect(config, Writer))
                 {
                     Thread.Sleep(10000);
                 }
@@ -40,7 +40,7 @@ namespace StackExchange.Redis.Tests
                 var elapsed = sw.ElapsedMilliseconds;
                 Output.WriteLine("Elapsed time: " + elapsed);
                 Output.WriteLine("Timeout: " + timeout);
-                Assert.True(elapsed < 9000, "Connect should fail within ConnectTimeout");
+                Assert.True(elapsed < 9000, "Connect should fail within ConnectTimeout, ElapsedMs: " + elapsed);
             }
             finally
             {

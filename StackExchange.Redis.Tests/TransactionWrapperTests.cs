@@ -1,5 +1,4 @@
-﻿#if FEATURE_MOQ
-using System.Text;
+﻿using System.Text;
 using Moq;
 using StackExchange.Redis.KeyspaceIsolation;
 
@@ -35,14 +34,14 @@ namespace StackExchange.Redis.Tests
         public void AddCondition_HashExists()
         {
             wrapper.AddCondition(Condition.HashExists("key", "field"));
-            mock.Verify(_ => _.AddCondition(It.Is<Condition>(value => "prefix:key > field exists" == value.ToString())));
+            mock.Verify(_ => _.AddCondition(It.Is<Condition>(value => "prefix:key Hash > field exists" == value.ToString())));
         }
 
         [Fact]
         public void AddCondition_HashNotExists()
         {
             wrapper.AddCondition(Condition.HashNotExists("key", "field"));
-            mock.Verify(_ => _.AddCondition(It.Is<Condition>(value => "prefix:key > field does not exists" == value.ToString())));
+            mock.Verify(_ => _.AddCondition(It.Is<Condition>(value => "prefix:key Hash > field does not exists" == value.ToString())));
         }
 
         [Fact]
@@ -89,4 +88,3 @@ namespace StackExchange.Redis.Tests
     }
 #pragma warning restore RCS1047 // Non-asynchronous method name should not end with 'Async'.
 }
-#endif

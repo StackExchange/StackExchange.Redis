@@ -545,6 +545,48 @@ namespace StackExchange.Redis.Tests
         }
 
         [Theory]
+        [InlineData(false, false, true)]
+        [InlineData(false, true, false)]
+        [InlineData(true, false, false)]
+        [InlineData(true, true, true)]
+        public void BasicTranWithSetContainsCondition(bool demandKeyExists, bool keyExists, bool expectTranResult)
+        {
+            using (var muxer = Create(disabledCommands: new[] { "info", "config" }))
+            {
+                RedisKey key = Me(), key2 = Me() + "2";
+                var db = muxer.GetDatabase();
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.KeyDelete(key2, CommandFlags.FireAndForget);
+                RedisValue member = "value";
+                if (keyExists) db.SetAdd(key2, member, flags: CommandFlags.FireAndForget);
+                Assert.False(db.KeyExists(key));
+                Assert.Equal(keyExists, db.SetContains(key2, member));
+
+                var tran = db.CreateTransaction();
+                var cond = tran.AddCondition(demandKeyExists ? Condition.SetContains(key2, member) : Condition.SetNotContains(key2, member));
+                var incr = tran.StringIncrementAsync(key);
+                var exec = tran.ExecuteAsync();
+                var get = db.StringGet(key);
+
+                Assert.Equal(expectTranResult, db.Wait(exec));
+                if (demandKeyExists == keyExists)
+                {
+                    Assert.True(db.Wait(exec), "eq: exec");
+                    Assert.True(cond.WasSatisfied, "eq: was satisfied");
+                    Assert.Equal(1, db.Wait(incr)); // eq: incr
+                    Assert.Equal(1, (long)get); // eq: get
+                }
+                else
+                {
+                    Assert.False(db.Wait(exec), "neq: exec");
+                    Assert.False(cond.WasSatisfied, "neq: was satisfied");
+                    Assert.Equal(TaskStatus.Canceled, incr.Status); // neq: incr
+                    Assert.Equal(0, (long)get); // neq: get
+                }
+            }
+        }
+
+        [Theory]
         [InlineData("five", ComparisonType.Equal, 5L, false)]
         [InlineData("four", ComparisonType.Equal, 4L, true)]
         [InlineData("three", ComparisonType.Equal, 3L, false)]
@@ -618,6 +660,48 @@ namespace StackExchange.Redis.Tests
                     Assert.False(cond.WasSatisfied, "neq: was satisfied");
                     Assert.Equal(TaskStatus.Canceled, push.Status); // neq: push
                     Assert.Equal(0, get); // neq: get
+                }
+            }
+        }
+
+        [Theory]
+        [InlineData(false, false, true)]
+        [InlineData(false, true, false)]
+        [InlineData(true, false, false)]
+        [InlineData(true, true, true)]
+        public void BasicTranWithSortedSetContainsCondition(bool demandKeyExists, bool keyExists, bool expectTranResult)
+        {
+            using (var muxer = Create(disabledCommands: new[] { "info", "config" }))
+            {
+                RedisKey key = Me(), key2 = Me() + "2";
+                var db = muxer.GetDatabase();
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.KeyDelete(key2, CommandFlags.FireAndForget);
+                RedisValue member = "value";
+                if (keyExists) db.SortedSetAdd(key2, member, 0.0, flags: CommandFlags.FireAndForget);
+                Assert.False(db.KeyExists(key));
+                Assert.Equal(keyExists, db.SortedSetScore(key2, member).HasValue);
+
+                var tran = db.CreateTransaction();
+                var cond = tran.AddCondition(demandKeyExists ? Condition.SortedSetContains(key2, member) : Condition.SortedSetNotContains(key2, member));
+                var incr = tran.StringIncrementAsync(key);
+                var exec = tran.ExecuteAsync();
+                var get = db.StringGet(key);
+
+                Assert.Equal(expectTranResult, db.Wait(exec));
+                if (demandKeyExists == keyExists)
+                {
+                    Assert.True(db.Wait(exec), "eq: exec");
+                    Assert.True(cond.WasSatisfied, "eq: was satisfied");
+                    Assert.Equal(1, db.Wait(incr)); // eq: incr
+                    Assert.Equal(1, (long)get); // eq: get
+                }
+                else
+                {
+                    Assert.False(db.Wait(exec), "neq: exec");
+                    Assert.False(cond.WasSatisfied, "neq: was satisfied");
+                    Assert.Equal(TaskStatus.Canceled, incr.Status); // neq: incr
+                    Assert.Equal(0, (long)get); // neq: get
                 }
             }
         }

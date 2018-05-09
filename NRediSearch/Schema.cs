@@ -50,6 +50,7 @@ namespace NRediSearch
                 if(Sortable){args.Add("SORTABLE");}
             }
         }
+
         public class TextField : Field
         {
             public double Weight { get; }
@@ -57,10 +58,12 @@ namespace NRediSearch
             {
                 Weight = weight;
             }
+
             internal TextField(string name, bool sortable, double weight = 1.0) : base(name, FieldType.FullText, sortable)
             {
                 Weight = weight;
             }
+
             internal override void SerializeRedisArgs(List<object> args)
             {
                 base.SerializeRedisArgs(args);
@@ -138,6 +141,7 @@ namespace NRediSearch
             {
                 Separator = separator;
             }
+
             internal override void SerializeRedisArgs(List<object> args)
             {
                 base.SerializeRedisArgs(args);
@@ -160,7 +164,5 @@ namespace NRediSearch
             Fields.Add(new TagField(name, separator));
             return this;
         }
-
-
     }
 }

@@ -46,15 +46,13 @@ namespace StackExchange.Redis
 
         public bool Execute(CommandFlags flags)
         {
-            ResultProcessor<bool> proc;
-            var msg = CreateMessage(flags, out proc);
+            var msg = CreateMessage(flags, out ResultProcessor<bool> proc);
             return base.ExecuteSync(msg, proc); // need base to avoid our local "not supported" override
         }
 
         public Task<bool> ExecuteAsync(CommandFlags flags)
         {
-            ResultProcessor<bool> proc;
-            var msg = CreateMessage(flags, out proc);
+            var msg = CreateMessage(flags, out ResultProcessor<bool> proc);
             return base.ExecuteAsync(msg, proc); // need base to avoid our local wrapping override
         }
 
@@ -72,7 +70,7 @@ namespace StackExchange.Redis
             }
             else
             {
-                var tcs = TaskSource.CreateDenyExecSync<T>(asyncState);
+                var tcs = TaskSource.Create<T>(asyncState);
                 var source = ResultBox<T>.Get(tcs);
                 message.SetSource(source, processor);
                 task = tcs.Task;
@@ -87,8 +85,7 @@ namespace StackExchange.Redis
             // (there is no task for the inner command)
             (pending ?? (pending = new List<QueuedMessage>())).Add(queued);
 
-
-            switch(message.Command)
+            switch (message.Command)
             {
                 case RedisCommand.UNKNOWN:
                 case RedisCommand.EVAL:
@@ -110,6 +107,7 @@ namespace StackExchange.Redis
         {
             throw new NotSupportedException("ExecuteSync cannot be used inside a transaction");
         }
+
         private Message CreateMessage(CommandFlags flags, out ResultProcessor<bool> processor)
         {
             var work = pending;
@@ -123,73 +121,69 @@ namespace StackExchange.Redis
                 {
                     processor = null;
                     return null; // they won't notice if we don't do anything...
-                }                
+                }
                 processor = ResultProcessor.DemandPONG;
                 return Message.Create(-1, flags, RedisCommand.PING);
             }
             processor = TransactionProcessor.Default;
             return new TransactionMessage(Database, flags, cond, work);
         }
-        class QueuedMessage : Message
+
+        private class QueuedMessage : Message
         {
-            private readonly Message wrapped;
+            public Message Wrapped { get; }
             private volatile bool wasQueued;
 
             public QueuedMessage(Message message) : base(message.Db, message.Flags | CommandFlags.NoRedirect, message.Command)
             {
                 message.SetNoRedirect();
-                this.wrapped = message;
+                Wrapped = message;
             }
 
             public bool WasQueued
             {
-                get { return wasQueued; }
-                set { wasQueued = value; }
+                get => wasQueued;
+                set => wasQueued = value;
             }
-
-            public Message Wrapped => wrapped;
 
             internal override void WriteImpl(PhysicalConnection physical)
             {
-                wrapped.WriteImpl(physical);
-                wrapped.SetRequestSent();
+                Wrapped.WriteImpl(physical);
+                Wrapped.SetRequestSent();
             }
         }
 
-        class QueuedProcessor : ResultProcessor<bool>
+        private class QueuedProcessor : ResultProcessor<bool>
         {
             public static readonly ResultProcessor<bool> Default = new QueuedProcessor();
-            static readonly byte[] QUEUED = Encoding.UTF8.GetBytes("QUEUED");
+            private static readonly byte[] QUEUED = Encoding.UTF8.GetBytes("QUEUED");
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
-                if(result.Type == ResultType.SimpleString && result.IsEqual(QUEUED))
+                if (result.Type == ResultType.SimpleString && result.IsEqual(QUEUED))
                 {
-                    var q = message as QueuedMessage;
-                    if (q != null) q.WasQueued = true;
+                    if (message is QueuedMessage q)
+                    {
+                        q.WasQueued = true;
+                    }
                     return true;
                 }
                 return false;
             }
         }
-        class TransactionMessage : Message, IMultiMessage
+
+        private class TransactionMessage : Message, IMultiMessage
         {
-
-            static readonly ConditionResult[] NixConditions = new ConditionResult[0];
-
-            static readonly QueuedMessage[] NixMessages = new QueuedMessage[0];
-
-            private ConditionResult[] conditions;
-
-            private QueuedMessage[] operations;
+            private static readonly ConditionResult[] NixConditions = new ConditionResult[0];
+            private static readonly QueuedMessage[] NixMessages = new QueuedMessage[0];
+            private readonly ConditionResult[] conditions;
+            public QueuedMessage[] InnerOperations { get; }
 
             public TransactionMessage(int db, CommandFlags flags, List<ConditionResult> conditions, List<QueuedMessage> operations)
                 : base(db, flags, RedisCommand.EXEC)
             {
-                this.operations = (operations == null || operations.Count == 0) ? NixMessages : operations.ToArray();
+                this.InnerOperations = (operations == null || operations.Count == 0) ? NixMessages : operations.ToArray();
                 this.conditions = (conditions == null || conditions.Count == 0) ? NixConditions : conditions.ToArray();
             }
-
-            public QueuedMessage[] InnerOperations => operations;
 
             public bool IsAborted => command != RedisCommand.EXEC;
 
@@ -197,20 +191,21 @@ namespace StackExchange.Redis
             {
                 base.AppendStormLog(sb);
                 if (conditions.Length != 0) sb.Append(", ").Append(conditions.Length).Append(" conditions");
-                sb.Append(", ").Append(operations.Length).Append(" operations");
+                sb.Append(", ").Append(InnerOperations.Length).Append(" operations");
             }
+
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
             {
                 int slot = ServerSelectionStrategy.NoSlot;
-                for(int i = 0; i < conditions.Length;i++)
+                for (int i = 0; i < conditions.Length; i++)
                 {
                     int newSlot = conditions[i].Condition.GetHashSlot(serverSelectionStrategy);
                     slot = serverSelectionStrategy.CombineSlot(slot, newSlot);
                     if (slot == ServerSelectionStrategy.MultipleSlots) return slot;
                 }
-                for(int i = 0; i < operations.Length;i++)
+                for (int i = 0; i < InnerOperations.Length; i++)
                 {
-                    int newSlot = operations[i].Wrapped.GetHashSlot(serverSelectionStrategy);
+                    int newSlot = InnerOperations[i].Wrapped.GetHashSlot(serverSelectionStrategy);
                     slot = serverSelectionStrategy.CombineSlot(slot, newSlot);
                     if (slot == ServerSelectionStrategy.MultipleSlots) return slot;
                 }
@@ -279,11 +274,11 @@ namespace StackExchange.Redis
                     }
 
                     // PART 3: issue the commands
-                    if (!IsAborted && operations.Length != 0)
+                    if (!IsAborted && InnerOperations.Length != 0)
                     {
                         multiplexer.Trace("Issuing transaction operations");
 
-                        foreach (var op in operations)
+                        foreach (var op in InnerOperations)
                         {
                             if (explicitCheckForQueued)
                             {   // need to have locked them before sending them
@@ -311,7 +306,7 @@ namespace StackExchange.Redis
                                 }
                                 else
                                 {
-                                    foreach (var op in operations)
+                                    foreach (var op in InnerOperations)
                                     {
                                         if (!op.WasQueued)
                                         {
@@ -321,7 +316,7 @@ namespace StackExchange.Redis
                                         }
                                     }
                                 }
-                                multiplexer.Trace("Confirmed: QUEUED x " + operations.Length);
+                                multiplexer.Trace("Confirmed: QUEUED x " + InnerOperations.Length);
                             }
                             else
                             {
@@ -341,7 +336,7 @@ namespace StackExchange.Redis
                 {
                     connection.Multiplexer.Trace("Aborting: canceling wrapped messages");
                     var bridge = connection.Bridge;
-                    foreach (var op in operations)
+                    foreach (var op in InnerOperations)
                     {
                         op.Wrapped.Cancel();
                         bridge.CompleteSyncOrAsync(op.Wrapped);
@@ -376,32 +371,28 @@ namespace StackExchange.Redis
             }
         }
 
-        class TransactionProcessor : ResultProcessor<bool>
+        private class TransactionProcessor : ResultProcessor<bool>
         {
             public static readonly TransactionProcessor Default = new TransactionProcessor();
-            
+
             public override bool SetResult(PhysicalConnection connection, Message message, RawResult result)
             {
-                if (result.IsError)
+                if (result.IsError && message is TransactionMessage tran)
                 {
-                    var tran = message as TransactionMessage;
-                    if (tran != null)
+                    string error = result.GetString();
+                    var bridge = connection.Bridge;
+                    foreach (var op in tran.InnerOperations)
                     {
-                        string error = result.GetString();
-                        var bridge = connection.Bridge;
-                        foreach(var op in tran.InnerOperations)
-                        {
-                            ServerFail(op.Wrapped, error);
-                            bridge.CompleteSyncOrAsync(op.Wrapped);
-                        }
+                        ServerFail(op.Wrapped, error);
+                        bridge.CompleteSyncOrAsync(op.Wrapped);
                     }
                 }
                 return base.SetResult(connection, message, result);
             }
+
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
-                var tran = message as TransactionMessage;
-                if (tran != null)
+                if (message is TransactionMessage tran)
                 {
                     var bridge = connection.Bridge;
                     var wrapped = tran.InnerOperations;

@@ -1,8 +1,7 @@
 ﻿#if !FEATURE_SOCKET_MODE_POLL
-
 namespace StackExchange.Redis
 {
-    partial class SocketManager
+    public partial class SocketManager
     {
         internal const SocketMode DefaultSocketMode = SocketMode.Async;
 
@@ -12,5 +11,4 @@ namespace StackExchange.Redis
         }
     }
 }
-
 #endif

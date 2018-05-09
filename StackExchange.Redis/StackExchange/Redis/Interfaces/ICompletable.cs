@@ -2,7 +2,7 @@
 
 namespace StackExchange.Redis
 {
-    interface ICompletable
+    internal interface ICompletable
     {
         void AppendStormLog(StringBuilder sb);
 

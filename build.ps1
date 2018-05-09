@@ -71,7 +71,7 @@ if ($RunTests) {
         #Push-Location ".\tests\$project"
         Push-Location ".\$project"
 
-        dotnet xunit
+        dotnet xunit -configuration Release
         if ($LastExitCode -ne 0) { 
             Write-Host "Error with tests, aborting build." -Foreground "Red"
             Pop-Location

@@ -254,41 +254,43 @@ namespace StackExchange.Redis.Tests
 
 #if DEBUG
         [Fact]
-        public void SubscriptionsSurviveConnectionFailure()
+        public async Task SubscriptionsSurviveConnectionFailureAsync()
         {
-            
             using (var muxer = Create(allowAdmin: true))
             {
                 RedisChannel channel = Me();
                 var sub = muxer.GetSubscriber();
                 int counter = 0;
-                sub.Subscribe(channel, delegate
+                await sub.SubscribeAsync(channel, delegate
                 {
                     Interlocked.Increment(ref counter);
-                });
-                sub.Publish(channel, "abc");
+                }).ConfigureAwait(false);
+                await sub.PublishAsync(channel, "abc").ConfigureAwait(false);
                 sub.Ping();
+                await Task.Delay(200).ConfigureAwait(false);
                 Assert.Equal(1, VolatileWrapper.Read(ref counter));
                 var server = GetServer(muxer);
                 Assert.Equal(1, server.GetCounters().Subscription.SocketCount);
 
                 server.SimulateConnectionFailure();
                 SetExpectedAmbientFailureCount(2);
-                Thread.Sleep(100);
+                await Task.Delay(200).ConfigureAwait(false);
                 sub.Ping();
                 Assert.Equal(2, server.GetCounters().Subscription.SocketCount);
-                sub.Publish(channel, "abc");
+                await sub.PublishAsync(channel, "abc").ConfigureAwait(false);
+                await Task.Delay(200).ConfigureAwait(false);
                 sub.Ping();
                 Assert.Equal(2, VolatileWrapper.Read(ref counter));
             }
         }
 #endif
     }
-        internal static class VolatileWrapper
+
+    internal static class VolatileWrapper
     {
         public static int Read(ref int location)
         {
-#if !CORE_CLR
+#if !NETCOREAPP1_0
             return Thread.VolatileRead(ref location);
 #else
             return Volatile.Read(ref location);

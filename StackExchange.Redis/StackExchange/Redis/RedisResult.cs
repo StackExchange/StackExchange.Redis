@@ -10,11 +10,9 @@ namespace StackExchange.Redis
         /// <summary>
         /// Create a new RedisResult.
         /// </summary>
-        /// <returns></returns>
-        public static RedisResult Create(RedisValue value)
-        {
-            return new SingleRedisResult(value);
-        }
+        /// <param name="value">The <see cref="RedisValue"/> to create a result from.</param>
+        /// <returns> new <see cref="RedisResult"/>.</returns>
+        public static RedisResult Create(RedisValue value) => new SingleRedisResult(value);
 
         // internally, this is very similar to RawResult, except it is designed to be usable
         // outside of the IO-processing pipeline: the buffers are standalone, etc
@@ -57,126 +55,129 @@ namespace StackExchange.Redis
         public abstract bool IsNull { get; }
 
         /// <summary>
-        /// Interprets the result as a String
+        /// Interprets the result as a <see cref="string"/>.
         /// </summary>
-        public static explicit operator string (RedisResult result) { return result.AsString(); }
+        /// <param name="result">The result to convert to a <see cref="string"/>.</param>
+        public static explicit operator string(RedisResult result) => result.AsString();
         /// <summary>
-        /// Interprets the result as a Byte[]
+        /// Interprets the result as a <see cref="T:byte[]"/>.
         /// </summary>
-        public static explicit operator byte[] (RedisResult result) { return result.AsByteArray(); }
+        /// <param name="result">The result to convert to a <see cref="T:byte[]"/>.</param>
+        public static explicit operator byte[] (RedisResult result) => result.AsByteArray();
         /// <summary>
-        /// Interprets the result as a Double
+        /// Interprets the result as a <see cref="double"/>.
         /// </summary>
-        public static explicit operator double (RedisResult result) { return result.AsDouble(); }
+        /// <param name="result">The result to convert to a <see cref="double"/>.</param>
+        public static explicit operator double(RedisResult result) => result.AsDouble();
         /// <summary>
-        /// Interprets the result as an Int64
+        /// Interprets the result as an <see cref="long"/>.
         /// </summary>
-        public static explicit operator long (RedisResult result) { return result.AsInt64(); }
+        /// <param name="result">The result to convert to a <see cref="long"/>.</param>
+        public static explicit operator long(RedisResult result) => result.AsInt64();
         /// <summary>
-        /// Interprets the result as an Int32
+        /// Interprets the result as an <see cref="int"/>.
         /// </summary>
-        public static explicit operator int (RedisResult result) { return result.AsInt32(); }
+        /// <param name="result">The result to convert to a <see cref="int"/>.</param>
+        public static explicit operator int(RedisResult result) => result.AsInt32();
         /// <summary>
-        /// Interprets the result as a Boolean
+        /// Interprets the result as a <see cref="bool"/>
         /// </summary>
-        public static explicit operator bool (RedisResult result) { return result.AsBoolean(); }
+        /// <param name="result">The result to convert to a <see cref="bool"/>.</param>
+        public static explicit operator bool(RedisResult result) => result.AsBoolean();
         /// <summary>
-        /// Interprets the result as a RedisValue
+        /// Interprets the result as a <see cref="RedisValue"/>.
         /// </summary>
-        public static explicit operator RedisValue (RedisResult result) { return result.AsRedisValue(); }
+        /// <param name="result">The result to convert to a <see cref="RedisValue"/>.</param>
+        public static explicit operator RedisValue(RedisResult result) => result.AsRedisValue();
         /// <summary>
-        /// Interprets the result as a RedisKey
+        /// Interprets the result as a <see cref="RedisKey"/>.
         /// </summary>
-        public static explicit operator RedisKey (RedisResult result) { return result.AsRedisKey(); }
+        /// <param name="result">The result to convert to a <see cref="RedisKey"/>.</param>
+        public static explicit operator RedisKey(RedisResult result) => result.AsRedisKey();
         /// <summary>
-        /// Interprets the result as a Nullable Double
+        /// Interprets the result as a <see cref="T:Nullable{double}"/>.
         /// </summary>
-        public static explicit operator double? (RedisResult result) { return result.AsNullableDouble(); }
+        /// <param name="result">The result to convert to a <see cref="T:Nullable{double}"/>.</param>
+        public static explicit operator double? (RedisResult result) => result.AsNullableDouble();
         /// <summary>
-        /// Interprets the result as a Nullable Int64
+        /// Interprets the result as a <see cref="T:Nullable{long}"/>.
         /// </summary>
-        public static explicit operator long? (RedisResult result) { return result.AsNullableInt64(); }
+        /// <param name="result">The result to convert to a <see cref="T:Nullable{long}"/>.</param>
+        public static explicit operator long? (RedisResult result) => result.AsNullableInt64();
         /// <summary>
-        /// Interprets the result as a Nullable Int32
+        /// Interprets the result as a <see cref="T:Nullable{int}"/>.
         /// </summary>
-        public static explicit operator int? (RedisResult result) { return result.AsNullableInt32(); }
+        /// <param name="result">The result to convert to a <see cref="T:Nullable{int}"/>.</param>
+        public static explicit operator int? (RedisResult result) => result.AsNullableInt32();
         /// <summary>
-        /// Interprets the result as a Nullable Boolean
+        /// Interprets the result as a <see cref="T:Nullable{bool}"/>.
         /// </summary>
-        public static explicit operator bool? (RedisResult result) { return result.AsNullableBoolean(); }
+        /// <param name="result">The result to convert to a <see cref="T:Nullable{bool}"/>.</param>
+        public static explicit operator bool? (RedisResult result) => result.AsNullableBoolean();
         /// <summary>
-        /// Interprets the result as an array of String
+        /// Interprets the result as a <see cref="T:string[]"/>.
         /// </summary>
-        public static explicit operator string[] (RedisResult result) { return result.AsStringArray(); }
+        /// <param name="result">The result to convert to a <see cref="T:string[]"/>.</param>
+        public static explicit operator string[] (RedisResult result) => result.AsStringArray();
         /// <summary>
-        /// Interprets the result as an array of Byte[]
+        /// Interprets the result as a <see cref="T:byte[][]"/>.
         /// </summary>
-        public static explicit operator byte[][] (RedisResult result) { return result.AsByteArrayArray(); }
+        /// <param name="result">The result to convert to a <see cref="T:byte[][]"/>.</param>
+        public static explicit operator byte[][] (RedisResult result) => result.AsByteArrayArray();
         /// <summary>
-        /// Interprets the result as an array of Double
+        /// Interprets the result as a <see cref="T:double[]"/>.
         /// </summary>
-        public static explicit operator double[] (RedisResult result) { return result.AsDoubleArray(); }
+        /// <param name="result">The result to convert to a <see cref="T:double[]"/>.</param>
+        public static explicit operator double[] (RedisResult result) => result.AsDoubleArray();
         /// <summary>
-        /// Interprets the result as an array of Int64
+        /// Interprets the result as a <see cref="T:long[]"/>.
         /// </summary>
-        public static explicit operator long[] (RedisResult result) { return result.AsInt64Array(); }
+        /// <param name="result">The result to convert to a <see cref="T:long[]"/>.</param>
+        public static explicit operator long[] (RedisResult result) => result.AsInt64Array();
         /// <summary>
-        /// Interprets the result as an array of Int32
+        /// Interprets the result as a <see cref="T:int[]"/>.
         /// </summary>
-        public static explicit operator int[] (RedisResult result) { return result.AsInt32Array(); }
+        /// <param name="result">The result to convert to a <see cref="T:int[]"/>.</param>
+        public static explicit operator int[] (RedisResult result) => result.AsInt32Array();
         /// <summary>
-        /// Interprets the result as an array of Boolean
+        /// Interprets the result as a <see cref="T:bool[]"/>.
         /// </summary>
-        public static explicit operator bool[] (RedisResult result) { return result.AsBooleanArray(); }
+        /// <param name="result">The result to convert to a <see cref="T:bool[]"/>.</param>
+        public static explicit operator bool[] (RedisResult result) => result.AsBooleanArray();
         /// <summary>
-        /// Interprets the result as an array of RedisValue
+        /// Interprets the result as a <see cref="T:RedisValue[]"/>.
         /// </summary>
-        public static explicit operator RedisValue[] (RedisResult result) { return result.AsRedisValueArray(); }
+        /// <param name="result">The result to convert to a <see cref="T:RedisValue[]"/>.</param>
+        public static explicit operator RedisValue[] (RedisResult result) => result.AsRedisValueArray();
         /// <summary>
-        /// Interprets the result as an array of RedisKey
+        /// Interprets the result as a <see cref="T:RedisKey[]"/>.
         /// </summary>
-        public static explicit operator RedisKey[] (RedisResult result) { return result.AsRedisKeyArray(); }
+        /// <param name="result">The result to convert to a <see cref="T:RedisKey[]"/>.</param>
+        public static explicit operator RedisKey[] (RedisResult result) => result.AsRedisKeyArray();
         /// <summary>
-        /// Interprets the result as an array of RedisResult
+        /// Interprets the result as a <see cref="T:RedisResult[]"/>.
         /// </summary>
-        public static explicit operator RedisResult[] (RedisResult result) { return result.AsRedisResultArray(); }
+        /// <param name="result">The result to convert to a <see cref="T:RedisResult[]"/>.</param>
+        public static explicit operator RedisResult[] (RedisResult result) => result.AsRedisResultArray();
 
         internal abstract bool AsBoolean();
-
         internal abstract bool[] AsBooleanArray();
-
         internal abstract byte[] AsByteArray();
-
         internal abstract byte[][] AsByteArrayArray();
-
         internal abstract double AsDouble();
-
         internal abstract double[] AsDoubleArray();
-
         internal abstract int AsInt32();
-
         internal abstract int[] AsInt32Array();
-
         internal abstract long AsInt64();
-
         internal abstract long[] AsInt64Array();
-
         internal abstract bool? AsNullableBoolean();
-
         internal abstract double? AsNullableDouble();
-
         internal abstract int? AsNullableInt32();
-
         internal abstract long? AsNullableInt64();
-
         internal abstract RedisKey AsRedisKey();
-
         internal abstract RedisKey[] AsRedisKeyArray();
-
         internal abstract RedisResult[] AsRedisResultArray();
-
         internal abstract RedisValue AsRedisValue();
-
         internal abstract RedisValue[] AsRedisValueArray();
         internal abstract string AsString();
         internal abstract string[] AsStringArray();
@@ -186,27 +187,26 @@ namespace StackExchange.Redis
             private readonly RedisResult[] value;
             public ArrayRedisResult(RedisResult[] value)
             {
-                if (value == null) throw new ArgumentNullException(nameof(value));
-                this.value = value;
+                this.value = value ?? throw new ArgumentNullException(nameof(value));
             }
-            public override string ToString()
-            {
-                return value.Length + " element(s)";
-            }
+
+            public override string ToString() => value.Length + " element(s)";
+
             internal override bool AsBoolean()
             {
                 if (value.Length == 1) return value[0].AsBoolean();
                 throw new InvalidCastException();
             }
 
-            internal override bool[] AsBooleanArray() { return ConvertHelper.ConvertAll(value, x => x.AsBoolean()); }
+            internal override bool[] AsBooleanArray() => ConvertHelper.ConvertAll(value, x => x.AsBoolean());
 
             internal override byte[] AsByteArray()
             {
                 if (value.Length == 1) return value[0].AsByteArray();
                 throw new InvalidCastException();
             }
-            internal override byte[][] AsByteArrayArray() { return ConvertHelper.ConvertAll(value, x => x.AsByteArray()); }
+
+            internal override byte[][] AsByteArrayArray() => ConvertHelper.ConvertAll(value, x => x.AsByteArray());
 
             internal override double AsDouble()
             {
@@ -214,7 +214,7 @@ namespace StackExchange.Redis
                 throw new InvalidCastException();
             }
 
-            internal override double[] AsDoubleArray() { return ConvertHelper.ConvertAll(value, x => x.AsDouble()); }
+            internal override double[] AsDoubleArray() => ConvertHelper.ConvertAll(value, x => x.AsDouble());
 
             internal override int AsInt32()
             {
@@ -222,7 +222,7 @@ namespace StackExchange.Redis
                 throw new InvalidCastException();
             }
 
-            internal override int[] AsInt32Array() { return ConvertHelper.ConvertAll(value, x => x.AsInt32()); }
+            internal override int[] AsInt32Array() => ConvertHelper.ConvertAll(value, x => x.AsInt32());
 
             internal override long AsInt64()
             {
@@ -230,7 +230,7 @@ namespace StackExchange.Redis
                 throw new InvalidCastException();
             }
 
-            internal override long[] AsInt64Array() { return ConvertHelper.ConvertAll(value, x => x.AsInt64()); }
+            internal override long[] AsInt64Array() => ConvertHelper.ConvertAll(value, x => x.AsInt64());
 
             internal override bool? AsNullableBoolean()
             {
@@ -262,9 +262,9 @@ namespace StackExchange.Redis
                 throw new InvalidCastException();
             }
 
-            internal override RedisKey[] AsRedisKeyArray() { return ConvertHelper.ConvertAll(value, x => x.AsRedisKey()); }
+            internal override RedisKey[] AsRedisKeyArray() => ConvertHelper.ConvertAll(value, x => x.AsRedisKey());
 
-            internal override RedisResult[] AsRedisResultArray() { return value; }
+            internal override RedisResult[] AsRedisResultArray() => value;
 
             internal override RedisValue AsRedisValue()
             {
@@ -272,14 +272,15 @@ namespace StackExchange.Redis
                 throw new InvalidCastException();
             }
 
-            internal override RedisValue[] AsRedisValueArray() { return ConvertHelper.ConvertAll(value, x => x.AsRedisValue()); }
+            internal override RedisValue[] AsRedisValueArray() => ConvertHelper.ConvertAll(value, x => x.AsRedisValue());
 
             internal override string AsString()
             {
                 if (value.Length == 1) return value[0].AsString();
                 throw new InvalidCastException();
             }
-            internal override string[] AsStringArray() { return ConvertHelper.ConvertAll(value, x => x.AsString()); }
+
+            internal override string[] AsStringArray() => ConvertHelper.ConvertAll(value, x => x.AsString());
         }
 
         private sealed class ErrorRedisResult : RedisResult
@@ -287,51 +288,32 @@ namespace StackExchange.Redis
             private readonly string value;
             public ErrorRedisResult(string value)
             {
-                if (value == null) throw new ArgumentNullException(nameof(value));
-                this.value = value;
+                this.value = value ?? throw new ArgumentNullException(nameof(value));
             }
+
             public override bool IsNull => value == null;
-            public override string ToString() { return value; }
-            internal override bool AsBoolean() { throw new RedisServerException(value); }
-
-            internal override bool[] AsBooleanArray() { throw new RedisServerException(value); }
-
-            internal override byte[] AsByteArray() { throw new RedisServerException(value); }
-
-            internal override byte[][] AsByteArrayArray() { throw new RedisServerException(value); }
-
-            internal override double AsDouble() { throw new RedisServerException(value); }
-
-            internal override double[] AsDoubleArray() { throw new RedisServerException(value); }
-
-            internal override int AsInt32() { throw new RedisServerException(value); }
-
-            internal override int[] AsInt32Array() { throw new RedisServerException(value); }
-
-            internal override long AsInt64() { throw new RedisServerException(value); }
-
-            internal override long[] AsInt64Array() { throw new RedisServerException(value); }
-
-            internal override bool? AsNullableBoolean() { throw new RedisServerException(value); }
-
-            internal override double? AsNullableDouble() { throw new RedisServerException(value); }
-
-            internal override int? AsNullableInt32() { throw new RedisServerException(value); }
-
-            internal override long? AsNullableInt64() { throw new RedisServerException(value); }
-
-            internal override RedisKey AsRedisKey() { throw new RedisServerException(value); }
-
-            internal override RedisKey[] AsRedisKeyArray() { throw new RedisServerException(value); }
-
-            internal override RedisResult[] AsRedisResultArray() { throw new RedisServerException(value); }
-
-            internal override RedisValue AsRedisValue() { throw new RedisServerException(value); }
-
-            internal override RedisValue[] AsRedisValueArray() { throw new RedisServerException(value); }
-
-            internal override string AsString() { throw new RedisServerException(value); }
-            internal override string[] AsStringArray() { throw new RedisServerException(value); }
+            public override string ToString() => value;
+            internal override bool AsBoolean() => throw new RedisServerException(value);
+            internal override bool[] AsBooleanArray() => throw new RedisServerException(value);
+            internal override byte[] AsByteArray() => throw new RedisServerException(value);
+            internal override byte[][] AsByteArrayArray() => throw new RedisServerException(value);
+            internal override double AsDouble() => throw new RedisServerException(value);
+            internal override double[] AsDoubleArray() => throw new RedisServerException(value);
+            internal override int AsInt32() => throw new RedisServerException(value);
+            internal override int[] AsInt32Array() => throw new RedisServerException(value);
+            internal override long AsInt64() => throw new RedisServerException(value);
+            internal override long[] AsInt64Array() => throw new RedisServerException(value);
+            internal override bool? AsNullableBoolean() => throw new RedisServerException(value);
+            internal override double? AsNullableDouble() => throw new RedisServerException(value);
+            internal override int? AsNullableInt32() => throw new RedisServerException(value);
+            internal override long? AsNullableInt64() => throw new RedisServerException(value);
+            internal override RedisKey AsRedisKey() => throw new RedisServerException(value);
+            internal override RedisKey[] AsRedisKeyArray() => throw new RedisServerException(value);
+            internal override RedisResult[] AsRedisResultArray() => throw new RedisServerException(value);
+            internal override RedisValue AsRedisValue() => throw new RedisServerException(value);
+            internal override RedisValue[] AsRedisValueArray() => throw new RedisServerException(value);
+            internal override string AsString() => throw new RedisServerException(value);
+            internal override string[] AsStringArray() => throw new RedisServerException(value);
         }
 
         private sealed class SingleRedisResult : RedisResult
@@ -344,46 +326,28 @@ namespace StackExchange.Redis
 
             public override bool IsNull => value.IsNull;
 
-            public override string ToString() { return value.ToString(); }
-            internal override bool AsBoolean() { return (bool)value; }
-
-            internal override bool[] AsBooleanArray() { return new[] { AsBoolean() }; }
-
-            internal override byte[] AsByteArray() { return (byte[])value; }
-            internal override byte[][] AsByteArrayArray() { return new[] { AsByteArray() }; }
-
-            internal override double AsDouble() { return (double)value; }
-
-            internal override double[] AsDoubleArray() { return new[] { AsDouble() }; }
-
-            internal override int AsInt32() { return (int)value; }
-
-            internal override int[] AsInt32Array() { return new[] { AsInt32() }; }
-
-            internal override long AsInt64() { return (long)value; }
-
-            internal override long[] AsInt64Array() { return new[] { AsInt64() }; }
-
-            internal override bool? AsNullableBoolean() { return (bool?)value; }
-
-            internal override double? AsNullableDouble() { return (double?)value; }
-
-            internal override int? AsNullableInt32() { return (int?)value; }
-
-            internal override long? AsNullableInt64() { return (long?)value; }
-
-            internal override RedisKey AsRedisKey() { return (byte[])value; }
-
-            internal override RedisKey[] AsRedisKeyArray() { return new[] { AsRedisKey() }; }
-
-            internal override RedisResult[] AsRedisResultArray() { throw new InvalidCastException(); }
-
-            internal override RedisValue AsRedisValue() { return value; }
-
-            internal override RedisValue[] AsRedisValueArray() { return new[] { AsRedisValue() }; }
-
-            internal override string AsString() { return (string)value; }
-            internal override string[] AsStringArray() { return new[] { AsString() }; }
+            public override string ToString() => value.ToString();
+            internal override bool AsBoolean() => (bool)value;
+            internal override bool[] AsBooleanArray() => new[] { AsBoolean() };
+            internal override byte[] AsByteArray() => (byte[])value;
+            internal override byte[][] AsByteArrayArray() => new[] { AsByteArray() };
+            internal override double AsDouble() => (double)value;
+            internal override double[] AsDoubleArray() => new[] { AsDouble() };
+            internal override int AsInt32() => (int)value;
+            internal override int[] AsInt32Array() => new[] { AsInt32() };
+            internal override long AsInt64() => (long)value;
+            internal override long[] AsInt64Array() => new[] { AsInt64() };
+            internal override bool? AsNullableBoolean() => (bool?)value;
+            internal override double? AsNullableDouble() => (double?)value;
+            internal override int? AsNullableInt32() => (int?)value;
+            internal override long? AsNullableInt64() => (long?)value;
+            internal override RedisKey AsRedisKey() => (byte[])value;
+            internal override RedisKey[] AsRedisKeyArray() => new[] { AsRedisKey() };
+            internal override RedisResult[] AsRedisResultArray() => throw new InvalidCastException();
+            internal override RedisValue AsRedisValue() => value;
+            internal override RedisValue[] AsRedisValueArray() => new[] { AsRedisValue() };
+            internal override string AsString() => (string)value;
+            internal override string[] AsStringArray() => new[] { AsString() };
         }
     }
 }

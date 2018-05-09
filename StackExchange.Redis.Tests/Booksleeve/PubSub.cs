@@ -33,7 +33,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
             }
         }
 
-        [Fact]
+        [FactLongRunning]
         public void TestMassivePublishWithWithoutFlush_Remote()
         {
             using (var muxer = GetRemoteConnection(waitForOpen: true))
@@ -182,7 +182,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
             {
                 var sub = pub.GetSubscriber();
                 int count = 0;
-                Action<RedisChannel, RedisValue> handler = (channel, payload) => Interlocked.Increment(ref count);
+                void handler(RedisChannel channel, RedisValue payload) => Interlocked.Increment(ref count);
                 var a0 = sub.SubscribeAsync("foo", handler);
                 var a1 = sub.SubscribeAsync("bar", handler);
                 var b0 = sub.SubscribeAsync("f*o", handler);

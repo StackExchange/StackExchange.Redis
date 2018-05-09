@@ -4,13 +4,11 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
-    class RedisBatch : RedisDatabase, IBatch
+    internal class RedisBatch : RedisDatabase, IBatch
     {
-        List<Message> pending;
+        private List<Message> pending;
 
-        public RedisBatch(RedisDatabase wrapped, object asyncState) : base(wrapped.multiplexer, wrapped.Database, asyncState ?? wrapped.AsyncState)
-        {
-        }
+        public RedisBatch(RedisDatabase wrapped, object asyncState) : base(wrapped.multiplexer, wrapped.Database, asyncState ?? wrapped.AsyncState) {}
 
         public void Execute()
         {
@@ -78,7 +76,7 @@ namespace StackExchange.Redis
             }
             else
             {
-                var tcs = TaskSource.CreateDenyExecSync<T>(asyncState);
+                var tcs = TaskSource.Create<T>(asyncState);
                 var source = ResultBox<T>.Get(tcs);
                 message.SetSource(source, processor);
                 task = tcs.Task;
@@ -93,6 +91,7 @@ namespace StackExchange.Redis
         {
             throw new NotSupportedException("ExecuteSync cannot be used inside a transaction");
         }
+
         private void FailNoServer(List<Message> messages)
         {
             if (messages == null) return;
@@ -101,7 +100,6 @@ namespace StackExchange.Redis
             {
                 msg.Fail(ConnectionFailureType.UnableToResolvePhysicalConnection, null);
                 completion.CompleteSyncOrAsync(msg);
-
             }
         }
     }

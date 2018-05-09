@@ -11,6 +11,7 @@ namespace StackExchange.Redis
     {
         private readonly object sender;
         private readonly EventHandler<HashSlotMovedEventArgs> handler;
+
         /// <summary>
         /// The hash-slot that was relocated
         /// </summary>

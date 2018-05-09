@@ -1,6 +1,6 @@
 ﻿namespace StackExchange.Redis
 {
-    partial class ConnectionMultiplexer
+    public partial class ConnectionMultiplexer
     {
         internal SocketManager SocketManager => socketManager;
 
@@ -29,6 +29,7 @@
                 tmp.RequestWrite(bridge, forced);
             }
         }
+
         partial void OnWriterCreated();
     }
 }

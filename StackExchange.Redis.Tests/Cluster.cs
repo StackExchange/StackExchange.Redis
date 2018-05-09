@@ -17,14 +17,9 @@ namespace StackExchange.Redis.Tests
         protected override string GetConfiguration()
         {
             var server = TestConfig.Current.ClusterServer;
-            // TODO: Make TestConfig read JSON overrides in .gitignore here
-            if (string.Equals(Environment.MachineName, "MARC-LAPTOP", StringComparison.OrdinalIgnoreCase))
-            {
-                server = "192.168.56.101";
-            }
             return string.Join(",",
-            from port in Enumerable.Range(TestConfig.Current.ClusterStartPort, TestConfig.Current.ClusterServerCount)
-            select server + ":" + port) + ",connectTimeout=10000";
+                Enumerable.Range(TestConfig.Current.ClusterStartPort, TestConfig.Current.ClusterServerCount).Select(port => server + ":" + port)
+            ) + ",connectTimeout=10000";
         }
 
         [Fact]
@@ -162,15 +157,8 @@ namespace StackExchange.Redis.Tests
                     string b = conn.GetServer(node.EndPoint).StringGet(db.Database, key);
                     Assert.Equal(value, b); // wrong master, allow redirect
 
-                    try
-                    {
-                        string c = conn.GetServer(node.EndPoint).StringGet(db.Database, key, CommandFlags.NoRedirect);
-                        Assert.True(false, "wrong master, no redirect");
-                    }
-                    catch (RedisServerException ex)
-                    {
-                        Assert.True("MOVED " + slot + " " + rightMasterNode.EndPoint == ex.Message, "wrong master, no redirect");
-                    }
+                    var ex = Assert.Throws<RedisServerException>(() => conn.GetServer(node.EndPoint).StringGet(db.Database, key, CommandFlags.NoRedirect));
+                    Assert.StartsWith($"Key has MOVED from Endpoint {rightMasterNode.EndPoint} and hashslot {slot}", ex.Message);
                 }
 
                 node = config.Nodes.FirstOrDefault(x => x.IsSlave && x.ParentNodeId == rightMasterNode.NodeId);
@@ -188,15 +176,8 @@ namespace StackExchange.Redis.Tests
                     string e = conn.GetServer(node.EndPoint).StringGet(db.Database, key);
                     Assert.Equal(value, e); // wrong slave, allow redirect
 
-                    try
-                    {
-                        string f = conn.GetServer(node.EndPoint).StringGet(db.Database, key, CommandFlags.NoRedirect);
-                        Assert.True(false, "wrong slave, no redirect");
-                    }
-                    catch (RedisServerException ex)
-                    {
-                        Assert.True("MOVED " + slot + " " + rightMasterNode.EndPoint == ex.Message, "wrong slave, no redirect");
-                    }
+                    var ex = Assert.Throws<RedisServerException>(() => conn.GetServer(node.EndPoint).StringGet(db.Database, key, CommandFlags.NoRedirect));
+                    Assert.StartsWith($"Key has MOVED from Endpoint {rightMasterNode.EndPoint} and hashslot {slot}", ex.Message);
                 }
 #endif
 
@@ -453,11 +434,18 @@ namespace StackExchange.Redis.Tests
                 var server = muxer.GetServer(endpoints[0]);
                 var nodes = server.ClusterNodes();
 
-                Assert.Equal(endpoints.Length, nodes.Nodes.Count);
+                Output.WriteLine("Endpoints:");
+                foreach (var endpoint in endpoints)
+                {
+                    Output.WriteLine(endpoint.ToString());
+                }
+                Output.WriteLine("Nodes:");
                 foreach (var node in nodes.Nodes.OrderBy(x => x))
                 {
                     Output.WriteLine(node.ToString());
                 }
+                Assert.Equal(TestConfig.Current.ClusterServerCount, endpoints.Length);
+                Assert.Equal(TestConfig.Current.ClusterServerCount, nodes.Nodes.Count);
             }
         }
 

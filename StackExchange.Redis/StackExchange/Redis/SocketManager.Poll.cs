@@ -8,14 +8,13 @@ using System.Threading;
 
 namespace StackExchange.Redis
 {
-    partial class SocketManager
+    public partial class SocketManager
     {
         internal const SocketMode DefaultSocketMode = SocketMode.Poll;
-        static readonly IntPtr[] EmptyPointers = new IntPtr[0];
-        static readonly WaitCallback HelpProcessItems = state =>
+        private static readonly IntPtr[] EmptyPointers = new IntPtr[0];
+        private static readonly WaitCallback HelpProcessItems = state =>
         {
-            var qdsl = state as QueueDrainSyncLock;
-            if (qdsl != null && qdsl.Consume())
+            if (state is QueueDrainSyncLock qdsl && qdsl.Consume())
             {
                 var mgr = qdsl.Manager;
                 mgr.ProcessItems(false);
@@ -23,9 +22,9 @@ namespace StackExchange.Redis
             }
         };
 
-        private static ParameterizedThreadStart read = state => ((SocketManager)state).Read();
+        private static readonly ParameterizedThreadStart read = state => ((SocketManager)state).Read();
 
-        readonly Queue<ISocketCallback> readQueue = new Queue<ISocketCallback>(), errorQueue = new Queue<ISocketCallback>();
+        private readonly Queue<ISocketCallback> readQueue = new Queue<ISocketCallback>(), errorQueue = new Queue<ISocketCallback>();
 
         private readonly Dictionary<IntPtr, SocketPair> socketLookup = new Dictionary<IntPtr, SocketPair>();
 
@@ -36,7 +35,6 @@ namespace StackExchange.Redis
         internal static extern int select([In] int ignoredParameter, [In, Out] IntPtr[] readfds, [In, Out] IntPtr[] writefds, [In, Out] IntPtr[] exceptfds, [In] ref TimeValue timeout);
 
         private static void ProcessItems(Queue<ISocketCallback> queue, CallbackOperation operation)
-
         {
             if (queue == null) return;
             while (true)
@@ -73,7 +71,7 @@ namespace StackExchange.Redis
 
             lock (socketLookup)
             {
-                if (isDisposed) throw new ObjectDisposedException(name);
+                if (isDisposed) throw new ObjectDisposedException(Name);
 
                 var handle = socket.Handle;
                 if (handle == IntPtr.Zero) throw new ObjectDisposedException("socket");
@@ -112,6 +110,7 @@ namespace StackExchange.Redis
             if (setState) managerState = ManagerState.ProcessErrorQueue;
             ProcessItems(errorQueue, CallbackOperation.Error);
         }
+
         private void Read()
         {
             bool weAreReader = false;
@@ -149,18 +148,19 @@ namespace StackExchange.Redis
             if (tmp == 0) return "never";
             return unchecked(Environment.TickCount - tmp) + "ms ago";
         }
+
         private ISocketCallback GetCallback(IntPtr key)
         {
             lock(socketLookup)
             {
-                SocketPair pair;
-                return socketLookup.TryGetValue(key, out pair) ? pair.Callback : null;
+                return socketLookup.TryGetValue(key, out SocketPair pair) ? pair.Callback : null;
             }
         }
+
         private void ReadImpl()
         {
             List<IntPtr> dead = null, active = new List<IntPtr>();
-            List<ISocketCallback> activeCallbacks = new List<ISocketCallback>();
+            var activeCallbacks = new List<ISocketCallback>();
             IntPtr[] readSockets = EmptyPointers, errorSockets = EmptyPointers;
             long lastHeartbeat = Environment.TickCount;
             SocketPair[] allSocketPairs = null;
@@ -208,6 +208,7 @@ namespace StackExchange.Redis
                     {
                         var socket = pair.Value.Socket;
                         if (socket.Handle == pair.Key && socket.Connected)
+                        {
                             if (pair.Value.Socket.Connected)
                             {
                                 active.Add(pair.Key);
@@ -217,6 +218,7 @@ namespace StackExchange.Redis
                             {
                                 (dead ?? (dead = new List<IntPtr>())).Add(pair.Key);
                             }
+                        }
                     }
                     if (dead != null && dead.Count != 0)
                     {
@@ -278,7 +280,7 @@ namespace StackExchange.Redis
                         }
                         if (!hasWorkToDo)
                         {
-                            continue; 
+                            continue;
                         }
                     }
                     ConnectionMultiplexer.TraceWithoutContext((int)readSockets[0] != 0, "Read sockets: " + (int)readSockets[0]);
@@ -341,7 +343,6 @@ namespace StackExchange.Redis
                     }
                 }
 
-
                 if (ready >= 5) // number of sockets we should attempt to process by ourself before asking for help
                 {
                     // seek help, work in parallel, then synchronize
@@ -374,11 +375,12 @@ namespace StackExchange.Redis
             var thread = new Thread(read, 32*1024) // don't need a huge stack
             {
                 Priority = useHighPrioritySocketThreads ? ThreadPriority.AboveNormal : ThreadPriority.Normal,
-                Name = name + ":Read",
+                Name = Name + ":Read",
                 IsBackground = true
             };
             thread.Start(this);
         }
+
         [StructLayout(LayoutKind.Sequential)]
         internal struct TimeValue
         {
@@ -391,7 +393,7 @@ namespace StackExchange.Redis
             }
         }
 
-        struct SocketPair
+        private struct SocketPair
         {
             public readonly ISocketCallback Callback;
             public readonly Socket Socket;
@@ -401,13 +403,15 @@ namespace StackExchange.Redis
                 Callback = callback;
             }
         }
-        sealed class QueueDrainSyncLock
+
+        private sealed class QueueDrainSyncLock
         {
             private int workers;
             public QueueDrainSyncLock(SocketManager manager)
             {
                 Manager = manager;
             }
+
             public SocketManager Manager { get; }
 
             internal bool Consume()

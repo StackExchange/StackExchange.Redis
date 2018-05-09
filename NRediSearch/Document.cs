@@ -14,11 +14,10 @@ namespace NRediSearch
     /// </summary>
     public class Document
     {
-
         public string Id { get; }
         public double Score { get; }
         public byte[] Payload { get; }
-        private Dictionary<String, RedisValue> properties = new Dictionary<string, RedisValue>();
+        private readonly Dictionary<String, RedisValue> properties = new Dictionary<string, RedisValue>();
 
         public Document(string id, double score, byte[] payload)
         {

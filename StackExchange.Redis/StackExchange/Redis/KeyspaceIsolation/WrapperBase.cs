@@ -46,7 +46,6 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<string> GeoHashAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
             => Inner.GeoHashAsync(ToInner(key), member, flags);
 
-
         public Task<GeoPosition?[]> GeoPositionAsync(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
             => Inner.GeoPositionAsync(ToInner(key), members, flags);
 
@@ -58,7 +57,6 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public Task<GeoRadiusResult[]> GeoRadiusAsync(RedisKey key, double longitude, double latitude, double radius, GeoUnit unit = GeoUnit.Meters, int count = -1, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None)
             => Inner.GeoRadiusAsync(ToInner(key), longitude, latitude, radius, unit, count, order, options, flags);
-
 
         public Task<double> HashDecrementAsync(RedisKey key, RedisValue hashField, double value, CommandFlags flags = CommandFlags.None)
         {
@@ -344,8 +342,10 @@ namespace StackExchange.Redis.KeyspaceIsolation
         {
             return Inner.PublishAsync(ToInner(channel), message, flags);
         }
+
         public Task<RedisResult> ExecuteAsync(string command, params object[] args)
             => Inner.ExecuteAsync(command, ToInner(args), CommandFlags.None);
+
         public Task<RedisResult> ExecuteAsync(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
             => Inner.ExecuteAsync(command, ToInner(args), flags);
 
@@ -460,6 +460,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
         {
             return Inner.SortedSetAddAsync(ToInner(key), values, flags);
         }
+
         public Task<long> SortedSetAddAsync(RedisKey key, SortedSetEntry[] values, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
             return Inner.SortedSetAddAsync(ToInner(key), values, when, flags);
@@ -469,6 +470,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
         {
             return Inner.SortedSetAddAsync(ToInner(key), member, score, flags);
         }
+
         public Task<bool> SortedSetAddAsync(RedisKey key, RedisValue member, double score, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
             return Inner.SortedSetAddAsync(ToInner(key), member, score, when, flags);
@@ -712,9 +714,10 @@ namespace StackExchange.Redis.KeyspaceIsolation
                 return ToInner(outer);
             }
         }
+
         protected ICollection<object> ToInner(ICollection<object> args)
         {
-            if (args != null && args.Any(x => x is RedisKey || x is RedisChannel))
+            if (args?.Any(x => x is RedisKey || x is RedisChannel) == true)
             {
                 var withPrefix = new object[args.Count];
                 int i = 0;
@@ -739,6 +742,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
             }
             return args;
         }
+
         protected RedisKey[] ToInner(RedisKey[] outer)
         {
             if (outer == null || outer.Length == 0)
@@ -839,7 +843,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
         protected Func<RedisKey, RedisKey> GetMapFunction()
         {
             // create as a delegate when first required, then re-use
-            return mapFunction ?? (mapFunction = new Func<RedisKey, RedisKey>(ToInner)); 
+            return mapFunction ?? (mapFunction = new Func<RedisKey, RedisKey>(ToInner));
         }
     }
 }

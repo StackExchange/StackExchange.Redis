@@ -1,5 +1,5 @@
 using System;
-#if CORE_CLR
+#if NETSTANDARD1_5
 using System.Collections.Generic;
 using System.Reflection;
 #endif
@@ -13,13 +13,9 @@ namespace StackExchange.Redis
     public struct RedisValue : IEquatable<RedisValue>, IComparable<RedisValue>, IComparable, IConvertible
     {
         internal static readonly RedisValue[] EmptyArray = new RedisValue[0];
-
-        static readonly byte[] EmptyByteArr = new byte[0];
-
+        private static readonly byte[] EmptyByteArr = new byte[0];
         private static readonly byte[] IntegerSentinel = new byte[0];
-
         private readonly byte[] valueBlob;
-
         private readonly long valueInt64;
 
         // internal bool IsNullOrDefaultValue {  get { return (valueBlob == null && valueInt64 == 0L) || ((object)valueBlob == (object)NullSentinel); } }
@@ -57,19 +53,20 @@ namespace StackExchange.Redis
         /// <summary>
         /// Indicates whether the value is greater than zero-length
         /// </summary>
-        public bool HasValue => valueBlob != null && valueBlob.Length > 0;
+        public bool HasValue => valueBlob?.Length > 0;
 
         /// <summary>
         /// Indicates whether two RedisValue values are equivalent
         /// </summary>
-        public static bool operator !=(RedisValue x, RedisValue y)
-        {
-            return !(x == y);
-        }
+        /// <param name="x">The first <see cref="RedisValue"/> to compare.</param>
+        /// <param name="y">The second <see cref="RedisValue"/> to compare.</param>
+        public static bool operator !=(RedisValue x, RedisValue y) => !(x == y);
 
         /// <summary>
         /// Indicates whether two RedisValue values are equivalent
         /// </summary>
+        /// <param name="x">The first <see cref="RedisValue"/> to compare.</param>
+        /// <param name="y">The second <see cref="RedisValue"/> to compare.</param>
         public static bool operator ==(RedisValue x, RedisValue y)
         {
             if (x.valueBlob == null) return y.valueBlob == null;
@@ -96,6 +93,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// See Object.Equals()
         /// </summary>
+        /// <param name="obj">The other <see cref="RedisValue"/> to compare.</param>
         public override bool Equals(object obj)
         {
             if (obj == null) return valueBlob == null;
@@ -126,10 +124,8 @@ namespace StackExchange.Redis
         /// <summary>
         /// Indicates whether two RedisValue values are equivalent
         /// </summary>
-        public bool Equals(RedisValue other)
-        {
-            return this == other;
-        }
+        /// <param name="other">The <see cref="RedisValue"/> to compare to.</param>
+        public bool Equals(RedisValue other) => this == other;
 
         /// <summary>
         /// See Object.GetHashCode()
@@ -144,10 +140,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Returns a string representation of the value
         /// </summary>
-        public override string ToString()
-        {
-            return (string)this;
-        }
+        public override string ToString() => (string)this;
 
         internal static unsafe bool Equals(byte[] x, byte[] y)
         {
@@ -236,10 +229,12 @@ namespace StackExchange.Redis
             if (IsNull) throw new ArgumentException("A null value is not valid in this context");
         }
 
-        enum CompareType {
+        private enum CompareType
+        {
             Null, Int64, Double, Raw
         }
-        CompareType ResolveType(out long i64, out double r8)
+
+        private CompareType ResolveType(out long i64, out double r8)
         {
             byte[] blob = valueBlob;
             if (blob == IntegerSentinel)
@@ -248,18 +243,18 @@ namespace StackExchange.Redis
                 r8 = default(double);
                 return CompareType.Int64;
             }
-            if(blob == null)
+            if (blob == null)
             {
                 i64 = default(long);
                 r8 = default(double);
                 return CompareType.Null;
             }
-            if(TryParseInt64(blob, 0, blob.Length, out i64))
+            if (TryParseInt64(blob, 0, blob.Length, out i64))
             {
                 r8 = default(double);
                 return CompareType.Int64;
             }
-            if(TryParseDouble(blob, out r8))
+            if (TryParseDouble(blob, out r8))
             {
                 i64 = default(long);
                 return CompareType.Double;
@@ -272,43 +267,42 @@ namespace StackExchange.Redis
         /// <summary>
         /// Compare against a RedisValue for relative order
         /// </summary>
+        /// <param name="other">The other <see cref="RedisValue"/> to compare.</param>
         public int CompareTo(RedisValue other)
         {
             try
             {
-                long thisInt64, otherInt64;
-                double thisDouble, otherDouble;
-                CompareType thisType = this.ResolveType(out thisInt64, out thisDouble),
-                    otherType = other.ResolveType(out otherInt64, out otherDouble);
+                CompareType thisType = ResolveType(out long thisInt64, out double thisDouble),
+                            otherType = other.ResolveType(out long otherInt64, out double otherDouble);
 
-                if(thisType == CompareType.Null)
+                if (thisType == CompareType.Null)
                 {
                     return otherType == CompareType.Null ? 0 : -1;
                 }
-                if(otherType == CompareType.Null)
+                if (otherType == CompareType.Null)
                 {
                     return 1;
                 }
 
-                if(thisType == CompareType.Int64)
+                if (thisType == CompareType.Int64)
                 {
                     if (otherType == CompareType.Int64) return thisInt64.CompareTo(otherInt64);
                     if (otherType == CompareType.Double) return ((double)thisInt64).CompareTo(otherDouble);
                 }
-                else if(thisType == CompareType.Double)
+                else if (thisType == CompareType.Double)
                 {
                     if (otherType == CompareType.Int64) return thisDouble.CompareTo((double)otherInt64);
                     if (otherType == CompareType.Double) return thisDouble.CompareTo(otherDouble);
                 }
                 // otherwise, compare as strings
-#if !CORE_CLR
-                return StringComparer.InvariantCulture.Compare((string)this, (string)other);
-#else
+#if NETSTANDARD1_5
                 var compareInfo = System.Globalization.CultureInfo.InvariantCulture.CompareInfo;
                 return compareInfo.Compare((string)this, (string)other, System.Globalization.CompareOptions.Ordinal);
+#else
+                return StringComparer.InvariantCulture.Compare((string)this, (string)other);
 #endif
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 ConnectionMultiplexer.TraceWithoutContext(ex.Message);
             }
@@ -327,53 +321,46 @@ namespace StackExchange.Redis
             return -1;
         }
 
+        /// <summary>
+        /// Creates a new <see cref="RedisValue"/> from an <see cref="int"/>.
+        /// </summary>
+        /// <param name="value">The <see cref="int"/> to convert to a <see cref="RedisValue"/>.</param>
+        public static implicit operator RedisValue(int value) => new RedisValue(value, IntegerSentinel);
 
         /// <summary>
-        /// Creates a new RedisValue from an Int32
+        /// Creates a new <see cref="RedisValue"/> from an <see cref="T:Nullable{int}"/>.
         /// </summary>
-        public static implicit operator RedisValue(int value)
-        {
-            return new RedisValue(value, IntegerSentinel);
-        }
-        /// <summary>
-        /// Creates a new RedisValue from a nullable Int32
-        /// </summary>
-        public static implicit operator RedisValue(int? value)
-        {
-            return value == null ? Null : (RedisValue)value.GetValueOrDefault();
-        }
-        /// <summary>
-        /// Creates a new RedisValue from an Int64
-        /// </summary>
-        public static implicit operator RedisValue(long value)
-        {
-            return new RedisValue(value, IntegerSentinel);
-        }
-        /// <summary>
-        /// Creates a new RedisValue from a nullable Int64
-        /// </summary>
-        public static implicit operator RedisValue(long? value)
-        {
-            return value == null ? Null : (RedisValue)value.GetValueOrDefault();
-        }
-        /// <summary>
-        /// Creates a new RedisValue from a Double
-        /// </summary>
-        public static implicit operator RedisValue(double value)
-        {
-            return Format.ToString(value);
-        }
+        /// <param name="value">The <see cref="T:Nullable{int}"/> to convert to a <see cref="RedisValue"/>.</param>
+        public static implicit operator RedisValue(int? value) => value == null ? Null : (RedisValue)value.GetValueOrDefault();
 
         /// <summary>
-        /// Creates a new RedisValue from a nullable Double
+        /// Creates a new <see cref="RedisValue"/> from an <see cref="long"/>.
         /// </summary>
-        public static implicit operator RedisValue(double? value)
-        {
-            return value == null ? Null : (RedisValue)value.GetValueOrDefault();
-        }
+        /// <param name="value">The <see cref="long"/> to convert to a <see cref="RedisValue"/>.</param>
+        public static implicit operator RedisValue(long value) => new RedisValue(value, IntegerSentinel);
+
         /// <summary>
-        /// Creates a new RedisValue from a String
+        /// Creates a new <see cref="RedisValue"/> from an <see cref="T:Nullable{long}"/>.
         /// </summary>
+        /// <param name="value">The <see cref="T:Nullable{long}"/> to convert to a <see cref="RedisValue"/>.</param>
+        public static implicit operator RedisValue(long? value) => value == null ? Null : (RedisValue)value.GetValueOrDefault();
+
+        /// <summary>
+        /// Creates a new <see cref="RedisValue"/> from an <see cref="double"/>.
+        /// </summary>
+        /// <param name="value">The <see cref="double"/> to convert to a <see cref="RedisValue"/>.</param>
+        public static implicit operator RedisValue(double value) => Format.ToString(value);
+
+        /// <summary>
+        /// Creates a new <see cref="RedisValue"/> from an <see cref="T:Nullable{double}"/>.
+        /// </summary>
+        /// <param name="value">The <see cref="T:Nullable{double}"/> to convert to a <see cref="RedisValue"/>.</param>
+        public static implicit operator RedisValue(double? value) => value == null ? Null : (RedisValue)value.GetValueOrDefault();
+
+        /// <summary>
+        /// Creates a new <see cref="RedisValue"/> from an <see cref="string"/>.
+        /// </summary>
+        /// <param name="value">The <see cref="string"/> to convert to a <see cref="RedisValue"/>.</param>
         public static implicit operator RedisValue(string value)
         {
             byte[] blob;
@@ -382,9 +369,11 @@ namespace StackExchange.Redis
             else blob = Encoding.UTF8.GetBytes(value);
             return new RedisValue(0, blob);
         }
+
         /// <summary>
-        /// Creates a new RedisValue from a Byte[]
+        /// Creates a new <see cref="RedisValue"/> from an <see cref="T:byte[]"/>.
         /// </summary>
+        /// <param name="value">The <see cref="T:byte[]"/> to convert to a <see cref="RedisValue"/>.</param>
         public static implicit operator RedisValue(byte[] value)
         {
             byte[] blob;
@@ -408,26 +397,26 @@ namespace StackExchange.Redis
 
             throw new InvalidOperationException("Unable to format type for redis: " + obj.GetType().FullName);
         }
+
         /// <summary>
-        /// Creates a new RedisValue from a Boolean
+        /// Creates a new <see cref="RedisValue"/> from an <see cref="bool"/>.
         /// </summary>
-        public static implicit operator RedisValue(bool value)
-        {
-            return new RedisValue(value ? 1 : 0, IntegerSentinel);
-        }
+        /// <param name="value">The <see cref="bool"/> to convert to a <see cref="RedisValue"/>.</param>
+        public static implicit operator RedisValue(bool value) => new RedisValue(value ? 1 : 0, IntegerSentinel);
+
         /// <summary>
-        /// Creates a new RedisValue from a nullable Boolean
+        /// Creates a new <see cref="RedisValue"/> from an <see cref="T:Nullable{bool}"/>.
         /// </summary>
-        public static implicit operator RedisValue(bool? value)
-        {
-            return value == null ? Null : (RedisValue)value.GetValueOrDefault();
-        }
+        /// <param name="value">The <see cref="T:Nullable{bool}"/> to convert to a <see cref="RedisValue"/>.</param>
+        public static implicit operator RedisValue(bool? value) => value == null ? Null : (RedisValue)value.GetValueOrDefault();
+
         /// <summary>
-        /// Converts the value to a Boolean
+        /// Converts a <see cref="RedisValue"/> to a <see cref="bool"/>.
         /// </summary>
-        public static explicit operator bool (RedisValue value)
+        /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
+        public static explicit operator bool(RedisValue value)
         {
-            switch((long)value)
+            switch ((long)value)
             {
                 case 0: return false;
                 case 1: return true;
@@ -436,8 +425,9 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Converts the value to an Int32
+        /// Converts a <see cref="RedisValue"/> to a <see cref="int"/>.
         /// </summary>
+        /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
         public static explicit operator int(RedisValue value)
         {
             checked
@@ -445,34 +435,35 @@ namespace StackExchange.Redis
                 return (int)(long)value;
             }
         }
+
         /// <summary>
-        /// Converts the value to an Int64
+        /// Converts a <see cref="RedisValue"/> to a <see cref="long"/>.
         /// </summary>
+        /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
         public static explicit operator long(RedisValue value)
         {
             var blob = value.valueBlob;
             if (blob == IntegerSentinel) return value.valueInt64;
             if (blob == null) return 0; // in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
-            long i64;
-            if (TryParseInt64(blob, 0, blob.Length, out i64)) return i64;
+            if (TryParseInt64(blob, 0, blob.Length, out long i64)) return i64;
             throw new InvalidCastException();
         }
 
         /// <summary>
-        /// Converts the value to a Double
+        /// Converts a <see cref="RedisValue"/> to a <see cref="double"/>.
         /// </summary>
-        public static explicit operator double (RedisValue value)
+        /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
+        public static explicit operator double(RedisValue value)
         {
             var blob = value.valueBlob;
             if (blob == IntegerSentinel) return value.valueInt64;
             if (blob == null) return 0; // in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
 
-            double r8;
-            if (TryParseDouble(blob, out r8)) return r8;
+            if (TryParseDouble(blob, out double r8)) return r8;
             throw new InvalidCastException();
         }
 
-        static bool TryParseDouble(byte[] blob, out double value)
+        private static bool TryParseDouble(byte[] blob, out double value)
         {
             // simple integer?
             if (blob.Length == 1 && blob[0] >= '0' && blob[0] <= '9')
@@ -485,32 +476,39 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Converts the value to a nullable Double
+        /// Converts the <see cref="RedisValue"/> to a <see cref="T:Nullable{double}"/>.
         /// </summary>
+        /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
         public static explicit operator double? (RedisValue value)
         {
             if (value.valueBlob == null) return null;
             return (double)value;
         }
+
         /// <summary>
-        /// Converts the value to a nullable Int64
+        /// Converts the <see cref="RedisValue"/> to a <see cref="T:Nullable{long}"/>.
         /// </summary>
+        /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
         public static explicit operator long? (RedisValue value)
         {
             if (value.valueBlob == null) return null;
             return (long)value;
         }
+
         /// <summary>
-        /// Converts the value to a nullable Int32
+        /// Converts the <see cref="RedisValue"/> to a <see cref="T:Nullable{int}"/>.
         /// </summary>
+        /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
         public static explicit operator int? (RedisValue value)
         {
             if (value.valueBlob == null) return null;
             return (int)value;
         }
+
         /// <summary>
-        /// Converts the value to a nullable Boolean
+        /// Converts the <see cref="RedisValue"/> to a <see cref="T:Nullable{bool}"/>.
         /// </summary>
+        /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
         public static explicit operator bool? (RedisValue value)
         {
             if (value.valueBlob == null) return null;
@@ -518,8 +516,9 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Converts the value to a String
+        /// Converts a <see cref="RedisValue"/> to a <see cref="string"/>.
         /// </summary>
+        /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
         public static implicit operator string(RedisValue value)
         {
             var valueBlob = value.valueBlob;
@@ -541,10 +540,12 @@ namespace StackExchange.Redis
                 return BitConverter.ToString(valueBlob);
             }
         }
+
         /// <summary>
-        /// Converts the value to a byte[]
+        /// Converts a <see cref="RedisValue"/> to a <see cref="T:byte[]"/>.
         /// </summary>
-        public static implicit operator byte[](RedisValue value)
+        /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
+        public static implicit operator byte[] (RedisValue value)
         {
             var valueBlob = value.valueBlob;
             if (valueBlob == IntegerSentinel)
@@ -557,35 +558,24 @@ namespace StackExchange.Redis
         TypeCode IConvertible.GetTypeCode() => TypeCode.Object;
 
         bool IConvertible.ToBoolean(IFormatProvider provider) => (bool)this;
-
         byte IConvertible.ToByte(IFormatProvider provider) => (byte)this;
-
         char IConvertible.ToChar(IFormatProvider provider) => (char)this;
-
         DateTime IConvertible.ToDateTime(IFormatProvider provider) => DateTime.Parse((string)this, provider);
-
         decimal IConvertible.ToDecimal(IFormatProvider provider) => (decimal)this;
-
         double IConvertible.ToDouble(IFormatProvider provider) => (double)this;
-
         short IConvertible.ToInt16(IFormatProvider provider) => (short)this;
-
         int IConvertible.ToInt32(IFormatProvider provider) => (int)this;
-
         long IConvertible.ToInt64(IFormatProvider provider) => (long)this;
-
         sbyte IConvertible.ToSByte(IFormatProvider provider) => (sbyte)this;
-
         float IConvertible.ToSingle(IFormatProvider provider) => (float)this;
-
         string IConvertible.ToString(IFormatProvider provider) => (string)this;
 
         object IConvertible.ToType(Type conversionType, IFormatProvider provider)
         {
-            if (conversionType== null) throw new ArgumentNullException(nameof(conversionType));
-            if (conversionType== typeof(byte[])) return (byte[])this;
+            if (conversionType == null) throw new ArgumentNullException(nameof(conversionType));
+            if (conversionType == typeof(byte[])) return (byte[])this;
             if (conversionType == typeof(RedisValue)) return this;
-            switch(conversionType.GetTypeCode())
+            switch (conversionType.GetTypeCode())
             {
                 case TypeCode.Boolean: return (bool)this;
                 case TypeCode.Byte: return (byte)this;
@@ -609,9 +599,7 @@ namespace StackExchange.Redis
         }
 
         ushort IConvertible.ToUInt16(IFormatProvider provider) => (ushort)this;
-
         uint IConvertible.ToUInt32(IFormatProvider provider) => (uint)this;
-
         ulong IConvertible.ToUInt64(IFormatProvider provider) => (ulong)this;
 
         /// <summary>
@@ -619,6 +607,7 @@ namespace StackExchange.Redis
         ///
         /// Returns false otherwise.
         /// </summary>
+        /// <param name="val">The <see cref="long"/> value, if conversion was possible.</param>
         public bool TryParse(out long val)
         {
             var blob = valueBlob;
@@ -643,10 +632,10 @@ namespace StackExchange.Redis
         ///
         /// Returns false otherwise.
         /// </summary>
+        /// <param name="val">The <see cref="int"/> value, if conversion was possible.</param>
         public bool TryParse(out int val)
         {
-            long l;
-            if (!TryParse(out l) || l > int.MaxValue || l < int.MinValue)
+            if (!TryParse(out long l) || l > int.MaxValue || l < int.MinValue)
             {
                 val = 0;
                 return false;
@@ -661,6 +650,7 @@ namespace StackExchange.Redis
         ///
         /// Returns false otherwise.
         /// </summary>
+        /// <param name="val">The <see cref="double"/> value, if conversion was possible.</param>
         public bool TryParse(out double val)
         {
             var blob = valueBlob;
@@ -682,12 +672,11 @@ namespace StackExchange.Redis
 
     internal static class ReflectionExtensions
     {
-#if CORE_CLR
+#if NETSTANDARD1_5
         internal static TypeCode GetTypeCode(this Type type)
         {
             if (type == null) return TypeCode.Empty;
-            TypeCode result;
-            if (typeCodeLookup.TryGetValue(type, out result)) return result;
+            if (typeCodeLookup.TryGetValue(type, out TypeCode result)) return result;
 
             if (type.GetTypeInfo().IsEnum)
             {
@@ -697,7 +686,7 @@ namespace StackExchange.Redis
             return TypeCode.Object;
         }
 
-        static readonly Dictionary<Type, TypeCode> typeCodeLookup = new Dictionary<Type, TypeCode>
+        private static readonly Dictionary<Type, TypeCode> typeCodeLookup = new Dictionary<Type, TypeCode>
         {
             {typeof(bool), TypeCode.Boolean },
             {typeof(byte), TypeCode.Byte },

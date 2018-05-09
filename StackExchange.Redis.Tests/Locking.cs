@@ -9,7 +9,7 @@ namespace StackExchange.Redis.Tests
 {
     public class Locking : TestBase
     {
-        protected override string GetConfiguration() => TestConfig.Current.MasterServer + ":" + TestConfig.Current.MasterPort;
+        protected override string GetConfiguration() => TestConfig.Current.MasterServerAndPort;
         public Locking(ITestOutputHelper output) : base (output) { }
 
         public enum TestMode
@@ -31,28 +31,37 @@ namespace StackExchange.Redis.Tests
         {
             int count = 2;
             int errorCount = 0;
-            ManualResetEvent evt = new ManualResetEvent(false);
+            int bgErrorCount = 0;
+            var evt = new ManualResetEvent(false);
             using (var c1 = Create(testMode))
             using (var c2 = Create(testMode))
             {
-                WaitCallback cb = obj =>
+                void cb(object obj)
                 {
-                    var conn = (IDatabase)obj;
-                    conn.Multiplexer.ErrorMessage += delegate { Interlocked.Increment(ref errorCount); };
-
-                    for (int i = 0; i < 1000; i++)
+                    try
                     {
-                        conn.LockTakeAsync("abc", "def", TimeSpan.FromSeconds(5));
+                        var conn = (IDatabase)obj;
+                        conn.Multiplexer.ErrorMessage += delegate { Interlocked.Increment(ref errorCount); };
+
+                        for (int i = 0; i < 1000; i++)
+                        {
+                            conn.LockTakeAsync("abc", "def", TimeSpan.FromSeconds(5));
+                        }
+                        conn.Ping();
+                        if (Interlocked.Decrement(ref count) == 0) evt.Set();
                     }
-                    conn.Ping();
-                    if (Interlocked.Decrement(ref count) == 0) evt.Set();
-                };
+                    catch
+                    {
+                        Interlocked.Increment(ref bgErrorCount);
+                    }
+                }
                 int db = testMode == TestMode.Twemproxy ? 0 : 2;
                 ThreadPool.QueueUserWorkItem(cb, c1.GetDatabase(db));
                 ThreadPool.QueueUserWorkItem(cb, c2.GetDatabase(db));
                 evt.WaitOne(8000);
             }
             Assert.Equal(0, Interlocked.CompareExchange(ref errorCount, 0, 0));
+            Assert.Equal(0, bgErrorCount);
         }
 
         [Fact]

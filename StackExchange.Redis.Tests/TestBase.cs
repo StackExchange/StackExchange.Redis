@@ -12,21 +12,18 @@ using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
-#if FEATURE_BOOKSLEEVE
-using BookSleeve;
-#endif
-
 namespace StackExchange.Redis.Tests
 {
     public abstract class TestBase : IDisposable
     {
         protected ITestOutputHelper Output { get; }
         protected TextWriterOutputHelper Writer { get; }
-        protected virtual string GetConfiguration() => TestConfig.Current.MasterServer + ":" + TestConfig.Current.MasterPort + "," + TestConfig.Current.MasterServer + ":" + TestConfig.Current.SlavePort;
+        protected virtual string GetConfiguration() => TestConfig.Current.MasterServerAndPort + "," + TestConfig.Current.SlaveServerAndPort;
 
         protected TestBase(ITestOutputHelper output)
         {
             Output = output;
+            Output.WriteFrameworkVersion();
             Writer = new TextWriterOutputHelper(output);
             socketManager = new SocketManager(GetType().Name);
             ClearAmbientFailures();
@@ -62,10 +59,16 @@ namespace StackExchange.Redis.Tests
             {
                 Console.WriteLine("Unobserved: " + args.Exception);
                 args.SetObserved();
-#if CORE_CLR
+#if NETCOREAPP1_0
                 if (IgnorableExceptionPredicates.Any(predicate => predicate(args.Exception.InnerException))) return;
 #endif
-                Interlocked.Increment(ref sharedFailCount);
+                lock (sharedFailCount)
+                {
+                    if (sharedFailCount != null)
+                    {
+                        sharedFailCount.Value++;
+                    }
+                }
                 lock (backgroundExceptions)
                 {
                     backgroundExceptions.Add(args.Exception.ToString());
@@ -73,7 +76,7 @@ namespace StackExchange.Redis.Tests
             };
         }
 
-#if CORE_CLR
+#if NETCOREAPP1_0
         private static readonly Func<Exception, bool>[] IgnorableExceptionPredicates = new Func<Exception, bool>[]
         {
             e => e != null && e is ObjectDisposedException && e.Message.Equals("Cannot access a disposed object.\r\nObject name: 'System.Net.Sockets.NetworkStream'."),
@@ -100,17 +103,20 @@ namespace StackExchange.Redis.Tests
         }
 
         private int privateFailCount;
-        private static int sharedFailCount;
+        private static readonly AsyncLocal<int> sharedFailCount = new AsyncLocal<int>();
         private volatile int expectedFailCount;
 
-        private static readonly List<string> privateExceptions = new List<string>();
+        private readonly List<string> privateExceptions = new List<string>();
         private static readonly List<string> backgroundExceptions = new List<string>();
 
         public void ClearAmbientFailures()
         {
             Collect();
             Interlocked.Exchange(ref privateFailCount, 0);
-            Interlocked.Exchange(ref sharedFailCount, 0);
+            lock (sharedFailCount)
+            {
+                sharedFailCount.Value = 0;
+            }
             expectedFailCount = 0;
             lock (privateExceptions)
             {
@@ -139,7 +145,13 @@ namespace StackExchange.Redis.Tests
         public void Teardown()
         {
             Collect();
-            if (expectedFailCount >= 0 && (Interlocked.CompareExchange(ref sharedFailCount, 0, 0) + privateFailCount) != expectedFailCount)
+            int sharedFails;
+            lock (sharedFailCount)
+            {
+                sharedFails = sharedFailCount.Value;
+                sharedFailCount.Value = 0;
+            }
+            if (expectedFailCount >= 0 && (sharedFails + privateFailCount) != expectedFailCount)
             {
                 lock (privateExceptions)
                 {
@@ -155,7 +167,7 @@ namespace StackExchange.Redis.Tests
                         Output.WriteLine(item);
                     }
                 }
-                Assert.True(false, $"There were {privateFailCount} private and {sharedFailCount} ambient exceptions; expected {expectedFailCount}.");
+                Assert.True(false, $"There were {privateFailCount} private and {sharedFailCount.Value} ambient exceptions; expected {expectedFailCount}.");
             }
         }
 
@@ -262,26 +274,6 @@ namespace StackExchange.Redis.Tests
 
         protected static string Me([CallerMemberName] string caller = null) => caller;
 
-#if FEATURE_BOOKSLEEVE
-        protected static RedisConnection GetOldStyleConnection(bool open = true, bool allowAdmin = false, bool waitForOpen = false, int syncTimeout = 5000, int ioTimeout = 5000)
-        {
-            return GetOldStyleConnection(TestConfig.Current.MasterServer, TestConfig.Current.MasterPort, open, allowAdmin, waitForOpen, syncTimeout, ioTimeout);
-        }
-        private static RedisConnection GetOldStyleConnection(string host, int port, bool open = true, bool allowAdmin = false, bool waitForOpen = false, int syncTimeout = 5000, int ioTimeout = 5000)
-        {
-            var conn = new RedisConnection(host, port, syncTimeout: syncTimeout, ioTimeout: ioTimeout, allowAdmin: allowAdmin);
-            conn.Error += (s, args) =>
-            {
-                Trace.WriteLine(args.Exception.Message, args.Cause);
-            };
-            if (open)
-            {
-                var openAsync = conn.Open();
-                if (waitForOpen) conn.Wait(openAsync);
-            }
-            return conn;
-        }
-#endif
         protected static TimeSpan RunConcurrent(Action work, int threads, int timeout = 10000, [CallerMemberName] string caller = null)
         {
             if (work == null) throw new ArgumentNullException(nameof(work));
@@ -326,7 +318,7 @@ namespace StackExchange.Redis.Tests
             }
             if (!allDone.WaitOne(timeout))
             {
-#if !CORE_CLR
+#if !NETCOREAPP1_0
                 for (int i = 0; i < threads; i++)
                 {
                     var thd = threadArr[i];
