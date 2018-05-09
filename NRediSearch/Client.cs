@@ -384,7 +384,7 @@ namespace NRediSearch
         /// <returns>the current size of the suggestion dictionary.</returns>
         public long AddSuggestion(string value, double score, bool increment = false)
         {
-            object args = increment
+            object[] args = increment
                 ? new object[] { _boxedIndexName, value, score, "INCR".Literal() }
                 : new object[] { _boxedIndexName, value, score };
             return (long)DbSync.Execute("FT.SUGADD", args);
@@ -399,7 +399,7 @@ namespace NRediSearch
         /// <returns>the current size of the suggestion dictionary.</returns>
         public async Task<long> AddSuggestionAsync(string value, double score, bool increment = false)
         {
-            object args = increment
+            object[] args = increment
                 ? new object[] { _boxedIndexName, value, score, "INCR".Literal() }
                 : new object[] { _boxedIndexName, value, score };
             return (long)await _db.ExecuteAsync("FT.SUGADD", args).ConfigureAwait(false);
