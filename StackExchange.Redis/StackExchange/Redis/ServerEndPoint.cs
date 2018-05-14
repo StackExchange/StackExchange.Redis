@@ -29,7 +29,6 @@ namespace StackExchange.Redis
         private static readonly ServerEndPoint[] NoSlaves = new ServerEndPoint[0];
 
         private readonly Hashtable knownScripts = new Hashtable(StringComparer.Ordinal);
-        private readonly IBackgroundWorkQueue backgroundWorkQueue;
 
         private int databases, writeEverySeconds;
         private PhysicalBridge interactive, subscription;
@@ -44,11 +43,10 @@ namespace StackExchange.Redis
             interactive?.ResetNonConnected();
             subscription?.ResetNonConnected();
         }
-        public ServerEndPoint(ConnectionMultiplexer multiplexer, EndPoint endpoint, TextWriter log, IBackgroundWorkQueue backgroundWorkQueue)
+        public ServerEndPoint(ConnectionMultiplexer multiplexer, EndPoint endpoint, TextWriter log)
         {
             Multiplexer = multiplexer;
             EndPoint = endpoint;
-            this.backgroundWorkQueue = backgroundWorkQueue;
             var config = multiplexer.RawConfig;
             version = config.DefaultVersion;
             slaveReadOnly = true;
@@ -623,7 +621,7 @@ namespace StackExchange.Redis
         private PhysicalBridge CreateBridge(ConnectionType type, TextWriter log)
         {
             Multiplexer.Trace(type.ToString());
-            var bridge = new PhysicalBridge(this, type, backgroundWorkQueue);
+            var bridge = new PhysicalBridge(this, type);
             bridge.TryConnect(log);
             return bridge;
         }

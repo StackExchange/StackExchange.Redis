@@ -138,14 +138,14 @@ namespace StackExchange.Redis
         /// Creates a new <see cref="SocketManager"/> instance
         /// </summary>
         /// <param name="name">The name for this <see cref="SocketManager"/>.</param>
-        /// <param name="useHighPrioritySocketThreads">Whether this <see cref="SocketManager"/>
+        /// <param name="useHighPrioritySocketThreads">Whether this <see cref="SocketManager"/> should use high priority sockets.</param>
         public SocketManager(string name, bool useHighPrioritySocketThreads) : this(name, useHighPrioritySocketThreads, ThreadPoolBackgroundWorkQueue.Instance) { }
 
         /// <summary>
         /// Creates a new SocketManager instance.
         /// </summary>
         /// <param name="name">The name for this <see cref="SocketManager"/>.</param>
-        /// <param name="useHighPrioritySocketThreads">Whether this <see cref="SocketManager"/>
+        /// <param name="useHighPrioritySocketThreads">Whether this <see cref="SocketManager"/> should use high priority sockets.</param>
         /// <param name="backgroundWorkQueue">The <see cref="IBackgroundWorkQueue"/> on which to do background work.</param>
         public SocketManager(string name, bool useHighPrioritySocketThreads, IBackgroundWorkQueue backgroundWorkQueue)
         {

@@ -509,8 +509,6 @@ namespace StackExchange.Redis
 
         private readonly ConfigurationOptions configuration;
 
-        private readonly IBackgroundWorkQueue backgroundWorkQueue;
-
         internal bool TryResend(int hashSlot, Message message, EndPoint endpoint, bool isMoved)
         {
             return ServerSelectionStrategy.TryResend(hashSlot, message, endpoint, isMoved);
@@ -749,13 +747,12 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="configuration">The string configuration to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
-        /// <param name="backgroundWorkQueue">The <see cref="IBackgroundWorkQueue"/> on which to do background work.</param>
-        public static async Task<ConnectionMultiplexer> ConnectAsync(string configuration, TextWriter log = null, IBackgroundWorkQueue backgroundWorkQueue = null)
+        public static async Task<ConnectionMultiplexer> ConnectAsync(string configuration, TextWriter log = null)
         {
             IDisposable killMe = null;
             try
             {
-                var muxer = CreateMultiplexer(configuration, backgroundWorkQueue ?? ThreadPoolBackgroundWorkQueue.Instance);
+                var muxer = CreateMultiplexer(configuration);
                 killMe = muxer;
                 bool configured = await muxer.ReconfigureAsync(true, false, log, null, "connect").ObserveErrors().ForAwait();
                 if (!configured)
@@ -776,13 +773,12 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="configuration">The configuration options to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
-        /// <param name="backgroundWorkQueue">The <see cref="IBackgroundWorkQueue"/> on which to do backgorund work.</param>
-        public static async Task<ConnectionMultiplexer> ConnectAsync(ConfigurationOptions configuration, TextWriter log = null, IBackgroundWorkQueue backgroundWorkQueue = null)
+        public static async Task<ConnectionMultiplexer> ConnectAsync(ConfigurationOptions configuration, TextWriter log = null)
         {
             IDisposable killMe = null;
             try
             {
-                var muxer = CreateMultiplexer(configuration, backgroundWorkQueue ?? ThreadPoolBackgroundWorkQueue.Instance);
+                var muxer = CreateMultiplexer(configuration);
                 killMe = muxer;
                 bool configured = await muxer.ReconfigureAsync(true, false, log, null, "connect").ObserveErrors().ForAwait();
                 if (!configured)
@@ -798,10 +794,9 @@ namespace StackExchange.Redis
             }
         }
 
-        private static ConnectionMultiplexer CreateMultiplexer(object configuration, IBackgroundWorkQueue backgroundWorkQueue)
+        private static ConnectionMultiplexer CreateMultiplexer(object configuration)
         {
             if (configuration == null) throw new ArgumentNullException(nameof(configuration));
-            if (backgroundWorkQueue == null) throw new ArgumentNullException(nameof(backgroundWorkQueue));
             ConfigurationOptions config;
             if (configuration is string)
             {
@@ -817,7 +812,7 @@ namespace StackExchange.Redis
             }
             if (config.EndPoints.Count == 0) throw new ArgumentException("No endpoints specified", nameof(configuration));
             config.SetDefaultPorts();
-            return new ConnectionMultiplexer(config, backgroundWorkQueue);
+            return new ConnectionMultiplexer(config);
         }
 
         /// <summary>
@@ -825,10 +820,9 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="configuration">The string configuration to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
-        /// <param name="backgroundWorkQueue">The <see cref="IBackgroundWorkQueue"/> on which to do background work.</param>
-        public static ConnectionMultiplexer Connect(string configuration, TextWriter log = null, IBackgroundWorkQueue backgroundWorkQueue = null)
+        public static ConnectionMultiplexer Connect(string configuration, TextWriter log = null)
         {
-            return ConnectImpl(() => CreateMultiplexer(configuration, backgroundWorkQueue ?? ThreadPoolBackgroundWorkQueue.Instance), log);
+            return ConnectImpl(() => CreateMultiplexer(configuration), log);
         }
 
         /// <summary>
@@ -836,10 +830,9 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="configuration">The string configuration to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
-        /// <param name="backgroundWorkQueue">The <see cref="IBackgroundWorkQueue"/> on which to do background work.</param>
-        public static ConnectionMultiplexer Connect(ConfigurationOptions configuration, TextWriter log = null, IBackgroundWorkQueue backgroundWorkQueue = null)
+        public static ConnectionMultiplexer Connect(ConfigurationOptions configuration, TextWriter log = null)
         {
-            return ConnectImpl(() => CreateMultiplexer(configuration, backgroundWorkQueue ?? ThreadPoolBackgroundWorkQueue.Instance), log);
+            return ConnectImpl(() => CreateMultiplexer(configuration), log);
         }
 
         private static ConnectionMultiplexer ConnectImpl(Func<ConnectionMultiplexer> multiplexerFactory, TextWriter log)
@@ -893,7 +886,7 @@ namespace StackExchange.Redis
                     {
                         if (isDisposed) throw new ObjectDisposedException(ToString());
 
-                        server = new ServerEndPoint(this, endpoint, null, backgroundWorkQueue);
+                        server = new ServerEndPoint(this, endpoint, null);
                         // ^^ this could indirectly cause servers to become changes, so treble-check!
                         if (!servers.ContainsKey(endpoint))
                         {
@@ -911,13 +904,12 @@ namespace StackExchange.Redis
         }
 
         internal readonly CommandMap CommandMap;
-        private ConnectionMultiplexer(ConfigurationOptions configuration, IBackgroundWorkQueue backgroundWorkQueue)
+        private ConnectionMultiplexer(ConfigurationOptions configuration)
         {
             IncludeDetailInExceptions = true;
             IncludePerformanceCountersInExceptions = false;
 
             this.configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
-            this.backgroundWorkQueue = backgroundWorkQueue ?? throw new ArgumentNullException(nameof(backgroundWorkQueue));
 
             var map = CommandMap = configuration.CommandMap;
             if (!string.IsNullOrWhiteSpace(configuration.Password)) map.AssertAvailable(RedisCommand.AUTH);
@@ -932,7 +924,7 @@ namespace StackExchange.Redis
             TimeoutMilliseconds = configuration.SyncTimeout;
 
             OnCreateReaderWriter(configuration);
-            UnprocessableCompletionManager = new CompletionManager(this, backgroundWorkQueue, "multiplexer");
+            UnprocessableCompletionManager = new CompletionManager(this, "multiplexer");
             ServerSelectionStrategy = new ServerSelectionStrategy(this);
 
             var configChannel = configuration.ConfigurationChannel;
@@ -1265,7 +1257,7 @@ namespace StackExchange.Redis
                             var server = (ServerEndPoint)servers[endpoint];
                             if (server == null)
                             {
-                                server = new ServerEndPoint(this, endpoint, log, backgroundWorkQueue);
+                                server = new ServerEndPoint(this, endpoint, log);
                                 // ^^ this could indirectly cause servers to become changes, so treble-check!
                                 if (!servers.ContainsKey(endpoint))
                                 {

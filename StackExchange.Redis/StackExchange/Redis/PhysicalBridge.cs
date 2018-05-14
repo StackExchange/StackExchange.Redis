@@ -47,13 +47,13 @@ namespace StackExchange.Redis
         private volatile bool reportNextFailure = true, reconfigureNextFailure = false;
         private volatile int state = (int)State.Disconnected;
 
-        public PhysicalBridge(ServerEndPoint serverEndPoint, ConnectionType type, IBackgroundWorkQueue backgroundWorkQueue)
+        public PhysicalBridge(ServerEndPoint serverEndPoint, ConnectionType type)
         {
             ServerEndPoint = serverEndPoint;
             ConnectionType = type;
             Multiplexer = serverEndPoint.Multiplexer;
             Name = Format.ToString(serverEndPoint.EndPoint) + "/" + ConnectionType.ToString();
-            completionManager = new CompletionManager(Multiplexer, backgroundWorkQueue, Name);
+            completionManager = new CompletionManager(Multiplexer, Name);
         }
 
         public enum State : byte

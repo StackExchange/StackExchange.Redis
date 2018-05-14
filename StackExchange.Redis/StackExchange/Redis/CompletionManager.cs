@@ -14,16 +14,13 @@ namespace StackExchange.Redis
 
         private readonly ConnectionMultiplexer multiplexer;
 
-        private readonly IBackgroundWorkQueue backgroundWorkQueue;
-
         private readonly string name;
 
         private int activeAsyncWorkerThread = 0;
         private long completedSync, completedAsync, failedAsync;
-        public CompletionManager(ConnectionMultiplexer multiplexer, IBackgroundWorkQueue backgroundWorkQueue, string name)
+        public CompletionManager(ConnectionMultiplexer multiplexer, string name)
         {
             this.multiplexer = multiplexer;
-            this.backgroundWorkQueue = backgroundWorkQueue;
             this.name = name;
         }
 
@@ -50,12 +47,12 @@ namespace StackExchange.Redis
                     {
                         multiplexer.Trace("Starting new async completion worker", name);
                         OnCompletedAsync();
-                        backgroundWorkQueue.QueueItem(processAsyncCompletionQueue, this);
+                        multiplexer.RawConfig.BackgroundWorkQueue.QueueItem(processAsyncCompletionQueue, this);
                     }
                 } else
                 {
                     multiplexer.Trace("Using thread-pool for asynchronous completion", name);
-                    backgroundWorkQueue.QueueItem(anyOrderCompletionHandler, operation);
+                    multiplexer.RawConfig.BackgroundWorkQueue.QueueItem(anyOrderCompletionHandler, operation);
                     Interlocked.Increment(ref completedAsync); // k, *technically* we haven't actually completed this yet, but: close enough
                 }
             }
