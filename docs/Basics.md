@@ -122,9 +122,9 @@ There are 3 primary usage mechanisms with StackExchange.Redis:
 
 - Synchronous - where the operation completes before the methods returns to the caller (note that while this may block the caller, it absolutely **does not** block other threads: the key idea in StackExchange.Redis is that it aggressively shares the connection between concurrent callers)
 - Asynchronous - where the operation completes some time in the future, and a `Task` or `Task<T>` is returned immediately, which can later:
- - be `.Wait()`ed (blocking the current thread until the response is available)
- - have a continuation callback added ([`ContinueWith`](http://msdn.microsoft.com/en-us/library/system.threading.tasks.task.continuewith(v=vs.110).aspx) in the TPL)
- - be *awaited* (which is a language-level feature that simplifies the latter, while also continuing immediately if the reply is already known)
+    - be `.Wait()`ed (blocking the current thread until the response is available)
+    - have a continuation callback added ([`ContinueWith`](http://msdn.microsoft.com/en-us/library/system.threading.tasks.task.continuewith(v=vs.110).aspx) in the TPL)
+    - be *awaited* (which is a language-level feature that simplifies the latter, while also continuing immediately if the reply is already known)
 - Fire-and-Forget - where you really aren't interested in the reply, and are happy to continue irrespective of the response
 
 The synchronous usage is already shown in the examples above. This is the simplest usage, and does not involve the [TPL][1].
