@@ -50,7 +50,7 @@ How to configure this setting:
  - In ASP.NET, use the ["minIoThreads" configuration setting](https://msdn.microsoft.com/en-us/library/7w2sway1(v=vs.71).aspx) under the `<processModel>` configuration element in `machine.config`. According to Microsoft, you can't change this value per site by editing your web.config (even when you could do it in the past), so the value that you choose here is the value that all your .NET sites will use. Please note that you don't need to add every property if you put autoConfig in false, just putting autoConfig="false" and overriding the value is enough:
 
 ```xml
-<processModel autoConfig="false" maxIoThreads="250" />
+<processModel autoConfig="false" minIoThreads="250" />
 ```
 
 > **Important Note:** the value specified in this configuration element is a *per-core* setting.  For example, if you have a 4 core machine and want your minIOThreads setting to be 200 at runtime, you would use `<processModel minIoThreads="50"/>`.
