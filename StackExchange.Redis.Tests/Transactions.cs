@@ -1,4 +1,5 @@
-﻿using System.Threading.Tasks;
+﻿using System;
+using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -22,6 +23,19 @@ namespace StackExchange.Redis.Tests
 
                 var result = tran.Execute();
                 Assert.True(result);
+            }
+        }
+
+        [Fact]
+        public void NestedTransactionThrows()
+        {
+            using (var muxer = Create())
+            {
+                var db = muxer.GetDatabase();
+                object asyncState = new object();
+                var tran = db.CreateTransaction();
+                var redisTransaction = Assert.IsType<RedisTransaction>(tran);
+                Assert.Throws<NotSupportedException>(() => redisTransaction.CreateTransaction(null));
             }
         }
 
