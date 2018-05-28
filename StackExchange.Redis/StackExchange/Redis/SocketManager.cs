@@ -179,7 +179,7 @@ namespace StackExchange.Redis
 
         internal SocketToken BeginConnect(EndPoint endpoint, ISocketCallback callback, ConnectionMultiplexer multiplexer, TextWriter log)
         {
-            var addressFamily = endpoint.AddressFamily == AddressFamily.Unspecified ? AddressFamily.InterNetwork : endpoint.AddressFamily;
+            var addressFamily = ResolveAddressFamily(endpoint);
             var socket = new Socket(addressFamily, SocketType.Stream, ProtocolType.Tcp);
             SetFastLoopbackOption(socket);
             socket.NoDelay = true;
@@ -313,6 +313,66 @@ namespace StackExchange.Redis
         internal void Shutdown(SocketToken token)
         {
             Shutdown(token.Socket);
+        }
+
+        private static AddressFamily ResolveAddressFamily(EndPoint endpoint)
+        {
+            // Main idea of the method is to return AddressFamily.InterNetworkV6
+            // if the endpoint resolves as IPv6 only
+
+#if NETSTANDARD1_5
+            // .NET Standard 1 has not Dns.GetHostEntry method. Temporary use old implemetation for AddressFamily resolution
+            return endpoint.AddressFamily == AddressFamily.Unspecified ? AddressFamily.InterNetwork : endpoint.AddressFamily;
+#else
+            if (endpoint.AddressFamily != AddressFamily.Unspecified)
+            {
+                // The endpoint is defined AddressFamily. Use it.
+                return endpoint.AddressFamily;
+            }
+
+            if (endpoint is DnsEndPoint dnsEndpoint)
+            {
+                string endpointHost = dnsEndpoint.Host;
+
+                // Use IP address family if endpoint host is IP Address
+                { // local scope
+                    IPAddress endpointAddress;
+                    if (IPAddress.TryParse(endpointHost, out endpointAddress))
+                    {
+                        return endpointAddress.AddressFamily;
+                    }
+                }
+
+                // Looks like endpointHost is hostname
+
+                // Resolve host IP Adresses and search IPv4 or fallback to IPv6
+                { // local scope
+                    var endpointHostEntry = Dns.GetHostEntry(endpointHost);
+                    bool hasIPv6 = false;
+                    foreach (var endpointHostIP in endpointHostEntry.AddressList)
+                    {
+                        switch (endpointHostIP.AddressFamily)
+                        {
+                            case AddressFamily.InterNetwork:
+                                // Found IPv4. Nothing to search anything...
+                                return AddressFamily.InterNetwork;
+                            case AddressFamily.InterNetworkV6:
+                                hasIPv6 = true;
+                                break;
+                        }
+                    }
+
+                    if (hasIPv6)
+                    {
+                        // IPv4 has not present for the endpoint, but IPv6 has
+                        return AddressFamily.InterNetworkV6;
+                    }
+                }
+            }
+
+            // Default AddressFamily is InterNetwork (IPv4)
+            return AddressFamily.InterNetwork;
+#endif
         }
 
         private void EndConnectImpl(IAsyncResult ar, ConnectionMultiplexer multiplexer, TextWriter log, Tuple<Socket, ISocketCallback> tuple)
