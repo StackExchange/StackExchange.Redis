@@ -76,7 +76,17 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed partial class RedisCommandException : Exception
     {
+        /// <summary>
+        /// Creates a new <see cref="RedisCommandException"/>.
+        /// </summary>
+        /// <param name="message">The message for the exception.</param>
         public RedisCommandException(string message) : base(message) { }
+
+        /// <summary>
+        /// Creates a new <see cref="RedisCommandException"/>.
+        /// </summary>
+        /// <param name="message">The message for the exception.</param>
+        /// <param name="innerException">The inner exception.</param>
         public RedisCommandException(string message, Exception innerException) : base(message, innerException) { }
     }
 
@@ -85,7 +95,12 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed partial class RedisTimeoutException : TimeoutException
     {
-        pulic RedisTimeoutException(string message, CommandStatus commandStatus) : base(message)
+        /// <summary>
+        /// Creates a new <see cref="RedisTimeoutException"/>.
+        /// </summary>
+        /// <param name="message">The message for the exception.</param>
+        /// <param name="commandStatus">The command status, as of when the timeout happened.</param>
+        public RedisTimeoutException(string message, CommandStatus commandStatus) : base(message)
         {
             Commandstatus = commandStatus;
         }
@@ -101,10 +116,28 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed partial class RedisConnectionException : RedisException
     {
+        /// <summary>
+        /// Creates a new <see cref="RedisConnectionException"/>.
+        /// </summary>
+        /// <param name="failureType">The type of connection failure.</param>
+        /// <param name="message">The message for the exception.</param>
         public RedisConnectionException(ConnectionFailureType failureType, string message) : this(failureType, message, null, CommandStatus.Unknown) {}
 
+        /// <summary>
+        /// Creates a new <see cref="RedisConnectionException"/>.
+        /// </summary>
+        /// <param name="failureType">The type of connection failure.</param>
+        /// <param name="message">The message for the exception.</param>
+        /// <param name="innerException">The inner exception.</param>
         public RedisConnectionException(ConnectionFailureType failureType, string message, Exception innerException) : this(failureType, message, innerException, CommandStatus.Unknown) {}
 
+        /// <summary>
+        /// Creates a new <see cref="RedisConnectionException"/>.
+        /// </summary>
+        /// <param name="failureType">The type of connection failure.</param>
+        /// <param name="message">The message for the exception.</param>
+        /// <param name="innerException">The inner exception.</param>
+        /// <param name="commandStatus">The status of the command.</param>
         public RedisConnectionException(ConnectionFailureType failureType, string message, Exception innerException, CommandStatus commandStatus) : base(message, innerException)
         {
             FailureType = failureType;
@@ -127,7 +160,17 @@ namespace StackExchange.Redis
     /// </summary>
     public partial class RedisException : Exception
     {
+        /// <summary>
+        /// Crerates a new <see cref="RedisException"/>.
+        /// </summary>
+        /// <param name="message">The message for the exception.</param>
         public RedisException(string message) : base(message) { }
+
+        /// <summary>
+        /// Crerates a new <see cref="RedisException"/>.
+        /// </summary>
+        /// <param name="message">The message for the exception.</param>
+        /// <param name="innerException">The inner exception.</param>
         public RedisException(string message, Exception innerException) : base(message, innerException) { }
     }
 
@@ -136,6 +179,10 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed partial class RedisServerException : RedisException
     {
+        /// <summary>
+        /// Creates a new <see cref="RedisServerException"/>.
+        /// </summary>
+        /// <param name="message">The message for the exception.</param>
         public RedisServerException(string message) : base(message) { }
     }
 }
