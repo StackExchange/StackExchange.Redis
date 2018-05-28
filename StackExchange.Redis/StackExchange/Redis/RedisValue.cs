@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 #if NETSTANDARD1_5
 using System.Collections.Generic;
 using System.Reflection;
@@ -51,9 +51,9 @@ namespace StackExchange.Redis
         public bool IsNullOrEmpty => valueBlob == null || (valueBlob.Length == 0 && !(valueBlob == IntegerSentinel));
 
         /// <summary>
-        /// Indicates whether the value is greater than zero-length
+        /// Indicates whether the value is greater than zero-length or has an integer value
         /// </summary>
-        public bool HasValue => valueBlob?.Length > 0;
+        public bool HasValue => !IsNullOrEmpty;
 
         /// <summary>
         /// Indicates whether two RedisValue values are equivalent
