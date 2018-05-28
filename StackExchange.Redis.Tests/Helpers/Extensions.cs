@@ -1,22 +1,34 @@
-﻿using System.Runtime.InteropServices;
+﻿using System;
+using System.Runtime.InteropServices;
 using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests.Helpers
 {
     public static class Extensions
     {
-        public static void WriteFrameworkVersion(this ITestOutputHelper output)
+        private static string VersionInfo { get; }
+
+        static Extensions()
         {
 #if NET462
-            output.WriteLine("Compiled under .NET 4.6.2");
+            VersionInfo = "Compiled under .NET 4.6.2";
 #elif NETCOREAPP1_0
-            output.WriteLine("Compiled under .NETCoreApp1.0");
+            VersionInfo = "Compiled under .NETCoreApp1.0";
 #elif NETCOREAPP2_0
-            output.WriteLine("Compiled under .NETCoreApp2.0");
+            VersionInfo = "Compiled under .NETCoreApp2.0";
 #else
-            output.WriteLine("Compiled under <unknown framework>");
+            VersionInfo = "Compiled under <unknown framework>";
 #endif
-            output.WriteLine("Running on: " + RuntimeInformation.OSDescription);
+            try
+            {
+                VersionInfo += "\nRunning on: " + RuntimeInformation.OSDescription;
+            }
+            catch (Exception)
+            {
+                VersionInfo += "\nFailed to get OS version";
+            }
         }
+
+        public static void WriteFrameworkVersion(this ITestOutputHelper output) => output.WriteLine(VersionInfo);
     }
 }
