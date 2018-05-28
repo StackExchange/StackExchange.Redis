@@ -10,11 +10,8 @@ namespace StackExchange.Redis.Tests
         public ConnectToUnexistingHost(ITestOutputHelper output) : base (output) { }
 
 #if DEBUG
-        [Theory]
-        [InlineData(CompletionType.Any)]
-        [InlineData(CompletionType.Sync)]
-        [InlineData(CompletionType.Async)]
-        public void FailsWithinTimeout(CompletionType completionType)
+        [Fact]
+        public void FailsWithinTimeout()
         {
             const int timeout = 1000;
             var sw = Stopwatch.StartNew();
@@ -25,9 +22,7 @@ namespace StackExchange.Redis.Tests
                     EndPoints = { { "invalid", 1234 } },
                     ConnectTimeout = timeout
                 };
-
-                SocketManager.ConnectCompletionType = completionType;
-
+                
                 using (var muxer = ConnectionMultiplexer.Connect(config, Writer))
                 {
                     Thread.Sleep(10000);
@@ -41,10 +36,6 @@ namespace StackExchange.Redis.Tests
                 Output.WriteLine("Elapsed time: " + elapsed);
                 Output.WriteLine("Timeout: " + timeout);
                 Assert.True(elapsed < 9000, "Connect should fail within ConnectTimeout, ElapsedMs: " + elapsed);
-            }
-            finally
-            {
-                SocketManager.ConnectCompletionType = CompletionType.Any;
             }
         }
 #endif

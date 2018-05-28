@@ -114,7 +114,6 @@ namespace StackExchange.Redis.Tests
                     var server = muxer.GetServer(muxer.GetEndPoints()[0]);
 
                     muxer.AllowConnect = false;
-                    SocketManager.ConnectCompletionType = CompletionType.Async;
 
                     server.SimulateConnectionFailure();
 
@@ -129,7 +128,6 @@ namespace StackExchange.Redis.Tests
             }
             finally
             {
-                SocketManager.ConnectCompletionType = CompletionType.Any;
                 ClearAmbientFailures();
             }
         }

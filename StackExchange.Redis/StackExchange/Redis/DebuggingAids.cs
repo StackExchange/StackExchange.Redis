@@ -185,16 +185,6 @@ namespace StackExchange.Redis
         {
             ignore = callback.IgnoreConnect;
         }
-
-        /// <summary>
-        /// Completion type for BeginConnect call
-        /// </summary>
-        public static CompletionType ConnectCompletionType { get; set; }
-
-        partial void ShouldForceConnectCompletionType(ref CompletionType completionType)
-        {
-            completionType = SocketManager.ConnectCompletionType;
-        }
     }
 
     internal partial interface ISocketCallback
@@ -270,25 +260,6 @@ namespace StackExchange.Redis
     }
 #endif
 
-    /// <summary>
-    /// Completion type for CompletionTypeHelper
-    /// </summary>
-    public enum CompletionType
-    {
-        /// <summary>
-        /// Retain original completion type (either sync or async)
-        /// </summary>
-        Any = 0,
-        /// <summary>
-        /// Force sync completion
-        /// </summary>
-        Sync = 1,
-        /// <summary>
-        /// Force async completion
-        /// </summary>
-        Async = 2
-    }
-
 #if FEATURE_PERFCOUNTER
     internal static class PerfCounterHelper
     {
@@ -333,49 +304,6 @@ namespace StackExchange.Redis
                 return true;
             }
             return false;
-        }
-    }
-#endif
-#if FEATURE_THREADPOOL
-    internal static class CompletionTypeHelper
-    {
-        public static void RunWithCompletionType(Func<AsyncCallback, IAsyncResult> beginAsync, AsyncCallback callback, CompletionType completionType)
-        {
-            AsyncCallback proxyCallback;
-            if (completionType == CompletionType.Any)
-            {
-                proxyCallback = ar =>
-                {
-                    if (!ar.CompletedSynchronously)
-                    {
-                        callback(ar);
-                    }
-                };
-            }
-            else
-            {
-                proxyCallback = _ => { };
-            }
-
-            var result = beginAsync(proxyCallback);
-
-            if (completionType == CompletionType.Any && !result.CompletedSynchronously)
-            {
-                return;
-            }
-
-            result.AsyncWaitHandle.WaitOne();
-
-            switch (completionType)
-            {
-                case CompletionType.Async:
-                    ThreadPool.QueueUserWorkItem(_ => callback(result));
-                    break;
-                case CompletionType.Any:
-                case CompletionType.Sync:
-                    callback(result);
-                    break;
-            }
         }
     }
 #endif
