@@ -76,8 +76,8 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed partial class RedisCommandException : Exception
     {
-        internal RedisCommandException(string message) : base(message) { }
-        internal RedisCommandException(string message, Exception innerException) : base(message, innerException) { }
+        public RedisCommandException(string message) : base(message) { }
+        public RedisCommandException(string message, Exception innerException) : base(message, innerException) { }
     }
 
     /// <summary>
@@ -85,7 +85,7 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed partial class RedisTimeoutException : TimeoutException
     {
-        internal RedisTimeoutException(string message, CommandStatus commandStatus) : base(message)
+        pulic RedisTimeoutException(string message, CommandStatus commandStatus) : base(message)
         {
             Commandstatus = commandStatus;
         }
@@ -101,11 +101,11 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed partial class RedisConnectionException : RedisException
     {
-        internal RedisConnectionException(ConnectionFailureType failureType, string message) : this(failureType, message, null, CommandStatus.Unknown) {}
+        public RedisConnectionException(ConnectionFailureType failureType, string message) : this(failureType, message, null, CommandStatus.Unknown) {}
 
-        internal RedisConnectionException(ConnectionFailureType failureType, string message, Exception innerException) : this(failureType, message, innerException, CommandStatus.Unknown) {}
+        public RedisConnectionException(ConnectionFailureType failureType, string message, Exception innerException) : this(failureType, message, innerException, CommandStatus.Unknown) {}
 
-        internal RedisConnectionException(ConnectionFailureType failureType, string message, Exception innerException, CommandStatus commandStatus) : base(message, innerException)
+        public RedisConnectionException(ConnectionFailureType failureType, string message, Exception innerException, CommandStatus commandStatus) : base(message, innerException)
         {
             FailureType = failureType;
             CommandStatus = commandStatus;
@@ -127,8 +127,8 @@ namespace StackExchange.Redis
     /// </summary>
     public partial class RedisException : Exception
     {
-        internal RedisException(string message) : base(message) { }
-        internal RedisException(string message, Exception innerException) : base(message, innerException) { }
+        public RedisException(string message) : base(message) { }
+        public RedisException(string message, Exception innerException) : base(message, innerException) { }
     }
 
     /// <summary>
@@ -136,6 +136,6 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed partial class RedisServerException : RedisException
     {
-        internal RedisServerException(string message) : base(message) { }
+        public RedisServerException(string message) : base(message) { }
     }
 }
