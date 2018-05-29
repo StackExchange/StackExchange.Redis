@@ -59,9 +59,6 @@ namespace StackExchange.Redis.Tests
             {
                 Console.WriteLine("Unobserved: " + args.Exception);
                 args.SetObserved();
-#if NETCOREAPP1_0
-                if (IgnorableExceptionPredicates.Any(predicate => predicate(args.Exception.InnerException))) return;
-#endif
                 lock (sharedFailCount)
                 {
                     if (sharedFailCount != null)
@@ -75,14 +72,6 @@ namespace StackExchange.Redis.Tests
                 }
             };
         }
-
-#if NETCOREAPP1_0
-        private static readonly Func<Exception, bool>[] IgnorableExceptionPredicates = new Func<Exception, bool>[]
-        {
-            e => e != null && e is ObjectDisposedException && e.Message.Equals("Cannot access a disposed object.\r\nObject name: 'System.Net.Sockets.NetworkStream'."),
-            e => e != null && e is IOException && e.Message.StartsWith("Unable to read data from the transport connection:")
-        };
-#endif
 
         protected void OnConnectionFailed(object sender, ConnectionFailedEventArgs e)
         {
@@ -318,13 +307,11 @@ namespace StackExchange.Redis.Tests
             }
             if (!allDone.WaitOne(timeout))
             {
-#if !NETCOREAPP1_0
                 for (int i = 0; i < threads; i++)
                 {
                     var thd = threadArr[i];
                     if (thd.IsAlive) thd.Abort();
                 }
-#endif
                 throw new TimeoutException();
             }
 

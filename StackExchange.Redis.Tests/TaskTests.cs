@@ -9,7 +9,6 @@ namespace StackExchange.Redis.Tests
     {
 #if DEBUG
 
-#if !PLAT_SAFE_CONTINUATIONS // IsSyncSafe doesn't exist if PLAT_SAFE_CONTINUATIONS is defined
         [Theory]
         [InlineData(SourceOrign.NewTCS)]
         [InlineData(SourceOrign.Create)]
@@ -20,13 +19,10 @@ namespace StackExchange.Redis.Tests
             // ...and if we're dropping NET45 support, we can just nuke it all.
 #if NET462
             Assert.True(TaskSource.IsSyncSafe(source.Task));
-#elif NETCOREAPP1_0
-            Assert.True(TaskSource.IsSyncSafe(source.Task));
 #elif NETCOREAPP2_0
             Assert.True(TaskSource.IsSyncSafe(source.Task));
 #endif
         }
-#endif
         private static TaskCompletionSource<T> Create<T>(SourceOrign origin)
         {
             switch (origin)

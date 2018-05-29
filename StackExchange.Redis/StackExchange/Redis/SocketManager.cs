@@ -4,10 +4,6 @@ using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
-#if NETSTANDARD1_5
-using System.Runtime.InteropServices;
-using System.Threading.Tasks;
-#endif
 
 namespace StackExchange.Redis
 {
@@ -146,12 +142,8 @@ namespace StackExchange.Redis
 
             // we need a dedicated writer, because when under heavy ambient load
             // (a busy asp.net site, for example), workers are not reliable enough
-#if NETSTANDARD1_5
-            var dedicatedWriter = new Thread(writeAllQueues);
-#else
             var dedicatedWriter = new Thread(writeAllQueues, 32 * 1024); // don't need a huge stack;
             dedicatedWriter.Priority = useHighPrioritySocketThreads ? ThreadPriority.AboveNormal : ThreadPriority.Normal;
-#endif
             dedicatedWriter.Name = name + ":Write";
             dedicatedWriter.IsBackground = true; // should not keep process alive
             dedicatedWriter.Start(this); // will self-exit when disposed
@@ -179,7 +171,6 @@ namespace StackExchange.Redis
 
         internal SocketToken BeginConnect(EndPoint endpoint, ISocketCallback callback, ConnectionMultiplexer multiplexer, TextWriter log)
         {
-#if !NETSTANDARD1_5
             void RunWithCompletionType(Func<AsyncCallback, IAsyncResult> beginAsync, AsyncCallback asyncCallback)
             {
                 void proxyCallback(IAsyncResult ar)
@@ -197,7 +188,6 @@ namespace StackExchange.Redis
                     asyncCallback(result);
                 }
             }
-#endif
 
             var addressFamily = endpoint.AddressFamily == AddressFamily.Unspecified ? AddressFamily.InterNetwork : endpoint.AddressFamily;
             var socket = new Socket(addressFamily, SocketType.Stream, ProtocolType.Tcp);
@@ -211,14 +201,6 @@ namespace StackExchange.Redis
                 // A work-around for a Mono bug in BeginConnect(EndPoint endpoint, AsyncCallback callback, object state)
                 if (endpoint is DnsEndPoint dnsEndpoint)
                 {
-#if NETSTANDARD1_5 // No BeginConnect there, because everything was an Async push...we should drop this
-                    socket.ConnectAsync(dnsEndpoint.Host, dnsEndpoint.Port).ContinueWith(t =>
-                    {
-                        multiplexer.LogLocked(log, "EndConnect: {0}", formattedEndpoint);
-                        EndConnectImpl(t, multiplexer, log, tuple);
-                        multiplexer.LogLocked(log, "Connect complete: {0}", formattedEndpoint);
-                    });
-#else
                     RunWithCompletionType(
                         cb => socket.BeginConnect(dnsEndpoint.Host, dnsEndpoint.Port, cb, tuple),
                         ar => {
@@ -226,17 +208,9 @@ namespace StackExchange.Redis
                             EndConnectImpl(ar, multiplexer, log, tuple);
                             multiplexer.LogLocked(log, "Connect complete: {0}", formattedEndpoint);
                         });
-#endif
                 }
                 else
                 {
-#if NETSTANDARD1_5 // No BeginConnect there, because everything was an Async push...we should drop this
-                    socket.ConnectAsync(endpoint).ContinueWith(t =>
-                    {
-                        multiplexer.LogLocked(log, "EndConnect: {0}", formattedEndpoint);
-                        EndConnectImpl(t, multiplexer, log, tuple);
-                    });
-#else
                     RunWithCompletionType(
                         cb => socket.BeginConnect(endpoint, cb, tuple),
                         ar => {
@@ -244,7 +218,6 @@ namespace StackExchange.Redis
                             EndConnectImpl(ar, multiplexer, log, tuple);
                             multiplexer.LogLocked(log, "Connect complete: {0}", formattedEndpoint);
                         });
-#endif
                 }
             }
             catch (NotImplementedException ex)
@@ -266,25 +239,6 @@ namespace StackExchange.Redis
             // or will be subject to WFP filtering.
             const int SIO_LOOPBACK_FAST_PATH = -1744830448;
 
-#if NETSTANDARD1_5
-            try
-            {
-                // Ioctl is not supported on other platforms at the moment
-                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                {
-                    byte[] optionInValue = BitConverter.GetBytes(1);
-                    socket.IOControl(SIO_LOOPBACK_FAST_PATH, optionInValue, null);
-                }
-            }
-            catch (SocketException) { }
-            catch (PlatformNotSupportedException)
-            {
-                // Fix for https://github.com/StackExchange/StackExchange.Redis/issues/582 
-                // Checking the platform can fail on some platforms. However, we don't 
-                //   care if the platform check fails because this is for a Windows 
-                //   optimization, and checking the platform will not fail on Windows.
-            }
-#else
             // windows only
             if (Environment.OSVersion.Platform == PlatformID.Win32NT)
             {
@@ -296,7 +250,6 @@ namespace StackExchange.Redis
                     socket.IOControl(SIO_LOOPBACK_FAST_PATH, optionInValue, null);
                 }
             }
-#endif
         }
 
         internal void RequestWrite(PhysicalBridge bridge, bool forced)
@@ -332,11 +285,7 @@ namespace StackExchange.Redis
                 if (ignoreConnect) return;
                 var socket = tuple.Item1;
                 var callback = tuple.Item2;
-#if NETSTANDARD1_5
-                multiplexer.Wait((Task)ar); // make it explode if invalid (note: already complete at this point)
-#else
                 socket.EndConnect(ar);
-#endif
                 var netStream = new NetworkStream(socket, false);
                 var socketMode = callback?.Connected(netStream, log) ?? SocketMode.Abort;
                 switch (socketMode)
@@ -401,9 +350,7 @@ namespace StackExchange.Redis
             {
                 OnShutdown(socket);
                 try { socket.Shutdown(SocketShutdown.Both); } catch { }
-#if !NETSTANDARD1_5
                 try { socket.Close(); } catch { }
-#endif
                 try { socket.Dispose(); } catch { }
             }
         }

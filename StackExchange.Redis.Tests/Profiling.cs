@@ -1,9 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-#if NETCOREAPP1_0
-using System.Reflection;
-#endif
 using System.Threading.Tasks;
 using System.Threading;
 using System.Collections.Concurrent;
@@ -430,11 +427,11 @@ namespace StackExchange.Redis.Tests
                 conn.WaitAll(allTasks.ToArray());
 
                 var res = conn.FinishProfiling(profiler.MyContext);
-                Assert.True(res.GetType().GetTypeInfo().IsValueType);
+                Assert.True(res.GetType().IsValueType);
 
                 using (var e = res.GetEnumerator())
                 {
-                    Assert.True(e.GetType().GetTypeInfo().IsValueType);
+                    Assert.True(e.GetType().IsValueType);
 
                     Assert.True(e.MoveNext());
                     var i = e.Current;

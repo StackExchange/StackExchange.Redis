@@ -2,9 +2,6 @@
 using Jil;
 using System;
 using System.Collections.Generic;
-#if NETCOREAPP1_0
-using System.Reflection;
-#endif
 
 namespace StackExchange.Redis.Tests
 {
@@ -19,7 +16,7 @@ namespace StackExchange.Redis.Tests
             Current = new Config();
             try
             {
-                using (var stream = typeof(TestConfig).GetTypeInfo().Assembly.GetManifestResourceStream("StackExchange.Redis.Tests." + FileName))
+                using (var stream = typeof(TestConfig).Assembly.GetManifestResourceStream("StackExchange.Redis.Tests." + FileName))
                 {
                     if (stream != null)
                     {

@@ -161,12 +161,8 @@ namespace StackExchange.Redis.Tests
                 var conn = GetAnyMaster(muxer);
                 var all = conn.ConfigGet();
                 Assert.True(all.Length > 0, "any");
-
-#if !NETCOREAPP1_0
+                
                 var pairs = all.ToDictionary(x => (string)x.Key, x => (string)x.Value, StringComparer.InvariantCultureIgnoreCase);
-#else
-                var pairs = all.ToDictionary(x => (string)x.Key, x => (string)x.Value, StringComparer.OrdinalIgnoreCase);
-#endif
 
                 Assert.Equal(all.Length, pairs.Count);
                 Assert.True(pairs.ContainsKey("timeout"), "timeout");

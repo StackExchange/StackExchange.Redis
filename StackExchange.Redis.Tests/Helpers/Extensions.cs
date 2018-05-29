@@ -12,8 +12,6 @@ namespace StackExchange.Redis.Tests.Helpers
         {
 #if NET462
             VersionInfo = "Compiled under .NET 4.6.2";
-#elif NETCOREAPP1_0
-            VersionInfo = "Compiled under .NETCoreApp1.0";
 #elif NETCOREAPP2_0
             VersionInfo = "Compiled under .NETCoreApp2.0";
 #else
