@@ -741,9 +741,6 @@ namespace StackExchange.Redis
 
                     var ssl = new SslStream(stream, false, config.CertificateValidationCallback,
                         config.CertificateSelectionCallback ?? GetAmbientCertificateCallback()
-#if !__MonoCS__
-                        , EncryptionPolicy.RequireEncryption
-#endif
                         );
                     try
                     {
