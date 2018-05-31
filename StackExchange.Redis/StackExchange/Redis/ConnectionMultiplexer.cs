@@ -194,13 +194,7 @@ namespace StackExchange.Redis
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")]
         private static void Write<T>(ZipArchive zip, string name, Task task, Action<T, StreamWriter> callback)
         {
-            var entry = zip.CreateEntry(name,
-#if __MonoCS__
-                CompressionLevel.Fastest
-#else
-                CompressionLevel.Optimal
-#endif
-                );
+            var entry = zip.CreateEntry(name, CompressionLevel.Optimal);
             using (var stream = entry.Open())
             using (var writer = new StreamWriter(stream))
             {

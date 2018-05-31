@@ -740,11 +740,8 @@ namespace StackExchange.Redis
                     if (string.IsNullOrWhiteSpace(host)) host = Format.ToStringHostOnly(Bridge.ServerEndPoint.EndPoint);
 
                     var ssl = new SslStream(stream, false, config.CertificateValidationCallback,
-                        config.CertificateSelectionCallback ?? GetAmbientCertificateCallback()
-#if !__MonoCS__
-                        , EncryptionPolicy.RequireEncryption
-#endif
-                        );
+                        config.CertificateSelectionCallback ?? GetAmbientCertificateCallback(),
+                        EncryptionPolicy.RequireEncryption);
                     try
                     {
                         ssl.AuthenticateAsClient(host, config.SslProtocols);
