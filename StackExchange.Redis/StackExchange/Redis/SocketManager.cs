@@ -65,7 +65,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// A SocketManager monitors multiple sockets for availability of data; this is done using
     /// the Socket.Select API and a dedicated reader-thread, which allows for fast responses
-    /// even when the system is under ambient load. 
+    /// even when the system is under ambient load.
     /// </summary>
     public sealed partial class SocketManager : IDisposable
     {
@@ -235,7 +235,7 @@ namespace StackExchange.Redis
         internal void SetFastLoopbackOption(Socket socket)
         {
             // SIO_LOOPBACK_FAST_PATH (https://msdn.microsoft.com/en-us/library/windows/desktop/jj841212%28v=vs.85%29.aspx)
-            // Speeds up localhost operations significantly. OK to apply to a socket that will not be hooked up to localhost, 
+            // Speeds up localhost operations significantly. OK to apply to a socket that will not be hooked up to localhost,
             // or will be subject to WFP filtering.
             const int SIO_LOOPBACK_FAST_PATH = -1744830448;
 
@@ -342,7 +342,7 @@ namespace StackExchange.Redis
         partial void OnShutdown(Socket socket);
 
         partial void ShouldIgnoreConnect(ISocketCallback callback, ref bool ignore);
-        
+
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")]
         private void Shutdown(Socket socket)
         {
