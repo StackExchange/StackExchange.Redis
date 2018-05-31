@@ -14,10 +14,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// The options relevant to a set of redis connections
     /// </summary>
-    public sealed class ConfigurationOptions
-#if !NETSTANDARD1_5
-        : ICloneable
-#endif
+    public sealed class ConfigurationOptions : ICloneable
     {
         internal const string DefaultTieBreaker = "__Booksleeve_TieBreak", DefaultConfigurationChannel = "__Booksleeve_MasterChanged";
 
@@ -398,9 +395,7 @@ namespace StackExchange.Redis
                 DefaultDatabase = DefaultDatabase,
                 ReconnectRetryPolicy = reconnectRetryPolicy,
                 preserveAsyncOrder = preserveAsyncOrder,
-#if !NETSTANDARD1_5
                 SslProtocols = SslProtocols,
-#endif
             };
             foreach (var item in EndPoints)
                 options.EndPoints.Add(item);
@@ -547,9 +542,7 @@ namespace StackExchange.Redis
             SocketManager = null;
         }
 
-#if !NETSTANDARD1_5
-        object ICloneable.Clone() { return Clone(); }
-#endif
+        object ICloneable.Clone() => Clone();
 
         private void DoParse(string configuration, bool ignoreUnknown)
         {
@@ -652,11 +645,9 @@ namespace StackExchange.Redis
                         case OptionKeys.PreserveAsyncOrder:
                             PreserveAsyncOrder = OptionKeys.ParseBoolean(key, value);
                             break;
-#if !NETSTANDARD1_5
                         case OptionKeys.SslProtocols:
                             SslProtocols = OptionKeys.ParseSslProtocols(key, value);
                             break;
-#endif
                         default:
                             if (!string.IsNullOrEmpty(key) && key[0] == '$')
                             {

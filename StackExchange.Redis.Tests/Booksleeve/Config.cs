@@ -4,9 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
-#if !NETCOREAPP1_0
 using System.Security.Authentication;
-#endif
 
 namespace StackExchange.Redis.Tests.Booksleeve
 {
@@ -106,8 +104,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
                 Output.WriteLine(log.ToString());
             }
         }
-
-#if !NETCOREAPP1_0
+        
         [Fact]
         public void SslProtocols_SingleValue()
         {
@@ -143,7 +140,6 @@ namespace StackExchange.Redis.Tests.Booksleeve
             var log = new StringWriter();
             Assert.Throws<ArgumentOutOfRangeException>(() => ConfigurationOptions.Parse("myhost,sslProtocols=InvalidSslProtocol"));
         }
-#endif
 
         [Fact]
         public void ConfigurationOptionsDefaultForAzure()
