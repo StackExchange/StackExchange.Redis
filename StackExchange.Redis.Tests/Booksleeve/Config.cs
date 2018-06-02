@@ -57,7 +57,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
                 var log = new StringWriter();
                 try
                 {
-                    using (var conn = await ConnectionMultiplexer.ConnectAsync("doesnot.exist.ds.aasd981230d.com:6500", log).ForAwait())
+                    using (var conn = await ConnectionMultiplexer.ConnectAsync($"doesnot.exist.ds.{Guid.NewGuid():N}.com:6500", log).ForAwait())
                     {
                     }
                 }
@@ -93,7 +93,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
             var log = new StringWriter();
             try
             {
-                using (var conn = ConnectionMultiplexer.Connect("doesnot.exist.ds.aasd981230d.com:6500,abortConnect=false", log))
+                using (var conn = ConnectionMultiplexer.Connect($"doesnot.exist.ds.{Guid.NewGuid():N}.com:6500, abortConnect=false", log))
                 {
                     Assert.False(conn.GetServer(conn.GetEndPoints().Single()).IsConnected);
                     Assert.False(conn.GetDatabase().IsConnected(default(RedisKey)));
