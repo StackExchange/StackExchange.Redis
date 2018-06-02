@@ -88,6 +88,9 @@ namespace StackExchange.Redis.Tests
                 Assert.NotNull(time);
                 Assert.True(time > resultOffset + TimeSpan.FromMinutes(89) && time <= resultOffset + TimeSpan.FromMinutes(90));
                 Assert.Null(muxer.Wait(e));
+
+                // Cleanup
+                conn.KeyDelete(key, CommandFlags.FireAndForget);
             }
         }
     }
