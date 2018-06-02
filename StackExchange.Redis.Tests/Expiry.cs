@@ -81,12 +81,12 @@ namespace StackExchange.Redis.Tests
                 Assert.Null(muxer.Wait(a));
                 var time = muxer.Wait(b);
                 Assert.NotNull(time);
-                Output.WriteLine("Time: {0}, Expected: {1}", time, resultOffset + TimeSpan.FromMinutes(59.9));
-                Assert.True(time > resultOffset + TimeSpan.FromMinutes(59.9) && time <= resultOffset + TimeSpan.FromMinutes(60));
+                Output.WriteLine("Time: {0}, Expected: {1}", time, resultOffset + TimeSpan.FromMinutes(59));
+                Assert.True(time > resultOffset + TimeSpan.FromMinutes(59) && time <= resultOffset + TimeSpan.FromMinutes(60));
                 Assert.Null(muxer.Wait(c));
                 time = muxer.Wait(d);
                 Assert.NotNull(time);
-                Assert.True(time > resultOffset + TimeSpan.FromMinutes(89.9) && time <= resultOffset + TimeSpan.FromMinutes(90));
+                Assert.True(time > resultOffset + TimeSpan.FromMinutes(89) && time <= resultOffset + TimeSpan.FromMinutes(90));
                 Assert.Null(muxer.Wait(e));
             }
         }
