@@ -1,4 +1,5 @@
-﻿using System.Threading;
+﻿using System;
+using System.Threading;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -73,7 +74,7 @@ namespace StackExchange.Redis.Tests
         public void SocketFailureError()
         {
             var options = new ConfigurationOptions();
-            options.EndPoints.Add(".redis.cache.windows.net");
+            options.EndPoints.Add($"{Guid.NewGuid():N}.redis.cache.windows.net");
             options.Ssl = true;
             options.Password = "";
             options.AbortOnConnectFail = false;
