@@ -70,7 +70,7 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(primary.EndPoint, db.IdentifyEndpoint(key, CommandFlags.PreferSlave));
 
                 var ex = Assert.Throws<RedisConnectionException>(() => db.IdentifyEndpoint(key, CommandFlags.DemandSlave));
-                Assert.StartsWith("No connection is available to service this operation: EXISTS DeslaveGoesToPrimary", ex.Message);
+                Assert.StartsWith("No connection is available to service this operation: EXISTS " + Me(), ex.Message);
                 Writer.WriteLine("Invoking MakeMaster()...");
                 primary.MakeMaster(ReplicationChangeOptions.Broadcast | ReplicationChangeOptions.EnslaveSubordinates | ReplicationChangeOptions.SetTiebreaker, Writer);
                 Writer.WriteLine("Finished MakeMaster() call.");
