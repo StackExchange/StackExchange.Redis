@@ -77,12 +77,15 @@ namespace StackExchange.Redis.Tests
             options.Ssl = true;
             options.Password = "";
             options.AbortOnConnectFail = false;
-            using (var muxer = ConnectionMultiplexer.Connect(options))
+            var ex = Assert.Throws<RedisConnectionException>(() =>
             {
-                var ex = Assert.Throws<RedisConnectionException>(() => muxer.GetDatabase().Ping());
-                var rde = (RedisConnectionException)ex.InnerException;
-                Assert.Equal(ConnectionFailureType.SocketFailure, rde.FailureType);
-            }
+                using (var muxer = ConnectionMultiplexer.Connect(options))
+                {
+                    muxer.GetDatabase().Ping();
+                }
+            });
+            var rde = (RedisConnectionException)ex.InnerException;
+            Assert.Equal(ConnectionFailureType.SocketFailure, rde.FailureType);
         }
 #if DEBUG // needs AllowConnect, which is DEBUG only
         [Fact]
