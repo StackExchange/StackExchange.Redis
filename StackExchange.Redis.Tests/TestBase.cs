@@ -261,7 +261,14 @@ namespace StackExchange.Redis.Tests
             return muxer;
         }
 
-        protected static string Me([CallerMemberName] string caller = null) => caller;
+        protected static string Me([CallerMemberName] string caller = null) =>
+#if NET462
+            "net462-" + caller;
+#elif NETCOREAPP2_0
+            "netcoreapp2.0-" + caller;
+#else
+            "unknown-" + caller;
+#endif
 
         protected static TimeSpan RunConcurrent(Action work, int threads, int timeout = 10000, [CallerMemberName] string caller = null)
         {
