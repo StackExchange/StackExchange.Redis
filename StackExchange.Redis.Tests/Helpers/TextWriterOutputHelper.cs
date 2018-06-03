@@ -12,11 +12,11 @@ namespace StackExchange.Redis.Tests.Helpers
         private readonly ITestOutputHelper Output;
         public TextWriterOutputHelper(ITestOutputHelper outputHelper) => Output = outputHelper;
 
-        public override void WriteLine(string message)
+        public override void WriteLine(string value)
         {
             base.Write(DateTime.UtcNow.ToString("HH:mm:ss.fff"));
             base.Write(": ");
-            base.WriteLine(message);
+            base.WriteLine(value);
         }
 
         public override void Write(char value)
