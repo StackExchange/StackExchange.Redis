@@ -865,7 +865,7 @@ namespace StackExchange.Redis
                         if (isDisposed) throw new ObjectDisposedException(ToString());
 
                         server = new ServerEndPoint(this, endpoint, null);
-                        // ^^ this could indirectly cause servers to become changes, so treble-check!
+                        // ^^ this causes ReconfigureAsync() which calls GetServerEndpoint() which can modify servers, so double check!
                         if (!servers.ContainsKey(endpoint))
                         {
                             servers.Add(endpoint, server);
@@ -1236,7 +1236,7 @@ namespace StackExchange.Redis
                             if (server == null)
                             {
                                 server = new ServerEndPoint(this, endpoint, log);
-                                // ^^ this could indirectly cause servers to become changes, so treble-check!
+                                // ^^ this causes ReconfigureAsync() which calls GetServerEndpoint() which can modify servers, so double check!
                                 if (!servers.ContainsKey(endpoint))
                                 {
                                     servers.Add(endpoint, server);
