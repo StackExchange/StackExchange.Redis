@@ -1229,7 +1229,7 @@ namespace StackExchange.Redis
                     int index = 0;
                     lock (servers)
                     {
-                        serverSnapshot = new ServerEndPoint[configuration.EndPoints.Count];
+                        var newSnapshot = new ServerEndPoint[configuration.EndPoints.Count];
                         foreach (var endpoint in configuration.EndPoints)
                         {
                             var server = (ServerEndPoint)servers[endpoint];
@@ -1242,8 +1242,9 @@ namespace StackExchange.Redis
                                     servers.Add(endpoint, server);
                                 }
                             }
-                            serverSnapshot[index++] = server;
+                            newSnapshot[index++] = server;
                         }
+                        serverSnapshot = newSnapshot;
                     }
                     foreach (var server in serverSnapshot)
                     {
