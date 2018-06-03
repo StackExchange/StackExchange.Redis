@@ -65,7 +65,6 @@ namespace StackExchange.Redis.Tests
                 conn.KeyDelete(key, CommandFlags.FireAndForget);
 
                 var now = utc ? DateTime.UtcNow : DateTime.Now;
-                var resultOffset = utc ? TimeSpan.Zero : now - DateTime.Now;
                 Output.WriteLine("Now: {0}", now);
                 conn.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
                 var a = conn.KeyTimeToLiveAsync(key);
@@ -81,14 +80,14 @@ namespace StackExchange.Redis.Tests
                 Assert.Null(muxer.Wait(a));
                 var time = muxer.Wait(b);
                 Assert.NotNull(time);
-                Output.WriteLine("Time: {0}, Expected: {1}-{2}", time, resultOffset + TimeSpan.FromMinutes(58), resultOffset + TimeSpan.FromMinutes(60));
-                Assert.True(time >= resultOffset + TimeSpan.FromMinutes(58));
-                Assert.True(time <= resultOffset + TimeSpan.FromMinutes(60));
+                Output.WriteLine("Time: {0}, Expected: {1}-{2}", time, TimeSpan.FromMinutes(59), TimeSpan.FromMinutes(60));
+                Assert.True(time >= TimeSpan.FromMinutes(59));
+                Assert.True(time <= TimeSpan.FromMinutes(60));
                 Assert.Null(muxer.Wait(c));
                 time = muxer.Wait(d);
                 Assert.NotNull(time);
-                Assert.True(time >= resultOffset + TimeSpan.FromMinutes(88));
-                Assert.True(time <= resultOffset + TimeSpan.FromMinutes(90));
+                Assert.True(time >= TimeSpan.FromMinutes(89));
+                Assert.True(time <= TimeSpan.FromMinutes(90));
                 Assert.Null(muxer.Wait(e));
             }
         }
