@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Net;
 using System.Threading;
+using StackExchange.Redis.Tests.Helpers;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -12,11 +13,13 @@ namespace StackExchange.Redis.Tests
 
         private ConnectionMultiplexer Conn { get; }
         private IServer Server { get; }
+        protected TextWriterOutputHelper Writer { get; }
 
         public ITestOutputHelper Output { get; }
         public Sentinel(ITestOutputHelper output)
         {
             Output = output;
+            Writer = new TextWriterOutputHelper(output);
 
             Skip.IfNoConfig(nameof(TestConfig.Config.SentinelServer), TestConfig.Current.SentinelServer);
             Skip.IfNoConfig(nameof(TestConfig.Config.SentinelSeviceName), TestConfig.Current.SentinelSeviceName);
@@ -30,7 +33,7 @@ namespace StackExchange.Redis.Tests
                 ServiceName = TestConfig.Current.SentinelSeviceName,
                 SyncTimeout = 5000
             };
-            Conn = ConnectionMultiplexer.Connect(options, Console.Out);
+            Conn = ConnectionMultiplexer.Connect(options, Writer);
             Thread.Sleep(3000);
             Assert.True(Conn.IsConnected);
             Server = Conn.GetServer(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPort);

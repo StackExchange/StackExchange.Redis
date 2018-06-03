@@ -8,14 +8,7 @@ namespace StackExchange.Redis.Tests
     {
         public Expiry(ITestOutputHelper output) : base (output) { }
 
-        private static string[] GetMap(bool disablePTimes)
-        {
-            if (disablePTimes)
-            {
-                return new[] { "pexpire", "pexpireat", "pttl" };
-            }
-            return null;
-        }
+        private static string[] GetMap(bool disablePTimes) => disablePTimes ? (new[] { "pexpire", "pexpireat", "pttl" }) : null;
 
         [Theory]
         [InlineData(true)]

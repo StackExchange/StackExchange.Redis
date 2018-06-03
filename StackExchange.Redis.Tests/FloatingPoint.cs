@@ -122,7 +122,7 @@ namespace StackExchange.Redis.Tests
                 }
                 var val = (double)db.HashGet(key, field);
 
-                Assert.True(Within(sum, val, 0.0001));
+                Assert.True(Within(sum, val, 0.0001), $"{sum} not within 0.0001 of {val}");
             }
         }
 
