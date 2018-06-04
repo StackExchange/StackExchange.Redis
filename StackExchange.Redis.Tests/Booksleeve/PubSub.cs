@@ -148,6 +148,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         [Fact]
         public void TestMultipleSubscribersGetMessage()
         {
+            var channel = "channel" + Guid.NewGuid();
             using (var muxerA = GetUnsecuredConnection())
             using (var muxerB = GetUnsecuredConnection())
             using (var conn = GetUnsecuredConnection())
@@ -157,19 +158,19 @@ namespace StackExchange.Redis.Tests.Booksleeve
                 conn.GetDatabase().Ping();
                 var pub = conn.GetSubscriber();
                 int gotA = 0, gotB = 0;
-                var tA = listenA.SubscribeAsync("channel", (s, msg) => { if (msg == "message") Interlocked.Increment(ref gotA); });
-                var tB = listenB.SubscribeAsync("channel", (s, msg) => { if (msg == "message") Interlocked.Increment(ref gotB); });
+                var tA = listenA.SubscribeAsync(channel, (s, msg) => { if (msg == "message") Interlocked.Increment(ref gotA); });
+                var tB = listenB.SubscribeAsync(channel, (s, msg) => { if (msg == "message") Interlocked.Increment(ref gotB); });
                 listenA.Wait(tA);
                 listenB.Wait(tB);
-                Assert.Equal(2, pub.Publish("channel", "message"));
+                Assert.Equal(2, pub.Publish(channel, "message"));
                 AllowReasonableTimeToPublishAndProcess();
                 Assert.Equal(1, Interlocked.CompareExchange(ref gotA, 0, 0));
                 Assert.Equal(1, Interlocked.CompareExchange(ref gotB, 0, 0));
 
                 // and unsubscibe...
-                tA = listenA.UnsubscribeAsync("channel");
+                tA = listenA.UnsubscribeAsync(channel);
                 listenA.Wait(tA);
-                Assert.Equal(1, pub.Publish("channel", "message"));
+                Assert.Equal(1, pub.Publish(channel, "message"));
                 AllowReasonableTimeToPublishAndProcess();
                 Assert.Equal(1, Interlocked.CompareExchange(ref gotA, 0, 0));
                 Assert.Equal(2, Interlocked.CompareExchange(ref gotB, 0, 0));
