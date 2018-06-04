@@ -7,7 +7,6 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    [Collection(NonParallelCollection.Name)]
     public class PubSub : TestBase
     {
         public PubSub(ITestOutputHelper output) : base(output) { }
@@ -193,11 +192,6 @@ namespace StackExchange.Redis.Tests
                 if (!Task.WaitAll(new[] { t1, t2 }, muxer.TimeoutMilliseconds * 2)) throw new TimeoutException();
             }
         }
-
-        //protected override string GetConfiguration()
-        //{
-        //    return TestConfig.Current.MasterServer + ":" + TestConfig.Current.MasterPort;
-        //}
 
         [Theory]
         [InlineData(true)]

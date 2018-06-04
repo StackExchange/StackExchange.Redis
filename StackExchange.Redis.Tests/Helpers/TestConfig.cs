@@ -50,6 +50,15 @@ namespace StackExchange.Redis.Tests
             public string SecurePassword { get; set; } = "changeme";
             public string SecureServerAndPort => SecureServer + ":" + SecurePort.ToString();
 
+            // Separate servers for failover tests, so they don't wreak havoc on all others
+            public string FailoverMasterServer { get; set; } = "127.0.0.1";
+            public int FailoverMasterPort { get; set; } = 6382;
+            public string FailoverMasterServerAndPort => FailoverMasterServer + ":" + FailoverMasterPort.ToString();
+
+            public string FailoverSlaveServer { get; set; } = "127.0.0.1";
+            public int FailoverSlavePort { get; set; } = 6383;
+            public string FailoverSlaveServerAndPort => FailoverSlaveServer + ":" + FailoverSlavePort.ToString();
+
             public string IPv4Server { get; set; } = "127.0.0.1";
             public int IPv4Port { get; set; } = 6379;
             public string IPv6Server { get; set; } = "::1";
