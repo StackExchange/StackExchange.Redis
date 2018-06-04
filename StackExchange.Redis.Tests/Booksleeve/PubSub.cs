@@ -127,19 +127,20 @@ namespace StackExchange.Redis.Tests.Booksleeve
         [Fact]
         public void TestPublishWithSubscribers()
         {
+            var channel = "channel" + Guid.NewGuid();
             using (var muxerA = GetUnsecuredConnection())
             using (var muxerB = GetUnsecuredConnection())
             using (var conn = GetUnsecuredConnection())
             {
                 var listenA = muxerA.GetSubscriber();
                 var listenB = muxerB.GetSubscriber();
-                var t1 = listenA.SubscribeAsync("channel", delegate { });
-                var t2 = listenB.SubscribeAsync("channel", delegate { });
+                var t1 = listenA.SubscribeAsync(channel, delegate { });
+                var t2 = listenB.SubscribeAsync(channel, delegate { });
 
                 listenA.Wait(t1);
                 listenB.Wait(t2);
 
-                var pub = conn.GetSubscriber().PublishAsync("channel", "message");
+                var pub = conn.GetSubscriber().PublishAsync(channel, "message");
                 Assert.Equal(2, conn.Wait(pub)); // delivery count
             }
         }
