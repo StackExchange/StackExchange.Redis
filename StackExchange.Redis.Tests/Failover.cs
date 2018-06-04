@@ -174,6 +174,11 @@ namespace StackExchange.Redis.Tests
         [InlineData(true)]
         public async Task SubscriptionsSurviveMasterSwitchAsync(bool useSharedSocketManager)
         {
+            if (RunningInCI)
+            {
+                Skip.Inconclusive("TODO: Fix race in broadcast reconfig a zero latency.");
+            }
+
             using (var a = Create(allowAdmin: true, useSharedSocketManager: useSharedSocketManager))
             using (var b = Create(allowAdmin: true, useSharedSocketManager: useSharedSocketManager))
             {

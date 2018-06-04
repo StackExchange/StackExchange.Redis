@@ -6,7 +6,6 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Runtime.CompilerServices;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
@@ -18,6 +17,7 @@ namespace StackExchange.Redis.Tests
     {
         protected ITestOutputHelper Output { get; }
         protected TextWriterOutputHelper Writer { get; }
+        protected static bool RunningInCI { get; } = Environment.GetEnvironmentVariable("APPVEYOR") != null;
         protected virtual string GetConfiguration() => TestConfig.Current.MasterServerAndPort + "," + TestConfig.Current.SlaveServerAndPort;
 
         protected TestBase(ITestOutputHelper output)
