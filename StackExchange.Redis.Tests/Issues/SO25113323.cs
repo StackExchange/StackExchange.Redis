@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Threading;
+using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -10,7 +11,7 @@ namespace StackExchange.Redis.Tests.Issues
         public SO25113323(ITestOutputHelper output) : base (output) { }
 
         [Fact]
-        public void SetExpirationToPassed()
+        public async Task SetExpirationToPassed()
         {
             var key = Me();
             using (var conn =  Create())
@@ -20,10 +21,10 @@ namespace StackExchange.Redis.Tests.Issues
                 cache.KeyDelete(key);
                 cache.HashSet(key, "full", "test", When.NotExists, CommandFlags.PreferMaster);
 
-                Thread.Sleep(10 * 1000);
+                await Task.Delay(2000).ForAwait();
 
                 // When
-                var expiresOn = DateTime.UtcNow.AddSeconds(-10);
+                var expiresOn = DateTime.UtcNow.AddSeconds(-2);
 
                 var firstResult = cache.KeyExpire(key, expiresOn, CommandFlags.PreferMaster);
                 var secondResult = cache.KeyExpire(key, expiresOn, CommandFlags.PreferMaster);

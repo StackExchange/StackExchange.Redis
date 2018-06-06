@@ -28,19 +28,9 @@ namespace StackExchange.Redis.Tests
                 RedisKey key = "MBOA";
                 var conn = muxer.GetDatabase();
                 await conn.PingAsync().ForAwait();
-#if NETCOREAPP1_0
-                int number = 0;
-#endif
                 Action<Task> nonTrivial = delegate
                 {
-#if NETCOREAPP1_0
-                    for (int i = 0; i < 50; i++)
-                    {
-                        number++;
-                    }
-#else
                     Thread.SpinWait(5);
-#endif
                 };
                 var watch = Stopwatch.StartNew();
                 for (int i = 0; i <= AsyncOpsQty; i++)

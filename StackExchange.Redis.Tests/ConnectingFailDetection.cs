@@ -23,7 +23,6 @@ namespace StackExchange.Redis.Tests
                     var server2 = muxer.GetServer(muxer.GetEndPoints()[1]);
 
                     muxer.AllowConnect = false;
-                    SocketManager.ConnectCompletionType = CompletionType.Sync;
 
                     // muxer.IsConnected is true of *any* are connected, simulate failure for all cases.
                     server.SimulateConnectionFailure();
@@ -46,7 +45,6 @@ namespace StackExchange.Redis.Tests
             }
             finally
             {
-                SocketManager.ConnectCompletionType = CompletionType.Any;
                 ClearAmbientFailures();
             }
         }
@@ -56,8 +54,6 @@ namespace StackExchange.Redis.Tests
         {
             try
             {
-                SocketManager.ConnectCompletionType = CompletionType.Sync;
-
                 using (var muxer = Create(keepAlive: 1, connectTimeout: 3000))
                 {
                     var conn = muxer.GetDatabase();
@@ -68,7 +64,6 @@ namespace StackExchange.Redis.Tests
             }
             finally
             {
-                SocketManager.ConnectCompletionType = CompletionType.Any;
                 ClearAmbientFailures();
             }
         }
@@ -87,7 +82,6 @@ namespace StackExchange.Redis.Tests
                     var server2 = muxer.GetServer(muxer.GetEndPoints()[1]);
 
                     muxer.AllowConnect = false;
-                    SocketManager.ConnectCompletionType = CompletionType.Async;
 
                     // muxer.IsConnected is true of *any* are connected, simulate failure for all cases.
                     server.SimulateConnectionFailure();
@@ -110,7 +104,6 @@ namespace StackExchange.Redis.Tests
             }
             finally
             {
-                SocketManager.ConnectCompletionType = CompletionType.Any;
                 ClearAmbientFailures();
             }
         }

@@ -1,19 +1,15 @@
 ﻿using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Net;
-using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    [Collection(NonParallelCollection.Name)]
     public class MultiMaster : TestBase
     {
         protected override string GetConfiguration() =>
             TestConfig.Current.MasterServerAndPort + "," + TestConfig.Current.SecureServerAndPort + ",password=" + TestConfig.Current.SecurePassword;
-
         public MultiMaster(ITestOutputHelper output) : base (output) { }
 
         [Fact]
@@ -21,8 +17,7 @@ namespace StackExchange.Redis.Tests
         {
             var ex = Assert.Throws<RedisCommandException>(() =>
             {
-                ConfigurationOptions config = GetMasterSlaveConfig();
-                using (var conn = ConnectionMultiplexer.Connect(config))
+                using (var conn = ConnectionMultiplexer.Connect(TestConfig.Current.SlaveServerAndPort + ",allowAdmin=true"))
                 {
                     var servers = conn.GetEndPoints().Select(e => conn.GetServer(e));
                     var slave = servers.FirstOrDefault(x => x.IsSlave);
@@ -31,107 +26,6 @@ namespace StackExchange.Redis.Tests
                 }
             });
             Assert.Equal("Command cannot be issued to a slave: FLUSHDB", ex.Message);
-        }
-
-        [Fact]
-        public async Task DeslaveGoesToPrimary()
-        {
-            ConfigurationOptions config = GetMasterSlaveConfig();
-            using (var conn = ConnectionMultiplexer.Connect(config))
-            {
-                var primary = conn.GetServer(TestConfig.Current.MasterServerAndPort);
-                var secondary = conn.GetServer(TestConfig.Current.SlaveServerAndPort);
-
-                primary.Ping();
-                secondary.Ping();
-
-                primary.MakeMaster(ReplicationChangeOptions.SetTiebreaker);
-                secondary.MakeMaster(ReplicationChangeOptions.None);
-
-                await Task.Delay(100).ConfigureAwait(false);
-
-                primary.Ping();
-                secondary.Ping();
-
-                using (var writer = new StringWriter())
-                {
-                    conn.Configure(writer);
-                    string log = writer.ToString();
-
-                    Assert.True(log.Contains("tie-break is unanimous at " + TestConfig.Current.MasterServerAndPort), "unanimous");
-                }
-                // k, so we know everyone loves 6379; is that what we get?
-
-                var db = conn.GetDatabase();
-                RedisKey key = Me();
-
-                Assert.Equal(primary.EndPoint, db.IdentifyEndpoint(key, CommandFlags.PreferMaster));
-                Assert.Equal(primary.EndPoint, db.IdentifyEndpoint(key, CommandFlags.DemandMaster));
-                Assert.Equal(primary.EndPoint, db.IdentifyEndpoint(key, CommandFlags.PreferSlave));
-
-                var ex = Assert.Throws<RedisConnectionException>(() => db.IdentifyEndpoint(key, CommandFlags.DemandSlave));
-                Assert.StartsWith("No connection is available to service this operation: EXISTS DeslaveGoesToPrimary", ex.Message);
-                Writer.WriteLine("Invoking MakeMaster()...");
-                primary.MakeMaster(ReplicationChangeOptions.Broadcast | ReplicationChangeOptions.EnslaveSubordinates | ReplicationChangeOptions.SetTiebreaker, Writer);
-                Writer.WriteLine("Finished MakeMaster() call.");
-
-                await Task.Delay(100).ConfigureAwait(false);
-
-                Writer.WriteLine("Invoking Ping() (post-master)");
-                primary.Ping();
-                secondary.Ping();
-                Writer.WriteLine("Finished Ping() (post-master)");
-
-                Assert.True(primary.IsConnected, $"{primary.EndPoint} is not connected.");
-                Assert.True(secondary.IsConnected, $"{secondary.EndPoint} is not connected.");
-
-                Writer.WriteLine($"{primary.EndPoint}: {primary.ServerType}, Mode: {(primary.IsSlave ? "Slave" : "Master")}");
-                Writer.WriteLine($"{secondary.EndPoint}: {secondary.ServerType}, Mode: {(secondary.IsSlave ? "Slave" : "Master")}");
-
-                // Create a separate multiplexer with a valid view of the world to distinguish between failures of
-                // server topology changes from failures to recognize those changes
-                Writer.WriteLine("Connecting to secondary validation connection.");
-                using (var conn2 = ConnectionMultiplexer.Connect(config))
-                {
-                    var primary2 = conn.GetServer(TestConfig.Current.MasterServerAndPort);
-                    var secondary2 = conn.GetServer(TestConfig.Current.SlaveServerAndPort);
-
-                    Writer.WriteLine($"Check: {primary2.EndPoint}: {primary2.ServerType}, Mode: {(primary2.IsSlave ? "Slave" : "Master")}");
-                    Writer.WriteLine($"Check: {secondary2.EndPoint}: {secondary2.ServerType}, Mode: {(secondary2.IsSlave ? "Slave" : "Master")}");
-
-                    Assert.False(primary2.IsSlave, $"{primary2.EndPoint} should be a master (verification connection).");
-                    Assert.True(secondary2.IsSlave, $"{secondary2.EndPoint} should be a slave (verification connection).");
-
-                    var db2 = conn.GetDatabase();
-
-                    Assert.Equal(primary2.EndPoint, db2.IdentifyEndpoint(key, CommandFlags.PreferMaster));
-                    Assert.Equal(primary2.EndPoint, db2.IdentifyEndpoint(key, CommandFlags.DemandMaster));
-                    Assert.Equal(secondary2.EndPoint, db2.IdentifyEndpoint(key, CommandFlags.PreferSlave));
-                    Assert.Equal(secondary2.EndPoint, db2.IdentifyEndpoint(key, CommandFlags.DemandSlave));
-                }
-
-                Assert.False(primary.IsSlave, $"{primary.EndPoint} should be a master.");
-                Assert.True(secondary.IsSlave, $"{secondary.EndPoint} should be a slave.");
-
-                Assert.Equal(primary.EndPoint, db.IdentifyEndpoint(key, CommandFlags.PreferMaster));
-                Assert.Equal(primary.EndPoint, db.IdentifyEndpoint(key, CommandFlags.DemandMaster));
-                Assert.Equal(secondary.EndPoint, db.IdentifyEndpoint(key, CommandFlags.PreferSlave));
-                Assert.Equal(secondary.EndPoint, db.IdentifyEndpoint(key, CommandFlags.DemandSlave));
-            }
-        }
-
-        private static ConfigurationOptions GetMasterSlaveConfig()
-        {
-            return new ConfigurationOptions
-            {
-                AllowAdmin = true,
-                SyncTimeout = 100000,
-                EndPoints =
-                {
-                    { TestConfig.Current.MasterServer, TestConfig.Current.MasterPort },
-                    { TestConfig.Current.SlaveServer, TestConfig.Current.SlavePort },
-                }
-            };
         }
 
         [Fact]

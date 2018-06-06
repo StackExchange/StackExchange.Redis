@@ -6,7 +6,6 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Runtime.CompilerServices;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
@@ -18,6 +17,7 @@ namespace StackExchange.Redis.Tests
     {
         protected ITestOutputHelper Output { get; }
         protected TextWriterOutputHelper Writer { get; }
+        protected static bool RunningInCI { get; } = Environment.GetEnvironmentVariable("APPVEYOR") != null;
         protected virtual string GetConfiguration() => TestConfig.Current.MasterServerAndPort + "," + TestConfig.Current.SlaveServerAndPort;
 
         protected TestBase(ITestOutputHelper output)
@@ -59,9 +59,6 @@ namespace StackExchange.Redis.Tests
             {
                 Console.WriteLine("Unobserved: " + args.Exception);
                 args.SetObserved();
-#if NETCOREAPP1_0
-                if (IgnorableExceptionPredicates.Any(predicate => predicate(args.Exception.InnerException))) return;
-#endif
                 lock (sharedFailCount)
                 {
                     if (sharedFailCount != null)
@@ -75,14 +72,6 @@ namespace StackExchange.Redis.Tests
                 }
             };
         }
-
-#if NETCOREAPP1_0
-        private static readonly Func<Exception, bool>[] IgnorableExceptionPredicates = new Func<Exception, bool>[]
-        {
-            e => e != null && e is ObjectDisposedException && e.Message.Equals("Cannot access a disposed object.\r\nObject name: 'System.Net.Sockets.NetworkStream'."),
-            e => e != null && e is IOException && e.Message.StartsWith("Unable to read data from the transport connection:")
-        };
-#endif
 
         protected void OnConnectionFailed(object sender, ConnectionFailedEventArgs e)
         {
@@ -272,7 +261,14 @@ namespace StackExchange.Redis.Tests
             return muxer;
         }
 
-        protected static string Me([CallerMemberName] string caller = null) => caller;
+        protected static string Me([CallerMemberName] string caller = null) =>
+#if NET462
+            "net462-" + caller;
+#elif NETCOREAPP2_0
+            "netcoreapp2.0-" + caller;
+#else
+            "unknown-" + caller;
+#endif
 
         protected static TimeSpan RunConcurrent(Action work, int threads, int timeout = 10000, [CallerMemberName] string caller = null)
         {
@@ -318,13 +314,11 @@ namespace StackExchange.Redis.Tests
             }
             if (!allDone.WaitOne(timeout))
             {
-#if !NETCOREAPP1_0
                 for (int i = 0; i < threads; i++)
                 {
                     var thd = threadArr[i];
                     if (thd.IsAlive) thd.Abort();
                 }
-#endif
                 throw new TimeoutException();
             }
 

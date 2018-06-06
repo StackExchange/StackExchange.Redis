@@ -1,10 +1,7 @@
 ﻿using System.Threading.Tasks;
-#if !PLAT_SAFE_CONTINUATIONS
 using System;
-using System.Diagnostics;
 using System.Reflection;
 using System.Reflection.Emit;
-#endif
 
 namespace StackExchange.Redis
 {
@@ -15,7 +12,6 @@ namespace StackExchange.Redis
     /// </summary>
     internal static class TaskSource
     {
-#if !PLAT_SAFE_CONTINUATIONS
         // on .NET < 4.6, it was possible to have threads hijacked; this is no longer a problem in 4.6 and core-clr 5,
         // thanks to the new TaskCreationOptions.RunContinuationsAsynchronously, however we still need to be a little
         // "test and react", as we could be targeting 4.5 but running on a 4.6 machine, in which case *it can still
@@ -80,7 +76,7 @@ namespace StackExchange.Redis
                 IsSyncSafe = _ => false; // assume: not
             }
         }
-#endif
+
         /// <summary>
         /// Create a new TaskCompletion source
         /// </summary>
@@ -88,11 +84,7 @@ namespace StackExchange.Redis
         /// <param name="asyncState">The state for the created <see cref="TaskCompletionSource{TResult}"/>.</param>
         public static TaskCompletionSource<T> Create<T>(object asyncState)
         {
-#if PLAT_SAFE_CONTINUATIONS
-            return new TaskCompletionSource<T>(asyncState, TaskCreationOptions.RunContinuationsAsynchronously);
-#else
             return new TaskCompletionSource<T>(asyncState, TaskCreationOptions.None);
-#endif
         }
     }
 }

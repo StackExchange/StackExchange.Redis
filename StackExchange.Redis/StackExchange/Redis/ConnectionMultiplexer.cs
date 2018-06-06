@@ -69,9 +69,6 @@ namespace StackExchange.Redis
         /// </summary>
         internal static string TryGetAzureRoleInstanceIdNoThrow()
         {
-#if NETSTANDARD1_5
-            return null;
-#else
             string roleInstanceId = null;
             // TODO: CoreCLR port pending https://github.com/dotnet/coreclr/issues/919
             try
@@ -109,7 +106,6 @@ namespace StackExchange.Redis
                 roleInstanceId = null;
             }
             return roleInstanceId;
-#endif
         }
 
         /// <summary>
@@ -198,13 +194,7 @@ namespace StackExchange.Redis
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")]
         private static void Write<T>(ZipArchive zip, string name, Task task, Action<T, StreamWriter> callback)
         {
-            var entry = zip.CreateEntry(name,
-#if __MonoCS__
-                CompressionLevel.Fastest
-#else
-                CompressionLevel.Optimal
-#endif
-                );
+            var entry = zip.CreateEntry(name, CompressionLevel.Optimal);
             using (var stream = entry.Open())
             using (var writer = new StreamWriter(stream))
             {
@@ -504,7 +494,7 @@ namespace StackExchange.Redis
         {
             if (configuredOnly) return configuration.EndPoints.ToArray();
 
-            return ConvertHelper.ConvertAll(serverSnapshot, x => x.EndPoint);
+            return Array.ConvertAll(serverSnapshot, x => x.EndPoint);
         }
 
         private readonly ConfigurationOptions configuration;
@@ -581,7 +571,6 @@ namespace StackExchange.Redis
             return false;
         }
 
-#if FEATURE_THREADPOOL
         private void LogLockedWithThreadPoolStats(TextWriter log, string message, out int busyWorkerCount)
         {
             busyWorkerCount = 0;
@@ -594,7 +583,6 @@ namespace StackExchange.Redis
                 LogLocked(log, sb.ToString());
             }
         }
-#endif
 
         private static bool AllComplete(Task[] tasks)
         {
@@ -623,27 +611,21 @@ namespace StackExchange.Redis
             }
 
             var watch = Stopwatch.StartNew();
-#if FEATURE_THREADPOOL
             LogLockedWithThreadPoolStats(log, "Awaiting task completion", out int busyWorkerCount);
-#endif
             try
             {
                 // if none error, great
                 var remaining = timeoutMilliseconds - checked((int)watch.ElapsedMilliseconds);
                 if (remaining <= 0)
                 {
-#if FEATURE_THREADPOOL
                     LogLockedWithThreadPoolStats(log, "Timeout before awaiting for tasks", out busyWorkerCount);
-#endif
                     return false;
                 }
 
                 var allTasks = Task.WhenAll(tasks).ObserveErrors();
                 var any = Task.WhenAny(allTasks, Task.Delay(remaining)).ObserveErrors();
                 bool all = await any.ForAwait() == allTasks;
-#if FEATURE_THREADPOOL
                 LogLockedWithThreadPoolStats(log, all ? "All tasks completed cleanly" : "Not all tasks completed cleanly", out busyWorkerCount);
-#endif
                 return all;
             }
             catch
@@ -659,9 +641,7 @@ namespace StackExchange.Redis
                     var remaining = timeoutMilliseconds - checked((int)watch.ElapsedMilliseconds);
                     if (remaining <= 0)
                     {
-#if FEATURE_THREADPOOL
                         LogLockedWithThreadPoolStats(log, "Timeout awaiting tasks", out busyWorkerCount);
-#endif
                         return false;
                     }
                     try
@@ -672,9 +652,7 @@ namespace StackExchange.Redis
                     { }
                 }
             }
-#if FEATURE_THREADPOOL
             LogLockedWithThreadPoolStats(log, "Finished awaiting tasks", out busyWorkerCount);
-#endif
             return false;
         }
 
@@ -887,7 +865,7 @@ namespace StackExchange.Redis
                         if (isDisposed) throw new ObjectDisposedException(ToString());
 
                         server = new ServerEndPoint(this, endpoint, null);
-                        // ^^ this could indirectly cause servers to become changes, so treble-check!
+                        // ^^ this causes ReconfigureAsync() which calls GetServerEndpoint() which can modify servers, so double check!
                         if (!servers.ContainsKey(endpoint))
                         {
                             servers.Add(endpoint, server);
@@ -978,13 +956,13 @@ namespace StackExchange.Redis
             get
             {
                 if (pulse == null) return -1;
-                return unchecked(Environment.TickCount - VolatileWrapper.Read(ref lastHeartbeatTicks)) / 1000;
+                return unchecked(Environment.TickCount - Thread.VolatileRead(ref lastHeartbeatTicks)) / 1000;
             }
         }
 
         internal Exception LastException { get; set; }
 
-        internal static long LastGlobalHeartbeatSecondsAgo => unchecked(Environment.TickCount - VolatileWrapper.Read(ref lastGlobalHeartbeatTicks)) / 1000;
+        internal static long LastGlobalHeartbeatSecondsAgo => unchecked(Environment.TickCount - Thread.VolatileRead(ref lastGlobalHeartbeatTicks)) / 1000;
 
         internal CompletionManager UnprocessableCompletionManager { get; }
 
@@ -1251,21 +1229,22 @@ namespace StackExchange.Redis
                     int index = 0;
                     lock (servers)
                     {
-                        serverSnapshot = new ServerEndPoint[configuration.EndPoints.Count];
+                        var newSnapshot = new ServerEndPoint[configuration.EndPoints.Count];
                         foreach (var endpoint in configuration.EndPoints)
                         {
                             var server = (ServerEndPoint)servers[endpoint];
                             if (server == null)
                             {
                                 server = new ServerEndPoint(this, endpoint, log);
-                                // ^^ this could indirectly cause servers to become changes, so treble-check!
+                                // ^^ this causes ReconfigureAsync() which calls GetServerEndpoint() which can modify servers, so double check!
                                 if (!servers.ContainsKey(endpoint))
                                 {
                                     servers.Add(endpoint, server);
                                 }
                             }
-                            serverSnapshot[index++] = server;
+                            newSnapshot[index++] = server;
                         }
+                        serverSnapshot = newSnapshot;
                     }
                     foreach (var server in serverSnapshot)
                     {
@@ -2063,12 +2042,10 @@ namespace StackExchange.Redis
                             {
                                 add("Key-HashSlot", "keyHashSlot", message.GetHashSlot(this.ServerSelectionStrategy).ToString());
                             }
-#if FEATURE_THREADPOOL
                             int busyWorkerCount = GetThreadPoolStats(out string iocp, out string worker);
                             add("ThreadPool-IO-Completion", "IOCP", iocp);
                             add("ThreadPool-Workers", "WORKER", worker);
                             data.Add(Tuple.Create("Busy-Workers", busyWorkerCount.ToString()));
-#endif
 #if FEATURE_PERFCOUNTER
                             if (IncludePerformanceCountersInExceptions)
                             {
@@ -2123,7 +2100,6 @@ namespace StackExchange.Redis
                 : "unavailable";
         }
 #endif
-#if FEATURE_THREADPOOL
         private static int GetThreadPoolStats(out string iocp, out string worker)
         {
             ThreadPool.GetMaxThreads(out int maxWorkerThreads, out int maxIoThreads);
@@ -2137,7 +2113,6 @@ namespace StackExchange.Redis
             worker = $"(Busy={busyWorkerThreads},Free={freeWorkerThreads},Min={minWorkerThreads},Max={maxWorkerThreads})";
             return busyWorkerThreads;
         }
-#endif
 
         /// <summary>
         /// Should exceptions include identifiable details? (key names, additional .Data annotations)

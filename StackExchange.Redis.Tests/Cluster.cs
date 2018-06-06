@@ -65,15 +65,34 @@ namespace StackExchange.Redis.Tests
             }
         }
 
+        private void PrintEndpoints(EndPoint[] endpoints)
+        {
+            Output.WriteLine($"Endpoints Expected: {TestConfig.Current.ClusterStartPort}+{TestConfig.Current.ClusterServerCount}");
+            Output.WriteLine("Endpoints Found:");
+            foreach (var endpoint in endpoints)
+            {
+                Output.WriteLine("  Endpoint: " + endpoint);
+            }
+        }
+
         [Fact]
         public void Connect()
         {
-            using (var muxer = Create())
+            var expectedPorts = new HashSet<int>(Enumerable.Range(TestConfig.Current.ClusterStartPort, TestConfig.Current.ClusterServerCount));
+            using (var sw = new StringWriter())
+            using (var muxer = Create(log: sw))
             {
                 var endpoints = muxer.GetEndPoints();
+                if (TestConfig.Current.ClusterServerCount != endpoints.Length)
+                {
+                    PrintEndpoints(endpoints);
+                }
+                else
+                {
+                    Output.WriteLine(sw.ToString());
+                }
 
                 Assert.Equal(TestConfig.Current.ClusterServerCount, endpoints.Length);
-                var expectedPorts = new HashSet<int>(Enumerable.Range(TestConfig.Current.ClusterStartPort, TestConfig.Current.ClusterServerCount));
                 int masters = 0, slaves = 0;
                 var failed = new List<EndPoint>();
                 foreach (var endpoint in endpoints)
@@ -428,7 +447,8 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void GetConfig()
         {
-            using (var muxer = Create(allowAdmin: true))
+            using (var sw = new StringWriter())
+            using (var muxer = Create(allowAdmin: true, log: sw))
             {
                 var endpoints = muxer.GetEndPoints();
                 var server = muxer.GetServer(endpoints[0]);
@@ -444,6 +464,8 @@ namespace StackExchange.Redis.Tests
                 {
                     Output.WriteLine(node.ToString());
                 }
+                Output.WriteLine(sw.ToString());
+
                 Assert.Equal(TestConfig.Current.ClusterServerCount, endpoints.Length);
                 Assert.Equal(TestConfig.Current.ClusterServerCount, nodes.Nodes.Count);
             }

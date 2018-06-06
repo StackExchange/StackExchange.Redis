@@ -1,4 +1,5 @@
-﻿using System.Threading;
+﻿using System;
+using System.Threading;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -73,16 +74,19 @@ namespace StackExchange.Redis.Tests
         public void SocketFailureError()
         {
             var options = new ConfigurationOptions();
-            options.EndPoints.Add(".redis.cache.windows.net");
+            options.EndPoints.Add($"{Guid.NewGuid():N}.redis.cache.windows.net");
             options.Ssl = true;
             options.Password = "";
             options.AbortOnConnectFail = false;
-            using (var muxer = ConnectionMultiplexer.Connect(options))
+            var ex = Assert.Throws<RedisConnectionException>(() =>
             {
-                var ex = Assert.Throws<RedisConnectionException>(() => muxer.GetDatabase().Ping());
-                var rde = (RedisConnectionException)ex.InnerException;
-                Assert.Equal(ConnectionFailureType.SocketFailure, rde.FailureType);
-            }
+                using (var muxer = ConnectionMultiplexer.Connect(options))
+                {
+                    muxer.GetDatabase().Ping();
+                }
+            });
+            var rde = (RedisConnectionException)ex.InnerException;
+            Assert.Equal(ConnectionFailureType.SocketFailure, rde.FailureType);
         }
 #if DEBUG // needs AllowConnect, which is DEBUG only
         [Fact]
@@ -114,7 +118,6 @@ namespace StackExchange.Redis.Tests
                     var server = muxer.GetServer(muxer.GetEndPoints()[0]);
 
                     muxer.AllowConnect = false;
-                    SocketManager.ConnectCompletionType = CompletionType.Async;
 
                     server.SimulateConnectionFailure();
 
@@ -129,7 +132,6 @@ namespace StackExchange.Redis.Tests
             }
             finally
             {
-                SocketManager.ConnectCompletionType = CompletionType.Any;
                 ClearAmbientFailures();
             }
         }

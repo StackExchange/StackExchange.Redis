@@ -42,15 +42,16 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create(allowAdmin: true))
             {
+                var prefix = Me() + Guid.NewGuid();
                 const int DB = 7;
                 var db = conn.GetDatabase(DB);
                 var server = GetServer(conn);
                 server.FlushDatabase(DB);
                 for (int i = 0; i < 100; i++)
                 {
-                    db.StringSet("ScansRepeatable:" + i, Guid.NewGuid().ToString(), flags: CommandFlags.FireAndForget);
+                    db.StringSet(prefix + i, Guid.NewGuid().ToString(), flags: CommandFlags.FireAndForget);
                 }
-                var seq = server.Keys(DB, pageSize: 15);
+                var seq = server.Keys(DB, prefix + "*", pageSize: 15);
                 using (var iter = seq.GetEnumerator())
                 {
                     IScanningCursor s0 = (IScanningCursor)seq, s1 = (IScanningCursor)iter;
@@ -313,6 +314,45 @@ namespace StackExchange.Redis.Tests
                 int count = db.HashScan(key, pageSize: pageSize).Count();
                 Assert.Equal(2000, count);
             }
+        }
+
+        [Fact] // See https://github.com/StackExchange/StackExchange.Redis/issues/729
+        public void HashScanThresholds()
+        {
+            using (var conn = Create(allowAdmin: true))
+            {
+                var config = conn.GetServer(conn.GetEndPoints(true)[0]).ConfigGet("hash-max-ziplist-entries").First();
+                var threshold = int.Parse(config.Value);
+
+                RedisKey key = Me();
+                Assert.False(GotCursors(conn, key, threshold - 1));
+                Assert.True(GotCursors(conn, key, threshold + 1));
+            }
+        }
+
+        private bool GotCursors(ConnectionMultiplexer conn, RedisKey key, int count)
+        {
+            var db = conn.GetDatabase();
+            db.KeyDelete(key);
+
+            var entries = new HashEntry[count];
+            for (var i = 0; i < count; i++)
+            {
+                entries[i] = new HashEntry("Item:" + i, i);
+            }
+            db.HashSet(key, entries);
+
+            var found = false;
+            var response = db.HashScan(key);
+            var cursor = ((IScanningCursor)response);
+            foreach (var i in response)
+            {
+                if (cursor.Cursor > 0)
+                {
+                    found = true;
+                }
+            }
+            return found;
         }
 
         [Theory]

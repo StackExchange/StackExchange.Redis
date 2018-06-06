@@ -15,40 +15,6 @@ namespace StackExchange.Redis.Tests
         public Config(ITestOutputHelper output) : base (output) { }
 
         [Fact]
-        public async Task VerifyReceiveConfigChangeBroadcast()
-        {
-            var config = GetConfiguration();
-            using (var sender = Create(allowAdmin: true))
-            using (var receiver = Create(syncTimeout: 2000))
-            {
-                int total = 0;
-                receiver.ConfigurationChangedBroadcast += (s, a) =>
-                {
-                    Output.WriteLine("Config changed: " + (a.EndPoint == null ? "(none)" : a.EndPoint.ToString()));
-                    Interlocked.Increment(ref total);
-                };
-                // send a reconfigure/reconnect message
-                long count = sender.PublishReconfigure();
-                GetServer(receiver).Ping();
-                GetServer(receiver).Ping();
-                await Task.Delay(10).ConfigureAwait(false);
-                Assert.True(count == -1 || count >= 2, "subscribers");
-                Assert.True(Interlocked.CompareExchange(ref total, 0, 0) >= 1, "total (1st)");
-
-                Interlocked.Exchange(ref total, 0);
-
-                // and send a second time via a re-master operation
-                var server = GetServer(sender);
-                if (server.IsSlave) Skip.Inconclusive("didn't expect a slave");
-                server.MakeMaster(ReplicationChangeOptions.Broadcast);
-                await Task.Delay(100).ConfigureAwait(false);
-                GetServer(receiver).Ping();
-                GetServer(receiver).Ping();
-                Assert.True(Interlocked.CompareExchange(ref total, 0, 0) >= 1, "total (2nd)");
-            }
-        }
-
-        [Fact]
         public void TalkToNonsenseServer()
         {
             var config = new ConfigurationOptions
@@ -162,11 +128,7 @@ namespace StackExchange.Redis.Tests
                 var all = conn.ConfigGet();
                 Assert.True(all.Length > 0, "any");
 
-#if !NETCOREAPP1_0
                 var pairs = all.ToDictionary(x => (string)x.Key, x => (string)x.Value, StringComparer.InvariantCultureIgnoreCase);
-#else
-                var pairs = all.ToDictionary(x => (string)x.Key, x => (string)x.Value, StringComparer.OrdinalIgnoreCase);
-#endif
 
                 Assert.Equal(all.Length, pairs.Count);
                 Assert.True(pairs.ContainsKey("timeout"), "timeout");
