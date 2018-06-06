@@ -43,7 +43,6 @@ namespace StackExchange.Redis
             interactive?.ResetNonConnected();
             subscription?.ResetNonConnected();
         }
-
         public ServerEndPoint(ConnectionMultiplexer multiplexer, EndPoint endpoint, TextWriter log)
         {
             Multiplexer = multiplexer;

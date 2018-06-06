@@ -138,6 +138,16 @@ namespace StackExchange.Redis
 
         private IReconnectRetryPolicy reconnectRetryPolicy;
 
+        private IBackgroundWorkQueue backgroundWorkQueue;
+
+        /// <summary>
+        /// Gets or sets the <see cref="IBackgroundWorkQueue"/> on which to execute background work.
+        /// </summary>
+        /// <remarks>
+        /// If <see cref="BackgroundWorkQueue"/> is set to <c>null</c> then the default <see cref="ThreadPoolBackgroundWorkQueue"/> will be used.
+        /// </remarks>
+        public IBackgroundWorkQueue BackgroundWorkQueue { get => backgroundWorkQueue ?? ThreadPoolBackgroundWorkQueue.Instance; set => backgroundWorkQueue = value; }
+
         /// <summary>
         /// A LocalCertificateSelectionCallback delegate responsible for selecting the certificate used for authentication; note
         /// that this cannot be specified in the configuration-string.
@@ -389,6 +399,7 @@ namespace StackExchange.Redis
                 CertificateSelectionCallback = CertificateSelectionCallback,
                 ChannelPrefix = ChannelPrefix.Clone(),
                 SocketManager = SocketManager,
+                BackgroundWorkQueue = BackgroundWorkQueue,
                 connectRetry = connectRetry,
                 configCheckSeconds = configCheckSeconds,
                 responseTimeout = responseTimeout,
@@ -540,6 +551,7 @@ namespace StackExchange.Redis
             CertificateValidation = null;
             ChannelPrefix = default(RedisChannel);
             SocketManager = null;
+            BackgroundWorkQueue = null;
         }
 
         object ICloneable.Clone() => Clone();

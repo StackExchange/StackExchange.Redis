@@ -117,6 +117,7 @@ namespace StackExchange.Redis
         private readonly Queue<PhysicalBridge> writeQueue = new Queue<PhysicalBridge>();
         private bool isDisposed;
         private readonly bool useHighPrioritySocketThreads = true;
+        private readonly IBackgroundWorkQueue backgroundWorkQueue;
 
         /// <summary>
         /// Gets the name of this SocketManager instance
@@ -134,11 +135,20 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="name">The name for this <see cref="SocketManager"/>.</param>
         /// <param name="useHighPrioritySocketThreads">Whether this <see cref="SocketManager"/> should use high priority sockets.</param>
-        public SocketManager(string name, bool useHighPrioritySocketThreads)
+        public SocketManager(string name, bool useHighPrioritySocketThreads) : this(name, useHighPrioritySocketThreads, ThreadPoolBackgroundWorkQueue.Instance) { }
+
+        /// <summary>
+        /// Creates a new SocketManager instance.
+        /// </summary>
+        /// <param name="name">The name for this <see cref="SocketManager"/>.</param>
+        /// <param name="useHighPrioritySocketThreads">Whether this <see cref="SocketManager"/> should use high priority sockets.</param>
+        /// <param name="backgroundWorkQueue">The <see cref="IBackgroundWorkQueue"/> on which to do background work.</param>
+        public SocketManager(string name, bool useHighPrioritySocketThreads, IBackgroundWorkQueue backgroundWorkQueue)
         {
             if (string.IsNullOrWhiteSpace(name)) name = GetType().Name;
             Name = name;
             this.useHighPrioritySocketThreads = useHighPrioritySocketThreads;
+            this.backgroundWorkQueue = backgroundWorkQueue ?? throw new ArgumentNullException(nameof(backgroundWorkQueue));
 
             // we need a dedicated writer, because when under heavy ambient load
             // (a busy asp.net site, for example), workers are not reliable enough
@@ -265,7 +275,7 @@ namespace StackExchange.Redis
                     }
                     else if (writeQueue.Count >= 2)
                     { // struggling are we? let's have some help dealing with the backlog
-                        ThreadPool.QueueUserWorkItem(writeOneQueue, this);
+                        backgroundWorkQueue.QueueItem(writeOneQueue, this);
                     }
                 }
             }

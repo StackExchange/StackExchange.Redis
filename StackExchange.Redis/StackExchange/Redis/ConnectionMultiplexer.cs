@@ -806,7 +806,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Create a new ConnectionMultiplexer instance
         /// </summary>
-        /// <param name="configuration">The configurtion options to use for this multiplexer.</param>
+        /// <param name="configuration">The string configuration to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
         public static ConnectionMultiplexer Connect(ConfigurationOptions configuration, TextWriter log = null)
         {

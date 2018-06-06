@@ -47,12 +47,12 @@ namespace StackExchange.Redis
                     {
                         multiplexer.Trace("Starting new async completion worker", name);
                         OnCompletedAsync();
-                        ThreadPool.QueueUserWorkItem(processAsyncCompletionQueue, this);
+                        multiplexer.RawConfig.BackgroundWorkQueue.QueueItem(processAsyncCompletionQueue, this);
                     }
                 } else
                 {
                     multiplexer.Trace("Using thread-pool for asynchronous completion", name);
-                    ThreadPool.QueueUserWorkItem(anyOrderCompletionHandler, operation);
+                    multiplexer.RawConfig.BackgroundWorkQueue.QueueItem(anyOrderCompletionHandler, operation);
                     Interlocked.Increment(ref completedAsync); // k, *technically* we haven't actually completed this yet, but: close enough
                 }
             }
