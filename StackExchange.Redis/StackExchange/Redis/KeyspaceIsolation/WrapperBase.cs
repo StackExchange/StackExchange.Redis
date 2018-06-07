@@ -28,10 +28,10 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<bool> GeoAddAsync(RedisKey key, double longitude, double latitude, RedisValue member, CommandFlags flags = CommandFlags.None)
             => Inner.GeoAddAsync(ToInner(key), longitude, latitude, member, flags);
 
-        public Task<bool> GeoAddAsync(RedisKey key, StackExchange.Redis.GeoEntry value, CommandFlags flags = CommandFlags.None)
+        public Task<bool> GeoAddAsync(RedisKey key, GeoEntry value, CommandFlags flags = CommandFlags.None)
             => Inner.GeoAddAsync(ToInner(key), value, flags);
 
-        public Task<long> GeoAddAsync(RedisKey key, StackExchange.Redis.GeoEntry[] values, CommandFlags flags = CommandFlags.None)
+        public Task<long> GeoAddAsync(RedisKey key, GeoEntry[] values, CommandFlags flags = CommandFlags.None)
             => Inner.GeoAddAsync(ToInner(key), values, flags);
 
         public Task<bool> GeoRemoveAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)

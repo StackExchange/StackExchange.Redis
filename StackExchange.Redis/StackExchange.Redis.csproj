@@ -8,6 +8,8 @@
     <PackageId>StackExchange.Redis</PackageId>
     <PackageTags>Async;Redis;Cache;PubSub;Messaging</PackageTags>
     <OutputTypeEx>Library</OutputTypeEx>
+    <SignAssembly>true</SignAssembly>
+    <PublicSign Condition=" '$(OS)' != 'Windows_NT' ">true</PublicSign>
   </PropertyGroup>
 
   <ItemGroup Condition=" '$(TargetFramework)' == 'net45' OR '$(TargetFramework)' == 'net46' ">
@@ -20,12 +22,14 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="System.IO.Compression" Version="$(CoreFxVersion)" />
+    <!-- theses intentionally does not track CoreFxVersion -->
+    <PackageReference Include="System.IO.Compression" Version="4.3.0" />
+    <PackageReference Include="System.Reflection.Emit.ILGeneration" Version="4.3.0" />
+    <PackageReference Include="System.Reflection.Emit.Lightweight" Version="4.3.0" />
+    
+    <!--<PackageReference Include="System.Memory" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Buffers" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.IO.Pipelines" Version="$(CoreFxVersion)" />
+    <PackageReference Include="Pipelines.Sockets.Unofficial" Version="0.2.0-alpha-001" />-->
   </ItemGroup>
-
-  <ItemGroup Condition=" '$(TargetFramework)' == 'netstandard2.0' ">
-    <PackageReference Include="System.Reflection.Emit.Lightweight" Version="$(CoreFxVersion)" />
-    <PackageReference Include="System.Reflection.Emit.ILGeneration" Version="$(CoreFxVersion)" />
-  </ItemGroup>
-
 </Project>

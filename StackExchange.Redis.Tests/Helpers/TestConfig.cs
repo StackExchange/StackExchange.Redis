@@ -1,7 +1,7 @@
 ﻿using System.IO;
-using Jil;
 using System;
 using System.Collections.Generic;
+using Newtonsoft.Json;
 
 namespace StackExchange.Redis.Tests
 {
@@ -22,7 +22,7 @@ namespace StackExchange.Redis.Tests
                     {
                         using (var reader = new StreamReader(stream))
                         {
-                            Current = JSON.Deserialize<Config>(reader);
+                            Current = JsonConvert.DeserializeObject<Config>(reader.ReadToEnd());
                         }
                     }
                 }

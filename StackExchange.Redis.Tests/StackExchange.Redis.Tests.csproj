@@ -5,6 +5,7 @@
     <AssemblyName>StackExchange.Redis.Tests</AssemblyName>
     <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <SignAssembly>true</SignAssembly>
     <DebugType>full</DebugType>
   </PropertyGroup>
 
@@ -15,10 +16,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\StackExchange.Redis\StackExchange.Redis.csproj" />
-    <PackageReference Include="Jil" Version="2.15.4" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="15.0.0" />
     <PackageReference Include="Moq" Version="4.7.99" />
     <PackageReference Include="System.Runtime.InteropServices.RuntimeInformation" Version="4.3.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="11.0.2" />
     <PackageReference Include="xunit" Version="$(xUnitVersion)" />
     <PackageReference Include="xunit.runner.visualstudio" Version="$(xUnitVersion)" />
     <PackageReference Include="xunit.runner.console" Version="$(xUnitVersion)" />
