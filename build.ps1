@@ -47,7 +47,6 @@ Write-Host "Base Version: $(CalculateVersion)"
 $packageOutputFolder = "$PSScriptRoot\.nupkgs"
 $projectsToBuild =
     'StackExchange.Redis',
-    'StackExchange.Redis.StrongName',
     'NRediSearch'
 
 $testsToRun =
