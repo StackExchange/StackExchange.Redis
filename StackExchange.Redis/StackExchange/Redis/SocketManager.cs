@@ -190,9 +190,13 @@ namespace StackExchange.Redis
             }
 
             var addressFamily = endpoint.AddressFamily == AddressFamily.Unspecified ? AddressFamily.InterNetwork : endpoint.AddressFamily;
-            var socket = new Socket(addressFamily, SocketType.Stream, ProtocolType.Tcp);
+            var protocolType = addressFamily == AddressFamily.Unix ? ProtocolType.Unspecified : ProtocolType.Tcp;
+            var socket = new Socket(addressFamily, SocketType.Stream, protocolType);
             SetFastLoopbackOption(socket);
-            socket.NoDelay = true;
+            if (addressFamily != AddressFamily.Unix)
+            {
+                socket.NoDelay = true;
+            }
             try
             {
                 var formattedEndpoint = Format.ToString(endpoint);
