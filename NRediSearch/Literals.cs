@@ -7,11 +7,12 @@ namespace NRediSearch
     /// </summary>
     internal static class Literals
     {
-        private static Hashtable _boxed = new Hashtable();
-        private static object _null = RedisValue.Null;
+        private static readonly Hashtable _boxed = new Hashtable();
+        private static readonly object _null = RedisValue.Null;
         /// <summary>
         /// Obtain a lazily-cached pre-encoded and boxed representation of a string
         /// </summary>
+        /// <param name="value">The value to get a literal representation for.</param>
         /// <remarks>This shoul donly be used for fixed values, not user data (the cache is never reclaimed, so it will be a memory leak)</remarks>
         public static object Literal(this string value)
         {

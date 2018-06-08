@@ -1,13 +1,12 @@
 ﻿using System;
-using System.Diagnostics;
-using System.Threading;
 using System.Threading.Tasks;
-#if FEATURE_BOOKSLEEVE
-using BookSleeve;
-#endif
 using StackExchange.Redis.KeyspaceIsolation;
 using Xunit;
 using Xunit.Abstractions;
+#if DEBUG
+using System.Diagnostics;
+using System.Threading;
+#endif
 
 namespace StackExchange.Redis.Tests
 {
@@ -216,55 +215,6 @@ namespace StackExchange.Redis.Tests
         }
 
         [Theory]
-        [InlineData(true, true)]
-        [InlineData(true, false)]
-        [InlineData(false, true)]
-        [InlineData(false, false)]
-        public async Task MassiveBulkOpsAsync(bool preserveOrder, bool withContinuation)
-        {
-#if DEBUG
-            var oldAsyncCompletionCount = ConnectionMultiplexer.GetAsyncCompletionWorkerCount();
-#endif
-            using (var muxer = Create())
-            {
-                muxer.PreserveAsyncOrder = preserveOrder;
-                RedisKey key = "MBOA";
-                var conn = muxer.GetDatabase();
-                await conn.PingAsync().ForAwait();
-#if CORE_CLR
-                int number = 0;
-#endif
-                Action<Task> nonTrivial = delegate
-                {
-#if !CORE_CLR
-                    Thread.SpinWait(5);
-#else
-                    for (int i = 0; i < 50; i++)
-                    {
-                        number++;
-                    }
-#endif
-                };
-                var watch = Stopwatch.StartNew();
-                for (int i = 0; i <= AsyncOpsQty; i++)
-                {
-                    var t = conn.StringSetAsync(key, i);
-#pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
-                    if (withContinuation) t.ContinueWith(nonTrivial);
-#pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
-                }
-                Assert.Equal(AsyncOpsQty, await conn.StringGetAsync(key).ForAwait());
-                watch.Stop();
-                Output.WriteLine("{2}: Time for {0} ops: {1}ms ({3}, {4}); ops/s: {5}", AsyncOpsQty, watch.ElapsedMilliseconds, Me(),
-                    withContinuation ? "with continuation" : "no continuation", preserveOrder ? "preserve order" : "any order",
-                    AsyncOpsQty / watch.Elapsed.TotalSeconds);
-#if DEBUG
-                Output.WriteLine("Async completion workers: " + (ConnectionMultiplexer.GetAsyncCompletionWorkerCount() - oldAsyncCompletionCount));
-#endif
-            }
-        }
-
-        [Theory]
         [InlineData(false, false)]
         [InlineData(true, true)]
         [InlineData(true, false)]
@@ -345,187 +295,6 @@ namespace StackExchange.Redis.Tests
                 }
             });
             Assert.Equal("WRONGTYPE Operation against a key holding the wrong kind of value", ex.Message);
-        }
-
-#if FEATURE_BOOKSLEEVE
-        [Theory]
-        [InlineData(true, true, ResultCompletionMode.ConcurrentIfContinuation)]
-        [InlineData(true, false, ResultCompletionMode.ConcurrentIfContinuation)]
-        [InlineData(false, true, ResultCompletionMode.ConcurrentIfContinuation)]
-        [InlineData(false, false, ResultCompletionMode.ConcurrentIfContinuation)]
-        [InlineData(true, true, ResultCompletionMode.Concurrent)]
-        [InlineData(true, false, ResultCompletionMode.Concurrent)]
-        [InlineData(false, true, ResultCompletionMode.Concurrent)]
-        [InlineData(false, false, ResultCompletionMode.Concurrent)]
-        [InlineData(true, true, ResultCompletionMode.PreserveOrder)]
-        [InlineData(true, false, ResultCompletionMode.PreserveOrder)]
-        [InlineData(false, true, ResultCompletionMode.PreserveOrder)]
-        [InlineData(false, false, ResultCompletionMode.PreserveOrder)]
-        public void MassiveBulkOpsAsyncOldStyle(bool withContinuation, bool suspendFlush, ResultCompletionMode completionMode)
-        {
-            using (var conn = GetOldStyleConnection())
-            {
-                const int db = 0;
-                string key = "MBOQ";
-                conn.CompletionMode = completionMode;
-                conn.Wait(conn.Server.Ping());
-                Action<Task> nonTrivial = delegate
-                {
-                    Thread.SpinWait(5);
-                };
-                var watch = Stopwatch.StartNew();
-
-                if (suspendFlush) conn.SuspendFlush();
-                try
-                {
-
-                    for (int i = 0; i <= AsyncOpsQty; i++)
-                    {
-                        var t = conn.Strings.Set(db, key, i);
-                        if (withContinuation) t.ContinueWith(nonTrivial);
-                    }
-                } finally
-                {
-                    if (suspendFlush) conn.ResumeFlush();
-                }
-                int val = (int)conn.Wait(conn.Strings.GetInt64(db, key));
-                Assert.Equal(AsyncOpsQty, val);
-                watch.Stop();
-                Output.WriteLine("{2}: Time for {0} ops: {1}ms ({3}, {4}, {5}); ops/s: {6}", AsyncOpsQty, watch.ElapsedMilliseconds, Me(),
-                    withContinuation ? "with continuation" : "no continuation",
-                    suspendFlush ? "suspend flush" : "flush at whim",
-                    completionMode, AsyncOpsQty / watch.Elapsed.TotalSeconds);
-            }
-        }
-#endif
-
-        [Theory]
-        [InlineData(true, 1)]
-        [InlineData(false, 1)]
-        [InlineData(true, 5)]
-        [InlineData(false, 5)]
-        [InlineData(true, 10)]
-        [InlineData(false, 10)]
-        [InlineData(true, 50)]
-        [InlineData(false, 50)]
-        public void MassiveBulkOpsSync(bool preserveOrder, int threads)
-        {
-            int workPerThread = SyncOpsQty / threads;
-            using (var muxer = Create(syncTimeout: 20000))
-            {
-                muxer.PreserveAsyncOrder = preserveOrder;
-                RedisKey key = "MBOS";
-                var conn = muxer.GetDatabase();
-                conn.KeyDelete(key);
-#if DEBUG
-                long oldAlloc = ConnectionMultiplexer.GetResultBoxAllocationCount();
-                long oldWorkerCount = ConnectionMultiplexer.GetAsyncCompletionWorkerCount();
-#endif
-                var timeTaken = RunConcurrent(delegate
-                {
-                    for (int i = 0; i < workPerThread; i++)
-                    {
-                        conn.StringIncrement(key);
-                    }
-                }, threads);
-
-                int val = (int)conn.StringGet(key);
-                Assert.Equal(workPerThread * threads, val);
-                Output.WriteLine("{2}: Time for {0} ops on {4} threads: {1}ms ({3}); ops/s: {5}",
-                    threads * workPerThread, timeTaken.TotalMilliseconds, Me()
-                    , preserveOrder ? "preserve order" : "any order", threads, (workPerThread * threads) / timeTaken.TotalSeconds);
-#if DEBUG
-                long newAlloc = ConnectionMultiplexer.GetResultBoxAllocationCount();
-                long newWorkerCount = ConnectionMultiplexer.GetAsyncCompletionWorkerCount();
-                Output.WriteLine("ResultBox allocations: {0}; workers {1}", newAlloc - oldAlloc, newWorkerCount - oldWorkerCount);
-                Assert.True(newAlloc - oldAlloc <= 2 * threads, "number of box allocations");
-#endif
-            }
-        }
-
-#if FEATURE_BOOKSLEEVE
-        [Theory]
-        [InlineData(ResultCompletionMode.Concurrent, 1)]
-        [InlineData(ResultCompletionMode.ConcurrentIfContinuation, 1)]
-        [InlineData(ResultCompletionMode.PreserveOrder, 1)]
-        [InlineData(ResultCompletionMode.Concurrent, 5)]
-        [InlineData(ResultCompletionMode.ConcurrentIfContinuation, 5)]
-        [InlineData(ResultCompletionMode.PreserveOrder, 5)]
-        [InlineData(ResultCompletionMode.Concurrent, 10)]
-        [InlineData(ResultCompletionMode.ConcurrentIfContinuation, 10)]
-        [InlineData(ResultCompletionMode.PreserveOrder, 10)]
-        [InlineData(ResultCompletionMode.Concurrent, 50)]
-        [InlineData(ResultCompletionMode.ConcurrentIfContinuation, 50)]
-        [InlineData(ResultCompletionMode.PreserveOrder, 50)]
-        public void MassiveBulkOpsSyncOldStyle(ResultCompletionMode completionMode, int threads)
-        {
-            int workPerThread = SyncOpsQty / threads;
-
-            using (var conn = GetOldStyleConnection())
-            {
-                const int db = 0;
-                string key = "MBOQ";
-                conn.CompletionMode = completionMode;
-                conn.Wait(conn.Keys.Remove(db, key));
-
-                var timeTaken = RunConcurrent(delegate
-                {
-                    for (int i = 0; i < workPerThread; i++)
-                    {
-                        conn.Wait(conn.Strings.Increment(db, key));
-                    }
-                }, threads);
-
-                int val = (int)conn.Wait(conn.Strings.GetInt64(db, key));
-                Assert.Equal(workPerThread * threads, val);
-
-                Output.WriteLine("{2}: Time for {0} ops on {4} threads: {1}ms ({3}); ops/s: {5}", workPerThread * threads, timeTaken.TotalMilliseconds, Me(),
-                    completionMode, threads, (workPerThread * threads) / timeTaken.TotalSeconds);
-            }
-        }
-#endif
-
-        [Theory]
-        [InlineData(true, 1)]
-        [InlineData(false, 1)]
-        [InlineData(true, 5)]
-        [InlineData(false, 5)]
-        public void MassiveBulkOpsFireAndForget(bool preserveOrder, int threads)
-        {
-            using (var muxer = Create(syncTimeout: 20000))
-            {
-                muxer.PreserveAsyncOrder = preserveOrder;
-#if DEBUG
-                long oldAlloc = ConnectionMultiplexer.GetResultBoxAllocationCount();
-#endif
-                RedisKey key = "MBOF";
-                var conn = muxer.GetDatabase();
-                conn.Ping();
-
-                conn.KeyDelete(key, CommandFlags.FireAndForget);
-                int perThread = AsyncOpsQty / threads;
-                var elapsed = RunConcurrent(delegate
-                {
-                    for (int i = 0; i < perThread; i++)
-                    {
-                        conn.StringIncrement(key, flags: CommandFlags.FireAndForget);
-                    }
-                    conn.Ping();
-                }, threads);
-                var val = (long)conn.StringGet(key);
-                Assert.Equal(perThread * threads, val);
-
-                Output.WriteLine("{2}: Time for {0} ops over {5} threads: {1:###,###}ms ({3}); ops/s: {4:###,###,##0}",
-                    val, elapsed.TotalMilliseconds, Me(),
-                    preserveOrder ? "preserve order" : "any order",
-                    val / elapsed.TotalSeconds, threads);
-#if DEBUG
-                long newAlloc = ConnectionMultiplexer.GetResultBoxAllocationCount();
-                Output.WriteLine("ResultBox allocations: {0}",
-                    newAlloc - oldAlloc);
-                Assert.True(newAlloc - oldAlloc <= 4);
-#endif
-            }
         }
 
 #if DEBUG

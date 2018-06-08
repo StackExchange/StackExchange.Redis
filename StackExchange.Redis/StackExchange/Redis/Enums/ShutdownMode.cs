@@ -18,5 +18,4 @@
         /// </summary>
         Always
     }
-
 }

@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -12,40 +13,6 @@ namespace StackExchange.Redis.Tests
     public class Config : TestBase
     {
         public Config(ITestOutputHelper output) : base (output) { }
-
-        [Fact]
-        public void VerifyReceiveConfigChangeBroadcast()
-        {
-            var config = GetConfiguration();
-            using (var sender = Create(allowAdmin: true))
-            using (var receiver = Create(syncTimeout: 2000))
-            {
-                int total = 0;
-                receiver.ConfigurationChangedBroadcast += (s, a) =>
-                {
-                    Output.WriteLine("Config changed: " + (a.EndPoint == null ? "(none)" : a.EndPoint.ToString()));
-                    Interlocked.Increment(ref total);
-                };
-                Thread.Sleep(500);
-                // send a reconfigure/reconnect message
-                long count = sender.PublishReconfigure();
-                GetServer(receiver).Ping();
-                GetServer(receiver).Ping();
-                Assert.True(count == -1 || count >= 2, "subscribers");
-                Assert.True(Interlocked.CompareExchange(ref total, 0, 0) >= 1, "total (1st)");
-
-                Interlocked.Exchange(ref total, 0);
-
-                // and send a second time via a re-master operation
-                var server = GetServer(sender);
-                if (server.IsSlave) Skip.Inconclusive("didn't expect a slave");
-                server.MakeMaster(ReplicationChangeOptions.Broadcast);
-                Thread.Sleep(100);
-                GetServer(receiver).Ping();
-                GetServer(receiver).Ping();
-                Assert.True(Interlocked.CompareExchange(ref total, 0, 0) >= 1, "total (2nd)");
-            }
-        }
 
         [Fact]
         public void TalkToNonsenseServer()
@@ -161,11 +128,7 @@ namespace StackExchange.Redis.Tests
                 var all = conn.ConfigGet();
                 Assert.True(all.Length > 0, "any");
 
-#if !CORE_CLR
                 var pairs = all.ToDictionary(x => (string)x.Key, x => (string)x.Value, StringComparer.InvariantCultureIgnoreCase);
-#else
-                var pairs = all.ToDictionary(x => (string)x.Key, x => (string)x.Value, StringComparer.OrdinalIgnoreCase);
-#endif
 
                 Assert.Equal(all.Length, pairs.Count);
                 Assert.True(pairs.ContainsKey("timeout"), "timeout");
@@ -253,7 +216,8 @@ namespace StackExchange.Redis.Tests
                 var info2 = server.Info("cpu");
                 Assert.Single(info2);
                 var cpu = info2.Single();
-                Assert.True(cpu.Count() > 2);
+                var cpuCount = cpu.Count();
+                Assert.True(cpuCount > 2);
                 Assert.Equal("CPU", cpu.Key);
                 Assert.Contains(cpu, x => x.Key == "used_cpu_sys");
                 Assert.Contains(cpu, x => x.Key == "used_cpu_user");

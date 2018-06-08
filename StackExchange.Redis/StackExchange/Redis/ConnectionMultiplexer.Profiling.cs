@@ -2,7 +2,7 @@
 
 namespace StackExchange.Redis
 {
-    partial class ConnectionMultiplexer
+    public partial class ConnectionMultiplexer
     {
         private IProfiler profiler;
 
@@ -16,13 +16,13 @@ namespace StackExchange.Redis
         /// IProfiledCommand with.  See BeginProfiling(object) and FinishProfiling(object)
         /// for more details.
         /// </summary>
+        /// <param name="profiler">The profiler to register.</param>
         public void RegisterProfiler(IProfiler profiler)
         {
-            if (profiler == null) throw new ArgumentNullException(nameof(profiler));
             if (this.profiler != null) throw new InvalidOperationException("IProfiler already registered for this ConnectionMultiplexer");
 
-            this.profiler = profiler;
-            this.profiledCommands = new ProfileContextTracker();
+            this.profiler = profiler ?? throw new ArgumentNullException(nameof(profiler));
+            profiledCommands = new ProfileContextTracker();
         }
 
         /// <summary>
@@ -35,6 +35,7 @@ namespace StackExchange.Redis
         /// 
         /// Note that forContext cannot be a WeakReference or a WeakReference&lt;T&gt;
         /// </summary>
+        /// <param name="forContext">The context to begin profiling.</param>
         public void BeginProfiling(object forContext)
         {
             if (profiler == null) throw new InvalidOperationException("Cannot begin profiling if no IProfiler has been registered with RegisterProfiler");
@@ -52,13 +53,14 @@ namespace StackExchange.Redis
         /// 
         /// By default this may do a sweep for dead profiling contexts, you can disable this by passing "allowCleanupSweep: false".
         /// </summary>
+        /// <param name="forContext">The context to begin profiling.</param>
+        /// <param name="allowCleanupSweep">Whether to allow cleanup of old profiling sessions.</param>
         public ProfiledCommandEnumerable FinishProfiling(object forContext, bool allowCleanupSweep = true)
         {
             if (profiler == null) throw new InvalidOperationException("Cannot begin profiling if no IProfiler has been registered with RegisterProfiler");
             if (forContext == null) throw new ArgumentNullException(nameof(forContext));
 
-            ProfiledCommandEnumerable ret;
-            if (!profiledCommands.TryRemove(forContext, out ret))
+            if (!profiledCommands.TryRemove(forContext, out ProfiledCommandEnumerable ret))
             {
                 throw ExceptionFactory.FinishedProfilingWithInvalidContext(forContext);
             }

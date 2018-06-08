@@ -20,6 +20,7 @@ namespace StackExchange.Redis
             Exception = exception;
             Origin = origin;
         }
+
         /// <summary>
         /// Gets the connection-type of the failing connection
         /// </summary>

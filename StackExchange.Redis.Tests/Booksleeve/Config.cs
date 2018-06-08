@@ -4,9 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
-#if !CORE_CLR
 using System.Security.Authentication;
-#endif
 
 namespace StackExchange.Redis.Tests.Booksleeve
 {
@@ -54,12 +52,12 @@ namespace StackExchange.Redis.Tests.Booksleeve
         [Fact]
         public async Task CanNotOpenNonsenseConnection_DNS()
         {
-            await Assert.ThrowsAsync<RedisConnectionException>(async () =>
+            var ex = await Assert.ThrowsAsync<RedisConnectionException>(async () =>
             {
                 var log = new StringWriter();
                 try
                 {
-                    using (var conn = await ConnectionMultiplexer.ConnectAsync("doesnot.exist.ds.aasd981230d.com:6500", log).ForAwait())
+                    using (var conn = await ConnectionMultiplexer.ConnectAsync($"doesnot.exist.ds.{Guid.NewGuid():N}.com:6500", log).ForAwait())
                     {
                     }
                 }
@@ -68,6 +66,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
                     Output.WriteLine(log.ToString());
                 }
             }).ForAwait();
+            Output.WriteLine(ex.ToString());
         }
 
         [Fact]
@@ -94,7 +93,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
             var log = new StringWriter();
             try
             {
-                using (var conn = ConnectionMultiplexer.Connect("doesnot.exist.ds.aasd981230d.com:6500,abortConnect=false", log))
+                using (var conn = ConnectionMultiplexer.Connect($"doesnot.exist.ds.{Guid.NewGuid():N}.com:6500, abortConnect=false", log))
                 {
                     Assert.False(conn.GetServer(conn.GetEndPoints().Single()).IsConnected);
                     Assert.False(conn.GetDatabase().IsConnected(default(RedisKey)));
@@ -105,8 +104,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
                 Output.WriteLine(log.ToString());
             }
         }
-
-#if !CORE_CLR
+        
         [Fact]
         public void SslProtocols_SingleValue()
         {
@@ -142,7 +140,6 @@ namespace StackExchange.Redis.Tests.Booksleeve
             var log = new StringWriter();
             Assert.Throws<ArgumentOutOfRangeException>(() => ConfigurationOptions.Parse("myhost,sslProtocols=InvalidSslProtocol"));
         }
-#endif
 
         [Fact]
         public void ConfigurationOptionsDefaultForAzure()

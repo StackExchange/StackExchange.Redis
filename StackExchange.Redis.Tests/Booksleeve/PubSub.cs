@@ -33,7 +33,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
             }
         }
 
-        [Fact]
+        [FactLongRunning]
         public void TestMassivePublishWithWithoutFlush_Remote()
         {
             using (var muxer = GetRemoteConnection(waitForOpen: true))
@@ -127,19 +127,20 @@ namespace StackExchange.Redis.Tests.Booksleeve
         [Fact]
         public void TestPublishWithSubscribers()
         {
+            var channel = "channel" + Guid.NewGuid();
             using (var muxerA = GetUnsecuredConnection())
             using (var muxerB = GetUnsecuredConnection())
             using (var conn = GetUnsecuredConnection())
             {
                 var listenA = muxerA.GetSubscriber();
                 var listenB = muxerB.GetSubscriber();
-                var t1 = listenA.SubscribeAsync("channel", delegate { });
-                var t2 = listenB.SubscribeAsync("channel", delegate { });
+                var t1 = listenA.SubscribeAsync(channel, delegate { });
+                var t2 = listenB.SubscribeAsync(channel, delegate { });
 
                 listenA.Wait(t1);
                 listenB.Wait(t2);
 
-                var pub = conn.GetSubscriber().PublishAsync("channel", "message");
+                var pub = conn.GetSubscriber().PublishAsync(channel, "message");
                 Assert.Equal(2, conn.Wait(pub)); // delivery count
             }
         }
@@ -147,6 +148,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         [Fact]
         public void TestMultipleSubscribersGetMessage()
         {
+            var channel = "channel" + Guid.NewGuid();
             using (var muxerA = GetUnsecuredConnection())
             using (var muxerB = GetUnsecuredConnection())
             using (var conn = GetUnsecuredConnection())
@@ -156,19 +158,19 @@ namespace StackExchange.Redis.Tests.Booksleeve
                 conn.GetDatabase().Ping();
                 var pub = conn.GetSubscriber();
                 int gotA = 0, gotB = 0;
-                var tA = listenA.SubscribeAsync("channel", (s, msg) => { if (msg == "message") Interlocked.Increment(ref gotA); });
-                var tB = listenB.SubscribeAsync("channel", (s, msg) => { if (msg == "message") Interlocked.Increment(ref gotB); });
+                var tA = listenA.SubscribeAsync(channel, (s, msg) => { if (msg == "message") Interlocked.Increment(ref gotA); });
+                var tB = listenB.SubscribeAsync(channel, (s, msg) => { if (msg == "message") Interlocked.Increment(ref gotB); });
                 listenA.Wait(tA);
                 listenB.Wait(tB);
-                Assert.Equal(2, pub.Publish("channel", "message"));
+                Assert.Equal(2, pub.Publish(channel, "message"));
                 AllowReasonableTimeToPublishAndProcess();
                 Assert.Equal(1, Interlocked.CompareExchange(ref gotA, 0, 0));
                 Assert.Equal(1, Interlocked.CompareExchange(ref gotB, 0, 0));
 
                 // and unsubscibe...
-                tA = listenA.UnsubscribeAsync("channel");
+                tA = listenA.UnsubscribeAsync(channel);
                 listenA.Wait(tA);
-                Assert.Equal(1, pub.Publish("channel", "message"));
+                Assert.Equal(1, pub.Publish(channel, "message"));
                 AllowReasonableTimeToPublishAndProcess();
                 Assert.Equal(1, Interlocked.CompareExchange(ref gotA, 0, 0));
                 Assert.Equal(2, Interlocked.CompareExchange(ref gotB, 0, 0));
@@ -182,7 +184,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
             {
                 var sub = pub.GetSubscriber();
                 int count = 0;
-                Action<RedisChannel, RedisValue> handler = (channel, payload) => Interlocked.Increment(ref count);
+                void handler(RedisChannel channel, RedisValue payload) => Interlocked.Increment(ref count);
                 var a0 = sub.SubscribeAsync("foo", handler);
                 var a1 = sub.SubscribeAsync("bar", handler);
                 var b0 = sub.SubscribeAsync("f*o", handler);

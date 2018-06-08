@@ -13,35 +13,30 @@ namespace StackExchange.Redis
         /// <summary>
         /// Create a new EndPointCollection
         /// </summary>
-        public EndPointCollection() : base()
-        {
-        }
+        public EndPointCollection() {}
 
         /// <summary>
         /// Create a new EndPointCollection
         /// </summary>
-        public EndPointCollection(IList<EndPoint> endpoints) : base(endpoints)
-        {
-        }
+        /// <param name="endpoints">The endpoints to add to the collection.</param>
+        public EndPointCollection(IList<EndPoint> endpoints) : base(endpoints) {}
 
         /// <summary>
         /// Format an endpoint
         /// </summary>
-        public static string ToString(EndPoint endpoint)
-        {
-            return Format.ToString(endpoint);
-        }
+        /// <param name="endpoint">The endpoint to get a string representation for.</param>
+        public static string ToString(EndPoint endpoint) => Format.ToString(endpoint);
 
         /// <summary>
         /// Attempt to parse a string into an EndPoint
         /// </summary>
-        public static EndPoint TryParse(string endpoint)
-        {
-            return Format.TryParseEndPoint(endpoint);
-        }
+        /// <param name="endpoint">The endpoint string to parse.</param>
+        public static EndPoint TryParse(string endpoint) => Format.TryParseEndPoint(endpoint);
+
         /// <summary>
         /// Adds a new endpoint to the list
         /// </summary>
+        /// <param name="hostAndPort">The host:port string to add an endpoint for to the collection.</param>
         public void Add(string hostAndPort)
         {
             var endpoint = Format.TryParseEndPoint(hostAndPort);
@@ -50,24 +45,24 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Adds a new endpoint to the list
+        /// Adds a new endpoint to the list.
         /// </summary>
-        public void Add(string host, int port)
-        {
-            Add(Format.ParseEndPoint(host, port));
-        }
+        /// <param name="host">The host to add.</param>
+        /// <param name="port">The port for <paramref name="host"/> to add.</param>
+        public void Add(string host, int port) => Add(Format.ParseEndPoint(host, port));
 
         /// <summary>
-        /// Adds a new endpoint to the list
+        /// Adds a new endpoint to the list.
         /// </summary>
-        public void Add(IPAddress host, int port)
-        {
-            Add(new IPEndPoint(host, port));
-        }
-        
+        /// <param name="host">The host to add.</param>
+        /// <param name="port">The port for <paramref name="host"/> to add.</param>
+        public void Add(IPAddress host, int port) => Add(new IPEndPoint(host, port));
+
         /// <summary>
         /// See Collection&lt;T&gt;.InsertItem()
         /// </summary>
+        /// <param name="index">The index to add <paramref name="item"/> into the collection at.</param>
+        /// <param name="item">The item to insert at <paramref name="index"/>.</param>
         protected override void InsertItem(int index, EndPoint item)
         {
             if (item == null) throw new ArgumentNullException(nameof(item));
@@ -77,6 +72,8 @@ namespace StackExchange.Redis
         /// <summary>
         /// See Collection&lt;T&gt;.SetItem()
         /// </summary>
+        /// <param name="index">The index to replace an endpoint at.</param>
+        /// <param name="item">The item to replace the existing endpoint at <paramref name="index"/>.</param>
         protected override void SetItem(int index, EndPoint item)
         {
             if (item == null) throw new ArgumentNullException(nameof(item));

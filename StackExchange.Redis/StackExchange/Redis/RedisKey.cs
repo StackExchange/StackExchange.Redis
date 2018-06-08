@@ -13,14 +13,12 @@ namespace StackExchange.Redis
         private readonly object keyValue; // always either a string or a byte[]
         internal RedisKey(byte[] keyPrefix, object keyValue)
         {
-            this.keyPrefix = (keyPrefix != null && keyPrefix.Length == 0) ? null : keyPrefix;
+            this.keyPrefix = keyPrefix?.Length == 0 ? null : keyPrefix;
             this.keyValue = keyValue;
         }
-        
-        internal RedisKey AsPrefix()
-        {
-            return new RedisKey((byte[])this, null);
-        }
+
+        internal RedisKey AsPrefix() => new RedisKey((byte[])this, null);
+
         internal bool IsNull => keyPrefix == null && keyValue == null;
 
         internal bool IsEmpty
@@ -40,96 +38,86 @@ namespace StackExchange.Redis
         /// <summary>
         /// Indicate whether two keys are not equal
         /// </summary>
-        public static bool operator !=(RedisKey x, RedisKey y)
-        {
-            return !(x == y);
-        }
+        /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
+        /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
+        public static bool operator !=(RedisKey x, RedisKey y) => !(x == y);
 
         /// <summary>
         /// Indicate whether two keys are not equal
         /// </summary>
-        public static bool operator !=(string x, RedisKey y)
-        {
-            return !(x == y);
-        }
+        /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
+        /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
+        public static bool operator !=(string x, RedisKey y) => !(x == y);
 
         /// <summary>
         /// Indicate whether two keys are not equal
         /// </summary>
-        public static bool operator !=(byte[] x, RedisKey y)
-        {
-            return !(x == y);
-        }
+        /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
+        /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
+        public static bool operator !=(byte[] x, RedisKey y) => !(x == y);
 
         /// <summary>
         /// Indicate whether two keys are not equal
         /// </summary>
-        public static bool operator !=(RedisKey x, string y)
-        {
-            return !(x == y);
-        }
+        /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
+        /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
+        public static bool operator !=(RedisKey x, string y) => !(x == y);
 
         /// <summary>
         /// Indicate whether two keys are not equal
         /// </summary>
-        public static bool operator !=(RedisKey x, byte[] y)
-        {
-            return !(x == y);
-        }
+        /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
+        /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
+        public static bool operator !=(RedisKey x, byte[] y) => !(x == y);
 
         /// <summary>
         /// Indicate whether two keys are equal
         /// </summary>
-        public static bool operator ==(RedisKey x, RedisKey y)
-        {
-            return CompositeEquals(x.keyPrefix, x.keyValue, y.keyPrefix, y.keyValue);
-        }
+        /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
+        /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
+        public static bool operator ==(RedisKey x, RedisKey y) => CompositeEquals(x.keyPrefix, x.keyValue, y.keyPrefix, y.keyValue);
 
         /// <summary>
         /// Indicate whether two keys are equal
         /// </summary>
-        public static bool operator ==(string x, RedisKey y)
-        {
-            return CompositeEquals(null, x, y.keyPrefix, y.keyValue);
-        }
+        /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
+        /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
+        public static bool operator ==(string x, RedisKey y) => CompositeEquals(null, x, y.keyPrefix, y.keyValue);
 
         /// <summary>
         /// Indicate whether two keys are equal
         /// </summary>
-        public static bool operator ==(byte[] x, RedisKey y)
-        {
-            return CompositeEquals(null, x, y.keyPrefix, y.keyValue);
-        }
+        /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
+        /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
+        public static bool operator ==(byte[] x, RedisKey y) => CompositeEquals(null, x, y.keyPrefix, y.keyValue);
 
         /// <summary>
         /// Indicate whether two keys are equal
         /// </summary>
-        public static bool operator ==(RedisKey x, string y)
-        {
-            return CompositeEquals(x.keyPrefix, x.keyValue, null, y);
-        }
+        /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
+        /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
+        public static bool operator ==(RedisKey x, string y) => CompositeEquals(x.keyPrefix, x.keyValue, null, y);
 
         /// <summary>
         /// Indicate whether two keys are equal
         /// </summary>
-        public static bool operator ==(RedisKey x, byte[] y)
-        {
-            return CompositeEquals(x.keyPrefix, x.keyValue, null, y);
-        }
+        /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
+        /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
+        public static bool operator ==(RedisKey x, byte[] y) => CompositeEquals(x.keyPrefix, x.keyValue, null, y);
 
         /// <summary>
         /// See Object.Equals
         /// </summary>
+        /// <param name="obj">The <see cref="RedisKey"/> to compare to.</param>
         public override bool Equals(object obj)
         {
-            if (obj is RedisKey)
+            if (obj is RedisKey other)
             {
-                var other = (RedisKey)obj;
-                return CompositeEquals(this.keyPrefix, this.keyValue, other.keyPrefix, other.keyValue);
+                return CompositeEquals(keyPrefix, keyValue, other.keyPrefix, other.keyValue);
             }
             if (obj is string || obj is byte[])
             {
-                return CompositeEquals(this.keyPrefix, this.keyValue, null, obj);
+                return CompositeEquals(keyPrefix, keyValue, null, obj);
             }
             return false;
         }
@@ -137,14 +125,12 @@ namespace StackExchange.Redis
         /// <summary>
         /// Indicate whether two keys are equal
         /// </summary>
-        public bool Equals(RedisKey other)
-        {
-            return CompositeEquals(this.keyPrefix, this.keyValue, other.keyPrefix, other.keyValue);
-        }
+        /// <param name="other">The <see cref="RedisKey"/> to compare to.</param>
+        public bool Equals(RedisKey other) => CompositeEquals(keyPrefix, keyValue, other.keyPrefix, other.keyValue);
 
         private static bool CompositeEquals(byte[] keyPrefix0, object keyValue0, byte[] keyPrefix1, object keyValue1)
         {
-            if(RedisValue.Equals(keyPrefix0, keyPrefix1))
+            if (RedisValue.Equals(keyPrefix0, keyPrefix1))
             {
                 if (keyValue0 == keyValue1) return true; // ref equal
                 if (keyValue0 == null || keyValue1 == null) return false; // null vs non-null
@@ -161,7 +147,7 @@ namespace StackExchange.Redis
         /// </summary>
         public override int GetHashCode()
         {
-            int chk0 = keyPrefix == null ? 0 : RedisValue.GetHashCode(this.keyPrefix),
+            int chk0 = keyPrefix == null ? 0 : RedisValue.GetHashCode(keyPrefix),
                 chk1 = keyValue is string ? keyValue.GetHashCode() : RedisValue.GetHashCode((byte[])keyValue);
 
             return unchecked((17 * chk0) + chk1);
@@ -170,15 +156,9 @@ namespace StackExchange.Redis
         /// <summary>
         /// Obtains a string representation of the key
         /// </summary>
-        public override string ToString()
-        {
-            return ((string)this) ?? "(null)";
-        }
+        public override string ToString() => ((string)this) ?? "(null)";
 
-        internal RedisValue AsRedisValue()
-        {
-            return (byte[])this;
-        }
+        internal RedisValue AsRedisValue() => (byte[])this;
 
         internal void AssertNotNull()
         {
@@ -186,35 +166,38 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Create a key from a String
+        /// Create a <see cref="RedisKey"/> from a <see cref="string"/>.
         /// </summary>
+        /// <param name="key">The string to get a key from.</param>
         public static implicit operator RedisKey(string key)
         {
             if (key == null) return default(RedisKey);
             return new RedisKey(null, key);
         }
         /// <summary>
-        /// Create a key from a Byte[]
+        /// Create a <see cref="RedisKey"/> from a <see cref="T:byte[]"/>.
         /// </summary>
+        /// <param name="key">The byte array to get a key from.</param>
         public static implicit operator RedisKey(byte[] key)
         {
             if (key == null) return default(RedisKey);
             return new RedisKey(null, key);
         }
+
         /// <summary>
-        /// Obtain the key as a Byte[]
+        /// Obtain the <see cref="RedisKey"/> as a <see cref="T:byte[]"/>.
         /// </summary>
-        public static implicit operator byte[](RedisKey key)
-        {
-            return ConcatenateBytes(key.keyPrefix, key.keyValue, null);
-        }
+        /// <param name="key">The key to get a byte array for.</param>
+        public static implicit operator byte[] (RedisKey key) => ConcatenateBytes(key.keyPrefix, key.keyValue, null);
+
         /// <summary>
-        /// Obtain the key as a String
+        /// Obtain the key as a <see cref="string"/>.
         /// </summary>
+        /// <param name="key">The key to get a string for.</param>
         public static implicit operator string(RedisKey key)
         {
             byte[] arr;
-            if(key.keyPrefix == null)
+            if (key.keyPrefix == null)
             {
                 if (key.keyValue == null) return null;
 
@@ -235,12 +218,13 @@ namespace StackExchange.Redis
             {
                 return BitConverter.ToString(arr);
             }
-            
         }
 
         /// <summary>
         /// Concatenate two keys
         /// </summary>
+        /// <param name="x">The first <see cref="RedisKey"/> to add.</param>
+        /// <param name="y">The second <see cref="RedisKey"/> to add.</param>
         [Obsolete]
         public static RedisKey operator +(RedisKey x, RedisKey y)
         {
@@ -249,7 +233,7 @@ namespace StackExchange.Redis
 
         internal static RedisKey WithPrefix(byte[] prefix, RedisKey value)
         {
-            if(prefix == null || prefix.Length == 0) return value;
+            if (prefix == null || prefix.Length == 0) return value;
             if (value.keyPrefix == null) return new RedisKey(prefix, value.keyValue);
             if (value.keyValue == null) return new RedisKey(prefix, value.keyPrefix);
 
@@ -275,13 +259,12 @@ namespace StackExchange.Redis
                 : ((byte[])b).Length),
                 cLen = c?.Length ?? 0;
 
-            byte[] result = new byte[aLen + bLen + cLen];
+            var result = new byte[aLen + bLen + cLen];
             if (aLen != 0) Buffer.BlockCopy(a, 0, result, 0, aLen);
             if (bLen != 0)
             {
-                if (b is string)
+                if (b is string s)
                 {
-                    string s = (string)b;
                     Encoding.UTF8.GetBytes(s, 0, s.Length, result, aLen);
                 }
                 else
@@ -299,10 +282,8 @@ namespace StackExchange.Redis
         /// Avoids some allocations if possible, repeated Prepend/Appends make
         /// it less possible.
         /// </summary>
-        public RedisKey Prepend(RedisKey p)
-        {
-            return WithPrefix(p, this);
-        }
+        /// <param name="prefix">The prefix to prepend.</param>
+        public RedisKey Prepend(RedisKey prefix) => WithPrefix(prefix, this);
 
         /// <summary>
         /// Appends p to this RedisKey, returning a new RedisKey.
@@ -310,9 +291,7 @@ namespace StackExchange.Redis
         /// Avoids some allocations if possible, repeated Prepend/Appends make
         /// it less possible.
         /// </summary>
-        public RedisKey Append(RedisKey p)
-        {
-            return WithPrefix(this, p);
-        }
+        /// <param name="suffix">The suffix to append.</param>
+        public RedisKey Append(RedisKey suffix) => WithPrefix(this, suffix);
     }
 }

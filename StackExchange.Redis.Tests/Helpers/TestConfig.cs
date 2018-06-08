@@ -2,9 +2,6 @@
 using Jil;
 using System;
 using System.Collections.Generic;
-#if CORE_CLR
-using System.Reflection;
-#endif
 
 namespace StackExchange.Redis.Tests
 {
@@ -19,7 +16,7 @@ namespace StackExchange.Redis.Tests
             Current = new Config();
             try
             {
-                using (var stream = typeof(TestConfig).GetTypeInfo().Assembly.GetManifestResourceStream("StackExchange.Redis.Tests." + FileName))
+                using (var stream = typeof(TestConfig).Assembly.GetManifestResourceStream("StackExchange.Redis.Tests." + FileName))
                 {
                     if (stream != null)
                     {
@@ -42,13 +39,25 @@ namespace StackExchange.Redis.Tests
 
             public string MasterServer { get; set; } = "127.0.0.1";
             public int MasterPort { get; set; } = 6379;
+            public string MasterServerAndPort => MasterServer + ":" + MasterPort.ToString();
 
             public string SlaveServer { get; set; } = "127.0.0.1";
             public int SlavePort { get; set; } = 6380;
+            public string SlaveServerAndPort => SlaveServer + ":" + SlavePort.ToString();
 
             public string SecureServer { get; set; } = "127.0.0.1";
             public int SecurePort { get; set; } = 6381;
             public string SecurePassword { get; set; } = "changeme";
+            public string SecureServerAndPort => SecureServer + ":" + SecurePort.ToString();
+
+            // Separate servers for failover tests, so they don't wreak havoc on all others
+            public string FailoverMasterServer { get; set; } = "127.0.0.1";
+            public int FailoverMasterPort { get; set; } = 6382;
+            public string FailoverMasterServerAndPort => FailoverMasterServer + ":" + FailoverMasterPort.ToString();
+
+            public string FailoverSlaveServer { get; set; } = "127.0.0.1";
+            public int FailoverSlavePort { get; set; } = 6383;
+            public string FailoverSlaveServerAndPort => FailoverSlaveServer + ":" + FailoverSlavePort.ToString();
 
             public string IPv4Server { get; set; } = "127.0.0.1";
             public int IPv4Port { get; set; } = 6379;

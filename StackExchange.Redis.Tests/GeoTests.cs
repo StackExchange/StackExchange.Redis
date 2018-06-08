@@ -18,7 +18,7 @@ namespace StackExchange.Redis.Tests
         {
             Skip.IfNoConfig(nameof(TestConfig.Config.AzureCacheServer), TestConfig.Current.AzureCacheServer);
             Skip.IfNoConfig(nameof(TestConfig.Config.AzureCachePassword), TestConfig.Current.AzureCachePassword);
-            
+
             var options = new ConfigurationOptions();
             options.EndPoints.Add(TestConfig.Current.AzureCacheServer);
             options.Ssl = true;

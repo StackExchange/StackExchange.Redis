@@ -6,25 +6,6 @@ param(
     [bool] $RunTests = $true,
     [string] $PullRequestNumber
 )
-
-if ($BuildNumber -and $BuildNumber.Length -lt 5) {
-    $BuildNumber = $BuildNumber.PadLeft(5, "0")
-}
-
-Write-Host "Run Parameters:" -ForegroundColor Cyan
-Write-Host "Version: $Version"
-Write-Host "BuildNumber: $BuildNumber"
-Write-Host "CreatePackages: $CreatePackages"
-Write-Host "RunTests: $RunTests"
-
-$packageOutputFolder = "$PSScriptRoot\.nupkgs"
-$projectsToBuild =
-    'StackExchange.Redis',
-    'StackExchange.Redis.StrongName',
-    'NRediSearch'
-
-$testsToRun =
-    'StackExchange.Redis.Tests'
     
 function CalculateVersion() {
     if ($Version) {
@@ -52,6 +33,25 @@ function CalculateVersion() {
     return "$semVersion-$BuildNumber"
 }
 
+if ($BuildNumber -and $BuildNumber.Length -lt 5) {
+    $BuildNumber = $BuildNumber.PadLeft(5, "0")
+}
+
+Write-Host "Run Parameters:" -ForegroundColor Cyan
+Write-Host "Version: $Version"
+Write-Host "BuildNumber: $BuildNumber"
+Write-Host "CreatePackages: $CreatePackages"
+Write-Host "RunTests: $RunTests"
+Write-Host "Base Version: $(CalculateVersion)"
+
+$packageOutputFolder = "$PSScriptRoot\.nupkgs"
+$projectsToBuild =
+    'StackExchange.Redis',
+    'StackExchange.Redis.StrongName',
+    'NRediSearch'
+
+$testsToRun =
+    'StackExchange.Redis.Tests'
 if (!$Version -and !$BuildNumber) {
     Write-Host "ERROR: You must supply either a -Version or -BuildNumber argument. `
   Use -Version `"4.0.0`" for explicit version specification, or `
@@ -71,7 +71,7 @@ if ($RunTests) {
         #Push-Location ".\tests\$project"
         Push-Location ".\$project"
 
-        dotnet xunit
+        dotnet xunit -configuration Release
         if ($LastExitCode -ne 0) { 
             Write-Host "Error with tests, aborting build." -Foreground "Red"
             Pop-Location

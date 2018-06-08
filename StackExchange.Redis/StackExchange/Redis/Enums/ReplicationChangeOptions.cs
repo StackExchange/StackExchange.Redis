@@ -1,8 +1,11 @@
-﻿namespace StackExchange.Redis
+﻿using System;
+
+namespace StackExchange.Redis
 {
     /// <summary>
     /// Additional operations to perform when making a server a master
     /// </summary>
+    [Flags]
     public enum ReplicationChangeOptions
     {
         /// <summary>

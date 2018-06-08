@@ -5,7 +5,7 @@ using System.Threading;
 
 namespace StackExchange.Redis
 {
-    class ProfileStorage : IProfiledCommand
+    internal class ProfileStorage : IProfiledCommand
     {
         #region IProfiledCommand Impl
         public EndPoint EndPoint => Server.EndPoint;
@@ -37,8 +37,8 @@ namespace StackExchange.Redis
         public ProfileStorage NextElement { get; set; }
 
         private Message Message;
-        private ServerEndPoint Server;
-        private ProfileStorage OriginalProfiling;
+        private readonly ServerEndPoint Server;
+        private readonly ProfileStorage OriginalProfiling;
 
         private DateTime MessageCreatedDateTime;
         private long MessageCreatedTimeStamp;
@@ -47,7 +47,7 @@ namespace StackExchange.Redis
         private long ResponseReceivedTimeStamp;
         private long CompletedTimeStamp;
 
-        private ConcurrentProfileStorageCollection PushToWhenFinished;
+        private readonly ConcurrentProfileStorageCollection PushToWhenFinished;
 
         private ProfileStorage(ConcurrentProfileStorageCollection pushTo, ServerEndPoint server, ProfileStorage resentFor, RetransmissionReasonType? reason)
         {
@@ -70,7 +70,7 @@ namespace StackExchange.Redis
         public void SetMessage(Message msg)
         {
             // This method should never be called twice
-            if (Message != null) throw new InvalidOperationException();
+            if (Message != null) throw new InvalidOperationException($"{nameof(SetMessage)} called more than once");
 
             Message = msg;
             MessageCreatedDateTime = msg.createdDateTime;
@@ -80,7 +80,7 @@ namespace StackExchange.Redis
         public void SetEnqueued()
         {
             // This method should never be called twice
-            if (EnqueuedTimeStamp > 0) throw new InvalidOperationException();
+            if (EnqueuedTimeStamp > 0) throw new InvalidOperationException($"{nameof(SetEnqueued)} called more than once");
 
             EnqueuedTimeStamp = Stopwatch.GetTimestamp();
         }
@@ -88,14 +88,14 @@ namespace StackExchange.Redis
         public void SetRequestSent()
         {
             // This method should never be called twice
-            if (RequestSentTimeStamp > 0) throw new InvalidOperationException();
+            if (RequestSentTimeStamp > 0) throw new InvalidOperationException($"{nameof(SetRequestSent)} called more than once");
 
             RequestSentTimeStamp = Stopwatch.GetTimestamp();
         }
 
         public void SetResponseReceived()
         {
-            if (ResponseReceivedTimeStamp > 0) throw new InvalidOperationException();
+            if (ResponseReceivedTimeStamp > 0) throw new InvalidOperationException($"{nameof(SetResponseReceived)} called more than once");
 
             ResponseReceivedTimeStamp = Stopwatch.GetTimestamp();
         }

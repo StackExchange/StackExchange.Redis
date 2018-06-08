@@ -50,15 +50,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The host of the client (typically an IP address)
         /// </summary>
-        public string Host
-        {
-            get
-            {
-                string host;
-                int port;
-                return Format.TryGetHostPort(Address, out host, out port) ? host : null;
-            }
-        }
+        public string Host => Format.TryGetHostPort(Address, out string host, out _) ? host : null;
 
         /// <summary>
         /// idle time of the connection in seconds
@@ -83,15 +75,8 @@ namespace StackExchange.Redis
         /// <summary>
         /// The port of the client
         /// </summary>
-        public int Port
-        {
-            get
-            {
-                string host;
-                int port;
-                return Format.TryGetHostPort(Address, out host, out port) ? port : 0;
-            }
-        }
+        public int Port => Format.TryGetHostPort(Address, out _, out int port) ? port : 0;
+
         /// <summary>
         /// The raw content from redis
         /// </summary>
@@ -130,7 +115,7 @@ namespace StackExchange.Redis
             {
                 if (SubscriptionCount != 0 || PatternSubscriptionCount != 0) return ClientType.PubSub;
                 if ((Flags & ClientFlags.Slave) != 0) return ClientType.Slave;
-                return ClientType.Normal;                
+                return ClientType.Normal;
             }
         }
 
@@ -144,8 +129,10 @@ namespace StackExchange.Redis
                 string line;
                 while ((line = reader.ReadLine()) != null)
                 {
-                    var client = new ClientInfo();
-                    client.Raw = line;
+                    var client = new ClientInfo
+                    {
+                        Raw = line
+                    };
                     string[] tokens = line.Split(StringSplits.Space);
                     for (int i = 0; i < tokens.Length; i++)
                     {
@@ -189,7 +176,7 @@ namespace StackExchange.Redis
             return clients.ToArray();
         }
 
-        static void AddFlag(ref ClientFlags value, string raw, ClientFlags toAdd, char token)
+        private static void AddFlag(ref ClientFlags value, string raw, ClientFlags toAdd, char token)
         {
             if (raw.IndexOf(token) >= 0) value |= toAdd;
         }

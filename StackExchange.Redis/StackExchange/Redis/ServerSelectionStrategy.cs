@@ -8,7 +8,7 @@ namespace StackExchange.Redis
     {
         public const int NoSlot = -1, MultipleSlots = -2;
         private const int RedisClusterSlotCount = 16384;
-        static readonly ushort[] crc16tab =
+        private static readonly ushort[] crc16tab =
             {
                 0x0000,0x1021,0x2042,0x3063,0x4084,0x50a5,0x60c6,0x70e7,
                 0x8108,0x9129,0xa14a,0xb16b,0xc18c,0xd1ad,0xe1ce,0xf1ef,
@@ -49,19 +49,18 @@ namespace StackExchange.Redis
 
         private ServerEndPoint[] map;
 
-        private ServerType serverType = ServerType.Standalone;
-
         public ServerSelectionStrategy(ConnectionMultiplexer multiplexer)
         {
             this.multiplexer = multiplexer;
         }
 
-        public ServerType ServerType { get { return serverType; } set { serverType = value; } }
+        public ServerType ServerType { get; set; } = ServerType.Standalone;
         internal int TotalSlots => RedisClusterSlotCount;
 
         /// <summary>
         /// Computes the hash-slot that would be used by the given key
         /// </summary>
+        /// <param name="key">The <see cref="RedisKey"/> to determine a slot ID for.</param>
         public unsafe int HashSlot(RedisKey key)
         {
             //HASH_SLOT = CRC16(key) mod 16384
@@ -92,7 +91,7 @@ namespace StackExchange.Redis
         {
             if (message == null) throw new ArgumentNullException(nameof(message));
             int slot = NoSlot;
-            switch (serverType)
+            switch (ServerType)
             {
                 case ServerType.Cluster:
                 case ServerType.Twemproxy: // strictly speaking twemproxy uses a different hashing algo, but the hash-tag behavior is
@@ -101,14 +100,13 @@ namespace StackExchange.Redis
                     slot = message.GetHashSlot(this);
                     if (slot == MultipleSlots) throw ExceptionFactory.MultiSlot(multiplexer.IncludeDetailInExceptions, message);
                     break;
-
             }
             return Select(slot, message.Command, message.Flags);
         }
 
         public ServerEndPoint Select(int db, RedisCommand command, RedisKey key, CommandFlags flags)
         {
-            int slot = serverType == ServerType.Cluster ? HashSlot(key) : NoSlot;
+            int slot = ServerType == ServerType.Cluster ? HashSlot(key) : NoSlot;
             return Select(slot, command, flags);
         }
 
@@ -116,7 +114,7 @@ namespace StackExchange.Redis
         {
             try
             {
-                if (serverType == ServerType.Standalone || hashSlot < 0 || hashSlot >= RedisClusterSlotCount) return false;
+                if (ServerType == ServerType.Standalone || hashSlot < 0 || hashSlot >= RedisClusterSlotCount) return false;
 
                 ServerEndPoint server = multiplexer.GetServerEndPoint(endpoint);
                 if (server != null)
@@ -184,14 +182,16 @@ namespace StackExchange.Redis
             if (oldSlot == NoSlot) return newSlot;
             return oldSlot == newSlot ? oldSlot : MultipleSlots;
         }
+
         internal int CombineSlot(int oldSlot, RedisKey key)
         {
             if (oldSlot == MultipleSlots || key.IsNull) return oldSlot;
 
-            int newSlot = HashSlot(key);             
+            int newSlot = HashSlot(key);
             if (oldSlot == NoSlot) return newSlot;
             return oldSlot == newSlot ? oldSlot : MultipleSlots;
         }
+
         internal int CountCoveredSlots()
         {
             var arr = map;
@@ -211,7 +211,7 @@ namespace StackExchange.Redis
             }
         }
 
-        static unsafe int IndexOf(byte* ptr, byte value, int start, int end)
+        private static unsafe int IndexOf(byte* ptr, byte value, int start, int end)
         {
             for (int offset = start; offset < end; offset++)
                 if (ptr[offset] == value) return offset;
@@ -220,7 +220,7 @@ namespace StackExchange.Redis
 
         private ServerEndPoint Any(RedisCommand command, CommandFlags flags)
         {
-            return multiplexer.AnyConnected(serverType, (uint)Interlocked.Increment(ref anyStartOffset), command, flags);
+            return multiplexer.AnyConnected(ServerType, (uint)Interlocked.Increment(ref anyStartOffset), command, flags);
         }
 
         private ServerEndPoint FindMaster(ServerEndPoint endpoint, RedisCommand command)
@@ -273,7 +273,7 @@ namespace StackExchange.Redis
 
             ServerEndPoint endpoint = arr[slot], testing;
             // but: ^^^ is the MASTER slots; if we want a slave, we need to do some thinking
-            
+
             if (endpoint != null)
             {
                 switch (flags)

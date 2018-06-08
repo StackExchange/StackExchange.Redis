@@ -20,7 +20,7 @@ namespace StackExchange.Redis.Tests
         public void CheckSignatures(Type type, bool isAsync)
         {
             // check that all methods and interfaces look appropriate for their sync/async nature
-            CheckName(type.GetTypeInfo(), isAsync);
+            CheckName(type, isAsync);
             var members = type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly);
             foreach (var member in members)
             {
@@ -32,9 +32,9 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void ShowReadOnlyOperations()
         {
-            var msg = typeof(ConnectionMultiplexer).GetTypeInfo().Assembly.GetType("StackExchange.Redis.Message");
+            var msg = typeof(ConnectionMultiplexer).Assembly.GetType("StackExchange.Redis.Message");
             Assert.NotNull(msg);
-            var cmd = typeof(ConnectionMultiplexer).GetTypeInfo().Assembly.GetType("StackExchange.Redis.RedisCommand");
+            var cmd = typeof(ConnectionMultiplexer).Assembly.GetType("StackExchange.Redis.RedisCommand");
             Assert.NotNull(cmd);
             var masterOnlyMethod = msg.GetMethod(nameof(Message.IsMasterOnly), BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
             Assert.NotNull(masterOnlyMethod);
@@ -103,7 +103,7 @@ namespace StackExchange.Redis.Tests
             {
                 if (UsesKey(type.GetElementType())) return true;
             }
-            if (type.GetTypeInfo().IsGenericType) // KVP, etc
+            if (type.IsGenericType) // KVP, etc
             {
                 var args = type.GetGenericArguments();
                 if (args.Any(UsesKey)) return true;
@@ -156,7 +156,7 @@ namespace StackExchange.Redis.Tests
                 {
                     huntType = null;
                 }
-                else if (method.ReturnType.GetTypeInfo().IsSubclassOf(typeof(Task)))
+                else if (method.ReturnType.IsSubclassOf(typeof(Task)))
                 {
                     huntType = method.ReturnType.GetGenericArguments()[0];
                 }
@@ -168,12 +168,7 @@ namespace StackExchange.Redis.Tests
                 Type[] args = pFrom.Select(x => x.ParameterType).ToArray();
                 Output.WriteLine("Checking: {0}.{1}", from.Name, method.Name);
                 Assert.Equal(typeof(CommandFlags), args.Last());
-#if !CORE_CLR
                 var found = to.GetMethod(huntName, flags, null, method.CallingConvention, args, null);
-#else
-                var found = to.GetMethods(flags)
-                    .SingleOrDefault(m => m.Name == huntName && m.HasMatchingParameterTypes(args));
-#endif
                 Assert.NotNull(found); // "Found " + name + ", no " + huntName
                 var pTo = found.GetParameters();
 
@@ -188,22 +183,14 @@ namespace StackExchange.Redis.Tests
             Output.WriteLine("Validated: {0} ({1} methods)", from.Name, count);
         }
 
-        private static readonly Type ignoreType = typeof(ConnectionMultiplexer).GetTypeInfo().Assembly.GetType("StackExchange.Redis.IgnoreNamePrefixAttribute");
+        private static readonly Type ignoreType = typeof(ConnectionMultiplexer).Assembly.GetType("StackExchange.Redis.IgnoreNamePrefixAttribute");
         private void CheckMethod(MethodInfo method, bool isAsync)
         {
 #if DEBUG
-#if !CORE_CLR
             bool ignorePrefix = ignoreType != null && Attribute.IsDefined(method, ignoreType);
-#else
-            bool ignorePrefix = ignoreType != null && method.IsDefined(ignoreType);
-#endif
             if (ignorePrefix)
             {
-#if !CORE_CLR
                 Attribute attrib = Attribute.GetCustomAttribute(method, ignoreType);
-#else
-                Attribute attrib = method.GetCustomAttribute(ignoreType);
-#endif
                 if ((bool)attrib.GetType().GetProperty("IgnoreEntireMethod").GetValue(attrib))
                 {
                     return;
@@ -249,35 +236,5 @@ namespace StackExchange.Redis.Tests
             if (isAsync) Assert.True(member.Name.EndsWith("Async"), member.Name + ":Name - end *Async");
             else Assert.False(member.Name.EndsWith("Async"), member.Name + ":Name - don't end *Async");
         }
-    }
-
-    public static class ReflectionExtensions
-    {
-#if !CORE_CLR
-        public static Type GetTypeInfo(this Type type)
-        {
-            return type;
-        }
-
-#else
-        public static bool HasMatchingParameterTypes(this MethodInfo method, Type[] paramTypes)
-        {
-            var types = method.GetParameters().Select(pi => pi.ParameterType).ToArray();
-            if (types.Length != paramTypes.Length)
-            {
-                return false;
-            }
-
-            for (int i = 0; i < types.Length; i++)
-            {
-                if (types[i] != paramTypes[i])
-                {
-                    return false;
-                }
-            }
-
-            return true;
-        }
-#endif
     }
 }

@@ -7,9 +7,9 @@ using System;
 
 namespace BasicTest
 {
-    static class Program
+    internal static class Program
     {
-        static void Main()
+        public static void Main()
         {
             using (var conn = ConnectionMultiplexer.Connect("127.0.0.1:6379"))
             {
@@ -26,7 +26,6 @@ namespace BasicTest
 
                 Console.WriteLine(s);
                 Console.WriteLine(db.KeyExists(key));
-
             }
         }
 

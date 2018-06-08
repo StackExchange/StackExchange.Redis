@@ -1,4 +1,3 @@
-
 using System;
 
 namespace StackExchange.Redis
@@ -40,11 +39,11 @@ namespace StackExchange.Redis
         /// Indicate the member being represented
         /// </summary>
         public override string ToString() => Member.ToString();
+
         /// <summary>
         /// The matched member.
         /// </summary>
         public RedisValue Member { get; }
-
 
         /// <summary>
         /// The distance of the matched member from the center of the geo radius command.
@@ -65,6 +64,10 @@ namespace StackExchange.Redis
         /// <summary>
         /// Returns a new GeoRadiusResult
         /// </summary>
+        /// <param name="member">The value from the result.</param>
+        /// <param name="distance">Tthe distance from the result.</param>
+        /// <param name="hash">The hash of the result.</param>
+        /// <param name="position">The geo position of the result.</param>
         internal GeoRadiusResult(RedisValue member, double? distance, long? hash, GeoPosition? position)
         {
             Member = member;
@@ -116,47 +119,42 @@ namespace StackExchange.Redis
         /// <summary>
         /// See Object.ToString()
         /// </summary>
-        public override string ToString()
-        {
-            return string.Format("{0} {1}", Longitude, Latitude);
-        }
+        public override string ToString() => string.Format("{0} {1}", Longitude, Latitude);
+
         /// <summary>
         /// See Object.GetHashCode()
         /// Diagonals not an issue in the case of lat/long
         /// </summary>
-        public override int GetHashCode()
-        {
-            // diagonals not an issue in the case of lat/long
-            return Longitude.GetHashCode() ^ Latitude.GetHashCode();
-        }
+        /// <remarks>
+        /// Diagonals are not an issue in the case of lat/long.
+        /// </remarks>
+        public override int GetHashCode() => Longitude.GetHashCode() ^ Latitude.GetHashCode();
+
         /// <summary>
         /// Compares two values for equality
         /// </summary>
-        public override bool Equals(object obj)
-        {
-            return obj is GeoPosition && Equals((GeoPosition)obj);
-        }
+        /// <param name="obj">The <see cref="GeoPosition"/> to compare to.</param>
+        public override bool Equals(object obj) => obj is GeoPosition gpObj && Equals(gpObj);
+
         /// <summary>
         /// Compares two values for equality
         /// </summary>
-        public bool Equals(GeoPosition value)
-        {
-            return this == value;
-        }
+        /// <param name="other">The <see cref="GeoPosition"/> to compare to.</param>
+        public bool Equals(GeoPosition other) => this == other;
+
         /// <summary>
         /// Compares two values for equality
         /// </summary>
-        public static bool operator ==(GeoPosition x, GeoPosition y)
-        {
-            return x.Longitude == y.Longitude && x.Latitude == y.Latitude;
-        }
+        /// <param name="x">The first position to compare.</param>
+        /// <param name="y">The second position to compare.</param>
+        public static bool operator ==(GeoPosition x, GeoPosition y) => x.Longitude == y.Longitude && x.Latitude == y.Latitude;
+
         /// <summary>
         /// Compares two values for non-equality
         /// </summary>
-        public static bool operator !=(GeoPosition x, GeoPosition y)
-        {
-            return x.Longitude != y.Longitude || x.Latitude != y.Latitude;
-        }
+        /// <param name="x">The first position to compare.</param>
+        /// <param name="y">The second position to compare.</param>
+        public static bool operator !=(GeoPosition x, GeoPosition y) => x.Longitude != y.Longitude || x.Latitude != y.Latitude;
     }
 
     /// <summary>
@@ -178,13 +176,14 @@ namespace StackExchange.Redis
         /// <summary>
         /// Initializes a GeoEntry value
         /// </summary>
+        /// <param name="longitude">The longitude position to use.</param>
+        /// <param name="latitude">The latitude position to use.</param>
+        /// <param name="member">The value to store for this position.</param>
         public GeoEntry(double longitude, double latitude, RedisValue member)
         {
             Member = member;
             Position = new GeoPosition(longitude, latitude);
         }
-
-
 
         /// <summary>
         /// The longitude of the geo entry
@@ -199,44 +198,37 @@ namespace StackExchange.Redis
         /// <summary>
         /// See Object.ToString()
         /// </summary>
-        public override string ToString()
-        {
-            return $"({Longitude},{Latitude})={Member}";
-        }
+        public override string ToString() => $"({Longitude},{Latitude})={Member}";
+
         /// <summary>
         /// See Object.GetHashCode()
         /// </summary>
-        public override int GetHashCode()
-        {
-            return Position.GetHashCode() ^ Member.GetHashCode();
-        }
+        public override int GetHashCode() => Position.GetHashCode() ^ Member.GetHashCode();
+
         /// <summary>
         /// Compares two values for equality
         /// </summary>
-        public override bool Equals(object obj)
-        {
-            return obj is GeoEntry && Equals((GeoEntry)obj);
-        }
+        /// <param name="obj">The <see cref="GeoEntry"/> to compare to.</param>
+        public override bool Equals(object obj) => obj is GeoEntry geObj && Equals(geObj);
+
         /// <summary>
         /// Compares two values for equality
         /// </summary>
-        public bool Equals(GeoEntry value)
-        {
-            return this == value;
-        }
+        /// <param name="other">The <see cref="GeoEntry"/> to compare to.</param>
+        public bool Equals(GeoEntry other) => this == other;
+
         /// <summary>
         /// Compares two values for equality
         /// </summary>
-        public static bool operator ==(GeoEntry x, GeoEntry y)
-        {
-            return x.Position == y.Position && x.Member == y.Member;
-        }
+        /// <param name="x">The first entry to compare.</param>
+        /// <param name="y">The second entry to compare.</param>
+        public static bool operator ==(GeoEntry x, GeoEntry y) => x.Position == y.Position && x.Member == y.Member;
+
         /// <summary>
         /// Compares two values for non-equality
         /// </summary>
-        public static bool operator !=(GeoEntry x, GeoEntry y)
-        {
-            return x.Position != y.Position || x.Member != y.Member;
-        }
+        /// <param name="x">The first entry to compare.</param>
+        /// <param name="y">The second entry to compare.</param>
+        public static bool operator !=(GeoEntry x, GeoEntry y) => x.Position != y.Position || x.Member != y.Member;
     }
 }

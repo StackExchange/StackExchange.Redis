@@ -18,16 +18,19 @@ namespace StackExchange.Redis
         /// <summary>
         /// Adds a precondition for this transaction
         /// </summary>
+        /// <param name="condition">The condition to add to the transaction.</param>
         ConditionResult AddCondition(Condition condition);
 
         /// <summary>
         /// Execute the batch operation, sending all queued commands to the server.
         /// </summary>
+        /// <param name="flags">The command flags to use.</param>
         bool Execute(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Execute the batch operation, sending all queued commands to the server.
         /// </summary>
+        /// <param name="flags">The command flags to use.</param>
         Task<bool> ExecuteAsync(CommandFlags flags = CommandFlags.None);
     }
 }

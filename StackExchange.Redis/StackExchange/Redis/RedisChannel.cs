@@ -10,27 +10,36 @@ namespace StackExchange.Redis
     {
         internal static readonly RedisChannel[] EmptyArray = new RedisChannel[0];
 
-        private readonly byte[] value;
+        internal readonly byte[] Value;
+        internal readonly bool IsPatternBased;
+
+        /// <summary>
+        /// Indicates whether the channel-name is either null or a zero-length value
+        /// </summary>
+        public bool IsNullOrEmpty => Value == null || Value.Length == 0;
+
+        internal bool IsNull => Value == null;
 
         /// <summary>
         /// Create a new redis channel from a buffer, explicitly controlling the pattern mode
         /// </summary>
-        public RedisChannel(byte[] value, PatternMode mode) : this(value, DeterminePatternBased(value, mode))
-        {   
-        }
+        /// <param name="value">The name of the channel to create.</param>
+        /// <param name="mode">The mode for name matching.</param>
+        public RedisChannel(byte[] value, PatternMode mode) : this(value, DeterminePatternBased(value, mode)) {}
 
         /// <summary>
         /// Create a new redis channel from a string, explicitly controlling the pattern mode
         /// </summary>
-        public RedisChannel(string value, PatternMode mode) : this(value == null ? null : Encoding.UTF8.GetBytes(value), mode)
-        {
-        }
-        
+        /// <param name="value">The string name of the channel to create.</param>
+        /// <param name="mode">The mode for name matching.</param>
+        public RedisChannel(string value, PatternMode mode) : this(value == null ? null : Encoding.UTF8.GetBytes(value), mode) {}
+
         private RedisChannel(byte[] value, bool isPatternBased)
         {
-            this.value = value;
+            Value = value;
             IsPatternBased = isPatternBased;
         }
+
         private static bool DeterminePatternBased(byte[] value, PatternMode mode)
         {
             switch (mode)
@@ -45,110 +54,95 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Indicates whether the channel-name is either null or a zero-length value
+        /// Indicate whether two channel names are not equal
         /// </summary>
-        public bool IsNullOrEmpty => value == null || value.Length == 0;
-
-        internal bool IsNull => value == null;
-
-        internal byte[] Value => value;
+        /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
+        /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
+        public static bool operator !=(RedisChannel x, RedisChannel y) => !(x == y);
 
         /// <summary>
         /// Indicate whether two channel names are not equal
         /// </summary>
-        public static bool operator !=(RedisChannel x, RedisChannel y)
-        {
-            return !(x == y);
-        }
+        /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
+        /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
+        public static bool operator !=(string x, RedisChannel y) => !(x == y);
 
         /// <summary>
         /// Indicate whether two channel names are not equal
         /// </summary>
-        public static bool operator !=(string x, RedisChannel y)
-        {
-            return !(x == y);
-        }
+        /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
+        /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
+        public static bool operator !=(byte[] x, RedisChannel y) => !(x == y);
 
         /// <summary>
         /// Indicate whether two channel names are not equal
         /// </summary>
-        public static bool operator !=(byte[] x, RedisChannel y)
-        {
-            return !(x == y);
-        }
+        /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
+        /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
+        public static bool operator !=(RedisChannel x, string y) => !(x == y);
 
         /// <summary>
         /// Indicate whether two channel names are not equal
         /// </summary>
-        public static bool operator !=(RedisChannel x, string y)
-        {
-            return !(x == y);
-        }
-
-        /// <summary>
-        /// Indicate whether two channel names are not equal
-        /// </summary>
-        public static bool operator !=(RedisChannel x, byte[] y)
-        {
-            return !(x == y);
-        }
+        /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
+        /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
+        public static bool operator !=(RedisChannel x, byte[] y) => !(x == y);
 
         /// <summary>
         /// Indicate whether two channel names are equal
         /// </summary>
-        public static bool operator ==(RedisChannel x, RedisChannel y)
-        {
-            return x.IsPatternBased == y.IsPatternBased && RedisValue.Equals(x.value, y.value);
-        }
+        /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
+        /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
+        public static bool operator ==(RedisChannel x, RedisChannel y) =>
+            x.IsPatternBased == y.IsPatternBased && RedisValue.Equals(x.Value, y.Value);
 
         /// <summary>
         /// Indicate whether two channel names are equal
         /// </summary>
-        public static bool operator ==(string x, RedisChannel y)
-        {
-            return RedisValue.Equals(x == null ? null : Encoding.UTF8.GetBytes(x), y.value);
-        }
+        /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
+        /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
+        public static bool operator ==(string x, RedisChannel y) =>
+            RedisValue.Equals(x == null ? null : Encoding.UTF8.GetBytes(x), y.Value);
 
         /// <summary>
         /// Indicate whether two channel names are equal
         /// </summary>
-        public static bool operator ==(byte[] x, RedisChannel y)
-        {
-            return RedisValue.Equals(x, y.value);
-        }
+        /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
+        /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
+        public static bool operator ==(byte[] x, RedisChannel y) => RedisValue.Equals(x, y.Value);
 
         /// <summary>
         /// Indicate whether two channel names are equal
         /// </summary>
-        public static bool operator ==(RedisChannel x, string y)
-        {
-            return RedisValue.Equals(x.value, y == null ? null : Encoding.UTF8.GetBytes(y));
-        }
+        /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
+        /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
+        public static bool operator ==(RedisChannel x, string y) =>
+            RedisValue.Equals(x.Value, y == null ? null : Encoding.UTF8.GetBytes(y));
 
         /// <summary>
         /// Indicate whether two channel names are equal
         /// </summary>
-        public static bool operator ==(RedisChannel x, byte[] y)
-        {
-            return RedisValue.Equals(x.value, y);
-        }
+        /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
+        /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
+        public static bool operator ==(RedisChannel x, byte[] y) => RedisValue.Equals(x.Value, y);
 
         /// <summary>
         /// See Object.Equals
         /// </summary>
+        /// <param name="obj">The <see cref="RedisChannel"/> to compare to.</param>
         public override bool Equals(object obj)
         {
-            if (obj is RedisChannel)
+            if (obj is RedisChannel rcObj)
             {
-                return RedisValue.Equals(value, ((RedisChannel)obj).value);
+                return RedisValue.Equals(Value, (rcObj).Value);
             }
-            if (obj is string)
+            if (obj is string sObj)
             {
-                return RedisValue.Equals(value, Encoding.UTF8.GetBytes((string)obj));
+                return RedisValue.Equals(Value, Encoding.UTF8.GetBytes(sObj));
             }
-            if (obj is byte[])
+            if (obj is byte[] bObj)
             {
-                return RedisValue.Equals(value, (byte[])obj);
+                return RedisValue.Equals(Value, bObj);
             }
             return false;
         }
@@ -156,19 +150,13 @@ namespace StackExchange.Redis
         /// <summary>
         /// Indicate whether two channel names are equal
         /// </summary>
-        public bool Equals(RedisChannel other)
-        {
-            return IsPatternBased == other.IsPatternBased &&
-                RedisValue.Equals(value, other.value);
-        }
+        /// <param name="other">The <see cref="RedisChannel"/> to compare to.</param>
+        public bool Equals(RedisChannel other) => IsPatternBased == other.IsPatternBased && RedisValue.Equals(Value, other.Value);
 
         /// <summary>
         /// See Object.GetHashCode
         /// </summary>
-        public override int GetHashCode()
-        {
-            return RedisValue.GetHashCode(value) + (IsPatternBased ? 1 : 0);
-        }
+        public override int GetHashCode() => RedisValue.GetHashCode(Value) + (IsPatternBased ? 1 : 0);
 
         /// <summary>
         /// Obtains a string representation of the channel name
@@ -192,13 +180,7 @@ namespace StackExchange.Redis
             if (IsNull) throw new ArgumentException("A null key is not valid in this context");
         }
 
-        internal RedisChannel Clone()
-        {
-            byte[] clone = (byte[]) value?.Clone();
-            return clone;
-        }
-
-        internal readonly bool IsPatternBased;
+        internal RedisChannel Clone() => (byte[])Value?.Clone();
 
         /// <summary>
         /// The matching pattern for this channel
@@ -218,35 +200,40 @@ namespace StackExchange.Redis
             /// </summary>
             Pattern = 2
         }
+
         /// <summary>
-        /// Create a channel name from a String
+        /// Create a channel name from a <see cref="string"/>.
         /// </summary>
+        /// <param name="key">The string to get a channel from.</param>
         public static implicit operator RedisChannel(string key)
         {
             if (key == null) return default(RedisChannel);
             return new RedisChannel(Encoding.UTF8.GetBytes(key), PatternMode.Auto);
         }
+
         /// <summary>
-        /// Create a channel name from a Byte[]
+        /// Create a channel name from a <see cref="T:byte[]"/>.
         /// </summary>
+        /// <param name="key">The byte array to get a channel from.</param>
         public static implicit operator RedisChannel(byte[] key)
         {
             if (key == null) return default(RedisChannel);
             return new RedisChannel(key, PatternMode.Auto);
         }
+
         /// <summary>
-        /// Obtain the channel name as a Byte[]
+        /// Obtain the channel name as a <see cref="T:byte[]"/>.
         /// </summary>
-        public static implicit operator byte[] (RedisChannel key)
-        {
-            return key.value;
-        }
+        /// <param name="key">The channel to get a byte[] from.</param>
+        public static implicit operator byte[] (RedisChannel key) => key.Value;
+
         /// <summary>
-        /// Obtain the channel name as a String
+        /// Obtain the channel name as a <see cref="string"/>.
         /// </summary>
+        /// <param name="key">The channel to get a string from.</param>
         public static implicit operator string (RedisChannel key)
         {
-            var arr = key.value;
+            var arr = key.Value;
             if (arr == null) return null;
             try
             {

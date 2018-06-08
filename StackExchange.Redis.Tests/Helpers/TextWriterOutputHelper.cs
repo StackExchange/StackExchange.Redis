@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 using System.Text;
 using Xunit.Abstractions;
 
@@ -10,6 +11,22 @@ namespace StackExchange.Redis.Tests.Helpers
         public override Encoding Encoding => Encoding.UTF8;
         private readonly ITestOutputHelper Output;
         public TextWriterOutputHelper(ITestOutputHelper outputHelper) => Output = outputHelper;
+
+        public override void WriteLine(string value)
+        {
+            try
+            {
+                base.Write(DateTime.UtcNow.ToString("HH:mm:ss.fff"));
+                base.Write(": ");
+                base.WriteLine(value);
+            }
+            catch (Exception ex)
+            {
+                Console.Write("Attempted to write: ");
+                Console.WriteLine(value);
+                Console.WriteLine(ex);
+            }
+        }
 
         public override void Write(char value)
         {

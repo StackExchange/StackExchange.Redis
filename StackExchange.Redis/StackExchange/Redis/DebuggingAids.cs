@@ -19,11 +19,15 @@ namespace StackExchange.Redis
         /// <summary>
         /// Show what is in the pending (unsent) queue
         /// </summary>
+        /// <param name="maxCount">The maximum count to list.</param>
         string ListPending(int maxCount);
 
         /// <summary>
         /// Get the value of key. If the key does not exist the special value nil is returned. An error is returned if the value stored at key is not a string, because GET only handles string values.
         /// </summary>
+        /// <param name="db">The database to get <paramref name="key"/> from.</param>
+        /// <param name="key">The key to get.</param>
+        /// <param name="flags">The command flags to use.</param>
         /// <returns>the value of key, or nil when key does not exist.</returns>
         /// <remarks>https://redis.io/commands/get</remarks>
         RedisValue StringGet(int db, RedisKey key, CommandFlags flags = CommandFlags.None);
@@ -31,6 +35,9 @@ namespace StackExchange.Redis
         /// <summary>
         /// Get the value of key. If the key does not exist the special value nil is returned. An error is returned if the value stored at key is not a string, because GET only handles string values.
         /// </summary>
+        /// <param name="db">The database to get <paramref name="key"/> from.</param>
+        /// <param name="key">The key to get.</param>
+        /// <param name="flags">The command flags to use.</param>
         /// <returns>the value of key, or nil when key does not exist.</returns>
         /// <remarks>https://redis.io/commands/get</remarks>
         Task<RedisValue> StringGetAsync(int db, RedisKey key, CommandFlags flags = CommandFlags.None);
@@ -49,6 +56,8 @@ namespace StackExchange.Redis
         /// <summary>
         /// CLIENT PAUSE is a connections control command able to suspend all the Redis clients for the specified amount of time (in milliseconds).
         /// </summary>
+        /// <param name="duration">The time span to hang for.</param>
+        /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/client-pause</remarks>
         void Hang(TimeSpan duration, CommandFlags flags = CommandFlags.None);
     }
@@ -58,6 +67,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The CLIENT GETNAME returns the name of the current connection as set by CLIENT SETNAME. Since every new connection starts without an associated name, if no name was assigned a null string is returned.
         /// </summary>
+        /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/client-getname</remarks>
         /// <returns>The connection name, or a null string if no name is set.</returns>
         string ClientGetName(CommandFlags flags = CommandFlags.None);
@@ -65,6 +75,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Ask the server to close the connection. The connection is closed as soon as all pending replies have been written to the client.
         /// </summary>
+        /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/quit</remarks>
         void Quit(CommandFlags flags = CommandFlags.None);
     }
@@ -74,6 +85,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The CLIENT GETNAME returns the name of the current connection as set by CLIENT SETNAME. Since every new connection starts without an associated name, if no name was assigned a null string is returned.
         /// </summary>
+        /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/client-getname</remarks>
         /// <returns>The connection name, or a null string if no name is set.</returns>
         Task<string> ClientGetNameAsync(CommandFlags flags = CommandFlags.None);
@@ -98,19 +110,15 @@ namespace StackExchange.Redis
     {
         internal void SimulateConnectionFailure()
         {
-            var tmp = interactive;
-            tmp?.SimulateConnectionFailure();
-            tmp = subscription;
-            tmp?.SimulateConnectionFailure();
+            interactive?.SimulateConnectionFailure();
+            subscription?.SimulateConnectionFailure();
         }
 
         internal string ListPending(int maxCount)
         {
             var sb = new StringBuilder();
-            var tmp = interactive;
-            tmp?.ListPending(sb, maxCount);
-            tmp = subscription;
-            tmp?.ListPending(sb, maxCount);
+            interactive?.ListPending(sb, maxCount);
+            subscription?.ListPending(sb, maxCount);
             return sb.ToString();
         }
     }
@@ -138,14 +146,11 @@ namespace StackExchange.Redis
     {
         private static long asyncCompletionWorkerCount;
 
-        partial void OnCompletedAsync()
-        {
-            Interlocked.Increment(ref asyncCompletionWorkerCount);
-        }
-        internal static long GetAsyncCompletionWorkerCount()
-        {
-            return Interlocked.Read(ref asyncCompletionWorkerCount);
-        }
+#pragma warning disable RCS1047 // Non-asynchronous method name should not end with 'Async'.
+        partial void OnCompletedAsync() => Interlocked.Increment(ref asyncCompletionWorkerCount);
+#pragma warning restore RCS1047 // Non-asynchronous method name should not end with 'Async'.
+
+        internal static long GetAsyncCompletionWorkerCount() => Interlocked.Read(ref asyncCompletionWorkerCount);
     }
 
     public partial class ConnectionMultiplexer
@@ -153,22 +158,20 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets how many result-box instances were allocated
         /// </summary>
-        public static long GetResultBoxAllocationCount()
-        {
-            return ResultBox.GetAllocationCount();
-        }
+        public static long GetResultBoxAllocationCount() => ResultBox.GetAllocationCount();
+
         /// <summary>
         /// Gets how many async completion workers were queueud
         /// </summary>
-        public static long GetAsyncCompletionWorkerCount()
-        {
-            return CompletionManager.GetAsyncCompletionWorkerCount();
-        }
+        public static long GetAsyncCompletionWorkerCount() => CompletionManager.GetAsyncCompletionWorkerCount();
+
+        private volatile bool allowConnect = true,
+                              ignoreConnect = false;
+
         /// <summary>
         /// For debugging; when not enabled, servers cannot connect
         /// </summary>
         public bool AllowConnect { get { return allowConnect; } set { allowConnect = value; } }
-        private volatile bool allowConnect = true, ignoreConnect = false;
 
         /// <summary>
         /// For debugging; when not enabled, end-connect is silently ignored (to simulate a long-running connect)
@@ -181,16 +184,6 @@ namespace StackExchange.Redis
         partial void ShouldIgnoreConnect(ISocketCallback callback, ref bool ignore)
         {
             ignore = callback.IgnoreConnect;
-        }
-
-        /// <summary>
-        /// Completion type for BeginConnect call
-        /// </summary>
-        public static CompletionType ConnectCompletionType { get; set; }
-
-        partial void ShouldForceConnectCompletionType(ref CompletionType completionType)
-        {
-            completionType = SocketManager.ConnectCompletionType;
         }
     }
 
@@ -267,26 +260,7 @@ namespace StackExchange.Redis
     }
 #endif
 
-    /// <summary>
-    /// Completion type for CompletionTypeHelper
-    /// </summary>
-    public enum CompletionType
-    {
-        /// <summary>
-        /// Retain original completion type (either sync or async)
-        /// </summary>
-        Any = 0,
-        /// <summary>
-        /// Force sync completion
-        /// </summary>
-        Sync = 1,
-        /// <summary>
-        /// Force async completion
-        /// </summary>
-        Async = 2
-    }
-#if !CORE_CLR
-
+#if FEATURE_PERFCOUNTER
     internal static class PerfCounterHelper
     {
         private static readonly object staticLock = new object();
@@ -330,48 +304,6 @@ namespace StackExchange.Redis
                 return true;
             }
             return false;
-        }
-    }
-
-    internal static class CompletionTypeHelper
-    {
-        public static void RunWithCompletionType(Func<AsyncCallback, IAsyncResult> beginAsync, AsyncCallback callback, CompletionType completionType)
-        {
-            AsyncCallback proxyCallback;
-            if (completionType == CompletionType.Any)
-            {
-                proxyCallback =  (ar) =>
-                {
-                    if (!ar.CompletedSynchronously)
-                    {
-                        callback(ar);
-                    }
-                };
-            }
-            else
-            {
-                proxyCallback = (ar) => { };
-            }
-
-            var result = beginAsync(proxyCallback);
-
-            if (completionType == CompletionType.Any && !result.CompletedSynchronously)
-            {
-                return;
-            }
-
-            result.AsyncWaitHandle.WaitOne();
-
-            switch (completionType)
-            {
-                case CompletionType.Async:
-                    ThreadPool.QueueUserWorkItem((s) => callback(result));
-                    break;
-                case CompletionType.Any:
-                case CompletionType.Sync:
-                    callback(result);
-                    break;
-            }
         }
     }
 #endif

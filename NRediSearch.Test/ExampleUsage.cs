@@ -8,19 +8,21 @@ namespace NRediSearch.Test
 {
     public class ExampleUsage : IDisposable
     {
-        ConnectionMultiplexer conn;
-        IDatabase db;
+        private ConnectionMultiplexer conn;
+        private IDatabase db;
         public ExampleUsage()
         {
             conn = ConnectionMultiplexer.Connect("127.0.0.1:6379");
             db = conn.GetDatabase();
         }
+
         public void Dispose()
         {
             conn?.Dispose();
             conn = null;
             db = null;
         }
+
         [Fact]
         public void BasicUsage()
         {
@@ -33,17 +35,35 @@ namespace NRediSearch.Test
                 .AddTextField("title", 5.0)
                 .AddTextField("body", 1.0)
                 .AddNumericField("price");
-            
-            Assert.True(client.CreateIndex(sc, Client.IndexOptions.Default));
+
+            bool result = false;
+            try
+            {
+                result = client.CreateIndex(sc, Client.IndexOptions.Default);
+            }
+            catch (RedisServerException ex)
+            {
+                // TODO: Convert to Skip
+                if (ex.Message == "ERR unknown command 'FT.CREATE'")
+                {
+                    Console.WriteLine(ex.Message);
+                    Console.WriteLine("Module not installed, aborting");
+                    return; // the module isn't installed
+                }
+            }
+
+            Assert.True(result);
 
             // note: using java API equivalent here; it would be nice to
             // use meta-programming / reflection instead in .NET
 
             // Adding documents to the index:
-            var fields = new Dictionary<string, RedisValue>();
-            fields.Add("title", "hello world");
-            fields.Add("body", "lorem ipsum");
-            fields.Add("price", 1337);
+            var fields = new Dictionary<string, RedisValue>
+            {
+                ["title"] = "hello world",
+                ["body"] = "lorem ipsum",
+                ["price"] = 1337
+            };
 
             Assert.True(client.AddDocument("doc1", fields));
 
@@ -67,9 +87,6 @@ namespace NRediSearch.Test
             Assert.Equal("hello world", (string)item["title"]);
             Assert.Equal("lorem ipsum", (string)item["body"]);
             Assert.Equal(1337, (int)item["price"]);
-
-            
-
         }
     }
 }

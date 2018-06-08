@@ -6,20 +6,11 @@ namespace StackExchange.Redis
 {
     internal static class Format
     {
-        public static int ParseInt32(string s)
-        {
-            return int.Parse(s, NumberStyles.Integer, NumberFormatInfo.InvariantInfo);
-        }
+        public static int ParseInt32(string s) => int.Parse(s, NumberStyles.Integer, NumberFormatInfo.InvariantInfo);
 
-        public static long ParseInt64(string s)
-        {
-            return long.Parse(s, NumberStyles.Integer, NumberFormatInfo.InvariantInfo);
-        }
+        public static long ParseInt64(string s) => long.Parse(s, NumberStyles.Integer, NumberFormatInfo.InvariantInfo);
 
-        public static string ToString(int value)
-        {
-            return value.ToString(NumberFormatInfo.InvariantInfo);
-        }
+        public static string ToString(int value) => value.ToString(NumberFormatInfo.InvariantInfo);
 
         public static bool TryParseBoolean(string s, out bool value)
         {
@@ -43,23 +34,20 @@ namespace StackExchange.Redis
         {
             return int.TryParse(s, NumberStyles.Integer, NumberFormatInfo.InvariantInfo, out value);
         }
+
         internal static EndPoint ParseEndPoint(string host, int port)
         {
-            IPAddress ip;
-            if (IPAddress.TryParse(host, out ip)) return new IPEndPoint(ip, port);
+            if (IPAddress.TryParse(host, out IPAddress ip)) return new IPEndPoint(ip, port);
             return new DnsEndPoint(host, port);
         }
+
         internal static EndPoint TryParseEndPoint(string host, string port)
         {
             if (string.IsNullOrEmpty(host) || string.IsNullOrEmpty(port)) return null;
-            int i;
-            return TryParseInt32(port, out i) ? ParseEndPoint(host, i) : null;
+            return TryParseInt32(port, out int i) ? ParseEndPoint(host, i) : null;
         }
 
-        internal static string ToString(long value)
-        {
-            return value.ToString(NumberFormatInfo.InvariantInfo);
-        }
+        internal static string ToString(long value) => value.ToString(NumberFormatInfo.InvariantInfo);
 
         internal static string ToString(double value)
         {
@@ -71,36 +59,30 @@ namespace StackExchange.Redis
             return value.ToString("G17", NumberFormatInfo.InvariantInfo);
         }
 
-        internal static string ToString(object value)
-        {
-            return Convert.ToString(value, CultureInfo.InvariantCulture);
-        }
+        internal static string ToString(object value) => Convert.ToString(value, CultureInfo.InvariantCulture);
 
         internal static string ToString(EndPoint endpoint)
-        {   
-            var dns = endpoint as DnsEndPoint;
-            if (dns != null)
+        {
+            if (endpoint is DnsEndPoint dns)
             {
                 if (dns.Port == 0) return dns.Host;
                 return dns.Host + ":" + Format.ToString(dns.Port);
             }
-            var ip = endpoint as IPEndPoint;
-            if (ip != null)
+            if (endpoint is IPEndPoint ip)
             {
                 if (ip.Port == 0) return ip.Address.ToString();
-                return ip.Address.ToString() + ":" + Format.ToString(ip.Port);
+                return ip.Address + ":" + Format.ToString(ip.Port);
             }
             return endpoint?.ToString() ?? "";
         }
+
         internal static string ToStringHostOnly(EndPoint endpoint)
         {
-            var dns = endpoint as DnsEndPoint;
-            if (dns != null)
+            if (endpoint is DnsEndPoint dns)
             {
                 return dns.Host;
             }
-            var ip = endpoint as IPEndPoint;
-            if(ip != null)
+            if (endpoint is IPEndPoint ip)
             {
                 return ip.Address.ToString();
             }
@@ -111,16 +93,14 @@ namespace StackExchange.Redis
         {
             if (endpoint != null)
             {
-                if (endpoint is IPEndPoint)
+                if (endpoint is IPEndPoint ip)
                 {
-                    IPEndPoint ip = (IPEndPoint)endpoint;
                     host = ip.Address.ToString();
                     port = ip.Port;
                     return true;
                 }
-                if (endpoint is DnsEndPoint)
+                if (endpoint is DnsEndPoint dns)
                 {
-                    DnsEndPoint dns = (DnsEndPoint)endpoint;
                     host = dns.Host;
                     port = dns.Port;
                     return true;
@@ -133,29 +113,30 @@ namespace StackExchange.Redis
 
         internal static bool TryParseDouble(string s, out double value)
         {
-            if(string.IsNullOrEmpty(s))
+            if (string.IsNullOrEmpty(s))
             {
                 value = 0;
                 return false;
             }
-            if(s.Length==1 && s[0] >= '0' && s[0] <= '9')
+            if (s.Length == 1 && s[0] >= '0' && s[0] <= '9')
             {
                 value = (int)(s[0] - '0');
                 return true;
             }
             // need to handle these
-            if(string.Equals("+inf", s, StringComparison.OrdinalIgnoreCase) || string.Equals("inf", s, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals("+inf", s, StringComparison.OrdinalIgnoreCase) || string.Equals("inf", s, StringComparison.OrdinalIgnoreCase))
             {
                 value = double.PositiveInfinity;
                 return true;
             }
-            if(string.Equals("-inf", s, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals("-inf", s, StringComparison.OrdinalIgnoreCase))
             {
                 value = double.NegativeInfinity;
                 return true;
             }
             return double.TryParse(s, NumberStyles.Any, NumberFormatInfo.InvariantInfo, out value);
         }
+
         internal static EndPoint TryParseEndPoint(string endpoint)
         {
             if (string.IsNullOrWhiteSpace(endpoint)) return null;
@@ -172,11 +153,11 @@ namespace StackExchange.Redis
                 host = endpoint.Substring(0, i);
                 var portAsString = endpoint.Substring(i + 1);
                 if (string.IsNullOrEmpty(portAsString)) return null;
-                if (!Format.TryParseInt32(portAsString, out port)) return null;
+                if (!TryParseInt32(portAsString, out port)) return null;
             }
             if (string.IsNullOrWhiteSpace(host)) return null;
 
-            return Format.ParseEndPoint(host, port);
+            return ParseEndPoint(host, port);
         }
     }
 }

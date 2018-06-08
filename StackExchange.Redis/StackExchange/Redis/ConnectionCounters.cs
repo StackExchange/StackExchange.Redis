@@ -99,6 +99,7 @@ namespace StackExchange.Redis
             CompletedAsynchronously += other.CompletedAsynchronously;
             CompletedSynchronously += other.CompletedSynchronously;
             FailedAsynchronously += other.FailedAsynchronously;
+            NonPreferredEndpointCount += other.NonPreferredEndpointCount;
             OperationCount += other.OperationCount;
             PendingUnsentItems += other.PendingUnsentItems;
             ResponsesAwaitingAsyncCompletion += other.ResponsesAwaitingAsyncCompletion;
@@ -106,18 +107,23 @@ namespace StackExchange.Redis
             SocketCount += other.SocketCount;
             Subscriptions += other.Subscriptions;
             WriterCount += other.WriterCount;
-            NonPreferredEndpointCount += other.NonPreferredEndpointCount;
         }
 
         internal bool Any()
         {
-            return CompletedAsynchronously != 0 || CompletedSynchronously != 0
-                || FailedAsynchronously != 0 || OperationCount != 0
-                || PendingUnsentItems != 0 || ResponsesAwaitingAsyncCompletion != 0
-                || SentItemsAwaitingResponse != 0 || SocketCount != 0
-                || Subscriptions != 0 || WriterCount != 0
-                || NonPreferredEndpointCount != 0;
+            return CompletedAsynchronously != 0
+                || CompletedSynchronously != 0
+                || FailedAsynchronously != 0
+                || NonPreferredEndpointCount != 0
+                || OperationCount != 0
+                || PendingUnsentItems != 0
+                || ResponsesAwaitingAsyncCompletion != 0
+                || SentItemsAwaitingResponse != 0
+                || SocketCount != 0
+                || Subscriptions != 0
+                || WriterCount != 0;
         }
+
         internal void Append(StringBuilder sb)
         {
             sb.Append("ops=").Append(OperationCount).Append(", qu=").Append(PendingUnsentItems)

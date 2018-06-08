@@ -1,4 +1,5 @@
-﻿using System;
+﻿using StackExchange.Redis.Tests.Helpers;
+using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using Xunit;
@@ -9,7 +10,11 @@ namespace StackExchange.Redis.Tests.Booksleeve
     public class BookSleeveTestBase
     {
         public ITestOutputHelper Output { get; }
-        public BookSleeveTestBase(ITestOutputHelper output) => Output = output;
+        public BookSleeveTestBase(ITestOutputHelper output)
+        {
+            Output = output;
+            Output.WriteFrameworkVersion();
+        }
 
         static BookSleeveTestBase()
         {
