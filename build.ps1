@@ -3,10 +3,11 @@ param(
     [string] $Version,
     [string] $BuildNumber,
     [bool] $CreatePackages,
+    [switch] $StartServers,
     [bool] $RunTests = $true,
     [string] $PullRequestNumber
 )
-    
+
 function CalculateVersion() {
     if ($Version) {
         return $Version
@@ -65,6 +66,11 @@ if ($PullRequestNumber) {
 }
 
 if ($RunTests) {
+    if ($StartServers) {
+        Write-Host "Starting all servers for testing: $project (all frameworks)" -ForegroundColor "Magenta"
+        & .\RedisConfigs\start-all.cmd
+        Write-Host "Servers Started." -ForegroundColor "Green"
+    }
     dotnet restore /ConsoleLoggerParameters:Verbosity=Quiet
     foreach ($project in $testsToRun) {
         Write-Host "Running tests: $project (all frameworks)" -ForegroundColor "Magenta"
@@ -72,7 +78,7 @@ if ($RunTests) {
         Push-Location ".\$project"
 
         dotnet xunit -configuration Release
-        if ($LastExitCode -ne 0) { 
+        if ($LastExitCode -ne 0) {
             Write-Host "Error with tests, aborting build." -Foreground "Red"
             Pop-Location
             Exit 1
@@ -94,7 +100,7 @@ if ($CreatePackages) {
 
 foreach ($project in $projectsToBuild) {
     Write-Host "Working on $project`:" -ForegroundColor "Magenta"
-	
+
     #Push-Location ".\src\$project"
     Push-Location ".\$project"
 
@@ -109,7 +115,7 @@ foreach ($project in $projectsToBuild) {
 	Write-Host "$project... (Version:" -NoNewline -ForegroundColor "Magenta"
     Write-Host $semVer -NoNewline -ForegroundColor "Cyan"
     Write-Host ")" -ForegroundColor "Magenta"
-    
+
 
 	dotnet msbuild "/t:$targets" "/p:Configuration=Release" "/p:Version=$semVer" "/p:PackageOutputPath=$packageOutputFolder" "/p:CI=true"
 
