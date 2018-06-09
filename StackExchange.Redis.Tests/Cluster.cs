@@ -36,7 +36,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void ConnectUsesSingleSocket()
+        public async Task ConnectUsesSingleSocket()
         {
             using (var sw = new StringWriter())
             {
@@ -46,6 +46,7 @@ namespace StackExchange.Redis.Tests
                     {
                         using (var muxer = Create(failMessage: i + ": ", log: sw))
                         {
+                            await Task.Delay(100);
                             foreach (var ep in muxer.GetEndPoints())
                             {
                                 var srv = muxer.GetServer(ep);
