@@ -36,21 +36,38 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void ConnectUsesSingleSocket()
+        public async Task ConnectUsesSingleSocket()
         {
-            for (int i = 0; i < 10; i++)
+            using (var sw = new StringWriter())
             {
-                using (var muxer = Create(failMessage: i + ": "))
+                try
                 {
-                    foreach (var ep in muxer.GetEndPoints())
+                    for (int i = 0; i < 5; i++)
                     {
-                        var srv = muxer.GetServer(ep);
-                        var counters = srv.GetCounters();
-                        Output.WriteLine(i + "; interactive, " + ep);
-                        Assert.Equal(1, counters.Interactive.SocketCount);
-                        Output.WriteLine(i + "; subscription, " + ep);
-                        Assert.Equal(1, counters.Subscription.SocketCount);
+                        using (var muxer = Create(failMessage: i + ": ", log: sw))
+                        {
+                            await Task.Delay(500);
+                            foreach (var ep in muxer.GetEndPoints())
+                            {
+                                var srv = muxer.GetServer(ep);
+                                var counters = srv.GetCounters();
+                                Output.WriteLine($"{i}; interactive, {ep}, count: {counters.Interactive.SocketCount}");
+                                Output.WriteLine($"{i}; subscription, {ep}, count: {counters.Subscription.SocketCount}");
+                            }
+                            foreach (var ep in muxer.GetEndPoints())
+                            {
+                                var srv = muxer.GetServer(ep);
+                                var counters = srv.GetCounters();
+                                Assert.Equal(1, counters.Interactive.SocketCount);
+                                Assert.Equal(1, counters.Subscription.SocketCount);
+                            }
+                        }
                     }
+                }
+                finally
+                {
+                    // Connection info goes at the end...
+                    Output.WriteLine(sw.ToString());
                 }
             }
         }

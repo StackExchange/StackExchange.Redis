@@ -19,5 +19,6 @@ StackExchange.Redis.*.zip
 .idea/
 .vs/
 *.lock.json
+test-results*.xml
 packages/
 StackExchange.Redis.Tests/*Config.json
