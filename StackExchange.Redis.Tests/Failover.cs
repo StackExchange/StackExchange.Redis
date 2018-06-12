@@ -142,8 +142,8 @@ namespace StackExchange.Redis.Tests
                 Writer.WriteLine("Connecting to secondary validation connection.");
                 using (var conn2 = ConnectionMultiplexer.Connect(config))
                 {
-                    var primary2 = conn.GetServer(TestConfig.Current.FailoverMasterServerAndPort);
-                    var secondary2 = conn.GetServer(TestConfig.Current.FailoverSlaveServerAndPort);
+                    var primary2 = conn2.GetServer(TestConfig.Current.FailoverMasterServerAndPort);
+                    var secondary2 = conn2.GetServer(TestConfig.Current.FailoverSlaveServerAndPort);
 
                     Writer.WriteLine($"Check: {primary2.EndPoint}: {primary2.ServerType}, Mode: {(primary2.IsSlave ? "Slave" : "Master")}");
                     Writer.WriteLine($"Check: {secondary2.EndPoint}: {secondary2.ServerType}, Mode: {(secondary2.IsSlave ? "Slave" : "Master")}");
@@ -151,7 +151,7 @@ namespace StackExchange.Redis.Tests
                     Assert.False(primary2.IsSlave, $"{primary2.EndPoint} should be a master (verification connection).");
                     Assert.True(secondary2.IsSlave, $"{secondary2.EndPoint} should be a slave (verification connection).");
 
-                    var db2 = conn.GetDatabase();
+                    var db2 = conn2.GetDatabase();
 
                     Assert.Equal(primary2.EndPoint, db2.IdentifyEndpoint(key, CommandFlags.PreferMaster));
                     Assert.Equal(primary2.EndPoint, db2.IdentifyEndpoint(key, CommandFlags.DemandMaster));
