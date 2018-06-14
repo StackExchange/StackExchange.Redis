@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading;
@@ -250,7 +250,7 @@ namespace StackExchange.Redis
                         {
                             // need to get those sent ASAP; if they are stuck in the buffers, we die
                             multiplexer.Trace("Flushing and waiting for precondition responses");
-                            connection.Flush();
+                            connection.FlushAsync().Wait();
                             if (Monitor.Wait(lastBox, multiplexer.TimeoutMilliseconds))
                             {
                                 if (!AreAllConditionsSatisfied(multiplexer))
@@ -297,7 +297,7 @@ namespace StackExchange.Redis
                         if (explicitCheckForQueued && lastBox != null)
                         {
                             multiplexer.Trace("Flushing and waiting for precondition+queued responses");
-                            connection.Flush(); // make sure they get sent, so we can check for QUEUED (and the pre-conditions if necessary)
+                            connection.FlushAsync().Wait(); // make sure they get sent, so we can check for QUEUED (and the pre-conditions if necessary)
                             if (Monitor.Wait(lastBox, multiplexer.TimeoutMilliseconds))
                             {
                                 if (!AreAllConditionsSatisfied(multiplexer))

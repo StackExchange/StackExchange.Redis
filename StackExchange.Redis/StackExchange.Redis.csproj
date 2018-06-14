@@ -18,7 +18,7 @@
   </ItemGroup>
 
   <PropertyGroup Condition=" '$(TargetFramework)' == 'net45' or '$(TargetFramework)' == 'net46'">
-    <DefineConstants>$(DefineConstants);FEATURE_SOCKET_MODE_POLL;FEATURE_PERFCOUNTER;</DefineConstants>
+    <DefineConstants>$(DefineConstants);FEATURE_PERFCOUNTER;</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
@@ -27,9 +27,9 @@
     <PackageReference Include="System.Reflection.Emit.ILGeneration" Version="4.3.0" />
     <PackageReference Include="System.Reflection.Emit.Lightweight" Version="4.3.0" />
     
-    <!--<PackageReference Include="System.Memory" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Memory" Version="$(CoreFxVersion)" />
     <PackageReference Include="System.Buffers" Version="$(CoreFxVersion)" />
     <PackageReference Include="System.IO.Pipelines" Version="$(CoreFxVersion)" />
-    <PackageReference Include="Pipelines.Sockets.Unofficial" Version="0.2.0-alpha-001" />-->
+    <PackageReference Include="Pipelines.Sockets.Unofficial" Version="0.2.0-alpha-004" />
   </ItemGroup>
 </Project>

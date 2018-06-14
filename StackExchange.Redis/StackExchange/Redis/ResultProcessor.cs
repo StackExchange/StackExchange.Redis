@@ -393,11 +393,13 @@ namespace StackExchange.Redis
                 return script != null && sha1.IsMatch(script);
             }
 
+
+            internal const int Sha1HashLength = 20;
             internal static byte[] ParseSHA1(byte[] value)
             {
-                if (value?.Length == 40)
+                if (value?.Length == Sha1HashLength * 2)
                 {
-                    var tmp = new byte[20];
+                    var tmp = new byte[Sha1HashLength];
                     int charIndex = 0;
                     for (int i = 0; i < tmp.Length; i++)
                     {
@@ -412,9 +414,9 @@ namespace StackExchange.Redis
 
             internal static byte[] ParseSHA1(string value)
             {
-                if (value?.Length == 40 && sha1.IsMatch(value))
+                if (value?.Length == (Sha1HashLength * 2) && sha1.IsMatch(value))
                 {
-                    var tmp = new byte[20];
+                    var tmp = new byte[Sha1HashLength];
                     int charIndex = 0;
                     for (int i = 0; i < tmp.Length; i++)
                     {
@@ -442,7 +444,7 @@ namespace StackExchange.Redis
                 {
                     case ResultType.BulkString:
                         var asciiHash = result.GetBlob();
-                        if (asciiHash == null || asciiHash.Length != 40) return false;
+                        if (asciiHash == null || asciiHash.Length != (Sha1HashLength * 2)) return false;
 
                         byte[] hash = null;
                         if (!message.IsInternalCall)

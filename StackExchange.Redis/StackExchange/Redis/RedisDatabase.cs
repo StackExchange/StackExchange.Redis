@@ -2521,6 +2521,7 @@ namespace StackExchange.Redis
                 : this(db, flags, RedisCommand.EVAL, null, hash, keys, values)
             {
                 if (hash == null) throw new ArgumentNullException(nameof(hash));
+                if (hash.Length != ResultProcessor.ScriptLoadProcessor.Sha1HashLength) throw new ArgumentOutOfRangeException(nameof(hash), "Invalid hash length");
             }
 
             private ScriptEvalMessage(int db, CommandFlags flags, RedisCommand command, string script, byte[] hexHash, RedisKey[] keys, RedisValue[] values)
@@ -2571,7 +2572,7 @@ namespace StackExchange.Redis
                 if (hexHash != null)
                 {
                     physical.WriteHeader(RedisCommand.EVALSHA, 2 + keys.Length + values.Length);
-                    physical.WriteAsHex(hexHash);
+                    physical.WriteSha1AsHex(hexHash);
                 }
                 else if (asciiHash != null)
                 {

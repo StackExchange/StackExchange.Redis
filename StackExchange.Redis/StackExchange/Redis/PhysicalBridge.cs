@@ -5,6 +5,7 @@ using System.IO;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
@@ -267,21 +268,19 @@ namespace StackExchange.Redis
             }
         }
 
-        internal void OnConnected(PhysicalConnection connection, TextWriter log)
+        internal async Task OnConnectedAsync(PhysicalConnection connection, TextWriter log)
         {
             Trace("OnConnected");
             if (physical == connection && !isDisposed && ChangeState(State.Connecting, State.ConnectedEstablishing))
             {
-                ServerEndPoint.OnEstablishing(connection, log);
+                await ServerEndPoint.OnEstablishingAsync(connection, log);
             }
             else
             {
                 try
                 {
                     connection.Dispose();
-                }
-                catch
-                { }
+                } catch { }
             }
         }
 
@@ -552,7 +551,10 @@ namespace StackExchange.Redis
             }
         }
 
-        internal WriteResult WriteQueue(int maxWork)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        static ValueTask<T> AsResult<T>(T value) => new ValueTask<T>(value);
+
+        internal async ValueTask<WriteResult> WriteQueueAsync(int maxWork)
         {
             bool weAreWriter = false;
             PhysicalConnection conn = null;
@@ -585,7 +587,7 @@ namespace StackExchange.Redis
                         Trace("Nothing to write; exiting");
                         if(count == 0)
                         {
-                            conn.Flush(); // only flush on an empty run
+                            await conn.FlushAsync(); // only flush on an empty run
                             return WriteResult.NothingToDo;
                         }
                         return WriteResult.QueueEmptyAfterWrite;
@@ -604,7 +606,7 @@ namespace StackExchange.Redis
                     {
                         Trace("Work limit; exiting");
                         Trace(last != null, "Flushed up to: " + last);
-                        conn.Flush();
+                        await conn.FlushAsync();
                         break;
                     }
                 }

@@ -7,7 +7,7 @@
     <AssemblyOriginatorKeyFile>../StackExchange.Redis.snk</AssemblyOriginatorKeyFile>
     <PackageId>$(AssemblyName)</PackageId>
     <Authors>Stack Exchange, Inc.; marc.gravell</Authors>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>    
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     
     <PackageReleaseNotes>https://stackexchange.github.io/StackExchange.Redis/ReleaseNotes</PackageReleaseNotes>
     <PackageProjectUrl>https://github.com/StackExchange/StackExchange.Redis/</PackageProjectUrl>
@@ -21,7 +21,7 @@
     <DefaultLanguage>en-US</DefaultLanguage>
     <IncludeSymbols>false</IncludeSymbols>
 
-    <LibraryTargetFrameworks>net45;net46;netstandard2.0</LibraryTargetFrameworks>
+    <LibraryTargetFrameworks>net46;netstandard2.0</LibraryTargetFrameworks>
     <CoreFxVersion>4.5.0</CoreFxVersion>
     <xUnitVersion>2.4.0-beta.2.build3981</xUnitVersion>
   </PropertyGroup>

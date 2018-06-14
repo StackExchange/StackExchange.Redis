@@ -1,15 +1,19 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Pipelines;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
+using System.Threading.Tasks;
+using Pipelines.Sockets.Unofficial;
 
 namespace StackExchange.Redis
 {
     internal enum SocketMode
     {
         Abort,
+        [Obsolete("just don't", error: true)]
         Poll,
         Async
     }
@@ -22,9 +26,9 @@ namespace StackExchange.Redis
         /// <summary>
         /// Indicates that a socket has connected
         /// </summary>
-        /// <param name="stream">The network stream for this socket.</param>
+        /// <param name="pipe">The network stream for this socket.</param>
         /// <param name="log">A text logger to write to.</param>
-        SocketMode Connected(Stream stream, TextWriter log);
+        ValueTask<SocketMode> ConnectedAsync(IDuplexPipe pipe, TextWriter log);
 
         /// <summary>
         /// Indicates that the socket has signalled an error condition
@@ -104,16 +108,6 @@ namespace StackExchange.Redis
             ProcessErrorQueue,
         }
 
-        private static readonly ParameterizedThreadStart writeAllQueues = context =>
-        {
-            try { ((SocketManager)context).WriteAllQueues(); } catch { }
-        };
-
-        private static readonly WaitCallback writeOneQueue = context =>
-        {
-            try { ((SocketManager)context).WriteOneQueue(); } catch { }
-        };
-
         private readonly Queue<PhysicalBridge> writeQueue = new Queue<PhysicalBridge>();
         private bool isDisposed;
         private readonly bool useHighPrioritySocketThreads = true;
@@ -140,14 +134,12 @@ namespace StackExchange.Redis
             Name = name;
             this.useHighPrioritySocketThreads = useHighPrioritySocketThreads;
 
-            // we need a dedicated writer, because when under heavy ambient load
-            // (a busy asp.net site, for example), workers are not reliable enough
-            var dedicatedWriter = new Thread(writeAllQueues, 32 * 1024); // don't need a huge stack;
-            dedicatedWriter.Priority = useHighPrioritySocketThreads ? ThreadPriority.AboveNormal : ThreadPriority.Normal;
-            dedicatedWriter.Name = name + ":Write";
-            dedicatedWriter.IsBackground = true; // should not keep process alive
-            dedicatedWriter.Start(this); // will self-exit when disposed
+            _writeOneQueueAsync = () => WriteOneQueueAsync();
+
+            Task.Run(() => WriteAllQueuesAsync());
         }
+        private readonly Func<Task> _writeOneQueueAsync;
+
 
         private enum CallbackOperation
         {
@@ -171,54 +163,16 @@ namespace StackExchange.Redis
 
         internal SocketToken BeginConnect(EndPoint endpoint, ISocketCallback callback, ConnectionMultiplexer multiplexer, TextWriter log)
         {
-            void RunWithCompletionType(Func<AsyncCallback, IAsyncResult> beginAsync, AsyncCallback asyncCallback)
-            {
-                void proxyCallback(IAsyncResult ar)
-                {
-                    if (!ar.CompletedSynchronously)
-                    {
-                        asyncCallback(ar);
-                    }
-                }
-
-                var result = beginAsync(proxyCallback);
-                if (result.CompletedSynchronously)
-                {
-                    result.AsyncWaitHandle.WaitOne();
-                    asyncCallback(result);
-                }
-            }
-
             var addressFamily = endpoint.AddressFamily == AddressFamily.Unspecified ? AddressFamily.InterNetwork : endpoint.AddressFamily;
             var socket = new Socket(addressFamily, SocketType.Stream, ProtocolType.Tcp);
-            SetFastLoopbackOption(socket);
-            socket.NoDelay = true;
+
+            
             try
             {
                 var formattedEndpoint = Format.ToString(endpoint);
-                var tuple = Tuple.Create(socket, callback);
-                multiplexer.LogLocked(log, "BeginConnect: {0}", formattedEndpoint);
-                // A work-around for a Mono bug in BeginConnect(EndPoint endpoint, AsyncCallback callback, object state)
-                if (endpoint is DnsEndPoint dnsEndpoint)
-                {
-                    RunWithCompletionType(
-                        cb => socket.BeginConnect(dnsEndpoint.Host, dnsEndpoint.Port, cb, tuple),
-                        ar => {
-                            multiplexer.LogLocked(log, "EndConnect: {0}", formattedEndpoint);
-                            EndConnectImpl(ar, multiplexer, log, tuple);
-                            multiplexer.LogLocked(log, "Connect complete: {0}", formattedEndpoint);
-                        });
-                }
-                else
-                {
-                    RunWithCompletionType(
-                        cb => socket.BeginConnect(endpoint, cb, tuple),
-                        ar => {
-                            multiplexer.LogLocked(log, "EndConnect: {0}", formattedEndpoint);
-                            EndConnectImpl(ar, multiplexer, log, tuple);
-                            multiplexer.LogLocked(log, "Connect complete: {0}", formattedEndpoint);
-                        });
-                }
+
+                SocketConnection.ConnectAsync(endpoint, PipeOptions.Default,
+                    conn => EndConnectAsync(conn, multiplexer, log, callback), socket);
             }
             catch (NotImplementedException ex)
             {
@@ -232,25 +186,7 @@ namespace StackExchange.Redis
             return token;
         }
 
-        internal void SetFastLoopbackOption(Socket socket)
-        {
-            // SIO_LOOPBACK_FAST_PATH (https://msdn.microsoft.com/en-us/library/windows/desktop/jj841212%28v=vs.85%29.aspx)
-            // Speeds up localhost operations significantly. OK to apply to a socket that will not be hooked up to localhost,
-            // or will be subject to WFP filtering.
-            const int SIO_LOOPBACK_FAST_PATH = -1744830448;
 
-            // windows only
-            if (Environment.OSVersion.Platform == PlatformID.Win32NT)
-            {
-                // Win8/Server2012+ only
-                var osVersion = Environment.OSVersion.Version;
-                if (osVersion.Major > 6 || (osVersion.Major == 6 && osVersion.Minor >= 2))
-                {
-                    byte[] optionInValue = BitConverter.GetBytes(1);
-                    socket.IOControl(SIO_LOOPBACK_FAST_PATH, optionInValue, null);
-                }
-            }
-        }
 
         internal void RequestWrite(PhysicalBridge bridge, bool forced)
         {
@@ -265,35 +201,29 @@ namespace StackExchange.Redis
                     }
                     else if (writeQueue.Count >= 2)
                     { // struggling are we? let's have some help dealing with the backlog
-                        ThreadPool.QueueUserWorkItem(writeOneQueue, this);
+                        Task.Run(_writeOneQueueAsync);
                     }
                 }
             }
         }
-
+        
         internal void Shutdown(SocketToken token)
         {
             Shutdown(token.Socket);
         }
 
-        private void EndConnectImpl(IAsyncResult ar, ConnectionMultiplexer multiplexer, TextWriter log, Tuple<Socket, ISocketCallback> tuple)
+        private async Task EndConnectAsync(SocketConnection connection, ConnectionMultiplexer multiplexer, TextWriter log, ISocketCallback callback)
         {
             try
             {
                 bool ignoreConnect = false;
-                ShouldIgnoreConnect(tuple.Item2, ref ignoreConnect);
+                var socket = connection?.Socket;
+                ShouldIgnoreConnect(callback, ref ignoreConnect);
                 if (ignoreConnect) return;
-                var socket = tuple.Item1;
-                var callback = tuple.Item2;
-                socket.EndConnect(ar);
-                var netStream = new NetworkStream(socket, false);
-                var socketMode = callback?.Connected(netStream, log) ?? SocketMode.Abort;
+
+                var socketMode = callback == null ? SocketMode.Abort : await callback.ConnectedAsync(connection, log);
                 switch (socketMode)
                 {
-                    case SocketMode.Poll:
-                        multiplexer.LogLocked(log, "Starting poll");
-                        OnAddRead(socket, callback);
-                        break;
                     case SocketMode.Async:
                         multiplexer.LogLocked(log, "Starting read");
                         try
@@ -313,10 +243,9 @@ namespace StackExchange.Redis
             catch (ObjectDisposedException)
             {
                 multiplexer.LogLocked(log, "(socket shutdown)");
-                if (tuple != null)
+                if (callback != null)
                 {
-                    try
-                    { tuple.Item2.Error(); }
+                    try { callback.Error(); }
                     catch (Exception inner)
                     {
                         ConnectionMultiplexer.TraceWithoutContext(inner.Message);
@@ -326,10 +255,9 @@ namespace StackExchange.Redis
             catch(Exception outer)
             {
                 ConnectionMultiplexer.TraceWithoutContext(outer.Message);
-                if (tuple != null)
+                if (callback != null)
                 {
-                    try
-                    { tuple.Item2.Error(); }
+                    try { callback.Error(); }
                     catch (Exception inner)
                     {
                         ConnectionMultiplexer.TraceWithoutContext(inner.Message);
@@ -355,7 +283,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private void WriteAllQueues()
+        private async Task WriteAllQueuesAsync()
         {
             while (true)
             {
@@ -372,7 +300,7 @@ namespace StackExchange.Redis
                     bridge = writeQueue.Dequeue();
                 }
 
-                switch (bridge.WriteQueue(200))
+                switch (await bridge.WriteQueueAsync(200))
                 {
                     case WriteResult.MoreWork:
                     case WriteResult.QueueEmptyAfterWrite:
@@ -400,18 +328,22 @@ namespace StackExchange.Redis
             }
         }
 
-        private void WriteOneQueue()
+        private Task WriteOneQueueAsync()
         {
             PhysicalBridge bridge;
             lock (writeQueue)
             {
                 bridge = writeQueue.Count == 0 ? null : writeQueue.Dequeue();
             }
-            if (bridge == null) return;
+            if (bridge == null) return Task.CompletedTask;
+            return WriteOneQueueAsyncImpl(bridge);
+        }
+        private async Task WriteOneQueueAsyncImpl(PhysicalBridge bridge)
+        {
             bool keepGoing;
             do
             {
-                switch (bridge.WriteQueue(-1))
+                switch (await bridge.WriteQueueAsync(-1))
                 {
                     case WriteResult.MoreWork:
                     case WriteResult.QueueEmptyAfterWrite:

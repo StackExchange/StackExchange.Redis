@@ -450,19 +450,33 @@ namespace StackExchange.Redis
             return bridge?.IsConnected == true;
         }
 
-        internal void OnEstablishing(PhysicalConnection connection, TextWriter log)
+        internal Task OnEstablishingAsync(PhysicalConnection connection, TextWriter log)
         {
             try
             {
-                if (connection == null) return;
-                Handshake(connection, log);
+                if (connection == null) return Task.CompletedTask;
+                var handshake = HandshakeAsync(connection, log);
+
+                if (handshake.Status != TaskStatus.RanToCompletion)
+                    return OnEstablishingAsyncAwaited(connection, handshake);
+            }
+            catch (Exception ex)
+            {
+                connection.RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
+            }
+            return Task.CompletedTask;
+        }
+        async Task OnEstablishingAsyncAwaited(PhysicalConnection connection, Task handshake)
+        {
+            try
+            {
+                await handshake;
             }
             catch (Exception ex)
             {
                 connection.RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
             }
         }
-
         internal void OnFullyEstablished(PhysicalConnection connection)
         {
             try
@@ -627,13 +641,13 @@ namespace StackExchange.Redis
             return bridge;
         }
 
-        private void Handshake(PhysicalConnection connection, TextWriter log)
+        private Task HandshakeAsync(PhysicalConnection connection, TextWriter log)
         {
             Multiplexer.LogLocked(log, "Server handshake");
             if (connection == null)
             {
                 Multiplexer.Trace("No connection!?");
-                return;
+                return Task.CompletedTask;
             }
             Message msg;
             string password = Multiplexer.RawConfig.Password;
@@ -684,7 +698,7 @@ namespace StackExchange.Redis
                 }
             }
             Multiplexer.LogLocked(log, "Flushing outbound buffer");
-            connection.Flush();
+            return connection.FlushAsync();
         }
 
         private void SetConfig<T>(ref T field, T value, [CallerMemberName] string caller = null)

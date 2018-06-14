@@ -1,6 +1,9 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
+using System.IO.Pipelines;
 using System.Linq;
 using System.Net;
 using System.Net.Security;
@@ -10,6 +13,7 @@ using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
@@ -60,14 +64,10 @@ namespace StackExchange.Redis
 
         private int failureReported;
 
-        private byte[] ioBuffer = new byte[512];
-
-        private int ioBufferBytes = 0;
-
         private int lastWriteTickCount, lastReadTickCount, lastBeatTickCount;
         private int firstUnansweredWriteTickCount;
 
-        private Stream netStream, outStream;
+        IDuplexPipe _ioPipe;
 
         private SocketToken socketToken;
 
@@ -113,19 +113,19 @@ namespace StackExchange.Redis
 
         public void Dispose()
         {
-            if (outStream != null)
+            
+            var ioPipe = _ioPipe;
+            _ioPipe = null;
+            if(ioPipe != null)
             {
                 Multiplexer.Trace("Disconnecting...", physicalName);
-                try { outStream.Close(); } catch { }
-                try { outStream.Dispose(); } catch { }
-                outStream = null;
+                try { ioPipe.Input?.CancelPendingRead(); } catch { }
+                try { ioPipe.Input?.Complete(); } catch { }
+                try { ioPipe.Output?.CancelPendingFlush(); } catch { }
+                try { ioPipe.Output?.Complete(); } catch { }
+                ioPipe.Output?.Complete();
             }
-            if (netStream != null)
-            {
-                try { netStream.Close(); } catch { }
-                try { netStream.Dispose(); } catch { }
-                netStream = null;
-            }
+
             if (socketToken.HasValue)
             {
                 Multiplexer.SocketManager?.Shutdown(socketToken);
@@ -135,15 +135,21 @@ namespace StackExchange.Redis
             }
             OnCloseEcho();
         }
-
-        public void Flush()
+        private async Task AwaitedFlush(ValueTask<FlushResult> flush)
         {
-            var tmp = outStream;
+            await flush;
+            Interlocked.Exchange(ref lastWriteTickCount, Environment.TickCount);
+        }
+        public Task FlushAsync()
+        {
+            var tmp = _ioPipe?.Output;
             if (tmp != null)
             {
-                tmp.Flush();
+                var flush = tmp.FlushAsync();
+                if (!flush.IsCompletedSuccessfully) return AwaitedFlush(flush);
                 Interlocked.Exchange(ref lastWriteTickCount, Environment.TickCount);
             }
+            return Task.CompletedTask;
         }
 
         public void RecordConnectionFailed(ConnectionFailureType failureType, Exception innerException = null, [CallerMemberName] string origin = null)
@@ -197,7 +203,7 @@ namespace StackExchange.Redis
                     }
 
                     add("Origin", "origin", origin);
-                    add("Input-Buffer", "input-buffer", ioBufferBytes.ToString());
+                    // add("Input-Buffer", "input-buffer", _ioPipe.Input);
                     add("Outstanding-Responses", "outstanding", GetSentAwaitingResponseCount().ToString());
                     add("Last-Read", "last-read", (unchecked(now - lastRead) / 1000) + "s ago");
                     add("Last-Write", "last-write", (unchecked(now - lastWrite) / 1000) + "s ago");
@@ -405,28 +411,28 @@ namespace StackExchange.Redis
             var val = key.KeyValue;
             if (val is string)
             {
-                WriteUnified(outStream, key.KeyPrefix, (string)val);
+                WriteUnified(_ioPipe.Output, key.KeyPrefix, (string)val);
             }
             else
             {
-                WriteUnified(outStream, key.KeyPrefix, (byte[])val);
+                WriteUnified(_ioPipe.Output, key.KeyPrefix, (byte[])val);
             }
         }
 
         internal void Write(RedisChannel channel)
         {
-            WriteUnified(outStream, ChannelPrefix, channel.Value);
+            WriteUnified(_ioPipe.Output, ChannelPrefix, channel.Value);
         }
 
         internal void Write(RedisValue value)
         {
             if (value.IsInteger)
             {
-                WriteUnified(outStream, (long)value);
+                WriteUnified(_ioPipe.Output, (long)value);
             }
             else
             {
-                WriteUnified(outStream, (byte[])value);
+                WriteUnified(_ioPipe.Output, (byte[])value);
             }
         }
 
@@ -437,14 +443,9 @@ namespace StackExchange.Redis
             {
                 throw ExceptionFactory.CommandDisabled(Multiplexer.IncludeDetailInExceptions, command, null, Bridge.ServerEndPoint);
             }
-            outStream.WriteByte((byte)'*');
-
-            // remember the time of the first write that still not followed by read
-            Interlocked.CompareExchange(ref firstUnansweredWriteTickCount, Environment.TickCount, 0);
-
-            WriteRaw(outStream, arguments + 1);
-            WriteUnified(outStream, commandBytes);
+            WriteHeader(commandBytes, arguments);
         }
+
 
         internal const int REDIS_MAX_ARGS = 1024 * 1024; // there is a <= 1024*1024 max constraint inside redis itself: https://github.com/antirez/redis/blob/6c60526db91e23fb2d666fc52facc9a11780a2a3/src/networking.c#L1024
 
@@ -455,39 +456,66 @@ namespace StackExchange.Redis
                 throw ExceptionFactory.TooManyArgs(Multiplexer.IncludeDetailInExceptions, command, null, Bridge.ServerEndPoint, arguments + 1);
             }
             var commandBytes = Multiplexer.CommandMap.GetBytes(command);
-            if (commandBytes == null)
-            {
-                throw ExceptionFactory.CommandDisabled(Multiplexer.IncludeDetailInExceptions, command, null, Bridge.ServerEndPoint);
-            }
-            outStream.WriteByte((byte)'*');
+            WriteHeader(commandBytes, arguments);
+        }
+        private void WriteHeader(byte[] commandBytes, int arguments)
+        {
+
 
             // remember the time of the first write that still not followed by read
             Interlocked.CompareExchange(ref firstUnansweredWriteTickCount, Environment.TickCount, 0);
 
-            WriteRaw(outStream, arguments + 1);
-            WriteUnified(outStream, commandBytes);
-        }
+            // *{argCount}\r\n      = 3 + MaxInt32TextLen
+            // ${cmd-len}\r\n       = 3 + MaxInt32TextLen
+            // {cmd}\r\n            = 2 + commandBytes.Length
+            var span = _ioPipe.Output.GetSpan(commandBytes.Length + 8 + MaxInt32TextLen + MaxInt32TextLen);
+            span[0] = (byte)'*';
 
-        private static void WriteRaw(Stream stream, long value, bool withLengthPrefix = false)
+            int offset = WriteRaw(span, arguments + 1, offset: 1);
+
+            offset = WriteUnified(span, commandBytes, offset: offset);
+
+            _ioPipe.Output.Advance(offset);
+        }
+        
+        const int MaxInt32TextLen = 11, // -2,147,483,648 (not including the commas)
+            MaxInt64TextLen = 20; // -9,223,372,036,854,775,808 (not including the commas)
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        static int WriteCrlf(Span<byte> span, int offset)
+        {
+            span[offset++] = (byte)'\r';
+            span[offset++] = (byte)'\n';
+            return offset;
+        }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        static void WriteCrlf(PipeWriter writer)
+        {
+            var span = writer.GetSpan(2);
+            span[0] = (byte)'\r';
+            span[1] = (byte)'\n';
+            writer.Advance(2);
+        }
+        private static int WriteRaw(Span<byte> span, long value, bool withLengthPrefix = false, int offset = 0)
         {
             if (value >= 0 && value <= 9)
             {
                 if (withLengthPrefix)
                 {
-                    stream.WriteByte((byte)'1');
-                    stream.Write(Crlf, 0, 2);
+                    span[offset++] = (byte)'1';
+                    offset = WriteCrlf(span, offset);
                 }
-                stream.WriteByte((byte)((int)'0' + (int)value));
+                span[offset++] = (byte)((int)'0' + (int)value);
             }
             else if (value >= 10 && value < 100)
             {
                 if (withLengthPrefix)
                 {
-                    stream.WriteByte((byte)'2');
-                    stream.Write(Crlf, 0, 2);
+                    span[offset++] = (byte)'2';
+                    offset = WriteCrlf(span, offset);
                 }
-                stream.WriteByte((byte)((int)'0' + ((int)value / 10)));
-                stream.WriteByte((byte)((int)'0' + ((int)value % 10)));
+                span[offset++] = (byte)((int)'0' + ((int)value / 10));
+                span[offset++] = (byte)((int)'0' + ((int)value % 10));
             }
             else if (value >= 100 && value < 1000)
             {
@@ -497,79 +525,143 @@ namespace StackExchange.Redis
                 int tens = v % 10, hundreds = v / 10;
                 if (withLengthPrefix)
                 {
-                    stream.WriteByte((byte)'3');
-                    stream.Write(Crlf, 0, 2);
+                    span[offset++] = (byte)'3';
+                    offset = WriteCrlf(span, offset);
                 }
-                stream.WriteByte((byte)((int)'0' + hundreds));
-                stream.WriteByte((byte)((int)'0' + tens));
-                stream.WriteByte((byte)((int)'0' + units));
+                span[offset++] = (byte)((int)'0' + hundreds);
+                span[offset++] = (byte)((int)'0' + tens);
+                span[offset++] = (byte)((int)'0' + units);
             }
             else if (value < 0 && value >= -9)
             {
                 if (withLengthPrefix)
                 {
-                    stream.WriteByte((byte)'2');
-                    stream.Write(Crlf, 0, 2);
+                    span[offset++] = (byte)'2';
+                    offset = WriteCrlf(span, offset);
                 }
-                stream.WriteByte((byte)'-');
-                stream.WriteByte((byte)((int)'0' - (int)value));
+                span[offset++] = (byte)'-';
+                span[offset++] = (byte)((int)'0' - (int)value);
             }
             else if (value <= -10 && value > -100)
             {
                 if (withLengthPrefix)
                 {
-                    stream.WriteByte((byte)'3');
-                    stream.Write(Crlf, 0, 2);
+                    span[offset++] = (byte)'3';
+                    offset = WriteCrlf(span, offset);
                 }
                 value = -value;
-                stream.WriteByte((byte)'-');
-                stream.WriteByte((byte)((int)'0' + ((int)value / 10)));
-                stream.WriteByte((byte)((int)'0' + ((int)value % 10)));
+                span[offset++] = (byte)'-';
+                span[offset++] = (byte)((int)'0' + ((int)value / 10));
+                span[offset++] = (byte)((int)'0' + ((int)value % 10));
             }
             else
             {
-                var bytes = Encoding.ASCII.GetBytes(Format.ToString(value));
-                if (withLengthPrefix)
+                unsafe
                 {
-                    WriteRaw(stream, bytes.Length, false);
+                    byte* bytes = stackalloc byte[MaxInt32TextLen];
+                    var s = Format.ToString(value); // need an alloc-free version of this...
+                    int len;
+                    fixed (char* c = s)
+                    {
+                        len = Encoding.ASCII.GetBytes(c, s.Length, bytes, MaxInt32TextLen);
+                    }
+                    if (withLengthPrefix)
+                    {
+                        offset = WriteRaw(span, len, false, offset);
+                    }
+                    new ReadOnlySpan<byte>(bytes, len).CopyTo(span.Slice(offset));
+                    offset += len;
                 }
-                stream.Write(bytes, 0, bytes.Length);
             }
-            stream.Write(Crlf, 0, 2);
+            return WriteCrlf(span, offset);
         }
 
-        private static void WriteUnified(Stream stream, byte[] value)
+        static readonly byte[] NullBulkString = Encoding.ASCII.GetBytes("$-1\r\n"), EmptyBulkString = Encoding.ASCII.GetBytes("$0\r\n\r\n");
+        private static void WriteUnified(PipeWriter writer, byte[] value)
         {
-            stream.WriteByte((byte)'$');
+            const int MaxQuickSpanSize = 512;
+
+            // ${len}\r\n           = 3 + MaxInt32TextLen
+            // {value}\r\n          = 2 + value.Length
             if (value == null)
             {
-                WriteRaw(stream, -1); // note that not many things like this...
+                // special case:
+                writer.Write(NullBulkString);
+            }
+            else if (value.Length == 0)
+            {
+                // special case:
+                writer.Write(EmptyBulkString);
+            }
+            else if (value.Length <= MaxQuickSpanSize)
+            {
+                var span = writer.GetSpan(5 + MaxInt32TextLen + value.Length);
+                int bytes = WriteUnified(span, value);
+                writer.Advance(bytes);
             }
             else
             {
-                WriteRaw(stream, value.Length);
-                stream.Write(value, 0, value.Length);
-                stream.Write(Crlf, 0, 2);
+                // too big to guarantee can do in a single span
+                var span = writer.GetSpan(3 + MaxInt32TextLen);
+                span[0] = (byte)'$';
+                int bytes = WriteRaw(span, value.LongLength, offset: 1);
+                writer.Advance(bytes);
+
+                writer.Write(value);
+
+                WriteCrlf(writer);
             }
         }
-
-        internal void WriteAsHex(byte[] value)
+        private static int WriteUnified(Span<byte> span, byte[] value, int offset = 0)
         {
-            var stream = outStream;
-            stream.WriteByte((byte)'$');
+            span[offset++] = (byte)'$';
             if (value == null)
             {
-                WriteRaw(stream, -1);
+                offset = WriteRaw(span, -1, offset: offset); // note that not many things like this...
             }
             else
             {
-                WriteRaw(stream, value.Length * 2);
-                for (int i = 0; i < value.Length; i++)
+                offset = WriteRaw(span, value.Length, offset: offset);
+                new ReadOnlySpan<byte>(value).CopyTo(span.Slice(offset));
+                offset = WriteCrlf(span, offset);
+            }
+            return offset;
+        }
+
+        internal void WriteSha1AsHex(byte[] value)
+        {
+            var writer = _ioPipe.Output;
+            if (value == null)
+            {
+                writer.Write(NullBulkString);
+            }
+            else if(value.Length == ResultProcessor.ScriptLoadProcessor.Sha1HashLength)
+            {
+                // $40\r\n              = 5
+                // {40 bytes}\r\n       = 42
+
+                var span = writer.GetSpan(47);
+                span[0] = (byte)'$';
+                span[1] = (byte)'4';
+                span[2] = (byte)'0';
+                span[3] = (byte)'\r';
+                span[4] = (byte)'\n';
+
+                int offset = 5;
+                for(int i = 0; i < value.Length; i++)
                 {
-                    stream.WriteByte(ToHexNibble(value[i] >> 4));
-                    stream.WriteByte(ToHexNibble(value[i] & 15));
+                    var b = value[i];
+                    span[offset++] = ToHexNibble(value[i] >> 4);
+                    span[offset++] = ToHexNibble(value[i] & 15);
                 }
-                stream.Write(Crlf, 0, 2);
+                span[offset++] = (byte)'\r';
+                span[offset++] = (byte)'\n';
+
+                writer.Advance(offset);
+            }
+            else
+            {
+                throw new InvalidOperationException("Invalid SHA1 length: " + value.Length);
             }
         }
 
@@ -578,90 +670,119 @@ namespace StackExchange.Redis
             return value < 10 ? (byte)('0' + value) : (byte)('a' - 10 + value);
         }
 
-        private void WriteUnified(Stream stream, byte[] prefix, string value)
+        private void WriteUnified(PipeWriter writer, byte[] prefix, string value)
         {
-            stream.WriteByte((byte)'$');
             if (value == null)
             {
-                WriteRaw(stream, -1); // note that not many things like this...
+                // special case
+                writer.Write(NullBulkString);
             }
             else
             {
-                int encodedLength = Encoding.UTF8.GetByteCount(value);
-                if (prefix == null)
+                // ${total-len}\r\n         3 + MaxInt32TextLen
+                // {prefix}{value}\r\n
+                int encodedLength = Encoding.UTF8.GetByteCount(value),
+                    prefixLength = prefix == null ? 0 : prefix.Length,
+                    totalLength = prefixLength + encodedLength;
+
+                if (totalLength == 0)
                 {
-                    WriteRaw(stream, encodedLength);
-                    WriteRaw(stream, value, encodedLength);
-                    stream.Write(Crlf, 0, 2);
+                    // special-case
+                    writer.Write(EmptyBulkString);
                 }
                 else
                 {
-                    WriteRaw(stream, prefix.Length + encodedLength);
-                    stream.Write(prefix, 0, prefix.Length);
-                    WriteRaw(stream, value, encodedLength);
-                    stream.Write(Crlf, 0, 2);
+                    var span = writer.GetSpan(3 + MaxInt32TextLen);
+                    span[0] = (byte)'$';
+                    int bytes = WriteRaw(span, totalLength, offset: 1);
+                    writer.Advance(bytes);
+
+                    if (prefixLength != 0) writer.Write(prefix);
+                    if (encodedLength != 0) WriteRaw(writer, value, encodedLength);
+                    WriteCrlf(writer);
                 }
             }
         }
 
-        private unsafe void WriteRaw(Stream stream, string value, int encodedLength)
+        private unsafe void WriteRaw(PipeWriter writer, string value, int encodedLength)
         {
-            if (encodedLength <= ScratchSize)
+            const int MaxQuickEncodeSize = 512;
+
+            fixed (char* cPtr = value)
             {
-                int bytes = Encoding.UTF8.GetBytes(value, 0, value.Length, outScratch, 0);
-                stream.Write(outScratch, 0, bytes);
-            }
-            else
-            {
-                fixed (char* c = value)
-                fixed (byte* b = outScratch)
+                int totalBytes;
+                if (encodedLength <= MaxQuickEncodeSize)
                 {
-                    int charsRemaining = value.Length, charOffset = 0, bytesWritten;
-                    while (charsRemaining > Scratch_CharsPerBlock)
+                    // encode directly in one hit
+                    var span = writer.GetSpan(encodedLength);
+                    fixed (byte* bPtr = &span[0])
                     {
-                        bytesWritten = outEncoder.GetBytes(c + charOffset, Scratch_CharsPerBlock, b, ScratchSize, false);
-                        stream.Write(outScratch, 0, bytesWritten);
-                        charOffset += Scratch_CharsPerBlock;
-                        charsRemaining -= Scratch_CharsPerBlock;
+                        totalBytes = Encoding.UTF8.GetBytes(cPtr, value.Length, bPtr, encodedLength);
                     }
-                    bytesWritten = outEncoder.GetBytes(c + charOffset, charsRemaining, b, ScratchSize, true);
-                    if (bytesWritten != 0) stream.Write(outScratch, 0, bytesWritten);
+                    writer.Advance(encodedLength);
                 }
+                else
+                {
+                    // use an encoder in a loop
+                    outEncoder.Reset();
+                    int charsRemaining = value.Length, charOffset = 0;
+                    totalBytes = 0;
+                    while (charsRemaining != 0)
+                    {
+                        // note: at most 4 bytes per UTF8 character, despite what UTF8.GetMaxByteCount says
+                        var span = writer.GetSpan(4); // get *some* memory - at least enough for 1 character (but hopefully lots more)
+                        int bytesWritten, charsToWrite = span.Length >> 2; // assume worst case, because the API sucks
+                        fixed (byte* bPtr = &span[0])
+                        {
+                            bytesWritten = outEncoder.GetBytes(cPtr + charOffset, charsToWrite, bPtr, span.Length, false);
+                        }
+                        writer.Advance(bytesWritten);
+                        totalBytes += bytesWritten;
+                        charOffset += charsToWrite;
+                        charsRemaining -= charsRemaining;
+                    }
+                }
+                Debug.Assert(totalBytes == encodedLength);
             }
         }
-
-        private const int ScratchSize = 512;
-        private static readonly int Scratch_CharsPerBlock = ScratchSize / Encoding.UTF8.GetMaxByteCount(1);
-        private readonly byte[] outScratch = new byte[ScratchSize];
         private readonly Encoder outEncoder = Encoding.UTF8.GetEncoder();
-        private static void WriteUnified(Stream stream, byte[] prefix, byte[] value)
+        private static void WriteUnified(PipeWriter writer, byte[] prefix, byte[] value)
         {
-            stream.WriteByte((byte)'$');
-            if (value == null)
-            {
-                WriteRaw(stream, -1); // note that not many things like this...
-            }
-            else if (prefix == null)
-            {
-                WriteRaw(stream, value.Length);
-                stream.Write(value, 0, value.Length);
-                stream.Write(Crlf, 0, 2);
+            // ${total-len}\r\n 
+            // {prefix}{value}\r\n
+            if (prefix == null || prefix.Length == 0 || value == null)
+            {   // if no prefix, just use the non-prefixed version;
+                // even if prefixed, a null value writes as null, so can use the non-prefixed version
+                WriteUnified(writer, value);
             }
             else
             {
-                WriteRaw(stream, prefix.Length + value.Length);
-                stream.Write(prefix, 0, prefix.Length);
-                stream.Write(value, 0, value.Length);
-                stream.Write(Crlf, 0, 2);
+                var span = writer.GetSpan(3 + MaxInt32TextLen); // note even with 2 max-len, we're still in same text range
+                span[0] = (byte)'$';
+                int bytes = WriteRaw(span, prefix.LongLength + value.LongLength, offset: 1);
+                writer.Advance(bytes);
+
+                writer.Write(prefix);
+                writer.Write(value);
+
+                span = writer.GetSpan(2);
+                WriteCrlf(span, 0);
+                writer.Advance(2);
             }
         }
 
-        private static void WriteUnified(Stream stream, long value)
+        private static void WriteUnified(PipeWriter writer, long value)
         {
             // note from specification: A client sends to the Redis server a RESP Array consisting of just Bulk Strings.
             // (i.e. we can't just send ":123\r\n", we need to send "$3\r\n123\r\n"
-            stream.WriteByte((byte)'$');
-            WriteRaw(stream, value, withLengthPrefix: true);
+
+            // ${asc-len}\r\n           = 3 + MaxInt32TextLen
+            // {asc}\r\n                = MaxInt64TextLen + 2
+            var span = writer.GetSpan(5 + MaxInt32TextLen + MaxInt64TextLen);
+
+            span[0] = (byte)'$';
+            var bytes = WriteRaw(span, value, withLengthPrefix: true, offset: 1);
+            writer.Advance(bytes);
         }
 
         private void BeginReading()
@@ -720,7 +841,7 @@ namespace StackExchange.Redis
             return null;
         }
 
-        SocketMode ISocketCallback.Connected(Stream stream, TextWriter log)
+        async ValueTask<SocketMode> ISocketCallback.ConnectedAsync(IDuplexPipe pipe, TextWriter log)
         {
             try
             {
@@ -735,36 +856,37 @@ namespace StackExchange.Redis
 
                 if (config.Ssl)
                 {
-                    Multiplexer.LogLocked(log, "Configuring SSL");
-                    var host = config.SslHost;
-                    if (string.IsNullOrWhiteSpace(host)) host = Format.ToStringHostOnly(Bridge.ServerEndPoint.EndPoint);
+                    throw new NotImplementedException("TLS");
+                    //Multiplexer.LogLocked(log, "Configuring SSL");
+                    //var host = config.SslHost;
+                    //if (string.IsNullOrWhiteSpace(host)) host = Format.ToStringHostOnly(Bridge.ServerEndPoint.EndPoint);
 
-                    var ssl = new SslStream(stream, false, config.CertificateValidationCallback,
-                        config.CertificateSelectionCallback ?? GetAmbientCertificateCallback(),
-                        EncryptionPolicy.RequireEncryption);
-                    try
-                    {
-                        ssl.AuthenticateAsClient(host, config.SslProtocols);
+                    //var ssl = new SslStream(stream, false, config.CertificateValidationCallback,
+                    //    config.CertificateSelectionCallback ?? GetAmbientCertificateCallback(),
+                    //    EncryptionPolicy.RequireEncryption);
+                    //try
+                    //{
+                    //    ssl.AuthenticateAsClient(host, config.SslProtocols);
 
-                        Multiplexer.LogLocked(log, $"SSL connection established successfully using protocol: {ssl.SslProtocol}");
-                    }
-                    catch (AuthenticationException authexception)
-                    {
-                        RecordConnectionFailed(ConnectionFailureType.AuthenticationFailure, authexception);
-                        Multiplexer.Trace("Encryption failure");
-                        return SocketMode.Abort;
-                    }
-                    stream = ssl;
-                    socketMode = SocketMode.Async;
+                    //    Multiplexer.LogLocked(log, $"SSL connection established successfully using protocol: {ssl.SslProtocol}");
+                    //}
+                    //catch (AuthenticationException authexception)
+                    //{
+                    //    RecordConnectionFailed(ConnectionFailureType.AuthenticationFailure, authexception);
+                    //    Multiplexer.Trace("Encryption failure");
+                    //    return SocketMode.Abort;
+                    //}
+                    //stream = ssl;
+                    //socketMode = SocketMode.Async;
                 }
-                OnWrapForLogging(ref stream, physicalName);
+                OnWrapForLogging(ref pipe, physicalName);
 
                 int bufferSize = config.WriteBuffer;
-                netStream = stream;
-                outStream = bufferSize <= 0 ? stream : new BufferedStream(stream, bufferSize);
+
+                _ioPipe = pipe;
                 Multiplexer.LogLocked(log, "Connected {0}", Bridge);
 
-                Bridge.OnConnected(this, log);
+                await Bridge.OnConnectedAsync(this, log);
                 return socketMode;
             }
             catch (Exception ex)
@@ -884,7 +1006,7 @@ namespace StackExchange.Redis
             }
         }
 
-        partial void OnWrapForLogging(ref Stream stream, string name);
+        partial void OnWrapForLogging(ref IDuplexPipe pipe, string name);
         private int ProcessBuffer(byte[] underlying, ref int offset, ref int count)
         {
             int messageCount = 0;
