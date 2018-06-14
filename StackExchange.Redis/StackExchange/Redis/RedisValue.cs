@@ -189,17 +189,18 @@ namespace StackExchange.Redis
                 return acc;
             }
         }
-
         internal static bool TryParseInt64(byte[] value, int offset, int count, out long result)
+            => TryParseInt64(new ReadOnlySpan<byte>(value, offset, count), out result);
+        internal static bool TryParseInt64(ReadOnlySpan<byte> value, out long result)
         {
             result = 0;
-            if (value == null || count <= 0) return false;
+            if (value.IsEmpty) return false;
             checked
             {
-                int max = offset + count;
-                if (value[offset] == '-')
+                int max = value.Length;
+                if (value[0] == '-')
                 {
-                    for (int i = offset + 1; i < max; i++)
+                    for (int i = 1; i < max; i++)
                     {
                         var b = value[i];
                         if (b < '0' || b > '9') return false;
@@ -209,7 +210,7 @@ namespace StackExchange.Redis
                 }
                 else
                 {
-                    for (int i = offset; i < max; i++)
+                    for (int i = 0; i < max; i++)
                     {
                         var b = value[i];
                         if (b < '0' || b > '9') return false;

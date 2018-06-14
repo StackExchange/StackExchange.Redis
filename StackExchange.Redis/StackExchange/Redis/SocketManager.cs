@@ -37,10 +37,10 @@ namespace StackExchange.Redis
 
         void OnHeartbeat();
 
-        /// <summary>
-        /// Indicates that data is available on the socket, and that the consumer should read synchronously from the socket while there is data
-        /// </summary>
-        void Read();
+        ///// <summary>
+        ///// Indicates that data is available on the socket, and that the consumer should read synchronously from the socket while there is data
+        ///// </summary>
+        //void Read();
 
         /// <summary>
         /// Indicates that we cannot know whether data is available, and that the consume should commence reading asynchronously

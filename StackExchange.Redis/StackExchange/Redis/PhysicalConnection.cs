@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Buffers;
+using System.Buffers.Text;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -478,7 +479,8 @@ namespace StackExchange.Redis
             _ioPipe.Output.Advance(offset);
         }
         
-        const int MaxInt32TextLen = 11, // -2,147,483,648 (not including the commas)
+        internal const int
+            MaxInt32TextLen = 11, // -2,147,483,648 (not including the commas)
             MaxInt64TextLen = 20; // -9,223,372,036,854,775,808 (not including the commas)
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -556,23 +558,36 @@ namespace StackExchange.Redis
             }
             else
             {
-                unsafe
+                // we're going to write it, but *to the wrong place*
+                var availableChunk = span.Slice(offset);
+                if (!Utf8Formatter.TryFormat(value, availableChunk, out int formattedLength))
                 {
-                    byte* bytes = stackalloc byte[MaxInt32TextLen];
-                    var s = Format.ToString(value); // need an alloc-free version of this...
-                    int len;
-                    fixed (char* c = s)
+                    throw new InvalidOperationException("TryFormat failed");
+                }
+                if (withLengthPrefix)
+                {
+                    // now we know how large the prefix is: write the prefix, then write the value
+                    if (!Utf8Formatter.TryFormat(formattedLength, availableChunk, out int prefixLength))
                     {
-                        len = Encoding.ASCII.GetBytes(c, s.Length, bytes, MaxInt32TextLen);
+                        throw new InvalidOperationException("TryFormat failed");
                     }
-                    if (withLengthPrefix)
+                    offset += prefixLength;
+                    offset = WriteCrlf(span, offset);
+
+                    availableChunk = span.Slice(offset);
+                    if (!Utf8Formatter.TryFormat(value, availableChunk, out int finalLength))
                     {
-                        offset = WriteRaw(span, len, false, offset);
+                        throw new InvalidOperationException("TryFormat failed");
                     }
-                    new ReadOnlySpan<byte>(bytes, len).CopyTo(span.Slice(offset));
-                    offset += len;
+                    offset += finalLength;
+                    Debug.Assert(finalLength == formattedLength);
+                }
+                else
+                {
+                    offset += formattedLength;
                 }
             }
+            
             return WriteCrlf(span, offset);
         }
 
@@ -784,30 +799,7 @@ namespace StackExchange.Redis
             var bytes = WriteRaw(span, value, withLengthPrefix: true, offset: 1);
             writer.Advance(bytes);
         }
-
-        private void BeginReading()
-        {
-            bool keepReading;
-            try
-            {
-                do
-                {
-                    keepReading = false;
-                    int space = EnsureSpaceAndComputeBytesToRead();
-                    Multiplexer.Trace("Beginning async read...", physicalName);
-                    var result = netStream.BeginRead(ioBuffer, ioBufferBytes, space, endRead, this);
-                    if (result.CompletedSynchronously)
-                    {
-                        Multiplexer.Trace("Completed synchronously: processing immediately", physicalName);
-                        keepReading = EndReading(result);
-                    }
-                } while (keepReading);
-            }
-            catch (IOException ex)
-            {
-                Multiplexer.Trace("Could not connect: " + ex.Message, physicalName);
-            }
-        }
+        
 
         private int haveReader;
 
@@ -897,31 +889,6 @@ namespace StackExchange.Redis
             }
         }
 
-        private bool EndReading(IAsyncResult result)
-        {
-            try
-            {
-                int bytesRead = netStream?.EndRead(result) ?? 0;
-                return ProcessReadBytes(bytesRead);
-            }
-            catch (Exception ex)
-            {
-                RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
-                return false;
-            }
-        }
-
-        private int EnsureSpaceAndComputeBytesToRead()
-        {
-            int space = ioBuffer.Length - ioBufferBytes;
-            if (space == 0)
-            {
-                Array.Resize(ref ioBuffer, ioBuffer.Length * 2);
-                space = ioBuffer.Length - ioBufferBytes;
-            }
-            return space;
-        }
-
         void ISocketCallback.Error()
         {
             RecordConnectionFailed(ConnectionFailureType.SocketFailure);
@@ -1007,87 +974,82 @@ namespace StackExchange.Redis
         }
 
         partial void OnWrapForLogging(ref IDuplexPipe pipe, string name);
-        private int ProcessBuffer(byte[] underlying, ref int offset, ref int count)
+
+        private async Task ReadFromPipe()
+        {
+            try
+            {
+                while (true)
+                {
+                    var input = _ioPipe.Input;
+                    var readResult = await input.ReadAsync();
+                    if (readResult.IsCompleted && readResult.Buffer.IsEmpty)
+                    {
+                        break; // we're all done
+                    }
+                    var buffer = readResult.Buffer;
+
+                    int handled = ProcessBuffer(ref buffer);
+                    Multiplexer.Trace($"Processed {handled} messages", physicalName);
+                    input.AdvanceTo(buffer.Start, buffer.End);
+                }
+                Multiplexer.Trace("EOF", physicalName);
+                RecordConnectionFailed(ConnectionFailureType.SocketClosed);
+            }
+            catch (Exception ex)
+            {
+                Multiplexer.Trace("Faulted", physicalName);
+                RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
+            }
+        }
+        private int ProcessBuffer(ref ReadOnlySequence<byte> buffer)
         {
             int messageCount = 0;
             RawResult result;
-            do
+            while (!buffer.IsEmpty)
             {
-                int tmpOffset = offset, tmpCount = count;
                 // we want TryParseResult to be able to mess with these without consequence
-                result = TryParseResult(underlying, ref tmpOffset, ref tmpCount);
+                var snapshot = buffer;
+                result = TryParseResult(ref buffer);
                 if (result.HasValue)
                 {
                     messageCount++;
-                    // entire message: update the external counters
-                    offset = tmpOffset;
-                    count = tmpCount;
 
                     Multiplexer.Trace(result.ToString(), physicalName);
                     MatchResult(result);
                 }
-            } while (result.HasValue);
+                else
+                {
+                    buffer = snapshot; // just in case TryParseResult toyed with it
+                    break;
+                }
+            }
             return messageCount;
         }
+        //void ISocketCallback.Read()
+        //{
+        //    Interlocked.Increment(ref haveReader);
+        //    try
+        //    {
+        //        do
+        //        {
+        //            int space = EnsureSpaceAndComputeBytesToRead();
+        //            int bytesRead = netStream?.Read(ioBuffer, ioBufferBytes, space) ?? 0;
 
-        private bool ProcessReadBytes(int bytesRead)
-        {
-            if (bytesRead <= 0)
-            {
-                Multiplexer.Trace("EOF", physicalName);
-                RecordConnectionFailed(ConnectionFailureType.SocketClosed);
-                return false;
-            }
-
-            Interlocked.Exchange(ref lastReadTickCount, Environment.TickCount);
-
-            // reset unanswered write timestamp
-            Thread.VolatileWrite(ref firstUnansweredWriteTickCount, 0);
-
-            ioBufferBytes += bytesRead;
-            Multiplexer.Trace("More bytes available: " + bytesRead + " (" + ioBufferBytes + ")", physicalName);
-            int offset = 0, count = ioBufferBytes;
-            int handled = ProcessBuffer(ioBuffer, ref offset, ref count);
-            Multiplexer.Trace("Processed: " + handled, physicalName);
-            if (handled != 0)
-            {
-                // read stuff
-                if (count != 0)
-                {
-                    Multiplexer.Trace("Copying remaining bytes: " + count, physicalName);
-                    //  if anything was left over, we need to copy it to
-                    // the start of the buffer so it can be used next time
-                    Buffer.BlockCopy(ioBuffer, offset, ioBuffer, 0, count);
-                }
-                ioBufferBytes = count;
-            }
-            return true;
-        }
-
-        void ISocketCallback.Read()
-        {
-            Interlocked.Increment(ref haveReader);
-            try
-            {
-                do
-                {
-                    int space = EnsureSpaceAndComputeBytesToRead();
-                    int bytesRead = netStream?.Read(ioBuffer, ioBufferBytes, space) ?? 0;
-
-                    if (!ProcessReadBytes(bytesRead)) return; // EOF
-                } while (socketToken.Available != 0);
-                Multiplexer.Trace("Buffer exhausted", physicalName);
-                // ^^^ note that the socket manager will call us again when there is something to do
-            }
-            catch (Exception ex)
-            {
-                RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
-            }
-            finally
-            {
-                Interlocked.Decrement(ref haveReader);
-            }
-        }
+        //            if (!ProcessReadBytes(bytesRead)) return; // EOF
+        //        } while (socketToken.Available != 0);
+        //        Multiplexer.Trace("Buffer exhausted", physicalName);
+        //        // ^^^ note that the socket manager will call us again when there is something to do
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
+        //    }
+        //    finally
+        //    {
+        //        Interlocked.Decrement(ref haveReader);
+        //    }
+        //}
 
         bool ISocketCallback.IsDataAvailable
         {
@@ -1154,21 +1116,17 @@ namespace StackExchange.Redis
             return RawResult.Nil;
         }
 
-        private RawResult ReadLineTerminatedString(ResultType type, byte[] buffer, ref int offset, ref int count)
+        private RawResult ReadLineTerminatedString(ResultType type, ref ReadOnlySequence<byte> buffer, ref BufferReader reader)
         {
-            int max = offset + count - 2;
-            for (int i = offset; i < max; i++)
-            {
-                if (buffer[i + 1] == '\r' && buffer[i + 2] == '\n')
-                {
-                    int len = i - offset + 1;
-                    var result = new RawResult(type, buffer, offset, len);
-                    count -= (len + 2);
-                    offset += (len + 2);
-                    return result;
-                }
-            }
-            return RawResult.Nil;
+            int crlf = BufferReader.FindNextCrLf(reader);
+
+            if (crlf < 0) return RawResult.Nil;
+
+
+            var inner = buffer.Slice(reader.TotalConsumed, crlf);
+            reader.Consume(crlf + 2);
+
+            var result = new RawResult(type, inner);
         }
 
         void ISocketCallback.StartReading()
@@ -1176,26 +1134,123 @@ namespace StackExchange.Redis
             BeginReading();
         }
 
-        private RawResult TryParseResult(byte[] buffer, ref int offset, ref int count)
+        private RawResult TryParseResult(ref ReadOnlySequence<byte> buffer)
         {
-            if (count == 0) return RawResult.Nil;
+            if (buffer.IsEmpty) return RawResult.Nil;
 
-            char resultType = (char)buffer[offset++];
-            count--;
+            // so we have *at least* one byte
+            char resultType = (char)buffer.First.Span[0];
+            var reader = new BufferReader(buffer);
+            reader.Consume(1);
+
+            RawResult result;
             switch (resultType)
             {
                 case '+': // simple string
-                    return ReadLineTerminatedString(ResultType.SimpleString, buffer, ref offset, ref count);
+                    result = ReadLineTerminatedString(ResultType.SimpleString, ref buffer, ref reader);
+                    break;
                 case '-': // error
-                    return ReadLineTerminatedString(ResultType.Error, buffer, ref offset, ref count);
+                    result = ReadLineTerminatedString(ResultType.Error, ref buffer, ref reader);
+                    break;
                 case ':': // integer
-                    return ReadLineTerminatedString(ResultType.Integer, buffer, ref offset, ref count);
+                    result = ReadLineTerminatedString(ResultType.Integer, ref buffer, ref reader);
+                    break;
                 case '$': // bulk string
-                    return ReadBulkString(buffer, ref offset, ref count);
+                    result = ReadBulkString(buffer, ref reader);
+                    break;
                 case '*': // array
-                    return ReadArray(buffer, ref offset, ref count);
+                    result = ReadArray(buffer, ref reader);
+                    break;
                 default:
                     throw new InvalidOperationException("Unexpected response prefix: " + (char)resultType);
+            }
+            buffer = buffer.Slice(reader.TotalConsumed);
+            return result;
+        }
+
+        ref struct BufferReader
+        {
+            private ReadOnlySequence<byte>.Enumerator _iterator;
+            private ReadOnlySpan<byte> _current;
+
+            public ReadOnlySpan<byte> Span => _current;
+            public int OffsetThisSpan { get; private set; }
+            public int TotalConsumed { get; private set; }
+            public int RemainingThisSpan { get; private set; }
+            bool FetchNext()
+            {
+                if(_iterator.MoveNext())
+                {
+                    _current = _iterator.Current.Span;
+                    OffsetThisSpan = 0;
+                    RemainingThisSpan = _current.Length;
+                    return true;
+                }
+                else
+                {
+                    OffsetThisSpan = RemainingThisSpan = 0;
+                    return false;
+                }
+            }
+            public BufferReader(ReadOnlySequence<byte> buffer)
+            {
+                _iterator = buffer.GetEnumerator();
+                _current = default;
+                OffsetThisSpan = RemainingThisSpan = TotalConsumed = 0;
+
+                FetchNext();
+            }
+            static readonly byte[] CRLF = { (byte)'\r', (byte)'\n' };
+            internal static int FindNextCrLf(BufferReader reader) // very deliberately not ref; want snapshot
+            {
+                // is it in the current span? (we need to handle the offsets differently if so)
+                
+                int totalSkipped = 0;
+                bool haveTrailingCR = false;
+                do
+                {
+                    var span = reader.Span;
+                    if (reader.OffsetThisSpan != 0) span = span.Slice(reader.OffsetThisSpan);
+
+                    if (span.IsEmpty)
+                    {
+                        haveTrailingCR = false;
+                    }
+                    else
+                    {
+                        if (haveTrailingCR && span[0] == '\n') return totalSkipped - 1;
+
+                        int found = span.IndexOf(CRLF);
+                        if (found >= 0) return totalSkipped + found;
+
+                        haveTrailingCR = span[span.Length - 1] == '\r';
+                        totalSkipped += span.Length;
+                    }
+                }
+                while (reader.FetchNext());
+                return -1;
+            }
+            public void Consume(int count)
+            {
+                if (count < 0) throw new ArgumentOutOfRangeException(nameof(count));
+                while(count != 0)
+                {
+                    if(count < RemainingThisSpan)
+                    {
+                        // consume part of this span
+                        TotalConsumed += count;                        
+                        RemainingThisSpan -= count;
+                        OffsetThisSpan += count;                        
+                        count = 0;
+                    }
+                    else
+                    {
+                        // consume all of this span
+                        TotalConsumed += RemainingThisSpan;
+                        count -= RemainingThisSpan;
+                        if (!FetchNext()) throw new EndOfStreamException();
+                    }
+                }
             }
         }
 
