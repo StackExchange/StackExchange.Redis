@@ -6,8 +6,9 @@ namespace StackExchange.Redis
 {
     internal readonly struct RawResult
     {
-        public static readonly RawResult EmptyArray = new RawResult(new RawResult[0]);
-        public static readonly RawResult Nil = new RawResult();
+        internal static readonly RawResult NullMultiBulk = new RawResult((RawResult[])null);
+        internal static readonly RawResult EmptyMultiBulk = new RawResult(new RawResult[0]);
+        internal static readonly RawResult Nil = new RawResult();
         
 
         private readonly ReadOnlySequence<byte> _payload;
@@ -36,8 +37,9 @@ namespace StackExchange.Redis
         public RawResult(RawResult[] arr)
         {
             _type = ResultType.MultiBulk;
+            if (arr == null) _type |= NullResultTypeBit;
             _payload = default;
-            _subArray = arr ?? throw new ArgumentNullException(nameof(arr));
+            _subArray = arr;
         }
 
         public bool HasValue => Type != ResultType.None;
@@ -298,7 +300,7 @@ namespace StackExchange.Redis
 
         internal RawResult[] GetItemsAsRawResults() => GetItems();
 
-        internal string GetString()
+        internal unsafe string GetString()
         {
             if (IsNull) return null;
             if (_payload.IsEmpty) return "";
@@ -306,15 +308,44 @@ namespace StackExchange.Redis
             if (_payload.IsSingleSegment)
             {
                 var span = _payload.First.Span;
-                unsafe
+                fixed (byte* ptr = &span[0])
                 {
-                    fixed (byte* ptr = &span[0])
+                    return Encoding.UTF8.GetString(ptr, span.Length);
+                }
+            }
+            var decoder = Encoding.UTF8.GetDecoder();
+            int charCount = 0;
+            foreach(var segment in _payload)
+            {
+                var span = segment.Span;
+                if (span.IsEmpty) continue;
+
+                fixed(byte* bPtr = &span[0])
+                {
+                    charCount += decoder.GetCharCount(bPtr, span.Length, false);
+                }
+            }
+            
+            decoder.Reset();
+
+            string s = new string((char)0, charCount);
+            fixed (char* sPtr = s)
+            {
+                char* cPtr = sPtr;
+                foreach (var segment in _payload)
+                {
+                    var span = segment.Span;
+                    if (span.IsEmpty) continue;
+
+                    fixed (byte* bPtr = &span[0])
                     {
-                        return Encoding.UTF8.GetString(ptr, span.Length);
+                        var written = decoder.GetChars(bPtr, span.Length, cPtr, charCount, false);
+                        cPtr += written;
+                        charCount -= written;
                     }
                 }
             }
-            return Encoding.UTF8.GetString(blob, offset, count);
+            return s;
         }
 
         internal bool TryGetDouble(out double val)

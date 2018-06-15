@@ -1233,7 +1233,7 @@ namespace StackExchange.Redis
                     return new GeoRadiusResult(item.AsRedisValue(), null, null, null);
                 }
                 // If WITHCOORD, WITHDIST or WITHHASH options are specified, the command returns an array of arrays, where each sub-array represents a single item.
-                var arr = item.GetArrayOfRawResults();
+                var arr = item.GetItems();
 
                 int index = 0;
                 // the first item in the sub-array is always the name of the returned item.
@@ -1251,7 +1251,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 if ((options & GeoRadiusOptions.WithGeoHash) != 0) { hash = (long?)arr[index++].AsRedisValue(); }
                 if ((options & GeoRadiusOptions.WithCoordinates) != 0)
                 {
-                    var coords = arr[index++].GetArrayOfRawResults();
+                    var coords = arr[index++].GetItems();
                     double longitude = (double)coords[0].AsRedisValue(), latitude = (double)coords[1].AsRedisValue();
                     position = new GeoPosition(longitude, latitude);
                 }
@@ -1451,7 +1451,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 switch (result.Type)
                 {
                     case ResultType.MultiBulk:
-                        var arrayOfArrays = result.GetArrayOfRawResults();
+                        var arrayOfArrays = result.GetItems();
 
                         var returnArray = new KeyValuePair<string, string>[arrayOfArrays.Length][];
 
