@@ -982,17 +982,22 @@ namespace StackExchange.Redis
             {
                 while (true)
                 {
-                    var input = _ioPipe.Input;
+                    var input = _ioPipe?.Input;
+                    if (input == null) break;
+
                     var readResult = await input.ReadAsync();
                     if (readResult.IsCompleted && readResult.Buffer.IsEmpty)
                     {
                         break; // we're all done
                     }
                     var buffer = readResult.Buffer;
-
-                    int handled = ProcessBuffer(in buffer, out var consumed);
+    
+                    var s = new RawResult(ResultType.BulkString, buffer, false).GetString().Replace("\r","\\r").Replace("\n","\\n");
+                    
+                    int handled = ProcessBuffer(ref buffer); // updates buffer.Start
+                    
                     Multiplexer.Trace($"Processed {handled} messages", physicalName);
-                    input.AdvanceTo(buffer.GetPosition(consumed), buffer.End);
+                    input.AdvanceTo(buffer.Start, buffer.End);
                 }
                 Multiplexer.Trace("EOF", physicalName);
                 RecordConnectionFailed(ConnectionFailureType.SocketClosed);
@@ -1003,26 +1008,27 @@ namespace StackExchange.Redis
                 RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
             }
         }
-        private int ProcessBuffer(in ReadOnlySequence<byte> entireBuffer, out long consumed)
+
+        private int ProcessBuffer(ref ReadOnlySequence<byte> buffer)
         {
             int messageCount = 0;
-            var remainingBuffer = entireBuffer; // create a snapshot so we can trim it after each decoded message
-                                                // (so that slicing later doesn't require us to keep skipping segments)
-
-            consumed = 0;
-            while (!remainingBuffer.IsEmpty)
+            
+            while (!buffer.IsEmpty)
             {
-                var reader = new BufferReader(remainingBuffer);
-                var result = TryParseResult(in remainingBuffer, ref reader);
+                var reader = new BufferReader(buffer);
+                var result = TryParseResult(in buffer, ref reader);
 
                 if (result.HasValue)
                 {
-                    consumed += reader.TotalConsumed;
-                    remainingBuffer = remainingBuffer.Slice(reader.TotalConsumed);
+                    buffer = buffer.Slice(reader.TotalConsumed);
 
                     messageCount++;
                     Multiplexer.Trace(result.ToString(), physicalName);
                     MatchResult(result);
+                }
+                else
+                {
+                    break; // remaining buffer isn't enough; give up
                 }
             }
             return messageCount;
