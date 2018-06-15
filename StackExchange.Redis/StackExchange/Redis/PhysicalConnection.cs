@@ -976,31 +976,60 @@ namespace StackExchange.Redis
 
         partial void OnWrapForLogging(ref IDuplexPipe pipe, string name);
 
+        static int __next;
+        private readonly int _connectionId = Interlocked.Increment(ref __next);
         private async void ReadFromPipe() // yes it is an async void; deal with it!
         {
+            ReadOnlySequence<byte> clone = default;
+
+            string state = "init";
             try
             {
+                Stopwatch w = new Stopwatch();
                 while (true)
                 {
-                    var input = _ioPipe.Input;
+                    var input = _ioPipe?.Input;
+                    if (input == null) break;
+                    state = "> ReadAsync";
                     var readResult = await input.ReadAsync();
+                    state = "< ReadAsync";
                     if (readResult.IsCompleted && readResult.Buffer.IsEmpty)
                     {
                         break; // we're all done
                     }
                     var buffer = readResult.Buffer;
 
+                    clone = buffer;
+                    state = "> ProcessBuffer";
+                    Console.WriteLine($"{_connectionId} > {buffer.Length}");
+                    w.Restart();
                     int handled = ProcessBuffer(in buffer, out var consumed);
+                    w.Stop();
+                    Console.WriteLine($"{_connectionId} < {w.ElapsedMilliseconds}ms)");
+                    state = "< ProcessBuffer";
+                    
                     Multiplexer.Trace($"Processed {handled} messages", physicalName);
+                    state = "> AdvanceTo";
                     input.AdvanceTo(buffer.GetPosition(consumed), buffer.End);
+                    state = "< AdvanceTo";
+
                 }
+                state = "#EOF";
                 Multiplexer.Trace("EOF", physicalName);
                 RecordConnectionFailed(ConnectionFailureType.SocketClosed);
             }
             catch (Exception ex)
             {
+                Console.WriteLine("## Boom! " + ex.Message);
+                //ProcessBuffer(in clone, out long wtf);
+                //Console.WriteLine(wtf);
+
                 Multiplexer.Trace("Faulted", physicalName);
                 RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
+            }
+            finally
+            {
+                Console.WriteLine(state);
             }
         }
         private int ProcessBuffer(in ReadOnlySequence<byte> entireBuffer, out long consumed)

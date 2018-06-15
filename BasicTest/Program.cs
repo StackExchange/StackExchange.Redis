@@ -30,7 +30,7 @@ namespace BasicTest
                 for (int i = 0; i < 1000; i++)
                 {
                     int x = rand.Next(50);
-                    Console.WriteLine($"{i}:{x}");
+                    //Console.WriteLine($"{i}:{x}");
                     expected += x;
                     db.StringIncrement(counter, x); //, CommandFlags.FireAndForget);
                 }
