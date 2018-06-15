@@ -637,7 +637,8 @@ namespace StackExchange.Redis
             else
             {
                 offset = WriteRaw(span, value.Length, offset: offset);
-                new ReadOnlySpan<byte>(value).CopyTo(span.Slice(offset));
+                new ReadOnlySpan<byte>(value).CopyTo(span.Slice(offset, value.Length));
+                offset += value.Length;
                 offset = WriteCrlf(span, offset);
             }
             return offset;
