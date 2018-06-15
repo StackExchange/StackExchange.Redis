@@ -373,7 +373,7 @@ namespace StackExchange.Redis
 
             if (_payload.IsSingleSegment) return RedisValue.TryParseInt64(_payload.First.Span, out value);
 
-            Span<byte> span = stackalloc byte[PhysicalConnection.MaxInt64TextLen];
+            Span<byte> span = stackalloc byte[(int)_payload.Length]; // we already checked the length was <= MaxInt64TextLen
             _payload.CopyTo(span);
             return RedisValue.TryParseInt64(span, out value);
         }

@@ -8,8 +8,9 @@ namespace BasicTest
     {
         public static async Task Main()
         {
-            using (var conn = await ConnectionMultiplexer.ConnectAsync("127.0.0.1:6379"))
+            using (var conn = await ConnectionMultiplexer.ConnectAsync("127.0.0.1:6379,syncTimeout=2000"))
             {
+                conn.ConnectionFailed += (sender, e) => Console.WriteLine($"{e.ConnectionType}, {e.FailureType}: {e.Exception.Message}");
                 var db = conn.GetDatabase(3);
 
                 var batch = db.CreateBatch();
@@ -29,10 +30,11 @@ namespace BasicTest
                 for (int i = 0; i < 1000; i++)
                 {
                     int x = rand.Next(50);
+                    Console.WriteLine($"{i}:{x}");
                     expected += x;
-                    db.StringIncrement(counter, x, CommandFlags.FireAndForget);
+                    db.StringIncrement(counter, x); //, CommandFlags.FireAndForget);
                 }
-                int actual = (int)db.StringGet(counter);
+                int actual = (int)await db.StringGetAsync(counter);
                 Console.WriteLine($"{expected} vs {actual}");
             }
         }
