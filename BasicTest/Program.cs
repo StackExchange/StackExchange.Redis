@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using StackExchange.Redis;
 
@@ -28,18 +29,20 @@ namespace BasicTest
                     await set;
                     Console.WriteLine(await s);
 
+                    const int COUNT = 10000;
                     var rand = new Random(12345);
                     RedisKey counter = "counter";
+                    var watch = Stopwatch.StartNew();
                     db.KeyDelete(counter, CommandFlags.FireAndForget);
-                    for (int i = 0; i < 1000; i++)
+                    for (int i = 0; i < COUNT; i++)
                     {
                         int x = rand.Next(50);
-                        //Console.WriteLine($"{i}:{x}");
                         expected += x;
-                        db.StringIncrement(counter, x); //, CommandFlags.FireAndForget);
+                        db.StringIncrement(counter, x, CommandFlags.FireAndForget);
                     }
                     int actual = (int)await db.StringGetAsync(counter);
-                    Console.WriteLine($"{expected} vs {actual}");
+                    watch.Stop();
+                    Console.WriteLine($"{expected} vs {actual}, {watch.ElapsedMilliseconds}ms for {COUNT} incrby");
                 }
                 catch (Exception ex)
                 {
