@@ -15,17 +15,12 @@ namespace BasicTest
             {
                 var db = conn.GetDatabase();
 
-                RedisKey key = Me();
-                db.KeyDelete(key);
-                db.StringSet(key, "abc");
-
-                string s = (string)db.ScriptEvaluate(@"
-    local val = redis.call('get', KEYS[1])
-    redis.call('del', KEYS[1])
-    return val", new RedisKey[] { key }, flags: CommandFlags.NoScriptCache);
-
-                Console.WriteLine(s);
-                Console.WriteLine(db.KeyExists(key));
+                db.KeyDelete("abc");
+                db.StringIncrement("abc");
+                db.StringIncrement("abc", 15);
+                db.StringIncrement("abc");
+                int i = (int)db.StringGet("abc");
+                Console.WriteLine(i);
             }
         }
 
