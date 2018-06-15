@@ -46,11 +46,6 @@ namespace BasicTest
                     Console.WriteLine($"expected when fail: {expected}");
                     Console.WriteLine(ex.Message);
                 }
-                finally
-                {
-                    Console.WriteLine("Press any key");
-                    Console.ReadKey();
-                }
             }
         }
     }
