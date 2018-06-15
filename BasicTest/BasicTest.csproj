@@ -8,6 +8,7 @@
     <PackageId>BasicTest</PackageId>
     <RuntimeIdentifiers>win7-x64</RuntimeIdentifiers>
     <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
+    <LangVersion>latest</LangVersion>
   </PropertyGroup>
 
   <ItemGroup>
