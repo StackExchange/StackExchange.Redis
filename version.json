@@ -1,0 +1,18 @@
+{
+  "version": "2.0.0-alpha",
+  "assemblyVersion": "2.0.0.0",
+  "publicReleaseRefSpec": [
+    "^refs/heads/master$",
+    "^refs/heads/pipelines$",
+    "^refs/tags/v\\d+\\.\\d+"
+  ],
+  "nugetPackageVersion": {
+    "semVer": 2
+  },
+  "cloudBuild": {
+    "buildNumber": {
+      "enabled": true,
+      "setVersionVariables": true
+    }
+  }
+}
