@@ -161,6 +161,9 @@ namespace StackExchange.Redis
             OnDispose();
         }
 
+        //static readonly PipeOptions PipeOptions = PipeOptions.Default;
+        static readonly PipeOptions PipeOptions = new PipeOptions(
+            readerScheduler: PipeScheduler.Inline, writerScheduler: PipeScheduler.Inline, useSynchronizationContext: false);
         internal SocketToken BeginConnect(EndPoint endpoint, ISocketCallback callback, ConnectionMultiplexer multiplexer, TextWriter log)
         {
             var addressFamily = endpoint.AddressFamily == AddressFamily.Unspecified ? AddressFamily.InterNetwork : endpoint.AddressFamily;
@@ -171,7 +174,7 @@ namespace StackExchange.Redis
             {
                 var formattedEndpoint = Format.ToString(endpoint);
 
-                SocketConnection.ConnectAsync(endpoint, PipeOptions.Default,
+                SocketConnection.ConnectAsync(endpoint, PipeOptions,
                     conn => EndConnectAsync(conn, multiplexer, log, callback), socket);
             }
             catch (NotImplementedException ex)
