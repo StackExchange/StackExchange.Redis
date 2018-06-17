@@ -2033,6 +2033,11 @@ namespace StackExchange.Redis
 
         public RedisStreamEntry[] StreamRead(RedisKey key, RedisValue afterId, int count, CommandFlags flags = CommandFlags.None)
         {
+            if (count <= 0)
+            {
+                throw new ArgumentException("'count' must be greater than 0.");
+            }
+
             // Example: > XREAD COUNT 2 STREAMS writers 1526999352406-0
             var msg = Message.Create(Database,
                 flags,
@@ -2057,6 +2062,11 @@ namespace StackExchange.Redis
 
         public RedisStream[] StreamRead(IList<KeyValuePair<RedisKey, RedisValue>> streamWithAfterIdList, int countPerStream, CommandFlags flags = CommandFlags.None)
         {
+            if (countPerStream <= 0)
+            {
+                throw new ArgumentException("'countPerStream' must be greater than 0.");
+            }
+
             var msg = GetMultiStreamReadMessage(streamWithAfterIdList, countPerStream, flags);
             return ExecuteSync(msg, ResultProcessor.MultiStream);
         }
@@ -2078,6 +2088,11 @@ namespace StackExchange.Redis
 
         public Task<RedisStreamEntry[]> StreamReadAsync(RedisKey key, RedisValue afterId, int count, CommandFlags flags = CommandFlags.None)
         {
+            if (count <= 0)
+            {
+                throw new ArgumentException("'count' must be greater than 0.");
+            }
+
             var msg = Message.Create(Database,
                 flags,
                 RedisCommand.XREAD,
@@ -2101,6 +2116,11 @@ namespace StackExchange.Redis
 
         public Task<RedisStream[]> StreamReadAsync(IList<KeyValuePair<RedisKey, RedisValue>> streamWithAfterIdList, int countPerStream, CommandFlags flags = CommandFlags.None)
         {
+            if (countPerStream <= 0)
+            {
+                throw new ArgumentException("'countPerStream' must be greater than 0.");
+            }
+
             var msg = GetMultiStreamReadMessage(streamWithAfterIdList, countPerStream, flags);
             return ExecuteAsync(msg, ResultProcessor.MultiStream);
         }
@@ -2113,12 +2133,22 @@ namespace StackExchange.Redis
 
         public Task<RedisStreamEntry[]> StreamReadGroupAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue readFromId, int? count = null, CommandFlags flags = CommandFlags.None)
         {
+            if (count <= 0)
+            {
+                throw new ArgumentException("'count' must be greater than 0.");
+            }
+
             var msg = GetStreamReadGroupMessage(key, groupName, consumerName, readFromId, count, flags);
             return ExecuteAsync(msg, ResultProcessor.SingleStreamWithNameSkip);
         }
 
         public RedisValue StreamTrim(RedisKey key, int maxLength, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None)
         {
+            if (maxLength <= 0)
+            {
+                throw new ArgumentException("'maxLength' must be greater than 0.");
+            }
+
             var msg = Message.Create(Database,
                                 flags,
                                 RedisCommand.XTRIM,
@@ -2132,6 +2162,11 @@ namespace StackExchange.Redis
 
         public Task<RedisValue> StreamTrimAsync(RedisKey key, int maxLength, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None)
         {
+            if (maxLength <= 0)
+            {
+                throw new ArgumentException("'maxLength' must be greater than 0.");
+            }
+
             var msg = Message.Create(Database,
                                 flags,
                                 RedisCommand.XTRIM,

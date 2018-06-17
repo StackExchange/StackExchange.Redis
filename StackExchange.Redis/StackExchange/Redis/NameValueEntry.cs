@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 
 namespace StackExchange.Redis
 {
@@ -14,8 +13,8 @@ namespace StackExchange.Redis
         /// <summary>
         /// Initializes a <see cref="NameValueEntry"/> value.
         /// </summary>
-        /// <param name="name">The name for this hash entry.</param>
-        /// <param name="value">The value for this hash entry.</param>
+        /// <param name="name">The name for this entry.</param>
+        /// <param name="value">The value for this entry.</param>
         public NameValueEntry(RedisValue name, RedisValue value)
         {
             this.name = name;
@@ -23,12 +22,12 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// The name of the hash field
+        /// The name of the field.
         /// </summary>
         public RedisValue Name => name;
 
         /// <summary>
-        /// The value of the hash field
+        /// The value of the field.
         /// </summary>
         public RedisValue Value => value;
 
@@ -42,7 +41,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Converts from a key/value pair
         /// </summary>
-        /// <param name="value">The <see cref="KeyValuePair{TKey, TValue}"/> to get a <see cref="HashEntry"/> from.</param>
+        /// <param name="value">The <see cref="KeyValuePair{TKey, TValue}"/> to get a <see cref="NameValueEntry"/> from.</param>
         public static implicit operator NameValueEntry(KeyValuePair<RedisValue, RedisValue> value) =>
             new NameValueEntry(value.Key, value.Value);
 
