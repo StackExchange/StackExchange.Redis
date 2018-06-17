@@ -175,8 +175,8 @@ namespace StackExchange.Redis
                 var formattedEndpoint = Format.ToString(endpoint);
 
                 var t = SocketConnection.ConnectAsync(endpoint, PipeOptions,
-                    //SocketConnectionOptions.SyncReader | SocketConnectionOptions.SyncWriter,
-                    SocketConnectionOptions.None,
+                    SocketConnectionOptions.SyncReader | SocketConnectionOptions.SyncWriter,
+                    // SocketConnectionOptions.None,
                     onConnected: conn => EndConnectAsync(conn, multiplexer, log, callback),
                     socket: socket);
                 GC.KeepAlive(t); // make compiler happier
