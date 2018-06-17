@@ -174,8 +174,12 @@ namespace StackExchange.Redis
             {
                 var formattedEndpoint = Format.ToString(endpoint);
 
-                SocketConnection.ConnectAsync(endpoint, PipeOptions,
-                    conn => EndConnectAsync(conn, multiplexer, log, callback), socket);
+                var t = SocketConnection.ConnectAsync(endpoint, PipeOptions,
+                    //SocketConnectionOptions.SyncReader | SocketConnectionOptions.SyncWriter,
+                    SocketConnectionOptions.None,
+                    onConnected: conn => EndConnectAsync(conn, multiplexer, log, callback),
+                    socket: socket);
+                GC.KeepAlive(t); // make compiler happier
             }
             catch (NotImplementedException ex)
             {

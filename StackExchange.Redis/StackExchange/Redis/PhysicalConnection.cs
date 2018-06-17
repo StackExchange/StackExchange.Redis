@@ -975,27 +975,34 @@ namespace StackExchange.Redis
         }
 
         partial void OnWrapForLogging(ref IDuplexPipe pipe, string name);
-
         private async void ReadFromPipe() // yes it is an async void; deal with it!
         {
             try
             {
+                bool allowSyncRead = true;
                 while (true)
                 {
                     var input = _ioPipe?.Input;
                     if (input == null) break;
 
-                    var readResult = await input.ReadAsync();
+                    // note: TryRead will give us back the same buffer in a tight loop
+                    // - so: only use that if we're making progress
+                    if(!(allowSyncRead && input.TryRead(out var readResult)))
+                    {
+                        readResult = await input.ReadAsync();
+                    }
+                    
                     if (readResult.IsCompleted && readResult.Buffer.IsEmpty)
                     {
                         break; // we're all done
                     }
                     var buffer = readResult.Buffer;
-    
+
                     var s = new RawResult(ResultType.BulkString, buffer, false).GetString().Replace("\r","\\r").Replace("\n","\\n");
-                    
+
                     int handled = ProcessBuffer(ref buffer); // updates buffer.Start
-                    
+                    allowSyncRead = handled != 0;
+
                     Multiplexer.Trace($"Processed {handled} messages", physicalName);
                     input.AdvanceTo(buffer.Start, buffer.End);
                 }

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Threading;
 using System.Threading.Tasks;
 using StackExchange.Redis;
 
@@ -9,6 +10,7 @@ namespace BasicTest
     {
         public static async Task Main()
         {
+            Thread.CurrentThread.Name = nameof(Main);
             using (var conn = await ConnectionMultiplexer.ConnectAsync("127.0.0.1:6379,syncTimeout=2000"))
             {
                 int expected = 0;
