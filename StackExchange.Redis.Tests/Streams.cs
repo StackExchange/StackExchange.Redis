@@ -25,15 +25,13 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void StreamAddMultipleValuePairsWithManualId()
+        public void StreamAddMultipleValuePairsWithAutoId()
         {
-            var id = $"{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}-0";
-
             using (var conn = Create())
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
 
-                var key = GetUniqueKey("manual_id");
+                var key = GetUniqueKey("multiple_value_pairs");
 
                 var fields = new NameValueEntry[2]
                 {
@@ -69,6 +67,34 @@ namespace StackExchange.Redis.Tests
                 var messageId = db.StreamAdd(GetUniqueKey("manual_id"), id, "field1", "value1");
 
                 Assert.Equal(id, messageId);
+            }
+        }
+
+        [Fact]
+        public void StreamAddMultipleValuePairsWithManualId()
+        {
+            var id = $"{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}-0";
+            var key = GetUniqueKey("manual_id_multiple_values");
+
+            using (var conn = Create())
+            {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+
+                var db = conn.GetDatabase();
+
+                var fields = new NameValueEntry[2]
+                {
+                    new NameValueEntry("field1", "value1"),
+                    new NameValueEntry("field2", "value2")
+                };
+
+                var messageId = db.StreamAdd(key, id, fields);
+                var entries = db.StreamRange(key, StreamConstants.StreamMinValue, StreamConstants.StreamMaxValue);
+
+                Assert.Equal(id, messageId);
+                Assert.NotNull(entries);
+                Assert.True(entries.Length == 1);
+                Assert.Equal(id, entries[0].Id);
             }
         }
 
