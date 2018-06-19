@@ -2,7 +2,7 @@
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// 
+    /// Describes basic information about pending messages for a consumer group.
     /// </summary>
     public class StreamPendingInfo
     {
@@ -18,22 +18,22 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// 
+        /// The number of pending messages. A pending message is a message that has been consumed but not yet acknowledged.
         /// </summary>
         public RedisValue PendingMessageCount { get; }
 
         /// <summary>
-        /// 
+        /// The lowest message ID in the set of pending messages.
         /// </summary>
         public RedisValue LowestPendingMessageId { get; }
 
         /// <summary>
-        /// 
+        /// The highest message ID in the set of pending messages.
         /// </summary>
         public RedisValue HighestPendingMessageId { get; }
 
         /// <summary>
-        /// 
+        /// An array of consumers within the consumer group that have pending messages.
         /// </summary>
         public StreamConsumer[] Consumers { get; }
 
