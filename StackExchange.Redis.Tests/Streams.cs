@@ -224,7 +224,11 @@ namespace StackExchange.Redis.Tests
                 var entries = db.StreamReadGroup(key, groupName, consumer, "0-0");
 
                 // Send XACK for 3 of the messages
+
+                // Single message Id overload.
                 var oneAck = db.StreamAcknowledge(key, groupName, id1);
+
+                // Multiple message Id overload.
                 var twoAck = db.StreamAcknowledge(key, groupName, new string[] { id3, id4 });
 
                 // Read the group again, it should only return the unacknowledged message.

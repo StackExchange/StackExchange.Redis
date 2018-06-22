@@ -566,12 +566,12 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.SortedSetScoreAsync(ToInner(key), member, flags);
         }
 
-        public Task<RedisValue> StreamAcknowledgeAsync(RedisKey key, RedisValue groupName, string messageId, CommandFlags flags = CommandFlags.None)
+        public Task<long> StreamAcknowledgeAsync(RedisKey key, RedisValue groupName, string messageId, CommandFlags flags = CommandFlags.None)
         {
             return Inner.StreamAcknowledgeAsync(ToInner(key), groupName, messageId, flags);
         }
 
-        public Task<RedisValue> StreamAcknowledgeAsync(RedisKey key, RedisValue groupName, string[] messageIds, CommandFlags flags = CommandFlags.None)
+        public Task<long> StreamAcknowledgeAsync(RedisKey key, RedisValue groupName, string[] messageIds, CommandFlags flags = CommandFlags.None)
         {
             return Inner.StreamAcknowledgeAsync(ToInner(key), groupName, messageIds, flags);
         }

@@ -1579,28 +1579,28 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.NullableDouble);
         }
 
-        public RedisValue StreamAcknowledge(RedisKey key, RedisValue groupName, string messageId, CommandFlags flags = CommandFlags.None)
+        public long StreamAcknowledge(RedisKey key, RedisValue groupName, string messageId, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamAcknowledgeMessage(key, groupName, flags, messageId);
-            return ExecuteSync(msg, ResultProcessor.RedisValue);
+            return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
-        public RedisValue StreamAcknowledge(RedisKey key, RedisValue groupName, string[] messageIds, CommandFlags flags = CommandFlags.None)
+        public long StreamAcknowledge(RedisKey key, RedisValue groupName, string[] messageIds, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamAcknowledgeMessage(key, groupName, flags, messageIds);
-            return ExecuteSync(msg, ResultProcessor.RedisValue);
+            return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
-        public Task<RedisValue> StreamAcknowledgeAsync(RedisKey key, RedisValue groupName, string messageId, CommandFlags flags = CommandFlags.None)
+        public Task<long> StreamAcknowledgeAsync(RedisKey key, RedisValue groupName, string messageId, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamAcknowledgeMessage(key, groupName, flags, messageId);
-            return ExecuteAsync(msg, ResultProcessor.RedisValue);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
-        public Task<RedisValue> StreamAcknowledgeAsync(RedisKey key, RedisValue groupName, string[] messageIds, CommandFlags flags = CommandFlags.None)
+        public Task<long> StreamAcknowledgeAsync(RedisKey key, RedisValue groupName, string[] messageIds, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamAcknowledgeMessage(key, groupName, flags, messageIds);
-            return ExecuteAsync(msg, ResultProcessor.RedisValue);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
         public string StreamAdd(RedisKey key, NameValueEntry[] streamFields, int? maxLength = null, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None)

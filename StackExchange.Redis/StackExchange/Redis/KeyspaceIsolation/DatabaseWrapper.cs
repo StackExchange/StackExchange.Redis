@@ -587,12 +587,12 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.SortedSetScore(ToInner(key), member, flags);
         }
 
-        public RedisValue StreamAcknowledge(RedisKey key, RedisValue groupName, string messageId, CommandFlags flags = CommandFlags.None)
+        public long StreamAcknowledge(RedisKey key, RedisValue groupName, string messageId, CommandFlags flags = CommandFlags.None)
         {
             return Inner.StreamAcknowledge(ToInner(key), groupName, messageId, flags);
         }
 
-        public RedisValue StreamAcknowledge(RedisKey key, RedisValue groupName, string[] messageIds, CommandFlags flags = CommandFlags.None)
+        public long StreamAcknowledge(RedisKey key, RedisValue groupName, string[] messageIds, CommandFlags flags = CommandFlags.None)
         {
             return Inner.StreamAcknowledge(ToInner(key), groupName, messageIds, flags);
         }

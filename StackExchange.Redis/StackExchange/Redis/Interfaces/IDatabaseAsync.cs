@@ -1308,7 +1308,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of messages acknowledged.</returns>
         /// <remarks>https://redis.io/topics/streams-intro</remarks>
-        Task<RedisValue> StreamAcknowledgeAsync(RedisKey key, RedisValue groupName, string messageId, CommandFlags flags = CommandFlags.None);
+        Task<long> StreamAcknowledgeAsync(RedisKey key, RedisValue groupName, string messageId, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Allow the consumer to mark a pending message as correctly processed. Returns the number of messages acknowledged.
@@ -1319,7 +1319,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of messages acknowledged.</returns>
         /// <remarks>https://redis.io/topics/streams-intro</remarks>
-        Task<RedisValue> StreamAcknowledgeAsync(RedisKey key, RedisValue groupName, string[] messageIds, CommandFlags flags = CommandFlags.None);
+        Task<long> StreamAcknowledgeAsync(RedisKey key, RedisValue groupName, string[] messageIds, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Adds an entry using the specified values to the given stream key. If key does not exist, a new key holding a stream is created. The command returns the ID of the newly created stream entry.
