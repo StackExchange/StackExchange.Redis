@@ -599,6 +599,33 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void StreamInfoGetWithEmptyStream()
+        {
+            var key = GetUniqueKey("stream_info_empty");
+
+            using (var conn = Create())
+            {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+
+                var db = conn.GetDatabase();
+
+                // Add an entry and then delete it so the stream is empty, then run streaminfo
+                // to ensure it functions properly on an empty stream. Namely, the first-entry
+                // and last-entry messages should be null.
+                
+                var id = db.StreamAdd(key, "field1", "value1");
+                db.StreamMessagesDelete(key, new string[1] { id });
+
+                Assert.Equal(0, db.StreamLength(key));
+
+                var streamInfo = db.StreamInfoGet(key);
+
+                Assert.True(streamInfo.FirstEntry.IsNull);
+                Assert.True(streamInfo.LastEntry.IsNull);
+            }
+        }
+
+        [Fact]
         public void StreamVerifyLength()
         {
             var key = GetUniqueKey("len");

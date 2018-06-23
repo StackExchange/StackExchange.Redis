@@ -20,6 +20,11 @@
         }
 
         /// <summary>
+        /// A null stream entry.
+        /// </summary>
+        public static RedisStreamEntry Null { get; } = new RedisStreamEntry(RedisValue.Null, null);
+
+        /// <summary>
         /// The ID assigned to the message.
         /// </summary>
         public RedisValue Id => id;
@@ -28,5 +33,10 @@
         /// The values contained within the message.
         /// </summary>
         public NameValueEntry[] Values => values;
+
+        /// <summary>
+        /// Indicates that the Redis Stream Entry is null.
+        /// </summary>
+        public bool IsNull => id == RedisValue.Null && values == null;
     }
 }

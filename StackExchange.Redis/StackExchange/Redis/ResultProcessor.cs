@@ -1552,13 +1552,13 @@ The coordinates as a two items x,y array (longitude,latitude).
             // 8) (integer) 2
             // 9) first-entry
             // 10) 1) 1524494395530-0
-            //    2) 1) "a"
+            //     2) 1) "a"
             //        2) "1"
             //        3) "b"
             //        4) "2"
             // 11) last-entry
             // 12) 1) 1526569544280-0
-            //    2) 1) "message"
+            //     2) 1) "message"
             //        2) "banana"
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
@@ -1707,22 +1707,23 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                 for (var i = 0; i < arr.Length; i++)
                 {
-                    if (arr[i].Type != ResultType.MultiBulk)
+                    if (arr[i].IsNull || arr[i].Type != ResultType.MultiBulk)
                     {
-                        return null;
+                        entries[i] = RedisStreamEntry.Null;
                     }
+                    else
+                    {
+                        // Process the Multibulk array for each entry. The entry contains the following elements:
+                        //  [0] = SimpleString (the ID of the stream entry)
+                        //  [1] = Multibulk array of the name/value pairs of the stream entry's data
+                        var item = arr[i].GetItems();
 
-                    // Process the Multibulk array for each entry. The entry contains the following elements:
-                    //  [0] = SimpleString (the ID of the stream entry)
-                    //  [1] = Multibulk array of the name/value pairs of the stream entry's data
-                    var item = arr[i].GetItems();
+                        var id = item[0].AsRedisValue();
+                        var values = ParseStreamEntryValues(item[1]);
 
-                    var id = item[0].AsRedisValue();
-                    var values = ParseStreamEntryValues(item[1]);
-
-                    entries[i] = new RedisStreamEntry(id, values);
+                        entries[i] = new RedisStreamEntry(id, values);
+                    }
                 }
-
                 return entries;
             }
 
