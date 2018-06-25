@@ -171,20 +171,19 @@ namespace StackExchange.Redis
             }
             OnDispose();
         }
-
         internal SocketToken BeginConnect(EndPoint endpoint, ISocketCallback callback, ConnectionMultiplexer multiplexer, TextWriter log)
         {
             var addressFamily = endpoint.AddressFamily == AddressFamily.Unspecified ? AddressFamily.InterNetwork : endpoint.AddressFamily;
             var socket = new Socket(addressFamily, SocketType.Stream, ProtocolType.Tcp);
-
+            SocketConnection.SetRecommendedClientOptions(socket);
             
             try
             {
                 var formattedEndpoint = Format.ToString(endpoint);
-
-                SocketConnection.ConnectAsync(endpoint, _pipeOptions,
+                var t = SocketConnection.ConnectAsync(endpoint, _pipeOptions,
                     onConnected: conn => EndConnectAsync(conn, multiplexer, log, callback),
                     socket: socket);
+                GC.KeepAlive(t); // make compiler happier
             }
             catch (NotImplementedException ex)
             {
