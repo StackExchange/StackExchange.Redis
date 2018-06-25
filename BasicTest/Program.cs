@@ -59,7 +59,11 @@ namespace BasicTest
         /// <summary>
         /// Run INCRBY lots of times
         /// </summary>
-        [Benchmark(Description = "INCRBY", OperationsPerInvoke = COUNT)]
+#if TEST_BASELINE
+        [Benchmark(Description = "INCRBY:v1", OperationsPerInvoke = COUNT)]
+#else
+        [Benchmark(Description = "INCRBY:v2", OperationsPerInvoke = COUNT)]
+#endif
         public int Execute()
         {   
             var rand = new Random(12345);

@@ -63,6 +63,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Basic", "Basic", "{38BDEEED
 		RedisConfigs\Basic\slave-6380.conf = RedisConfigs\Basic\slave-6380.conf
 	EndProjectSection
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BasicTestBaseline", "BasicTestBaseline\BasicTestBaseline.csproj", "{8FDB623D-779B-4A84-BC6B-75106E41D8A4}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -111,6 +113,14 @@ Global
 		{94D233F5-2400-4542-98B9-BA72005C57DC}.Release|Any CPU.Build.0 = Release|Any CPU
 		{94D233F5-2400-4542-98B9-BA72005C57DC}.Verbose|Any CPU.ActiveCfg = Debug|Any CPU
 		{94D233F5-2400-4542-98B9-BA72005C57DC}.Verbose|Any CPU.Build.0 = Debug|Any CPU
+		{8FDB623D-779B-4A84-BC6B-75106E41D8A4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8FDB623D-779B-4A84-BC6B-75106E41D8A4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8FDB623D-779B-4A84-BC6B-75106E41D8A4}.Log Output|Any CPU.ActiveCfg = Release|Any CPU
+		{8FDB623D-779B-4A84-BC6B-75106E41D8A4}.Log Output|Any CPU.Build.0 = Release|Any CPU
+		{8FDB623D-779B-4A84-BC6B-75106E41D8A4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8FDB623D-779B-4A84-BC6B-75106E41D8A4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8FDB623D-779B-4A84-BC6B-75106E41D8A4}.Verbose|Any CPU.ActiveCfg = Release|Any CPU
+		{8FDB623D-779B-4A84-BC6B-75106E41D8A4}.Verbose|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

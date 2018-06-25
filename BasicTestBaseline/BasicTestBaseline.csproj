@@ -9,14 +9,19 @@
     <RuntimeIdentifiers>win7-x64</RuntimeIdentifiers>
     <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
     <LangVersion>latest</LangVersion>
+    <DefineConstants>$(DefineConstants);TEST_BASELINE</DefineConstants>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\BasicTest\Program.cs" Link="Program.cs" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" Version="0.10.14" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\StackExchange.Redis\StackExchange.Redis.csproj" />
+    <PackageReference Include="StackExchange.Redis" Version="1.2.7-alpha-00002" />
   </ItemGroup>
 
 </Project>
