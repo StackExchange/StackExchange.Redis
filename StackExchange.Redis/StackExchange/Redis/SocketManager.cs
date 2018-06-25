@@ -137,7 +137,17 @@ namespace StackExchange.Redis
             _writeOneQueueAsync = () => WriteOneQueueAsync();
 
             Task.Run(() => WriteAllQueuesAsync());
+
+            var defaultPipeOptions = PipeOptions.Default;
+            _scheduler = new DedicatedThreadPoolPipeScheduler(name, priority: useHighPrioritySocketThreads ? ThreadPriority.AboveNormal : ThreadPriority.Normal);
+            _pipeOptions = new PipeOptions(
+                defaultPipeOptions.Pool, _scheduler, _scheduler,
+                defaultPipeOptions.PauseWriterThreshold, defaultPipeOptions.ResumeWriterThreshold, defaultPipeOptions.MinimumSegmentSize,
+                useSynchronizationContext: false);
         }
+        readonly DedicatedThreadPoolPipeScheduler _scheduler;
+        readonly PipeOptions _pipeOptions;
+        
         private readonly Func<Task> _writeOneQueueAsync;
 
 
@@ -152,6 +162,7 @@ namespace StackExchange.Redis
         /// </summary>
         public void Dispose()
         {
+            _scheduler?.Dispose();
             lock (writeQueue)
             {
                 // make sure writer threads know to exit
@@ -171,8 +182,9 @@ namespace StackExchange.Redis
             {
                 var formattedEndpoint = Format.ToString(endpoint);
 
-                SocketConnection.ConnectAsync(endpoint, PipeOptions.Default,
-                    conn => EndConnectAsync(conn, multiplexer, log, callback), socket);
+                SocketConnection.ConnectAsync(endpoint, _pipeOptions,
+                    onConnected: conn => EndConnectAsync(conn, multiplexer, log, callback),
+                    socket: socket);
             }
             catch (NotImplementedException ex)
             {
