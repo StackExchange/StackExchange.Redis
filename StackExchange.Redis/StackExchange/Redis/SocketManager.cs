@@ -28,7 +28,8 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="socket">The socket.</param>
         /// <param name="log">A text logger to write to.</param>
-        ValueTask<SocketMode> ConnectedAsync(Socket socket, TextWriter log);
+        /// <param name="pipeOptions">Pipe configuration</param>
+        ValueTask<SocketMode> ConnectedAsync(Socket socket, TextWriter log, PipeOptions pipeOptions);
 
         /// <summary>
         /// Indicates that the socket has signalled an error condition
@@ -147,7 +148,7 @@ namespace StackExchange.Redis
         }
         readonly DedicatedThreadPoolPipeScheduler _scheduler;
         readonly PipeOptions _pipeOptions;
-        
+
         private readonly Func<Task> _writeOneQueueAsync;
 
 
@@ -274,7 +275,7 @@ namespace StackExchange.Redis
                 if (ignoreConnect) return;
                 socket.EndConnect(ar);
 
-                var socketMode = callback == null ? SocketMode.Abort : await callback.ConnectedAsync(socket, log);
+                var socketMode = callback == null ? SocketMode.Abort : await callback.ConnectedAsync(socket, log, _pipeOptions);
                 switch (socketMode)
                 {
                     case SocketMode.Async:
