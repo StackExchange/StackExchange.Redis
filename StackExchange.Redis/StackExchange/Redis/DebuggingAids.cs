@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -260,12 +261,11 @@ namespace StackExchange.Redis
     }
 #endif
 
-#if FEATURE_PERFCOUNTER
     internal static class PerfCounterHelper
     {
         private static readonly object staticLock = new object();
         private static volatile PerformanceCounter _cpu;
-        private static volatile bool _disabled;
+        private static volatile bool _disabled = !RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
 
         public static bool TryGetSystemCPU(out float value)
         {
@@ -306,7 +306,6 @@ namespace StackExchange.Redis
             return false;
         }
     }
-#endif
 
 #if VERBOSE
 

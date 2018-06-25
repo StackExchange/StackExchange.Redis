@@ -2046,12 +2046,12 @@ namespace StackExchange.Redis
                             add("ThreadPool-IO-Completion", "IOCP", iocp);
                             add("ThreadPool-Workers", "WORKER", worker);
                             data.Add(Tuple.Create("Busy-Workers", busyWorkerCount.ToString()));
-#if FEATURE_PERFCOUNTER
+
                             if (IncludePerformanceCountersInExceptions)
                             {
                                 add("Local-CPU", "Local-CPU", GetSystemCpuPercent());
                             }
-#endif
+
                             sb.Append(" (Please take a look at this article for some common client-side issues that can cause timeouts: ");
                             sb.Append(timeoutHelpLink);
                             sb.Append(")");
@@ -2085,7 +2085,6 @@ namespace StackExchange.Redis
             }
         }
 
-#if FEATURE_PERFCOUNTER
         internal static string GetThreadPoolAndCPUSummary(bool includePerformanceCounters)
         {
             GetThreadPoolStats(out string iocp, out string worker);
@@ -2099,7 +2098,6 @@ namespace StackExchange.Redis
                 ? Math.Round(systemCPU, 2) + "%"
                 : "unavailable";
         }
-#endif
         private static int GetThreadPoolStats(out string iocp, out string worker)
         {
             ThreadPool.GetMaxThreads(out int maxWorkerThreads, out int maxIoThreads);

@@ -10,27 +10,13 @@
     <OutputTypeEx>Library</OutputTypeEx>
     <SignAssembly>true</SignAssembly>
     <PublicSign Condition=" '$(OS)' != 'Windows_NT' ">true</PublicSign>
-    <LangVersion>7.2</LangVersion>
-  </PropertyGroup>
-
-  <ItemGroup Condition=" '$(TargetFramework)' == 'net45' OR '$(TargetFramework)' == 'net46' ">
-    <Reference Include="System" />
-    <Reference Include="Microsoft.CSharp" />
-  </ItemGroup>
-
-  <PropertyGroup Condition=" '$(TargetFramework)' == 'net45' or '$(TargetFramework)' == 'net46'">
-    <DefineConstants>$(DefineConstants);FEATURE_PERFCOUNTER;</DefineConstants>
+    <LangVersion>latest</LangVersion>
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- theses intentionally does not track CoreFxVersion -->
-    <PackageReference Include="System.IO.Compression" Version="4.3.0" />
-    <PackageReference Include="System.Reflection.Emit.ILGeneration" Version="4.3.0" />
     <PackageReference Include="System.Reflection.Emit.Lightweight" Version="4.3.0" />
-    
-    <PackageReference Include="System.Memory" Version="$(CoreFxVersion)" />
-    <PackageReference Include="System.Buffers" Version="$(CoreFxVersion)" />
     <PackageReference Include="System.IO.Pipelines" Version="$(CoreFxVersion)" />
-    <PackageReference Include="Pipelines.Sockets.Unofficial" Version="0.2.1-alpha.33" />
+    <PackageReference Include="Pipelines.Sockets.Unofficial" Version="0.2.1-alpha.43" />
+    <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="$(CoreFxVersion)" />
   </ItemGroup>
 </Project>

@@ -26,9 +26,9 @@ namespace StackExchange.Redis
         /// <summary>
         /// Indicates that a socket has connected
         /// </summary>
-        /// <param name="pipe">The network stream for this socket.</param>
+        /// <param name="socket">The socket.</param>
         /// <param name="log">A text logger to write to.</param>
-        ValueTask<SocketMode> ConnectedAsync(IDuplexPipe pipe, TextWriter log);
+        ValueTask<SocketMode> ConnectedAsync(Socket socket, TextWriter log);
 
         /// <summary>
         /// Indicates that the socket has signalled an error condition
@@ -173,17 +173,57 @@ namespace StackExchange.Redis
         }
         internal SocketToken BeginConnect(EndPoint endpoint, ISocketCallback callback, ConnectionMultiplexer multiplexer, TextWriter log)
         {
+            void RunWithCompletionType(Func<AsyncCallback, IAsyncResult> beginAsync, AsyncCallback asyncCallback)
+            {
+                void proxyCallback(IAsyncResult ar)
+                {
+                    if (!ar.CompletedSynchronously)
+                    {
+                        asyncCallback(ar);
+                    }
+                }
+
+                var result = beginAsync(proxyCallback);
+                if (result.CompletedSynchronously)
+                {
+                    result.AsyncWaitHandle.WaitOne();
+                    asyncCallback(result);
+                }
+            }
+
+
             var addressFamily = endpoint.AddressFamily == AddressFamily.Unspecified ? AddressFamily.InterNetwork : endpoint.AddressFamily;
             var socket = new Socket(addressFamily, SocketType.Stream, ProtocolType.Tcp);
             SocketConnection.SetRecommendedClientOptions(socket);
-            
+
+            if (addressFamily == AddressFamily.Unix) socket.NoDelay = false;
+
             try
             {
                 var formattedEndpoint = Format.ToString(endpoint);
-                var t = SocketConnection.ConnectAsync(endpoint, _pipeOptions,
-                    onConnected: conn => EndConnectAsync(conn, multiplexer, log, callback),
-                    socket: socket);
-                GC.KeepAlive(t); // make compiler happier
+                var tuple = Tuple.Create(socket, callback);
+                multiplexer.LogLocked(log, "BeginConnect: {0}", formattedEndpoint);
+                // A work-around for a Mono bug in BeginConnect(EndPoint endpoint, AsyncCallback callback, object state)
+                if (endpoint is DnsEndPoint dnsEndpoint)
+                {
+                    RunWithCompletionType(
+                        cb => socket.BeginConnect(dnsEndpoint.Host, dnsEndpoint.Port, cb, tuple),
+                        ar => {
+                            multiplexer.LogLocked(log, "EndConnect: {0}", formattedEndpoint);
+                            EndConnectImpl(ar, multiplexer, log, tuple);
+                            multiplexer.LogLocked(log, "Connect complete: {0}", formattedEndpoint);
+                        });
+                }
+                else
+                {
+                    RunWithCompletionType(
+                        cb => socket.BeginConnect(endpoint, cb, tuple),
+                        ar => {
+                            multiplexer.LogLocked(log, "EndConnect: {0}", formattedEndpoint);
+                            EndConnectImpl(ar, multiplexer, log, tuple);
+                            multiplexer.LogLocked(log, "Connect complete: {0}", formattedEndpoint);
+                        });
+                }
             }
             catch (NotImplementedException ex)
             {
@@ -223,16 +263,18 @@ namespace StackExchange.Redis
             Shutdown(token.Socket);
         }
 
-        private async Task EndConnectAsync(SocketConnection connection, ConnectionMultiplexer multiplexer, TextWriter log, ISocketCallback callback)
+        private async void EndConnectImpl(IAsyncResult ar, ConnectionMultiplexer multiplexer, TextWriter log, Tuple<Socket, ISocketCallback> tuple)
         {
+            var socket = tuple.Item1;
+            var callback = tuple.Item2;
             try
             {
                 bool ignoreConnect = false;
-                var socket = connection?.Socket;
-                ShouldIgnoreConnect(callback, ref ignoreConnect);
+                ShouldIgnoreConnect(tuple.Item2, ref ignoreConnect);
                 if (ignoreConnect) return;
+                socket.EndConnect(ar);
 
-                var socketMode = callback == null ? SocketMode.Abort : await callback.ConnectedAsync(connection, log);
+                var socketMode = callback == null ? SocketMode.Abort : await callback.ConnectedAsync(socket, log);
                 switch (socketMode)
                 {
                     case SocketMode.Async:

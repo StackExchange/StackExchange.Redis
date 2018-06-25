@@ -124,12 +124,10 @@ namespace StackExchange.Redis
                 exceptionmessage.Append("; ").Append(innermostExceptionstring);
             }
 
-#if FEATURE_PERFCOUNTER
             if (includeDetail)
             {
                 exceptionmessage.Append("; ").Append(ConnectionMultiplexer.GetThreadPoolAndCPUSummary(includePerformanceCounters));
             }
-#endif
 
             var ex = new RedisConnectionException(ConnectionFailureType.UnableToResolvePhysicalConnection, exceptionmessage.ToString(), innerException, message?.Status ?? CommandStatus.Unknown);
 

@@ -182,9 +182,7 @@ namespace StackExchange.Redis
                                     unableToConnectError = true;
                                     err = $"Endpoint {endpoint} serving hashslot {hashSlot} is not reachable at this point of time. Please check connectTimeout value. If it is low, try increasing it to give the ConnectionMultiplexer a chance to recover from the network disconnect.  ";
                                 }
-#if FEATURE_PERFCOUNTER
                                 err += ConnectionMultiplexer.GetThreadPoolAndCPUSummary(bridge.Multiplexer.IncludePerformanceCountersInExceptions);
-#endif
                             }
                         }
                     }

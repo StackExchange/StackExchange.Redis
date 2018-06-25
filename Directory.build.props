@@ -21,7 +21,7 @@
     <DefaultLanguage>en-US</DefaultLanguage>
     <IncludeSymbols>false</IncludeSymbols>
 
-    <LibraryTargetFrameworks>net46;netstandard2.0</LibraryTargetFrameworks>
+    <LibraryTargetFrameworks>netstandard2.0</LibraryTargetFrameworks>
     <CoreFxVersion>4.5.0</CoreFxVersion>
     <xUnitVersion>2.4.0-beta.2.build3981</xUnitVersion>
   </PropertyGroup>

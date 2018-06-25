@@ -15,6 +15,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Pipelines.Sockets.Unofficial;
 
 namespace StackExchange.Redis
 {
@@ -834,43 +835,47 @@ namespace StackExchange.Redis
             return null;
         }
 
-        async ValueTask<SocketMode> ISocketCallback.ConnectedAsync(IDuplexPipe pipe, TextWriter log)
+        async ValueTask<SocketMode> ISocketCallback.ConnectedAsync(Socket socket, TextWriter log)
         {
             try
             {
-                var socketMode = SocketManager.DefaultSocketMode;
+                var socketMode = SocketMode.Async;
 
                 // disallow connection in some cases
                 OnDebugAbort();
 
                 // the order is important here:
-                // [network]<==[ssl]<==[logging]<==[buffered]
+                // [Socket]<==[NetworkStream]<==[SslStream]<==[
                 var config = Multiplexer.RawConfig;
 
+                IDuplexPipe pipe;
                 if (config.Ssl)
                 {
-                    throw new NotImplementedException("TLS");
-                    //Multiplexer.LogLocked(log, "Configuring SSL");
-                    //var host = config.SslHost;
-                    //if (string.IsNullOrWhiteSpace(host)) host = Format.ToStringHostOnly(Bridge.ServerEndPoint.EndPoint);
 
-                    //var ssl = new SslStream(stream, false, config.CertificateValidationCallback,
-                    //    config.CertificateSelectionCallback ?? GetAmbientCertificateCallback(),
-                    //    EncryptionPolicy.RequireEncryption);
-                    //try
-                    //{
-                    //    ssl.AuthenticateAsClient(host, config.SslProtocols);
+                    Multiplexer.LogLocked(log, "Configuring SSL");
+                    var host = config.SslHost;
+                    if (string.IsNullOrWhiteSpace(host)) host = Format.ToStringHostOnly(Bridge.ServerEndPoint.EndPoint);
 
-                    //    Multiplexer.LogLocked(log, $"SSL connection established successfully using protocol: {ssl.SslProtocol}");
-                    //}
-                    //catch (AuthenticationException authexception)
-                    //{
-                    //    RecordConnectionFailed(ConnectionFailureType.AuthenticationFailure, authexception);
-                    //    Multiplexer.Trace("Encryption failure");
-                    //    return SocketMode.Abort;
-                    //}
-                    //stream = ssl;
-                    //socketMode = SocketMode.Async;
+                    var ssl = new SslStream(new NetworkStream(socket), false, config.CertificateValidationCallback,
+                        config.CertificateSelectionCallback ?? GetAmbientCertificateCallback(),
+                        EncryptionPolicy.RequireEncryption);
+                    try
+                    {
+                        ssl.AuthenticateAsClient(host, config.SslProtocols);
+
+                        Multiplexer.LogLocked(log, $"SSL connection established successfully using protocol: {ssl.SslProtocol}");
+                    }
+                    catch (AuthenticationException authexception)
+                    {
+                        RecordConnectionFailed(ConnectionFailureType.AuthenticationFailure, authexception);
+                        Multiplexer.Trace("Encryption failure");
+                        return SocketMode.Abort;
+                    }
+                    pipe = StreamConnector.GetDuplex(ssl, name: Bridge.Name);
+                }
+                else
+                {
+                    pipe = SocketConnection.Create(socket, name: Bridge.Name);
                 }
                 OnWrapForLogging(ref pipe, physicalName);
 
