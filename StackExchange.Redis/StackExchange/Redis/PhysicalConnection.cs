@@ -975,83 +975,67 @@ namespace StackExchange.Redis
         }
 
         partial void OnWrapForLogging(ref IDuplexPipe pipe, string name);
-
-        static int __next;
-        private readonly int _connectionId = Interlocked.Increment(ref __next);
         private async void ReadFromPipe() // yes it is an async void; deal with it!
         {
-            ReadOnlySequence<byte> clone = default;
-
-            string state = "init";
             try
             {
-                Stopwatch w = new Stopwatch();
+                bool allowSyncRead = true;
                 while (true)
                 {
                     var input = _ioPipe?.Input;
                     if (input == null) break;
-                    state = "> ReadAsync";
-                    var readResult = await input.ReadAsync();
-                    state = "< ReadAsync";
+
+                    // note: TryRead will give us back the same buffer in a tight loop
+                    // - so: only use that if we're making progress
+                    if(!(allowSyncRead && input.TryRead(out var readResult)))
+                    {
+                        readResult = await input.ReadAsync();
+                    }
+                    
                     if (readResult.IsCompleted && readResult.Buffer.IsEmpty)
                     {
                         break; // we're all done
                     }
                     var buffer = readResult.Buffer;
 
-                    clone = buffer;
-                    state = "> ProcessBuffer";
-                    Console.WriteLine($"{_connectionId} > {buffer.Length}");
-                    w.Restart();
-                    int handled = ProcessBuffer(in buffer, out var consumed);
-                    w.Stop();
-                    Console.WriteLine($"{_connectionId} < {w.ElapsedMilliseconds}ms)");
-                    state = "< ProcessBuffer";
-                    
-                    Multiplexer.Trace($"Processed {handled} messages", physicalName);
-                    state = "> AdvanceTo";
-                    input.AdvanceTo(buffer.GetPosition(consumed), buffer.End);
-                    state = "< AdvanceTo";
+                    var s = new RawResult(ResultType.BulkString, buffer, false).GetString().Replace("\r","\\r").Replace("\n","\\n");
 
+                    int handled = ProcessBuffer(ref buffer); // updates buffer.Start
+                    allowSyncRead = handled != 0;
+
+                    Multiplexer.Trace($"Processed {handled} messages", physicalName);
+                    input.AdvanceTo(buffer.Start, buffer.End);
                 }
-                state = "#EOF";
                 Multiplexer.Trace("EOF", physicalName);
                 RecordConnectionFailed(ConnectionFailureType.SocketClosed);
             }
             catch (Exception ex)
             {
-                Console.WriteLine("## Boom! " + ex.Message);
-                //ProcessBuffer(in clone, out long wtf);
-                //Console.WriteLine(wtf);
-
                 Multiplexer.Trace("Faulted", physicalName);
                 RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
             }
-            finally
-            {
-                Console.WriteLine(state);
-            }
         }
-        private int ProcessBuffer(in ReadOnlySequence<byte> entireBuffer, out long consumed)
+
+        private int ProcessBuffer(ref ReadOnlySequence<byte> buffer)
         {
             int messageCount = 0;
-            var remainingBuffer = entireBuffer; // create a snapshot so we can trim it after each decoded message
-                                                // (so that slicing later doesn't require us to keep skipping segments)
-
-            consumed = 0;
-            while (!remainingBuffer.IsEmpty)
+            
+            while (!buffer.IsEmpty)
             {
-                var reader = new BufferReader(remainingBuffer);
-                var result = TryParseResult(in remainingBuffer, ref reader);
+                var reader = new BufferReader(buffer);
+                var result = TryParseResult(in buffer, ref reader);
 
                 if (result.HasValue)
                 {
-                    consumed += reader.TotalConsumed;
-                    remainingBuffer = remainingBuffer.Slice(reader.TotalConsumed);
+                    buffer = buffer.Slice(reader.TotalConsumed);
 
                     messageCount++;
                     Multiplexer.Trace(result.ToString(), physicalName);
                     MatchResult(result);
+                }
+                else
+                {
+                    break; // remaining buffer isn't enough; give up
                 }
             }
             return messageCount;
