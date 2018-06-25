@@ -137,7 +137,17 @@ namespace StackExchange.Redis
             _writeOneQueueAsync = () => WriteOneQueueAsync();
 
             Task.Run(() => WriteAllQueuesAsync());
+
+            var defaultPipeOptions = PipeOptions.Default;
+            _scheduler = new DedicatedThreadPoolPipeScheduler(name, priority: useHighPrioritySocketThreads ? ThreadPriority.AboveNormal : ThreadPriority.Normal);
+            _pipeOptions = new PipeOptions(
+                defaultPipeOptions.Pool, _scheduler, _scheduler,
+                defaultPipeOptions.PauseWriterThreshold, defaultPipeOptions.ResumeWriterThreshold, defaultPipeOptions.MinimumSegmentSize,
+                useSynchronizationContext: false);
         }
+        readonly DedicatedThreadPoolPipeScheduler _scheduler;
+        readonly PipeOptions _pipeOptions;
+        
         private readonly Func<Task> _writeOneQueueAsync;
 
 
@@ -152,6 +162,7 @@ namespace StackExchange.Redis
         /// </summary>
         public void Dispose()
         {
+            _scheduler?.Dispose();
             lock (writeQueue)
             {
                 // make sure writer threads know to exit
@@ -160,23 +171,16 @@ namespace StackExchange.Redis
             }
             OnDispose();
         }
-
-        //static readonly PipeOptions PipeOptions = PipeOptions.Default;
-        static readonly PipeOptions PipeOptions = new PipeOptions(
-            readerScheduler: PipeScheduler.Inline, writerScheduler: PipeScheduler.Inline, useSynchronizationContext: false);
         internal SocketToken BeginConnect(EndPoint endpoint, ISocketCallback callback, ConnectionMultiplexer multiplexer, TextWriter log)
         {
             var addressFamily = endpoint.AddressFamily == AddressFamily.Unspecified ? AddressFamily.InterNetwork : endpoint.AddressFamily;
             var socket = new Socket(addressFamily, SocketType.Stream, ProtocolType.Tcp);
-
+            SocketConnection.SetRecommendedClientOptions(socket);
             
             try
             {
                 var formattedEndpoint = Format.ToString(endpoint);
-
-                var t = SocketConnection.ConnectAsync(endpoint, PipeOptions,
-                    SocketConnectionOptions.SyncReader | SocketConnectionOptions.SyncWriter,
-                    // SocketConnectionOptions.None,
+                var t = SocketConnection.ConnectAsync(endpoint, _pipeOptions,
                     onConnected: conn => EndConnectAsync(conn, multiplexer, log, callback),
                     socket: socket);
                 GC.KeepAlive(t); // make compiler happier
