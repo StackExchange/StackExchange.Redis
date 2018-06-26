@@ -183,9 +183,9 @@ namespace StackExchange.Redis
 
 
             var addressFamily = endpoint.AddressFamily == AddressFamily.Unspecified ? AddressFamily.InterNetwork : endpoint.AddressFamily;
-            var socket = new Socket(addressFamily, SocketType.Stream, ProtocolType.Tcp);
-
-            if (addressFamily != AddressFamily.Unix) SocketConnection.SetRecommendedClientOptions(socket);
+            var protocolType = addressFamily == AddressFamily.Unix ? ProtocolType.Unspecified : ProtocolType.Tcp;
+            var socket = new Socket(addressFamily, SocketType.Stream, protocolType);
+            SocketConnection.SetRecommendedClientOptions(socket);
 
             try
             {
