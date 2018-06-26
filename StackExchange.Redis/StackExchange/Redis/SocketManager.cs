@@ -28,8 +28,8 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="socket">The socket.</param>
         /// <param name="log">A text logger to write to.</param>
-        /// <param name="pipeOptions">Pipe configuration</param>
-        ValueTask<SocketMode> ConnectedAsync(Socket socket, TextWriter log, PipeOptions pipeOptions);
+        /// <param name="manager">The manager that will be owning this socket.</param>
+        ValueTask<SocketMode> ConnectedAsync(Socket socket, TextWriter log, SocketManager manager);
 
         /// <summary>
         /// Indicates that the socket has signalled an error condition
@@ -139,15 +139,25 @@ namespace StackExchange.Redis
 
             Task.Run(() => WriteAllQueuesAsync());
 
+            const int Receive_PauseWriterThreshold = 1024 * 1024 * 1024; // let's give it up to 1GiB of buffer for now
+
             var defaultPipeOptions = PipeOptions.Default;
             _scheduler = new DedicatedThreadPoolPipeScheduler(name, priority: useHighPrioritySocketThreads ? ThreadPriority.AboveNormal : ThreadPriority.Normal);
-            _pipeOptions = new PipeOptions(
+            SendPipeOptions = new PipeOptions(
                 defaultPipeOptions.Pool, _scheduler, _scheduler,
-                defaultPipeOptions.PauseWriterThreshold, defaultPipeOptions.ResumeWriterThreshold, defaultPipeOptions.MinimumSegmentSize,
+                pauseWriterThreshold: defaultPipeOptions.PauseWriterThreshold,
+                resumeWriterThreshold: defaultPipeOptions.ResumeWriterThreshold,
+                defaultPipeOptions.MinimumSegmentSize,
+                useSynchronizationContext: false);
+            ReceivePipeOptions = new PipeOptions(
+                defaultPipeOptions.Pool, _scheduler, _scheduler,
+                pauseWriterThreshold: Receive_PauseWriterThreshold,
+                resumeWriterThreshold: Receive_PauseWriterThreshold / 2,
+                defaultPipeOptions.MinimumSegmentSize,
                 useSynchronizationContext: false);
         }
         readonly DedicatedThreadPoolPipeScheduler _scheduler;
-        readonly PipeOptions _pipeOptions;
+        internal readonly PipeOptions SendPipeOptions, ReceivePipeOptions;
 
         private readonly Func<Task> _writeOneQueueAsync;
 
@@ -274,7 +284,7 @@ namespace StackExchange.Redis
                 if (ignoreConnect) return;
                 socket.EndConnect(ar);
 
-                var socketMode = callback == null ? SocketMode.Abort : await callback.ConnectedAsync(socket, log, _pipeOptions);
+                var socketMode = callback == null ? SocketMode.Abort : await callback.ConnectedAsync(socket, log, this);
                 switch (socketMode)
                 {
                     case SocketMode.Async:

@@ -835,7 +835,7 @@ namespace StackExchange.Redis
             return null;
         }
 
-        async ValueTask<SocketMode> ISocketCallback.ConnectedAsync(Socket socket, TextWriter log, PipeOptions pipeOptions)
+        async ValueTask<SocketMode> ISocketCallback.ConnectedAsync(Socket socket, TextWriter log, SocketManager manager)
         {
             try
             {
@@ -871,11 +871,11 @@ namespace StackExchange.Redis
                         Multiplexer.Trace("Encryption failure");
                         return SocketMode.Abort;
                     }
-                    pipe = StreamConnector.GetDuplex(ssl, pipeOptions, name: Bridge.Name);
+                    pipe = StreamConnector.GetDuplex(ssl, manager.SendPipeOptions, manager.ReceivePipeOptions, name: Bridge.Name);
                 }
                 else
                 {
-                    pipe = SocketConnection.Create(socket, pipeOptions, name: Bridge.Name);
+                    pipe = SocketConnection.Create(socket, manager.SendPipeOptions, manager.ReceivePipeOptions, name: Bridge.Name);
                 }
                 OnWrapForLogging(ref pipe, physicalName);
 
