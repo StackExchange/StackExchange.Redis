@@ -37,9 +37,12 @@ namespace StackExchange.Redis.Tests.Issues
                 keyExists = cache.KeyExists(key);
                 ttl = cache.KeyTimeToLive(key);
                 fullWait = cache.HashGetAsync(key, "full", flags: CommandFlags.None);
+
                 Assert.False(keyExists);
                 Assert.Null(ttl);
-                Assert.Null((string)fullWait.Result);
+                var r = fullWait.Result;
+                Assert.True(r.IsNull);
+                Assert.Null((string)r);
             }
         }
     }

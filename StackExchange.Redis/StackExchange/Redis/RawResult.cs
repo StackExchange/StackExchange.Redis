@@ -7,15 +7,16 @@ namespace StackExchange.Redis
     internal readonly struct RawResult
     {
         internal static readonly RawResult NullMultiBulk = new RawResult((RawResult[])null);
-        internal static readonly RawResult EmptyMultiBulk = new RawResult(new RawResult[0]);
-        internal static readonly RawResult Nil = new RawResult();
+        internal static readonly RawResult EmptyMultiBulk = new RawResult(Array.Empty<RawResult>());
+        internal static readonly RawResult Nil = default;
         
 
         private readonly ReadOnlySequence<byte> _payload;
         private readonly RawResult[] _subArray;
         private readonly ResultType _type;
 
-        const ResultType NullResultTypeBit = unchecked((ResultType)(1 << 31));
+        const ResultType NonNullFlag = (ResultType)128;
+
         public RawResult(ResultType resultType, ReadOnlySequence<byte> payload, bool isNull)
         {
             switch (resultType)
@@ -28,7 +29,7 @@ namespace StackExchange.Redis
                 default:
                     throw new ArgumentOutOfRangeException(nameof(resultType));
             }
-            if (isNull) resultType |= NullResultTypeBit;
+            if (!isNull) resultType |= NonNullFlag;
             _type = resultType;
             _payload = payload;
             _subArray = default;
@@ -37,19 +38,17 @@ namespace StackExchange.Redis
         public RawResult(RawResult[] arr)
         {
             _type = ResultType.MultiBulk;
-            if (arr == null) _type |= NullResultTypeBit;
+            if (arr != null) _type |= NonNullFlag;
             _payload = default;
             _subArray = arr;
         }
 
-        public bool HasValue => Type != ResultType.None;
-
         public bool IsError => Type == ResultType.Error;
 
-        public ResultType Type => _type & ~NullResultTypeBit;
+        public ResultType Type => _type & ~NonNullFlag;
 
-        internal bool IsNull => (_type & NullResultTypeBit) != 0;
-
+        internal bool IsNull => (_type & NonNullFlag) == 0;
+        public bool HasValue => Type != ResultType.None;
         public override string ToString()
         {
             if (IsNull) return "(null)";
@@ -105,6 +104,7 @@ namespace StackExchange.Redis
 
         internal RedisValue AsRedisValue()
         {
+            if (IsNull) return RedisValue.Null;
             switch (Type)
             {
                 case ResultType.Integer:

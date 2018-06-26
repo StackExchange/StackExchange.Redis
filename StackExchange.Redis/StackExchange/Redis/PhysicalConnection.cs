@@ -1003,9 +1003,8 @@ namespace StackExchange.Redis
                     }
                     var buffer = readResult.Buffer;
 
-                    var s = new RawResult(ResultType.BulkString, buffer, false).GetString().Replace("\r","\\r").Replace("\n","\\n");
-
                     int handled = ProcessBuffer(ref buffer); // updates buffer.Start
+
                     allowSyncRead = handled != 0;
 
                     Multiplexer.Trace($"Processed {handled} messages", physicalName);
@@ -1024,7 +1023,7 @@ namespace StackExchange.Redis
         private int ProcessBuffer(ref ReadOnlySequence<byte> buffer)
         {
             int messageCount = 0;
-            
+
             while (!buffer.IsEmpty)
             {
                 var reader = new BufferReader(buffer);
