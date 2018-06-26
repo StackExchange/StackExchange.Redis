@@ -1,43 +1,32 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Pipelines;
+using System.Linq;
 using StackExchange.Redis;
 
 class Program
 {
     static int Main()
     {
+        var options = PipeOptions.Default;
+        Console.WriteLine(options.PauseWriterThreshold);
+        Console.WriteLine(options.ResumeWriterThreshold);
         var s = new StringWriter();
         try
         {
 #if DEBUG
-            Pipelines.Sockets.Unofficial.DebugCounters.SetLog(Console.Out);
+            // Pipelines.Sockets.Unofficial.DebugCounters.SetLog(Console.Out);
 #endif
-            // it is sometimes hard to get the debugger to play nicely with benchmarkdotnet/xunit attached,
-            // so this is just a *trivial* exe
-
+            
             var config = new ConfigurationOptions
             {
                 EndPoints = { "127.0.0.1" },
-                //TieBreaker = "",
-                //CommandMap = CommandMap.Create(new Dictionary<string, string>
-                //{
-                //    ["SUBSCRIBE"] = null,
-                //    ["PSUBSCRIBE"] = null,
-                //})
+                
             };
             using (var conn = ConnectionMultiplexer.Connect(config, log: s))
             {
-                Console.WriteLine("Connected");
-                var db = conn.GetDatabase();
-                db.StringSet("abc", "def");
-                var x = db.StringGet("abc");
-                Console.WriteLine(x);
-                //for (int i = 0; i < 10; i++)
-                //{
-                //    Console.WriteLine($"Ping {i}");
-                //    db.Ping();
-                //}
+                Execute(conn);
             }
             Console.WriteLine("Clean exit");
             return 0;
@@ -49,8 +38,23 @@ class Program
         }
         finally
         {
-            Console.WriteLine();
-            Console.WriteLine(s);
+            // Console.WriteLine();
+            // Console.WriteLine(s);
         }
+    }
+
+    private static void Execute(ConnectionMultiplexer conn)
+    {
+        int pageSize = 100;
+        RedisKey key = nameof(Execute);
+        var db = conn.GetDatabase();
+        db.KeyDelete(key);
+
+        for (int i = 0; i < 2000; i++)
+            db.SetAdd(key, "s" + i, flags: CommandFlags.FireAndForget);
+
+        int count = db.SetScan(key, pageSize: pageSize).Count();
+
+        Console.WriteLine(count == 2000 ? "Pass" : "Fail");
     }
 }

@@ -1140,15 +1140,13 @@ namespace StackExchange.Redis
 
         private RawResult ReadLineTerminatedString(ResultType type, in ReadOnlySequence<byte> buffer, ref BufferReader reader)
         {
-            int crlf = BufferReader.FindNextCrLf(reader);
+            int crlfOffsetFromCurrent = BufferReader.FindNextCrLf(reader);
+            if (crlfOffsetFromCurrent < 0) return RawResult.Nil;
 
-            if (crlf < 0) return RawResult.Nil;
+            var payload = buffer.Slice(reader.TotalConsumed, crlfOffsetFromCurrent);
+            reader.Consume(crlfOffsetFromCurrent + 2);
 
-
-            var inner = buffer.Slice(reader.TotalConsumed, crlf);
-            reader.Consume(crlf + 2);
-
-            return new RawResult(type, inner, false);
+            return new RawResult(type, payload, false);
         }
 
         void ISocketCallback.StartReading() => ReadFromPipe();
@@ -1185,7 +1183,9 @@ namespace StackExchange.Redis
             private ReadOnlySequence<byte>.Enumerator _iterator;
             private ReadOnlySpan<byte> _current;
 
-            public ReadOnlySpan<byte> Span => _current;
+            public ReadOnlySpan<byte> OversizedSpan => _current;
+
+            public ReadOnlySpan<byte> SlicedSpan => _current.Slice(OffsetThisSpan, RemainingThisSpan);
             public int OffsetThisSpan { get; private set; }
             public int TotalConsumed { get; private set; }
             public int RemainingThisSpan { get; private set; }
@@ -1280,23 +1280,20 @@ namespace StackExchange.Redis
                 bool haveTrailingCR = false;
                 do
                 {
-                    var span = reader.Span;
-                    if (reader.OffsetThisSpan != 0) span = span.Slice(reader.OffsetThisSpan);
-
-                    if (span.IsEmpty)
+                    if (reader.RemainingThisSpan == 0) continue;
+                    
+                    var span = reader.SlicedSpan;
+                    if (haveTrailingCR)
                     {
+                        if(span[0] == '\n') return totalSkipped - 1;
                         haveTrailingCR = false;
                     }
-                    else
-                    {
-                        if (haveTrailingCR && span[0] == '\n') return totalSkipped - 1;
 
-                        int found = span.IndexOf(CRLF);
-                        if (found >= 0) return totalSkipped + found;
+                    int found = span.IndexOf(CRLF);
+                    if (found >= 0) return totalSkipped + found;
 
-                        haveTrailingCR = span[span.Length - 1] == '\r';
-                        totalSkipped += span.Length;
-                    }
+                    haveTrailingCR = span[span.Length - 1] == '\r';
+                    totalSkipped += span.Length;
                 }
                 while (reader.FetchNextSegment());
                 return -1;
