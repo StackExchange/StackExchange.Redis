@@ -18,12 +18,6 @@ namespace StackExchange.Redis
     public partial interface IServer
     {
         /// <summary>
-        /// Show what is in the pending (unsent) queue
-        /// </summary>
-        /// <param name="maxCount">The maximum count to list.</param>
-        string ListPending(int maxCount);
-
-        /// <summary>
         /// Get the value of key. If the key does not exist the special value nil is returned. An error is returned if the value stored at key is not a string, because GET only handles string values.
         /// </summary>
         /// <param name="db">The database to get <paramref name="key"/> from.</param>
@@ -114,21 +108,11 @@ namespace StackExchange.Redis
             interactive?.SimulateConnectionFailure();
             subscription?.SimulateConnectionFailure();
         }
-
-        internal string ListPending(int maxCount)
-        {
-            var sb = new StringBuilder();
-            interactive?.ListPending(sb, maxCount);
-            subscription?.ListPending(sb, maxCount);
-            return sb.ToString();
-        }
     }
 
     internal partial class RedisServer
     {
         void IServer.SimulateConnectionFailure() => server.SimulateConnectionFailure();
-        string IServer.ListPending(int maxCount) => server.ListPending(maxCount);
-
         void IServer.Crash()
         {
             // using DB-0 because we also use "DEBUG OBJECT", which is db-centric
@@ -224,11 +208,6 @@ namespace StackExchange.Redis
                 throw ExceptionFactory.AdminModeNotEnabled(Multiplexer.IncludeDetailInExceptions, RedisCommand.DEBUG, null, ServerEndPoint); // close enough
             }
             physical?.RecordConnectionFailed(ConnectionFailureType.SocketFailure);
-        }
-
-        internal void ListPending(StringBuilder sb, int maxCount)
-        {
-            queue.ListPending(sb, maxCount);
         }
     }
 

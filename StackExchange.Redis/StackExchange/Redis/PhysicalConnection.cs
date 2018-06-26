@@ -169,14 +169,14 @@ namespace StackExchange.Redis
 
             // stop anything new coming in...
             Bridge.Trace("Failed: " + failureType);
-            int @in = -1, ar = -1;
+            int @in = -1;
             managerState = SocketManager.ManagerState.RecordConnectionFailed_OnDisconnected;
             Bridge.OnDisconnected(failureType, this, out bool isCurrent, out PhysicalBridge.State oldState);
             if (oldState == PhysicalBridge.State.ConnectedEstablished)
             {
                 try
                 {
-                    @in = GetAvailableInboundBytes(out ar);
+                    @in = GetAvailableInboundBytes();
                 }
                 catch { /* best effort only */ }
             }
@@ -211,23 +211,16 @@ namespace StackExchange.Redis
                     add("Last-Write", "last-write", (unchecked(now - lastWrite) / 1000) + "s ago");
                     add("Unanswered-Write", "unanswered-write", (unchecked(now - unansweredRead) / 1000) + "s ago");
                     add("Keep-Alive", "keep-alive", Bridge.ServerEndPoint.WriteEverySeconds + "s");
-                    add("Pending", "pending", Bridge.GetPendingCount().ToString());
                     add("Previous-Physical-State", "state", oldState.ToString());
 
                     if (@in >= 0)
                     {
                         add("Inbound-Bytes", "in", @in.ToString());
-                        add("Active-Readers", "ar", ar.ToString());
                     }
 
                     add("Last-Heartbeat", "last-heartbeat", (lastBeat == 0 ? "never" : ((unchecked(now - lastBeat) / 1000) + "s ago")) + (Bridge.IsBeating ? " (mid-beat)" : ""));
                     add("Last-Multiplexer-Heartbeat", "last-mbeat", Multiplexer.LastHeartbeatSecondsAgo + "s ago");
                     add("Last-Global-Heartbeat", "global", ConnectionMultiplexer.LastGlobalHeartbeatSecondsAgo + "s ago");
-#if FEATURE_SOCKET_MODE_POLL
-                    var mgr = Bridge.Multiplexer.SocketManager;
-                    add("SocketManager-State", "mgr", mgr.State.ToString());
-                    add("Last-Error", "err", mgr.LastErrorTimeRelative());
-#endif
                 }
 
                 var ex = innerException == null
@@ -592,6 +585,12 @@ namespace StackExchange.Redis
             return WriteCrlf(span, offset);
         }
 
+        internal void WakeWriterAndCheckForThrottle()
+        {
+            var flush = _ioPipe.Output.FlushAsync();
+            if (!flush.IsCompletedSuccessfully) flush.AsTask().Wait();
+        }
+
         static readonly byte[] NullBulkString = Encoding.ASCII.GetBytes("$-1\r\n"), EmptyBulkString = Encoding.ASCII.GetBytes("$0\r\n\r\n");
         private static void WriteUnified(PipeWriter writer, byte[] value)
         {
@@ -801,15 +800,8 @@ namespace StackExchange.Redis
             var bytes = WriteRaw(span, value, withLengthPrefix: true, offset: 1);
             writer.Advance(bytes);
         }
-        
 
-        private int haveReader;
-
-        internal int GetAvailableInboundBytes(out int activeReaders)
-        {
-            activeReaders = Interlocked.CompareExchange(ref haveReader, 0, 0);
-            return socketToken.Available;
-        }
+        internal int GetAvailableInboundBytes() => socketToken.Available;
 
         private static LocalCertificateSelectionCallback GetAmbientCertificateCallback()
         {

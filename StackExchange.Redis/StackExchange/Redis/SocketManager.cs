@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipelines;
 using System.Net;
@@ -13,9 +12,7 @@ namespace StackExchange.Redis
     internal enum SocketMode
     {
         Abort,
-        [Obsolete("just don't", error: true)]
-        Poll,
-        Async
+        Async,
     }
 
     /// <summary>
@@ -108,11 +105,7 @@ namespace StackExchange.Redis
             ProcessReadQueue,
             ProcessErrorQueue,
         }
-
-        private readonly Queue<PhysicalBridge> writeQueue = new Queue<PhysicalBridge>();
-        private bool isDisposed;
-        private readonly bool useHighPrioritySocketThreads = true;
-
+        
         /// <summary>
         /// Gets the name of this SocketManager instance
         /// </summary>
@@ -133,12 +126,7 @@ namespace StackExchange.Redis
         {
             if (string.IsNullOrWhiteSpace(name)) name = GetType().Name;
             Name = name;
-            this.useHighPrioritySocketThreads = useHighPrioritySocketThreads;
-
-            _writeOneQueueAsync = () => WriteOneQueueAsync();
-
-            Task.Run(() => WriteAllQueuesAsync());
-
+            
             const int Receive_PauseWriterThreshold = 1024 * 1024 * 1024; // let's give it up to 1GiB of buffer for now
 
             var defaultPipeOptions = PipeOptions.Default;
@@ -159,9 +147,6 @@ namespace StackExchange.Redis
         readonly DedicatedThreadPoolPipeScheduler _scheduler;
         internal readonly PipeOptions SendPipeOptions, ReceivePipeOptions;
 
-        private readonly Func<Task> _writeOneQueueAsync;
-
-
         private enum CallbackOperation
         {
             Read,
@@ -174,12 +159,6 @@ namespace StackExchange.Redis
         public void Dispose()
         {
             _scheduler?.Dispose();
-            lock (writeQueue)
-            {
-                // make sure writer threads know to exit
-                isDisposed = true;
-                Monitor.PulseAll(writeQueue);
-            }
             OnDispose();
         }
         internal SocketToken BeginConnect(EndPoint endpoint, ISocketCallback callback, ConnectionMultiplexer multiplexer, TextWriter log)
@@ -247,27 +226,6 @@ namespace StackExchange.Redis
             return token;
         }
 
-
-
-        internal void RequestWrite(PhysicalBridge bridge, bool forced)
-        {
-            if (Interlocked.CompareExchange(ref bridge.inWriteQueue, 1, 0) == 0 || forced)
-            {
-                lock (writeQueue)
-                {
-                    writeQueue.Enqueue(bridge);
-                    if (writeQueue.Count == 1)
-                    {
-                        Monitor.PulseAll(writeQueue);
-                    }
-                    else if (writeQueue.Count >= 2)
-                    { // struggling are we? let's have some help dealing with the backlog
-                        Task.Run(_writeOneQueueAsync);
-                    }
-                }
-            }
-        }
-        
         internal void Shutdown(SocketToken token)
         {
             Shutdown(token.Socket);
@@ -344,89 +302,6 @@ namespace StackExchange.Redis
                 try { socket.Close(); } catch { }
                 try { socket.Dispose(); } catch { }
             }
-        }
-
-        private async Task WriteAllQueuesAsync()
-        {
-            while (true)
-            {
-                PhysicalBridge bridge;
-                lock (writeQueue)
-                {
-                    if (writeQueue.Count == 0)
-                    {
-                        if (isDisposed) break; // <========= exit point
-                        Monitor.Wait(writeQueue);
-                        if (isDisposed) break; // (woken by Dispose)
-                        if (writeQueue.Count == 0) continue; // still nothing...
-                    }
-                    bridge = writeQueue.Dequeue();
-                }
-
-                switch (await bridge.WriteQueueAsync(200))
-                {
-                    case WriteResult.MoreWork:
-                    case WriteResult.QueueEmptyAfterWrite:
-                        // back of the line!
-                        lock (writeQueue)
-                        {
-                            writeQueue.Enqueue(bridge);
-                        }
-                        break;
-                    case WriteResult.CompetingWriter:
-                        break;
-                    case WriteResult.NoConnection:
-                        Interlocked.Exchange(ref bridge.inWriteQueue, 0);
-                        break;
-                    case WriteResult.NothingToDo:
-                        if (!bridge.ConfirmRemoveFromWriteQueue())
-                        { // more snuck in; back of the line!
-                            lock (writeQueue)
-                            {
-                                writeQueue.Enqueue(bridge);
-                            }
-                        }
-                        break;
-                }
-            }
-        }
-
-        private Task WriteOneQueueAsync()
-        {
-            PhysicalBridge bridge;
-            lock (writeQueue)
-            {
-                bridge = writeQueue.Count == 0 ? null : writeQueue.Dequeue();
-            }
-            if (bridge == null) return Task.CompletedTask;
-            return WriteOneQueueAsyncImpl(bridge);
-        }
-        private async Task WriteOneQueueAsyncImpl(PhysicalBridge bridge)
-        {
-            bool keepGoing;
-            do
-            {
-                switch (await bridge.WriteQueueAsync(-1))
-                {
-                    case WriteResult.MoreWork:
-                    case WriteResult.QueueEmptyAfterWrite:
-                        keepGoing = true;
-                        break;
-                    case WriteResult.NothingToDo:
-                        keepGoing = !bridge.ConfirmRemoveFromWriteQueue();
-                        break;
-                    case WriteResult.CompetingWriter:
-                        keepGoing = false;
-                        break;
-                    case WriteResult.NoConnection:
-                        Interlocked.Exchange(ref bridge.inWriteQueue, 0);
-                        keepGoing = false;
-                        break;
-                    default:
-                        keepGoing = false;
-                        break;
-                }
-            } while (keepGoing);
         }
     }
 }

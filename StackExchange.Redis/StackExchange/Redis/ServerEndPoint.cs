@@ -367,15 +367,15 @@ namespace StackExchange.Redis
             return counters;
         }
 
-        internal int GetOutstandingCount(RedisCommand command, out int inst, out int qu, out int qs, out int qc, out int wr, out int wq, out int @in, out int ar)
+        internal int GetOutstandingCount(RedisCommand command, out int inst, out int qs, out int qc, out int @in)
         {
             var bridge = GetBridge(command, false);
             if (bridge == null)
             {
-                return inst = qu = qs = qc = wr = wq = @in = ar = 0;
+                return inst = qs = qc = @in = 0;
             }
 
-            return bridge.GetOutstandingCount(out inst, out qu, out qs, out qc, out wr, out wq, out @in, out ar);
+            return bridge.GetOutstandingCount(out inst, out qs, out qc, out @in);
         }
 
         internal string GetProfile()

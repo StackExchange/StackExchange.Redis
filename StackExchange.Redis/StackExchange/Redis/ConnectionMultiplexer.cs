@@ -2007,10 +2007,6 @@ namespace StackExchange.Redis
                         }
                         else
                         {
-#if FEATURE_SOCKET_MODE_POLL
-                            var mgrState = socketManager.State;
-                            var lastError = socketManager.LastErrorTimeRelative();
-#endif
                             var sb = new StringBuilder("Timeout performing ").Append(message.CommandAndKey);
                             data = new List<Tuple<string, string>> { Tuple.Create("Message", message.CommandAndKey) };
                             void add(string lk, string sk, string v)
@@ -2019,20 +2015,12 @@ namespace StackExchange.Redis
                                 sb.Append(", ").Append(sk).Append(": ").Append(v);
                             }
 
-                            int queue = server.GetOutstandingCount(message.Command, out int inst, out int qu, out int qs, out int qc, out int wr, out int wq, out int @in, out int ar);
+                            int queue = server.GetOutstandingCount(message.Command, out int inst, out int qs, out int qc, out int @in);
                             add("Instantaneous", "inst", inst.ToString());
-#if FEATURE_SOCKET_MODE_POLL
-                            add("Manager-State", "mgr", mgrState.ToString());
-                            add("Last-Error", "err", lastError);
-#endif
                             add("Queue-Length", "queue", queue.ToString());
-                            add("Queue-Outstanding", "qu", qu.ToString());
                             add("Queue-Awaiting-Response", "qs", qs.ToString());
                             add("Queue-Completion-Outstanding", "qc", qc.ToString());
-                            add("Active-Writers", "wr", wr.ToString());
-                            add("Write-Queue", "wq", wq.ToString());
                             add("Inbound-Bytes", "in", @in.ToString());
-                            add("Active-Readers", "ar", ar.ToString());
 
                             add("Client-Name", "clientName", ClientName);
                             add("Server-Endpoint", "serverEndpoint", server.EndPoint.ToString());
