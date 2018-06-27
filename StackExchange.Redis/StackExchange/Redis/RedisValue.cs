@@ -82,22 +82,22 @@ namespace StackExchange.Redis
         /// <param name="y">The second <see cref="RedisValue"/> to compare.</param>
         public static bool operator ==(RedisValue x, RedisValue y)
         {
-            CompareType xType = x.Type, yType = y.Type;
+            StorageType xType = x.Type, yType = y.Type;
 
-            if (xType == CompareType.Null) return yType == CompareType.Null;
-            if (xType == CompareType.Null) return false;
+            if (xType == StorageType.Null) return yType == StorageType.Null;
+            if (xType == StorageType.Null) return false;
 
             if (xType == yType)
             {
                 switch (xType)
                 {
-                    case CompareType.Double:
+                    case StorageType.Double:
                         return x.OverlappedValueDouble == y.OverlappedValueDouble;
-                    case CompareType.Int64:
+                    case StorageType.Int64:
                         return x._overlappedValue64 == y._overlappedValue64;
-                    case CompareType.String:
+                    case StorageType.String:
                         return (string)x._objectOrSentinel == (string)y._objectOrSentinel;
-                    case CompareType.Raw:
+                    case StorageType.Raw:
                         return x._memory.Span.SequenceEqual(y._memory.Span);
                 }
             }
@@ -113,7 +113,7 @@ namespace StackExchange.Redis
         public override bool Equals(object obj)
         {
             if (obj == null) return IsNull;
-
+            if (obj is RedisValue typed) return Equals(typed);
             var other = TryParse(obj);
             if (other.IsNull) return false; // parse fail
             return this == other;
@@ -132,15 +132,15 @@ namespace StackExchange.Redis
         {
             switch (Type)
             {
-                case CompareType.Null:
+                case StorageType.Null:
                     return -1;
-                case CompareType.Double:
+                case StorageType.Double:
                     return OverlappedValueDouble.GetHashCode();
-                case CompareType.Int64:
+                case StorageType.Int64:
                     return _overlappedValue64.GetHashCode();
-                case CompareType.Raw:
+                case StorageType.Raw:
                     return GetHashCode(_memory);
-                case CompareType.String:
+                case StorageType.String:
                 default:
                     return _objectOrSentinel.GetHashCode();
             }
@@ -264,22 +264,22 @@ namespace StackExchange.Redis
             if (IsNull) throw new ArgumentException("A null value is not valid in this context");
         }
 
-        private enum CompareType
+        internal enum StorageType
         {
             Null, Int64, Double, Raw, String,
         }
 
-        private CompareType Type
+        internal StorageType Type
         {
             get
             {
                 var objectOrSentinel = _objectOrSentinel;
-                if (objectOrSentinel == null) return CompareType.Null;
-                if (objectOrSentinel == Sentinel_Integer) return CompareType.Int64;
-                if (objectOrSentinel == Sentinel_Double) return CompareType.Double;
-                if (objectOrSentinel == Sentinel_Raw) return CompareType.Raw;
-                if (objectOrSentinel is string) return CompareType.String;
-                if (objectOrSentinel is byte[]) return CompareType.Raw; // doubled-up, but retaining the array
+                if (objectOrSentinel == null) return StorageType.Null;
+                if (objectOrSentinel == Sentinel_Integer) return StorageType.Int64;
+                if (objectOrSentinel == Sentinel_Double) return StorageType.Double;
+                if (objectOrSentinel == Sentinel_Raw) return StorageType.Raw;
+                if (objectOrSentinel is string) return StorageType.String;
+                if (objectOrSentinel is byte[]) return StorageType.Raw; // doubled-up, but retaining the array
                 throw new InvalidOperationException("Unknown type");
             }
         }
@@ -292,23 +292,23 @@ namespace StackExchange.Redis
         {
             try
             {
-                CompareType thisType = this.Type,
+                StorageType thisType = this.Type,
                             otherType = other.Type;
 
-                if (thisType == CompareType.Null) return otherType == CompareType.Null ? 0 : -1;
-                if (otherType == CompareType.Null) return 1;
+                if (thisType == StorageType.Null) return otherType == StorageType.Null ? 0 : -1;
+                if (otherType == StorageType.Null) return 1;
 
                 if (thisType == otherType)
                 {
                     switch (thisType)
                     {
-                        case CompareType.Double:
+                        case StorageType.Double:
                             return this.OverlappedValueDouble.CompareTo(other.OverlappedValueDouble);
-                        case CompareType.Int64:
+                        case StorageType.Int64:
                             return this._overlappedValue64.CompareTo(other._overlappedValue64);
-                        case CompareType.String:
+                        case StorageType.String:
                             return string.CompareOrdinal((string)this._objectOrSentinel, (string)other._objectOrSentinel);
-                        case CompareType.Raw:
+                        case StorageType.Raw:
                             return this._memory.Span.SequenceCompareTo(other._memory.Span);
                     }
                 }
@@ -479,19 +479,19 @@ namespace StackExchange.Redis
         {
             switch (value.Type)
             {
-                case CompareType.Null:
+                case StorageType.Null:
                     return 0; // in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
-                case CompareType.Int64:
+                case StorageType.Int64:
                     return value._overlappedValue64;
-                case CompareType.Double:
+                case StorageType.Double:
                     var f64 = value.OverlappedValueDouble;
                     var i64 = (long)f64;
                     if (f64 == i64) return i64;
                     break;
-                case CompareType.String:
+                case StorageType.String:
                     if (TryParseInt64((string)value._objectOrSentinel, out i64)) return i64;
                     break;
-                case CompareType.Raw:
+                case StorageType.Raw:
                     if (TryParseInt64(value._memory.Span, out i64)) return i64;
                     break;
             }
@@ -506,16 +506,16 @@ namespace StackExchange.Redis
         {
             switch (value.Type)
             {
-                case CompareType.Null:
+                case StorageType.Null:
                     return 0; // in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
-                case CompareType.Int64:
+                case StorageType.Int64:
                     return value._overlappedValue64;
-                case CompareType.Double:
+                case StorageType.Double:
                     return value.OverlappedValueDouble;
-                case CompareType.String:
+                case StorageType.String:
                     if (TryParseInt64((string)value._objectOrSentinel, out var f64)) return f64;
                     break;
-                case CompareType.Raw:
+                case StorageType.Raw:
                     if (TryParseInt64(value._memory.Span, out f64)) return f64;
                     break;
             }
@@ -582,11 +582,11 @@ namespace StackExchange.Redis
         {
             switch (value.Type)
             {
-                case CompareType.Null: return null;
-                case CompareType.Double: return Format.ToString(value.OverlappedValueDouble.ToString());
-                case CompareType.Int64: return Format.ToString(value._overlappedValue64);
-                case CompareType.String: return (string)value._objectOrSentinel;
-                case CompareType.Raw:
+                case StorageType.Null: return null;
+                case StorageType.Double: return Format.ToString(value.OverlappedValueDouble.ToString());
+                case StorageType.Int64: return Format.ToString(value._overlappedValue64);
+                case StorageType.String: return (string)value._objectOrSentinel;
+                case StorageType.Raw:
                     var span = value._memory.Span;
                     if (span.IsEmpty) return "";
                     if (span.Length == 2 && span[0] == (byte)'O' && span[1] == (byte)'K') return "OK"; // frequent special-case
@@ -633,10 +633,26 @@ namespace StackExchange.Redis
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
         public static implicit operator byte[] (RedisValue value)
         {
-            if (value.Type == CompareType.Raw)
+            switch (value.Type)
             {
-                return value._objectOrSentinel is byte[] arr ? arr : value._memory.ToArray();
+                case StorageType.Null: return null;
+                case StorageType.Raw:
+                    if (value._objectOrSentinel is byte[] arr) return arr;
+
+                    if (MemoryMarshal.TryGetArray(value._memory, out var segment)
+                        && segment.Offset == 0
+                        && segment.Count == (segment.Array?.Length ?? -1))
+                        return segment.Array; // the memory is backed by an array, and we're reading all of it
+
+                    return value._memory.ToArray();
+                case StorageType.Int64:
+                    Span<byte> span = stackalloc byte[PhysicalConnection.MaxInt64TextLen];
+                    int len = PhysicalConnection.WriteRaw(span, value._overlappedValue64, false, 0);
+                    arr = new byte[len - 2]; // don't need the CRLF
+                    span.Slice(0, arr.Length).CopyTo(arr);
+                    return arr;
             }
+            // fallback: stringify and encode
             return Encoding.UTF8.GetBytes((string)value);
         }
 
@@ -644,14 +660,8 @@ namespace StackExchange.Redis
         /// Converts a <see cref="RedisValue"/> to a ReadOnlyMemory
         /// </summary>
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
-        public static implicit operator ReadOnlyMemory<byte> (RedisValue value)
-        {
-            if (value.Type == CompareType.Raw)
-            {
-                return value._memory;
-            }
-            return Encoding.UTF8.GetBytes((string)value);
-        }
+        public static implicit operator ReadOnlyMemory<byte>(RedisValue value)
+            => value.Type == StorageType.Raw ? value._memory : (byte[])value;
 
         TypeCode IConvertible.GetTypeCode() => TypeCode.Object;
 
@@ -709,26 +719,23 @@ namespace StackExchange.Redis
         /// <param name="val">The <see cref="long"/> value, if conversion was possible.</param>
         public bool TryParse(out long val)
         {
-            switch(Type)
+            switch (Type)
             {
-                case CompareType.Int64: val =_overlappedValue64; return true;
-                case CompareType.String:
+                case StorageType.Null: val = 0; return true; // in redis-land 0 approx. equal null; so roll with it
+                case StorageType.Int64: val = _overlappedValue64; return true;
+                case StorageType.String: return TryParseInt64((string)_objectOrSentinel, out val);
+                case StorageType.Raw: return TryParseInt64(_memory.Span, out val);
+                case StorageType.Double:
+                    var f64 = OverlappedValueDouble;
+                    if (f64 >= long.MinValue && f64 <= long.MaxValue)
+                    {
+                        val = (long)f64;
+                        return true;
+                    }
+                    break;
             }
-            var blob = valueBlob;
-            if (blob == IntegerSentinel)
-            {
-                val = valueInt64;
-                return true;
-            }
-
-            if (blob == null)
-            {
-                // in redis-land 0 approx. equal null; so roll with it
-                val = 0;
-                return true;
-            }
-
-            return TryParseInt64(blob, 0, blob.Length, out val);
+            val = default;
+            return false;
         }
 
         /// <summary>
@@ -739,14 +746,14 @@ namespace StackExchange.Redis
         /// <param name="val">The <see cref="int"/> value, if conversion was possible.</param>
         public bool TryParse(out int val)
         {
-            if (!TryParse(out long l) || l > int.MaxValue || l < int.MinValue)
+            if (TryParse(out long l) && l >= int.MinValue && l <= int.MaxValue)
             {
-                val = 0;
-                return false;
+                val = (int)l;
+                return true;
             }
+            val = default;
+            return false;
 
-            val = (int)l;
-            return true;
         }
 
         /// <summary>
@@ -757,20 +764,16 @@ namespace StackExchange.Redis
         /// <param name="val">The <see cref="double"/> value, if conversion was possible.</param>
         public bool TryParse(out double val)
         {
-            var blob = valueBlob;
-            if (blob == IntegerSentinel)
+            switch (Type)
             {
-                val = valueInt64;
-                return true;
+                case StorageType.Null: val = 0; return true;
+                case StorageType.Int64: val = _overlappedValue64; return true;
+                case StorageType.Double: val = OverlappedValueDouble; return true;
+                case StorageType.String: return Format.TryParseDouble((string)_objectOrSentinel, out val);
+                case StorageType.Raw: return TryParseDouble(_memory.Span, out val);
             }
-            if (blob == null)
-            {
-                // in redis-land 0 approx. equal null; so roll with it
-                val = 0;
-                return true;
-            }
-
-            return TryParseDouble(blob, out val);
+            val = default;
+            return false;
         }
     }
 }

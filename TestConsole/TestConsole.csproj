@@ -6,13 +6,17 @@
     <LangVersion>latest</LangVersion>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(Computername)'=='OCHO' or '$(Computername)'=='SKINK'">
+    <LocalReference>true</LocalReference>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\StackExchange.Redis\StackExchange.Redis.csproj" />
   </ItemGroup>
-  <ItemGroup Condition="'$(Computername)'=='OCHO'">
+  <ItemGroup Condition="'$(LocalReference)'=='true'">
     <ProjectReference Include="..\..\Pipelines.Sockets.Unofficial\src\Pipelines.Sockets.Unofficial\Pipelines.Sockets.Unofficial.csproj" />
   </ItemGroup>
-  <ItemGroup Condition="'$(Computername)'!='OCHO'">
+  <ItemGroup Condition="'$(LocalReference)'!='true'">
     <PackageReference Include="Pipelines.Sockets.Unofficial" Version="0.2.1-alpha.48" />
   </ItemGroup>
 

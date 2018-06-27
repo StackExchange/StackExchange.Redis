@@ -2484,7 +2484,9 @@ namespace StackExchange.Redis
                     }
                     else
                     {   // recognises well-known types
-                        physical.Write(RedisValue.Parse(arg));
+                        var val = RedisValue.TryParse(arg);
+                        if (val.IsNull && arg != null) throw new InvalidCastException($"Unable to parse value: '{arg}'");
+                        physical.Write(val);
                     }
                 }
             }

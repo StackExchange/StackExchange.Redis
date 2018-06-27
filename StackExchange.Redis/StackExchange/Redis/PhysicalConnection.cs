@@ -421,13 +421,24 @@ namespace StackExchange.Redis
 
         internal void Write(RedisValue value)
         {
-            if (value.IsInteger)
+            switch(value.Type)
             {
-                WriteUnified(_ioPipe.Output, (long)value);
-            }
-            else
-            {
-                WriteUnified(_ioPipe.Output, (byte[])value);
+                case RedisValue.StorageType.Null:
+                    WriteUnified(_ioPipe.Output, (byte[])null);
+                    break;
+                case RedisValue.StorageType.Int64:
+                    WriteUnified(_ioPipe.Output, (long)value);
+                    break;
+                case RedisValue.StorageType.Double: // use string
+                case RedisValue.StorageType.String:
+                    WriteUnified(_ioPipe.Output, null, (string)value);
+                    break;
+                case RedisValue.StorageType.Raw:
+                    WriteUnified(_ioPipe.Output, ((ReadOnlyMemory<byte>)value).Span);
+                    break;
+                default:
+                    throw new InvalidOperationException($"Unexpected {value.Type} value: '{value}'");
+
             }
         }
 
@@ -492,7 +503,7 @@ namespace StackExchange.Redis
             span[1] = (byte)'\n';
             writer.Advance(2);
         }
-        private static int WriteRaw(Span<byte> span, long value, bool withLengthPrefix = false, int offset = 0)
+        internal static int WriteRaw(Span<byte> span, long value, bool withLengthPrefix = false, int offset = 0)
         {
             if (value >= 0 && value <= 9)
             {
@@ -594,16 +605,24 @@ namespace StackExchange.Redis
         static readonly byte[] NullBulkString = Encoding.ASCII.GetBytes("$-1\r\n"), EmptyBulkString = Encoding.ASCII.GetBytes("$0\r\n\r\n");
         private static void WriteUnified(PipeWriter writer, byte[] value)
         {
-            const int MaxQuickSpanSize = 512;
-
-            // ${len}\r\n           = 3 + MaxInt32TextLen
-            // {value}\r\n          = 2 + value.Length
             if (value == null)
             {
                 // special case:
                 writer.Write(NullBulkString);
             }
-            else if (value.Length == 0)
+            else
+            {
+                WriteUnified(writer, new ReadOnlySpan<byte>(value));
+            }
+
+        }
+        private static void WriteUnified(PipeWriter writer, ReadOnlySpan<byte> value)
+        {
+            // ${len}\r\n           = 3 + MaxInt32TextLen
+            // {value}\r\n          = 2 + value.Length
+
+            const int MaxQuickSpanSize = 512;
+            if (value.Length == 0)
             {
                 // special case:
                 writer.Write(EmptyBulkString);
@@ -611,7 +630,8 @@ namespace StackExchange.Redis
             else if (value.Length <= MaxQuickSpanSize)
             {
                 var span = writer.GetSpan(5 + MaxInt32TextLen + value.Length);
-                int bytes = WriteUnified(span, value);
+                span[0] = (byte)'$';
+                int bytes = WriteUnified(span, value, 1);
                 writer.Advance(bytes);
             }
             else
@@ -619,7 +639,7 @@ namespace StackExchange.Redis
                 // too big to guarantee can do in a single span
                 var span = writer.GetSpan(3 + MaxInt32TextLen);
                 span[0] = (byte)'$';
-                int bytes = WriteRaw(span, value.LongLength, offset: 1);
+                int bytes = WriteRaw(span, value.Length, offset: 1);
                 writer.Advance(bytes);
 
                 writer.Write(value);
@@ -636,11 +656,16 @@ namespace StackExchange.Redis
             }
             else
             {
-                offset = WriteRaw(span, value.Length, offset: offset);
-                new ReadOnlySpan<byte>(value).CopyTo(span.Slice(offset, value.Length));
-                offset += value.Length;
-                offset = WriteCrlf(span, offset);
+                offset = WriteUnified(span, new ReadOnlySpan<byte>(value), offset);
             }
+            return offset;
+        }
+        private static int WriteUnified(Span<byte> span, ReadOnlySpan<byte> value, int offset = 0)
+        {
+            offset = WriteRaw(span, value.Length, offset: offset);
+            value.CopyTo(span.Slice(offset, value.Length));
+            offset += value.Length;
+            offset = WriteCrlf(span, offset);
             return offset;
         }
 
