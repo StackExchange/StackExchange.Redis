@@ -40,8 +40,15 @@ namespace StackExchange.Redis
 
         private async void CloneAsync(string path, PipeReader from, PipeWriter to)
         {
-            to.OnReaderCompleted((ex, o) => ((PipeReader)o).Complete(ex), from);
-            from.OnWriterCompleted((ex, o) => ((PipeWriter)o).Complete(ex), to);
+            to.OnReaderCompleted((ex, o) => {
+                if (ex != null) Console.Error.WriteLine(ex);
+                ((PipeReader)o).Complete(ex);                
+            }, from);
+            from.OnWriterCompleted((ex, o) =>
+            {
+                if (ex != null) Console.Error.WriteLine(ex);
+                ((PipeWriter)o).Complete(ex);
+            }, to);
             while(true)
             {
                 var result = await from.ReadAsync();

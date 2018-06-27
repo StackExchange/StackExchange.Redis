@@ -29,7 +29,7 @@ namespace StackExchange.Redis
                         return new SingleRedisResult(result.AsRedisValue());
                     case ResultType.MultiBulk:
                         var items = result.GetItems();
-                        var arr = new RedisResult[items.Length];
+                        var arr = result.IsNull ? null : new RedisResult[items.Length];
                         for (int i = 0; i < arr.Length; i++)
                         {
                             var next = TryCreate(connection, items[i]);

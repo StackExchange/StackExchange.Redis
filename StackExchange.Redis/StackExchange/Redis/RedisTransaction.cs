@@ -423,7 +423,7 @@ namespace StackExchange.Redis
                             if (!tran.IsAborted)
                             {
                                 var arr = result.GetItems();
-                                if (arr == null)
+                                if (result.IsNull)
                                 {
                                     connection.Multiplexer.Trace("Server aborted due to failed WATCH");
                                     foreach (var op in wrapped)

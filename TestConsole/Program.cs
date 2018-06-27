@@ -36,7 +36,8 @@ class Program
         finally
         {
             Console.WriteLine();
-            //Console.WriteLine(s);
+            // Console.WriteLine(s);
+            Console.ReadKey();
         }
     }
 

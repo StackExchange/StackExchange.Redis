@@ -722,7 +722,7 @@ namespace StackExchange.Redis
             {
                 // ${total-len}\r\n         3 + MaxInt32TextLen
                 // {prefix}{value}\r\n
-                int encodedLength = Format.GetEncodedLength(value),
+                int encodedLength = Encoding.UTF8.GetByteCount(value),
                     prefixLength = prefix == null ? 0 : prefix.Length,
                     totalLength = prefixLength + encodedLength;
 
@@ -1045,18 +1045,24 @@ namespace StackExchange.Redis
             {
                 var reader = new BufferReader(buffer);
                 var result = TryParseResult(in buffer, ref reader);
-
-                if (result.HasValue)
+                try
                 {
-                    buffer = buffer.Slice(reader.TotalConsumed);
+                    if (result.HasValue)
+                    {
+                        buffer = buffer.Slice(reader.TotalConsumed);
 
-                    messageCount++;
-                    Multiplexer.Trace(result.ToString(), physicalName);
-                    MatchResult(result);
+                        messageCount++;
+                        Multiplexer.Trace(result.ToString(), physicalName);
+                        MatchResult(result);
+                    }
+                    else
+                    {
+                        break; // remaining buffer isn't enough; give up
+                    }
                 }
-                else
+                finally
                 {
-                    break; // remaining buffer isn't enough; give up
+                    result.Recycle();
                 }
             }
             return messageCount;
@@ -1114,13 +1120,17 @@ namespace StackExchange.Redis
                     return RawResult.EmptyMultiBulk;
                 }
 
-                var arr = new RawResult[itemCountActual];
+                var oversized = ArrayPool<RawResult>.Shared.Rent(itemCountActual);
+                var result = new RawResult(oversized, itemCountActual);
                 for (int i = 0; i < itemCountActual; i++)
                 {
-                    if (!(arr[i] = TryParseResult(in buffer, ref reader)).HasValue)
+                    if (!(oversized[i] = TryParseResult(in buffer, ref reader)).HasValue)
+                    {
+                        result.Recycle(i); // passing index here means we don't need to "Array.Clear" before-hand
                         return RawResult.Nil;
+                    }
                 }
-                return new RawResult(arr);
+                return result;
             }
             return RawResult.Nil;
         }

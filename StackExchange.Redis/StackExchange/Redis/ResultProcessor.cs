@@ -487,7 +487,7 @@ namespace StackExchange.Redis
                 {
                     case ResultType.MultiBulk:
                         var arr = result.GetItems();
-                        if (arr == null)
+                        if (result.IsNull)
                         {
                             pairs = null;
                         }
@@ -962,7 +962,7 @@ namespace StackExchange.Redis
                 if (result.Type == ResultType.MultiBulk)
                 {
                     var arr = result.GetItems();
-                    if (arr?.Length == 2 && arr[1].TryGetInt64(out long val))
+                    if (arr.Length == 2 && arr[1].TryGetInt64(out long val))
                     {
                         SetResult(message, val);
                         return true;
@@ -1201,10 +1201,10 @@ namespace StackExchange.Redis
                 switch (result.Type)
                 {
                     case ResultType.MultiBulk:
-                        var arr = result.GetItemsAsRawResults();
+                        var arr = result.GetItems();
 
                         GeoRadiusResult[] typed;
-                        if (arr == null)
+                        if (result.IsNull)
                         {
                             typed = null;
                         }

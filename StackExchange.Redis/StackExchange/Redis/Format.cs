@@ -206,31 +206,5 @@ namespace StackExchange.Redis
 
             return ParseEndPoint(host, port);
         }
-
-        static readonly Vector<ushort> NonAsciiMask = new Vector<ushort>(0xFF80);
-        internal static unsafe int GetEncodedLength(string value)
-        {
-            if (value.Length == 0) return 0;
-            int offset = 0;
-            if (Vector.IsHardwareAccelerated && value.Length >= Vector<ushort>.Count)
-            {
-                var vecSpan = MemoryMarshal.Cast<char, Vector<ushort>>(value.AsSpan());
-                var nonAscii = NonAsciiMask;
-                int i;
-                for (i = 0; i < vecSpan.Length; i++)
-                {
-                    if ((vecSpan[i] & nonAscii) != Vector<ushort>.Zero) break;
-                }
-                offset = Vector<ushort>.Count * i;
-            }
-            int remaining = value.Length - offset;
-            if (remaining == 0) return offset; // all ASCII (nice round length, and Vector support)
-
-            // handles a) no Vector support, b) anything from the fisrt non-ASCII chunk, c) tail end
-            fixed (char* ptr = value)
-            {
-                return offset + Encoding.UTF8.GetByteCount(ptr + offset, remaining);
-            }
-        }
     }
 }
