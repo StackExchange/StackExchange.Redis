@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Reflection;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Columns;
 using BenchmarkDotNet.Configs;
@@ -13,35 +14,35 @@ namespace BasicTest
 
     static class Program
     {
-        static void Main()
+        static void Main(string[] args) => BenchmarkSwitcher.FromAssembly(typeof(Program).GetTypeInfo().Assembly).Run(args);
+
+    }
+    internal class CustomConfig : ManualConfig
+    {
+        public CustomConfig()
         {
-            // tell BenchmarkDotNet not to force GC.Collect after benchmark iteration 
-            // (single iteration contains of multiple (usually millions) of invocations)
-            // it can influence the allocation-heavy Task<T> benchmarks
-            var gcMode = new GcMode { Force = false };
+            Job Get(Job j) => j
+                .With(new GcMode { Force = true });
 
-            var customConfig = ManualConfig
-                .Create(DefaultConfig.Instance) // copies all exporters, loggers and basic stuff
-                .With(JitOptimizationsValidator.FailOnError) // Fail if not release mode
-                .With(MemoryDiagnoser.Default) // use memory diagnoser
-                .With(StatisticColumn.OperationsPerSecond) // add ops/s
-                .With(Job.Default.With(gcMode));
-
-            var summary = BenchmarkRunner.Run<Benchmark>(customConfig);
-            Console.WriteLine(summary);
+            Add(new MemoryDiagnoser());
+            Add(StatisticColumn.OperationsPerSecond);
+            Add(JitOptimizationsValidator.FailOnError);
+            Add(Get(Job.Clr));
+            Add(Get(Job.Core));
         }
     }
     /// <summary>
     /// The tests
     /// </summary>
-    public class Benchmark : IDisposable
+    [Config(typeof(CustomConfig))]
+    public class RedisBenchmarks : IDisposable
     {
         ConnectionMultiplexer connection;
         IDatabase db;
         /// <summary>
         /// Create
         /// </summary>
-        public Benchmark()
+        public RedisBenchmarks()
         {
             connection = ConnectionMultiplexer.Connect("127.0.0.1:6379,syncTimeout=200000");
             db = connection.GetDatabase(3);
