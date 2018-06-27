@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Globalization;
 using System.Net;
+using System.Numerics;
+using System.Runtime.InteropServices;
+using System.Text;
 
 namespace StackExchange.Redis
 {
@@ -137,6 +140,50 @@ namespace StackExchange.Redis
             return double.TryParse(s, NumberStyles.Any, NumberFormatInfo.InvariantInfo, out value);
         }
 
+        internal static bool TryParseDouble(ReadOnlySpan<byte> s, out double value)
+        {
+            if (s.IsEmpty)
+            {
+                value = 0;
+                return false;
+            }
+            if (s.Length == 1 && s[0] >= '0' && s[0] <= '9')
+            {
+                value = (int)(s[0] - '0');
+                return true;
+            }
+            // need to handle these
+            if (CaseInsensitiveASCIIEqual("+inf", s) || CaseInsensitiveASCIIEqual("inf", s))
+            {
+                value = double.PositiveInfinity;
+                return true;
+            }
+            if (CaseInsensitiveASCIIEqual("-inf", s))
+            {
+                value = double.NegativeInfinity;
+                return true;
+            }
+            var ss = DecodeUtf8(s);
+            return double.TryParse(ss, NumberStyles.Any, NumberFormatInfo.InvariantInfo, out value);
+        }
+        internal static unsafe string DecodeUtf8(ReadOnlySpan<byte> s)
+        {
+            if (s.IsEmpty) return "";
+            fixed(byte* ptr = &MemoryMarshal.GetReference(s))
+            {
+                return Encoding.UTF8.GetString(ptr, s.Length);
+            }
+        }
+        static bool CaseInsensitiveASCIIEqual(string xLowerCase, ReadOnlySpan<byte> y)
+        {
+            if (y.Length != xLowerCase.Length) return false;
+            for(int i = 0; i < y.Length; i++)
+            {
+                if (char.ToLower((char)y[i]) != xLowerCase[i]) return false;
+            }
+            return true;
+        }
+
         internal static EndPoint TryParseEndPoint(string endpoint)
         {
             if (string.IsNullOrWhiteSpace(endpoint)) return null;
@@ -158,6 +205,32 @@ namespace StackExchange.Redis
             if (string.IsNullOrWhiteSpace(host)) return null;
 
             return ParseEndPoint(host, port);
+        }
+
+        static readonly Vector<ushort> NonAsciiMask = new Vector<ushort>(0xFF80);
+        internal static unsafe int GetEncodedLength(string value)
+        {
+            if (value.Length == 0) return 0;
+            int offset = 0;
+            if (Vector.IsHardwareAccelerated && value.Length >= Vector<ushort>.Count)
+            {
+                var vecSpan = MemoryMarshal.Cast<char, Vector<ushort>>(value.AsSpan());
+                var nonAscii = NonAsciiMask;
+                int i;
+                for (i = 0; i < vecSpan.Length; i++)
+                {
+                    if ((vecSpan[i] & nonAscii) != Vector<ushort>.Zero) break;
+                }
+                offset = Vector<ushort>.Count * i;
+            }
+            int remaining = value.Length - offset;
+            if (remaining == 0) return offset; // all ASCII (nice round length, and Vector support)
+
+            // handles a) no Vector support, b) anything from the fisrt non-ASCII chunk, c) tail end
+            fixed (char* ptr = value)
+            {
+                return offset + Encoding.UTF8.GetByteCount(ptr + offset, remaining);
+            }
         }
     }
 }

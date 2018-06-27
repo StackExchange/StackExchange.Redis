@@ -255,7 +255,7 @@ namespace StackExchange.Redis
 
             int aLen = a?.Length ?? 0,
                 bLen = b == null ? 0 : (b is string
-                ? Encoding.UTF8.GetByteCount((string)b)
+                ? Format.GetEncodedLength((string)b)
                 : ((byte[])b).Length),
                 cLen = c?.Length ?? 0;
 

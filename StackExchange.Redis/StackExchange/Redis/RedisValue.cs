@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace StackExchange.Redis
@@ -8,43 +9,57 @@ namespace StackExchange.Redis
     /// </summary>
     public struct RedisValue : IEquatable<RedisValue>, IComparable<RedisValue>, IComparable, IConvertible
     {
-        internal static readonly RedisValue[] EmptyArray = new RedisValue[0];
-        private static readonly byte[] EmptyByteArr = new byte[0];
-        private static readonly byte[] IntegerSentinel = new byte[0];
-        private readonly byte[] valueBlob;
-        private readonly long valueInt64;
+        internal static readonly RedisValue[] EmptyArray = Array.Empty<RedisValue>();
+
+        private readonly object _objectOrSentinel;
+        private readonly ReadOnlyMemory<byte> _memory;
+        private readonly long _overlappedValue64;
 
         // internal bool IsNullOrDefaultValue {  get { return (valueBlob == null && valueInt64 == 0L) || ((object)valueBlob == (object)NullSentinel); } }
-        private RedisValue(long valueInt64, byte[] valueBlob)
+        private RedisValue(long overlappedValue64, ReadOnlyMemory<byte> memory, object objectOrSentinel)
         {
-            this.valueInt64 = valueInt64;
-            this.valueBlob = valueBlob;
+            _overlappedValue64 = overlappedValue64;
+            _memory = memory;
+            _objectOrSentinel = objectOrSentinel;
         }
 
+        private readonly static object Sentinel_Integer = new object();
+        private readonly static object Sentinel_Raw = new object();
+        private readonly static object Sentinel_Double = new object();
         /// <summary>
         /// Represents the string <c>""</c>
         /// </summary>
-        public static RedisValue EmptyString { get; } = new RedisValue(0, EmptyByteArr);
+        public static RedisValue EmptyString { get; } = new RedisValue(0, default, Sentinel_Raw);
 
         /// <summary>
         /// A null value
         /// </summary>
-        public static RedisValue Null { get; } = new RedisValue(0, null);
+        public static RedisValue Null { get; } = new RedisValue(0, default, null);
 
         /// <summary>
         /// Indicates whether the value is a primitive integer
         /// </summary>
-        public bool IsInteger => valueBlob == IntegerSentinel;
+        public bool IsInteger => _objectOrSentinel == Sentinel_Integer;
 
         /// <summary>
         /// Indicates whether the value should be considered a null value
         /// </summary>
-        public bool IsNull => valueBlob == null;
+        public bool IsNull => _objectOrSentinel == null;
 
         /// <summary>
         /// Indicates whether the value is either null or a zero-length value
         /// </summary>
-        public bool IsNullOrEmpty => valueBlob == null || (valueBlob.Length == 0 && !(valueBlob == IntegerSentinel));
+        public bool IsNullOrEmpty
+        {
+            get
+            {
+                if (IsNull) return true;
+                if (_objectOrSentinel == Sentinel_Raw && _memory.Length == 0) return true;
+                if (_objectOrSentinel is string s && s.Length == 0) return true;
+                if (_objectOrSentinel is byte[] arr && arr.Length == 0) return true;
+                return false;
+            }
+        }
 
         /// <summary>
         /// Indicates whether the value is greater than zero-length or has an integer value
@@ -58,6 +73,8 @@ namespace StackExchange.Redis
         /// <param name="y">The second <see cref="RedisValue"/> to compare.</param>
         public static bool operator !=(RedisValue x, RedisValue y) => !(x == y);
 
+        private double OverlappedValueDouble => BitConverter.Int64BitsToDouble(_overlappedValue64);
+
         /// <summary>
         /// Indicates whether two RedisValue values are equivalent
         /// </summary>
@@ -65,25 +82,28 @@ namespace StackExchange.Redis
         /// <param name="y">The second <see cref="RedisValue"/> to compare.</param>
         public static bool operator ==(RedisValue x, RedisValue y)
         {
-            if (x.valueBlob == null) return y.valueBlob == null;
+            CompareType xType = x.Type, yType = y.Type;
 
-            if (x.valueBlob == IntegerSentinel)
+            if (xType == CompareType.Null) return yType == CompareType.Null;
+            if (xType == CompareType.Null) return false;
+
+            if (xType == yType)
             {
-                if (y.valueBlob == IntegerSentinel)
+                switch (xType)
                 {
-                    return x.valueInt64 == y.valueInt64;
-                }
-                else
-                {
-                    return Equals((byte[])x, (byte[])y);
+                    case CompareType.Double:
+                        return x.OverlappedValueDouble == y.OverlappedValueDouble;
+                    case CompareType.Int64:
+                        return x._overlappedValue64 == y._overlappedValue64;
+                    case CompareType.String:
+                        return (string)x._objectOrSentinel == (string)y._objectOrSentinel;
+                    case CompareType.Raw:
+                        return x._memory.Span.SequenceEqual(y._memory.Span);
                 }
             }
-            else if (y.valueBlob == IntegerSentinel)
-            {
-                return Equals((byte[])x, (byte[])y);
-            }
 
-            return Equals(x.valueBlob, y.valueBlob);
+            // otherwise, compare as strings
+            return (string)x == (string)y;
         }
 
         /// <summary>
@@ -92,29 +112,11 @@ namespace StackExchange.Redis
         /// <param name="obj">The other <see cref="RedisValue"/> to compare.</param>
         public override bool Equals(object obj)
         {
-            if (obj == null) return valueBlob == null;
+            if (obj == null) return IsNull;
 
-            if (obj is RedisValue)
-            {
-                return Equals((RedisValue)obj);
-            }
-            if (obj is string)
-            {
-                return (string)obj == (string)this;
-            }
-            if (obj is byte[])
-            {
-                return Equals((byte[])obj, (byte[])this);
-            }
-            if (obj is long)
-            {
-                return (long)obj == (long)this;
-            }
-            if (obj is int)
-            {
-                return (int)obj == (int)this;
-            }
-            return false;
+            var other = TryParse(obj);
+            if (other.IsNull) return false; // parse fail
+            return this == other;
         }
 
         /// <summary>
@@ -128,9 +130,20 @@ namespace StackExchange.Redis
         /// </summary>
         public override int GetHashCode()
         {
-            if (valueBlob == IntegerSentinel) return valueInt64.GetHashCode();
-            if (valueBlob == null) return -1;
-            return GetHashCode(valueBlob);
+            switch (Type)
+            {
+                case CompareType.Null:
+                    return -1;
+                case CompareType.Double:
+                    return OverlappedValueDouble.GetHashCode();
+                case CompareType.Int64:
+                    return _overlappedValue64.GetHashCode();
+                case CompareType.Raw:
+                    return GetHashCode(_memory);
+                case CompareType.String:
+                default:
+                    return _objectOrSentinel.GetHashCode();
+            }
         }
 
         /// <summary>
@@ -162,39 +175,64 @@ namespace StackExchange.Redis
             return true;
         }
 
-        internal static unsafe int GetHashCode(byte[] value)
+        internal static unsafe int GetHashCode(ReadOnlyMemory<byte> memory)
         {
             unchecked
             {
-                if (value == null) return -1;
-                int len = value.Length;
+                var span8 = memory.Span;
+                int len = span8.Length;
                 if (len == 0) return 0;
-                int octets = len / 8, spare = len % 8;
+
                 int acc = 728271210;
-                fixed (byte* ptr8 = value)
+
+                var span64 = MemoryMarshal.Cast<byte, long>(span8);
+                for (int i = 0; i < span64.Length; i++)
                 {
-                    long* ptr64 = (long*)ptr8;
-                    for (int i = 0; i < octets; i++)
-                    {
-                        long val = ptr64[i];
-                        int valHash = (((int)val) ^ ((int)(val >> 32)));
-                        acc = (((acc << 5) + acc) ^ valHash);
-                    }
-                    int offset = len - spare;
-                    while (spare-- != 0)
-                    {
-                        acc = (((acc << 5) + acc) ^ ptr8[offset++]);
-                    }
+                    var val = span64[i];
+                    int valHash = (((int)val) ^ ((int)(val >> 32)));
+                    acc = (((acc << 5) + acc) ^ valHash);
+                }
+                int spare = len % 8, offset = len - spare;
+                while (spare-- != 0)
+                {
+                    acc = (((acc << 5) + acc) ^ span8[offset++]);
                 }
                 return acc;
             }
         }
-        internal static bool TryParseInt64(byte[] value, int offset, int count, out long result)
-            => TryParseInt64(new ReadOnlySpan<byte>(value, offset, count), out result);
         internal static bool TryParseInt64(ReadOnlySpan<byte> value, out long result)
         {
             result = 0;
             if (value.IsEmpty) return false;
+            checked
+            {
+                int max = value.Length;
+                if (value[0] == '-')
+                {
+                    for (int i = 1; i < max; i++)
+                    {
+                        var b = value[i];
+                        if (b < '0' || b > '9') return false;
+                        result = (result * 10) - (b - '0');
+                    }
+                    return true;
+                }
+                else
+                {
+                    for (int i = 0; i < max; i++)
+                    {
+                        var b = value[i];
+                        if (b < '0' || b > '9') return false;
+                        result = (result * 10) + (b - '0');
+                    }
+                    return true;
+                }
+            }
+        }
+        internal static bool TryParseInt64(string value, out long result)
+        {
+            result = 0;
+            if (string.IsNullOrEmpty(value)) return false;
             checked
             {
                 int max = value.Length;
@@ -228,37 +266,22 @@ namespace StackExchange.Redis
 
         private enum CompareType
         {
-            Null, Int64, Double, Raw
+            Null, Int64, Double, Raw, String,
         }
 
-        private CompareType ResolveType(out long i64, out double r8)
+        private CompareType Type
         {
-            byte[] blob = valueBlob;
-            if (blob == IntegerSentinel)
+            get
             {
-                i64 = valueInt64;
-                r8 = default(double);
-                return CompareType.Int64;
+                var objectOrSentinel = _objectOrSentinel;
+                if (objectOrSentinel == null) return CompareType.Null;
+                if (objectOrSentinel == Sentinel_Integer) return CompareType.Int64;
+                if (objectOrSentinel == Sentinel_Double) return CompareType.Double;
+                if (objectOrSentinel == Sentinel_Raw) return CompareType.Raw;
+                if (objectOrSentinel is string) return CompareType.String;
+                if (objectOrSentinel is byte[]) return CompareType.Raw; // doubled-up, but retaining the array
+                throw new InvalidOperationException("Unknown type");
             }
-            if (blob == null)
-            {
-                i64 = default(long);
-                r8 = default(double);
-                return CompareType.Null;
-            }
-            if (TryParseInt64(blob, 0, blob.Length, out i64))
-            {
-                r8 = default(double);
-                return CompareType.Int64;
-            }
-            if (TryParseDouble(blob, out r8))
-            {
-                i64 = default(long);
-                return CompareType.Double;
-            }
-            i64 = default(long);
-            r8 = default(double);
-            return CompareType.Raw;
         }
 
         /// <summary>
@@ -269,30 +292,29 @@ namespace StackExchange.Redis
         {
             try
             {
-                CompareType thisType = ResolveType(out long thisInt64, out double thisDouble),
-                            otherType = other.ResolveType(out long otherInt64, out double otherDouble);
+                CompareType thisType = this.Type,
+                            otherType = other.Type;
 
-                if (thisType == CompareType.Null)
+                if (thisType == CompareType.Null) return otherType == CompareType.Null ? 0 : -1;
+                if (otherType == CompareType.Null) return 1;
+
+                if (thisType == otherType)
                 {
-                    return otherType == CompareType.Null ? 0 : -1;
-                }
-                if (otherType == CompareType.Null)
-                {
-                    return 1;
+                    switch (thisType)
+                    {
+                        case CompareType.Double:
+                            return this.OverlappedValueDouble.CompareTo(other.OverlappedValueDouble);
+                        case CompareType.Int64:
+                            return this._overlappedValue64.CompareTo(other._overlappedValue64);
+                        case CompareType.String:
+                            return string.CompareOrdinal((string)this._objectOrSentinel, (string)other._objectOrSentinel);
+                        case CompareType.Raw:
+                            return this._memory.Span.SequenceCompareTo(other._memory.Span);
+                    }
                 }
 
-                if (thisType == CompareType.Int64)
-                {
-                    if (otherType == CompareType.Int64) return thisInt64.CompareTo(otherInt64);
-                    if (otherType == CompareType.Double) return ((double)thisInt64).CompareTo(otherDouble);
-                }
-                else if (thisType == CompareType.Double)
-                {
-                    if (otherType == CompareType.Int64) return thisDouble.CompareTo((double)otherInt64);
-                    if (otherType == CompareType.Double) return thisDouble.CompareTo(otherDouble);
-                }
                 // otherwise, compare as strings
-                return StringComparer.InvariantCulture.Compare((string)this, (string)other);
+                return string.CompareOrdinal((string)this, (string)other);
             }
             catch (Exception ex)
             {
@@ -304,20 +326,36 @@ namespace StackExchange.Redis
 
         int IComparable.CompareTo(object obj)
         {
-            if (obj is RedisValue) return CompareTo((RedisValue)obj);
-            if (obj is long) return CompareTo((RedisValue)(long)obj);
-            if (obj is double) return CompareTo((RedisValue)(double)obj);
-            if (obj is string) return CompareTo((RedisValue)(string)obj);
-            if (obj is byte[]) return CompareTo((RedisValue)(byte[])obj);
-            if (obj is bool) return CompareTo((RedisValue)(bool)obj);
-            return -1;
+            if (obj == null) return CompareTo(Null);
+
+            var val = TryParse(obj);
+            if (val.IsNull) return -1; // parse fail
+
+            return CompareTo(val);
+        }
+
+        internal static RedisValue TryParse(object obj)
+        {
+            if (obj == null) return RedisValue.Null;
+            if (obj is RedisValue) return (RedisValue)obj;
+            if (obj is string) return (RedisValue)(string)obj;
+            if (obj is int) return (RedisValue)(int)obj;
+            if (obj is double) return (RedisValue)(double)obj;
+            if (obj is byte[]) return (RedisValue)(byte[])obj;
+            if (obj is bool) return (RedisValue)(bool)obj;
+            if (obj is long) return (RedisValue)(long)obj;
+            if (obj is float) return (RedisValue)(float)obj;
+            if (obj is ReadOnlyMemory<byte>) return (RedisValue)(ReadOnlyMemory<byte>)obj;
+            if (obj is Memory<byte>) return (RedisValue)(Memory<byte>)obj;
+
+            return Null;
         }
 
         /// <summary>
         /// Creates a new <see cref="RedisValue"/> from an <see cref="int"/>.
         /// </summary>
         /// <param name="value">The <see cref="int"/> to convert to a <see cref="RedisValue"/>.</param>
-        public static implicit operator RedisValue(int value) => new RedisValue(value, IntegerSentinel);
+        public static implicit operator RedisValue(int value) => new RedisValue(value, default, Sentinel_Integer);
 
         /// <summary>
         /// Creates a new <see cref="RedisValue"/> from an <see cref="T:Nullable{int}"/>.
@@ -329,7 +367,7 @@ namespace StackExchange.Redis
         /// Creates a new <see cref="RedisValue"/> from an <see cref="long"/>.
         /// </summary>
         /// <param name="value">The <see cref="long"/> to convert to a <see cref="RedisValue"/>.</param>
-        public static implicit operator RedisValue(long value) => new RedisValue(value, IntegerSentinel);
+        public static implicit operator RedisValue(long value) => new RedisValue(value, default, Sentinel_Integer);
 
         /// <summary>
         /// Creates a new <see cref="RedisValue"/> from an <see cref="T:Nullable{long}"/>.
@@ -341,7 +379,16 @@ namespace StackExchange.Redis
         /// Creates a new <see cref="RedisValue"/> from an <see cref="double"/>.
         /// </summary>
         /// <param name="value">The <see cref="double"/> to convert to a <see cref="RedisValue"/>.</param>
-        public static implicit operator RedisValue(double value) => Format.ToString(value);
+        public static implicit operator RedisValue(double value)
+        {
+            try
+            {
+                var i64 = (long)value;
+                if (value == i64) return new RedisValue(i64, default, Sentinel_Integer);
+            }
+            catch { }
+            return new RedisValue(BitConverter.DoubleToInt64Bits(value), default, Sentinel_Double);
+        }
 
         /// <summary>
         /// Creates a new <see cref="RedisValue"/> from an <see cref="T:Nullable{double}"/>.
@@ -350,17 +397,30 @@ namespace StackExchange.Redis
         public static implicit operator RedisValue(double? value) => value == null ? Null : (RedisValue)value.GetValueOrDefault();
 
         /// <summary>
+        /// Creates a new <see cref="RedisValue"/> from a <see cref="T:ReadOnlyMemory{byte}"/>.
+        /// </summary>
+        public static implicit operator RedisValue(ReadOnlyMemory<byte> value)
+        {
+            if (value.Length == 0) return EmptyString;
+            return new RedisValue(0, value, Sentinel_Raw);
+        }
+        /// <summary>
+        /// Creates a new <see cref="RedisValue"/> from a <see cref="T:Memory{byte}"/>.
+        /// </summary>
+        public static implicit operator RedisValue(Memory<byte> value) => (ReadOnlyMemory<byte>)value;
+
+        /// <summary>
         /// Creates a new <see cref="RedisValue"/> from an <see cref="string"/>.
         /// </summary>
         /// <param name="value">The <see cref="string"/> to convert to a <see cref="RedisValue"/>.</param>
         public static implicit operator RedisValue(string value)
         {
-            byte[] blob;
-            if (value == null) blob = null;
-            else if (value.Length == 0) blob = EmptyByteArr;
-            else blob = Encoding.UTF8.GetBytes(value);
-            return new RedisValue(0, blob);
+            if (value == null) return Null;
+            if (value.Length == 0) return EmptyString;
+            return new RedisValue(0, default, value);
         }
+
+
 
         /// <summary>
         /// Creates a new <see cref="RedisValue"/> from an <see cref="T:byte[]"/>.
@@ -368,33 +428,16 @@ namespace StackExchange.Redis
         /// <param name="value">The <see cref="T:byte[]"/> to convert to a <see cref="RedisValue"/>.</param>
         public static implicit operator RedisValue(byte[] value)
         {
-            byte[] blob;
-            if (value == null) blob = null;
-            else if (value.Length == 0) blob = EmptyByteArr;
-            else blob = value;
-            return new RedisValue(0, blob);
-        }
-
-        internal static RedisValue Parse(object obj)
-        {
-            if (obj == null) return RedisValue.Null;
-            if (obj is RedisValue) return (RedisValue)obj;
-            if (obj is string) return (RedisValue)(string)obj;
-            if (obj is int) return (RedisValue)(int)obj;
-            if (obj is double) return (RedisValue)(double)obj;
-            if (obj is byte[]) return (RedisValue)(byte[])obj;
-            if (obj is bool) return (RedisValue)(bool)obj;
-            if (obj is long) return (RedisValue)(long)obj;
-            if (obj is float) return (RedisValue)(float)obj;
-
-            throw new InvalidOperationException("Unable to format type for redis: " + obj.GetType().FullName);
+            if (value == null) return Null;
+            if (value.Length == 0) return EmptyString;
+            return new RedisValue(0, new Memory<byte>(value), value);
         }
 
         /// <summary>
         /// Creates a new <see cref="RedisValue"/> from an <see cref="bool"/>.
         /// </summary>
         /// <param name="value">The <see cref="bool"/> to convert to a <see cref="RedisValue"/>.</param>
-        public static implicit operator RedisValue(bool value) => new RedisValue(value ? 1 : 0, IntegerSentinel);
+        public static implicit operator RedisValue(bool value) => new RedisValue(value ? 1 : 0, default, Sentinel_Integer);
 
         /// <summary>
         /// Creates a new <see cref="RedisValue"/> from an <see cref="T:Nullable{bool}"/>.
@@ -434,10 +477,24 @@ namespace StackExchange.Redis
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
         public static explicit operator long(RedisValue value)
         {
-            var blob = value.valueBlob;
-            if (blob == IntegerSentinel) return value.valueInt64;
-            if (blob == null) return 0; // in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
-            if (TryParseInt64(blob, 0, blob.Length, out long i64)) return i64;
+            switch (value.Type)
+            {
+                case CompareType.Null:
+                    return 0; // in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
+                case CompareType.Int64:
+                    return value._overlappedValue64;
+                case CompareType.Double:
+                    var f64 = value.OverlappedValueDouble;
+                    var i64 = (long)f64;
+                    if (f64 == i64) return i64;
+                    break;
+                case CompareType.String:
+                    if (TryParseInt64((string)value._objectOrSentinel, out i64)) return i64;
+                    break;
+                case CompareType.Raw:
+                    if (TryParseInt64(value._memory.Span, out i64)) return i64;
+                    break;
+            }
             throw new InvalidCastException();
         }
 
@@ -447,24 +504,34 @@ namespace StackExchange.Redis
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
         public static explicit operator double(RedisValue value)
         {
-            var blob = value.valueBlob;
-            if (blob == IntegerSentinel) return value.valueInt64;
-            if (blob == null) return 0; // in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
-
-            if (TryParseDouble(blob, out double r8)) return r8;
+            switch (value.Type)
+            {
+                case CompareType.Null:
+                    return 0; // in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
+                case CompareType.Int64:
+                    return value._overlappedValue64;
+                case CompareType.Double:
+                    return value.OverlappedValueDouble;
+                case CompareType.String:
+                    if (TryParseInt64((string)value._objectOrSentinel, out var f64)) return f64;
+                    break;
+                case CompareType.Raw:
+                    if (TryParseInt64(value._memory.Span, out f64)) return f64;
+                    break;
+            }
             throw new InvalidCastException();
         }
 
-        private static bool TryParseDouble(byte[] blob, out double value)
+        private static bool TryParseDouble(ReadOnlySpan<byte> blob, out double value)
         {
             // simple integer?
-            if (blob.Length == 1 && blob[0] >= '0' && blob[0] <= '9')
+            if (TryParseInt64(blob, out var i64))
             {
-                value = blob[0] - '0';
+                value = i64;
                 return true;
             }
 
-            return Format.TryParseDouble(Encoding.UTF8.GetString(blob), out value);
+            return Format.TryParseDouble(blob, out value);
         }
 
         /// <summary>
@@ -473,7 +540,7 @@ namespace StackExchange.Redis
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
         public static explicit operator double? (RedisValue value)
         {
-            if (value.valueBlob == null) return null;
+            if (value.IsNull) return null;
             return (double)value;
         }
 
@@ -483,7 +550,7 @@ namespace StackExchange.Redis
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
         public static explicit operator long? (RedisValue value)
         {
-            if (value.valueBlob == null) return null;
+            if (value.IsNull) return null;
             return (long)value;
         }
 
@@ -493,7 +560,7 @@ namespace StackExchange.Redis
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
         public static explicit operator int? (RedisValue value)
         {
-            if (value.valueBlob == null) return null;
+            if (value.IsNull) return null;
             return (int)value;
         }
 
@@ -503,7 +570,7 @@ namespace StackExchange.Redis
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
         public static explicit operator bool? (RedisValue value)
         {
-            if (value.valueBlob == null) return null;
+            if (value.IsNull) return null;
             return (bool)value;
         }
 
@@ -513,24 +580,51 @@ namespace StackExchange.Redis
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
         public static implicit operator string(RedisValue value)
         {
-            var valueBlob = value.valueBlob;
-            if (valueBlob == IntegerSentinel)
-                return Format.ToString(value.valueInt64);
-            if (valueBlob == null) return null;
+            switch (value.Type)
+            {
+                case CompareType.Null: return null;
+                case CompareType.Double: return Format.ToString(value.OverlappedValueDouble.ToString());
+                case CompareType.Int64: return Format.ToString(value._overlappedValue64);
+                case CompareType.String: return (string)value._objectOrSentinel;
+                case CompareType.Raw:
+                    var span = value._memory.Span;
+                    if (span.IsEmpty) return "";
+                    if (span.Length == 2 && span[0] == (byte)'O' && span[1] == (byte)'K') return "OK"; // frequent special-case
+                    try
+                    {
+                        return Format.DecodeUtf8(span);
+                    }
+                    catch
+                    {
+                        return ToHex(span);
+                    }
+                default:
+                    throw new InvalidOperationException();
+            }
+        }
+        static string ToHex(ReadOnlySpan<byte> src)
+        {
+            const string HexValues = "0123456789ABCDEF";
 
-            if (valueBlob.Length == 0) return "";
-            if (valueBlob.Length == 2 && valueBlob[0] == (byte)'O' && valueBlob[1] == (byte)'K')
+            if (src.IsEmpty) return "";
+            var s = new string((char)0, src.Length * 3 - 1);
+            var dst = MemoryMarshal.AsMemory(s.AsMemory()).Span;
+
+            int i = 0;
+            int j = 0;
+
+            byte b = src[i++];
+            dst[j++] = HexValues[b >> 4];
+            dst[j++] = HexValues[b & 0xF];
+
+            while (i < src.Length)
             {
-                return "OK"; // special case for +OK status results from modules
+                b = src[i++];
+                dst[j++] = '-';
+                dst[j++] = HexValues[b >> 4];
+                dst[j++] = HexValues[b & 0xF];
             }
-            try
-            {
-                return Encoding.UTF8.GetString(valueBlob);
-            }
-            catch
-            {
-                return BitConverter.ToString(valueBlob);
-            }
+            return s;
         }
 
         /// <summary>
@@ -539,12 +633,24 @@ namespace StackExchange.Redis
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
         public static implicit operator byte[] (RedisValue value)
         {
-            var valueBlob = value.valueBlob;
-            if (valueBlob == IntegerSentinel)
+            if (value.Type == CompareType.Raw)
             {
-                return Encoding.UTF8.GetBytes(Format.ToString(value.valueInt64));
+                return value._objectOrSentinel is byte[] arr ? arr : value._memory.ToArray();
             }
-            return valueBlob;
+            return Encoding.UTF8.GetBytes((string)value);
+        }
+
+        /// <summary>
+        /// Converts a <see cref="RedisValue"/> to a ReadOnlyMemory
+        /// </summary>
+        /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
+        public static implicit operator ReadOnlyMemory<byte> (RedisValue value)
+        {
+            if (value.Type == CompareType.Raw)
+            {
+                return value._memory;
+            }
+            return Encoding.UTF8.GetBytes((string)value);
         }
 
         TypeCode IConvertible.GetTypeCode() => TypeCode.Object;
@@ -566,8 +672,9 @@ namespace StackExchange.Redis
         {
             if (conversionType == null) throw new ArgumentNullException(nameof(conversionType));
             if (conversionType == typeof(byte[])) return (byte[])this;
+            if (conversionType == typeof(ReadOnlyMemory<byte>)) return (ReadOnlyMemory<byte>)this;
             if (conversionType == typeof(RedisValue)) return this;
-            switch (Type.GetTypeCode(conversionType))
+            switch (System.Type.GetTypeCode(conversionType))
             {
                 case TypeCode.Boolean: return (bool)this;
                 case TypeCode.Byte: return (byte)this;
@@ -602,6 +709,11 @@ namespace StackExchange.Redis
         /// <param name="val">The <see cref="long"/> value, if conversion was possible.</param>
         public bool TryParse(out long val)
         {
+            switch(Type)
+            {
+                case CompareType.Int64: val =_overlappedValue64; return true;
+                case CompareType.String:
+            }
             var blob = valueBlob;
             if (blob == IntegerSentinel)
             {
