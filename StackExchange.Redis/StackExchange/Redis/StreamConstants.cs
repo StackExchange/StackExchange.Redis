@@ -24,12 +24,12 @@ namespace StackExchange.Redis
         /// <summary>
         /// The "-" value used in the XRANGE, XREAD, and XREADGROUP commands. Indicates the minimum message ID from the stream.
         /// </summary>
-        public static readonly RedisValue StreamMinValue = "-";
+        public static readonly RedisValue ReadMinValue = "-";
 
         /// <summary>
         /// The "+" value used in the XRANGE, XREAD, and XREADGROUP commands. Indicates the maximum message ID from the stream.
         /// </summary>
-        public static readonly RedisValue StreamMaxValue = "+";
+        public static readonly RedisValue ReadMaxValue = "+";
 
         /// <summary>
         /// The ">" value used in the XREADGROUP command. Use this to read messages that have not been delivered to a consumer group.

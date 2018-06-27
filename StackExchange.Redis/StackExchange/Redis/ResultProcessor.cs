@@ -1348,28 +1348,35 @@ The coordinates as a two items x,y array (longitude,latitude).
                     return false;
                 }
 
+                RedisStreamEntry[] entries = null;
+
                 if (skipStreamName)
                 {
-                    // Possibly validate that the command was XREAD? XREAD is the only
-                    // command that should use this option.
-
                     // Skip the first element in the array (i.e., the stream name).
                     // See https://redis.io/commands/xread.
 
                     // > XREAD COUNT 2 STREAMS mystream 0
                     // 1) 1) "mystream"                     <== Skip the stream name
-                    //    2) 1) 1) 1519073278252 - 0        <== Index 1 contains the array of messages
+                    //    2) 1) 1) 1519073278252 - 0        <== Index 1 contains the array of stream entries
                     //          2) 1) "foo"
                     //             2) "value_1"
                     //       2) 1) 1519073279157 - 0
                     //          2) 1) "foo"
                     //             2) "value_2"
 
-                    result = result.GetItems()[0]  // Initial result array, then the first stream.
-                                   .GetItems()[1]; // Skip the stream name and return the array of stream entries.
-                }
+                    // Retrieve the initial array. For XREAD of a single stream it will
+                    // be an array of only 1 element in the response.
+                    var readResult = result.GetItems();
 
-                var entries = ParseRedisStreamEntries(result);
+                    // Within that single element, GetItems will return an array of
+                    // 2 elements: the stream name and the stream entries.
+                    // Skip the stream name (index 0) and only process the stream entries (index 1).
+                    entries = ParseRedisStreamEntries(readResult[0].GetItems()[1]);
+                }
+                else
+                {
+                    entries = ParseRedisStreamEntries(result);
+                }
 
                 SetResult(message, entries);
                 return true;
@@ -1379,7 +1386,6 @@ The coordinates as a two items x,y array (longitude,latitude).
         internal sealed class MultiStreamProcessor : StreamProcessorBase<RedisStream[]>
         {
             /*
-
                 The result is similar to the XRANGE result (see SingleStreamProcessor)
                 with the addition of the stream name as the first element of top level
                 Multibulk array.
@@ -1427,25 +1433,17 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                 var arr = result.GetItems();
 
-                var streams = new RedisStream[arr.Length];
-
-                for (var i = 0; i < arr.Length; i++)
+                var streams = Array.ConvertAll(arr, item =>
                 {
-                    if (arr[i].Type != ResultType.MultiBulk)
-                    {
-                        return false;
-                    }
+                    var details = item.GetItems();
 
-                    var stream = arr[i].GetItems();
+                    // details[0] = Name of the Stream
+                    // details[1] = Multibulk Array of Stream Entries
 
-                    // stream[0] = Name of the Stream
-                    // stream[1] = Multibulk Array of Stream Entries
-
-                    var streamName = stream[0].AsRedisKey();
-                    var streamEntries = ParseRedisStreamEntries(stream[1]);
-
-                    streams[i] = new RedisStream(streamName, streamEntries);
-                }
+                    return new RedisStream(
+                        key: details[0].AsRedisKey(),
+                        entries: ParseRedisStreamEntries(details[1]));
+                });
 
                 SetResult(message, streams);
                 return true;
@@ -1526,12 +1524,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 }
 
                 var arr = result.GetItems();
-                var parsedItems = new T[arr.Length];
-
-                for (var i = 0; i < arr.Length; i++)
-                {
-                    parsedItems[i] = ParseItem(arr[i]);
-                }
+                var parsedItems = Array.ConvertAll(arr, item => ParseItem(item));
 
                 SetResult(message, parsedItems);
                 return true;
@@ -1574,29 +1567,23 @@ The coordinates as a two items x,y array (longitude,latitude).
                     return false;
                 }
 
-                // The first four items are interleaved name/value pairs.
-                // Skip the field name and just get the value.
-
-                var length = (int)arr[1].AsRedisValue();
-                var treeKeyCount = (int)arr[3].AsRedisValue();
-                var treeNodeCount = (int)arr[5].AsRedisValue();
-                var groupCount = (int)arr[7].AsRedisValue();
-
                 // Note: Even if there is only 1 message in the stream, this command returns
                 //       the single entry as the first-entry and last-entry in the response.
 
-                var entries = ParseRedisStreamEntries(new RawResult(new RawResult[]
-                {
-                    arr[9],
-                    arr[11]
-                }));
+                // The first 8 items are interleaved name/value pairs.
+                // Items 9-12 represent the first and last entry in the stream. The values will
+                // be nil (stored in index 9 & 11) if the stream length is 0.
 
-                var streamInfo = new StreamInfo(length,
-                    treeKeyCount,
-                    treeNodeCount,
-                    groupCount,
-                    entries[0],
-                    entries[1]);
+                var entries = ParseRedisStreamEntries(RawResult.CreateMultiBulk(arr[9], arr[11]));
+
+                var streamInfo = new StreamInfo(
+                        (int)arr[1].AsRedisValue(), // Stream Length
+                        (int)arr[3].AsRedisValue(), // Radix tree keys
+                        (int)arr[5].AsRedisValue(), // Radix tree nodes
+                        (int)arr[7].AsRedisValue(), // Consumer Group Count
+                        entries[0],                 // First stream entry
+                        entries[1]);                // Last stream entry
+
 
                 SetResult(message, streamInfo);
                 return true;
@@ -1614,6 +1601,8 @@ The coordinates as a two items x,y array (longitude,latitude).
                 // 3) 1526569506935 - 0
                 // 4) 1) 1) "Bob"
                 //       2) "2"
+                // 5) 1) 1) "Joe"
+                //       2) "8"
 
                 if (result.Type != ResultType.MultiBulk)
                 {
@@ -1632,20 +1621,14 @@ The coordinates as a two items x,y array (longitude,latitude).
                 var highestPendingMessageId = arr[2].AsRedisValue();
 
                 // Get the list of Consumers
-                arr = arr[3].GetItems();
-
-                var consumers = new StreamConsumer[arr.Length];
-
-                for (var i = 0; i < arr.Length; i++)
+                var consumers = Array.ConvertAll(arr[3].GetItems(), item =>
                 {
-                    var details = arr[i].GetItems();
+                    var details = item.GetItems();
 
-                    consumers[i] = new StreamConsumer
-                    {
-                        Name = details[0].AsRedisValue(),
-                        PendingMessageCount = details[1].AsRedisValue()
-                    };
-                }
+                    return new StreamConsumer(
+                        name: details[0].AsRedisValue(),
+                        pendingMessageCount: details[1].AsRedisValue());
+                });
 
                 var pendingInfo = new StreamPendingInfo(pendingMessageCount,
                                                 lowestPendingMessageId,
@@ -1668,24 +1651,18 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                 var arr = result.GetItems();
 
-                var messages = new StreamPendingMessageInfo[arr.Length];
-
-                for (var i = 0; i < arr.Length; i++)
+                var messageInfoArray = Array.ConvertAll(arr, item =>
                 {
-                    var details = arr[i].GetItems();
+                    var details = item.GetItems();
 
-                    var messageId = details[0].AsRedisValue();
-                    var consumerName = details[1].AsRedisValue();
-                    var idleTimeInMs = details[2].AsRedisValue();
-                    var deliveryCount = details[3].AsRedisValue();
+                    return new StreamPendingMessageInfo(
+                            messageId: details[0].AsRedisValue(),
+                            consumerName: details[1].AsRedisValue(),
+                            idleTimeInMs: details[2].AsRedisValue(),
+                            deliveryCount: details[3].AsRedisValue());
+                });
 
-                    messages[i] = new StreamPendingMessageInfo(messageId,
-                                                            consumerName,
-                                                            idleTimeInMs,
-                                                            deliveryCount);
-                }
-
-                SetResult(message, messages);
+                SetResult(message, messageInfoArray);
                 return true;
             }
         }
@@ -1703,28 +1680,22 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                 var arr = result.GetItems();
 
-                var entries = new RedisStreamEntry[arr.Length];
-
-                for (var i = 0; i < arr.Length; i++)
+                return Array.ConvertAll(arr, item =>
                 {
-                    if (arr[i].IsNull || arr[i].Type != ResultType.MultiBulk)
+                    if (item.IsNull || item.Type != ResultType.MultiBulk)
                     {
-                        entries[i] = RedisStreamEntry.Null;
+                        return RedisStreamEntry.Null;
                     }
-                    else
-                    {
-                        // Process the Multibulk array for each entry. The entry contains the following elements:
-                        //  [0] = SimpleString (the ID of the stream entry)
-                        //  [1] = Multibulk array of the name/value pairs of the stream entry's data
-                        var item = arr[i].GetItems();
 
-                        var id = item[0].AsRedisValue();
-                        var values = ParseStreamEntryValues(item[1]);
+                    // Process the Multibulk array for each entry. The entry contains the following elements:
+                    //  [0] = SimpleString (the ID of the stream entry)
+                    //  [1] = Multibulk array of the name/value pairs of the stream entry's data
+                    var entryDetails = item.GetItems();
 
-                        entries[i] = new RedisStreamEntry(id, values);
-                    }
-                }
-                return entries;
+                    return new RedisStreamEntry(
+                            id: entryDetails[0].AsRedisValue(),
+                            values: ParseStreamEntryValues(entryDetails[1]));
+                });
             }
 
             protected NameValueEntry[] ParseStreamEntryValues(RawResult result)
@@ -1757,23 +1728,21 @@ The coordinates as a two items x,y array (longitude,latitude).
                     return null;
                 }
 
-                NameValueEntry[] pairs;
-
+                // Calculate how many name/value pairs are in the stream entry.
                 int count = arr.Length / 2;
 
                 if (count == 0)
                 {
-                    pairs = new NameValueEntry[0];
+                    return new NameValueEntry[0];
                 }
-                else
+
+                var pairs = new NameValueEntry[count];
+                int offset = 0;
+
+                for (int i = 0; i < pairs.Length; i++)
                 {
-                    pairs = new NameValueEntry[count];
-                    int offset = 0;
-                    for (int i = 0; i < pairs.Length; i++)
-                    {
-                        pairs[i] = new NameValueEntry(arr[offset++].AsRedisValue(),
-                                                      arr[offset++].AsRedisValue());
-                    }
+                    pairs[i] = new NameValueEntry(arr[offset++].AsRedisValue(),
+                                                  arr[offset++].AsRedisValue());
                 }
 
                 return pairs;

@@ -5,7 +5,7 @@ namespace StackExchange.Redis
     /// Describes properties of a pending message. A pending message is one that has 
     /// been received by a consumer but has not yet been acknowledged.
     /// </summary>
-    public class StreamPendingMessageInfo
+    public struct StreamPendingMessageInfo
     {
         internal StreamPendingMessageInfo(RedisValue messageId,
             RedisValue consumerName,

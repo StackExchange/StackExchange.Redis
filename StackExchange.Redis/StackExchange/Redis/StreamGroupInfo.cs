@@ -4,7 +4,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// Describes a consumer group retrieved using the XINFO GROUPS command. <see cref="IDatabase.StreamGroupInfoGet"/>
     /// </summary>
-    public class StreamGroupInfo
+    public struct StreamGroupInfo
     {
         internal StreamGroupInfo(string name, int consumerCount, int pendingMessageCount)
         {

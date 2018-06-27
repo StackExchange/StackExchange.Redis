@@ -4,7 +4,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// Describes a consumer within a consumer group, retrieved using the XINFO CONSUMERS command. <see cref="IDatabase.StreamConsumerInfoGet"/>
     /// </summary>
-    public class StreamConsumerInfo
+    public struct StreamConsumerInfo
     {
         internal StreamConsumerInfo(string name, int pendingMessageCount, long idleTimeInMilliseconds)
         {

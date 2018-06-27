@@ -1315,7 +1315,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="key">The key of the stream.</param>
         /// <param name="groupName">The name of the consumer group that received the message.</param>
-        /// <param name="messageIds">The ID's of the messages to acknowledge.</param>
+        /// <param name="messageIds">The IDs of the messages to acknowledge.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of messages acknowledged.</returns>
         /// <remarks>https://redis.io/topics/streams-intro</remarks>
@@ -1325,13 +1325,13 @@ namespace StackExchange.Redis
         /// Adds an entry using the specified values to the given stream key. If key does not exist, a new key holding a stream is created. The command returns the ID of the newly created stream entry.
         /// </summary>
         /// <param name="key">The key of the stream.</param>
-        /// <param name="streamFields">The fields and their associated values to set in the stream entry.</param>
+        /// <param name="streamPairs">The fields and their associated values to set in the stream entry.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <param name="maxLength">The maximum length of the stream.</param>
         /// <param name="useApproximateMaxLength">If true, use the "~" argument to keep the stream length at or slightly above the maxLength.</param>
         /// <returns>The ID of the newly created message.</returns>
         /// <remarks>https://redis.io/commands/xadd</remarks>
-        Task<string> StreamAddAsync(RedisKey key, NameValueEntry[] streamFields, int? maxLength = null, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None);
+        Task<string> StreamAddAsync(RedisKey key, NameValueEntry[] streamPairs, int? maxLength = null, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Adds an entry using the specified values to the given stream key. If key does not exist, a new key holding a stream is created. The command returns the ID of the newly created stream entry.
@@ -1365,13 +1365,13 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="key">The key of the stream.</param>
         /// <param name="streamEntryId">The ID to assign to the stream entry. This must be a unique value per entry.</param>
-        /// <param name="streamFields">The fields and their associated values to set in the stream entry.</param>
+        /// <param name="streamPairs">The fields and their associated values to set in the stream entry.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <param name="maxLength">The maximum length of the stream.</param>
         /// <param name="useApproximateMaxLength">If true, the "~" argument is used to allow the stream to exceed max length by a small number. This improves performance when removing messages.</param>
         /// <returns>The ID of the newly created message.</returns>
         /// <remarks>https://redis.io/commands/xadd</remarks>
-        Task<string> StreamAddAsync(RedisKey key, RedisValue streamEntryId, NameValueEntry[] streamFields, int? maxLength = null, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None);
+        Task<string> StreamAddAsync(RedisKey key, RedisValue streamEntryId, NameValueEntry[] streamPairs, int? maxLength = null, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Change ownership of messages consumed, but not yet acknowledged, by a different consumer. This method returns the complete message for the claimed message(s).
@@ -1387,15 +1387,15 @@ namespace StackExchange.Redis
         Task<RedisStreamEntry[]> StreamClaimMessagesAsync(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, string[] messageIds, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Change ownership of messages consumed, but not yet acknowledged, by a different consumer. This method returns the ID's for the claimed message(s).
+        /// Change ownership of messages consumed, but not yet acknowledged, by a different consumer. This method returns the IDs for the claimed message(s).
         /// </summary>
         /// <param name="key">The key of the stream.</param>
         /// <param name="consumerGroup">The consumer group.</param>
         /// <param name="claimingConsumer">The consumer claiming the given message(s).</param>
         /// <param name="minIdleTimeInMs">The minimum message idle time to allow the reassignment of the message(s).</param>
-        /// <param name="messageIds">The ID(s) of the message(s) to claim for the given consumer.</param>
+        /// <param name="messageIds">The IDs of the messages to claim for the given consumer.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The message ID(s) for the messages successfully claimed by the given consumer.</returns>
+        /// <returns>The message IDs for the messages successfully claimed by the given consumer.</returns>
         /// <remarks>https://redis.io/topics/streams-intro</remarks>
         Task<string[]> StreamClaimMessagesReturningIdsAsync(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, string[] messageIds, CommandFlags flags = CommandFlags.None);
 
@@ -1473,8 +1473,8 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="key">The key of the stream.</param>
         /// <param name="groupName">The name of the consumer group.</param>
-        /// <param name="minId">The minimum ID from which to read the stream of pending messages. Pass "-" or <see cref="StreamConstants.StreamMinValue"/> to read from the beginning of the stream" /></param>
-        /// <param name="maxId">The maximum ID to read to within the stream of pending messages. Pass "+" or <see cref="StreamConstants.StreamMaxValue"/> to read to the end of the stream.</param>
+        /// <param name="minId">The minimum ID from which to read the stream of pending messages. Pass "-" or <see cref="StreamConstants.ReadMinValue"/> to read from the beginning of the stream" /></param>
+        /// <param name="maxId">The maximum ID to read to within the stream of pending messages. Pass "+" or <see cref="StreamConstants.ReadMaxValue"/> to read to the end of the stream.</param>
         /// <param name="count">The maximum number of pending messages to return.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>An instance of <see cref="StreamPendingMessageInfo"/> for each pending message.</returns>
@@ -1487,8 +1487,8 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="key">The key of the stream.</param>
         /// <param name="groupName">The name of the consumer group.</param>
-        /// <param name="minId">The minimum ID from which to read the stream of pending messages. Pass "-" or <see cref="StreamConstants.StreamMinValue"/> to read from the beginning of the stream" /></param>
-        /// <param name="maxId">The maximum ID to read to within the stream of pending messages. Pass "+" or <see cref="StreamConstants.StreamMaxValue"/> to read to the end of the stream.</param>
+        /// <param name="minId">The minimum ID from which to read the stream of pending messages. Pass "-" or <see cref="StreamConstants.ReadMinValue"/> to read from the beginning of the stream" /></param>
+        /// <param name="maxId">The maximum ID to read to within the stream of pending messages. Pass "+" or <see cref="StreamConstants.ReadMaxValue"/> to read to the end of the stream.</param>
         /// <param name="count">The maximum number of pending messages to return.</param>
         /// <param name="consumerName">The consumer name.</param>
         /// <param name="flags">The flags to use for this operation.</param>
@@ -1498,22 +1498,22 @@ namespace StackExchange.Redis
         Task<StreamPendingMessageInfo[]> StreamPendingMessageInfoGetAsync(RedisKey key, RedisValue groupName, RedisValue minId, RedisValue maxId, int count, RedisValue consumerName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Read a stream using the given range of ID's.
+        /// Read a stream using the given range of IDs.
         /// </summary>
         /// <param name="key">The key of the stream.</param>
-        /// <param name="minId">The minimum ID from which to read the stream of pending messages. Pass "-" or <see cref="StreamConstants.StreamMinValue"/> to read from the beginning of the stream" /></param>
-        /// <param name="maxId">The maximum ID to read to within the stream of pending messages. Pass "+" or <see cref="StreamConstants.StreamMaxValue"/> to read to the end of the stream.</param>
+        /// <param name="minId">The minimum ID from which to read the stream of pending messages. Pass "-" or <see cref="StreamConstants.ReadMinValue"/> to read from the beginning of the stream" /></param>
+        /// <param name="maxId">The maximum ID to read to within the stream of pending messages. Pass "+" or <see cref="StreamConstants.ReadMaxValue"/> to read to the end of the stream.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>Returns an instance of <see cref="RedisStreamEntry"/> for each message returned.</returns>
         /// <remarks>https://redis.io/commands/xrange</remarks>
         Task<RedisStreamEntry[]> StreamRangeAsync(RedisKey key, RedisValue minId, RedisValue maxId, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Read a stream using the given range of ID's.
+        /// Read a stream using the given range of IDs.
         /// </summary>
         /// <param name="key">The key of the stream.</param>
-        /// <param name="minId">The minimum ID from which to read the stream of pending messages. Pass "-" or <see cref="StreamConstants.StreamMinValue"/> to read from the beginning of the stream" /></param>
-        /// <param name="maxId">The maximum ID to read to within the stream of pending messages. Pass "+" or <see cref="StreamConstants.StreamMaxValue"/> to read to the end of the stream.</param>
+        /// <param name="minId">The minimum ID from which to read the stream of pending messages. Pass "-" or <see cref="StreamConstants.ReadMinValue"/> to read from the beginning of the stream" /></param>
+        /// <param name="maxId">The maximum ID to read to within the stream of pending messages. Pass "+" or <see cref="StreamConstants.ReadMaxValue"/> to read to the end of the stream.</param>
         /// <param name="count">The maximum number of messages to return.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>Returns an instance of <see cref="RedisStreamEntry"/> for each message returned.</returns>
@@ -1521,11 +1521,11 @@ namespace StackExchange.Redis
         Task<RedisStreamEntry[]> StreamRangeAsync(RedisKey key, RedisValue minId, RedisValue maxId, int count, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Read a stream in reverse order using the given range of ID's.
+        /// Read a stream in reverse order using the given range of IDs.
         /// </summary>
         /// <param name="key">The key of the stream.</param>
-        /// <param name="maxId">The maximum ID to read to within the stream of pending messages. Pass "+" or <see cref="StreamConstants.StreamMaxValue"/> to read to the end of the stream.</param>
-        /// <param name="minId">The minimum ID from which to read the stream of pending messages. Pass "-" or <see cref="StreamConstants.StreamMinValue"/> to read from the beginning of the stream" /></param>
+        /// <param name="maxId">The maximum ID to read to within the stream of pending messages. Pass "+" or <see cref="StreamConstants.ReadMaxValue"/> to read to the end of the stream.</param>
+        /// <param name="minId">The minimum ID from which to read the stream of pending messages. Pass "-" or <see cref="StreamConstants.ReadMinValue"/> to read from the beginning of the stream" /></param>
         /// <param name="count">The maximum number of messages to return.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>Returns an instance of <see cref="RedisStreamEntry"/> for each message returned.</returns>
@@ -1533,11 +1533,11 @@ namespace StackExchange.Redis
         Task<RedisStreamEntry[]> StreamRangeReverseAsync(RedisKey key, RedisValue maxId, RedisValue minId, int count, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Read a stream in reverse order using the given range of ID's.
+        /// Read a stream in reverse order using the given range of IDs.
         /// </summary>
         /// <param name="key">The key of the stream.</param>
-        /// <param name="maxId">The maximum ID to read to within the stream of pending messages. Pass "+" or <see cref="StreamConstants.StreamMaxValue"/> to read to the end of the stream.</param>
-        /// <param name="minId">The minimum ID from which to read the stream of pending messages. Pass "-" or <see cref="StreamConstants.StreamMinValue"/> to read from the beginning of the stream" /></param>
+        /// <param name="maxId">The maximum ID to read to within the stream of pending messages. Pass "+" or <see cref="StreamConstants.ReadMaxValue"/> to read to the end of the stream.</param>
+        /// <param name="minId">The minimum ID from which to read the stream of pending messages. Pass "-" or <see cref="StreamConstants.ReadMinValue"/> to read from the beginning of the stream" /></param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>Returns an instance of <see cref="RedisStreamEntry"/> for each message returned.</returns>
         /// <remarks>https://redis.io/commands/xrevrange</remarks>

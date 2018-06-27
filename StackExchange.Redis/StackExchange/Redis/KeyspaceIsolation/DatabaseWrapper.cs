@@ -597,9 +597,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StreamAcknowledge(ToInner(key), groupName, messageIds, flags);
         }
 
-        public string StreamAdd(RedisKey key, NameValueEntry[] streamFields, int? maxLength = null, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None)
+        public string StreamAdd(RedisKey key, NameValueEntry[] streamPairs, int? maxLength = null, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None)
         {
-            return Inner.StreamAdd(ToInner(key), streamFields, maxLength, useApproximateMaxLength, flags);
+            return Inner.StreamAdd(ToInner(key), streamPairs, maxLength, useApproximateMaxLength, flags);
         }
 
         public string StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, int? maxLength = null, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None)
@@ -612,9 +612,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StreamAdd(ToInner(key), streamEntryId, streamField, streamValue, maxLength, useApproximateMaxLength, flags);
         }
 
-        public string StreamAdd(RedisKey key, RedisValue streamEntryId, NameValueEntry[] streamFields, int? maxLength = null, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None)
+        public string StreamAdd(RedisKey key, RedisValue streamEntryId, NameValueEntry[] streamPairs, int? maxLength = null, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None)
         {
-            return Inner.StreamAdd(ToInner(key), streamEntryId, streamFields, maxLength, useApproximateMaxLength, flags);
+            return Inner.StreamAdd(ToInner(key), streamEntryId, streamPairs, maxLength, useApproximateMaxLength, flags);
         }
 
         public RedisStreamEntry[] StreamClaimMessages(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, string[] messageIds, CommandFlags flags = CommandFlags.None)

@@ -576,9 +576,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StreamAcknowledgeAsync(ToInner(key), groupName, messageIds, flags);
         }
 
-        public Task<string> StreamAddAsync(RedisKey key, NameValueEntry[] streamFields, int? maxLength = null, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None)
+        public Task<string> StreamAddAsync(RedisKey key, NameValueEntry[] streamPairs, int? maxLength = null, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None)
         {
-            return Inner.StreamAddAsync(ToInner(key), streamFields, maxLength, useApproximateMaxLength, flags);
+            return Inner.StreamAddAsync(ToInner(key), streamPairs, maxLength, useApproximateMaxLength, flags);
         }
 
         public Task<string> StreamAddAsync(RedisKey key, RedisValue streamField, RedisValue streamValue, int? maxLength = null, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None)
@@ -591,9 +591,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StreamAddAsync(ToInner(key), streamEntryId, streamField, streamValue, maxLength, useApproximateMaxLength, flags);
         }
 
-        public Task<string> StreamAddAsync(RedisKey key, RedisValue streamEntryId, NameValueEntry[] streamFields, int? maxLength = null, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None)
+        public Task<string> StreamAddAsync(RedisKey key, RedisValue streamEntryId, NameValueEntry[] streamPairs, int? maxLength = null, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None)
         {
-            return Inner.StreamAddAsync(ToInner(key), streamEntryId, streamFields, maxLength, useApproximateMaxLength, flags);
+            return Inner.StreamAddAsync(ToInner(key), streamEntryId, streamPairs, maxLength, useApproximateMaxLength, flags);
         }
 
         public Task<RedisStreamEntry[]> StreamClaimMessagesAsync(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, string[] messageIds, CommandFlags flags = CommandFlags.None)

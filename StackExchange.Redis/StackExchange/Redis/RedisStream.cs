@@ -5,28 +5,20 @@
     /// </summary>
     public struct RedisStream
     {
-        internal readonly RedisKey key;
-        internal readonly RedisStreamEntry[] entries;
-
-        /// <summary>
-        /// Initializes a <see cref="RedisStream"/> instance.
-        /// </summary>
-        /// <param name="key">The key for the stream.</param>
-        /// <param name="entries">An arry of entries contained within the stream.</param>
-        public RedisStream(RedisKey key, RedisStreamEntry[] entries)
+        internal RedisStream(RedisKey key, RedisStreamEntry[] entries)
         {
-            this.key = key;
-            this.entries = entries;
+            Key = key;
+            Entries = entries;
         }
 
         /// <summary>
         /// The key for the stream.
         /// </summary>
-        public RedisKey Key => key;
+        public RedisKey Key { get; }
 
         /// <summary>
         /// An arry of entries contained within the stream.
         /// </summary>
-        public RedisStreamEntry[] Entries => entries;
+        public RedisStreamEntry[] Entries { get; }
     }
 }

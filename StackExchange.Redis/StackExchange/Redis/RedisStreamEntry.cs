@@ -5,18 +5,10 @@
     /// </summary>
     public struct RedisStreamEntry
     {
-        internal readonly RedisValue id;
-        internal readonly NameValueEntry[] values;
-
-        /// <summary>
-        /// Initializes a <see cref="RedisStreamEntry"/> instance.
-        /// </summary>
-        /// <param name="id">The ID assigned to the message.</param>
-        /// <param name="values">The values contained within the message.</param>
-        public RedisStreamEntry(RedisValue id, NameValueEntry[] values)
+        internal RedisStreamEntry(RedisValue id, NameValueEntry[] values)
         {
-            this.id = id;
-            this.values = values;
+            Id = id;
+            Values = values;
         }
 
         /// <summary>
@@ -27,16 +19,16 @@
         /// <summary>
         /// The ID assigned to the message.
         /// </summary>
-        public RedisValue Id => id;
+        public RedisValue Id { get; }
 
         /// <summary>
         /// The values contained within the message.
         /// </summary>
-        public NameValueEntry[] Values => values;
+        public NameValueEntry[] Values { get; }
 
         /// <summary>
         /// Indicates that the Redis Stream Entry is null.
         /// </summary>
-        public bool IsNull => id == RedisValue.Null && values == null;
+        public bool IsNull => Id == RedisValue.Null && Values == null;
     }
 }
