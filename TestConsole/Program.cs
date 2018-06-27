@@ -9,9 +9,6 @@ class Program
 {
     static int Main()
     {
-        var options = PipeOptions.Default;
-        Console.WriteLine(options.PauseWriterThreshold);
-        Console.WriteLine(options.ResumeWriterThreshold);
         var s = new StringWriter();
         try
         {
@@ -38,8 +35,8 @@ class Program
         }
         finally
         {
-            // Console.WriteLine();
-            // Console.WriteLine(s);
+            Console.WriteLine();
+            //Console.WriteLine(s);
         }
     }
 

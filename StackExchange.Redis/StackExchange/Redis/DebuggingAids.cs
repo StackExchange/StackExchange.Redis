@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
+using System.IO;
+using System.IO.Pipelines;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
@@ -324,28 +326,32 @@ namespace StackExchange.Redis
 
     partial class PhysicalConnection
     {
-        private Stream echo;
-        partial void OnCreateEcho()
+        //private Stream echo;
+        //partial void OnCreateEcho()
+        //{
+        //    if (!string.IsNullOrEmpty(ConnectionMultiplexer.EchoPath))
+        //    {
+        //        string fullPath = Path.Combine(ConnectionMultiplexer.EchoPath,
+        //            Regex.Replace(physicalName, @"[\-\.\@\#\:]", "_"));
+        //        echo = File.Open(Path.ChangeExtension(fullPath, "txt"), FileMode.Create, FileAccess.Write, FileShare.ReadWrite);
+        //    }
+        //}
+        //partial void OnCloseEcho()
+        //{
+        //    if (echo != null)
+        //    {
+        //        try { echo.Close(); } catch { }
+        //        try { echo.Dispose(); } catch { }
+        //        echo = null;
+        //    }
+        //}
+        partial void OnWrapForLogging(ref IDuplexPipe pipe, string name)
         {
-            if (!string.IsNullOrEmpty(ConnectionMultiplexer.EchoPath))
+            foreach(var c in Path.GetInvalidFileNameChars())
             {
-                string fullPath = Path.Combine(ConnectionMultiplexer.EchoPath,
-                    Regex.Replace(physicalName, @"[\-\.\@\#\:]", "_"));
-                echo = File.Open(Path.ChangeExtension(fullPath, "txt"), FileMode.Create, FileAccess.Write, FileShare.ReadWrite);
+                name = name.Replace(c, '_');
             }
-        }
-        partial void OnCloseEcho()
-        {
-            if (echo != null)
-            {
-                try { echo.Close(); } catch { }
-                try { echo.Dispose(); } catch { }
-                echo = null;
-            }
-        }
-        partial void OnWrapForLogging(ref Stream stream, string name)
-        {
-            stream = new LoggingTextStream(stream, physicalName, echo);
+            pipe = new LoggingPipe(pipe, $"{name}.in", $"{name}.out");
         }
     }
 #endif
