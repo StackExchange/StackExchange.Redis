@@ -697,7 +697,7 @@ namespace StackExchange.Redis
             {
                 // ${total-len}\r\n         3 + MaxInt32TextLen
                 // {prefix}{value}\r\n
-                int encodedLength = Encoding.UTF8.GetByteCount(value),
+                int encodedLength = Format.GetEncodedLength(value),
                     prefixLength = prefix == null ? 0 : prefix.Length,
                     totalLength = prefixLength + encodedLength;
 
@@ -719,7 +719,7 @@ namespace StackExchange.Redis
                 }
             }
         }
-
+        
         private unsafe void WriteRaw(PipeWriter writer, string value, int encodedLength)
         {
             const int MaxQuickEncodeSize = 512;
