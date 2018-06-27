@@ -6,13 +6,15 @@ namespace StackExchange.Redis
 {
     internal readonly struct RawResult
     {
-        internal static readonly RawResult NullMultiBulk = new RawResult((RawResult[])null);
-        internal static readonly RawResult EmptyMultiBulk = new RawResult(Array.Empty<RawResult>());
+        internal static readonly RawResult NullMultiBulk = new RawResult(null, 0);
+        internal static readonly RawResult EmptyMultiBulk = new RawResult(Array.Empty<RawResult>(), 0);
         internal static readonly RawResult Nil = default;
         
 
         private readonly ReadOnlySequence<byte> _payload;
-        private readonly RawResult[] _subArray;
+        // note: can't use Memory<RawResult> here - struct recursion breaks runtimr
+        private readonly RawResult[] _itemsOversized;
+        private readonly int _itemsCount;
         private readonly ResultType _type;
 
         const ResultType NonNullFlag = (ResultType)128;
@@ -32,15 +34,17 @@ namespace StackExchange.Redis
             if (!isNull) resultType |= NonNullFlag;
             _type = resultType;
             _payload = payload;
-            _subArray = default;
+            _itemsOversized = default;
+            _itemsCount = default;
         }
 
-        public RawResult(RawResult[] arr)
+        public RawResult(RawResult[] itemsOversized, int itemCount)
         {
             _type = ResultType.MultiBulk;
-            if (arr != null) _type |= NonNullFlag;
+            if (itemsOversized != null) _type |= NonNullFlag;
             _payload = default;
-            _subArray = arr;
+            _itemsOversized = itemsOversized;
+            _itemsCount = itemCount;
         }
 
         public bool IsError => Type == ResultType.Error;
@@ -62,7 +66,7 @@ namespace StackExchange.Redis
                 case ResultType.BulkString:
                     return $"{Type}: {_payload.Length} bytes";
                 case ResultType.MultiBulk:
-                    return $"{Type}: {_subArray.Length} items";
+                    return $"{Type}: {_itemsCount} items";
                 default:
                     return $"(unknown: {Type})";
             }
@@ -116,6 +120,21 @@ namespace StackExchange.Redis
                     return (RedisValue)GetBlob();
             }
             throw new InvalidCastException("Cannot convert to RedisValue: " + Type);
+        }
+
+        public void Recycle(int limit = -1)
+        {
+            var arr = _itemsOversized;
+            if (limit < 0) limit = _itemsCount;
+            if (arr != null)
+            {
+                for (int i = 0; i < limit; i++)
+                {
+                    arr[i].Recycle();
+                }
+            }
+            if(_itemsOversized != null)
+                ArrayPool<RawResult>.Shared.Return(_itemsOversized, clearArray: false);
         }
 
         internal unsafe bool IsEqual(byte[] expected)
@@ -179,16 +198,17 @@ namespace StackExchange.Redis
             }
         }
 
-        internal RawResult[] GetItems()
+        internal ReadOnlySpan<RawResult> GetItems()
         {
-            if (Type == ResultType.MultiBulk) return _subArray;
+            if (Type == ResultType.MultiBulk)
+                return new ReadOnlySpan<RawResult>(_itemsOversized, 0, _itemsCount);
             throw new InvalidOperationException();
         }
 
         internal RedisKey[] GetItemsAsKeys()
         {
-            RawResult[] items = GetItems();
-            if (items == null)
+            var items = GetItems();
+            if (IsNull)
             {
                 return null;
             }
@@ -209,8 +229,8 @@ namespace StackExchange.Redis
 
         internal RedisValue[] GetItemsAsValues()
         {
-            RawResult[] items = GetItems();
-            if (items == null)
+            var items = GetItems();
+            if (IsNull)
             {
                 return null;
             }
@@ -232,8 +252,8 @@ namespace StackExchange.Redis
         private static readonly string[] NilStrings = new string[0];
         internal string[] GetItemsAsStrings()
         {
-            RawResult[] items = GetItems();
-            if (items == null)
+            var items = GetItems();
+            if (IsNull)
             {
                 return null;
             }
@@ -254,14 +274,14 @@ namespace StackExchange.Redis
 
         internal GeoPosition? GetItemsAsGeoPosition()
         {
-            RawResult[] items = GetItems();
-            if (items == null || items.Length == 0)
+            var items = GetItems();
+            if (IsNull || items.Length == 0)
             {
                 return null;
             }
 
             var coords = items[0].GetItems();
-            if (coords == null)
+            if (items[0].IsNull)
             {
                 return null;
             }
@@ -270,8 +290,8 @@ namespace StackExchange.Redis
 
         internal GeoPosition?[] GetItemsAsGeoPositionArray()
         {
-            RawResult[] items = GetItems();
-            if (items == null)
+            var items = GetItems();
+            if (IsNull)
             {
                 return null;
             }
@@ -284,8 +304,8 @@ namespace StackExchange.Redis
                 var arr = new GeoPosition?[items.Length];
                 for (int i = 0; i < arr.Length; i++)
                 {
-                    RawResult[] item = items[i].GetItems();
-                    if (item == null)
+                    var item = items[i].GetItems();
+                    if (items[i].IsNull)
                     {
                         arr[i] = null;
                     }
@@ -297,9 +317,6 @@ namespace StackExchange.Redis
                 return arr;
             }
         }
-
-        internal RawResult[] GetItemsAsRawResults() => GetItems();
-
         internal unsafe string GetString()
         {
             if (IsNull) return null;

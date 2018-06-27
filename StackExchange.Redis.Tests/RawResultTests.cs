@@ -6,6 +6,12 @@ namespace StackExchange.Redis.Tests
     public class RawResultTests
     {
         [Fact]
+        public void TypeLoads()
+        {
+            var type = typeof(RawResult);
+            Assert.Equal(nameof(RawResult), type.Name);
+        }
+        [Fact]
         public void NullWorks()
         {
             var result = new RawResult(ResultType.BulkString, ReadOnlySequence<byte>.Empty, true);
