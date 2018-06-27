@@ -22,3 +22,4 @@ StackExchange.Redis.*.zip
 test-results*.xml
 packages/
 StackExchange.Redis.Tests/*Config.json
+t8.shakespeare.txt
