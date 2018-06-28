@@ -7,7 +7,19 @@ using StackExchange.Redis;
 
 class Program
 {
-    static int Main()
+    static void Main()
+    {
+        var arr = typeof(ConnectionMultiplexer).Assembly.GetTypes();
+        Array.Sort(arr, (x, y) => string.CompareOrdinal(x.FullName, y.FullName));
+        foreach (var type in arr)
+        {
+            if (type.IsPublic)
+            {
+                Console.WriteLine($"[assembly:TypeForwardedTo(typeof(global::{type.FullName}))]");
+            }
+        }
+    }
+    static int Main2()
     {
         var s = new StringWriter();
         try

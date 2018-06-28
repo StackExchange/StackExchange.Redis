@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>$(LibraryTargetFrameworks)</TargetFrameworks>
+    <Description>High performance Redis client, incorporating both synchronous and asynchronous usage.</Description>
+    <AssemblyTitle>StackExchange.Redis.StrongName</AssemblyTitle>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <AssemblyName>StackExchange.Redis.StrongName</AssemblyName>
+    <PackageId>StackExchange.Redis.StrongName</PackageId>
+    <PackageTags>Async;Redis;Cache;PubSub;Messaging</PackageTags>
+    <OutputTypeEx>Library</OutputTypeEx>
+    <SignAssembly>true</SignAssembly>
+    <PublicSign Condition=" '$(OS)' != 'Windows_NT' ">true</PublicSign>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+  
+  <ItemGroup>
+    <ProjectReference Include="..\StackExchange.Redis\StackExchange.Redis.csproj" />
+  </ItemGroup>
+</Project>
