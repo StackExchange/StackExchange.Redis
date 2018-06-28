@@ -22,12 +22,8 @@
     <PackageReference Include="System.IO.Pipelines" Version="$(CoreFxVersion)" />
     <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="$(CoreFxVersion)" />
   </ItemGroup>
-
-  <ItemGroup Condition="'$(Computername)'=='OCHO'">
-
-    <ProjectReference Include="..\..\Pipelines.Sockets.Unofficial\src\Pipelines.Sockets.Unofficial\Pipelines.Sockets.Unofficial.csproj" />
-  </ItemGroup>
-  <ItemGroup Condition="'$(Computername)'!='OCHO'">
-    <PackageReference Include="Pipelines.Sockets.Unofficial" Version="0.2.1-alpha.48" />
+  
+  <ItemGroup>
+    <PackageReference Include="Pipelines.Sockets.Unofficial" Version="0.2.1-alpha.51" />
   </ItemGroup>
 </Project>

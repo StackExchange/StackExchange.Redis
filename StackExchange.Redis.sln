@@ -67,11 +67,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Basic", "Basic", "{38BDEEED
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BasicTestBaseline", "BasicTestBaseline\BasicTestBaseline.csproj", "{8FDB623D-779B-4A84-BC6B-75106E41D8A4}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Pipelines.Sockets.Unofficial", "..\Pipelines.Sockets.Unofficial\src\Pipelines.Sockets.Unofficial\Pipelines.Sockets.Unofficial.csproj", "{6BE847CC-5615-4C72-A304-3DB29725FC76}"
-EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TestConsole", "TestConsole\TestConsole.csproj", "{651FDB97-9DE3-4BD9-9A05-827AF8F1A94A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StackExchange.Redis.StrongName", "StackExchange.Redis.StrongName\StackExchange.Redis.StrongName.csproj", "{769640F3-889C-4E8A-A7DF-916AE9B432A6}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "StackExchange.Redis.StrongName", "StackExchange.Redis.StrongName\StackExchange.Redis.StrongName.csproj", "{769640F3-889C-4E8A-A7DF-916AE9B432A6}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -103,10 +101,6 @@ Global
 		{8FDB623D-779B-4A84-BC6B-75106E41D8A4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8FDB623D-779B-4A84-BC6B-75106E41D8A4}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8FDB623D-779B-4A84-BC6B-75106E41D8A4}.Release|Any CPU.Build.0 = Release|Any CPU
-		{6BE847CC-5615-4C72-A304-3DB29725FC76}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{6BE847CC-5615-4C72-A304-3DB29725FC76}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{6BE847CC-5615-4C72-A304-3DB29725FC76}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{6BE847CC-5615-4C72-A304-3DB29725FC76}.Release|Any CPU.Build.0 = Release|Any CPU
 		{651FDB97-9DE3-4BD9-9A05-827AF8F1A94A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{651FDB97-9DE3-4BD9-9A05-827AF8F1A94A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{651FDB97-9DE3-4BD9-9A05-827AF8F1A94A}.Release|Any CPU.ActiveCfg = Release|Any CPU
