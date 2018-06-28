@@ -82,6 +82,8 @@ namespace StackExchange.Redis
         /// <param name="y">The second <see cref="RedisValue"/> to compare.</param>
         public static bool operator ==(RedisValue x, RedisValue y)
         {
+            x = x.Simplify();
+            y = y.Simplify();
             StorageType xType = x.Type, yType = y.Type;
 
             if (xType == StorageType.Null) return yType == StorageType.Null;
@@ -128,21 +130,23 @@ namespace StackExchange.Redis
         /// <summary>
         /// See Object.GetHashCode()
         /// </summary>
-        public override int GetHashCode()
+        public override int GetHashCode() => GetHashCode(this);
+        static int GetHashCode(RedisValue x)
         {
-            switch (Type)
+            x = x.Simplify();
+            switch (x.Type)
             {
                 case StorageType.Null:
                     return -1;
                 case StorageType.Double:
-                    return OverlappedValueDouble.GetHashCode();
+                    return x.OverlappedValueDouble.GetHashCode();
                 case StorageType.Int64:
-                    return _overlappedValue64.GetHashCode();
+                    return x._overlappedValue64.GetHashCode();
                 case StorageType.Raw:
-                    return GetHashCode(_memory);
+                    return ((string)x).GetHashCode(); // to match equality
                 case StorageType.String:
                 default:
-                    return _objectOrSentinel.GetHashCode();
+                    return x._objectOrSentinel.GetHashCode();
             }
         }
 
@@ -464,12 +468,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
         public static explicit operator int(RedisValue value)
-        {
-            checked
-            {
-                return (int)(long)value;
-            }
-        }
+            => checked((int)(long)value);
 
         /// <summary>
         /// Converts a <see cref="RedisValue"/> to a <see cref="long"/>.
@@ -477,25 +476,15 @@ namespace StackExchange.Redis
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
         public static explicit operator long(RedisValue value)
         {
+            value = value.Simplify();
             switch (value.Type)
             {
                 case StorageType.Null:
                     return 0; // in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
                 case StorageType.Int64:
                     return value._overlappedValue64;
-                case StorageType.Double:
-                    var f64 = value.OverlappedValueDouble;
-                    var i64 = (long)f64;
-                    if (f64 == i64) return i64;
-                    break;
-                case StorageType.String:
-                    if (TryParseInt64((string)value._objectOrSentinel, out i64)) return i64;
-                    break;
-                case StorageType.Raw:
-                    if (TryParseInt64(value._memory.Span, out i64)) return i64;
-                    break;
             }
-            throw new InvalidCastException($"Unable to cast from {value.Type} to long");
+            throw new InvalidCastException($"Unable to cast from {value.Type} to long: '{value}'");
         }
 
         /// <summary>
@@ -504,6 +493,7 @@ namespace StackExchange.Redis
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
         public static explicit operator double(RedisValue value)
         {
+            value = value.Simplify();
             switch (value.Type)
             {
                 case StorageType.Null:
@@ -512,14 +502,8 @@ namespace StackExchange.Redis
                     return value._overlappedValue64;
                 case StorageType.Double:
                     return value.OverlappedValueDouble;
-                case StorageType.String:
-                    if (Format.TryParseDouble((string)value._objectOrSentinel, out var f64)) return f64;
-                    break;
-                case StorageType.Raw:
-                    if (TryParseDouble(value._memory.Span, out f64)) return f64;
-                    break;
             }
-            throw new InvalidCastException($"Unable to cast from {value.Type} to double");
+            throw new InvalidCastException($"Unable to cast from {value.Type} to double: '{value}'");
         }
 
         private static bool TryParseDouble(ReadOnlySpan<byte> blob, out double value)
@@ -539,41 +523,29 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
         public static explicit operator double? (RedisValue value)
-        {
-            if (value.IsNull) return null;
-            return (double)value;
-        }
+            => value.IsNull ? (double?)null : (double)value;
 
         /// <summary>
         /// Converts the <see cref="RedisValue"/> to a <see cref="T:Nullable{long}"/>.
         /// </summary>
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
         public static explicit operator long? (RedisValue value)
-        {
-            if (value.IsNull) return null;
-            return (long)value;
-        }
+            => value.IsNull ? (long?)null : (long)value;
 
         /// <summary>
         /// Converts the <see cref="RedisValue"/> to a <see cref="T:Nullable{int}"/>.
         /// </summary>
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
         public static explicit operator int? (RedisValue value)
-        {
-            if (value.IsNull) return null;
-            return (int)value;
-        }
+            => value.IsNull ? (int?)null : (int)value;
 
         /// <summary>
         /// Converts the <see cref="RedisValue"/> to a <see cref="T:Nullable{bool}"/>.
         /// </summary>
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
         public static explicit operator bool? (RedisValue value)
-        {
-            if (value.IsNull) return null;
-            return (bool)value;
-        }
-
+            => value.IsNull ? (bool?)null : (bool)value;
+        
         /// <summary>
         /// Converts a <see cref="RedisValue"/> to a <see cref="string"/>.
         /// </summary>
@@ -583,7 +555,7 @@ namespace StackExchange.Redis
             switch (value.Type)
             {
                 case StorageType.Null: return null;
-                case StorageType.Double: return Format.ToString(value.OverlappedValueDouble.ToString());
+                case StorageType.Double: return Format.ToString(value.OverlappedValueDouble);
                 case StorageType.Int64: return Format.ToString(value._overlappedValue64);
                 case StorageType.String: return (string)value._objectOrSentinel;
                 case StorageType.Raw:
@@ -712,68 +684,36 @@ namespace StackExchange.Redis
         ulong IConvertible.ToUInt64(IFormatProvider provider) => (ulong)this;
 
         /// <summary>
-        /// Convert to a long if possible, returning true.
-        ///
-        /// Returns false otherwise.
+        /// Attempt to reduce to canonical terms ahead of time; parses integers, floats, etc
+        /// Note: we don't use this aggressively ahead of time, a: because of extra CPU,
+        /// but more importantly b: because it can change values - for example, if they start
+        /// with "123.000", it should **stay** as "123.000", not become 123L; this could be
+        /// a hash key or similar - we don't want to break it; RedisConnection uses
+        /// the storage type, not the "does it look like a long?" - for this reason
         /// </summary>
-        /// <param name="val">The <see cref="long"/> value, if conversion was possible.</param>
-        public bool TryParse(out long val)
+        private RedisValue Simplify()
         {
-            switch (Type)
+            switch(Type)
             {
-                case StorageType.Null: val = 0; return true; // in redis-land 0 approx. equal null; so roll with it
-                case StorageType.Int64: val = _overlappedValue64; return true;
-                case StorageType.String: return TryParseInt64((string)_objectOrSentinel, out val);
-                case StorageType.Raw: return TryParseInt64(_memory.Span, out val);
-                case StorageType.Double:
-                    var f64 = OverlappedValueDouble;
-                    if (f64 >= long.MinValue && f64 <= long.MaxValue)
-                    {
-                        val = (long)f64;
-                        return true;
-                    }
+                case StorageType.String:
+                    string s = (string)_objectOrSentinel;
+                    if (TryParseInt64(s, out var i64)) return i64;
+                    if (Format.TryParseDouble(s, out var f64)) return f64;
                     break;
-            }
-            val = default;
-            return false;
-        }
+                case StorageType.Raw:
+                    var b = _memory.Span;
+                    if (TryParseInt64(b, out i64)) return i64;
+                    if (TryParseDouble(b, out f64)) return f64;
+                    break;
+                case StorageType.Double:
+                    // is the double actually an integer?
+                    f64 = OverlappedValueDouble;                    
+                    if (f64 >= long.MinValue && f64 <= long.MaxValue
+                        && (i64 = (long)f64) == f64) return i64;
+                    break;
 
-        /// <summary>
-        /// Convert to a int if possible, returning true.
-        ///
-        /// Returns false otherwise.
-        /// </summary>
-        /// <param name="val">The <see cref="int"/> value, if conversion was possible.</param>
-        public bool TryParse(out int val)
-        {
-            if (TryParse(out long l) && l >= int.MinValue && l <= int.MaxValue)
-            {
-                val = (int)l;
-                return true;
             }
-            val = default;
-            return false;
-
-        }
-
-        /// <summary>
-        /// Convert to a double if possible, returning true.
-        ///
-        /// Returns false otherwise.
-        /// </summary>
-        /// <param name="val">The <see cref="double"/> value, if conversion was possible.</param>
-        public bool TryParse(out double val)
-        {
-            switch (Type)
-            {
-                case StorageType.Null: val = 0; return true;
-                case StorageType.Int64: val = _overlappedValue64; return true;
-                case StorageType.Double: val = OverlappedValueDouble; return true;
-                case StorageType.String: return Format.TryParseDouble((string)_objectOrSentinel, out val);
-                case StorageType.Raw: return TryParseDouble(_memory.Span, out val);
-            }
-            val = default;
-            return false;
+            return this;
         }
     }
 }

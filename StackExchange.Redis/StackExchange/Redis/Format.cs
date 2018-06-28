@@ -62,7 +62,16 @@ namespace StackExchange.Redis
             return value.ToString("G17", NumberFormatInfo.InvariantInfo);
         }
 
-        internal static string ToString(object value) => Convert.ToString(value, CultureInfo.InvariantCulture);
+        internal static string ToString(object value)
+        {
+            if (value == null) return "";
+            if (value is long l) return ToString(l);
+            if (value is int i) return ToString(i);
+            if (value is float f) return ToString(f);
+            if (value is double d) return ToString(d);
+            if (value is EndPoint e) return ToString(e);
+            return Convert.ToString(value, CultureInfo.InvariantCulture);
+        }
 
         internal static string ToString(EndPoint endpoint)
         {
