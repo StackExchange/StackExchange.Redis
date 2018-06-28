@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Pipelines;
 using System.Linq;
@@ -9,7 +10,8 @@ class Program
 {
     static int Main()
     {
-        //var s = new StringWriter();
+        var s = new StringWriter();
+        var watch = Stopwatch.StartNew();
         try
         {
 #if DEBUG
@@ -18,10 +20,11 @@ class Program
             
             var config = new ConfigurationOptions
             {
+                ConnectRetry = 0,
                 EndPoints = { "127.0.0.1:6381" },
                 Password = "abc",                
             };
-            using (var conn = ConnectionMultiplexer.Connect(config, log: Console.Out))
+            using (var conn = ConnectionMultiplexer.Connect(config, log: s))
             {
                 Execute(conn);
             }
@@ -35,9 +38,14 @@ class Program
         }
         finally
         {
+            watch.Stop();
             Console.WriteLine();
+            Console.WriteLine($"{watch.ElapsedMilliseconds}ms");
+            Console.WriteLine();
+
             //Console.WriteLine(s);
             Console.ReadKey();
+            
         }
     }
 

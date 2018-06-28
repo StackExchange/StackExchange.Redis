@@ -574,9 +574,9 @@ namespace StackExchange.Redis
                             | masterSlave;
         }
 
-        internal void Cancel()
+        internal void Cancel(Exception ex = null)
         {
-            resultProcessor?.SetException(this, new TaskCanceledException());
+            resultProcessor?.SetException(this, ex ?? new TaskCanceledException());
         }
 
         // true if ready to be completed (i.e. false if re-issued to another server)

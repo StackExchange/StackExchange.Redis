@@ -107,7 +107,10 @@ namespace StackExchange.Redis
             TimeSpanFromSeconds = new TimeSpanProcessor(false);
         public static readonly HashEntryArrayProcessor
             HashEntryArray = new HashEntryArrayProcessor();
-        private static readonly byte[] MOVED = Encoding.UTF8.GetBytes("MOVED "), ASK = Encoding.UTF8.GetBytes("ASK ");
+        private static readonly byte[]
+            MOVED = Encoding.UTF8.GetBytes("MOVED "),
+            ASK = Encoding.UTF8.GetBytes("ASK "),
+            NOAUTH = Encoding.UTF8.GetBytes("NOAUTH ");
 
         public void ConnectionFail(Message message, ConnectionFailureType fail, Exception innerException)
         {
@@ -147,6 +150,7 @@ namespace StackExchange.Redis
             }
             if (result.IsError)
             {
+                if (result.AssertStarts(NOAUTH)) connection?.Multiplexer?.SetAuthSuspect();
                 var bridge = connection.Bridge;
                 var server = bridge.ServerEndPoint;
                 bool log = !message.IsInternalCall;
@@ -891,6 +895,7 @@ namespace StackExchange.Redis
                     SetResult(message, true);
                     return true;
                 }
+                if(message.Command == RedisCommand.AUTH) connection?.Multiplexer?.SetAuthSuspect();
                 return false;
             }
         }

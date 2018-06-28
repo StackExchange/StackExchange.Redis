@@ -571,6 +571,9 @@ namespace StackExchange.Redis
             return false;
         }
 
+        internal bool AuthSuspect { get; private set; }
+        internal void SetAuthSuspect() => AuthSuspect = true;
+
         private void LogLockedWithThreadPoolStats(TextWriter log, string message, out int busyWorkerCount)
         {
             busyWorkerCount = 0;
@@ -735,7 +738,7 @@ namespace StackExchange.Redis
                 bool configured = await muxer.ReconfigureAsync(true, false, log, null, "connect").ObserveErrors().ForAwait();
                 if (!configured)
                 {
-                    throw ExceptionFactory.UnableToConnect(muxer.RawConfig.AbortOnConnectFail, muxer.failureMessage);
+                    throw ExceptionFactory.UnableToConnect(muxer, muxer.failureMessage);
                 }
                 killMe = null;
                 return muxer;
@@ -761,7 +764,7 @@ namespace StackExchange.Redis
                 bool configured = await muxer.ReconfigureAsync(true, false, log, null, "connect").ObserveErrors().ForAwait();
                 if (!configured)
                 {
-                    throw ExceptionFactory.UnableToConnect(muxer.RawConfig.AbortOnConnectFail, muxer.failureMessage);
+                    throw ExceptionFactory.UnableToConnect(muxer, muxer.failureMessage);
                 }
                 killMe = null;
                 return muxer;
@@ -828,14 +831,14 @@ namespace StackExchange.Redis
                     task.ObserveErrors();
                     if (muxer.RawConfig.AbortOnConnectFail)
                     {
-                        throw ExceptionFactory.UnableToConnect(muxer.RawConfig.AbortOnConnectFail, "ConnectTimeout");
+                        throw ExceptionFactory.UnableToConnect(muxer, "ConnectTimeout");
                     }
                     else
                     {
-                        muxer.LastException = ExceptionFactory.UnableToConnect(muxer.RawConfig.AbortOnConnectFail, "ConnectTimeout");
+                        muxer.LastException = ExceptionFactory.UnableToConnect(muxer, "ConnectTimeout");
                     }
                 }
-                if (!task.Result) throw ExceptionFactory.UnableToConnect(muxer.RawConfig.AbortOnConnectFail, muxer.failureMessage);
+                if (!task.Result) throw ExceptionFactory.UnableToConnect(muxer, muxer.failureMessage);
                 killMe = null;
                 return muxer;
             }

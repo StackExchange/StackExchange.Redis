@@ -45,7 +45,9 @@ namespace StackExchange.Redis
 
         private long profileLastLog;
         private int profileLogIndex;
+
         private volatile bool reportNextFailure = true, reconfigureNextFailure = false;
+        
         private volatile int state = (int)State.Disconnected;
 
         public PhysicalBridge(ServerEndPoint serverEndPoint, ConnectionType type)
@@ -275,6 +277,7 @@ namespace StackExchange.Redis
 
         internal void OnConnectionFailed(PhysicalConnection connection, ConnectionFailureType failureType, Exception innerException)
         {
+            AbandonPendingBacklog(innerException);
             if (reportNextFailure)
             {
                 LastException = innerException;
@@ -329,6 +332,15 @@ namespace StackExchange.Redis
                 } while (next != null);
             }
         }
+        void AbandonPendingBacklog(Exception ex)
+        {
+            Message next;
+            do
+            {
+                next = DequeueNextPendingBacklog();
+                next.Cancel(ex);
+            } while (next != null);
+        }
         internal void OnFullyEstablished(PhysicalConnection connection)
         {
             Trace("OnFullyEstablished");
@@ -372,7 +384,7 @@ namespace StackExchange.Redis
                         if (shouldRetry)
                         {
                             Interlocked.Increment(ref connectTimeoutRetryCount);
-                            LastException = ExceptionFactory.UnableToConnect(Multiplexer.RawConfig.AbortOnConnectFail, "ConnectTimeout");
+                            LastException = ExceptionFactory.UnableToConnect(Multiplexer, "ConnectTimeout");
                             Trace("Aborting connect");
                             // abort and reconnect
                             var snapshot = physical;
