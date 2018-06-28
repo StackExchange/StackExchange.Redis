@@ -24,9 +24,13 @@ if ($PullRequestNumber) {
     $CreatePackages = $false
 }
 
-Write-Host "Building solution..." -ForegroundColor "Magenta"
-dotnet restore ".\StackExchange.Redis.sln" /p:CI=true
-dotnet build ".\StackExchange.Redis.sln" -c Release /p:CI=true
+Write-Host "Building projects..." -ForegroundColor "Magenta"
+foreach ($project in $projectsToBuild + $testsToRun) {
+    Write-Host "Building $project (dotnet restore/build)..." -ForegroundColor "Magenta"
+    dotnet restore ".\$project\$project.csproj" /p:CI=true
+    dotnet build ".\$project\$project.csproj" -c Release /p:CI=true
+    Write-Host ""
+}
 Write-Host "Done building." -ForegroundColor "Green"
 
 if ($RunTests) {

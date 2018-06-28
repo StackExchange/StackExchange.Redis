@@ -495,7 +495,7 @@ namespace StackExchange.Redis
                     if (TryParseInt64(value._memory.Span, out i64)) return i64;
                     break;
             }
-            throw new InvalidCastException();
+            throw new InvalidCastException($"Unable to cast from {value.Type} to long");
         }
 
         /// <summary>
@@ -519,7 +519,7 @@ namespace StackExchange.Redis
                     if (TryParseDouble(value._memory.Span, out f64)) return f64;
                     break;
             }
-            throw new InvalidCastException();
+            throw new InvalidCastException($"Unable to cast from {value.Type} to double");
         }
 
         private static bool TryParseDouble(ReadOnlySpan<byte> blob, out double value)
