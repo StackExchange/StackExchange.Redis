@@ -759,7 +759,9 @@ namespace StackExchange.Redis
                 }
                 OnWrapForLogging(ref stream, physicalName);
 
+#pragma warning disable CS0618 // Type or member is obsolete
                 int bufferSize = config.WriteBuffer;
+#pragma warning restore CS0618 // Type or member is obsolete
                 netStream = stream;
                 outStream = bufferSize <= 0 ? stream : new BufferedStream(stream, bufferSize);
                 Multiplexer.LogLocked(log, "Connected {0}", Bridge);
