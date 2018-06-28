@@ -878,8 +878,15 @@ namespace StackExchange.Redis
                         EncryptionPolicy.RequireEncryption);
                     try
                     {
-                        ssl.AuthenticateAsClient(host, config.SslProtocols);
-
+                        try
+                        {
+                            ssl.AuthenticateAsClient(host, config.SslProtocols);
+                        }
+                        catch
+                        {
+                            Multiplexer?.SetAuthSuspect();
+                            throw;
+                        }
                         Multiplexer.LogLocked(log, $"SSL connection established successfully using protocol: {ssl.SslProtocol}");
                     }
                     catch (AuthenticationException authexception)
