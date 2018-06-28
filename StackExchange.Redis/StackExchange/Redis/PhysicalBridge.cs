@@ -328,7 +328,7 @@ namespace StackExchange.Redis
                 do
                 {
                     next = DequeueNextPendingBacklog();
-                    WriteMessageDirect(connection, next);
+                    if(next != null) WriteMessageDirect(connection, next);
                 } while (next != null);
             }
         }
@@ -338,7 +338,7 @@ namespace StackExchange.Redis
             do
             {
                 next = DequeueNextPendingBacklog();
-                next.Cancel(ex);
+                next?.Cancel(ex);
             } while (next != null);
         }
         internal void OnFullyEstablished(PhysicalConnection connection)
