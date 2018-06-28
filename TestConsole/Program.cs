@@ -7,21 +7,9 @@ using StackExchange.Redis;
 
 class Program
 {
-    static void Main()
+    static int Main()
     {
-        var arr = typeof(ConnectionMultiplexer).Assembly.GetTypes();
-        Array.Sort(arr, (x, y) => string.CompareOrdinal(x.FullName, y.FullName));
-        foreach (var type in arr)
-        {
-            if (type.IsPublic)
-            {
-                Console.WriteLine($"[assembly:TypeForwardedTo(typeof(global::{type.FullName}))]");
-            }
-        }
-    }
-    static int Main2()
-    {
-        var s = new StringWriter();
+        //var s = new StringWriter();
         try
         {
 #if DEBUG
@@ -30,10 +18,10 @@ class Program
             
             var config = new ConfigurationOptions
             {
-                EndPoints = { "127.0.0.1" },
-                
+                EndPoints = { "127.0.0.1:6381" },
+                Password = "abc",                
             };
-            using (var conn = ConnectionMultiplexer.Connect(config, log: s))
+            using (var conn = ConnectionMultiplexer.Connect(config, log: Console.Out))
             {
                 Execute(conn);
             }
@@ -48,7 +36,7 @@ class Program
         finally
         {
             Console.WriteLine();
-            // Console.WriteLine(s);
+            //Console.WriteLine(s);
             Console.ReadKey();
         }
     }

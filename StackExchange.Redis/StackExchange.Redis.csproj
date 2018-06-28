@@ -11,8 +11,10 @@
     <SignAssembly>true</SignAssembly>
     <PublicSign Condition=" '$(OS)' != 'Windows_NT' ">true</PublicSign>
     <LangVersion>latest</LangVersion>
+  </PropertyGroup>
 
-    <!--<DefineConstants>$(DefineConstants);LOGOUTPUT</DefineConstants>-->
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug' and '$(Computername)'=='OCHO'">
+    <DefineConstants>$(DefineConstants);LOGOUTPUT</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
@@ -22,6 +24,7 @@
   </ItemGroup>
 
   <ItemGroup Condition="'$(Computername)'=='OCHO'">
+
     <ProjectReference Include="..\..\Pipelines.Sockets.Unofficial\src\Pipelines.Sockets.Unofficial\Pipelines.Sockets.Unofficial.csproj" />
   </ItemGroup>
   <ItemGroup Condition="'$(Computername)'!='OCHO'">

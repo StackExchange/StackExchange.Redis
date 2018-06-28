@@ -40,44 +40,49 @@ namespace StackExchange.Redis
 
         private async void CloneAsync(string path, PipeReader from, PipeWriter to)
         {
-            to.OnReaderCompleted((ex, o) => {
-                if (ex != null) Console.Error.WriteLine(ex);
-                ((PipeReader)o).Complete(ex);                
-            }, from);
-            from.OnWriterCompleted((ex, o) =>
-            {
-                if (ex != null) Console.Error.WriteLine(ex);
-                ((PipeWriter)o).Complete(ex);
-            }, to);
-            while(true)
-            {
-                var result = await from.ReadAsync();
-                var buffer = result.Buffer;
-                if (result.IsCompleted && buffer.IsEmpty) break;
-
-                using (var file = new FileStream(path, FileMode.Append, FileAccess.Write))
+            try {
+                to.OnReaderCompleted((ex, o) => {
+                    // if (ex != null) Console.Error.WriteLine(ex);
+                    ((PipeReader)o).Complete(ex);                
+                }, from);
+                from.OnWriterCompleted((ex, o) =>
                 {
-                    foreach (var segment in buffer)
-                    {
-                        // append it to the file
-                        bool leased = false;
-                        if (!MemoryMarshal.TryGetArray(segment, out var arr))
-                        {
-                            var tmp = ArrayPool<byte>.Shared.Rent(segment.Length);
-                            segment.CopyTo(tmp);
-                            arr = new ArraySegment<byte>(tmp, 0, segment.Length);
-                            leased = true;
-                        }
-                        await file.WriteAsync(arr.Array, arr.Offset, arr.Count);
-                        await file.FlushAsync();
-                        if (leased) ArrayPool<byte>.Shared.Return(arr.Array);
+                    // if (ex != null) Console.Error.WriteLine(ex);
+                    ((PipeWriter)o).Complete(ex);
+                }, to);
+                try { File.Delete(path); } catch{}
 
-                        // and flush it upstream
-                        await to.WriteAsync(segment);
+                while(true)
+                {
+                    var result = await from.ReadAsync();
+                    var buffer = result.Buffer;
+                    if (result.IsCompleted && buffer.IsEmpty) break;
+
+                    using (var file = new FileStream(path, FileMode.Append, FileAccess.Write))
+                    {
+                        foreach (var segment in buffer)
+                        {
+                            // append it to the file
+                            bool leased = false;
+                            if (!MemoryMarshal.TryGetArray(segment, out var arr))
+                            {
+                                var tmp = ArrayPool<byte>.Shared.Rent(segment.Length);
+                                segment.CopyTo(tmp);
+                                arr = new ArraySegment<byte>(tmp, 0, segment.Length);
+                                leased = true;
+                            }
+                            await file.WriteAsync(arr.Array, arr.Offset, arr.Count);
+                            await file.FlushAsync();
+                            if (leased) ArrayPool<byte>.Shared.Return(arr.Array);
+
+                            // and flush it upstream
+                            await to.WriteAsync(segment);
+                        }
                     }
+                    from.AdvanceTo(buffer.End);
                 }
-                from.AdvanceTo(buffer.End);
             }
+            catch { }
         }
         public PipeReader Input { get; }
 
