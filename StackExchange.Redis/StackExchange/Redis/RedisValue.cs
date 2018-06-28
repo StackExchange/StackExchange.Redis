@@ -516,7 +516,7 @@ namespace StackExchange.Redis
                     if (TryParseInt64((string)value._objectOrSentinel, out var f64)) return f64;
                     break;
                 case StorageType.Raw:
-                    if (TryParseInt64(value._memory.Span, out f64)) return f64;
+                    if (TryParseDouble(value._memory.Span, out var d64)) return d64;
                     break;
             }
             throw new InvalidCastException($"Unable to case from {value.Type} to double");
