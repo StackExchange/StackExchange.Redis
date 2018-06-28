@@ -513,10 +513,10 @@ namespace StackExchange.Redis
                 case StorageType.Double:
                     return value.OverlappedValueDouble;
                 case StorageType.String:
-                    if (TryParseInt64((string)value._objectOrSentinel, out var f64)) return f64;
+                    if (Format.TryParseDouble((string)value._objectOrSentinel, out var f64)) return f64;
                     break;
                 case StorageType.Raw:
-                    if (TryParseInt64(value._memory.Span, out f64)) return f64;
+                    if (TryParseDouble(value._memory.Span, out f64)) return f64;
                     break;
             }
             throw new InvalidCastException();

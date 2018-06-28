@@ -125,16 +125,15 @@ namespace StackExchange.Redis
         public void Recycle(int limit = -1)
         {
             var arr = _itemsOversized;
-            if (limit < 0) limit = _itemsCount;
             if (arr != null)
             {
+                if (limit < 0) limit = _itemsCount;
                 for (int i = 0; i < limit; i++)
                 {
                     arr[i].Recycle();
                 }
-            }
-            if(_itemsOversized != null)
-                ArrayPool<RawResult>.Shared.Return(_itemsOversized, clearArray: false);
+                ArrayPool<RawResult>.Shared.Return(arr, clearArray: false);
+            }   
         }
 
         internal unsafe bool IsEqual(byte[] expected)
