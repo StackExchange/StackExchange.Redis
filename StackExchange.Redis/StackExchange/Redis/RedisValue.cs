@@ -104,6 +104,21 @@ namespace StackExchange.Redis
                 }
             }
 
+            // if either is a numeric type, and the other isn't the *same* type (above), then:
+            // it can't be equal
+            switch (xType)
+            {
+                case StorageType.Int64:
+                case StorageType.Double:
+                    return false;
+            }
+            switch (yType)
+            {
+                case StorageType.Int64:
+                case StorageType.Double:
+                    return false;
+            }
+
             // otherwise, compare as strings
             return (string)x == (string)y;
         }
@@ -292,33 +307,47 @@ namespace StackExchange.Redis
         /// Compare against a RedisValue for relative order
         /// </summary>
         /// <param name="other">The other <see cref="RedisValue"/> to compare.</param>
-        public int CompareTo(RedisValue other)
+        public int CompareTo(RedisValue other) => CompareTo(this, other);
+
+        static int CompareTo(RedisValue x, RedisValue y)
         {
             try
             {
-                StorageType thisType = this.Type,
-                            otherType = other.Type;
+                x = x.Simplify();
+                y = y.Simplify();
+                StorageType xType = x.Type, yType = y.Type;
 
-                if (thisType == StorageType.Null) return otherType == StorageType.Null ? 0 : -1;
-                if (otherType == StorageType.Null) return 1;
+                if (xType == StorageType.Null) return yType == StorageType.Null ? 0 : -1;
+                if (yType == StorageType.Null) return 1;
 
-                if (thisType == otherType)
+                if (xType == yType)
                 {
-                    switch (thisType)
+                    switch (xType)
                     {
                         case StorageType.Double:
-                            return this.OverlappedValueDouble.CompareTo(other.OverlappedValueDouble);
+                            return x.OverlappedValueDouble.CompareTo(y.OverlappedValueDouble);
                         case StorageType.Int64:
-                            return this._overlappedValue64.CompareTo(other._overlappedValue64);
+                            return x._overlappedValue64.CompareTo(y._overlappedValue64);
                         case StorageType.String:
-                            return string.CompareOrdinal((string)this._objectOrSentinel, (string)other._objectOrSentinel);
+                            return string.CompareOrdinal((string)x._objectOrSentinel, (string)y._objectOrSentinel);
                         case StorageType.Raw:
-                            return this._memory.Span.SequenceCompareTo(other._memory.Span);
+                            return x._memory.Span.SequenceCompareTo(y._memory.Span);
                     }
                 }
 
+                switch (xType)
+                { // numbers can be compared between Int64/Double
+                    case StorageType.Double:
+                        if (yType == StorageType.Int64) return x.OverlappedValueDouble.CompareTo((double)y._overlappedValue64);
+                        break;
+                    case StorageType.Int64:
+                        if (yType == StorageType.Double) return ((double)x._overlappedValue64).CompareTo(y.OverlappedValueDouble);
+                        break;
+                }
+
+
                 // otherwise, compare as strings
-                return string.CompareOrdinal((string)this, (string)other);
+                return string.CompareOrdinal((string)x, (string)y);
             }
             catch (Exception ex)
             {
@@ -545,7 +574,7 @@ namespace StackExchange.Redis
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
         public static explicit operator bool? (RedisValue value)
             => value.IsNull ? (bool?)null : (bool)value;
-        
+
         /// <summary>
         /// Converts a <see cref="RedisValue"/> to a <see cref="string"/>.
         /// </summary>
@@ -693,7 +722,7 @@ namespace StackExchange.Redis
         /// </summary>
         private RedisValue Simplify()
         {
-            switch(Type)
+            switch (Type)
             {
                 case StorageType.String:
                     string s = (string)_objectOrSentinel;
@@ -707,7 +736,7 @@ namespace StackExchange.Redis
                     break;
                 case StorageType.Double:
                     // is the double actually an integer?
-                    f64 = OverlappedValueDouble;                    
+                    f64 = OverlappedValueDouble;
                     if (f64 >= long.MinValue && f64 <= long.MaxValue
                         && (i64 = (long)f64) == f64) return i64;
                     break;
