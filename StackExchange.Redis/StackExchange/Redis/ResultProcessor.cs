@@ -1414,13 +1414,18 @@ The coordinates as a two items x,y array (longitude,latitude).
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
+                // To repro timeout fail:
+                // if (result.Type == ResultType.MultiBulk) throw new Exception("Woops");
                 switch (result.Type)
                 {
                     case ResultType.MultiBulk:
                         var arr = result.GetItemsAsValues();
 
-                        int port;
-                        if (arr.Length == 2 && int.TryParse(arr[1], out port))
+                        if (result.IsNull)
+                        {
+                            return true;
+                        }
+                        else if (arr.Length == 2 && int.TryParse(arr[1], out var port))
                         {
                             SetResult(message, Format.ParseEndPoint(arr[0], port));
                             return true;

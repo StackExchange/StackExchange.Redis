@@ -1,6 +1,7 @@
 ﻿using System.IO;
 using System.Net;
 using System.Threading;
+using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -59,6 +60,13 @@ namespace StackExchange.Redis.Tests
         public void SentinelGetMasterAddressByNameNegativeTest()
         {
             var endpoint = Server.SentinelGetMasterAddressByName("FakeServiceName");
+            Assert.Null(endpoint);
+        }
+
+        [Fact]
+        public async Task SentinelGetMasterAddressByNameAsyncNegativeTest()
+        {
+            var endpoint = await Server.SentinelGetMasterAddressByNameAsync("FakeServiceName");
             Assert.Null(endpoint);
         }
 
