@@ -6,7 +6,7 @@ namespace StackExchange.Redis
     /// </summary>
     public struct StreamConsumer
     {
-        internal StreamConsumer(RedisValue name, RedisValue pendingMessageCount)
+        internal StreamConsumer(RedisValue name, int pendingMessageCount)
         {
             Name = name;
             PendingMessageCount = pendingMessageCount;
@@ -20,6 +20,6 @@ namespace StackExchange.Redis
         /// <summary>
         /// The number of messages that have been delivered by not yet acknowledged by the consumer.
         /// </summary>
-        public RedisValue PendingMessageCount { get; }
+        public int PendingMessageCount { get; }
     }
 }

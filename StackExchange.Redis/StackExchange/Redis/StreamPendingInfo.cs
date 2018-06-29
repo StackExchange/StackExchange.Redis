@@ -6,7 +6,7 @@ namespace StackExchange.Redis
     /// </summary>
     public struct StreamPendingInfo
     {
-        internal StreamPendingInfo(RedisValue pendingMessageCount,
+        internal StreamPendingInfo(int pendingMessageCount,
             RedisValue lowestId,
             RedisValue highestId,
             StreamConsumer[] consumers)
@@ -20,7 +20,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The number of pending messages. A pending message is a message that has been consumed but not yet acknowledged.
         /// </summary>
-        public RedisValue PendingMessageCount { get; }
+        public int PendingMessageCount { get; }
 
         /// <summary>
         /// The lowest message ID in the set of pending messages.

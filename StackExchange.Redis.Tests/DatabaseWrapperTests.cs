@@ -792,7 +792,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamAcknowledge_2()
         {
-            var messageIds = new string[] { "0-0", "0-1", "0-2" };
+            var messageIds = new RedisValue[] { "0-0", "0-1", "0-2" };
             wrapper.StreamAcknowledge("key", "group", messageIds, CommandFlags.HighPriority);
             mock.Verify(_ => _.StreamAcknowledge("prefix:key", "group", messageIds, CommandFlags.HighPriority));
         }
@@ -830,7 +830,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamClaimMessages()
         {
-            var messageIds = new string[0];
+            var messageIds = new RedisValue[0];
             wrapper.StreamClaimMessages("key", "group", "consumer", 1000, messageIds, CommandFlags.HighPriority);
             mock.Verify(_ => _.StreamClaimMessages("prefix:key", "group", "consumer", 1000, messageIds, CommandFlags.HighPriority));
         }
@@ -838,7 +838,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamClaimMessagesReturningIds()
         {
-            var messageIds = new string[0];
+            var messageIds = new RedisValue[0];
             wrapper.StreamClaimMessagesReturningIds("key", "group", "consumer", 1000, messageIds, CommandFlags.HighPriority);
             mock.Verify(_ => _.StreamClaimMessagesReturningIds("prefix:key", "group", "consumer", 1000, messageIds, CommandFlags.HighPriority));
         }
@@ -881,7 +881,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamMessagesDelete()
         {
-            var messageIds = new string[0] { };
+            var messageIds = new RedisValue[0] { };
             wrapper.StreamMessagesDelete("key", messageIds, CommandFlags.HighPriority);
             mock.Verify(_ => _.StreamMessagesDelete("prefix:key", messageIds, CommandFlags.HighPriority));
         }
@@ -894,75 +894,32 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void StreamPendingMessageInfoGet_1()
+        public void StreamPendingMessageInfoGet()
         {
-            wrapper.StreamPendingMessageInfoGet("key", "group", "-", "+", 10, CommandFlags.HighPriority);
-            mock.Verify(_ => _.StreamPendingMessageInfoGet("prefix:key", "group", "-", "+", 10, CommandFlags.HighPriority));
+            wrapper.StreamPendingMessageInfoGet("key", "group", "-", "+", 10, RedisValue.Null, CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamPendingMessageInfoGet("prefix:key", "group", "-", "+", 10, RedisValue.Null, CommandFlags.HighPriority));
         }
 
         [Fact]
-        public void StreamPendingMessageInfoGet_2()
+        public void StreamRange()
         {
-            wrapper.StreamPendingMessageInfoGet("key", "group", "-", "+", 10, "consumer", CommandFlags.HighPriority);
-            mock.Verify(_ => _.StreamPendingMessageInfoGet("prefix:key", "group", "-", "+", 10, "consumer", CommandFlags.HighPriority));
-        }
-
-        [Fact]
-        public void StreamRange_1()
-        {
-            wrapper.StreamRange("key", "-", "+", CommandFlags.HighPriority);
-            mock.Verify(_ => _.StreamRange("prefix:key", "-", "+", CommandFlags.HighPriority));
-        }
-
-        [Fact]
-        public void StreamRange_2()
-        {
-            wrapper.StreamRange("key", "-", "+", 10, CommandFlags.HighPriority);
-            mock.Verify(_ => _.StreamRange("prefix:key", "-", "+", 10, CommandFlags.HighPriority));
-        }
-
-        [Fact]
-        public void StreamRangeReverse_1()
-        {
-            wrapper.StreamRangeReverse("key", "+", "-", CommandFlags.HighPriority);
-            mock.Verify(_ => _.StreamRangeReverse("prefix:key", "+", "-", CommandFlags.HighPriority));
-        }
-
-        [Fact]
-        public void StreamRangeReverse_2()
-        {
-            wrapper.StreamRangeReverse("key", "+", "-", 10, CommandFlags.HighPriority);
-            mock.Verify(_ => _.StreamRangeReverse("prefix:key", "+", "-", 10, CommandFlags.HighPriority));
+            wrapper.StreamRange("key", "-", "+", null, Order.Ascending, CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamRange("prefix:key", "-", "+",null, Order.Ascending, CommandFlags.HighPriority));
         }
 
         [Fact]
         public void StreamRead_1()
         {
             var keysAndIds = new KeyValuePair<RedisKey, RedisValue>[0] { };
-            wrapper.StreamRead(keysAndIds, CommandFlags.HighPriority);
-            mock.Verify(_ => _.StreamRead(keysAndIds, CommandFlags.HighPriority));
+            wrapper.StreamRead(keysAndIds, null, CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamRead(keysAndIds, null, CommandFlags.HighPriority));
         }
 
         [Fact]
         public void StreamRead_2()
         {
-            wrapper.StreamRead("key", "0-0", CommandFlags.HighPriority);
-            mock.Verify(_ => _.StreamRead("prefix:key", "0-0", CommandFlags.HighPriority));
-        }
-
-        [Fact]
-        public void StreamRead_3()
-        {
-            var keysAndIds = new KeyValuePair<RedisKey, RedisValue>[0] { };
-            wrapper.StreamRead(keysAndIds, 10, CommandFlags.HighPriority);
-            mock.Verify(_ => _.StreamRead(keysAndIds, 10, CommandFlags.HighPriority));
-        }
-
-        [Fact]
-        public void StreamRead_4()
-        {
-            wrapper.StreamRead("key", "0-0", 10, CommandFlags.HighPriority);
-            mock.Verify(_ => _.StreamRead("prefix:key", "0-0", 10, CommandFlags.HighPriority));
+            wrapper.StreamRead("key", "0-0", null, CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamRead("prefix:key", "0-0", null, CommandFlags.HighPriority));
         }
 
         [Fact]

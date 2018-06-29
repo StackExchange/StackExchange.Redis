@@ -1440,8 +1440,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                     // details[0] = Name of the Stream
                     // details[1] = Multibulk Array of Stream Entries
 
-                    return new RedisStream(
-                        key: details[0].AsRedisKey(),
+                    return new RedisStream(key: details[0].AsRedisKey(),
                         entries: ParseRedisStreamEntries(details[1]));
                 });
 
@@ -1473,11 +1472,9 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                 var arr = result.GetItems();
 
-                var consumerName = (string)arr[1].AsRedisValue();
-                var pendingCount = (int)arr[3].AsRedisValue();
-                var idleTime = (int)arr[5].AsRedisValue();
-
-                return new StreamConsumerInfo(consumerName, pendingCount, idleTime);
+                return new StreamConsumerInfo(name: arr[1].AsRedisValue(),
+                            pendingMessageCount: (int)arr[3].AsRedisValue(),
+                            idleTimeInMilliseconds: (long)arr[5].AsRedisValue());
             }
         }
 
@@ -1504,11 +1501,9 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                 var arr = result.GetItems();
 
-                var groupName = (string)arr[1].AsRedisValue();
-                var consumerCount = (int)arr[3].AsRedisValue();
-                var pendingCount = (int)arr[5].AsRedisValue();
-
-                return new StreamGroupInfo(groupName, consumerCount, pendingCount);
+                return new StreamGroupInfo(name: arr[1].AsRedisValue(),
+                    consumerCount: (int)arr[3].AsRedisValue(),
+                    pendingMessageCount: (int)arr[5].AsRedisValue());
             }
         }
 
@@ -1576,14 +1571,12 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                 var entries = ParseRedisStreamEntries(RawResult.CreateMultiBulk(arr[9], arr[11]));
 
-                var streamInfo = new StreamInfo(
-                        (int)arr[1].AsRedisValue(), // Stream Length
-                        (int)arr[3].AsRedisValue(), // Radix tree keys
-                        (int)arr[5].AsRedisValue(), // Radix tree nodes
-                        (int)arr[7].AsRedisValue(), // Consumer Group Count
-                        entries[0],                 // First stream entry
-                        entries[1]);                // Last stream entry
-
+                var streamInfo = new StreamInfo(length: (int)arr[1].AsRedisValue(),
+                    radixTreeKeys: (int)arr[3].AsRedisValue(),
+                    radixTreeNodes: (int)arr[5].AsRedisValue(),
+                    groups: (int)arr[7].AsRedisValue(),
+                    firstEntry: entries[0],
+                    lastEntry: entries[1]);
 
                 SetResult(message, streamInfo);
                 return true;
@@ -1616,24 +1609,28 @@ The coordinates as a two items x,y array (longitude,latitude).
                     return false;
                 }
 
-                var pendingMessageCount = arr[0].AsRedisValue();
-                var lowestPendingMessageId = arr[1].AsRedisValue();
-                var highestPendingMessageId = arr[2].AsRedisValue();
+                StreamConsumer[] consumers = null;
 
-                // Get the list of Consumers
-                var consumers = Array.ConvertAll(arr[3].GetItems(), item =>
+                // If there are no consumers as of yet for the given group, the last
+                // item in the response array will be null.
+                if (!arr[3].IsNull)
                 {
-                    var details = item.GetItems();
+                    consumers = Array.ConvertAll(arr[3].GetItems(), item =>
+                    {
+                        var details = item.GetItems();
 
-                    return new StreamConsumer(
-                        name: details[0].AsRedisValue(),
-                        pendingMessageCount: details[1].AsRedisValue());
-                });
+                        return new StreamConsumer(
+                            name: details[0].AsRedisValue(),
+                            pendingMessageCount: (int)details[1].AsRedisValue());
+                    });
+                }
 
-                var pendingInfo = new StreamPendingInfo(pendingMessageCount,
-                                                lowestPendingMessageId,
-                                                highestPendingMessageId,
-                                                consumers);
+                var pendingInfo = new StreamPendingInfo(pendingMessageCount: (int)arr[0].AsRedisValue(),
+                    lowestId: arr[1].AsRedisValue(),
+                    highestId: arr[2].AsRedisValue(),
+                    consumers: consumers ?? new StreamConsumer[0]);
+                    // ^^^^^
+                    // Should we bother allocating an empty array only to prevent the need for a null check?
 
                 SetResult(message, pendingInfo);
                 return true;
@@ -1655,11 +1652,10 @@ The coordinates as a two items x,y array (longitude,latitude).
                 {
                     var details = item.GetItems();
 
-                    return new StreamPendingMessageInfo(
-                            messageId: details[0].AsRedisValue(),
-                            consumerName: details[1].AsRedisValue(),
-                            idleTimeInMs: details[2].AsRedisValue(),
-                            deliveryCount: details[3].AsRedisValue());
+                    return new StreamPendingMessageInfo(messageId: details[0].AsRedisValue(),
+                        consumerName: details[1].AsRedisValue(),
+                        idleTimeInMs: (long)details[2].AsRedisValue(),
+                        deliveryCount: (int)details[3].AsRedisValue());
                 });
 
                 SetResult(message, messageInfoArray);
@@ -1692,9 +1688,8 @@ The coordinates as a two items x,y array (longitude,latitude).
                     //  [1] = Multibulk array of the name/value pairs of the stream entry's data
                     var entryDetails = item.GetItems();
 
-                    return new RedisStreamEntry(
-                            id: entryDetails[0].AsRedisValue(),
-                            values: ParseStreamEntryValues(entryDetails[1]));
+                    return new RedisStreamEntry(id: entryDetails[0].AsRedisValue(),
+                        values: ParseStreamEntryValues(entryDetails[1]));
                 });
             }
 
@@ -1714,7 +1709,6 @@ The coordinates as a two items x,y array (longitude,latitude).
                 //       2) "9999"
                 //       3) "temperature"
                 //       4) "18.2"
-
 
                 if (result.Type != ResultType.MultiBulk)
                 {

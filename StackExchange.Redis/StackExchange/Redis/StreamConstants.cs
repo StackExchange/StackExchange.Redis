@@ -36,8 +36,6 @@ namespace StackExchange.Redis
         /// </summary>
         public static readonly RedisValue UndeliveredMessages = ">";
 
-        internal static readonly RedisValue Blank = "";
-
         internal static readonly RedisValue Consumers = "CONSUMERS";
 
         internal static readonly RedisValue Count = "COUNT";

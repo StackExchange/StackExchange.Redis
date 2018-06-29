@@ -9,8 +9,8 @@ namespace StackExchange.Redis
     {
         internal StreamPendingMessageInfo(RedisValue messageId,
             RedisValue consumerName,
-            RedisValue idleTimeInMs,
-            RedisValue deliveryCount)
+            long idleTimeInMs,
+            int deliveryCount)
         {
             MessageId = messageId;
             ConsumerName = consumerName;
@@ -31,11 +31,11 @@ namespace StackExchange.Redis
         /// <summary>
         /// The time that has passed since the message was last delivered to a consumer.
         /// </summary>
-        public RedisValue IdleTimeInMilliseconds { get; }
+        public long IdleTimeInMilliseconds { get; }
 
         /// <summary>
         /// The number of times the message has been delivered to a consumer.
         /// </summary>
-        public RedisValue DeliveryCount { get; }
+        public int DeliveryCount { get; }
     }
 }
