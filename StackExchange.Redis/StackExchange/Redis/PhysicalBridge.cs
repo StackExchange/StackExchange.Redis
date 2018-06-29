@@ -508,6 +508,7 @@ namespace StackExchange.Redis
         internal bool WriteMessageDirect(PhysicalConnection physical, Message next)
         {
             Trace("Writing: " + next);
+            next.SetEnqueued();
 
             bool result;
             lock (WriteLock)
