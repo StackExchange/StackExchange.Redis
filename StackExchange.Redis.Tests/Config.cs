@@ -95,7 +95,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void DefaultClientName()
         {
-            using (var muxer = Create(allowAdmin: true))
+            using (var muxer = Create(allowAdmin: true, caller: null)) // force default naming to kick in
             {
                 Assert.Equal(Environment.MachineName, muxer.ClientName);
                 var conn = muxer.GetDatabase();
