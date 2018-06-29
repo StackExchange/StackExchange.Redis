@@ -26,7 +26,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void MultiKeyLength()
         {
-            using (var conn = Create(useSharedSocketManager: true))
+            using (var conn = Create())
             {
                 var db = conn.GetDatabase();
                 RedisKey[] keys = { "hll1", "hll2", "hll3" };

@@ -105,7 +105,7 @@ namespace StackExchange.Redis
             ProcessReadQueue,
             ProcessErrorQueue,
         }
-        
+
         /// <summary>
         /// Gets the name of this SocketManager instance
         /// </summary>
@@ -115,7 +115,26 @@ namespace StackExchange.Redis
         /// Creates a new (optionally named) <see cref="SocketManager"/> instance
         /// </summary>
         /// <param name="name">The name for this <see cref="SocketManager"/>.</param>
-        public SocketManager(string name = null) : this(name, true) { }
+        public SocketManager(string name = null)
+            : this(name, false, DEFAULT_MIN_THREADS, DEFAULT_MAX_THREADS) { }
+
+        internal static SocketManager Shared
+        {
+            get
+            {
+                var shared = _shared;
+                if (shared != null) return _shared;
+                try
+                {
+                    // note: we'll allow a higher max thread count on the shared one
+                    shared = new SocketManager("DefaultSocketManager", false, DEFAULT_MIN_THREADS, DEFAULT_MAX_THREADS * 2);
+                    if (Interlocked.CompareExchange(ref _shared, shared, null) == null)
+                        shared = null;
+                } finally { shared?.Dispose(); }
+                return Interlocked.CompareExchange(ref _shared, null, null);
+            }
+        }
+        private static SocketManager _shared;
 
         /// <summary>
         /// Creates a new <see cref="SocketManager"/> instance
@@ -123,6 +142,10 @@ namespace StackExchange.Redis
         /// <param name="name">The name for this <see cref="SocketManager"/>.</param>
         /// <param name="useHighPrioritySocketThreads">Whether this <see cref="SocketManager"/> should use high priority sockets.</param>
         public SocketManager(string name, bool useHighPrioritySocketThreads)
+            : this(name, useHighPrioritySocketThreads, DEFAULT_MIN_THREADS, DEFAULT_MAX_THREADS) {}
+
+        const int DEFAULT_MIN_THREADS = 1, DEFAULT_MAX_THREADS = 5;
+        private SocketManager(string name, bool useHighPrioritySocketThreads, int minThreads, int maxThreads)
         {
             if (string.IsNullOrWhiteSpace(name)) name = GetType().Name;
             Name = name;
@@ -130,7 +153,9 @@ namespace StackExchange.Redis
             const int Receive_PauseWriterThreshold = 1024 * 1024 * 1024; // let's give it up to 1GiB of buffer for now
 
             var defaultPipeOptions = PipeOptions.Default;
-            _scheduler = new DedicatedThreadPoolPipeScheduler(name, priority: useHighPrioritySocketThreads ? ThreadPriority.AboveNormal : ThreadPriority.Normal);
+            _scheduler = new DedicatedThreadPoolPipeScheduler(name,
+                minWorkers: minThreads, maxWorkers: maxThreads,
+                priority: useHighPrioritySocketThreads ? ThreadPriority.AboveNormal :ThreadPriority.Normal);
             SendPipeOptions = new PipeOptions(
                 defaultPipeOptions.Pool, _scheduler, _scheduler,
                 pauseWriterThreshold: defaultPipeOptions.PauseWriterThreshold,
@@ -144,7 +169,7 @@ namespace StackExchange.Redis
                 defaultPipeOptions.MinimumSegmentSize,
                 useSynchronizationContext: false);
         }
-        readonly DedicatedThreadPoolPipeScheduler _scheduler;
+        DedicatedThreadPoolPipeScheduler _scheduler;
         internal readonly PipeOptions SendPipeOptions, ReceivePipeOptions;
 
         private enum CallbackOperation
@@ -156,11 +181,25 @@ namespace StackExchange.Redis
         /// <summary>
         /// Releases all resources associated with this instance
         /// </summary>
-        public void Dispose()
+        public void Dispose() => Dispose(true);
+        private void Dispose(bool disposing)
         {
-            _scheduler?.Dispose();
-            OnDispose();
+            // note: the scheduler *can't* be collected by itself - there will
+            // be threads, and those threads will be rooting the DedicatedThreadPool;
+            // but: we can lend a hand! We need to do this even in the finalizer
+            try { _scheduler?.Dispose(); } catch { }
+            _scheduler = null;
+            if (disposing)
+            {
+                GC.SuppressFinalize(this);
+                OnDispose();
+            }
+            
         }
+        /// <summary>
+        /// Releases *appropriate* resources associated with this instance
+        /// </summary>
+        ~SocketManager() => Dispose(false);
         internal SocketToken BeginConnect(EndPoint endpoint, ISocketCallback callback, ConnectionMultiplexer multiplexer, TextWriter log)
         {
             void RunWithCompletionType(Func<AsyncCallback, IAsyncResult> beginAsync, AsyncCallback asyncCallback)
@@ -302,6 +341,12 @@ namespace StackExchange.Redis
                 try { socket.Close(); } catch { }
                 try { socket.Dispose(); } catch { }
             }
+        }
+
+        internal string GetState()
+        {
+            var s = _scheduler;
+            return s == null ? null : $"{s.BusyCount} of {s.WorkerCount} busy ({s.MaxWorkerCount} max)";
         }
     }
 }

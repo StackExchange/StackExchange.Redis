@@ -169,18 +169,16 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [Theory]
-        [InlineData(false)]
-        [InlineData(true)]
-        public async Task SubscriptionsSurviveMasterSwitchAsync(bool useSharedSocketManager)
+        [Fact]
+        public async Task SubscriptionsSurviveMasterSwitchAsync()
         {
             if (RunningInCI)
             {
                 Skip.Inconclusive("TODO: Fix race in broadcast reconfig a zero latency.");
             }
 
-            using (var a = Create(allowAdmin: true, useSharedSocketManager: useSharedSocketManager))
-            using (var b = Create(allowAdmin: true, useSharedSocketManager: useSharedSocketManager))
+            using (var a = Create(allowAdmin: true))
+            using (var b = Create(allowAdmin: true))
             {
                 RedisChannel channel = Me();
                 var subA = a.GetSubscriber();

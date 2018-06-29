@@ -25,7 +25,6 @@ namespace StackExchange.Redis.Tests
             Output = output;
             Output.WriteFrameworkVersion();
             Writer = new TextWriterOutputHelper(output);
-            socketManager = new SocketManager(GetType().Name);
             ClearAmbientFailures();
         }
 
@@ -38,12 +37,9 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        private readonly SocketManager socketManager;
-
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1063:ImplementIDisposableCorrectly")]
         public void Dispose()
         {
-            socketManager?.Dispose();
             Teardown();
         }
 
@@ -199,7 +195,7 @@ namespace StackExchange.Redis.Tests
             int? connectTimeout = null, string password = null, string tieBreaker = null, TextWriter log = null,
             bool fail = true, string[] disabledCommands = null, string[] enabledCommands = null,
             bool checkConnect = true, bool pause = true, string failMessage = null,
-            string channelPrefix = null, bool useSharedSocketManager = true, Proxy? proxy = null,
+            string channelPrefix = null, Proxy? proxy = null,
             [CallerMemberName] string caller = null)
         {
             if (pause) Thread.Sleep(250); // get a lot of glitches when hammering new socket creations etc; pace it out a bit
@@ -219,7 +215,6 @@ namespace StackExchange.Redis.Tests
                 syncTimeout = int.MaxValue;
             }
 
-            if (useSharedSocketManager) config.SocketManager = socketManager;
             if (channelPrefix != null) config.ChannelPrefix = channelPrefix;
             if (tieBreaker != null) config.TieBreaker = tieBreaker;
             if (password != null) config.Password = string.IsNullOrEmpty(password) ? null : password;

@@ -27,8 +27,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
 
         public static string CreateUniqueName() => Guid.NewGuid().ToString("N");
         internal static IServer GetServer(ConnectionMultiplexer conn) => conn.GetServer(conn.GetEndPoints()[0]);
-        private static readonly SocketManager socketManager = new SocketManager(nameof(BookSleeveTestBase));
-
+        
         internal static ConnectionMultiplexer GetRemoteConnection(bool open = true, bool allowAdmin = false, bool waitForOpen = false, int syncTimeout = 5000, int ioTimeout = 5000)
         {
             return GetConnection(TestConfig.Current.RemoteServer, TestConfig.Current.RemotePort, open, allowAdmin, waitForOpen, syncTimeout, ioTimeout);
@@ -41,7 +40,6 @@ namespace StackExchange.Redis.Tests.Booksleeve
                 EndPoints = { { host, port } },
                 AllowAdmin = allowAdmin,
                 SyncTimeout = syncTimeout,
-                SocketManager = socketManager,
                 ResponseTimeout = ioTimeout
             };
             var conn = ConnectionMultiplexer.Connect(options);
@@ -67,7 +65,6 @@ namespace StackExchange.Redis.Tests.Booksleeve
                 EndPoints = { { TestConfig.Current.SecureServer, TestConfig.Current.SecurePort } },
                 Password = "changeme",
                 SyncTimeout = 6000,
-                SocketManager = socketManager
             };
             var conn = ConnectionMultiplexer.Connect(options);
             conn.InternalError += (s, args) => Trace.WriteLine(args.Exception.Message, args.Origin);

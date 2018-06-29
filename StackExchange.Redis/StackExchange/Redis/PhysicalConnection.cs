@@ -213,7 +213,7 @@ namespace StackExchange.Redis
                     add("Unanswered-Write", "unanswered-write", (unchecked(now - unansweredRead) / 1000) + "s ago");
                     add("Keep-Alive", "keep-alive", Bridge.ServerEndPoint.WriteEverySeconds + "s");
                     add("Previous-Physical-State", "state", oldState.ToString());
-
+                    add("Manager", "mgr", Multiplexer?.SocketManager?.GetState());
                     if (@in >= 0)
                     {
                         add("Inbound-Bytes", "in", @in.ToString());

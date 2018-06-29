@@ -598,7 +598,7 @@ namespace StackExchange.Redis
             return true;
         }
 
-        private async Task<bool> WaitAllIgnoreErrorsAsync(Task[] tasks, int timeoutMilliseconds, TextWriter log)
+        private async Task<bool> WaitAllIgnoreErrorsAsync(Task[] tasks, int timeoutMilliseconds, TextWriter log, [CallerMemberName] string caller = null, [CallerLineNumber] int callerLineNumber = 0)
         {
             if (tasks == null) throw new ArgumentNullException(nameof(tasks));
             if (tasks.Length == 0)
@@ -628,7 +628,7 @@ namespace StackExchange.Redis
                 var allTasks = Task.WhenAll(tasks).ObserveErrors();
                 var any = Task.WhenAny(allTasks, Task.Delay(remaining)).ObserveErrors();
                 bool all = await any.ForAwait() == allTasks;
-                LogLockedWithThreadPoolStats(log, all ? "All tasks completed cleanly" : "Not all tasks completed cleanly", out busyWorkerCount);
+                LogLockedWithThreadPoolStats(log, all ? "All tasks completed cleanly" : $"Not all tasks completed cleanly (from {caller}#{callerLineNumber}, timeout {timeoutMilliseconds}ms)", out busyWorkerCount);
                 return all;
             }
             catch
@@ -2015,8 +2015,11 @@ namespace StackExchange.Redis
                             data = new List<Tuple<string, string>> { Tuple.Create("Message", message.CommandAndKey) };
                             void add(string lk, string sk, string v)
                             {
-                                data.Add(Tuple.Create(lk, v));
-                                sb.Append(", ").Append(sk).Append(": ").Append(v);
+                                if (v != null)
+                                {
+                                    data.Add(Tuple.Create(lk, v));
+                                    sb.Append(", ").Append(sk).Append(": ").Append(v);
+                                }
                             }
 
                             int queue = server.GetOutstandingCount(message.Command, out int inst, out int qs, out int qc, out int @in);
@@ -2025,6 +2028,7 @@ namespace StackExchange.Redis
                             add("Queue-Awaiting-Response", "qs", qs.ToString());
                             add("Queue-Completion-Outstanding", "qc", qc.ToString());
                             add("Inbound-Bytes", "in", @in.ToString());
+                            add("Manager", "mgr", SocketManager?.GetState());
 
                             add("Client-Name", "clientName", ClientName);
                             add("Server-Endpoint", "serverEndpoint", server.EndPoint.ToString());
