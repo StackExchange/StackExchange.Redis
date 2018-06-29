@@ -904,9 +904,8 @@ namespace StackExchange.Redis
                 }
                 OnWrapForLogging(ref pipe, physicalName);
 
-                int bufferSize = config.WriteBuffer;
-
                 _ioPipe = pipe;
+
                 Multiplexer.LogLocked(log, "Connected {0}", Bridge);
 
                 await Bridge.OnConnectedAsync(this, log);

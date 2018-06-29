@@ -321,6 +321,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The size of the output buffer to use
         /// </summary>
+        [Obsolete("This setting no longer has any effect, and should not be used")]
         public int WriteBuffer { get { return writeBuffer.GetValueOrDefault(4096); } set { writeBuffer = value; } }
 
         internal LocalCertificateSelectionCallback CertificateSelectionCallback { get { return CertificateSelection; } private set { CertificateSelection = value; } }
@@ -631,7 +632,9 @@ namespace StackExchange.Redis
                             HighPrioritySocketThreads = OptionKeys.ParseBoolean(key, value);
                             break;
                         case OptionKeys.WriteBuffer:
+#pragma warning disable CS0618 // Type or member is obsolete
                             WriteBuffer = OptionKeys.ParseInt32(key, value);
+#pragma warning restore CS0618 // Type or member is obsolete
                             break;
                         case OptionKeys.Proxy:
                             Proxy = OptionKeys.ParseProxy(key, value);
