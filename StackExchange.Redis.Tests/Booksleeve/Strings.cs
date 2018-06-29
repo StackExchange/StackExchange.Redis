@@ -164,7 +164,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
                 AssertNearlyEqual(5.1, conn.Wait(v4));
                 AssertNearlyEqual(0.1, conn.Wait(v5));
                 AssertNearlyEqual(2.1, conn.Wait(v6));
-                Assert.Equal("2.1", conn.Wait(s));
+                AssertNearlyEqual(2.1, (double)conn.Wait(s));
             }
         }
 
