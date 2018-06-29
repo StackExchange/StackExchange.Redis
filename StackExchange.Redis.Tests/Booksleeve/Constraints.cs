@@ -1,4 +1,5 @@
-﻿using System.Threading.Tasks;
+﻿using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -15,24 +16,25 @@ namespace StackExchange.Redis.Tests.Booksleeve
             Assert.True(x.Equals(y), "equals");
             Assert.True(x == y, "operator");
         }
-
+        static RedisKey Me([CallerMemberName] string caller = null) => caller;
         [Fact]
         public void TestManualIncr()
         {
             using (var muxer = GetUnsecuredConnection(syncTimeout: 120000)) // big timeout while debugging
             {
+                var key = Me();
                 var conn = muxer.GetDatabase(0);
                 for (int i = 0; i < 200; i++)
                 {
-                    conn.KeyDelete("foo");
-                    Assert.Equal(1, conn.Wait(ManualIncr(conn, "foo")));
-                    Assert.Equal(2, conn.Wait(ManualIncr(conn, "foo")));
-                    Assert.Equal(2, (long)conn.StringGet("foo"));
+                    conn.KeyDelete(key);
+                    Assert.Equal(1, conn.Wait(ManualIncr(conn, key)));
+                    Assert.Equal(2, conn.Wait(ManualIncr(conn, key)));
+                    Assert.Equal(2, (long)conn.StringGet(key));
                 }
             }
         }
 
-        public async Task<long?> ManualIncr(IDatabase connection, string key)
+        public async Task<long?> ManualIncr(IDatabase connection, RedisKey key)
         {
             var oldVal = (long?)await connection.StringGetAsync(key).ForAwait();
             var newVal = (oldVal ?? 0) + 1;
