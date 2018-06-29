@@ -112,7 +112,7 @@ namespace StackExchange.Redis.Tests
 
                 // we're using a pipeline here, so send 1000 messages, but for timing: only care about the last
                 const int LOOP = 5000;
-                RedisKey key = "foo";
+                RedisKey key = Me();
                 RedisKey[] keys = new[] { key }; // script takes an array
 
                 // run via script

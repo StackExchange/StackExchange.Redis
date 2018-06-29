@@ -16,7 +16,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
             Assert.True(x.Equals(y), "equals");
             Assert.True(x == y, "operator");
         }
-        static RedisKey Me([CallerMemberName] string caller = null) => caller;
+
         [Fact]
         public void TestManualIncr()
         {

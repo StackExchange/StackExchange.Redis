@@ -1,6 +1,7 @@
 ﻿using StackExchange.Redis.Tests.Helpers;
 using System;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using Xunit.Abstractions;
 
@@ -25,7 +26,15 @@ namespace StackExchange.Redis.Tests.Booksleeve
             };
         }
 
-        public static string CreateUniqueName() => Guid.NewGuid().ToString("N");
+        protected static string Me([CallerMemberName] string caller = null) =>
+#if NET462
+            "net462-" + caller;
+#elif NETCOREAPP2_0
+            "netcoreapp2.0-" + caller;
+#else
+            "unknown-" + caller;
+#endif
+
         internal static IServer GetServer(ConnectionMultiplexer conn) => conn.GetServer(conn.GetEndPoints()[0]);
 
         internal static ConnectionMultiplexer GetRemoteConnection(bool open = true, bool allowAdmin = false, bool waitForOpen = false, int syncTimeout = 5000, int ioTimeout = 5000)

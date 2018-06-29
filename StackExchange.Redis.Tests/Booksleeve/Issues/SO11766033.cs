@@ -15,7 +15,7 @@ namespace StackExchange.Redis.Tests.Booksleeve.Issues
             {
                 var redis = muxer.GetDatabase(db);
                 const string expectedTestValue = null;
-                var uid = CreateUniqueName();
+                var uid = Me();
                 redis.StringSetAsync(uid, "abc");
                 redis.StringSetAsync(uid, expectedTestValue);
                 string testValue = redis.StringGet(uid);
@@ -31,7 +31,7 @@ namespace StackExchange.Redis.Tests.Booksleeve.Issues
             {
                 var redis = muxer.GetDatabase(db);
                 const string expectedTestValue = "";
-                var uid = CreateUniqueName();
+                var uid = Me();
 
                 redis.StringSetAsync(uid, expectedTestValue);
                 string testValue = redis.StringGet(uid);

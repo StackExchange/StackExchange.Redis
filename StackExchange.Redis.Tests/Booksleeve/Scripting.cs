@@ -62,8 +62,9 @@ namespace StackExchange.Redis.Tests.Booksleeve
             using (var muxer = GetScriptConn())
             {
                 var conn = muxer.GetDatabase();
-                conn.StringSet("foo", "bar");
-                var result = (string)conn.ScriptEvaluate("return redis.call('get', KEYS[1])", new RedisKey[] { "foo" }, null);
+                var key = Me();
+                conn.StringSet(key, "bar");
+                var result = (string)conn.ScriptEvaluate("return redis.call('get', KEYS[1])", new RedisKey[] { key }, null);
                 Assert.Equal("bar", result);
             }
         }
@@ -77,16 +78,17 @@ namespace StackExchange.Redis.Tests.Booksleeve
 
             using (var muxer = GetScriptConn())
             {
+                var prefix = Me();
                 var conn = muxer.GetDatabase();
-                conn.StringSetAsync("A", "0");
-                conn.StringSetAsync("B", "5");
-                conn.StringSetAsync("C", "10");
+                conn.StringSetAsync(prefix + "A", "0");
+                conn.StringSetAsync(prefix + "B", "5");
+                conn.StringSetAsync(prefix + "C", "10");
 
-                var a = conn.ScriptEvaluateAsync(script, new RedisKey[] { "A" }, new RedisValue[] { 6 });
-                var b = conn.ScriptEvaluateAsync(script, new RedisKey[] { "B" }, new RedisValue[] { 6 });
-                var c = conn.ScriptEvaluateAsync(script, new RedisKey[] { "C" }, new RedisValue[] { 6 });
+                var a = conn.ScriptEvaluateAsync(script, new RedisKey[] { prefix + "A" }, new RedisValue[] { 6 });
+                var b = conn.ScriptEvaluateAsync(script, new RedisKey[] { prefix + "B" }, new RedisValue[] { 6 });
+                var c = conn.ScriptEvaluateAsync(script, new RedisKey[] { prefix + "C" }, new RedisValue[] { 6 });
 
-                var vals = conn.StringGetAsync(new RedisKey[] { "A", "B", "C" });
+                var vals = conn.StringGetAsync(new RedisKey[] { prefix + "A", prefix + "B", prefix + "C" });
 
                 Assert.Equal(1, (long)conn.Wait(a)); // exit code when current val is non-positive
                 Assert.Equal(0, (long)conn.Wait(b)); // exit code when result would be negative
@@ -102,9 +104,9 @@ namespace StackExchange.Redis.Tests.Booksleeve
         {
             using (var muxer = GetScriptConn())
             {
+                var key = Me();
                 var conn = muxer.GetDatabase();
-                conn.StringSetAsync("foo", "bar");
-                var key = CreateUniqueName();
+                conn.StringSetAsync(key + "foo", "bar");
                 var result = (long)conn.ScriptEvaluate(@"
 redis.call('psetex', KEYS[1], 60000, 'timing')
 for i = 1,100000 do
@@ -126,23 +128,24 @@ return timeTaken
             {
                 const int DB = 0; // any database number
                 var conn = muxer.GetDatabase(DB);
+                var prefix = Me();
                 // prime some initial values
-                conn.KeyDeleteAsync(new RedisKey[] { "a", "b", "c" });
-                conn.StringIncrementAsync("b");
-                conn.StringIncrementAsync("c");
-                conn.StringIncrementAsync("c");
+                conn.KeyDeleteAsync(new RedisKey[] { prefix + "a", prefix + "b", prefix + "c" });
+                conn.StringIncrementAsync(prefix + "b");
+                conn.StringIncrementAsync(prefix + "c");
+                conn.StringIncrementAsync(prefix + "c");
 
                 // run the script, passing "a", "b", "c", "c" to
                 // increment a & b by 1, c twice
                 var result = conn.ScriptEvaluateAsync(
                     "for i,key in ipairs(KEYS) do redis.call('incr', key) end",
-                    new RedisKey[] { "a", "b", "c", "c" }, // <== aka "KEYS" in the script
+                    new RedisKey[] { prefix + "a", prefix + "b", prefix + "c", prefix + "c" }, // <== aka "KEYS" in the script
                     null); // <== aka "ARGV" in the script
 
                 // check the incremented values
-                var a = conn.StringGetAsync("a");
-                var b = conn.StringGetAsync("b");
-                var c = conn.StringGetAsync("c");
+                var a = conn.StringGetAsync(prefix + "a");
+                var b = conn.StringGetAsync(prefix + "b");
+                var c = conn.StringGetAsync(prefix + "c");
 
                 Assert.True(conn.Wait(result).IsNull, "result");
                 Assert.Equal(1, (long)conn.Wait(a));
@@ -158,23 +161,24 @@ return timeTaken
             {
                 const int DB = 0; // any database number
                 var conn = muxer.GetDatabase(DB);
+                var prefix = Me();
                 // prime some initial values
-                conn.KeyDeleteAsync(new RedisKey[] { "a", "b", "c" });
-                conn.StringIncrementAsync("b");
-                conn.StringIncrementAsync("c");
-                conn.StringIncrementAsync("c");
+                conn.KeyDeleteAsync(new RedisKey[] { prefix + "a", prefix + "b", prefix + "c" });
+                conn.StringIncrementAsync(prefix + "b");
+                conn.StringIncrementAsync(prefix + "c");
+                conn.StringIncrementAsync(prefix + "c");
 
                 //run the script, passing "a", "b", "c" and 1,2,3
                 // increment a &b by 1, c twice
                 var result = conn.ScriptEvaluateAsync(
                     "for i,key in ipairs(KEYS) do redis.call('incrby', key, ARGV[i]) end",
-                    new RedisKey[] { "a", "b", "c" }, // <== aka "KEYS" in the script
+                    new RedisKey[] { prefix + "a", prefix + "b", prefix + "c" }, // <== aka "KEYS" in the script
                     new RedisValue[] { 1, 1, 2 }); // <== aka "ARGV" in the script
 
                 // check the incremented values
-                var a = conn.StringGetAsync("a");
-                var b = conn.StringGetAsync("b");
-                var c = conn.StringGetAsync("c");
+                var a = conn.StringGetAsync(prefix + "a");
+                var b = conn.StringGetAsync(prefix + "b");
+                var c = conn.StringGetAsync(prefix + "c");
 
                 Assert.True(conn.Wait(result).IsNull, "result");
                 Assert.Equal(1, (long)conn.Wait(a));
@@ -189,8 +193,9 @@ return timeTaken
             using (var muxer = GetScriptConn())
             {
                 var conn = muxer.GetDatabase(0);
-                conn.StringSet("foo", "bar");
-                var result = (byte[])conn.ScriptEvaluate("return redis.call('get', KEYS[1])", new RedisKey[] { "foo" });
+                var key = Me();
+                conn.StringSet(key, "bar");
+                var result = (byte[])conn.ScriptEvaluate("return redis.call('get', KEYS[1])", new RedisKey[] { key });
                 Assert.Equal("bar", Encoding.UTF8.GetString(result));
             }
         }
@@ -201,17 +206,18 @@ return timeTaken
             using (var muxer = GetScriptConn(allowAdmin: true))
             {
                 var conn = muxer.GetDatabase(0);
-                conn.StringSet("foo", "bar");
-                var result = (string)conn.ScriptEvaluate("return redis.call('get', KEYS[1])", new RedisKey[] { "foo" }, null);
+                var key = Me();
+                conn.StringSet(key, "bar");
+                var result = (string)conn.ScriptEvaluate("return redis.call('get', KEYS[1])", new RedisKey[] { key }, null);
                 Assert.Equal("bar", result);
 
                 // now cause all kinds of problems
                 GetServer(muxer).ScriptFlush();
 
                 //expect this one to <strike>fail</strike> just work fine (self-fix)
-                conn.ScriptEvaluate("return redis.call('get', KEYS[1])", new RedisKey[] { "foo" }, null);
+                conn.ScriptEvaluate("return redis.call('get', KEYS[1])", new RedisKey[] { key }, null);
 
-                result = (string)conn.ScriptEvaluate("return redis.call('get', KEYS[1])", new RedisKey[] { "foo" }, null);
+                result = (string)conn.ScriptEvaluate("return redis.call('get', KEYS[1])", new RedisKey[] { key }, null);
                 Assert.Equal("bar", result);
             }
         }
@@ -326,13 +332,14 @@ return timeTaken
         {
             using (var muxer = GetScriptConn())
             {
-                muxer.GetDatabase(1).StringSet("foo", "db 1");
-                muxer.GetDatabase(2).StringSet("foo", "db 2");
+                var key = Me();
+                muxer.GetDatabase(1).StringSet(key, "db 1");
+                muxer.GetDatabase(2).StringSet(key, "db 2");
 
                 var conn = muxer.GetDatabase(2);
                 var evalResult = conn.ScriptEvaluateAsync(@"redis.call('select', 1)
-        return redis.call('get','foo')", null, null);
-                var getResult = conn.StringGetAsync("foo");
+        return redis.call('get','" + key +"')", null, null);
+                var getResult = conn.StringGetAsync(key);
 
                 Assert.Equal("db 1", (string)conn.Wait(evalResult));
                 // now, our connection thought it was in db 2, but the script changed to db 1
@@ -345,14 +352,15 @@ return timeTaken
         {
             using (var muxer = GetScriptConn())
             {
-                muxer.GetDatabase(1).StringSet("foo", "db 1");
-                muxer.GetDatabase(2).StringSet("foo", "db 2");
+                var key = Me();
+                muxer.GetDatabase(1).StringSet(key, "db 1");
+                muxer.GetDatabase(2).StringSet(key, "db 2");
 
                 var conn = muxer.GetDatabase(2);
                 var tran = conn.CreateTransaction();
                 var evalResult = tran.ScriptEvaluateAsync(@"redis.call('select', 1)
-        return redis.call('get','foo')", null, null);
-                var getResult = tran.StringGetAsync("foo");
+        return redis.call('get','" + key + "')", null, null);
+                var getResult = tran.StringGetAsync(key);
                 Assert.True(tran.Execute());
 
                 Assert.Equal("db 1", (string)conn.Wait(evalResult));

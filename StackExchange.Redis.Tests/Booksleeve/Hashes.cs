@@ -19,13 +19,14 @@ namespace StackExchange.Redis.Tests.Booksleeve
             using (var muxer = GetUnsecuredConnection())
             {
                 var conn = muxer.GetDatabase(5);
-                await conn.KeyDeleteAsync("hash-test").ForAwait();
+                var key = Me();
+                await conn.KeyDeleteAsync(key).ForAwait();
                 for (int i = 1; i < 1000; i++)
                 {
-                    Assert.Equal(i, await conn.HashIncrementAsync("hash-test", "a", 1).ForAwait());
-                    Assert.Equal(-i, await conn.HashIncrementAsync("hash-test", "b", -1).ForAwait());
-                    //Assert.Equal(i, conn.Wait(conn.Hashes.Increment(5, "hash-test", "a", 1)));
-                    //Assert.Equal(-i, conn.Wait(conn.Hashes.Increment(5, "hash-test", "b", -1)));
+                    Assert.Equal(i, await conn.HashIncrementAsync(key, "a", 1).ForAwait());
+                    Assert.Equal(-i, await conn.HashIncrementAsync(key, "b", -1).ForAwait());
+                    //Assert.Equal(i, conn.Wait(conn.Hashes.Increment(5, key, "a", 1)));
+                    //Assert.Equal(-i, conn.Wait(conn.Hashes.Increment(5, key, "b", -1)));
                 }
             }
         }
@@ -40,7 +41,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
                 const int db = 3;
                 var conn = muxer.GetDatabase(db);
 
-                const string key = "hash-scan";
+                var key = Me();
                 conn.KeyDeleteAsync(key);
                 conn.HashSetAsync(key, "abc", "def");
                 conn.HashSetAsync(key, "ghi", "jkl");
@@ -170,21 +171,22 @@ namespace StackExchange.Redis.Tests.Booksleeve
             using (var muxer = GetUnsecuredConnection())
             {
                 var conn = muxer.GetDatabase(9);
-                await conn.KeyDeleteAsync("hashkey").ForAwait();
+                var hashkey = Me();
+                await conn.KeyDeleteAsync(hashkey).ForAwait();
 
-                var val0 = conn.HashGetAsync("hashkey", "field").ForAwait();
-                var set0 = conn.HashSetAsync("hashkey", "field", "value1").ForAwait();
-                var val1 = conn.HashGetAsync("hashkey", "field").ForAwait();
-                var set1 = conn.HashSetAsync("hashkey", "field", "value2").ForAwait();
-                var val2 = conn.HashGetAsync("hashkey", "field").ForAwait();
+                var val0 = conn.HashGetAsync(hashkey, "field").ForAwait();
+                var set0 = conn.HashSetAsync(hashkey, "field", "value1").ForAwait();
+                var val1 = conn.HashGetAsync(hashkey, "field").ForAwait();
+                var set1 = conn.HashSetAsync(hashkey, "field", "value2").ForAwait();
+                var val2 = conn.HashGetAsync(hashkey, "field").ForAwait();
 
-                var set2 = conn.HashSetAsync("hashkey", "field-blob", Encoding.UTF8.GetBytes("value3")).ForAwait();
-                var val3 = conn.HashGetAsync("hashkey", "field-blob").ForAwait();
+                var set2 = conn.HashSetAsync(hashkey, "field-blob", Encoding.UTF8.GetBytes("value3")).ForAwait();
+                var val3 = conn.HashGetAsync(hashkey, "field-blob").ForAwait();
 
-                var set3 = conn.HashSetAsync("hashkey", "empty_type1", "").ForAwait();
-                var val4 = conn.HashGetAsync("hashkey", "empty_type1").ForAwait();
-                var set4 = conn.HashSetAsync("hashkey", "empty_type2", RedisValue.EmptyString).ForAwait();
-                var val5 = conn.HashGetAsync("hashkey", "empty_type2").ForAwait();
+                var set3 = conn.HashSetAsync(hashkey, "empty_type1", "").ForAwait();
+                var val4 = conn.HashGetAsync(hashkey, "empty_type1").ForAwait();
+                var set4 = conn.HashSetAsync(hashkey, "empty_type2", RedisValue.EmptyString).ForAwait();
+                var val5 = conn.HashGetAsync(hashkey, "empty_type2").ForAwait();
 
                 Assert.Null((string)(await val0));
                 Assert.True(await set0);
@@ -208,17 +210,18 @@ namespace StackExchange.Redis.Tests.Booksleeve
             using (var muxer = GetUnsecuredConnection())
             {
                 var conn = muxer.GetDatabase(9);
-                await conn.KeyDeleteAsync("hashkey").ForAwait();
+                var hashkey = Me();
+                await conn.KeyDeleteAsync(hashkey).ForAwait();
 
-                var val0 = conn.HashGetAsync("hashkey", "field").ForAwait();
-                var set0 = conn.HashSetAsync("hashkey", "field", "value1", When.NotExists).ForAwait();
-                var val1 = conn.HashGetAsync("hashkey", "field").ForAwait();
-                var set1 = conn.HashSetAsync("hashkey", "field", "value2", When.NotExists).ForAwait();
-                var val2 = conn.HashGetAsync("hashkey", "field").ForAwait();
+                var val0 = conn.HashGetAsync(hashkey, "field").ForAwait();
+                var set0 = conn.HashSetAsync(hashkey, "field", "value1", When.NotExists).ForAwait();
+                var val1 = conn.HashGetAsync(hashkey, "field").ForAwait();
+                var set1 = conn.HashSetAsync(hashkey, "field", "value2", When.NotExists).ForAwait();
+                var val2 = conn.HashGetAsync(hashkey, "field").ForAwait();
 
-                var set2 = conn.HashSetAsync("hashkey", "field-blob", Encoding.UTF8.GetBytes("value3"), When.NotExists).ForAwait();
-                var val3 = conn.HashGetAsync("hashkey", "field-blob").ForAwait();
-                var set3 = conn.HashSetAsync("hashkey", "field-blob", Encoding.UTF8.GetBytes("value3"), When.NotExists).ForAwait();
+                var set2 = conn.HashSetAsync(hashkey, "field-blob", Encoding.UTF8.GetBytes("value3"), When.NotExists).ForAwait();
+                var val3 = conn.HashGetAsync(hashkey, "field-blob").ForAwait();
+                var set3 = conn.HashSetAsync(hashkey, "field-blob", Encoding.UTF8.GetBytes("value3"), When.NotExists).ForAwait();
 
                 Assert.Null((string)(await val0));
                 Assert.True(await set0);
@@ -238,13 +241,14 @@ namespace StackExchange.Redis.Tests.Booksleeve
             using (var muxer = GetUnsecuredConnection())
             {
                 var conn = muxer.GetDatabase(9);
-                await conn.KeyDeleteAsync("hashkey").ForAwait();
-                var del0 = conn.HashDeleteAsync("hashkey", "field").ForAwait();
+                var hashkey = Me();
+                await conn.KeyDeleteAsync(hashkey).ForAwait();
+                var del0 = conn.HashDeleteAsync(hashkey, "field").ForAwait();
 
-                await conn.HashSetAsync("hashkey", "field", "value").ForAwait();
+                await conn.HashSetAsync(hashkey, "field", "value").ForAwait();
 
-                var del1 = conn.HashDeleteAsync("hashkey", "field").ForAwait();
-                var del2 = conn.HashDeleteAsync("hashkey", "field").ForAwait();
+                var del1 = conn.HashDeleteAsync(hashkey, "field").ForAwait();
+                var del2 = conn.HashDeleteAsync(hashkey, "field").ForAwait();
 
                 Assert.False(await del0);
                 Assert.True(await del1);
@@ -258,19 +262,20 @@ namespace StackExchange.Redis.Tests.Booksleeve
             using (var muxer = GetUnsecuredConnection())
             {
                 var conn = muxer.GetDatabase(3);
-                conn.HashSetAsync("TestDelMulti", "key1", "val1");
-                conn.HashSetAsync("TestDelMulti", "key2", "val2");
-                conn.HashSetAsync("TestDelMulti", "key3", "val3");
+                var hashkey = Me();
+                conn.HashSetAsync(hashkey, "key1", "val1");
+                conn.HashSetAsync(hashkey, "key2", "val2");
+                conn.HashSetAsync(hashkey, "key3", "val3");
 
-                var s1 = conn.HashExistsAsync("TestDelMulti", "key1");
-                var s2 = conn.HashExistsAsync("TestDelMulti", "key2");
-                var s3 = conn.HashExistsAsync("TestDelMulti", "key3");
+                var s1 = conn.HashExistsAsync(hashkey, "key1");
+                var s2 = conn.HashExistsAsync(hashkey, "key2");
+                var s3 = conn.HashExistsAsync(hashkey, "key3");
 
-                var removed = conn.HashDeleteAsync("TestDelMulti", new RedisValue[] { "key1", "key3" });
+                var removed = conn.HashDeleteAsync(hashkey, new RedisValue[] { "key1", "key3" });
 
-                var d1 = conn.HashExistsAsync("TestDelMulti", "key1");
-                var d2 = conn.HashExistsAsync("TestDelMulti", "key2");
-                var d3 = conn.HashExistsAsync("TestDelMulti", "key3");
+                var d1 = conn.HashExistsAsync(hashkey, "key1");
+                var d2 = conn.HashExistsAsync(hashkey, "key2");
+                var d3 = conn.HashExistsAsync(hashkey, "key3");
 
                 Assert.True(conn.Wait(s1));
                 Assert.True(conn.Wait(s2));
@@ -282,9 +287,9 @@ namespace StackExchange.Redis.Tests.Booksleeve
                 Assert.True(conn.Wait(d2));
                 Assert.False(conn.Wait(d3));
 
-                var removeFinal = conn.HashDeleteAsync("TestDelMulti", new RedisValue[] { "key2" });
+                var removeFinal = conn.HashDeleteAsync(hashkey, new RedisValue[] { "key2" });
 
-                Assert.Equal(0, conn.Wait(conn.HashLengthAsync("TestDelMulti")));
+                Assert.Equal(0, conn.Wait(conn.HashLengthAsync(hashkey)));
                 Assert.Equal(1, conn.Wait(removeFinal));
             }
         }
@@ -296,19 +301,20 @@ namespace StackExchange.Redis.Tests.Booksleeve
             {
                 var conn = outer.GetDatabase(3).CreateTransaction();
                 {
-                    conn.HashSetAsync("TestDelMulti", "key1", "val1");
-                    conn.HashSetAsync("TestDelMulti", "key2", "val2");
-                    conn.HashSetAsync("TestDelMulti", "key3", "val3");
+                    var hashkey = Me();
+                    conn.HashSetAsync(hashkey, "key1", "val1");
+                    conn.HashSetAsync(hashkey, "key2", "val2");
+                    conn.HashSetAsync(hashkey, "key3", "val3");
 
-                    var s1 = conn.HashExistsAsync("TestDelMulti", "key1");
-                    var s2 = conn.HashExistsAsync("TestDelMulti", "key2");
-                    var s3 = conn.HashExistsAsync("TestDelMulti", "key3");
+                    var s1 = conn.HashExistsAsync(hashkey, "key1");
+                    var s2 = conn.HashExistsAsync(hashkey, "key2");
+                    var s3 = conn.HashExistsAsync(hashkey, "key3");
 
-                    var removed = conn.HashDeleteAsync("TestDelMulti", new RedisValue[] { "key1", "key3" });
+                    var removed = conn.HashDeleteAsync(hashkey, new RedisValue[] { "key1", "key3" });
 
-                    var d1 = conn.HashExistsAsync("TestDelMulti", "key1");
-                    var d2 = conn.HashExistsAsync("TestDelMulti", "key2");
-                    var d3 = conn.HashExistsAsync("TestDelMulti", "key3");
+                    var d1 = conn.HashExistsAsync(hashkey, "key1");
+                    var d2 = conn.HashExistsAsync(hashkey, "key2");
+                    var d3 = conn.HashExistsAsync(hashkey, "key3");
 
                     conn.Execute();
 
@@ -331,12 +337,13 @@ namespace StackExchange.Redis.Tests.Booksleeve
             using (var muxer = GetUnsecuredConnection())
             {
                 var conn = muxer.GetDatabase(9);
-                await conn.KeyDeleteAsync("hashkey").ForAwait();
-                var ex0 = conn.HashExistsAsync("hashkey", "field").ForAwait();
-                await conn.HashSetAsync("hashkey", "field", "value").ForAwait();
-                var ex1 = conn.HashExistsAsync("hashkey", "field").ForAwait();
-                await conn.HashDeleteAsync("hashkey", "field").ForAwait();
-                var ex2 = conn.HashExistsAsync("hashkey", "field").ForAwait();
+                var hashkey = Me();
+                await conn.KeyDeleteAsync(hashkey).ForAwait();
+                var ex0 = conn.HashExistsAsync(hashkey, "field").ForAwait();
+                await conn.HashSetAsync(hashkey, "field", "value").ForAwait();
+                var ex1 = conn.HashExistsAsync(hashkey, "field").ForAwait();
+                await conn.HashDeleteAsync(hashkey, "field").ForAwait();
+                var ex2 = conn.HashExistsAsync(hashkey, "field").ForAwait();
 
                 Assert.False(await ex0);
                 Assert.True(await ex1);
@@ -350,14 +357,15 @@ namespace StackExchange.Redis.Tests.Booksleeve
             using (var muxer = GetUnsecuredConnection())
             {
                 var conn = muxer.GetDatabase(9);
-                await conn.KeyDeleteAsync("hashkey").ForAwait();
+                var hashKey = Me();
+                await conn.KeyDeleteAsync(hashKey).ForAwait();
 
-                var keys0 = await conn.HashKeysAsync("hashkey").ForAwait();
+                var keys0 = await conn.HashKeysAsync(hashKey).ForAwait();
 
-                await conn.HashSetAsync("hashkey", "foo", "abc").ForAwait();
-                await conn.HashSetAsync("hashkey", "bar", "def").ForAwait();
+                await conn.HashSetAsync(hashKey, "foo", "abc").ForAwait();
+                await conn.HashSetAsync(hashKey, "bar", "def").ForAwait();
 
-                var keys1 = conn.HashKeysAsync("hashkey");
+                var keys1 = conn.HashKeysAsync(hashKey);
 
                 Assert.Empty(keys0);
 
@@ -374,14 +382,15 @@ namespace StackExchange.Redis.Tests.Booksleeve
             using (var muxer = GetUnsecuredConnection())
             {
                 var conn = muxer.GetDatabase(9);
-                await conn.KeyDeleteAsync("hashkey").ForAwait();
+                var hashkey = Me();
+                await conn.KeyDeleteAsync(hashkey).ForAwait();
 
-                var keys0 = await conn.HashValuesAsync("hashkey").ForAwait();
+                var keys0 = await conn.HashValuesAsync(hashkey).ForAwait();
 
-                await conn.HashSetAsync("hashkey", "foo", "abc").ForAwait();
-                await conn.HashSetAsync("hashkey", "bar", "def").ForAwait();
+                await conn.HashSetAsync(hashkey, "foo", "abc").ForAwait();
+                await conn.HashSetAsync(hashkey, "bar", "def").ForAwait();
 
-                var keys1 = conn.HashValuesAsync("hashkey").ForAwait();
+                var keys1 = conn.HashValuesAsync(hashkey).ForAwait();
 
                 Assert.Empty(keys0);
 
@@ -398,14 +407,15 @@ namespace StackExchange.Redis.Tests.Booksleeve
             using (var muxer = GetUnsecuredConnection())
             {
                 var conn = muxer.GetDatabase(9);
-                await conn.KeyDeleteAsync("hashkey").ForAwait();
+                var hashkey = Me();
+                await conn.KeyDeleteAsync(hashkey).ForAwait();
 
-                var len0 = await conn.HashLengthAsync("hashkey").ForAwait();
+                var len0 = await conn.HashLengthAsync(hashkey).ForAwait();
 
-                await conn.HashSetAsync("hashkey", "foo", "abc").ForAwait();
-                await conn.HashSetAsync("hashkey", "bar", "def").ForAwait();
+                await conn.HashSetAsync(hashkey, "foo", "abc").ForAwait();
+                await conn.HashSetAsync(hashkey, "bar", "def").ForAwait();
 
-                var len1 = await conn.HashLengthAsync("hashkey").ForAwait();
+                var len1 = await conn.HashLengthAsync(hashkey).ForAwait();
 
                 Assert.Equal(0, len0);
                 Assert.Equal(2, len1);
@@ -418,16 +428,17 @@ namespace StackExchange.Redis.Tests.Booksleeve
             using (var muxer = GetUnsecuredConnection())
             {
                 var conn = muxer.GetDatabase(9);
-                await conn.KeyDeleteAsync("hashkey").ForAwait();
+                var hashkey = Me();
+                await conn.KeyDeleteAsync(hashkey).ForAwait();
 
                 RedisValue[] fields = { "foo", "bar", "blop" };
-                var arr0 = await conn.HashGetAsync("hashkey", fields).ForAwait();
+                var arr0 = await conn.HashGetAsync(hashkey, fields).ForAwait();
 
-                await conn.HashSetAsync("hashkey", "foo", "abc").ForAwait();
-                await conn.HashSetAsync("hashkey", "bar", "def").ForAwait();
+                await conn.HashSetAsync(hashkey, "foo", "abc").ForAwait();
+                await conn.HashSetAsync(hashkey, "bar", "def").ForAwait();
 
-                var arr1 = await conn.HashGetAsync("hashkey", fields).ForAwait();
-                var arr2 = await conn.HashGetAsync("hashkey", fields).ForAwait();
+                var arr1 = await conn.HashGetAsync(hashkey, fields).ForAwait();
+                var arr2 = await conn.HashGetAsync(hashkey, fields).ForAwait();
 
                 Assert.Equal(3, arr0.Length);
                 Assert.Null((string)arr0[0]);
@@ -452,14 +463,15 @@ namespace StackExchange.Redis.Tests.Booksleeve
             using (var muxer = GetUnsecuredConnection())
             {
                 var conn = muxer.GetDatabase(9);
-                await conn.KeyDeleteAsync("hashkey").ForAwait();
+                var hashkey = Me();
+                await conn.KeyDeleteAsync(hashkey).ForAwait();
 
-                var result0 = await conn.HashGetAllAsync("hashkey").ForAwait();
+                var result0 = await conn.HashGetAllAsync(hashkey).ForAwait();
 
-                await conn.HashSetAsync("hashkey", "foo", "abc").ForAwait();
-                await conn.HashSetAsync("hashkey", "bar", "def").ForAwait();
+                await conn.HashSetAsync(hashkey, "foo", "abc").ForAwait();
+                await conn.HashSetAsync(hashkey, "bar", "def").ForAwait();
 
-                var result1 = await conn.HashGetAllAsync("hashkey").ForAwait();
+                var result1 = await conn.HashGetAllAsync(hashkey).ForAwait();
 
                 Assert.Empty(result0);
                 var result = result1.ToStringDictionary();
@@ -475,17 +487,18 @@ namespace StackExchange.Redis.Tests.Booksleeve
             using (var muxer = GetUnsecuredConnection())
             {
                 var conn = muxer.GetDatabase(9);
-                await conn.KeyDeleteAsync("hashkey").ForAwait();
+                var hashkey = Me();
+                await conn.KeyDeleteAsync(hashkey).ForAwait();
 
-                var result0 = await conn.HashGetAllAsync("hashkey").ForAwait();
+                var result0 = await conn.HashGetAllAsync(hashkey).ForAwait();
 
                 var data = new HashEntry[] {
                     new HashEntry("foo", Encoding.UTF8.GetBytes("abc")),
                     new HashEntry("bar", Encoding.UTF8.GetBytes("def"))
                 };
-                await conn.HashSetAsync("hashkey", data).ForAwait();
+                await conn.HashSetAsync(hashkey, data).ForAwait();
 
-                var result1 = await conn.HashGetAllAsync("hashkey").ForAwait();
+                var result1 = await conn.HashGetAllAsync(hashkey).ForAwait();
 
                 Assert.Empty(result0);
                 var result = result1.ToStringDictionary();

@@ -33,6 +33,7 @@ namespace StackExchange.Redis.Tests
             int errorCount = 0;
             int bgErrorCount = 0;
             var evt = new ManualResetEvent(false);
+            var key = Me();
             using (var c1 = Create(testMode))
             using (var c2 = Create(testMode))
             {
@@ -45,7 +46,7 @@ namespace StackExchange.Redis.Tests
 
                         for (int i = 0; i < 1000; i++)
                         {
-                            conn.LockTakeAsync("abc", "def", TimeSpan.FromSeconds(5));
+                            conn.LockTakeAsync(key, "def", TimeSpan.FromSeconds(5));
                         }
                         conn.Ping();
                         if (Interlocked.Decrement(ref count) == 0) evt.Set();
@@ -153,7 +154,7 @@ namespace StackExchange.Redis.Tests
                     wrong = Guid.NewGuid().ToString();
 
                 int DB = mode == TestMode.Twemproxy ? 0 : 7;
-                RedisKey Key = "lock-key";
+                RedisKey Key = Me();
 
                 var db = conn.GetDatabase(DB);
 
@@ -237,12 +238,13 @@ namespace StackExchange.Redis.Tests
 
                 const int LOOP = 50;
                 var db = conn.GetDatabase(0);
+                var key = Me();
                 for (int i = 0; i < LOOP; i++)
                 {
-                    db.KeyDeleteAsync("lock-not-exists");
-                    taken = db.LockTakeAsync("lock-not-exists", "new-value", TimeSpan.FromSeconds(10));
-                    newValue = db.StringGetAsync("lock-not-exists");
-                    ttl = db.KeyTimeToLiveAsync("lock-not-exists");
+                    db.KeyDeleteAsync(key);
+                    taken = db.LockTakeAsync(key, "new-value", TimeSpan.FromSeconds(10));
+                    newValue = db.StringGetAsync(key);
+                    ttl = db.KeyTimeToLiveAsync(key);
                 }
                 Assert.True(conn.Wait(taken), "taken");
                 Assert.Equal("new-value", (string)conn.Wait(newValue));
@@ -259,11 +261,12 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create(testMode))
             {
                 var db = conn.GetDatabase(0);
-                db.KeyDelete("lock-exists");
-                db.StringSet("lock-exists", "old-value", TimeSpan.FromSeconds(20));
-                var taken = db.LockTakeAsync("lock-exists", "new-value", TimeSpan.FromSeconds(10));
-                var newValue = db.StringGetAsync("lock-exists");
-                var ttl = db.KeyTimeToLiveAsync("lock-exists");
+                var key = Me();
+                db.KeyDelete(key);
+                db.StringSet(key, "old-value", TimeSpan.FromSeconds(20));
+                var taken = db.LockTakeAsync(key, "new-value", TimeSpan.FromSeconds(10));
+                var newValue = db.StringGetAsync(key);
+                var ttl = db.KeyTimeToLiveAsync(key);
 
                 Assert.False(conn.Wait(taken), "taken");
                 Assert.Equal("old-value", (string)conn.Wait(newValue));

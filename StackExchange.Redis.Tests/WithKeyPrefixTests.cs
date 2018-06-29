@@ -74,7 +74,8 @@ namespace StackExchange.Redis.Tests
             {
                 var raw = conn.GetDatabase(1);
 
-                var foo = raw.WithKeyPrefix("foo");
+                var prefix = Me();
+                var foo = raw.WithKeyPrefix(prefix);
                 var foobar = foo.WithKeyPrefix("bar");
 
                 string key = Me();
@@ -92,10 +93,10 @@ namespace StackExchange.Redis.Tests
                 val = (string)foo.StringGet("bar" + key);
                 Assert.Equal(t, val); // foobarBasicSmokeTest
 
-                val = (string)raw.StringGet("foo" + key);
+                val = (string)raw.StringGet(prefix + key);
                 Assert.Equal(s, val); // fooBasicSmokeTest
 
-                val = (string)raw.StringGet("foobar" + key);
+                val = (string)raw.StringGet(prefix + "bar" + key);
                 Assert.Equal(t, val); // foobarBasicSmokeTest
             }
         }

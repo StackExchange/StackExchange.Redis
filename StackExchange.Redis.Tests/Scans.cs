@@ -20,20 +20,21 @@ namespace StackExchange.Redis.Tests
             {
                 const int DB = 7;
                 var db = conn.GetDatabase(DB);
+                var prefix = Me() + ":";
                 var server = GetServer(conn);
                 server.FlushDatabase(DB);
                 for (int i = 0; i < 100; i++)
                 {
-                    db.StringSet("KeysScan:" + i, Guid.NewGuid().ToString(), flags: CommandFlags.FireAndForget);
+                    db.StringSet(prefix + i, Guid.NewGuid().ToString(), flags: CommandFlags.FireAndForget);
                 }
                 var seq = server.Keys(DB, pageSize: 50);
                 bool isScanning = seq is IScanningCursor;
                 Assert.Equal(supported, isScanning);
                 Assert.Equal(100, seq.Distinct().Count());
                 Assert.Equal(100, seq.Distinct().Count());
-                Assert.Equal(100, server.Keys(DB, "KeysScan:*").Distinct().Count());
+                Assert.Equal(100, server.Keys(DB, prefix + "*").Distinct().Count());
                 // 7, 70, 71, ..., 79
-                Assert.Equal(11, server.Keys(DB, "KeysScan:7*").Distinct().Count());
+                Assert.Equal(11, server.Keys(DB, prefix + "7*").Distinct().Count());
             }
         }
 
@@ -195,7 +196,7 @@ namespace StackExchange.Redis.Tests
             string[] disabledCommands = supported ? null : new[] { "zscan" };
             using (var conn = Create(disabledCommands: disabledCommands))
             {
-                RedisKey key = Me();
+                RedisKey key = Me() + supported;
                 var db = conn.GetDatabase();
                 db.KeyDelete(key);
 
@@ -304,7 +305,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                RedisKey key = Me();
+                RedisKey key = Me() + pageSize;
                 var db = conn.GetDatabase();
                 db.KeyDelete(key);
 
@@ -364,7 +365,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                RedisKey key = Me();
+                RedisKey key = Me() + pageSize;
                 var db = conn.GetDatabase();
                 db.KeyDelete(key);
 
@@ -385,7 +386,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                RedisKey key = Me();
+                RedisKey key = Me() + pageSize;
                 var db = conn.GetDatabase();
                 db.KeyDelete(key);
 

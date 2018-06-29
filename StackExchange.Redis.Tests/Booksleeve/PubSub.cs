@@ -19,7 +19,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
             using (var muxer = GetUnsecuredConnection())
             {
                 var conn = muxer.GetSubscriber();
-                Assert.Equal(0, conn.Publish("channel", "message"));
+                Assert.Equal(0, conn.Publish(Me() + "channel", "message"));
             }
         }
 
@@ -29,7 +29,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
             using (var muxer = GetUnsecuredConnection(waitForOpen: true))
             {
                 var conn = muxer.GetSubscriber();
-                TestMassivePublish(conn, "local");
+                TestMassivePublish(conn, Me(), "local");
             }
         }
 
@@ -39,11 +39,11 @@ namespace StackExchange.Redis.Tests.Booksleeve
             using (var muxer = GetRemoteConnection(waitForOpen: true))
             {
                 var conn = muxer.GetSubscriber();
-                TestMassivePublish(conn, "remote");
+                TestMassivePublish(conn, Me(), "remote");
             }
         }
 
-        private void TestMassivePublish(ISubscriber conn, string caption)
+        private void TestMassivePublish(ISubscriber conn, string channel, string caption)
         {
             const int loop = 100000;
 
@@ -55,7 +55,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
             var withFAF = Stopwatch.StartNew();
             for (int i = 0; i < loop; i++)
             {
-                conn.Publish("foo", "bar", CommandFlags.FireAndForget);
+                conn.Publish(channel, "bar", CommandFlags.FireAndForget);
             }
             withFAF.Stop();
 
@@ -65,7 +65,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
             var withAsync = Stopwatch.StartNew();
             for (int i = 0; i < loop; i++)
             {
-                tasks[i] = conn.PublishAsync("foo", "bar");
+                tasks[i] = conn.PublishAsync(channel, "bar");
             }
             conn.WaitAll(tasks);
             withAsync.Stop();
@@ -127,7 +127,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         [Fact]
         public void TestPublishWithSubscribers()
         {
-            var channel = "channel" + Guid.NewGuid();
+            var channel = Me();
             using (var muxerA = GetUnsecuredConnection())
             using (var muxerB = GetUnsecuredConnection())
             using (var conn = GetUnsecuredConnection())
@@ -148,7 +148,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         [Fact]
         public void TestMultipleSubscribersGetMessage()
         {
-            var channel = "channel" + Guid.NewGuid();
+            var channel = Me();
             using (var muxerA = GetUnsecuredConnection())
             using (var muxerB = GetUnsecuredConnection())
             using (var conn = GetUnsecuredConnection())
@@ -184,17 +184,18 @@ namespace StackExchange.Redis.Tests.Booksleeve
             {
                 var sub = pub.GetSubscriber();
                 int count = 0;
+                var prefix = Me();
                 void handler(RedisChannel channel, RedisValue payload) => Interlocked.Increment(ref count);
-                var a0 = sub.SubscribeAsync("foo", handler);
-                var a1 = sub.SubscribeAsync("bar", handler);
-                var b0 = sub.SubscribeAsync("f*o", handler);
-                var b1 = sub.SubscribeAsync("b*r", handler);
+                var a0 = sub.SubscribeAsync(prefix + "foo", handler);
+                var a1 = sub.SubscribeAsync(prefix + "bar", handler);
+                var b0 = sub.SubscribeAsync(prefix + "f*o", handler);
+                var b1 = sub.SubscribeAsync(prefix + "b*r", handler);
                 sub.WaitAll(a0, a1, b0, b1);
 
-                var c = sub.PublishAsync("foo", "foo");
-                var d = sub.PublishAsync("f@o", "f@o");
-                var e = sub.PublishAsync("bar", "bar");
-                var f = sub.PublishAsync("b@r", "b@r");
+                var c = sub.PublishAsync(prefix + "foo", "foo");
+                var d = sub.PublishAsync(prefix + "f@o", "f@o");
+                var e = sub.PublishAsync(prefix + "bar", "bar");
+                var f = sub.PublishAsync(prefix + "b@r", "b@r");
 
                 pub.WaitAll(c, d, e, f);
                 long total = c.Result + d.Result + e.Result + f.Result;
@@ -222,19 +223,20 @@ namespace StackExchange.Redis.Tests.Booksleeve
                 var listenA = muxerA.GetSubscriber();
                 var listenB = muxerB.GetSubscriber();
                 var pub = conn.GetSubscriber();
-                var tA = listenA.SubscribeAsync("channel", (s, msg) => { if (s == "channel" && msg == "message") Interlocked.Increment(ref gotA); });
-                var tB = listenB.SubscribeAsync("chann*", (s, msg) => { if (s == "channel" && msg == "message") Interlocked.Increment(ref gotB); });
+                var prefix = Me();
+                var tA = listenA.SubscribeAsync(prefix + "channel", (s, msg) => { if (s == prefix + "channel" && msg == "message") Interlocked.Increment(ref gotA); });
+                var tB = listenB.SubscribeAsync(prefix + "chann*", (s, msg) => { if (s == prefix + "channel" && msg == "message") Interlocked.Increment(ref gotB); });
                 listenA.Wait(tA);
                 listenB.Wait(tB);
-                Assert.Equal(2, pub.Publish("channel", "message"));
+                Assert.Equal(2, pub.Publish(prefix + "channel", "message"));
                 AllowReasonableTimeToPublishAndProcess();
                 Assert.Equal(1, Interlocked.CompareExchange(ref gotA, 0, 0));
                 Assert.Equal(1, Interlocked.CompareExchange(ref gotB, 0, 0));
 
                 // and unsubscibe...
-                tB = listenB.UnsubscribeAsync("chann*", null);
+                tB = listenB.UnsubscribeAsync(prefix + "chann*", null);
                 listenB.Wait(tB);
-                Assert.Equal(1, pub.Publish("channel", "message"));
+                Assert.Equal(1, pub.Publish(prefix + "channel", "message"));
                 AllowReasonableTimeToPublishAndProcess();
                 Assert.Equal(2, Interlocked.CompareExchange(ref gotA, 0, 0));
                 Assert.Equal(1, Interlocked.CompareExchange(ref gotB, 0, 0));
@@ -247,26 +249,27 @@ namespace StackExchange.Redis.Tests.Booksleeve
             using (var pubMuxer = GetUnsecuredConnection())
             using (var subMuxer = GetUnsecuredConnection())
             {
+                var prefix = Me();
                 var pub = pubMuxer.GetSubscriber();
                 var sub = subMuxer.GetSubscriber();
                 int x = 0, y = 0;
-                var t1 = sub.SubscribeAsync("abc", delegate { Interlocked.Increment(ref x); });
-                var t2 = sub.SubscribeAsync("ab*", delegate { Interlocked.Increment(ref y); });
+                var t1 = sub.SubscribeAsync(prefix + "abc", delegate { Interlocked.Increment(ref x); });
+                var t2 = sub.SubscribeAsync(prefix + "ab*", delegate { Interlocked.Increment(ref y); });
                 sub.WaitAll(t1, t2);
-                pub.Publish("abc", "");
+                pub.Publish(prefix + "abc", "");
                 AllowReasonableTimeToPublishAndProcess();
                 Assert.Equal(1, Volatile.Read(ref x));
                 Assert.Equal(1, Volatile.Read(ref y));
-                t1 = sub.UnsubscribeAsync("abc", null);
-                t2 = sub.UnsubscribeAsync("ab*", null);
+                t1 = sub.UnsubscribeAsync(prefix + "abc", null);
+                t2 = sub.UnsubscribeAsync(prefix + "ab*", null);
                 sub.WaitAll(t1, t2);
-                pub.Publish("abc", "");
+                pub.Publish(prefix + "abc", "");
                 Assert.Equal(1, Volatile.Read(ref x));
                 Assert.Equal(1, Volatile.Read(ref y));
-                t1 = sub.SubscribeAsync("abc", delegate { Interlocked.Increment(ref x); });
-                t2 = sub.SubscribeAsync("ab*", delegate { Interlocked.Increment(ref y); });
+                t1 = sub.SubscribeAsync(prefix + "abc", delegate { Interlocked.Increment(ref x); });
+                t2 = sub.SubscribeAsync(prefix + "ab*", delegate { Interlocked.Increment(ref y); });
                 sub.WaitAll(t1, t2);
-                pub.Publish("abc", "");
+                pub.Publish(prefix + "abc", "");
                 AllowReasonableTimeToPublishAndProcess();
                 Assert.Equal(2, Volatile.Read(ref x));
                 Assert.Equal(2, Volatile.Read(ref y));

@@ -27,7 +27,9 @@ namespace StackExchange.Redis.Tests.Issues
             var db = conn.GetDatabase();
 
             var timeout = Task.Delay(5000);
-            var len = db.ListLengthAsync("list");
+            var key = Me();
+            var key2 = key + "2";
+            var len = db.ListLengthAsync(key);
 
             if (await Task.WhenAny(timeout, len).ForAwait() != len)
             {
@@ -36,12 +38,12 @@ namespace StackExchange.Redis.Tests.Issues
 
             if ((await len.ForAwait()) == 0)
             {
-                db.ListRightPush("list", "foo", flags: CommandFlags.FireAndForget);
+                db.ListRightPush(key, "foo", flags: CommandFlags.FireAndForget);
             }
             var tran = db.CreateTransaction();
-            var x = tran.ListRightPopLeftPushAsync("list", "list2");
-            var y = tran.SetAddAsync("set", "bar");
-            var z = tran.KeyExpireAsync("list2", TimeSpan.FromSeconds(60));
+            var x = tran.ListRightPopLeftPushAsync(key, key2);
+            var y = tran.SetAddAsync(key + "set", "bar");
+            var z = tran.KeyExpireAsync(key2, TimeSpan.FromSeconds(60));
             timeout = Task.Delay(5000);
 
             var exec = tran.ExecuteAsync();
@@ -56,7 +58,7 @@ namespace StackExchange.Redis.Tests.Issues
                     await Task.WhenAll(x, y, z).ForAwait();
 
                     var db2 = conn.GetDatabase();
-                    db2.HashGet("hash", "whatever");
+                    db2.HashGet(key + "hash", "whatever");
                     return "ok";
                 }
                 else
