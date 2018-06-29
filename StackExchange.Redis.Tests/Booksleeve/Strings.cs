@@ -158,13 +158,13 @@ namespace StackExchange.Redis.Tests.Booksleeve
 
                 var s = conn.StringGetAsync("incr");
 
-                AssertNearlyEqual(3.1, conn.Wait(v1));
-                AssertNearlyEqual(8.1, conn.Wait(v2));
-                AssertNearlyEqual(6.1, conn.Wait(v3));
-                AssertNearlyEqual(5.1, conn.Wait(v4));
-                AssertNearlyEqual(0.1, conn.Wait(v5));
-                AssertNearlyEqual(2.1, conn.Wait(v6));
-                AssertNearlyEqual(2.1, (double)conn.Wait(s));
+                Assert.Equal(3.1, conn.Wait(v1), 5);
+                Assert.Equal(8.1, conn.Wait(v2), 5);
+                Assert.Equal(6.1, conn.Wait(v3), 5);
+                Assert.Equal(5.1, conn.Wait(v4), 5);
+                Assert.Equal(0.1, conn.Wait(v5), 5);
+                Assert.Equal(2.1, conn.Wait(v6), 5);
+                Assert.Equal(2.1, (double)conn.Wait(s), 5);
             }
         }
 

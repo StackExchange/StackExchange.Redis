@@ -2,7 +2,6 @@
 using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
-using Xunit;
 using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests.Booksleeve
@@ -10,6 +9,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
     public class BookSleeveTestBase
     {
         public ITestOutputHelper Output { get; }
+
         public BookSleeveTestBase(ITestOutputHelper output)
         {
             Output = output;
@@ -27,7 +27,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
 
         public static string CreateUniqueName() => Guid.NewGuid().ToString("N");
         internal static IServer GetServer(ConnectionMultiplexer conn) => conn.GetServer(conn.GetEndPoints()[0]);
-        
+
         internal static ConnectionMultiplexer GetRemoteConnection(bool open = true, bool allowAdmin = false, bool waitForOpen = false, int syncTimeout = 5000, int ioTimeout = 5000)
         {
             return GetConnection(TestConfig.Current.RemoteServer, TestConfig.Current.RemotePort, open, allowAdmin, waitForOpen, syncTimeout, ioTimeout);
@@ -69,13 +69,6 @@ namespace StackExchange.Redis.Tests.Booksleeve
             var conn = ConnectionMultiplexer.Connect(options);
             conn.InternalError += (s, args) => Trace.WriteLine(args.Exception.Message, args.Origin);
             return conn;
-        }
-
-        internal static RedisFeatures GetFeatures(ConnectionMultiplexer muxer) => GetServer(muxer).Features;
-
-        internal static void AssertNearlyEqual(double x, double y)
-        {
-            if (Math.Abs(x - y) > 0.00001) Assert.Equal(x, y);
         }
     }
 }
