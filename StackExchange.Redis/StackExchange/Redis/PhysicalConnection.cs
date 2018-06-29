@@ -127,6 +127,7 @@ namespace StackExchange.Redis
                 try { ioPipe.Output?.Complete(); } catch { }
                 ioPipe.Output?.Complete();
             }
+            try { using (ioPipe as IDisposable) { } } catch { }
 
             if (socketToken.HasValue)
             {

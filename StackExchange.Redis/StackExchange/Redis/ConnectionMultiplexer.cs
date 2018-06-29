@@ -1564,6 +1564,7 @@ namespace StackExchange.Redis
             if (useTieBreakers)
             {   // count the votes
                 uniques = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                LogLocked(log, "Waiting for tiebreakers...");
                 await WaitAllIgnoreErrorsAsync(tieBreakers, 50, log).ForAwait();
                 for (int i = 0; i < tieBreakers.Length; i++)
                 {

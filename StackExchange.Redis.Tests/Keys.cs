@@ -29,11 +29,11 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void RandomKey()
+        public void FlushFetchRandomKey()
         {
             using (var conn = Create(allowAdmin: true))
             {
-                var db = conn.GetDatabase();
+                var db = conn.GetDatabase(7);
                 conn.GetServer(TestConfig.Current.MasterServerAndPort).FlushDatabase();
                 string anyKey = db.KeyRandom();
 
