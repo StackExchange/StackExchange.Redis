@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -12,7 +13,7 @@ namespace StackExchange.Redis.Tests.Issues
         public Issue182(ITestOutputHelper output) : base (output) { }
 
         [FactLongRunning]
-        public void SetMembers()
+        public async Task SetMembers()
         {
             using (var conn = Create())
             {
@@ -27,20 +28,19 @@ namespace StackExchange.Redis.Tests.Issues
                 var key = Me();
                 const int count = (int)5e6;
 
-                db.KeyDeleteAsync(key).Wait();
+                conn.Wait(db.KeyDeleteAsync(key));
                 foreach (var _ in Enumerable.Range(0, count))
                     db.SetAdd(key, Guid.NewGuid().ToByteArray(), CommandFlags.FireAndForget);
 
                 Assert.Equal(count, db.SetLengthAsync(key).Result); // SCARD for set
 
-                var task = db.SetMembersAsync(key);
-                task.Wait();
-                Assert.Equal(count, task.Result.Length); // SMEMBERS result length
+                var result = await db.SetMembersAsync(key);
+                Assert.Equal(count, result.Length); // SMEMBERS result length
             }
         }
 
         [FactLongRunning]
-        public void SetUnion()
+        public async Task SetUnion()
         {
             using (var conn = Create())
             {
@@ -50,9 +50,9 @@ namespace StackExchange.Redis.Tests.Issues
                 var key2 = Me() + ":2";
                 var dstkey = Me() + ":dst";
 
-                db.KeyDeleteAsync(key1).Wait();
-                db.KeyDeleteAsync(key2).Wait();
-                db.KeyDeleteAsync(dstkey).Wait();
+                await db.KeyDeleteAsync(key1);
+                await db.KeyDeleteAsync(key2);
+                await db.KeyDeleteAsync(dstkey);
 
                 const int count = (int)5e6;
                 foreach (var _ in Enumerable.Range(0, count))
@@ -63,7 +63,7 @@ namespace StackExchange.Redis.Tests.Issues
                 Assert.Equal(count, db.SetLengthAsync(key1).Result); // SCARD for set 1
                 Assert.Equal(count, db.SetLengthAsync(key2).Result); // SCARD for set 2
 
-                db.SetCombineAndStoreAsync(SetOperation.Union, dstkey, key1, key2).Wait();
+                await db.SetCombineAndStoreAsync(SetOperation.Union, dstkey, key1, key2);
                 var dstLen = db.SetLength(dstkey);
                 Assert.Equal(count * 2, dstLen); // SCARD for destination set
             }
