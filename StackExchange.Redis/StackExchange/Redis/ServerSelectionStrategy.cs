@@ -151,7 +151,7 @@ namespace StackExchange.Redis
                         else
                         {
                             message.PrepareToResend(resendVia, isMoved);
-                            retry = resendVia.TryEnqueue(message);
+                            retry = resendVia.TryWrite(message) == WriteResult.Success;
                         }
                     }
 

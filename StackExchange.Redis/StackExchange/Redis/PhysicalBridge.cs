@@ -9,15 +9,6 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
-    internal enum WriteResult
-    {
-        QueueEmptyAfterWrite,
-        NothingToDo,
-        MoreWork,
-        CompetingWriter,
-        NoConnection,
-    }
-
     internal sealed partial class PhysicalBridge : IDisposable
     {
         internal readonly string Name;
@@ -50,14 +41,16 @@ namespace StackExchange.Redis
         
         private volatile int state = (int)State.Disconnected;
 
-        public PhysicalBridge(ServerEndPoint serverEndPoint, ConnectionType type)
+        public PhysicalBridge(ServerEndPoint serverEndPoint, ConnectionType type, int timeoutMilliseconds)
         {
             ServerEndPoint = serverEndPoint;
             ConnectionType = type;
             Multiplexer = serverEndPoint.Multiplexer;
             Name = Format.ToString(serverEndPoint.EndPoint) + "/" + ConnectionType.ToString();
             completionManager = new CompletionManager(Multiplexer, Name);
+            TimeoutMilliseconds = timeoutMilliseconds;
         }
+        private readonly int TimeoutMilliseconds;
 
         public enum State : byte
         {
@@ -116,7 +109,7 @@ namespace StackExchange.Redis
 
         public void TryConnect(TextWriter log) => GetConnection(log);
 
-        public bool TryEnqueue(Message message, bool isSlave)
+        public WriteResult TryWrite(Message message, bool isSlave)
         {
             if (isDisposed) throw new ObjectDisposedException(Name);
             if (!IsConnected)
@@ -131,23 +124,23 @@ namespace StackExchange.Redis
                         queue.Enqueue(message);
                     }
                     message.SetEnqueued();
-                    return true;
+                    return WriteResult.Success; // we'll take it...
                 }
                 else
                 {
                     // sorry, we're just not ready for you yet;
-                    return false;
+                    return WriteResult.NoConnectionAvailable;
                 }
             }
 
             var physical = this.physical;
-            if (physical == null) return false;
+            if (physical == null) return WriteResult.NoConnectionAvailable;
 
 
-            WriteMessageDirect(physical, message);
+            var result = WriteMessageDirect(physical, message);
             LogNonPreferred(message.Flags, isSlave);
 
-            return true;
+            return result;
         }
 
         internal void AppendProfile(StringBuilder sb)
@@ -242,9 +235,12 @@ namespace StackExchange.Redis
             {
                 msg.SetInternalCall();
                 Multiplexer.Trace("Enqueue: " + msg);
-                if (!TryEnqueue(msg, ServerEndPoint.IsSlave))
+                var result = TryWrite(msg, ServerEndPoint.IsSlave);
+
+                if (result != WriteResult.Success)
                 {
-                    OnInternalError(ExceptionFactory.NoConnectionAvailable(Multiplexer.IncludeDetailInExceptions, Multiplexer.IncludePerformanceCountersInExceptions, msg.Command, msg, ServerEndPoint, Multiplexer.GetServerSnapshot()));
+                    var ex = Multiplexer.GetException(result, msg, ServerEndPoint);
+                    OnInternalError(ex);
                 }
             }
         }
@@ -505,13 +501,16 @@ namespace StackExchange.Redis
         /// <summary>
         /// This writes a message to the output stream
         /// </summary>
-        internal bool WriteMessageDirect(PhysicalConnection physical, Message next)
+        internal WriteResult WriteMessageDirect(PhysicalConnection physical, Message next)
         {
             Trace("Writing: " + next);
             next.SetEnqueued();
 
-            bool result;
-            lock (WriteLock)
+            WriteResult result;
+            bool haveLock = false;
+            Monitor.TryEnter(WriteLock, TimeoutMilliseconds, ref haveLock);
+            if (!haveLock) return WriteResult.TimeoutBeforeWrite;
+            try
             {
                 var messageIsSent = false;
                 if (next is IMultiMessage)
@@ -519,14 +518,15 @@ namespace StackExchange.Redis
                     SelectDatabase(physical, next); // need to switch database *before* the transaction
                     foreach (var subCommand in ((IMultiMessage)next).GetMessages(physical))
                     {
-                        if (!WriteMessageToServer(physical, subCommand))
+                        result = WriteMessageToServer(physical, subCommand);
+                        if (result != WriteResult.Success)
                         {
                             // we screwed up; abort; note that WriteMessageToServer already
                             // killed the underlying connection
                             Trace("Unable to write to server");
                             next.Fail(ConnectionFailureType.ProtocolFailure, null);
                             CompleteSyncOrAsync(next);
-                            return false;
+                            return result;
                         }
                         //The parent message (next) may be returned from GetMessages
                         //and should not be marked as sent again below
@@ -537,13 +537,17 @@ namespace StackExchange.Redis
                         next.SetRequestSent(); // well, it was attempted, at least...
                     }
 
-                    result = true;
+                    result = WriteResult.Success;
                 }
                 else
                 {
                     result = WriteMessageToServer(physical, next);
                 }
                 physical.WakeWriterAndCheckForThrottle();
+            }
+            finally
+            {
+                if(haveLock) Monitor.Exit(WriteLock);
             }
 
             return result;
@@ -645,9 +649,9 @@ namespace StackExchange.Redis
             }
         }
 
-        private bool WriteMessageToServer(PhysicalConnection connection, Message message)
+        private WriteResult WriteMessageToServer(PhysicalConnection connection, Message message)
         {
-            if (message == null) return true;
+            if (message == null) return WriteResult.Success; // for some definition of success
 
             try
             {
@@ -715,7 +719,7 @@ namespace StackExchange.Redis
                         connection.SetUnknownDatabase();
                         break;
                 }
-                return true;
+                return WriteResult.Success;
             }
             catch (RedisCommandException ex)
             {
@@ -728,9 +732,9 @@ namespace StackExchange.Redis
                 {
                     // we left it in a broken state; need to kill the connection
                     connection.RecordConnectionFailed(ConnectionFailureType.ProtocolFailure, ex);
-                    return false;
+                    return WriteResult.WriteFailure;
                 }
-                return true;
+                return WriteResult.Success;
             }
             catch (Exception ex)
             {
@@ -740,7 +744,7 @@ namespace StackExchange.Redis
 
                 // we're not sure *what* happened here; probably an IOException; kill the connection
                 connection?.RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
-                return false;
+                return WriteResult.WriteFailure;
             }
         }
     }

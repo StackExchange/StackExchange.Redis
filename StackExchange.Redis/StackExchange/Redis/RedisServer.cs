@@ -593,7 +593,7 @@ namespace StackExchange.Redis
             {
                 var del = Message.Create(0, CommandFlags.FireAndForget | CommandFlags.NoRedirect, RedisCommand.DEL, (RedisKey)configuration.TieBreaker);
                 del.SetInternalCall();
-                server.QueueDirectFireAndForget(del, ResultProcessor.Boolean);
+                server.WriteDirectFireAndForget(del, ResultProcessor.Boolean);
             }
             ExecuteSync(slaveofMsg, ResultProcessor.DemandOK);
 
@@ -603,7 +603,7 @@ namespace StackExchange.Redis
             {
                 var pub = Message.Create(-1, CommandFlags.FireAndForget | CommandFlags.NoRedirect, RedisCommand.PUBLISH, (RedisValue)channel, RedisLiterals.Wildcard);
                 pub.SetInternalCall();
-                server.QueueDirectFireAndForget(pub, ResultProcessor.Int64);
+                server.WriteDirectFireAndForget(pub, ResultProcessor.Int64);
             }
         }
 

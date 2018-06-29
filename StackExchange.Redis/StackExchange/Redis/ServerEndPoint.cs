@@ -236,7 +236,7 @@ namespace StackExchange.Redis
 
         public override string ToString() => Format.ToString(EndPoint);
 
-        public bool TryEnqueue(Message message) => GetBridge(message.Command)?.TryEnqueue(message, isSlave) == true;
+        public WriteResult TryWrite(Message message) => GetBridge(message.Command)?.TryWrite(message, isSlave) ?? WriteResult.NoConnectionAvailable;
 
         internal void Activate(ConnectionType type, TextWriter log)
         {
@@ -330,7 +330,7 @@ namespace StackExchange.Redis
             }
             else
             {
-                return QueueDirectAsync(Message.Create(-1, CommandFlags.None, RedisCommand.QUIT), ResultProcessor.DemandOK, bridge: interactive);
+                return WriteDirectAsync(Message.Create(-1, CommandFlags.None, RedisCommand.QUIT), ResultProcessor.DemandOK, bridge: interactive);
             }
         }
 
@@ -516,7 +516,7 @@ namespace StackExchange.Redis
             {
                 var msg = Message.Create(-1, CommandFlags.FireAndForget | CommandFlags.HighPriority | CommandFlags.NoRedirect, RedisCommand.INFO, RedisLiterals.replication);
                 msg.SetInternalCall();
-                QueueDirectFireAndForget(msg, ResultProcessor.AutoConfigure, bridge);
+                WriteDirectFireAndForget(msg, ResultProcessor.AutoConfigure, bridge);
                 return true;
             }
             return false;
@@ -546,26 +546,28 @@ namespace StackExchange.Redis
             }
         }
 
-        internal Task<T> QueueDirectAsync<T>(Message message, ResultProcessor<T> processor, object asyncState = null, PhysicalBridge bridge = null)
+        internal Task<T> WriteDirectAsync<T>(Message message, ResultProcessor<T> processor, object asyncState = null, PhysicalBridge bridge = null)
         {
             var tcs = TaskSource.Create<T>(asyncState);
             var source = ResultBox<T>.Get(tcs);
             message.SetSource(processor, source);
             if (bridge == null) bridge = GetBridge(message.Command);
-            if (!bridge.TryEnqueue(message, isSlave))
+            var result = bridge.TryWrite(message, isSlave);
+            if (result != WriteResult.Success)
             {
-                ConnectionMultiplexer.ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(Multiplexer.IncludeDetailInExceptions, Multiplexer.IncludePerformanceCountersInExceptions, message.Command, message, this, Multiplexer.GetServerSnapshot()));
+                var ex = Multiplexer.GetException(result, message, this);
+                ConnectionMultiplexer.ThrowFailed(tcs, ex);
             }
             return tcs.Task;
         }
 
-        internal void QueueDirectFireAndForget<T>(Message message, ResultProcessor<T> processor, PhysicalBridge bridge = null)
+        internal void WriteDirectFireAndForget<T>(Message message, ResultProcessor<T> processor, PhysicalBridge bridge = null)
         {
             if (message != null)
             {
                 message.SetSource(processor, null);
                 Multiplexer.Trace("Enqueue: " + message);
-                (bridge ?? GetBridge(message.Command)).TryEnqueue(message, isSlave);
+                (bridge ?? GetBridge(message.Command)).TryWrite(message, isSlave);
             }
         }
 
@@ -579,7 +581,7 @@ namespace StackExchange.Redis
         {
             var msg = GetTracerMessage(false);
             msg = LoggingMessage.Create(log, msg);
-            return QueueDirectAsync(msg, ResultProcessor.Tracer);
+            return WriteDirectAsync(msg, ResultProcessor.Tracer);
         }
 
         internal string Summary()
@@ -623,7 +625,7 @@ namespace StackExchange.Redis
                 if (connection == null)
                 {
                     Multiplexer.Trace("Enqueue: " + message);
-                    GetBridge(message.Command).TryEnqueue(message, isSlave);
+                    GetBridge(message.Command).TryWrite(message, isSlave);
                 }
                 else
                 {
@@ -636,7 +638,7 @@ namespace StackExchange.Redis
         private PhysicalBridge CreateBridge(ConnectionType type, TextWriter log)
         {
             Multiplexer.Trace(type.ToString());
-            var bridge = new PhysicalBridge(this, type);
+            var bridge = new PhysicalBridge(this, type, Multiplexer.TimeoutMilliseconds);
             bridge.TryConnect(log);
             return bridge;
         }

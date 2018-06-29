@@ -312,7 +312,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Specifies the time in milliseconds that the system should allow for synchronous operations (defaults to 1 second)
         /// </summary>
-        public int SyncTimeout { get { return syncTimeout.GetValueOrDefault(1000); } set { syncTimeout = value; } }
+        public int SyncTimeout { get { return syncTimeout.GetValueOrDefault(5000); } set { syncTimeout = value; } }
 
         /// <summary>
         /// Tie-breaker used to choose between masters (must match the endpoint exactly)

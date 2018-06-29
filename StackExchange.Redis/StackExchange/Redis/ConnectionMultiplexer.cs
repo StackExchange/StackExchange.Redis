@@ -335,7 +335,7 @@ namespace StackExchange.Redis
                     if (!node.IsConnected) continue;
                     LogLocked(log, "Attempting to set tie-breaker on {0}...", Format.ToString(node.EndPoint));
                     msg = Message.Create(0, flags, RedisCommand.SET, tieBreakerKey, newMaster);
-                    node.QueueDirectFireAndForget(msg, ResultProcessor.DemandOK);
+                    node.WriteDirectFireAndForget(msg, ResultProcessor.DemandOK);
                 }
             }
 
@@ -356,7 +356,7 @@ namespace StackExchange.Redis
             {
                 LogLocked(log, "Resending tie-breaker to {0}...", Format.ToString(server.EndPoint));
                 msg = Message.Create(0, flags, RedisCommand.SET, tieBreakerKey, newMaster);
-                server.QueueDirectFireAndForget(msg, ResultProcessor.DemandOK);
+                server.WriteDirectFireAndForget(msg, ResultProcessor.DemandOK);
             }
 
             // There's an inherent race here in zero-lantency environments (e.g. when Redis is on localhost) when a broadcast is specified
@@ -376,7 +376,7 @@ namespace StackExchange.Redis
                     if (!node.IsConnected) continue;
                     LogLocked(log, "Broadcasting via {0}...", Format.ToString(node.EndPoint));
                     msg = Message.Create(-1, flags, RedisCommand.PUBLISH, channel, newMaster);
-                    node.QueueDirectFireAndForget(msg, ResultProcessor.Int64);
+                    node.WriteDirectFireAndForget(msg, ResultProcessor.Int64);
                 }
             }
 
@@ -388,7 +388,7 @@ namespace StackExchange.Redis
 
                     LogLocked(log, "Enslaving {0}...", Format.ToString(node.EndPoint));
                     msg = RedisServer.CreateSlaveOfMessage(server.EndPoint, flags);
-                    node.QueueDirectFireAndForget(msg, ResultProcessor.DemandOK);
+                    node.WriteDirectFireAndForget(msg, ResultProcessor.DemandOK);
                 }
             }
 
@@ -1322,7 +1322,7 @@ namespace StackExchange.Redis
                                 Message msg = Message.Create(0, flags, RedisCommand.GET, tieBreakerKey);
                                 msg.SetInternalCall();
                                 msg = LoggingMessage.Create(log, msg);
-                                tieBreakers[i] = server.QueueDirectAsync(msg, ResultProcessor.String);
+                                tieBreakers[i] = server.WriteDirectAsync(msg, ResultProcessor.String);
                             }
                         }
 
@@ -1740,7 +1740,7 @@ namespace StackExchange.Redis
             return ServerSelectionStrategy.Select(db, command, key, flags);
         }
 
-        private bool TryPushMessageToBridge<T>(Message message, ResultProcessor<T> processor, ResultBox<T> resultBox, ref ServerEndPoint server)
+        private WriteResult TryPushMessageToBridge<T>(Message message, ResultProcessor<T> processor, ResultBox<T> resultBox, ref ServerEndPoint server)
         {
             message.SetSource(processor, resultBox);
 
@@ -1791,10 +1791,10 @@ namespace StackExchange.Redis
                 }
 
                 Trace("Queueing on server: " + message);
-                if (server.TryEnqueue(message)) return true;
+                return server.TryWrite(message);
             }
             Trace("No server or server unavailable - aborting: " + message);
-            return false;
+            return WriteResult.NoConnectionAvailable;
         }
 
         /// <summary>
@@ -1947,11 +1947,28 @@ namespace StackExchange.Redis
             {
                 var tcs = TaskSource.Create<T>(state);
                 var source = ResultBox<T>.Get(tcs);
-                if (!TryPushMessageToBridge(message, processor, source, ref server))
+                var result = TryPushMessageToBridge(message, processor, source, ref server);
+                if (result != WriteResult.Success)
                 {
-                    ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(IncludeDetailInExceptions, IncludePerformanceCountersInExceptions, message.Command, message, server, GetServerSnapshot()));
+                    var ex = GetException(result, message, server);
+                    ThrowFailed(tcs, ex);
                 }
                 return tcs.Task;
+            }
+        }
+        internal Exception GetException(WriteResult result, Message message, ServerEndPoint server)
+        {
+            switch (result)
+            {
+                case WriteResult.Success: return null;
+                case WriteResult.NoConnectionAvailable:
+                    return ExceptionFactory.NoConnectionAvailable(IncludeDetailInExceptions, IncludePerformanceCountersInExceptions, message.Command, message, server, GetServerSnapshot());
+                case WriteResult.TimeoutBeforeWrite:
+                    return ExceptionFactory.Timeout(IncludeDetailInExceptions, "The timeout was reached before the message could be written to the output buffer, and it was not sent ("
+                        + Format.ToString(TimeoutMilliseconds)+ "ms)", message, server);
+                case WriteResult.WriteFailure:
+                default:
+                    return ExceptionFactory.ConnectionFailure(IncludeDetailInExceptions, ConnectionFailureType.ProtocolFailure, "An unknown error occurred when writing the message", server);
             }
         }
 
@@ -1990,9 +2007,10 @@ namespace StackExchange.Redis
 
                 lock (source)
                 {
-                    if (!TryPushMessageToBridge(message, processor, source, ref server))
+                    var result = TryPushMessageToBridge(message, processor, source, ref server);
+                    if (result != WriteResult.Success)
                     {
-                        throw ExceptionFactory.NoConnectionAvailable(IncludeDetailInExceptions, IncludePerformanceCountersInExceptions, message.Command, message, server, GetServerSnapshot());
+                        throw GetException(result, message, server);
                     }
 
                     if (Monitor.Wait(source, TimeoutMilliseconds))
@@ -2011,7 +2029,7 @@ namespace StackExchange.Redis
                         }
                         else
                         {
-                            var sb = new StringBuilder("Timeout performing ").Append(message.CommandAndKey);
+                            var sb = new StringBuilder("Timeout performing ").Append(message.CommandAndKey).Append(" (").Append(Format.ToString(TimeoutMilliseconds)).Append("ms)");
                             data = new List<Tuple<string, string>> { Tuple.Create("Message", message.CommandAndKey) };
                             void add(string lk, string sk, string v)
                             {
@@ -2183,5 +2201,12 @@ namespace StackExchange.Redis
 
             return GetSubscriber().PublishAsync(channel, RedisLiterals.Wildcard, flags);
         }
+    }
+    internal enum WriteResult
+    {
+        Success,
+        NoConnectionAvailable,
+        TimeoutBeforeWrite,
+        WriteFailure,
     }
 }

@@ -178,7 +178,7 @@ namespace StackExchange.Redis
 
                 var msg = Message.Create(-1, flags, cmd, channel);
 
-                return selected.QueueDirectAsync(msg, ResultProcessor.TrackSubscriptions, asyncState);
+                return selected.WriteDirectAsync(msg, ResultProcessor.TrackSubscriptions, asyncState);
             }
 
             public Task UnsubscribeFromServer(RedisChannel channel, CommandFlags flags, object asyncState, bool internalCall)
@@ -189,7 +189,7 @@ namespace StackExchange.Redis
                 var cmd = channel.IsPatternBased ? RedisCommand.PUNSUBSCRIBE : RedisCommand.UNSUBSCRIBE;
                 var msg = Message.Create(-1, flags, cmd, channel);
                 if (internalCall) msg.SetInternalCall();
-                return oldOwner.QueueDirectAsync(msg, ResultProcessor.TrackSubscriptions, asyncState);
+                return oldOwner.WriteDirectAsync(msg, ResultProcessor.TrackSubscriptions, asyncState);
             }
 
             internal ServerEndPoint GetOwner() => Interlocked.CompareExchange(ref owner, null, null);
@@ -201,7 +201,7 @@ namespace StackExchange.Redis
                     var cmd = channel.IsPatternBased ? RedisCommand.PSUBSCRIBE : RedisCommand.SUBSCRIBE;
                     var msg = Message.Create(-1, CommandFlags.FireAndForget, cmd, channel);
                     msg.SetInternalCall();
-                    server.QueueDirectFireAndForget(msg, ResultProcessor.TrackSubscriptions);
+                    server.WriteDirectFireAndForget(msg, ResultProcessor.TrackSubscriptions);
                 }
             }
 
