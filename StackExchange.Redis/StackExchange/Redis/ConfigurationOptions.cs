@@ -321,7 +321,6 @@ namespace StackExchange.Redis
         /// <summary>
         /// The size of the output buffer to use
         /// </summary>
-        [Obsolete("WriteBuffer will be removed in the 2.0 release - see https://github.com/StackExchange/StackExchange.Redis/issues/871 for details.", false)]
         public int WriteBuffer { get { return writeBuffer.GetValueOrDefault(4096); } set { writeBuffer = value; } }
 
         internal LocalCertificateSelectionCallback CertificateSelectionCallback { get { return CertificateSelection; } private set { CertificateSelection = value; } }
