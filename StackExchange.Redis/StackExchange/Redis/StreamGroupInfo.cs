@@ -2,7 +2,7 @@
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Describes a consumer group retrieved using the XINFO GROUPS command. <see cref="IDatabase.StreamGroupInfoGet"/>
+    /// Describes a consumer group retrieved using the XINFO GROUPS command. <see cref="IDatabase.StreamGroupInfo"/>
     /// </summary>
     public struct StreamGroupInfo
     {

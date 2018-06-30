@@ -611,19 +611,19 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StreamCreateConsumerGroupAsync(ToInner(key), groupName, readFrom, flags);
         }
 
-        public Task<StreamInfo> StreamInfoGetAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+        public Task<StreamInfo> StreamInfoAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
-            return Inner.StreamInfoGetAsync(ToInner(key), flags);
+            return Inner.StreamInfoAsync(ToInner(key), flags);
         }
 
-        public Task<StreamGroupInfo[]> StreamGroupInfoGetAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+        public Task<StreamGroupInfo[]> StreamGroupInfoAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
-            return Inner.StreamGroupInfoGetAsync(ToInner(key), flags);
+            return Inner.StreamGroupInfoAsync(ToInner(key), flags);
         }
 
-        public Task<StreamConsumerInfo[]> StreamConsumerInfoGetAsync(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None)
+        public Task<StreamConsumerInfo[]> StreamConsumerInfoAsync(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None)
         {
-            return Inner.StreamConsumerInfoGetAsync(ToInner(key), groupName, flags);
+            return Inner.StreamConsumerInfoAsync(ToInner(key), groupName, flags);
         }
 
         public Task<long> StreamLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -636,14 +636,14 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StreamMessagesDeleteAsync(ToInner(key), messageIds, flags);
         }
 
-        public Task<StreamPendingInfo> StreamPendingInfoGetAsync(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None)
+        public Task<StreamPendingInfo> StreamPendingAsync(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None)
         {
-            return Inner.StreamPendingInfoGetAsync(ToInner(key), groupName, flags);
+            return Inner.StreamPendingAsync(ToInner(key), groupName, flags);
         }
 
-        public Task<StreamPendingMessageInfo[]> StreamPendingMessageInfoGetAsync(RedisKey key, RedisValue groupName, RedisValue minId, RedisValue maxId, int count, RedisValue consumerName, CommandFlags flags = CommandFlags.None)
+        public Task<StreamPendingMessageInfo[]> StreamPendingMessagesAsync(RedisKey key, RedisValue groupName, RedisValue minId, RedisValue maxId, int count, RedisValue consumerName, CommandFlags flags = CommandFlags.None)
         {
-            return Inner.StreamPendingMessageInfoGetAsync(ToInner(key), groupName, minId, maxId, count, consumerName, flags);
+            return Inner.StreamPendingMessagesAsync(ToInner(key), groupName, minId, maxId, count, consumerName, flags);
         }
 
         public Task<RedisStreamEntry[]> StreamRangeAsync(RedisKey key, RedisValue minId, RedisValue maxId, int? count = null, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)

@@ -1417,7 +1417,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>A <see cref="StreamInfo"/> instance with information about the stream.</returns>
         /// <remarks>https://redis.io/topics/streams-intro</remarks>
-        Task<StreamInfo> StreamInfoGetAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
+        Task<StreamInfo> StreamInfoAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Retrieve information about the groups created for the given stream. This is the equivalent of calling "XINFO GROUPS key".
@@ -1426,7 +1426,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>An instance of <see cref="StreamGroupInfo"/> for each of the stream's groups.</returns>
         /// <remarks>https://redis.io/topics/streams-intro</remarks>
-        Task<StreamGroupInfo[]> StreamGroupInfoGetAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
+        Task<StreamGroupInfo[]> StreamGroupInfoAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Retrieve information about the consumers for the given consumer group. This is the equivalent of calling "XINFO GROUPS key group".
@@ -1436,7 +1436,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>An instance of <see cref="StreamConsumerInfo"/> for each of the consumer group's consumers.</returns>
         /// <remarks>https://redis.io/topics/streams-intro</remarks>
-        Task<StreamConsumerInfo[]> StreamConsumerInfoGetAsync(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None);
+        Task<StreamConsumerInfo[]> StreamConsumerInfoAsync(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Return the number of entries in a stream.
@@ -1466,7 +1466,7 @@ namespace StackExchange.Redis
         /// <returns>An instance of <see cref="StreamPendingInfo"/>. <see cref="StreamPendingInfo"/> contains the number of pending messages, the highest and lowest ID of the pending messages, and the consumers with their pending message count.</returns>
         /// <remarks>The equivalent of calling XPENDING key group.</remarks>
         /// <remarks>https://redis.io/commands/xpending</remarks>
-        Task<StreamPendingInfo> StreamPendingInfoGetAsync(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None);
+        Task<StreamPendingInfo> StreamPendingAsync(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// View information about each pending message.
@@ -1481,7 +1481,7 @@ namespace StackExchange.Redis
         /// <returns>An instance of <see cref="StreamPendingMessageInfo"/> for each pending message.</returns>
         /// <remarks>Equivalent of calling XPENDING key group start-id end-id count consumer-name.</remarks>
         /// <remarks>https://redis.io/commands/xpending</remarks>
-        Task<StreamPendingMessageInfo[]> StreamPendingMessageInfoGetAsync(RedisKey key, RedisValue groupName, RedisValue minId, RedisValue maxId, int count, RedisValue consumerName, CommandFlags flags = CommandFlags.None);
+        Task<StreamPendingMessageInfo[]> StreamPendingMessagesAsync(RedisKey key, RedisValue groupName, RedisValue minId, RedisValue maxId, int count, RedisValue consumerName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Read a stream using the given range of IDs.

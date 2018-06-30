@@ -2,7 +2,7 @@
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Describes stream information retrieved using the XINFO STREAM command. <see cref="IDatabase.StreamInfoGet"/>
+    /// Describes stream information retrieved using the XINFO STREAM command. <see cref="IDatabase.StreamInfo"/>
     /// </summary>
     public struct StreamInfo
     {

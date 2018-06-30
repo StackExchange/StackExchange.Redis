@@ -632,19 +632,19 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StreamCreateConsumerGroup(ToInner(key), groupName, readFrom, flags);
         }
 
-        public StreamInfo StreamInfoGet(RedisKey key, CommandFlags flags = CommandFlags.None)
+        public StreamInfo StreamInfo(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
-            return Inner.StreamInfoGet(ToInner(key), flags);
+            return Inner.StreamInfo(ToInner(key), flags);
         }
 
-        public StreamGroupInfo[] StreamGroupInfoGet(RedisKey key, CommandFlags flags = CommandFlags.None)
+        public StreamGroupInfo[] StreamGroupInfo(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
-            return Inner.StreamGroupInfoGet(ToInner(key), flags);
+            return Inner.StreamGroupInfo(ToInner(key), flags);
         }
 
-        public StreamConsumerInfo[] StreamConsumerInfoGet(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None)
+        public StreamConsumerInfo[] StreamConsumerInfo(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None)
         {
-            return Inner.StreamConsumerInfoGet(ToInner(key), groupName, flags);
+            return Inner.StreamConsumerInfo(ToInner(key), groupName, flags);
         }
 
         public long StreamLength(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -657,14 +657,14 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StreamMessagesDelete(ToInner(key), messageIds, flags);
         }
 
-        public StreamPendingInfo StreamPendingInfoGet(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None)
+        public StreamPendingInfo StreamPending(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None)
         {
-            return Inner.StreamPendingInfoGet(ToInner(key), groupName, flags);
+            return Inner.StreamPending(ToInner(key), groupName, flags);
         }
 
-        public StreamPendingMessageInfo[] StreamPendingMessageInfoGet(RedisKey key, RedisValue groupName, RedisValue minId, RedisValue maxId, int count, RedisValue consumerName, CommandFlags flags = CommandFlags.None)
+        public StreamPendingMessageInfo[] StreamPendingMessages(RedisKey key, RedisValue groupName, RedisValue minId, RedisValue maxId, int count, RedisValue consumerName, CommandFlags flags = CommandFlags.None)
         {
-            return Inner.StreamPendingMessageInfoGet(ToInner(key), groupName, minId, maxId, count, consumerName, flags);
+            return Inner.StreamPendingMessages(ToInner(key), groupName, minId, maxId, count, consumerName, flags);
         }
 
         public RedisStreamEntry[] StreamRange(RedisKey key, RedisValue minId, RedisValue maxId, int? count = null, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)

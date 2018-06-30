@@ -1779,7 +1779,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Boolean);
         }
 
-        public StreamConsumerInfo[] StreamConsumerInfoGet(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None)
+        public StreamConsumerInfo[] StreamConsumerInfo(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database,
                 flags,
@@ -1794,7 +1794,7 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.StreamConsumerInfo);
         }
 
-        public Task<StreamConsumerInfo[]> StreamConsumerInfoGetAsync(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None)
+        public Task<StreamConsumerInfo[]> StreamConsumerInfoAsync(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database,
                 flags,
@@ -1809,25 +1809,25 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.StreamConsumerInfo);
         }
 
-        public StreamGroupInfo[] StreamGroupInfoGet(RedisKey key, CommandFlags flags = CommandFlags.None)
+        public StreamGroupInfo[] StreamGroupInfo(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.XINFO, StreamConstants.Groups, key);
             return ExecuteSync(msg, ResultProcessor.StreamGroupInfo);
         }
 
-        public Task<StreamGroupInfo[]> StreamGroupInfoGetAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+        public Task<StreamGroupInfo[]> StreamGroupInfoAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.XINFO, StreamConstants.Groups, key);
             return ExecuteAsync(msg, ResultProcessor.StreamGroupInfo);
         }
 
-        public StreamInfo StreamInfoGet(RedisKey key, CommandFlags flags = CommandFlags.None)
+        public StreamInfo StreamInfo(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.XINFO, StreamConstants.Stream, key);
             return ExecuteSync(msg, ResultProcessor.StreamInfo);
         }
 
-        public Task<StreamInfo> StreamInfoGetAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+        public Task<StreamInfo> StreamInfoAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.XINFO, StreamConstants.Stream, key);
             return ExecuteAsync(msg, ResultProcessor.StreamInfo);
@@ -1867,25 +1867,25 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
-        public StreamPendingInfo StreamPendingInfoGet(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None)
+        public StreamPendingInfo StreamPending(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.XPENDING, key, groupName);
             return ExecuteSync(msg, ResultProcessor.StreamPendingInfo);
         }
 
-        public Task<StreamPendingInfo> StreamPendingInfoGetAsync(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None)
+        public Task<StreamPendingInfo> StreamPendingAsync(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.XPENDING, key, groupName);
             return ExecuteAsync(msg, ResultProcessor.StreamPendingInfo);
         }
 
-        public StreamPendingMessageInfo[] StreamPendingMessageInfoGet(RedisKey key, RedisValue groupName, RedisValue minId, RedisValue maxId, int count, RedisValue consumerName, CommandFlags flags = CommandFlags.None)
+        public StreamPendingMessageInfo[] StreamPendingMessages(RedisKey key, RedisValue groupName, RedisValue minId, RedisValue maxId, int count, RedisValue consumerName, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamPendingMessagesMessage(key, groupName, minId, maxId, count, consumerName, flags);
             return ExecuteSync(msg, ResultProcessor.StreamPendingMessages);
         }
 
-        public Task<StreamPendingMessageInfo[]> StreamPendingMessageInfoGetAsync(RedisKey key, RedisValue groupName, RedisValue minId, RedisValue maxId, int count, RedisValue consumerName, CommandFlags flags = CommandFlags.None)
+        public Task<StreamPendingMessageInfo[]> StreamPendingMessagesAsync(RedisKey key, RedisValue groupName, RedisValue minId, RedisValue maxId, int count, RedisValue consumerName, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamPendingMessagesMessage(key, groupName, minId, maxId, count, consumerName, flags);
             return ExecuteAsync(msg, ResultProcessor.StreamPendingMessages);

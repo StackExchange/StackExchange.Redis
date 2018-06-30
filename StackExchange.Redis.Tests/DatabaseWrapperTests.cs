@@ -846,8 +846,8 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamConsumerInfoGet()
         {
-            wrapper.StreamConsumerInfoGet("key", "group", CommandFlags.HighPriority);
-            mock.Verify(_ => _.StreamConsumerInfoGet("prefix:key", "group", CommandFlags.HighPriority));
+            wrapper.StreamConsumerInfo("key", "group", CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamConsumerInfo("prefix:key", "group", CommandFlags.HighPriority));
         }
 
         [Fact]
@@ -860,15 +860,15 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamGroupInfoGet()
         {
-            wrapper.StreamGroupInfoGet("key", CommandFlags.HighPriority);
-            mock.Verify(_ => _.StreamGroupInfoGet("prefix:key", CommandFlags.HighPriority));
+            wrapper.StreamGroupInfo("key", CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamGroupInfo("prefix:key", CommandFlags.HighPriority));
         }
 
         [Fact]
         public void StreamInfoGet()
         {
-            wrapper.StreamInfoGet("key", CommandFlags.HighPriority);
-            mock.Verify(_ => _.StreamInfoGet("prefix:key", CommandFlags.HighPriority));
+            wrapper.StreamInfo("key", CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamInfo("prefix:key", CommandFlags.HighPriority));
         }
 
         [Fact]
@@ -889,15 +889,15 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamPendingInfoGet()
         {
-            wrapper.StreamPendingInfoGet("key", "group", CommandFlags.HighPriority);
-            mock.Verify(_ => _.StreamPendingInfoGet("prefix:key", "group", CommandFlags.HighPriority));
+            wrapper.StreamPending("key", "group", CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamPending("prefix:key", "group", CommandFlags.HighPriority));
         }
 
         [Fact]
         public void StreamPendingMessageInfoGet()
         {
-            wrapper.StreamPendingMessageInfoGet("key", "group", "-", "+", 10, RedisValue.Null, CommandFlags.HighPriority);
-            mock.Verify(_ => _.StreamPendingMessageInfoGet("prefix:key", "group", "-", "+", 10, RedisValue.Null, CommandFlags.HighPriority));
+            wrapper.StreamPendingMessages("key", "group", "-", "+", 10, RedisValue.Null, CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamPendingMessages("prefix:key", "group", "-", "+", 10, RedisValue.Null, CommandFlags.HighPriority));
         }
 
         [Fact]
