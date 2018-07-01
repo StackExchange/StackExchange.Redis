@@ -800,31 +800,16 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamAdd_1()
         {
-            var fields = new NameValueEntry[0];
-            wrapper.StreamAdd("key", fields, 1000, true, CommandFlags.HighPriority);
-            mock.Verify(_ => _.StreamAdd("prefix:key", fields, 1000, true, CommandFlags.HighPriority));
+            wrapper.StreamAdd("key", "field1", "value1", "*", 1000, true, CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamAdd("prefix:key", "field1", "value1", "*", 1000, true, CommandFlags.HighPriority));
         }
 
         [Fact]
         public void StreamAdd_2()
         {
             var fields = new NameValueEntry[0];
-            wrapper.StreamAdd("key", "0-0", fields, 1000, true, CommandFlags.HighPriority);
-            mock.Verify(_ => _.StreamAdd("prefix:key", "0-0", fields, 1000, true, CommandFlags.HighPriority));
-        }
-
-        [Fact]
-        public void StreamAdd_3()
-        {
-            wrapper.StreamAdd("key", "field1", "value1", 1000, true, CommandFlags.HighPriority);
-            mock.Verify(_ => _.StreamAdd("prefix:key", "field1", "value1", 1000, true, CommandFlags.HighPriority));
-        }
-
-        [Fact]
-        public void StreamAdd_4()
-        {
-            wrapper.StreamAdd("key", "0-0", "field1", "value1", 1000, true, CommandFlags.HighPriority);
-            mock.Verify(_ => _.StreamAdd("prefix:key", "0-0", "field1", "value1", 1000, true, CommandFlags.HighPriority));
+            wrapper.StreamAdd("key", fields, "*", 1000, true, CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamAdd("prefix:key", fields, "*", 1000, true, CommandFlags.HighPriority));
         }
 
         [Fact]
@@ -910,7 +895,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamRead_1()
         {
-            var keysAndIds = new KeyValuePair<RedisKey, RedisValue>[0] { };
+            var keysAndIds = new StreamIdPair[0] { };
             wrapper.StreamRead(keysAndIds, null, CommandFlags.HighPriority);
             mock.Verify(_ => _.StreamRead(keysAndIds, null, CommandFlags.HighPriority));
         }

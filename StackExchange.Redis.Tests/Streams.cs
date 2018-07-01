@@ -75,14 +75,15 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamAddWithManualId()
         {
-            var id = $"{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}-0";
+            var id = "42-0";
+            var key = GetUniqueKey("manual_id");
 
             using (var conn = Create())
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
 
                 var db = conn.GetDatabase();
-                var messageId = db.StreamAdd(GetUniqueKey("manual_id"), id, "field1", "value1");
+                var messageId = db.StreamAdd(key, "field1", "value1", id);
 
                 Assert.Equal(id, messageId);
             }
@@ -91,7 +92,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamAddMultipleValuePairsWithManualId()
         {
-            var id = $"{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}-0";
+            var id = "42-0";
             var key = GetUniqueKey("manual_id_multiple_values");
 
             using (var conn = Create())
@@ -106,7 +107,7 @@ namespace StackExchange.Redis.Tests
                     new NameValueEntry("field2", "value2")
                 };
 
-                var messageId = db.StreamAdd(key, id, fields);
+                var messageId = db.StreamAdd(key, fields, id);
                 var entries = db.StreamRange(key, StreamConstants.ReadMinValue, StreamConstants.ReadMaxValue);
 
                 Assert.Equal(id, messageId);
@@ -885,10 +886,10 @@ namespace StackExchange.Redis.Tests
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
 
-                var streamPairs = new List<KeyValuePair<RedisKey, RedisValue>>
+                var streamPairs = new StreamIdPair[]
                 {
-                    new KeyValuePair<RedisKey, RedisValue>("key1", "0-0"),
-                    new KeyValuePair<RedisKey, RedisValue>("key2", "0-0")
+                    new StreamIdPair("key1", "0-0"),
+                    new StreamIdPair("key2", "0-0")
                 };
 
 
@@ -932,7 +933,7 @@ namespace StackExchange.Redis.Tests
 
                 var db = conn.GetDatabase();
 
-                var emptyList = new KeyValuePair<RedisKey, RedisValue>[0];
+                var emptyList = new StreamIdPair[0];
 
                 Assert.Throws<ArgumentOutOfRangeException>(() => db.StreamRead(emptyList));
             }
@@ -956,10 +957,10 @@ namespace StackExchange.Redis.Tests
                 var id4 = db.StreamAdd(key2, "field4", "value4");
 
                 // Read from both streams at the same time.
-                var streamList = new KeyValuePair<RedisKey, RedisValue>[2]
+                var streamList = new StreamIdPair[2]
                 {
-                    new KeyValuePair<RedisKey, RedisValue>(key1, "0-0"),
-                    new KeyValuePair<RedisKey, RedisValue>(key2, "0-0")
+                    new StreamIdPair(key1, "0-0"),
+                    new StreamIdPair(key2, "0-0")
                 };
 
                 var streams = db.StreamRead(streamList);
@@ -995,10 +996,10 @@ namespace StackExchange.Redis.Tests
                 var id3 = db.StreamAdd(key2, "field3", "value3");
                 var id4 = db.StreamAdd(key2, "field4", "value4");
 
-                var streamList = new KeyValuePair<RedisKey, RedisValue>[2]
+                var streamList = new StreamIdPair[2]
                 {
-                    new KeyValuePair<RedisKey, RedisValue>(key1, "0-0"),
-                    new KeyValuePair<RedisKey, RedisValue>(key2, "0-0")
+                    new StreamIdPair(key1, "0-0"),
+                    new StreamIdPair(key2, "0-0")
                 };
 
                 var streams = db.StreamRead(streamList, countPerStream: 1);
@@ -1033,12 +1034,12 @@ namespace StackExchange.Redis.Tests
                 var id3 = db.StreamAdd(key2, "field3", "value3");
                 var id4 = db.StreamAdd(key2, "field4", "value4");
 
-                var streamList = new KeyValuePair<RedisKey, RedisValue>[2]
+                var streamList = new StreamIdPair[2]
                 {
-                    new KeyValuePair<RedisKey, RedisValue>(key1, "0-0"),
+                    new StreamIdPair(key1, "0-0"),
 
                     // read past the end of stream # 2
-                    new KeyValuePair<RedisKey, RedisValue>(key2, id4)
+                    new StreamIdPair(key2, id4)
                 };
 
                 var streams = db.StreamRead(streamList);
@@ -1068,11 +1069,11 @@ namespace StackExchange.Redis.Tests
                 var id3 = db.StreamAdd(key2, "field3", "value3");
                 var id4 = db.StreamAdd(key2, "field4", "value4");
 
-                var streamList = new KeyValuePair<RedisKey, RedisValue>[2]
+                var streamList = new StreamIdPair[2]
                 {
                     // Read past the end of both streams.
-                    new KeyValuePair<RedisKey, RedisValue>(key1, id2),
-                    new KeyValuePair<RedisKey, RedisValue>(key2, id4)
+                    new StreamIdPair(key1, id2),
+                    new StreamIdPair(key2, id4)
                 };
 
                 var streams = db.StreamRead(streamList);

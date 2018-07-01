@@ -1325,53 +1325,28 @@ namespace StackExchange.Redis
         /// Adds an entry using the specified values to the given stream key. If key does not exist, a new key holding a stream is created. The command returns the ID of the newly created stream entry.
         /// </summary>
         /// <param name="key">The key of the stream.</param>
-        /// <param name="streamPairs">The fields and their associated values to set in the stream entry.</param>
-        /// <param name="flags">The flags to use for this operation.</param>
-        /// <param name="maxLength">The maximum length of the stream.</param>
-        /// <param name="useApproximateMaxLength">If true, use the "~" argument to keep the stream length at or slightly above the maxLength.</param>
-        /// <returns>The ID of the newly created message.</returns>
-        /// <remarks>https://redis.io/commands/xadd</remarks>
-        Task<RedisValue> StreamAddAsync(RedisKey key, NameValueEntry[] streamPairs, int? maxLength = null, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
-        /// Adds an entry using the specified values to the given stream key. If key does not exist, a new key holding a stream is created. The command returns the ID of the newly created stream entry.
-        /// </summary>
-        /// <param name="key">The key of the stream.</param>
         /// <param name="streamField">The field name for the stream entry.</param>
         /// <param name="streamValue">The value to set in the stream entry.</param>
-        /// <param name="flags">The flags to use for this operation.</param>
-        /// <param name="maxLength">The maximum length of the stream.</param>
-        /// <param name="useApproximateMaxLength">If true, use the "~" argument to keep the stream length at or slightly above the maxLength.</param>
-        /// <returns>The ID of the newly created message.</returns>
-        /// <remarks>https://redis.io/commands/xadd</remarks>
-        Task<RedisValue> StreamAddAsync(RedisKey key, RedisValue streamField, RedisValue streamValue, int? maxLength = null, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
-        /// Adds an entry using the specified values to the given stream key. If key does not exist, a new key holding a stream is created. The command returns the ID of the newly created stream entry.
-        /// </summary>
-        /// <param name="key">The key of the stream.</param>
-        /// <param name="streamEntryId">The ID to assign to the stream entry. This must be a unique value per entry.</param>
-        /// <param name="streamField">The field name for the stream entry.</param>
-        /// <param name="streamValue">The value to set in the stream entry.</param>
-        /// <param name="flags">The flags to use for this operation.</param>
+        /// <param name="messageId">The ID to assign to the stream entry, defaults to an auto-generated ID ("*").</param>
         /// <param name="maxLength">The maximum length of the stream.</param>
         /// <param name="useApproximateMaxLength">If true, the "~" argument is used to allow the stream to exceed max length by a small number. This improves performance when removing messages.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The ID of the newly created message.</returns>
         /// <remarks>https://redis.io/commands/xadd</remarks>
-        Task<RedisValue> StreamAddAsync(RedisKey key, RedisValue streamEntryId, RedisValue streamField, RedisValue streamValue, int? maxLength = null, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None);
+        Task<RedisValue> StreamAddAsync(RedisKey key, RedisValue streamField, RedisValue streamValue, string messageId = "*", int? maxLength = null, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Adds an entry using the specified values to the given stream key. If key does not exist, a new key holding a stream is created. The command returns the ID of the newly created stream entry.
         /// </summary>
         /// <param name="key">The key of the stream.</param>
-        /// <param name="streamEntryId">The ID to assign to the stream entry. This must be a unique value per entry.</param>
         /// <param name="streamPairs">The fields and their associated values to set in the stream entry.</param>
-        /// <param name="flags">The flags to use for this operation.</param>
+        /// <param name="messageId">The ID to assign to the stream entry, defaults to an auto-generated ID ("*").</param>
         /// <param name="maxLength">The maximum length of the stream.</param>
         /// <param name="useApproximateMaxLength">If true, the "~" argument is used to allow the stream to exceed max length by a small number. This improves performance when removing messages.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The ID of the newly created message.</returns>
         /// <remarks>https://redis.io/commands/xadd</remarks>
-        Task<RedisValue> StreamAddAsync(RedisKey key, RedisValue streamEntryId, NameValueEntry[] streamPairs, int? maxLength = null, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None);
+        Task<RedisValue> StreamAddAsync(RedisKey key, NameValueEntry[] streamPairs, string messageId = "*", int? maxLength = null, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Change ownership of messages consumed, but not yet acknowledged, by a different consumer. This method returns the complete message for the claimed message(s).
@@ -1511,13 +1486,13 @@ namespace StackExchange.Redis
         /// <summary>
         /// Read from multiple streams.
         /// </summary>
-        /// <param name="streamAndIdPairs">The list of streams and the ID from which to begin reading for each stream.</param>
+        /// <param name="streamIdPairs">The list of streams and the ID from which to begin reading for each stream.</param>
         /// <param name="countPerStream">The maximum number of messages to return from each stream.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>An instance of <see cref="RedisStream"/> for each stream.</returns>
         /// <remarks>Equivalent of calling XREAD COUNT num STREAMS key1 key2 id1 id2.</remarks>
         /// <remarks>https://redis.io/commands/xread</remarks>
-        Task<RedisStream[]> StreamReadAsync(IList<KeyValuePair<RedisKey, RedisValue>> streamAndIdPairs, int? countPerStream = null, CommandFlags flags = CommandFlags.None);
+        Task<RedisStream[]> StreamReadAsync(StreamIdPair[] streamIdPairs, int? countPerStream = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Read messages from a stream and an associated consumer group.
