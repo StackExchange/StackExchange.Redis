@@ -117,6 +117,31 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void StreamConsumerGroupWithNoConsumers()
+        {
+            var key = GetUniqueKey("group_with_no_consumers");
+            var groupName = "test_group";
+
+            using (var conn = Create())
+            {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+
+                var db = conn.GetDatabase();
+
+                // Create a stream
+                db.StreamAdd(key, "field1", "value1");
+
+                // Create a group
+                var result = db.StreamCreateConsumerGroup(key, groupName, StreamConstants.ReadMinValue);
+
+                // Query redis for the group consumers, expect an empty list in response.
+                var consumers = db.StreamConsumerInfo(key, groupName);
+
+                Assert.True(consumers.Length == 0);
+            }
+        }
+
+        [Fact]
         public void StreamCreateConsumerGroup()
         {
             var key = GetUniqueKey("group_create");
@@ -715,6 +740,53 @@ namespace StackExchange.Redis.Tests
 
                 Assert.True(streamInfo.FirstEntry.IsNull);
                 Assert.True(streamInfo.LastEntry.IsNull);
+            }
+        }
+
+        [Fact]
+        public void StreamNoConsumerGroups()
+        {
+            var key = GetUniqueKey("stream_with_no_consumers");
+
+            using (var conn = Create())
+            {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+
+                var db = conn.GetDatabase();
+
+                var id = db.StreamAdd(key, "field1", "value1");
+
+                var groups = db.StreamGroupInfo(key);
+
+                Assert.NotNull(groups);
+                Assert.True(groups.Length == 0);
+            }
+        }
+
+        [Fact]
+        public void StreamPendingNoMessagesOrConsumers()
+        {
+            var key = GetUniqueKey("stream_pending_empty");
+            var groupName = "test_group";
+
+            using (var conn = Create())
+            {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+
+                var db = conn.GetDatabase();
+
+                var id = db.StreamAdd(key, "field1", "value1");
+                db.StreamMessagesDelete(key, new RedisValue[1] { id });
+
+                db.StreamCreateConsumerGroup(key, groupName, "0-0");
+
+                var pendingInfo = db.StreamPending(key, "test_group");
+
+                Assert.Equal(0, pendingInfo.PendingMessageCount);
+                Assert.Equal(RedisValue.Null, pendingInfo.LowestPendingMessageId);
+                Assert.Equal(RedisValue.Null, pendingInfo.HighestPendingMessageId);
+                Assert.NotNull(pendingInfo.Consumers);
+                Assert.True(pendingInfo.Consumers.Length == 0);
             }
         }
 
