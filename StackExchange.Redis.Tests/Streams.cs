@@ -11,6 +11,24 @@ namespace StackExchange.Redis.Tests
         public Streams(ITestOutputHelper output) : base(output) { }
 
         [Fact]
+        public void IsStreamType()
+        {
+            using (var conn = Create())
+            {
+                var key = GetUniqueKey("type_check");
+
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+
+                var db = conn.GetDatabase();
+                db.StreamAdd(key, "field1", "value1");
+
+                var keyType = db.KeyType(key);
+
+                Assert.Equal(RedisType.Stream, keyType);
+            }
+        }
+
+        [Fact]
         public void StreamAddSinglePairWithAutoId()
         {
             using (var conn = Create())

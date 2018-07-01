@@ -2353,7 +2353,7 @@ namespace StackExchange.Redis
 
             var pairCount = streamAndIdPairs.Count;
 
-            for (var i = 0; i < streamAndIdPairs.Count; i++)
+            for (var i = 0; i < pairCount; i++)
             {
                 values[offset] = streamAndIdPairs[i].Key.AsRedisValue();
                 values[offset + pairCount] = streamAndIdPairs[i].Value;
@@ -2594,14 +2594,14 @@ namespace StackExchange.Redis
 
         private Message GetStreamAcknowledgeMessage(RedisKey key, RedisValue groupName, RedisValue messageId, CommandFlags flags)
         {
-            var arr = new RedisValue[3]
+            var values = new RedisValue[3]
             {
                 key.AsRedisValue(),
                 groupName,
                 messageId
             };
 
-            return Message.Create(Database, flags, RedisCommand.XACK, arr);
+            return Message.Create(Database, flags, RedisCommand.XACK, values);
         }
 
         private Message GetStreamAcknowledgeMessage(RedisKey key, RedisValue groupName, RedisValue[] messageIds, CommandFlags flags)
@@ -2609,19 +2609,19 @@ namespace StackExchange.Redis
             if (messageIds == null) throw new ArgumentNullException(nameof(messageIds));
             if (messageIds.Length == 0) throw new ArgumentOutOfRangeException(nameof(messageIds), "messageIds must contain at least one item.");
 
-            var arr = new RedisValue[messageIds.Length + 2];
+            var values = new RedisValue[messageIds.Length + 2];
 
             var offset = 0;
 
-            arr[offset++] = key.AsRedisValue();
-            arr[offset++] = groupName;
+            values[offset++] = key.AsRedisValue();
+            values[offset++] = groupName;
 
             for (var i = 0; i < messageIds.Length; i++)
             {
-                arr[offset++] = messageIds[i];
+                values[offset++] = messageIds[i];
             }
 
-            return Message.Create(Database, flags, RedisCommand.XACK, arr);
+            return Message.Create(Database, flags, RedisCommand.XACK, values);
         }
 
         private Message GetStreamAddMessage(RedisKey key, RedisValue entryId, int? maxLength, bool useApproximateMaxLength, NameValueEntry streamPair, CommandFlags flags)
@@ -2806,28 +2806,28 @@ namespace StackExchange.Redis
             }
 
             var totalValueCount = 6 + (count.HasValue ? 2 : 0);
-            var arr = new RedisValue[totalValueCount];
+            var values = new RedisValue[totalValueCount];
 
             var offset = 0;
 
-            arr[offset++] = StreamConstants.Group;
-            arr[offset++] = groupName;
-            arr[offset++] = consumerName;
+            values[offset++] = StreamConstants.Group;
+            values[offset++] = groupName;
+            values[offset++] = consumerName;
 
             if (count.HasValue)
             {
-                arr[offset++] = StreamConstants.Count;
-                arr[offset++] = count.Value;
+                values[offset++] = StreamConstants.Count;
+                values[offset++] = count.Value;
             }
 
-            arr[offset++] = StreamConstants.Streams;
-            arr[offset++] = key.AsRedisValue();
-            arr[offset] = readFromId;
+            values[offset++] = StreamConstants.Streams;
+            values[offset++] = key.AsRedisValue();
+            values[offset] = readFromId;
 
             return Message.Create(Database,
                 flags,
                 RedisCommand.XREADGROUP,
-                arr);
+                values);
         }
 
         private Message GetSingleStreamReadMessage(RedisKey key, RedisValue afterId, int? count, CommandFlags flags)
