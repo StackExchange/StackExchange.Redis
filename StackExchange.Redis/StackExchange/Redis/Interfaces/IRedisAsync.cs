@@ -11,7 +11,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets the multiplexer that created this instance
         /// </summary>
-        ConnectionMultiplexer Multiplexer { get; }
+        IConnectionMultiplexer Multiplexer { get; }
 
         /// <summary>
         /// This command is often used to test if a connection is still alive, or to measure latency.
