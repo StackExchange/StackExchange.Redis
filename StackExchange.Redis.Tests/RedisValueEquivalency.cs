@@ -143,12 +143,12 @@ namespace StackExchange.Redis.Tests
             CheckString(double.PositiveInfinity, "+inf");
         }
 
-        static void CheckString(RedisValue value, string expected)
+        private static void CheckString(RedisValue value, string expected)
         {
             var s = value.ToString();
             Assert.True(s == expected, $"'{s}' vs '{expected}'");
         }
 
-        static byte[] Bytes(string s) => s == null ? null : Encoding.UTF8.GetBytes(s);
+        private static byte[] Bytes(string s) => s == null ? null : Encoding.UTF8.GetBytes(s);
     }
 }

@@ -119,7 +119,7 @@ namespace StackExchange.Redis
                     // you can go in the queue, but we won't be starting
                     // a worker, because the handshake has not completed
                     var queue = _preconnectBacklog;
-                    lock(queue)
+                    lock (queue)
                     {
                         queue.Enqueue(message);
                     }
@@ -135,7 +135,6 @@ namespace StackExchange.Redis
 
             var physical = this.physical;
             if (physical == null) return WriteResult.NoConnectionAvailable;
-
 
             var result = WriteMessageDirect(physical, message);
             LogNonPreferred(message.Flags, isSlave);
@@ -182,10 +181,11 @@ namespace StackExchange.Redis
         {// defined as: PendingUnsentItems + SentItemsAwaitingResponse + ResponsesAwaitingAsyncCompletion
             inst = (int)(Interlocked.Read(ref operationCount) - Interlocked.Read(ref profileLastLog));
             var tmp = physical;
-            if(tmp == null)
+            if (tmp == null)
             {
                 qs = @in = 0;
-            } else
+            }
+            else
             {
                 qs = tmp.GetSentAwaitingResponseCount();
                 @in = tmp.GetAvailableInboundBytes();
@@ -257,7 +257,8 @@ namespace StackExchange.Redis
                 try
                 {
                     connection.Dispose();
-                } catch { }
+                }
+                catch { }
             }
         }
 
@@ -311,24 +312,24 @@ namespace StackExchange.Redis
 
         private Message DequeueNextPendingBacklog()
         {
-            lock(_preconnectBacklog)
+            lock (_preconnectBacklog)
             {
                 return _preconnectBacklog.Count == 0 ? null : _preconnectBacklog.Dequeue();
             }
         }
-        void WritePendingBacklog(PhysicalConnection connection)
+        private void WritePendingBacklog(PhysicalConnection connection)
         {
-            if(connection != null)
+            if (connection != null)
             {
                 Message next;
                 do
                 {
                     next = DequeueNextPendingBacklog();
-                    if(next != null) WriteMessageDirect(connection, next);
+                    if (next != null) WriteMessageDirect(connection, next);
                 } while (next != null);
             }
         }
-        void AbandonPendingBacklog(Exception ex)
+        private void AbandonPendingBacklog(Exception ex)
         {
             Message next;
             do
@@ -394,7 +395,7 @@ namespace StackExchange.Redis
                         var tmp = physical;
                         if (tmp != null)
                         {
-                            if(state == (int)State.ConnectedEstablished)
+                            if (state == (int)State.ConnectedEstablished)
                             {
                                 Interlocked.Exchange(ref connectTimeoutRetryCount, 0);
                                 tmp.Bridge.ServerEndPoint.ClearUnselectable(UnselectableFlags.DidNotRespond);
@@ -403,7 +404,7 @@ namespace StackExchange.Redis
                             int writeEverySeconds = ServerEndPoint.WriteEverySeconds,
                                 checkConfigSeconds = Multiplexer.RawConfig.ConfigCheckSeconds;
 
-                            if(state == (int)State.ConnectedEstablished && ConnectionType == ConnectionType.Interactive
+                            if (state == (int)State.ConnectedEstablished && ConnectionType == ConnectionType.Interactive
                                 && checkConfigSeconds > 0 && ServerEndPoint.LastInfoReplicationCheckSecondsAgo >= checkConfigSeconds
                                 && ServerEndPoint.CheckInfoReplication())
                             {
@@ -549,7 +550,7 @@ namespace StackExchange.Redis
             }
             finally
             {
-                if(haveLock) Monitor.Exit(WriteLock);
+                if (haveLock) Monitor.Exit(WriteLock);
             }
 
             return result;
@@ -710,7 +711,7 @@ namespace StackExchange.Redis
                 {
                     case RedisCommand.EVAL:
                     case RedisCommand.EVALSHA:
-                        if(!ServerEndPoint.GetFeatures().ScriptingDatabaseSafe)
+                        if (!ServerEndPoint.GetFeatures().ScriptingDatabaseSafe)
                         {
                             connection.SetUnknownDatabase();
                         }

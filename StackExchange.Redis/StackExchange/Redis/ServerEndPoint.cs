@@ -466,7 +466,7 @@ namespace StackExchange.Redis
             }
             return Task.CompletedTask;
         }
-        async Task OnEstablishingAsyncAwaited(PhysicalConnection connection, Task handshake)
+        private async Task OnEstablishingAsyncAwaited(PhysicalConnection connection, Task handshake)
         {
             try
             {

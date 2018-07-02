@@ -467,7 +467,6 @@ namespace StackExchange.Redis
 
         private void WriteHeader(byte[] commandBytes, int arguments)
         {
-
             // remember the time of the first write that still not followed by read
             Interlocked.CompareExchange(ref firstUnansweredWriteTickCount, Environment.TickCount, 0);
 

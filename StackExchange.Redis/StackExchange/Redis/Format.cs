@@ -183,7 +183,7 @@ namespace StackExchange.Redis
                 return Encoding.UTF8.GetString(ptr, s.Length);
             }
         }
-        static bool CaseInsensitiveASCIIEqual(string xLowerCase, ReadOnlySpan<byte> y)
+        private static bool CaseInsensitiveASCIIEqual(string xLowerCase, ReadOnlySpan<byte> y)
         {
             if (y.Length != xLowerCase.Length) return false;
             for(int i = 0; i < y.Length; i++)

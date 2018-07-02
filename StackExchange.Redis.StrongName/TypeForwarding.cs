@@ -1,6 +1,5 @@
 ﻿using System.Runtime.CompilerServices;
 
-
 [assembly: TypeForwardedTo(typeof(global::StackExchange.Redis.Aggregate))]
 [assembly: TypeForwardedTo(typeof(global::StackExchange.Redis.Bitwise))]
 [assembly: TypeForwardedTo(typeof(global::StackExchange.Redis.ClientFlags))]

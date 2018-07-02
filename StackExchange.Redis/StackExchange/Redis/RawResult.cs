@@ -9,7 +9,6 @@ namespace StackExchange.Redis
         internal static readonly RawResult NullMultiBulk = new RawResult(null, 0);
         internal static readonly RawResult EmptyMultiBulk = new RawResult(Array.Empty<RawResult>(), 0);
         internal static readonly RawResult Nil = default;
-        
 
         private readonly ReadOnlySequence<byte> _payload;
         // note: can't use Memory<RawResult> here - struct recursion breaks runtimr
@@ -17,7 +16,7 @@ namespace StackExchange.Redis
         private readonly int _itemsCount;
         private readonly ResultType _type;
 
-        const ResultType NonNullFlag = (ResultType)128;
+        private const ResultType NonNullFlag = (ResultType)128;
 
         public RawResult(ResultType resultType, ReadOnlySequence<byte> payload, bool isNull)
         {
@@ -84,7 +83,6 @@ namespace StackExchange.Redis
                     }
                     if (AssertStarts(channelPrefix))
                     {
-
                         byte[] copy = _payload.Slice(channelPrefix.Length).ToArray();
                         return new RedisChannel(copy, mode);
                     }
@@ -133,7 +131,7 @@ namespace StackExchange.Redis
                     arr[i].Recycle();
                 }
                 ArrayPool<RawResult>.Shared.Return(arr, clearArray: false);
-            }   
+            }
         }
 
         internal unsafe bool IsEqual(byte[] expected)
@@ -341,7 +339,7 @@ namespace StackExchange.Redis
                     charCount += decoder.GetCharCount(bPtr, span.Length, false);
                 }
             }
-            
+
             decoder.Reset();
 
             string s = new string((char)0, charCount);

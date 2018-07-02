@@ -146,7 +146,7 @@ namespace StackExchange.Redis
         /// See Object.GetHashCode()
         /// </summary>
         public override int GetHashCode() => GetHashCode(this);
-        static int GetHashCode(RedisValue x)
+        private static int GetHashCode(RedisValue x)
         {
             x = x.Simplify();
             switch (x.Type)
@@ -309,7 +309,7 @@ namespace StackExchange.Redis
         /// <param name="other">The other <see cref="RedisValue"/> to compare.</param>
         public int CompareTo(RedisValue other) => CompareTo(this, other);
 
-        static int CompareTo(RedisValue x, RedisValue y)
+        private static int CompareTo(RedisValue x, RedisValue y)
         {
             try
             {
@@ -344,7 +344,6 @@ namespace StackExchange.Redis
                         if (yType == StorageType.Double) return ((double)x._overlappedValue64).CompareTo(y.OverlappedValueDouble);
                         break;
                 }
-
 
                 // otherwise, compare as strings
                 return string.CompareOrdinal((string)x, (string)y);
@@ -454,8 +453,6 @@ namespace StackExchange.Redis
             if (value.Length == 0) return EmptyString;
             return new RedisValue(0, default, value);
         }
-
-
 
         /// <summary>
         /// Creates a new <see cref="RedisValue"/> from an <see cref="T:byte[]"/>.
@@ -605,7 +602,7 @@ namespace StackExchange.Redis
                     throw new InvalidOperationException();
             }
         }
-        static string ToHex(ReadOnlySpan<byte> src)
+        private static string ToHex(ReadOnlySpan<byte> src)
         {
             const string HexValues = "0123456789ABCDEF";
 
@@ -742,7 +739,6 @@ namespace StackExchange.Redis
                     if (f64 >= long.MinValue && f64 <= long.MaxValue
                         && (i64 = (long)f64) == f64) return i64;
                     break;
-
             }
             return this;
         }

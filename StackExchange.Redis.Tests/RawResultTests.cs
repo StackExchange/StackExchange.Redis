@@ -31,7 +31,6 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void DefaultWorks()
         {
-
             var result = default(RawResult);
             Assert.Equal(ResultType.None, result.Type);
             Assert.True(result.IsNull);
@@ -49,7 +48,6 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void NilWorks()
         {
-
             var result = RawResult.Nil;
             Assert.Equal(ResultType.None, result.Type);
             Assert.True(result.IsNull);

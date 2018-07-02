@@ -395,7 +395,6 @@ namespace StackExchange.Redis
                 return script != null && sha1.IsMatch(script);
             }
 
-
             internal const int Sha1HashLength = 20;
             internal static byte[] ParseSHA1(byte[] value)
             {
