@@ -171,5 +171,28 @@ namespace StackExchange.Redis.Tests
                 Assert.False(results[1].Hash.HasValue);
             }
         }
+
+        [Fact]
+        public void GeoRadiusOverloads()
+        {
+            using (var conn = Create())
+            {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Geo), r => r.Geo);
+                var db = conn.GetDatabase();
+                RedisKey key = Me();
+                db.KeyDelete(key);
+
+                Assert.True(db.GeoAdd(key, -1.759925, 52.19493, "steve"));
+                Assert.True(db.GeoAdd(key, -3.360655, 54.66395, "dave"));
+
+                // Invalid overload, but due to implcit double => RedisValue conversion it happily calls
+                var ex = Assert.Throws<RedisServerException>(() => db.GeoRadius(key, -1.759925, 52.19493, GeoUnit.Miles, 500, Order.Ascending, GeoRadiusOptions.WithDistance));
+                Assert.Equal("ERR could not decode requested zset member", ex.Message);
+
+                // The good stuff
+                GeoRadiusResult[] result = db.GeoRadius(key, -1.759925, 52.19493, 500, unit: GeoUnit.Miles, order: Order.Ascending, options: GeoRadiusOptions.WithDistance);
+                Assert.NotNull(result);
+            }
+        }
     }
 }
