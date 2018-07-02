@@ -17,18 +17,18 @@ namespace StackExchange.Redis.Tests
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
                 RedisValue newId = Guid.NewGuid().ToString();
-                RedisKey custKey = Me();
+                RedisKey key = Me();
                 var db = conn.GetDatabase();
-                db.KeyDelete(custKey);
-                db.HashSet(custKey, "id", 123);
+                db.KeyDelete(key);
+                db.HashSet(key, "id", 123);
 
                 var wasSet = (bool)db.ScriptEvaluate("if redis.call('hexists', KEYS[1], 'UniqueId') then return redis.call('hset', KEYS[1], 'UniqueId', ARGV[1]) else return 0 end",
-                    new RedisKey[] { custKey }, new RedisValue[] { newId });
+                    new RedisKey[] { key }, new RedisValue[] { newId });
 
                 Assert.True(wasSet);
 
                 wasSet = (bool)db.ScriptEvaluate("if redis.call('hexists', KEYS[1], 'UniqueId') then return redis.call('hset', KEYS[1], 'UniqueId', ARGV[1]) else return 0 end",
-                    new RedisKey[] { custKey }, new RedisValue[] { newId });
+                    new RedisKey[] { key }, new RedisValue[] { newId });
                 Assert.False(wasSet);
             }
         }
@@ -161,7 +161,9 @@ namespace StackExchange.Redis.Tests
                 byte[] hash = server.ScriptLoad(Script);
 
                 var db = conn.GetDatabase();
-                RedisKey[] keys = { Me() };
+                var key = Me();
+                db.KeyDelete(key);
+                RedisKey[] keys = { key };
 
                 string hexHash = string.Concat(hash.Select(x => x.ToString("X2")));
                 Assert.Equal("2BAB3B661081DB58BD2341920E0BA7CF5DC77B25", hexHash);
@@ -235,18 +237,20 @@ namespace StackExchange.Redis.Tests
                 var script = LuaScript.Prepare(Script);
 
                 var db = conn.GetDatabase();
+                var key = Me();
+                db.KeyDelete(key);
 
-                var p = new { key = (RedisKey)"testkey", value = 123 };
+                var p = new { key = (RedisKey)key, value = 123 };
 
                 script.Evaluate(db, p);
-                var val = db.StringGet("testkey");
+                var val = db.StringGet(key);
                 Assert.Equal(123, (int)val);
 
                 // no super clean way to extract this; so just abuse InternalsVisibleTo
                 script.ExtractParameters(p, null, out RedisKey[] keys, out RedisValue[] args);
                 Assert.NotNull(keys);
                 Assert.Single(keys);
-                Assert.Equal("testkey", keys[0]);
+                Assert.Equal(key, keys[0]);
             }
         }
 
@@ -265,11 +269,13 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal("redis.call('set', ARGV[1], 'hello@example')", script.ExecutableScript);
 
                 var db = conn.GetDatabase();
+                var key = Me();
+                db.KeyDelete(key);
 
-                var p = new { key = (RedisKey)"key" };
+                var p = new { key };
 
                 script.Evaluate(db, p);
-                var val = db.StringGet("key");
+                var val = db.StringGet(key);
                 Assert.Equal("hello@example", val);
             }
         }
@@ -346,18 +352,20 @@ namespace StackExchange.Redis.Tests
                 var prepared = script.Load(server);
 
                 var db = conn.GetDatabase();
+                var key = Me();
+                db.KeyDelete(key);
 
-                var p = new { key = (RedisKey)"testkey", value = 123 };
+                var p = new { key = (RedisKey)key, value = 123 };
 
                 prepared.Evaluate(db, p);
-                var val = db.StringGet("testkey");
+                var val = db.StringGet(key);
                 Assert.Equal(123, (int)val);
 
                 // no super clean way to extract this; so just abuse InternalsVisibleTo
                 prepared.Original.ExtractParameters(p, null, out RedisKey[] keys, out RedisValue[] args);
                 Assert.NotNull(keys);
                 Assert.Single(keys);
-                Assert.Equal("testkey", keys[0]);
+                Assert.Equal(key, keys[0]);
             }
         }
 
@@ -414,14 +422,16 @@ namespace StackExchange.Redis.Tests
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
                 var script = LuaScript.Prepare(Script);
                 var db = conn.GetDatabase();
-                db.ScriptEvaluate(script, new { key = (RedisKey)"key", value = "value" });
-                var val = db.StringGet("key");
+                var key = Me();
+                db.KeyDelete(key);
+                db.ScriptEvaluate(script, new { key = (RedisKey)key, value = "value" });
+                var val = db.StringGet(key);
                 Assert.Equal("value", val);
 
                 var prepared = script.Load(conn.GetServer(conn.GetEndPoints()[0]));
 
-                db.ScriptEvaluate(prepared, new { key = (RedisKey)"key2", value = "value2" });
-                var val2 = db.StringGet("key2");
+                db.ScriptEvaluate(prepared, new { key = (RedisKey)(key + "2"), value = "value2" });
+                var val2 = db.StringGet(key + "2");
                 Assert.Equal("value2", val2);
             }
         }
@@ -437,11 +447,13 @@ namespace StackExchange.Redis.Tests
                 var script = LuaScript.Prepare(Script);
                 var server = conn.GetServer(conn.GetEndPoints()[0]);
                 var db = conn.GetDatabase();
+                var key = Me();
+                db.KeyDelete(key);
 
                 var prepared = server.ScriptLoad(script);
 
-                db.ScriptEvaluate(prepared, new { key = (RedisKey)"key3", value = "value3" });
-                var val = db.StringGet("key3");
+                db.ScriptEvaluate(prepared, new { key = (RedisKey)key, value = "value3" });
+                var val = db.StringGet(key);
                 Assert.Equal("value3", val);
             }
         }
@@ -451,15 +463,16 @@ namespace StackExchange.Redis.Tests
         {
             const string Script = "redis.call('set', @key, @value)";
             var prepared = LuaScript.Prepare(Script);
-            var p = new { key = (RedisKey)"key", value = "hello" };
+            var key = Me();
+            var p = new { key = (RedisKey)key, value = "hello" };
 
             // no super clean way to extract this; so just abuse InternalsVisibleTo
             prepared.ExtractParameters(p, "prefix-", out RedisKey[] keys, out RedisValue[] args);
             Assert.NotNull(keys);
             Assert.Single(keys);
-            Assert.Equal("prefix-key", keys[0]);
+            Assert.Equal("prefix-" + key, keys[0]);
             Assert.Equal(2, args.Length);
-            Assert.Equal("prefix-key", args[0]);
+            Assert.Equal("prefix-" +  key, args[0]);
             Assert.Equal("hello", args[1]);
         }
 
@@ -473,16 +486,18 @@ namespace StackExchange.Redis.Tests
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
                 var db = conn.GetDatabase(0);
                 var wrappedDb = KeyspaceIsolation.DatabaseExtensions.WithKeyPrefix(db, "prefix-");
+                var key = Me();
+                db.KeyDelete(key);
 
                 var prepared = LuaScript.Prepare(Script);
-                wrappedDb.ScriptEvaluate(prepared, new { key = (RedisKey)"mykey", value = 123 });
-                var val1 = wrappedDb.StringGet("mykey");
+                wrappedDb.ScriptEvaluate(prepared, new { key = (RedisKey)key, value = 123 });
+                var val1 = wrappedDb.StringGet(key);
                 Assert.Equal(123, (int)val1);
 
-                var val2 = db.StringGet("prefix-mykey");
+                var val2 = db.StringGet("prefix-" + key);
                 Assert.Equal(123, (int)val2);
 
-                var val3 = db.StringGet("mykey");
+                var val3 = db.StringGet(key);
                 Assert.True(val3.IsNull);
             }
         }
@@ -497,17 +512,19 @@ namespace StackExchange.Redis.Tests
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
                 var db = conn.GetDatabase(0);
                 var wrappedDb = KeyspaceIsolation.DatabaseExtensions.WithKeyPrefix(db, "prefix2-");
+                var key = Me();
+                db.KeyDelete(key);
 
                 var server = conn.GetServer(conn.GetEndPoints()[0]);
                 var prepared = LuaScript.Prepare(Script).Load(server);
-                wrappedDb.ScriptEvaluate(prepared, new { key = (RedisKey)"mykey", value = 123 });
-                var val1 = wrappedDb.StringGet("mykey");
+                wrappedDb.ScriptEvaluate(prepared, new { key = (RedisKey)key, value = 123 });
+                var val1 = wrappedDb.StringGet(key);
                 Assert.Equal(123, (int)val1);
 
-                var val2 = db.StringGet("prefix2-mykey");
+                var val2 = db.StringGet("prefix2-" + key);
                 Assert.Equal(123, (int)val2);
 
-                var val3 = db.StringGet("mykey");
+                var val3 = db.StringGet(key);
                 Assert.True(val3.IsNull);
             }
         }
