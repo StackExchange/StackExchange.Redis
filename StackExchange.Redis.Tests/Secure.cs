@@ -88,7 +88,7 @@ namespace StackExchange.Redis.Tests
                 }
             }).ConfigureAwait(false);
             Output.WriteLine("Exception: " + ex.Message);
-            Assert.Equal("It was not possible to connect to the redis server(s). There was an authentication failure; check that passwords (or client certificates) are configured correctly.", ex.Message);
+            Assert.StartsWith("It was not possible to connect to the redis server(s). There was an authentication failure; check that passwords (or client certificates) are configured correctly.", ex.Message);
         }
     }
 }
