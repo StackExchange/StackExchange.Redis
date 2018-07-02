@@ -54,6 +54,7 @@ namespace StackExchange.Redis
     internal struct SocketToken
     {
         internal readonly Socket Socket;
+
         public SocketToken(Socket socket)
         {
             Socket = socket;
@@ -130,10 +131,12 @@ namespace StackExchange.Redis
                     shared = new SocketManager("DefaultSocketManager", false, DEFAULT_MIN_THREADS, DEFAULT_MAX_THREADS * 2);
                     if (Interlocked.CompareExchange(ref _shared, shared, null) == null)
                         shared = null;
-                } finally { shared?.Dispose(); }
+                }
+                finally { shared?.Dispose(); }
                 return Interlocked.CompareExchange(ref _shared, null, null);
             }
         }
+
         private static SocketManager _shared;
 
         /// <summary>
@@ -142,21 +145,22 @@ namespace StackExchange.Redis
         /// <param name="name">The name for this <see cref="SocketManager"/>.</param>
         /// <param name="useHighPrioritySocketThreads">Whether this <see cref="SocketManager"/> should use high priority sockets.</param>
         public SocketManager(string name, bool useHighPrioritySocketThreads)
-            : this(name, useHighPrioritySocketThreads, DEFAULT_MIN_THREADS, DEFAULT_MAX_THREADS) {}
+            : this(name, useHighPrioritySocketThreads, DEFAULT_MIN_THREADS, DEFAULT_MAX_THREADS) { }
 
-        const int DEFAULT_MIN_THREADS = 1, DEFAULT_MAX_THREADS = 5;
+        private const int DEFAULT_MIN_THREADS = 1, DEFAULT_MAX_THREADS = 5;
+
         private SocketManager(string name, bool useHighPrioritySocketThreads, int minThreads, int maxThreads)
         {
             if (string.IsNullOrWhiteSpace(name)) name = GetType().Name;
             Name = name;
-            
+
             const long Receive_PauseWriterThreshold = 4L * 1024 * 1024 * 1024; // let's give it up to 4GiB of buffer for now
             const long Receive_ResumeWriterThreshold = 3L * 1024 * 1024 * 1024;
 
             var defaultPipeOptions = PipeOptions.Default;
             _scheduler = new DedicatedThreadPoolPipeScheduler(name,
                 minWorkers: minThreads, maxWorkers: maxThreads,
-                priority: useHighPrioritySocketThreads ? ThreadPriority.AboveNormal :ThreadPriority.Normal);
+                priority: useHighPrioritySocketThreads ? ThreadPriority.AboveNormal : ThreadPriority.Normal);
             SendPipeOptions = new PipeOptions(
                 defaultPipeOptions.Pool, _scheduler, _scheduler,
                 pauseWriterThreshold: defaultPipeOptions.PauseWriterThreshold,
@@ -170,7 +174,8 @@ namespace StackExchange.Redis
                 defaultPipeOptions.MinimumSegmentSize,
                 useSynchronizationContext: false);
         }
-        DedicatedThreadPoolPipeScheduler _scheduler;
+
+        private DedicatedThreadPoolPipeScheduler _scheduler;
         internal readonly PipeOptions SendPipeOptions, ReceivePipeOptions;
 
         private enum CallbackOperation
@@ -183,6 +188,7 @@ namespace StackExchange.Redis
         /// Releases all resources associated with this instance
         /// </summary>
         public void Dispose() => Dispose(true);
+
         private void Dispose(bool disposing)
         {
             // note: the scheduler *can't* be collected by itself - there will
@@ -195,12 +201,13 @@ namespace StackExchange.Redis
                 GC.SuppressFinalize(this);
                 OnDispose();
             }
-            
         }
+
         /// <summary>
         /// Releases *appropriate* resources associated with this instance
         /// </summary>
         ~SocketManager() => Dispose(false);
+
         internal SocketToken BeginConnect(EndPoint endpoint, ISocketCallback callback, ConnectionMultiplexer multiplexer, TextWriter log)
         {
             void RunWithCompletionType(Func<AsyncCallback, IAsyncResult> beginAsync, AsyncCallback asyncCallback)
@@ -221,7 +228,6 @@ namespace StackExchange.Redis
                 }
             }
 
-
             var addressFamily = endpoint.AddressFamily == AddressFamily.Unspecified ? AddressFamily.InterNetwork : endpoint.AddressFamily;
             var protocolType = addressFamily == AddressFamily.Unix ? ProtocolType.Unspecified : ProtocolType.Tcp;
             var socket = new Socket(addressFamily, SocketType.Stream, protocolType);
@@ -237,7 +243,8 @@ namespace StackExchange.Redis
                 {
                     RunWithCompletionType(
                         cb => socket.BeginConnect(dnsEndpoint.Host, dnsEndpoint.Port, cb, tuple),
-                        ar => {
+                        ar =>
+                        {
                             multiplexer.LogLocked(log, "EndConnect: {0}", formattedEndpoint);
                             EndConnectImpl(ar, multiplexer, log, tuple);
                             multiplexer.LogLocked(log, "Connect complete: {0}", formattedEndpoint);
@@ -247,7 +254,8 @@ namespace StackExchange.Redis
                 {
                     RunWithCompletionType(
                         cb => socket.BeginConnect(endpoint, cb, tuple),
-                        ar => {
+                        ar =>
+                        {
                             multiplexer.LogLocked(log, "EndConnect: {0}", formattedEndpoint);
                             EndConnectImpl(ar, multiplexer, log, tuple);
                             multiplexer.LogLocked(log, "Connect complete: {0}", formattedEndpoint);
@@ -313,7 +321,7 @@ namespace StackExchange.Redis
                     }
                 }
             }
-            catch(Exception outer)
+            catch (Exception outer)
             {
                 ConnectionMultiplexer.TraceWithoutContext(outer.Message);
                 if (callback != null)

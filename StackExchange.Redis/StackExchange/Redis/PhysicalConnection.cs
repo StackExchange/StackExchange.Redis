@@ -69,7 +69,7 @@ namespace StackExchange.Redis
         private int lastWriteTickCount, lastReadTickCount, lastBeatTickCount;
         private int firstUnansweredWriteTickCount;
 
-        IDuplexPipe _ioPipe;
+        private IDuplexPipe _ioPipe;
 
         private SocketToken socketToken;
 
@@ -115,7 +115,6 @@ namespace StackExchange.Redis
 
         public void Dispose()
         {
-            
             var ioPipe = _ioPipe;
             _ioPipe = null;
             if(ioPipe != null)
@@ -138,11 +137,13 @@ namespace StackExchange.Redis
             }
             OnCloseEcho();
         }
+
         private async Task AwaitedFlush(ValueTask<FlushResult> flush)
         {
             await flush;
             Interlocked.Exchange(ref lastWriteTickCount, Environment.TickCount);
         }
+
         public Task FlushAsync()
         {
             var tmp = _ioPipe?.Output;
@@ -439,7 +440,6 @@ namespace StackExchange.Redis
                     break;
                 default:
                     throw new InvalidOperationException($"Unexpected {value.Type} value: '{value}'");
-
             }
         }
 
@@ -453,7 +453,6 @@ namespace StackExchange.Redis
             WriteHeader(commandBytes, arguments);
         }
 
-
         internal const int REDIS_MAX_ARGS = 1024 * 1024; // there is a <= 1024*1024 max constraint inside redis itself: https://github.com/antirez/redis/blob/6c60526db91e23fb2d666fc52facc9a11780a2a3/src/networking.c#L1024
 
         internal void WriteHeader(string command, int arguments)
@@ -465,9 +464,9 @@ namespace StackExchange.Redis
             var commandBytes = Multiplexer.CommandMap.GetBytes(command);
             WriteHeader(commandBytes, arguments);
         }
+
         private void WriteHeader(byte[] commandBytes, int arguments)
         {
-
 
             // remember the time of the first write that still not followed by read
             Interlocked.CompareExchange(ref firstUnansweredWriteTickCount, Environment.TickCount, 0);
@@ -484,26 +483,28 @@ namespace StackExchange.Redis
 
             _ioPipe.Output.Advance(offset);
         }
-        
+
         internal const int
             MaxInt32TextLen = 11, // -2,147,483,648 (not including the commas)
             MaxInt64TextLen = 20; // -9,223,372,036,854,775,808 (not including the commas)
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        static int WriteCrlf(Span<byte> span, int offset)
+        private static int WriteCrlf(Span<byte> span, int offset)
         {
             span[offset++] = (byte)'\r';
             span[offset++] = (byte)'\n';
             return offset;
         }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        static void WriteCrlf(PipeWriter writer)
+        private static void WriteCrlf(PipeWriter writer)
         {
             var span = writer.GetSpan(2);
             span[0] = (byte)'\r';
             span[1] = (byte)'\n';
             writer.Advance(2);
         }
+
         internal static int WriteRaw(Span<byte> span, long value, bool withLengthPrefix = false, int offset = 0)
         {
             if (value >= 0 && value <= 9)
@@ -593,7 +594,7 @@ namespace StackExchange.Redis
                     offset += formattedLength;
                 }
             }
-            
+
             return WriteCrlf(span, offset);
         }
 
@@ -603,7 +604,8 @@ namespace StackExchange.Redis
             if (!flush.IsCompletedSuccessfully) flush.AsTask().Wait();
         }
 
-        static readonly byte[] NullBulkString = Encoding.ASCII.GetBytes("$-1\r\n"), EmptyBulkString = Encoding.ASCII.GetBytes("$0\r\n\r\n");
+        private static readonly byte[] NullBulkString = Encoding.ASCII.GetBytes("$-1\r\n"), EmptyBulkString = Encoding.ASCII.GetBytes("$0\r\n\r\n");
+
         private static void WriteUnified(PipeWriter writer, byte[] value)
         {
             if (value == null)
@@ -615,8 +617,8 @@ namespace StackExchange.Redis
             {
                 WriteUnified(writer, new ReadOnlySpan<byte>(value));
             }
-
         }
+
         private static void WriteUnified(PipeWriter writer, ReadOnlySpan<byte> value)
         {
             // ${len}\r\n           = 3 + MaxInt32TextLen
@@ -648,6 +650,7 @@ namespace StackExchange.Redis
                 WriteCrlf(writer);
             }
         }
+
         private static int WriteUnified(Span<byte> span, byte[] value, int offset = 0)
         {
             span[offset++] = (byte)'$';
@@ -661,6 +664,7 @@ namespace StackExchange.Redis
             }
             return offset;
         }
+
         private static int WriteUnified(Span<byte> span, ReadOnlySpan<byte> value, int offset = 0)
         {
             offset = WriteRaw(span, value.Length, offset: offset);
@@ -745,7 +749,7 @@ namespace StackExchange.Redis
                 }
             }
         }
-        
+
         private unsafe void WriteRaw(PipeWriter writer, string value, int encodedLength)
         {
             const int MaxQuickEncodeSize = 512;
@@ -787,7 +791,9 @@ namespace StackExchange.Redis
                 Debug.Assert(totalBytes == encodedLength);
             }
         }
+
         private readonly Encoder outEncoder = Encoding.UTF8.GetEncoder();
+
         private static void WriteUnified(PipeWriter writer, byte[] prefix, byte[] value)
         {
             // ${total-len}\r\n 
@@ -857,7 +863,7 @@ namespace StackExchange.Redis
         {
             try
             {
-                var socketMode = SocketMode.Async;
+                const SocketMode socketMode = SocketMode.Async;
 
                 // disallow connection in some cases
                 OnDebugAbort();
@@ -869,7 +875,6 @@ namespace StackExchange.Redis
                 IDuplexPipe pipe;
                 if (config.Ssl)
                 {
-
                     Multiplexer.LogLocked(log, "Configuring SSL");
                     var host = config.SslHost;
                     if (string.IsNullOrWhiteSpace(host)) host = Format.ToStringHostOnly(Bridge.ServerEndPoint.EndPoint);
@@ -991,6 +996,7 @@ namespace StackExchange.Redis
 
         partial void OnCreateEcho();
         partial void OnDebugAbort();
+
         void ISocketCallback.OnHeartbeat()
         {
             try
@@ -1004,6 +1010,7 @@ namespace StackExchange.Redis
         }
 
         partial void OnWrapForLogging(ref IDuplexPipe pipe, string name);
+
         private async void ReadFromPipe() // yes it is an async void; deal with it!
         {
             try
@@ -1020,7 +1027,7 @@ namespace StackExchange.Redis
                     {
                         readResult = await input.ReadAsync();
                     }
-                    
+
                     if (readResult.IsCompleted && readResult.Buffer.IsEmpty)
                     {
                         break; // we're all done
@@ -1166,7 +1173,7 @@ namespace StackExchange.Redis
                             return new RawResult(ResultType.BulkString, payload, false);
                         default:
                             throw ExceptionFactory.ConnectionFailure(Multiplexer.IncludeDetailInExceptions, ConnectionFailureType.ProtocolFailure, "Invalid bulk string terminator", Bridge.ServerEndPoint);
-                    }   
+                    }
                 }
             }
             return RawResult.Nil;
@@ -1212,7 +1219,8 @@ namespace StackExchange.Redis
             Success,
             NeedMoreData,
         }
-        ref struct BufferReader
+
+        private ref struct BufferReader
         {
             private ReadOnlySequence<byte>.Enumerator _iterator;
             private ReadOnlySpan<byte> _current;
@@ -1225,7 +1233,8 @@ namespace StackExchange.Redis
             public int RemainingThisSpan { get; private set; }
 
             public bool IsEmpty => RemainingThisSpan == 0;
-            bool FetchNextSegment()
+
+            private bool FetchNextSegment()
             {
                 do
                 {
@@ -1242,6 +1251,7 @@ namespace StackExchange.Redis
 
                 return true;
             }
+
             public BufferReader(ReadOnlySequence<byte> buffer)
             {
                 _iterator = buffer.GetEnumerator();
@@ -1250,8 +1260,8 @@ namespace StackExchange.Redis
 
                 FetchNextSegment();
             }
-            static readonly byte[] CRLF = { (byte)'\r', (byte)'\n' };
 
+            private static readonly byte[] CRLF = { (byte)'\r', (byte)'\n' };
 
             /// <summary>
             /// Note that in results other than success, no guarantees are made about final state; if you care: snapshot
@@ -1278,7 +1288,6 @@ namespace StackExchange.Redis
                 }
             }
 
-
             public bool TryConsume(int count)
             {
                 if (count < 0) throw new ArgumentOutOfRangeException(nameof(count));
@@ -1295,27 +1304,29 @@ namespace StackExchange.Redis
                         if (count == available) FetchNextSegment(); // burned all of it; fetch next
                         return true;
                     }
-                    
+
                     // consume all of this span
                     TotalConsumed += available;
                     count -= available;
                 } while (FetchNextSegment());
                 return false;
             }
-            public void Consume(int count) 
+
+            public void Consume(int count)
             {
                 if (!TryConsume(count)) throw new EndOfStreamException();
             }
+
             internal static int FindNextCrLf(BufferReader reader) // very deliberately not ref; want snapshot
             {
                 // is it in the current span? (we need to handle the offsets differently if so)
-                
+
                 int totalSkipped = 0;
                 bool haveTrailingCR = false;
                 do
                 {
                     if (reader.RemainingThisSpan == 0) continue;
-                    
+
                     var span = reader.SlicedSpan;
                     if (haveTrailingCR)
                     {

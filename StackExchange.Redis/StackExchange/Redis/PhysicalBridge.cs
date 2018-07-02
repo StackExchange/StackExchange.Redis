@@ -38,7 +38,7 @@ namespace StackExchange.Redis
         private int profileLogIndex;
 
         private volatile bool reportNextFailure = true, reconfigureNextFailure = false;
-        
+
         private volatile int state = (int)State.Disconnected;
 
         public PhysicalBridge(ServerEndPoint serverEndPoint, ConnectionType type, int timeoutMilliseconds)

@@ -8,14 +8,15 @@
     <PackageId>$(AssemblyName)</PackageId>
     <Authors>Stack Exchange, Inc.; marc.gravell</Authors>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    
+    <CodeAnalysisRuleset>$(MSBuildThisFileDirectory)Shared.ruleset</CodeAnalysisRuleset>
+
     <PackageReleaseNotes>https://stackexchange.github.io/StackExchange.Redis/ReleaseNotes</PackageReleaseNotes>
     <PackageProjectUrl>https://github.com/StackExchange/StackExchange.Redis/</PackageProjectUrl>
     <PackageLicenseUrl>https://raw.github.com/StackExchange/StackExchange.Redis/master/LICENSE</PackageLicenseUrl>
-    
+
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>https://github.com/StackExchange/StackExchange.Redis/</RepositoryUrl>
-    
+
     <DebugSymbols>true</DebugSymbols>
     <DebugType>embedded</DebugType>
     <DefaultLanguage>en-US</DefaultLanguage>
@@ -27,7 +28,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Nerdbank.GitVersioning" Version="2.1.23" PrivateAssets="all" />
-    <PackageReference Include="SourceLink.Create.GitHub" Version="2.8.2" PrivateAssets="All" /> 
+    <PackageReference Include="SourceLink.Create.GitHub" Version="2.8.2" PrivateAssets="All" />
     <DotNetCliToolReference Include="dotnet-sourcelink" Version="2.8.2" />
     <DotNetCliToolReference Include="dotnet-sourcelink-git" Version="2.8.2" />
   </ItemGroup>
