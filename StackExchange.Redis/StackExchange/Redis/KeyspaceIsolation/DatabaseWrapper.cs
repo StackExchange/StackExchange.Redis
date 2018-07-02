@@ -607,14 +607,14 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StreamAdd(ToInner(key), streamPairs, messageId, maxLength, useApproximateMaxLength, flags);
         }
 
-        public RedisStreamEntry[] StreamClaimMessages(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
+        public RedisStreamEntry[] StreamClaim(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
         {
-            return Inner.StreamClaimMessages(ToInner(key), consumerGroup, claimingConsumer, minIdleTimeInMs, messageIds, flags);
+            return Inner.StreamClaim(ToInner(key), consumerGroup, claimingConsumer, minIdleTimeInMs, messageIds, flags);
         }
 
-        public RedisValue[] StreamClaimMessagesReturningIds(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
+        public RedisValue[] StreamClaimIdsOnly(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
         {
-            return Inner.StreamClaimMessagesReturningIds(ToInner(key), consumerGroup, claimingConsumer, minIdleTimeInMs, messageIds, flags);
+            return Inner.StreamClaimIdsOnly(ToInner(key), consumerGroup, claimingConsumer, minIdleTimeInMs, messageIds, flags);
         }
 
         public bool StreamCreateConsumerGroup(RedisKey key, RedisValue groupName, RedisValue readFrom, CommandFlags flags = CommandFlags.None)
@@ -642,9 +642,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StreamLength(ToInner(key), flags);
         }
 
-        public long StreamMessagesDelete(RedisKey key, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
+        public long StreamDelete(RedisKey key, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
         {
-            return Inner.StreamMessagesDelete(ToInner(key), messageIds, flags);
+            return Inner.StreamDelete(ToInner(key), messageIds, flags);
         }
 
         public StreamPendingInfo StreamPending(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None)

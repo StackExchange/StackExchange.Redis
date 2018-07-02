@@ -1449,7 +1449,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The messages successfully claimed by the given consumer.</returns>
         /// <remarks>https://redis.io/topics/streams-intro</remarks>
-        RedisStreamEntry[] StreamClaimMessages(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None);
+        RedisStreamEntry[] StreamClaim(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Change ownership of messages consumed, but not yet acknowledged, by a different consumer. This method returns the IDs for the claimed message(s).
@@ -1462,7 +1462,17 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The message IDs for the messages successfully claimed by the given consumer.</returns>
         /// <remarks>https://redis.io/topics/streams-intro</remarks>
-        RedisValue[] StreamClaimMessagesReturningIds(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None);
+        RedisValue[] StreamClaimIdsOnly(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Retrieve information about the consumers for the given consumer group. This is the equivalent of calling "XINFO GROUPS key group".
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="groupName">The consumer group name.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>An instance of <see cref="Redis.StreamConsumerInfo"/> for each of the consumer group's consumers.</returns>
+        /// <remarks>https://redis.io/topics/streams-intro</remarks>
+        StreamConsumerInfo[] StreamConsumerInfo(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Create a consumer group for the given stream.
@@ -1476,13 +1486,14 @@ namespace StackExchange.Redis
         bool StreamCreateConsumerGroup(RedisKey key, RedisValue groupName, RedisValue readFrom, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Retrieve information about the given stream. This is the equivalent of calling "XINFO STREAM key".
+        /// Delete messages in the stream. This method does not delete the stream.
         /// </summary>
         /// <param name="key">The key of the stream.</param>
+        /// <param name="messageIds">The IDs of the messages to delete.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>A <see cref="Redis.StreamInfo"/> instance with information about the stream.</returns>
+        /// <returns>Returns the number of messages successfully deleted from the stream.</returns>
         /// <remarks>https://redis.io/topics/streams-intro</remarks>
-        StreamInfo StreamInfo(RedisKey key, CommandFlags flags = CommandFlags.None);
+        long StreamDelete(RedisKey key, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Retrieve information about the groups created for the given stream. This is the equivalent of calling "XINFO GROUPS key".
@@ -1494,14 +1505,13 @@ namespace StackExchange.Redis
         StreamGroupInfo[] StreamGroupInfo(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Retrieve information about the consumers for the given consumer group. This is the equivalent of calling "XINFO GROUPS key group".
+        /// Retrieve information about the given stream. This is the equivalent of calling "XINFO STREAM key".
         /// </summary>
         /// <param name="key">The key of the stream.</param>
-        /// <param name="groupName">The consumer group name.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>An instance of <see cref="Redis.StreamConsumerInfo"/> for each of the consumer group's consumers.</returns>
+        /// <returns>A <see cref="Redis.StreamInfo"/> instance with information about the stream.</returns>
         /// <remarks>https://redis.io/topics/streams-intro</remarks>
-        StreamConsumerInfo[] StreamConsumerInfo(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None);
+        StreamInfo StreamInfo(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Return the number of entries in a stream.
@@ -1511,16 +1521,6 @@ namespace StackExchange.Redis
         /// <returns>The number of entries inside the given stream.</returns>
         /// <remarks>https://redis.io/commands/xlen</remarks>
         long StreamLength(RedisKey key, CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
-        /// Delete messages in the stream.
-        /// </summary>
-        /// <param name="key">The key of the stream.</param>
-        /// <param name="messageIds">The IDs of the messages to delete.</param>
-        /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>Returns the number of messages successfully deleted from the stream.</returns>
-        /// <remarks>https://redis.io/topics/streams-intro</remarks>
-        long StreamMessagesDelete(RedisKey key, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// View information about pending messages for a stream. A pending message is a message read using StreamReadGroup (XREADGROUP) but not yet acknowledged.

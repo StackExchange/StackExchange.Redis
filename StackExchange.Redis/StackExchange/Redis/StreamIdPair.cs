@@ -1,5 +1,4 @@
-﻿using System.Collections.Generic;
-
+﻿
 namespace StackExchange.Redis
 {
     /// <summary>

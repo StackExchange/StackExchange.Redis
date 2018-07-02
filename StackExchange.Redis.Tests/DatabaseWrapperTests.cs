@@ -816,16 +816,16 @@ namespace StackExchange.Redis.Tests
         public void StreamClaimMessages()
         {
             var messageIds = new RedisValue[0];
-            wrapper.StreamClaimMessages("key", "group", "consumer", 1000, messageIds, CommandFlags.HighPriority);
-            mock.Verify(_ => _.StreamClaimMessages("prefix:key", "group", "consumer", 1000, messageIds, CommandFlags.HighPriority));
+            wrapper.StreamClaim("key", "group", "consumer", 1000, messageIds, CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamClaim("prefix:key", "group", "consumer", 1000, messageIds, CommandFlags.HighPriority));
         }
 
         [Fact]
         public void StreamClaimMessagesReturningIds()
         {
             var messageIds = new RedisValue[0];
-            wrapper.StreamClaimMessagesReturningIds("key", "group", "consumer", 1000, messageIds, CommandFlags.HighPriority);
-            mock.Verify(_ => _.StreamClaimMessagesReturningIds("prefix:key", "group", "consumer", 1000, messageIds, CommandFlags.HighPriority));
+            wrapper.StreamClaimIdsOnly("key", "group", "consumer", 1000, messageIds, CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamClaimIdsOnly("prefix:key", "group", "consumer", 1000, messageIds, CommandFlags.HighPriority));
         }
 
         [Fact]
@@ -867,8 +867,8 @@ namespace StackExchange.Redis.Tests
         public void StreamMessagesDelete()
         {
             var messageIds = new RedisValue[0] { };
-            wrapper.StreamMessagesDelete("key", messageIds, CommandFlags.HighPriority);
-            mock.Verify(_ => _.StreamMessagesDelete("prefix:key", messageIds, CommandFlags.HighPriority));
+            wrapper.StreamDelete("key", messageIds, CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamDelete("prefix:key", messageIds, CommandFlags.HighPriority));
         }
 
         [Fact]

@@ -1651,7 +1651,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.RedisValue);
         }
 
-        public RedisStreamEntry[] StreamClaimMessages(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
+        public RedisStreamEntry[] StreamClaim(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamClaimMessage(key,
                 consumerGroup,
@@ -1664,7 +1664,7 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.SingleStream);
         }
 
-        public Task<RedisStreamEntry[]> StreamClaimMessagesAsync(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
+        public Task<RedisStreamEntry[]> StreamClaimAsync(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamClaimMessage(key,
                 consumerGroup,
@@ -1677,7 +1677,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.SingleStream);
         }
 
-        public RedisValue[] StreamClaimMessagesReturningIds(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
+        public RedisValue[] StreamClaimIdsOnly(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamClaimMessage(key,
                 consumerGroup,
@@ -1690,7 +1690,7 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.RedisValueArray);
         }
 
-        public Task<RedisValue[]> StreamClaimMessagesReturningIdsAsync(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
+        public Task<RedisValue[]> StreamClaimIdsOnlyAsync(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamClaimMessage(key,
                 consumerGroup,
@@ -1708,7 +1708,7 @@ namespace StackExchange.Redis
             var msg = Message.Create(Database,
                 flags,
                 RedisCommand.XGROUP,
-                new RedisValue[4]
+                new RedisValue[]
                 {
                     StreamConstants.Create,
                     key.AsRedisValue(),
@@ -1724,9 +1724,13 @@ namespace StackExchange.Redis
             var msg = Message.Create(Database,
                 flags,
                 RedisCommand.XGROUP,
-                key,
-                groupName,
-                readFrom);
+                new RedisValue[]
+                {
+                    StreamConstants.Create,
+                    key.AsRedisValue(),
+                    groupName,
+                    readFrom
+                });
 
             return ExecuteAsync(msg, ResultProcessor.Boolean);
         }
@@ -1736,7 +1740,7 @@ namespace StackExchange.Redis
             var msg = Message.Create(Database,
                 flags,
                 RedisCommand.XINFO,
-                new RedisValue[3]
+                new RedisValue[]
                 {
                     StreamConstants.Consumers,
                     key.AsRedisValue(),
@@ -1751,7 +1755,7 @@ namespace StackExchange.Redis
             var msg = Message.Create(Database,
                 flags,
                 RedisCommand.XINFO,
-                new RedisValue[3]
+                new RedisValue[]
                 {
                     StreamConstants.Consumers,
                     key.AsRedisValue(),
@@ -1797,7 +1801,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
-        public long StreamMessagesDelete(RedisKey key, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
+        public long StreamDelete(RedisKey key, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database,
                 flags,
@@ -1808,7 +1812,7 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
-        public Task<long> StreamMessagesDeleteAsync(RedisKey key, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
+        public Task<long> StreamDeleteAsync(RedisKey key, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database,
                 flags,
@@ -2546,7 +2550,7 @@ namespace StackExchange.Redis
 
         private Message GetStreamAcknowledgeMessage(RedisKey key, RedisValue groupName, RedisValue messageId, CommandFlags flags)
         {
-            var values = new RedisValue[3]
+            var values = new RedisValue[]
             {
                 key.AsRedisValue(),
                 groupName,
@@ -2606,7 +2610,7 @@ namespace StackExchange.Redis
             }
 
             values[offset++] = streamPair.Name;
-            values[offset++] = streamPair.Value;
+            values[offset] = streamPair.Value;
 
             return Message.Create(Database, flags, RedisCommand.XADD, key, values);
         }
@@ -2680,7 +2684,7 @@ namespace StackExchange.Redis
 
             if (returnJustIds)
             {
-                values[offset++] = StreamConstants.JustId;
+                values[offset] = StreamConstants.JustId;
             }
 
             return Message.Create(Database, flags, RedisCommand.XCLAIM, values);
