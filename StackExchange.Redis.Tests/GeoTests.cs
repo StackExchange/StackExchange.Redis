@@ -1,39 +1,12 @@
-using Xunit;
+﻿using Xunit;
 using System;
-using System.IO;
 using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
-    public class AzureTestAttribute : FactAttribute
-    {
-    }
-
     public class GeoTests : TestBase
     {
         public GeoTests(ITestOutputHelper output) : base (output) { }
-
-        private ConnectionMultiplexer Create()
-        {
-            Skip.IfNoConfig(nameof(TestConfig.Config.AzureCacheServer), TestConfig.Current.AzureCacheServer);
-            Skip.IfNoConfig(nameof(TestConfig.Config.AzureCachePassword), TestConfig.Current.AzureCachePassword);
-
-            var options = new ConfigurationOptions();
-            options.EndPoints.Add(TestConfig.Current.AzureCacheServer);
-            options.Ssl = true;
-            options.ConnectTimeout = 5000;
-            options.Password = TestConfig.Current.AzureCachePassword;
-            options.TieBreaker = "";
-            var log = new StringWriter();
-            var conn = ConnectionMultiplexer.Connect(options, log);
-            var s = log.ToString();
-            Output.WriteLine(s);
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.Geo), r => r.Geo);
-            return conn;
-        }
-
-        public const int Db = 0;
 
         public static GeoEntry
             palermo = new GeoEntry(13.361389, 38.115556, "Palermo"),
@@ -42,12 +15,13 @@ namespace StackExchange.Redis.Tests
             cefalù = new GeoEntry(14.0188, 38.0084, "Cefalù");
         public static GeoEntry[] all = { palermo, catania, agrigento, cefalù };
 
-        [AzureTest]
+        [Fact]
         public void GeoAdd()
         {
             using (var conn = Create())
             {
-                var db = conn.GetDatabase(Db);
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Geo), r => r.Geo);
+                var db = conn.GetDatabase();
                 RedisKey key = Me();
                 db.KeyDelete(key);
 
@@ -63,12 +37,13 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [AzureTest]
+        [Fact]
         public void GetDistance()
         {
             using (var conn = Create())
             {
-                var db = conn.GetDatabase(Db);
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Geo), r => r.Geo);
+                var db = conn.GetDatabase();
                 RedisKey key = Me();
                 db.KeyDelete(key);
                 db.GeoAdd(key, all);
@@ -82,12 +57,13 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [AzureTest]
+        [Fact]
         public void GeoHash()
         {
             using (var conn = Create())
             {
-                var db = conn.GetDatabase(Db);
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Geo), r => r.Geo);
+                var db = conn.GetDatabase();
                 RedisKey key = Me();
                 db.KeyDelete(key);
                 db.GeoAdd(key, all);
@@ -106,12 +82,13 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [AzureTest]
+        [Fact]
         public void GeoGetPosition()
         {
             using (var conn = Create())
             {
-                var db = conn.GetDatabase(Db);
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Geo), r => r.Geo);
+                var db = conn.GetDatabase();
                 RedisKey key = Me();
                 db.KeyDelete(key);
                 db.GeoAdd(key, all);
@@ -126,12 +103,13 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [AzureTest]
+        [Fact]
         public void GeoRemove()
         {
             using (var conn = Create())
             {
-                var db = conn.GetDatabase(Db);
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Geo), r => r.Geo);
+                var db = conn.GetDatabase();
                 RedisKey key = Me();
                 db.KeyDelete(key);
                 db.GeoAdd(key, all);
@@ -148,12 +126,13 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [AzureTest]
+        [Fact]
         public void GeoRadius()
         {
             using (var conn = Create())
             {
-                var db = conn.GetDatabase(Db);
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Geo), r => r.Geo);
+                var db = conn.GetDatabase();
                 RedisKey key = Me();
                 db.KeyDelete(key);
                 db.GeoAdd(key, all);
