@@ -34,6 +34,12 @@ namespace StackExchange.Redis.Tests
                 Assert.False(db.GeoAdd(key, cefalù.Longitude, cefalù.Latitude, cefalù.Member));
                 Assert.Equal(0, db.GeoAdd(key, new GeoEntry[] { palermo, catania }));
                 Assert.False(db.GeoAdd(key, agrigento));
+
+                // Validate
+                var pos = db.GeoPosition(key, palermo.Member);
+                Assert.NotNull(pos);
+                Assert.Equal(palermo.Longitude, pos.Value.Longitude, 5);
+                Assert.Equal(palermo.Latitude, pos.Value.Latitude, 5);
             }
         }
 
