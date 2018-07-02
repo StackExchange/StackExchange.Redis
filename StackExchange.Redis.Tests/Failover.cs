@@ -21,9 +21,6 @@ namespace StackExchange.Redis.Tests
                     shouldBeMaster.MakeMaster(ReplicationChangeOptions.SetTiebreaker);
                 }
 
-                Output.WriteLine("Flushing all databases...");
-                shouldBeMaster.FlushAllDatabases(CommandFlags.FireAndForget);
-
                 var shouldBeReplica = mutex.GetServer(TestConfig.Current.FailoverSlaveServerAndPort);
                 if (!shouldBeReplica.IsSlave)
                 {

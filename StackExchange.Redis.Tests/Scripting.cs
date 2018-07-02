@@ -103,7 +103,6 @@ namespace StackExchange.Redis.Tests
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
                 var server = conn.GetServer(TestConfig.Current.MasterServerAndPort);
-                server.FlushAllDatabases();
                 server.ScriptFlush();
 
                 server.ScriptLoad(Script);
@@ -157,7 +156,6 @@ namespace StackExchange.Redis.Tests
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
                 var server = conn.GetServer(TestConfig.Current.MasterServerAndPort);
-                server.FlushAllDatabases();
                 server.ScriptFlush();
 
                 byte[] hash = server.ScriptLoad(Script);
@@ -185,7 +183,6 @@ namespace StackExchange.Redis.Tests
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
                 var server = conn.GetServer(TestConfig.Current.MasterServerAndPort);
-                server.FlushAllDatabases();
                 server.ScriptFlush();
 
                 var prepared = LuaScript.Prepare(Script);
@@ -233,7 +230,6 @@ namespace StackExchange.Redis.Tests
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
                 var server = conn.GetServer(TestConfig.Current.MasterServerAndPort);
-                server.FlushAllDatabases();
                 server.ScriptFlush();
 
                 var script = LuaScript.Prepare(Script);
@@ -262,7 +258,6 @@ namespace StackExchange.Redis.Tests
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
                 var server = conn.GetServer(TestConfig.Current.MasterServerAndPort);
-                server.FlushAllDatabases();
                 server.ScriptFlush();
 
                 var script = LuaScript.Prepare(Script);
@@ -297,7 +292,6 @@ namespace StackExchange.Redis.Tests
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
                 var server = conn.GetServer(TestConfig.Current.MasterServerAndPort);
-                server.FlushAllDatabases();
                 server.ScriptFlush();
 
                 var prepared = LuaScript.Prepare(Script);
@@ -346,7 +340,6 @@ namespace StackExchange.Redis.Tests
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
                 var server = conn.GetServer(TestConfig.Current.MasterServerAndPort);
-                server.FlushAllDatabases();
                 server.ScriptFlush();
 
                 var script = LuaScript.Prepare(Script);
