@@ -501,6 +501,8 @@ namespace StackExchange.Redis
         /// <summary>
         /// This writes a message to the output stream
         /// </summary>
+        /// <param name="physical">The phsyical connection to write to.</param>
+        /// <param name="next">The message to be written.</param>
         internal WriteResult WriteMessageDirect(PhysicalConnection physical, Message next)
         {
             Trace("Writing: " + next);
