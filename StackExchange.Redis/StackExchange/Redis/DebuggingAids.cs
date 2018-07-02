@@ -179,28 +179,6 @@ namespace StackExchange.Redis
         bool IgnoreConnect { get; }
     }
 
-    internal partial class MessageQueue
-    {
-        internal void ListPending(StringBuilder sb, int maxCount)
-        {
-            lock (regular)
-            {
-                foreach (var item in high)
-                {
-                    if (--maxCount < 0) break;
-                    if (sb.Length != 0) sb.Append(",");
-                    item.AppendStormLog(sb);
-                }
-                foreach (var item in regular)
-                {
-                    if (--maxCount < 0) break;
-                    if (sb.Length != 0) sb.Append(",");
-                    item.AppendStormLog(sb);
-                }
-            }
-        }
-    }
-
     internal partial class PhysicalBridge
     {
         internal void SimulateConnectionFailure()
