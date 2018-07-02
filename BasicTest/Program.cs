@@ -11,11 +11,9 @@ using StackExchange.Redis;
 
 namespace BasicTest
 {
-
-    static class Program
+    internal static class Program
     {
-        static void Main(string[] args) => BenchmarkSwitcher.FromAssembly(typeof(Program).GetTypeInfo().Assembly).Run(args);
-
+        private static void Main(string[] args) => BenchmarkSwitcher.FromAssembly(typeof(Program).GetTypeInfo().Assembly).Run(args);
     }
     internal class CustomConfig : ManualConfig
     {
@@ -37,8 +35,8 @@ namespace BasicTest
     [Config(typeof(CustomConfig))]
     public class RedisBenchmarks : IDisposable
     {
-        ConnectionMultiplexer connection;
-        IDatabase db;
+        private ConnectionMultiplexer connection;
+        private IDatabase db;
         /// <summary>
         /// Create
         /// </summary>
@@ -54,8 +52,7 @@ namespace BasicTest
             connection = null;
         }
 
-        
-        const int COUNT = 10000;
+        private const int COUNT = 10000;
 
         /// <summary>
         /// Run INCRBY lots of times
@@ -66,7 +63,7 @@ namespace BasicTest
         [Benchmark(Description = "INCRBY:v2", OperationsPerInvoke = COUNT)]
 #endif
         public int Execute()
-        {   
+        {
             var rand = new Random(12345);
             RedisKey counter = "counter";
             db.KeyDelete(counter, CommandFlags.FireAndForget);
@@ -78,8 +75,7 @@ namespace BasicTest
                 db.StringIncrement(counter, x, CommandFlags.FireAndForget);
             }
             int actual = (int)db.StringGet(counter);
-            if (actual != expected) throw new InvalidOperationException(
-                $"expected: {expected}, actual: {actual}");
+            if (actual != expected) throw new InvalidOperationException($"expected: {expected}, actual: {actual}");
             return actual;
         }
     }

@@ -12,14 +12,14 @@ namespace BasicTest
     [Config(typeof(CustomConfig))]
     public class TextBenchmarks
     {
-        readonly string[] corpus;
-        readonly byte[] buffer;
+        private readonly string[] corpus;
+        private readonly byte[] buffer;
         public TextBenchmarks()
         {
             corpus = File.ReadAllLines("t8.shakespeare.txt");
             buffer = new byte[enc.GetMaxByteCount(corpus.Max(x => x.Length))];
         }
-        static readonly Encoding enc = Encoding.UTF8;
+        private static readonly Encoding enc = Encoding.UTF8;
 
         [Benchmark]
         public long Measure()
@@ -39,7 +39,7 @@ namespace BasicTest
                 string s = corpus[i];
                 total += enc.GetByteCount(s);
                 enc.GetBytes(s, 0, s.Length, buffer, 0);
-            }                
+            }
             return total;
         }
         [Benchmark]
@@ -50,7 +50,6 @@ namespace BasicTest
                 total += GetEncodedLength(corpus[i], out _);
             return total;
         }
-
 
         [Benchmark]
         public long MeasureAndEncodeVectorized()
@@ -66,9 +65,7 @@ namespace BasicTest
             return total;
         }
 
-
-
-        static readonly Vector<ushort> NonAsciiMask = new Vector<ushort>(0xFF80);
+        private static readonly Vector<ushort> NonAsciiMask = new Vector<ushort>(0xFF80);
         internal static
 #if NET47
             unsafe
@@ -114,7 +111,7 @@ namespace BasicTest
                 var nonAscii = NonAsciiMask;
                 int i = 0;
                 asciiChunks >>= 1; // half it - we can only use double-chunks
-                
+
                 for (int chunk = 0; chunk < asciiChunks; chunk++)
                 {
                     byteSpan[chunk] = Vector.Narrow(charSpan[i++], charSpan[i++]);
