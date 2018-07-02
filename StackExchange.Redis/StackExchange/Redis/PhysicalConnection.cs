@@ -1027,18 +1027,22 @@ namespace StackExchange.Redis
                         readResult = await input.ReadAsync();
                     }
 
-                    if (readResult.IsCompleted && readResult.Buffer.IsEmpty)
-                    {
-                        break; // we're all done
-                    }
                     var buffer = readResult.Buffer;
-
-                    int handled = ProcessBuffer(ref buffer); // updates buffer.Start
-
+                    int handled = 0;
+                    if(!buffer.IsEmpty)
+                    {
+                        handled = ProcessBuffer(ref buffer); // updates buffer.Start
+                    }
+                    
                     allowSyncRead = handled != 0;
 
                     Multiplexer.Trace($"Processed {handled} messages", physicalName);
                     input.AdvanceTo(buffer.Start, buffer.End);
+
+                    if (handled == 0 && readResult.IsCompleted)
+                    {
+                        break; // no more data, or trailing incomplete messages
+                    }
                 }
                 Multiplexer.Trace("EOF", physicalName);
                 RecordConnectionFailed(ConnectionFailureType.SocketClosed);
