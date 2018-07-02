@@ -335,7 +335,11 @@ namespace StackExchange.Redis
             do
             {
                 next = DequeueNextPendingBacklog();
-                next?.Cancel(ex);
+                if(next != null)
+                {
+                    next.Cancel(ex);
+                    CompleteSyncOrAsync(next);
+                }
             } while (next != null);
         }
         internal void OnFullyEstablished(PhysicalConnection connection)

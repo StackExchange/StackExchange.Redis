@@ -247,7 +247,7 @@ namespace StackExchange.Redis
                 {
                     var next = outstanding.Dequeue();
                     Bridge.Trace("Failing: " + next);
-                    next.Fail(failureType, innerException);
+                    next.SetException(innerException);
                     Bridge.CompleteSyncOrAsync(next);
                 }
             }

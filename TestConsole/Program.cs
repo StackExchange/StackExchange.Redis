@@ -23,7 +23,7 @@ namespace TestConsole
                     EndPoints = { "127.0.0.1:6381" },
                     Password = "abc",
                 };
-                using (var conn = ConnectionMultiplexer.Connect(config, log: Console.Out))
+                using (var conn = ConnectionMultiplexer.Connect(config, log: null))
                 {
                     //Execute(conn);
                     

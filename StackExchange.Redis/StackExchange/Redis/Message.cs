@@ -599,6 +599,11 @@ namespace StackExchange.Redis
             resultProcessor?.ConnectionFail(this, failure, innerException);
         }
 
+        internal void SetException(Exception exception)
+        {
+            resultBox?.SetException(exception);
+        }
+
         internal void SetEnqueued()
         {
             performance?.SetEnqueued();
