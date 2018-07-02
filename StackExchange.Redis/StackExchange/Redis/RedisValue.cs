@@ -432,6 +432,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Creates a new <see cref="RedisValue"/> from a <see cref="T:ReadOnlyMemory{byte}"/>.
         /// </summary>
+        /// <param name="value">The <see cref="T:ReadOnlyMemory{byte}"/> to convert to a <see cref="RedisValue"/>.</param>
         public static implicit operator RedisValue(ReadOnlyMemory<byte> value)
         {
             if (value.Length == 0) return EmptyString;
@@ -440,6 +441,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Creates a new <see cref="RedisValue"/> from a <see cref="T:Memory{byte}"/>.
         /// </summary>
+        /// <param name="value">The <see cref="T:Memory{byte}"/> to convert to a <see cref="RedisValue"/>.</param>
         public static implicit operator RedisValue(Memory<byte> value) => (ReadOnlyMemory<byte>)value;
 
         /// <summary>

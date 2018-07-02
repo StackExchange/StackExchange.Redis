@@ -11,14 +11,13 @@ namespace StackExchange.Redis
     internal sealed class ProfileContextTracker
     {
         /// <summary>
-        /// Necessary, because WeakReference can't be readily comparable (since the reference is... weak).
-        /// 
-        /// This lets us detect leaks* with some reasonable confidence, and cleanup periodically.
-        /// 
+        /// <para>Necessary, because WeakReference can't be readily comparable (since the reference is... weak).</para>
+        /// <para>This lets us detect leaks* with some reasonable confidence, and cleanup periodically.</para>
+        /// <para>
         /// Some calisthenics are done to avoid allocating WeakReferences for no reason, as often
         /// we're just looking up ProfileStorage.
-        /// 
-        /// * Somebody starts profiling, but for whatever reason never *stops* with a context object
+        /// </para>
+        /// <para>* Somebody starts profiling, but for whatever reason never *stops* with a context object</para>
         /// </summary>
         private struct ProfileContextCell : IEquatable<ProfileContextCell>
         {
@@ -47,20 +46,22 @@ namespace StackExchange.Redis
             }
 
             /// <summary>
-            /// Suitable for use as a key into something.
-            /// 
+            /// <para>Suitable for use as a key into something.</para>
+            /// <para>
             /// This instance **WILL NOT** keep forObj alive, so it can
             /// be copied out of the calling method's scope.
+            /// </para>
             /// </summary>
             /// <param name="forObj">The object to get a context for.</param>
             public static ProfileContextCell ToStoreUnder(object forObj) => new ProfileContextCell(forObj, isEphemeral: false);
 
             /// <summary>
-            /// Only suitable for looking up.
-            /// 
+            /// <para>Only suitable for looking up.</para>
+            /// <para>
             /// This instance **ABSOLUTELY WILL** keep forObj alive, so this
             /// had better not be copied into anything outside the scope of the
             /// calling method.
+            /// </para>
             /// </summary>
             /// <param name="forObj">The object to lookup a context by.</param>
             public static ProfileContextCell ToLookupBy(object forObj) => new ProfileContextCell(forObj, isEphemeral: true);
@@ -130,9 +131,8 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Registers the passed context with a collection that can be retried with subsequent calls to TryGetValue.
-        /// 
-        /// Returns false if the passed context object is already registered.
+        /// <para>Registers the passed context with a collection that can be retried with subsequent calls to TryGetValue.</para>
+        /// <para>Returns false if the passed context object is already registered.</para>
         /// </summary>
         /// <param name="ctx">The context to use.</param>
         public bool TryCreate(object ctx)
@@ -146,10 +146,11 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// <para>
         /// Returns true and sets val to the tracking collection associated with the given context if the context
         /// was registered with TryCreate.
-        /// 
-        /// Otherwise returns false and sets val to null.
+        /// </para>
+        /// <para>Otherwise returns false and sets val to null.</para>
         /// </summary>
         /// <param name="ctx">The context to get a value for.</param>
         /// <param name="val">The collection (if present) for <paramref name="ctx"/>.</param>
@@ -160,13 +161,15 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// <para>
         /// Removes a context, setting all commands to a (non-thread safe) enumerable of
         /// all the commands attached to that context.
-        /// 
-        /// If the context was never registered, will return false and set commands to null.
-        /// 
+        /// </para>
+        /// <para>If the context was never registered, will return false and set commands to null.</para>
+        /// <para>
         /// Subsequent calls to TryRemove with the same context will return false unless it is
         /// re-registered with TryCreate.
+        /// </para>
         /// </summary>
         /// <param name="ctx">The context to remove for.</param>
         /// <param name="commands">The commands to remove.</param>

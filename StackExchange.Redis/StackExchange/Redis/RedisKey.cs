@@ -277,19 +277,21 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Prepends p to this RedisKey, returning a new RedisKey.
-        /// 
+        /// <para>Prepends p to this RedisKey, returning a new RedisKey.</para>
+        /// <para>
         /// Avoids some allocations if possible, repeated Prepend/Appends make
         /// it less possible.
+        /// </para>
         /// </summary>
         /// <param name="prefix">The prefix to prepend.</param>
         public RedisKey Prepend(RedisKey prefix) => WithPrefix(prefix, this);
 
         /// <summary>
-        /// Appends p to this RedisKey, returning a new RedisKey.
-        /// 
+        /// <para>Appends p to this RedisKey, returning a new RedisKey.</para>
+        /// <para>
         /// Avoids some allocations if possible, repeated Prepend/Appends make
         /// it less possible.
+        /// </para>
         /// </summary>
         /// <param name="suffix">The suffix to append.</param>
         public RedisKey Append(RedisKey suffix) => WithPrefix(this, suffix);

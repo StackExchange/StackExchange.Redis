@@ -272,16 +272,19 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Creates a Func that extracts parameters from the given type for use by a LuaScript.
-        /// 
+        /// <para>Creates a Func that extracts parameters from the given type for use by a LuaScript.</para>
+        /// <para>
         /// Members that are RedisKey's get extracted to be passed in as keys to redis; all members that
         /// appear in the script get extracted as RedisValue arguments to be sent up as args.
-        /// 
+        /// </para>
+        /// <para>
         /// We send all values as arguments so we don't have to prepare the same script for different parameter
         /// types.
-        /// 
+        /// </para>
+        /// <para>
         /// The created Func takes a RedisKey, which will be prefixed to all keys (and arguments of type RedisKey) for 
         /// keyspace isolation.
+        /// </para>
         /// </summary>
         /// <param name="t">The type to extract for.</param>
         /// <param name="script">The script to extract for.</param>
