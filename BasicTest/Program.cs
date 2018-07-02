@@ -6,6 +6,7 @@ using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Diagnosers;
 using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Running;
+using BenchmarkDotNet.Toolchains.InProcess;
 using BenchmarkDotNet.Validators;
 using StackExchange.Redis;
 
@@ -20,13 +21,14 @@ namespace BasicTest
         public CustomConfig()
         {
             Job Get(Job j) => j
-                .With(new GcMode { Force = true });
+                .With(new GcMode { Force = true })
+                .With(InProcessToolchain.Instance);
 
             Add(new MemoryDiagnoser());
             Add(StatisticColumn.OperationsPerSecond);
             Add(JitOptimizationsValidator.FailOnError);
             Add(Get(Job.Clr));
-            Add(Get(Job.Core));
+            //Add(Get(Job.Core));
         }
     }
     /// <summary>
@@ -35,19 +37,26 @@ namespace BasicTest
     [Config(typeof(CustomConfig))]
     public class RedisBenchmarks : IDisposable
     {
-        private ConnectionMultiplexer connection;
-        private IDatabase db;
+        SocketManager mgr;
+        ConnectionMultiplexer connection;
+        IDatabase db;
+
         /// <summary>
         /// Create
         /// </summary>
         public RedisBenchmarks()
         {
-            connection = ConnectionMultiplexer.Connect("127.0.0.1:6379,syncTimeout=200000");
+            mgr = new SocketManager(GetType().Name);
+            var options = ConfigurationOptions.Parse("127.0.0.1:6379,syncTimeout=1000");
+            options.SocketManager = mgr;
+            connection = ConnectionMultiplexer.Connect(options);
             db = connection.GetDatabase(3);
         }
         void IDisposable.Dispose()
         {
+            mgr?.Dispose();
             connection?.Dispose();
+            mgr = null;
             db = null;
             connection = null;
         }
