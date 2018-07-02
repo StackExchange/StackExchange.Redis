@@ -1283,6 +1283,8 @@ namespace StackExchange.Redis
 
         public long SetRemove(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
         {
+            if (values == null) throw new ArgumentNullException(nameof(values));
+            if (values.Length == 0) return 0;
             var msg = Message.Create(Database, flags, RedisCommand.SREM, key, values);
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
@@ -1295,6 +1297,8 @@ namespace StackExchange.Redis
 
         public Task<long> SetRemoveAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
         {
+            if (values == null) throw new ArgumentNullException(nameof(values));
+            if (values.Length == 0) return CompletedTask<long>.FromResult(0, asyncState);
             var msg = Message.Create(Database, flags, RedisCommand.SREM, key, values);
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }

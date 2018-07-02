@@ -1,4 +1,6 @@
-﻿using System.Linq;
+﻿using System;
+using System.Linq;
+using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -33,6 +35,24 @@ namespace StackExchange.Redis.Tests
                     var filteredActual = db.SetScan(key, "*3*").Select(x => (int)x).Sum();
                     Assert.Equal(totalFiltered, filteredActual);
                 }
+            }
+        }
+
+        [Fact]
+        public async Task SetRemoveArgTests()
+        {
+            using (var conn = Create())
+            {
+                var db = conn.GetDatabase();
+                var key = Me();
+
+                RedisValue[] values = null;
+                Assert.Throws<ArgumentNullException>(() => db.SetRemove(key, values, CommandFlags.HighPriority));
+                await Assert.ThrowsAsync<ArgumentNullException>(async () => await db.SetRemoveAsync(key, values, CommandFlags.HighPriority).ForAwait()).ForAwait();
+
+                values = new RedisValue[0];
+                Assert.Equal(0, db.SetRemove(key, values, CommandFlags.HighPriority));
+                Assert.Equal(0, await db.SetRemoveAsync(key, values, CommandFlags.HighPriority).ForAwait());
             }
         }
     }
