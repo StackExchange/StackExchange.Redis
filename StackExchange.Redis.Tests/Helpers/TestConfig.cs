@@ -87,8 +87,6 @@ namespace StackExchange.Redis.Tests
 
             public string SSDBServer { get; set; }
             public int SSDBPort { get; set; } = 8888;
-
-            public List<string> VPNConfigs { get; set; }
         }
     }
 }
