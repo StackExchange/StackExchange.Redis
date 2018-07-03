@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Net;
 
@@ -961,6 +961,16 @@ namespace StackExchange.Redis
         /// <returns>The removed element, or nil when key does not exist.</returns>
         /// <remarks>https://redis.io/commands/spop</remarks>
         RedisValue SetPop(RedisKey key, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Removes and returns the specified number of random elements from the set value stored at key.
+        /// </summary>
+        /// <param name="key">The key of the set.</param>
+        /// <param name="count">The number of elements to return.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The removed elements, or nil when key does not exist.</returns>
+        /// <remarks>https://redis.io/commands/spop</remarks>
+        RedisValue[] SetPop(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Return a random element from the set value stored at key.

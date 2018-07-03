@@ -539,6 +539,9 @@ namespace StackExchange.Redis.Tests
         {
             wrapper.SetPopAsync("key", CommandFlags.HighPriority);
             mock.Verify(_ => _.SetPopAsync("prefix:key", CommandFlags.HighPriority));
+
+            wrapper.SetPopAsync("key", 5, CommandFlags.HighPriority);
+            mock.Verify(_ => _.SetPopAsync("prefix:key", 5, CommandFlags.HighPriority));
         }
 
         [Fact]

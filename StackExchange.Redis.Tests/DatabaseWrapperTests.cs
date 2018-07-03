@@ -567,6 +567,9 @@ namespace StackExchange.Redis.Tests
         {
             wrapper.SetPop("key", CommandFlags.HighPriority);
             mock.Verify(_ => _.SetPop("prefix:key", CommandFlags.HighPriority));
+
+            wrapper.SetPop("key", 5, CommandFlags.HighPriority);
+            mock.Verify(_ => _.SetPop("prefix:key", 5, CommandFlags.HighPriority));
         }
 
         [Fact]
