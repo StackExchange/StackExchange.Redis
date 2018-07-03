@@ -70,9 +70,9 @@ namespace StackExchange.Redis.Tests.Booksleeve
             conn.WaitAll(tasks);
             withAsync.Stop();
 
-            Assert.True(withFAF.ElapsedMilliseconds < withAsync.ElapsedMilliseconds, caption);
             Output.WriteLine("{2}: {0}ms (F+F) vs {1}ms (async)",
                 withFAF.ElapsedMilliseconds, withAsync.ElapsedMilliseconds, caption);
+            Assert.True(withFAF.ElapsedMilliseconds < withAsync.ElapsedMilliseconds, caption);
         }
 
         [FactLongRunning]
