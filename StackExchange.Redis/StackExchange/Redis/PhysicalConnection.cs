@@ -868,7 +868,8 @@ namespace StackExchange.Redis
                 OnDebugAbort();
 
                 // the order is important here:
-                // [Socket]<==[NetworkStream]<==[SslStream]<==[
+                // non-TLS: [Socket]<==[SocketConnection:IDuplexPipe]
+                // TLS:     [Socket]<==[NetworkStream]<==[SslStream]<==[StreamConnection:IDuplexPipe]
                 var config = Multiplexer.RawConfig;
 
                 IDuplexPipe pipe;

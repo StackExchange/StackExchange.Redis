@@ -13,10 +13,9 @@ namespace StackExchange.Redis.Tests
         public SSL(ITestOutputHelper output) : base (output) { }
 
         [Theory]
-        [InlineData(null, true)]
-        [InlineData(null, false)]
-        [InlineData(6380, true)]
-        [InlineData(6379, false)]
+        [InlineData(null, true)] // auto-infer port (but specify 6380)
+        [InlineData(6380, true)] // all explicit
+        // (note the 6379 port is closed)
         public void ConnectToAzure(int? port, bool ssl)
         {
             Skip.IfNoConfig(nameof(TestConfig.Config.AzureCacheServer), TestConfig.Current.AzureCacheServer);
