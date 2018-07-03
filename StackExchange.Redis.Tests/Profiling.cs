@@ -408,6 +408,7 @@ namespace StackExchange.Redis.Tests
 
                 conn.BeginProfiling(profiler.MyContext);
 
+                var prefix = Me();
                 var db = conn.GetDatabase();
 
                 var allTasks = new List<Task<string>>();
@@ -415,9 +416,9 @@ namespace StackExchange.Redis.Tests
                 foreach (var i in Enumerable.Range(0, OuterLoop))
                 {
                     var t =
-                        db.StringSetAsync("foo" + i, "bar" + i)
+                        db.StringSetAsync(prefix + i, "bar" + i)
                           .ContinueWith(
-                            async _ => (string)(await db.StringGetAsync("foo" + i).ForAwait())
+                            async _ => (string)(await db.StringGetAsync(prefix + i).ForAwait())
                           );
 
                     var finalResult = t.Unwrap();

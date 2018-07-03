@@ -16,18 +16,19 @@ namespace StackExchange.Redis.Tests.Booksleeve
             {
                 var conn = muxer.GetDatabase(2);
                 var server = GetServer(muxer);
-                conn.KeyDelete("append");
-                var l0 = server.Features.StringLength ? conn.StringLengthAsync("append") : null;
+                var key = Me();
+                conn.KeyDelete(key);
+                var l0 = server.Features.StringLength ? conn.StringLengthAsync(key) : null;
 
-                var s0 = conn.StringGetAsync("append");
+                var s0 = conn.StringGetAsync(key);
 
-                conn.StringSetAsync("append", "abc");
-                var s1 = conn.StringGetAsync("append");
-                var l1 = server.Features.StringLength ? conn.StringLengthAsync("append") : null;
+                conn.StringSetAsync(key, "abc");
+                var s1 = conn.StringGetAsync(key);
+                var l1 = server.Features.StringLength ? conn.StringLengthAsync(key) : null;
 
-                var result = conn.StringAppendAsync("append", Encode("defgh"));
-                var s3 = conn.StringGetAsync("append");
-                var l2 = server.Features.StringLength ? conn.StringLengthAsync("append") : null;
+                var result = conn.StringAppendAsync(key, Encode("defgh"));
+                var s3 = conn.StringGetAsync(key);
+                var l2 = server.Features.StringLength ? conn.StringLengthAsync(key) : null;
 
                 Assert.Null((string)conn.Wait(s0));
                 Assert.Equal("abc", conn.Wait(s1));
@@ -49,13 +50,14 @@ namespace StackExchange.Redis.Tests.Booksleeve
             using (var muxer = GetUnsecuredConnection())
             {
                 var conn = muxer.GetDatabase(2);
-                conn.KeyDeleteAsync("set");
+                var key = Me();
+                conn.KeyDeleteAsync(key);
 
-                conn.StringSetAsync("set", "abc");
-                var v1 = conn.StringGetAsync("set");
+                conn.StringSetAsync(key, "abc");
+                var v1 = conn.StringGetAsync(key);
 
-                conn.StringSetAsync("set", Encode("def"));
-                var v2 = conn.StringGetAsync("set");
+                conn.StringSetAsync(key, Encode("def"));
+                var v2 = conn.StringGetAsync(key);
 
                 Assert.Equal("abc", conn.Wait(v1));
                 Assert.Equal("def", Decode(conn.Wait(v2)));
@@ -68,19 +70,20 @@ namespace StackExchange.Redis.Tests.Booksleeve
             using (var muxer = GetUnsecuredConnection())
             {
                 var conn = muxer.GetDatabase(2);
-                conn.KeyDeleteAsync("set");
-                conn.KeyDeleteAsync("set2");
-                conn.KeyDeleteAsync("set3");
-                conn.StringSetAsync("set", "abc");
+                var prefix = Me();
+                conn.KeyDeleteAsync(prefix + "1");
+                conn.KeyDeleteAsync(prefix + "2");
+                conn.KeyDeleteAsync(prefix + "3");
+                conn.StringSetAsync(prefix + "1", "abc");
 
-                var x0 = conn.StringSetAsync("set", "def", when: When.NotExists);
-                var x1 = conn.StringSetAsync("set", Encode("def"), when: When.NotExists);
-                var x2 = conn.StringSetAsync("set2", "def", when: When.NotExists);
-                var x3 = conn.StringSetAsync("set3", Encode("def"), when: When.NotExists);
+                var x0 = conn.StringSetAsync(prefix + "1", "def", when: When.NotExists);
+                var x1 = conn.StringSetAsync(prefix + "1", Encode("def"), when: When.NotExists);
+                var x2 = conn.StringSetAsync(prefix + "2", "def", when: When.NotExists);
+                var x3 = conn.StringSetAsync(prefix + "3", Encode("def"), when: When.NotExists);
 
-                var s0 = conn.StringGetAsync("set");
-                var s2 = conn.StringGetAsync("set2");
-                var s3 = conn.StringGetAsync("set3");
+                var s0 = conn.StringGetAsync(prefix + "1");
+                var s2 = conn.StringGetAsync(prefix + "2");
+                var s3 = conn.StringGetAsync(prefix + "3");
 
                 Assert.False(conn.Wait(x0));
                 Assert.False(conn.Wait(x1));
@@ -99,14 +102,15 @@ namespace StackExchange.Redis.Tests.Booksleeve
             {
                 Skip.IfMissingFeature(muxer, nameof(RedisFeatures.StringSetRange), r => r.StringSetRange);
                 var conn = muxer.GetDatabase(2);
+                var key = Me();
 
-                conn.KeyDeleteAsync("range");
+                conn.KeyDeleteAsync(key);
 
-                conn.StringSetAsync("range", "abcdefghi");
-                conn.StringSetRangeAsync("range", 2, "xy");
-                conn.StringSetRangeAsync("range", 4, Encode("z"));
+                conn.StringSetAsync(key, "abcdefghi");
+                conn.StringSetRangeAsync(key, 2, "xy");
+                conn.StringSetRangeAsync(key, 4, Encode("z"));
 
-                var val = conn.StringGetAsync("range");
+                var val = conn.StringGetAsync(key);
 
                 Assert.Equal("abxyzfghi", conn.Wait(val));
             }
@@ -118,16 +122,17 @@ namespace StackExchange.Redis.Tests.Booksleeve
             using (var muxer = GetUnsecuredConnection())
             {
                 var conn = muxer.GetDatabase(2);
-                conn.KeyDeleteAsync("incr");
+                var key = Me();
+                conn.KeyDeleteAsync(key);
 
-                conn.StringSetAsync("incr", "2");
-                var v1 = conn.StringIncrementAsync("incr");
-                var v2 = conn.StringIncrementAsync("incr", 5);
-                var v3 = conn.StringIncrementAsync("incr", -2);
-                var v4 = conn.StringDecrementAsync("incr");
-                var v5 = conn.StringDecrementAsync("incr", 5);
-                var v6 = conn.StringDecrementAsync("incr", -2);
-                var s = conn.StringGetAsync("incr");
+                conn.StringSetAsync(key, "2");
+                var v1 = conn.StringIncrementAsync(key);
+                var v2 = conn.StringIncrementAsync(key, 5);
+                var v3 = conn.StringIncrementAsync(key, -2);
+                var v4 = conn.StringDecrementAsync(key);
+                var v5 = conn.StringDecrementAsync(key, 5);
+                var v6 = conn.StringDecrementAsync(key, -2);
+                var s = conn.StringGetAsync(key);
 
                 Assert.Equal(3, conn.Wait(v1));
                 Assert.Equal(8, conn.Wait(v2));
@@ -146,17 +151,18 @@ namespace StackExchange.Redis.Tests.Booksleeve
             {
                 Skip.IfMissingFeature(muxer, nameof(RedisFeatures.IncrementFloat), r => r.IncrementFloat);
                 var conn = muxer.GetDatabase(2);
-                conn.KeyDelete("incr");
+                var key = Me();
+                conn.KeyDelete(key);
 
-                conn.StringSetAsync("incr", "2");
-                var v1 = conn.StringIncrementAsync("incr", 1.1);
-                var v2 = conn.StringIncrementAsync("incr", 5.0);
-                var v3 = conn.StringIncrementAsync("incr", -2.0);
-                var v4 = conn.StringIncrementAsync("incr", -1.0);
-                var v5 = conn.StringIncrementAsync("incr", -5.0);
-                var v6 = conn.StringIncrementAsync("incr", 2.0);
+                conn.StringSetAsync(key, "2");
+                var v1 = conn.StringIncrementAsync(key, 1.1);
+                var v2 = conn.StringIncrementAsync(key, 5.0);
+                var v3 = conn.StringIncrementAsync(key, -2.0);
+                var v4 = conn.StringIncrementAsync(key, -1.0);
+                var v5 = conn.StringIncrementAsync(key, -5.0);
+                var v6 = conn.StringIncrementAsync(key, 2.0);
 
-                var s = conn.StringGetAsync("incr");
+                var s = conn.StringGetAsync(key);
 
                 Assert.Equal(3.1, conn.Wait(v1), 5);
                 Assert.Equal(8.1, conn.Wait(v2), 5);
@@ -174,11 +180,12 @@ namespace StackExchange.Redis.Tests.Booksleeve
             using (var muxer = GetUnsecuredConnection(waitForOpen: true))
             {
                 var conn = muxer.GetDatabase(2);
-                conn.KeyDeleteAsync("range");
+                var key = Me();
+                conn.KeyDeleteAsync(key);
 
-                conn.StringSetAsync("range", "abcdefghi");
-                var s = conn.StringGetRangeAsync("range", 2, 4);
-                var b = conn.StringGetRangeAsync("range", 2, 4);
+                conn.StringSetAsync(key, "abcdefghi");
+                var s = conn.StringGetRangeAsync(key, 2, 4);
+                var b = conn.StringGetRangeAsync(key, 2, 4);
 
                 Assert.Equal("cde", conn.Wait(s));
                 Assert.Equal("cde", Decode(conn.Wait(b)));
@@ -193,10 +200,11 @@ namespace StackExchange.Redis.Tests.Booksleeve
                 Skip.IfMissingFeature(muxer, nameof(RedisFeatures.BitwiseOperations), r => r.BitwiseOperations);
 
                 var conn = muxer.GetDatabase(0);
-                conn.StringSetAsync("mykey", "foobar");
-                var r1 = conn.StringBitCountAsync("mykey");
-                var r2 = conn.StringBitCountAsync("mykey", 0, 0);
-                var r3 = conn.StringBitCountAsync("mykey", 1, 1);
+                var key = Me();
+                conn.StringSetAsync(key, "foobar");
+                var r1 = conn.StringBitCountAsync(key);
+                var r2 = conn.StringBitCountAsync(key, 0, 0);
+                var r3 = conn.StringBitCountAsync(key, 1, 1);
 
                 Assert.Equal(26, conn.Wait(r1));
                 Assert.Equal(4, conn.Wait(r2));
@@ -211,14 +219,18 @@ namespace StackExchange.Redis.Tests.Booksleeve
             {
                 Skip.IfMissingFeature(muxer, nameof(RedisFeatures.BitwiseOperations), r => r.BitwiseOperations);
                 var conn = muxer.GetDatabase(0);
-                conn.StringSetAsync("key1", new byte[] { 3 });
-                conn.StringSetAsync("key2", new byte[] { 6 });
-                conn.StringSetAsync("key3", new byte[] { 12 });
+                var prefix = Me();
+                var key1 = prefix + "1";
+                var key2 = prefix + "2";
+                var key3 = prefix + "3";
+                conn.StringSetAsync(key1, new byte[] { 3 });
+                conn.StringSetAsync(key2, new byte[] { 6 });
+                conn.StringSetAsync(key3, new byte[] { 12 });
 
-                var len_and = conn.StringBitOperationAsync(Bitwise.And, "and", new RedisKey[] { "key1", "key2", "key3" });
-                var len_or = conn.StringBitOperationAsync(Bitwise.Or, "or", new RedisKey[] { "key1", "key2", "key3" });
-                var len_xor = conn.StringBitOperationAsync(Bitwise.Xor, "xor", new RedisKey[] { "key1", "key2", "key3" });
-                var len_not = conn.StringBitOperationAsync(Bitwise.Not, "not", "key1");
+                var len_and = conn.StringBitOperationAsync(Bitwise.And, "and", new RedisKey[] { key1, key2, key3 });
+                var len_or = conn.StringBitOperationAsync(Bitwise.Or, "or", new RedisKey[] { key1, key2, key3 });
+                var len_xor = conn.StringBitOperationAsync(Bitwise.Xor, "xor", new RedisKey[] { key1, key2, key3 });
+                var len_not = conn.StringBitOperationAsync(Bitwise.Not, "not", key1);
 
                 Assert.Equal(1, conn.Wait(len_and));
                 Assert.Equal(1, conn.Wait(len_or));
@@ -243,8 +255,9 @@ namespace StackExchange.Redis.Tests.Booksleeve
             using (var muxer = GetUnsecuredConnection())
             {
                 var conn = muxer.GetDatabase(0);
-                conn.StringSetAsync("my key", "hello world");
-                var result = conn.StringGetRangeAsync("my key", 2, 6);
+                var key = Me();
+                conn.StringSetAsync(key, "hello world");
+                var result = conn.StringGetRangeAsync(key, 2, 6);
                 Assert.Equal("llo w", conn.Wait(result));
             }
         }
