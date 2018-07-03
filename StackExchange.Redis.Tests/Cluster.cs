@@ -576,7 +576,6 @@ namespace StackExchange.Redis.Tests
                     var key = Guid.NewGuid().ToString();
                     var endpoint = db.IdentifyEndpoint(key, flags);
                     var server = muxer.GetServer(endpoint);
-                    Output.WriteLine("Comparing: key");
                     Assert.Equal(isSlave, server.IsSlave);
                 }
             }
