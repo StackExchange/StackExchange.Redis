@@ -900,7 +900,7 @@ namespace StackExchange.Redis
                         Multiplexer.Trace("Encryption failure");
                         return SocketMode.Abort;
                     }
-                    pipe = StreamConnector.GetDuplex(ssl, manager.SendPipeOptions, manager.ReceivePipeOptions, name: Bridge.Name);
+                    pipe = StreamConnection.GetDuplex(ssl, manager.SendPipeOptions, manager.ReceivePipeOptions, name: Bridge.Name);
                 }
                 else
                 {

@@ -24,6 +24,6 @@
   </ItemGroup>
   
   <ItemGroup>
-    <PackageReference Include="Pipelines.Sockets.Unofficial" Version="0.2.1-alpha.53" />
+    <PackageReference Include="Pipelines.Sockets.Unofficial" Version="0.2.1-alpha.58" />
   </ItemGroup>
 </Project>
