@@ -1423,7 +1423,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The ID of the newly created message.</returns>
         /// <remarks>https://redis.io/commands/xadd</remarks>
-        RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, string messageId = "*", int? maxLength = null, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None);
+        RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId = null, int? maxLength = null, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Adds an entry using the specified values to the given stream key. If key does not exist, a new key holding a stream is created. The command returns the ID of the newly created stream entry.
@@ -1436,7 +1436,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The ID of the newly created message.</returns>
         /// <remarks>https://redis.io/commands/xadd</remarks>
-        RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, string messageId = "*", int? maxLength = null, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None);
+        RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId = null, int? maxLength = null, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Change ownership of messages consumed, but not yet acknowledged, by a different consumer. This method returns the complete message for the claimed message(s).
@@ -1479,11 +1479,11 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="key">The key of the stream.</param>
         /// <param name="groupName">The name of the group to create.</param>
-        /// <param name="readFrom">The beginning position in the stream from which to read. Pass "$" or <see cref="StreamConstants.NewMessages"/> to read only new messages.</param>
+        /// <param name="readFrom">The beginning position in the stream from which to read. If null, the method will send the option ("$") to only read new messages.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>True if the group was created.</returns>
         /// <remarks>https://redis.io/topics/streams-intro</remarks>
-        bool StreamCreateConsumerGroup(RedisKey key, RedisValue groupName, RedisValue readFrom, CommandFlags flags = CommandFlags.None);
+        bool StreamCreateConsumerGroup(RedisKey key, RedisValue groupName, RedisValue? readFrom = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Delete messages in the stream. This method does not delete the stream.
@@ -1538,28 +1538,28 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="key">The key of the stream.</param>
         /// <param name="groupName">The name of the consumer group.</param>
-        /// <param name="minId">The minimum ID from which to read the stream of pending messages. Pass "-" or <see cref="StreamConstants.ReadMinValue"/> to read from the beginning of the stream" /></param>
-        /// <param name="maxId">The maximum ID to read to within the stream of pending messages. Pass "+" or <see cref="StreamConstants.ReadMaxValue"/> to read to the end of the stream.</param>
         /// <param name="count">The maximum number of pending messages to return.</param>
         /// <param name="consumerName">The consumer name for the pending messages. Pass RedisValue.Null to include pending messages for all consumers.</param>
+        /// <param name="minId">The minimum ID from which to read the stream of pending messages. The method will default to reading from the beginning of the stream.</param>
+        /// <param name="maxId">The maximum ID to read to within the stream of pending messages. The method will default to reading to the end of the stream.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>An instance of <see cref="StreamPendingMessageInfo"/> for each pending message.</returns>
         /// <remarks>Equivalent of calling XPENDING key group start-id end-id count consumer-name.</remarks>
         /// <remarks>https://redis.io/commands/xpending</remarks>
-        StreamPendingMessageInfo[] StreamPendingMessages(RedisKey key, RedisValue groupName, RedisValue minId, RedisValue maxId, int count, RedisValue consumerName, CommandFlags flags = CommandFlags.None);
+        StreamPendingMessageInfo[] StreamPendingMessages(RedisKey key, RedisValue groupName, int count, RedisValue consumerName, RedisValue? minId = null, RedisValue? maxId = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Read a stream using the given range of IDs.
         /// </summary>
         /// <param name="key">The key of the stream.</param>
-        /// <param name="minId">The minimum ID from which to read the stream of pending messages. Pass "-" or <see cref="StreamConstants.ReadMinValue"/> to read from the beginning of the stream" /></param>
-        /// <param name="maxId">The maximum ID to read to within the stream of pending messages. Pass "+" or <see cref="StreamConstants.ReadMaxValue"/> to read to the end of the stream.</param>
+        /// <param name="minId">The minimum ID from which to read the stream. The method will default to reading from the beginning of the stream.</param>
+        /// <param name="maxId">The maximum ID to read to within the stream. The method will default to reading to the end of the stream.</param>
         /// <param name="count">The maximum number of messages to return.</param>
         /// <param name="messageOrder">The order of the messages. <see cref="Order.Ascending"/> will execute XRANGE and <see cref="Order.Descending"/> wil execute XREVRANGE.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>Returns an instance of <see cref="RedisStreamEntry"/> for each message returned.</returns>
         /// <remarks>https://redis.io/commands/xrange</remarks>
-        RedisStreamEntry[] StreamRange(RedisKey key, RedisValue minId, RedisValue maxId, int? count = null, Order messageOrder = Order.Ascending, CommandFlags flags = CommandFlags.None);
+        RedisStreamEntry[] StreamRange(RedisKey key, RedisValue? minId = null, RedisValue? maxId = null, int? count = null, Order messageOrder = Order.Ascending, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Read from a single stream.
@@ -1590,12 +1590,12 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the stream.</param>
         /// <param name="groupName">The name of the consumer group.</param>
         /// <param name="consumerName">The consumer name.</param>
-        /// <param name="readFromId">The ID from within the stream to begin reading.</param>
+        /// <param name="readFromId">The ID from within the stream to begin reading. If null, the method will send the option (">") to only read new, previously undelivered messages.</param>
         /// <param name="count">The maximum number of messages to return.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>Returns an instance of <see cref="RedisStreamEntry"/> for each message returned.</returns>
         /// <remarks>https://redis.io/commands/xreadgroup</remarks>
-        RedisStreamEntry[] StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue readFromId, int? count = null, CommandFlags flags = CommandFlags.None);
+        RedisStreamEntry[] StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? readFromId = null, int? count = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Trim the stream to a specified maximum length.

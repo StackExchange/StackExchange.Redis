@@ -881,8 +881,8 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamPendingMessageInfoGet()
         {
-            wrapper.StreamPendingMessages("key", "group", "-", "+", 10, RedisValue.Null, CommandFlags.HighPriority);
-            mock.Verify(_ => _.StreamPendingMessages("prefix:key", "group", "-", "+", 10, RedisValue.Null, CommandFlags.HighPriority));
+            wrapper.StreamPendingMessages("key", "group", 10, RedisValue.Null, null, null, CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamPendingMessages("prefix:key", "group", 10, RedisValue.Null, null, null, CommandFlags.HighPriority));
         }
 
         [Fact]

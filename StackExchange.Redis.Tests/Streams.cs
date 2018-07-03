@@ -304,20 +304,18 @@ namespace StackExchange.Redis.Tests
                 var id3 = db.StreamAdd(key, "field3", "value3");
                 var id4 = db.StreamAdd(key, "field4", "value4");
 
-                db.StreamCreateConsumerGroup(key, groupName, StreamConstants.ReadMinValue);
+                db.StreamCreateConsumerGroup(key, groupName, "0-0");
 
                 // Read a single message into the first consumer.
-                db.StreamReadGroup(key, groupName, consumer1, StreamConstants.ReadMinValue, 1);
+                db.StreamReadGroup(key, groupName, consumer1, count: 1);
 
                 // Read the remaining messages into the second consumer.
-                db.StreamReadGroup(key, groupName, consumer2, StreamConstants.UndeliveredMessages);
+                db.StreamReadGroup(key, groupName, consumer2);
 
                 // Claim the 3 messages consumed by consumer2 for consumer1.
 
                 // Get the pending messages for consumer2.
                 var pendingMessages = db.StreamPendingMessages(key, groupName,
-                    StreamConstants.ReadMinValue,
-                    StreamConstants.ReadMaxValue,
                     10,
                     consumer2);
 
@@ -369,8 +367,6 @@ namespace StackExchange.Redis.Tests
 
                 // Get the pending messages for consumer2.
                 var pendingMessages = db.StreamPendingMessages(key, groupName,
-                    StreamConstants.ReadMinValue,
-                    StreamConstants.ReadMaxValue,
                     10,
                     consumer2);
 
@@ -430,12 +426,10 @@ namespace StackExchange.Redis.Tests
 
                 var id1 = db.StreamAdd(key, "field1", "value1");
 
-                db.StreamCreateConsumerGroup(key, groupName, StreamConstants.ReadMinValue);
+                db.StreamCreateConsumerGroup(key, groupName, "0-0");
 
                 var pendingMessages = db.StreamPendingMessages(key,
                     groupName,
-                    StreamConstants.ReadMinValue,
-                    StreamConstants.ReadMaxValue,
                     10,
                     consumerName: RedisValue.Null);
 
@@ -508,13 +502,13 @@ namespace StackExchange.Redis.Tests
                 db.StreamCreateConsumerGroup(key, groupName, StreamConstants.ReadMinValue);
 
                 // Read a single message into the first consumer.
-                var consumer1Messages = db.StreamReadGroup(key, groupName, consumer1, StreamConstants.UndeliveredMessages, 1);
+                var consumer1Messages = db.StreamReadGroup(key, groupName, consumer1, count: 1);
 
                 // Read the remaining messages into the second consumer.
-                var consumer2Messages = db.StreamReadGroup(key, groupName, consumer2, StreamConstants.UndeliveredMessages);
+                var consumer2Messages = db.StreamReadGroup(key, groupName, consumer2);
 
                 // Get the pending info about the messages themselves.
-                var pendingMessageInfoList = db.StreamPendingMessages(key, groupName, StreamConstants.ReadMinValue, StreamConstants.ReadMaxValue, 10, RedisValue.Null);
+                var pendingMessageInfoList = db.StreamPendingMessages(key, groupName, 10, RedisValue.Null);
 
                 Assert.NotNull(pendingMessageInfoList);
                 Assert.Equal(4, pendingMessageInfoList.Length);
@@ -555,8 +549,6 @@ namespace StackExchange.Redis.Tests
                 // Get the pending info about the messages themselves.
                 var pendingMessageInfoList = db.StreamPendingMessages(key,
                     groupName,
-                    StreamConstants.ReadMinValue,
-                    StreamConstants.ReadMaxValue,
                     10,
                     consumer2);
 

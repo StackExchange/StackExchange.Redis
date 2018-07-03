@@ -597,12 +597,12 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StreamAcknowledge(ToInner(key), groupName, messageIds, flags);
         }
 
-        public RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, string messageId = "*", int? maxLength = null, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None)
+        public RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId = null, int? maxLength = null, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None)
         {
             return Inner.StreamAdd(ToInner(key), streamField, streamValue, messageId, maxLength, useApproximateMaxLength, flags);
         }
 
-        public RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, string messageId = "*", int? maxLength = null, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None)
+        public RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId = null, int? maxLength = null, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None)
         {
             return Inner.StreamAdd(ToInner(key), streamPairs, messageId, maxLength, useApproximateMaxLength, flags);
         }
@@ -617,7 +617,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StreamClaimIdsOnly(ToInner(key), consumerGroup, claimingConsumer, minIdleTimeInMs, messageIds, flags);
         }
 
-        public bool StreamCreateConsumerGroup(RedisKey key, RedisValue groupName, RedisValue readFrom, CommandFlags flags = CommandFlags.None)
+        public bool StreamCreateConsumerGroup(RedisKey key, RedisValue groupName, RedisValue? readFrom = null, CommandFlags flags = CommandFlags.None)
         {
             return Inner.StreamCreateConsumerGroup(ToInner(key), groupName, readFrom, flags);
         }
@@ -652,12 +652,12 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StreamPending(ToInner(key), groupName, flags);
         }
 
-        public StreamPendingMessageInfo[] StreamPendingMessages(RedisKey key, RedisValue groupName, RedisValue minId, RedisValue maxId, int count, RedisValue consumerName, CommandFlags flags = CommandFlags.None)
+        public StreamPendingMessageInfo[] StreamPendingMessages(RedisKey key, RedisValue groupName, int count, RedisValue consumerName, RedisValue? minId = null, RedisValue? maxId = null, CommandFlags flags = CommandFlags.None)
         {
-            return Inner.StreamPendingMessages(ToInner(key), groupName, minId, maxId, count, consumerName, flags);
+            return Inner.StreamPendingMessages(ToInner(key), groupName, count, consumerName, minId, maxId, flags);
         }
 
-        public RedisStreamEntry[] StreamRange(RedisKey key, RedisValue minId, RedisValue maxId, int? count = null, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        public RedisStreamEntry[] StreamRange(RedisKey key, RedisValue? minId = null, RedisValue? maxId = null, int? count = null, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
         {
             return Inner.StreamRange(ToInner(key), minId, maxId, count, order, flags);
         }
@@ -672,7 +672,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StreamRead(streamIdPairs, countPerStream, flags);
         }
 
-        public RedisStreamEntry[] StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue readFromId, int? count = null, CommandFlags flags = CommandFlags.None)
+        public RedisStreamEntry[] StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? readFromId = null, int? count = null, CommandFlags flags = CommandFlags.None)
         {
             return Inner.StreamReadGroup(ToInner(key), groupName, consumerName, readFromId, count, flags);
         }

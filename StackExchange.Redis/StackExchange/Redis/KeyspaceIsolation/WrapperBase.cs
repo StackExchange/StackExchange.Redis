@@ -576,12 +576,12 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StreamAcknowledgeAsync(ToInner(key), groupName, messageIds, flags);
         }
 
-        public Task<RedisValue> StreamAddAsync(RedisKey key, RedisValue streamField, RedisValue streamValue, string messageId = "*", int? maxLength = null, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None)
+        public Task<RedisValue> StreamAddAsync(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId = null, int? maxLength = null, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None)
         {
             return Inner.StreamAddAsync(ToInner(key), streamField, streamValue, messageId, maxLength, useApproximateMaxLength, flags);
         }
 
-        public Task<RedisValue> StreamAddAsync(RedisKey key, NameValueEntry[] streamPairs, string messageId = "*", int? maxLength = null, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None)
+        public Task<RedisValue> StreamAddAsync(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId = null, int? maxLength = null, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None)
         {
             return Inner.StreamAddAsync(ToInner(key), streamPairs, messageId, maxLength, useApproximateMaxLength, flags);
         }
@@ -596,7 +596,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StreamClaimIdsOnlyAsync(ToInner(key), consumerGroup, claimingConsumer, minIdleTimeInMs, messageIds, flags);
         }
 
-        public Task<bool> StreamCreateConsumerGroupAsync(RedisKey key, RedisValue groupName, RedisValue readFrom, CommandFlags flags = CommandFlags.None)
+        public Task<bool> StreamCreateConsumerGroupAsync(RedisKey key, RedisValue groupName, RedisValue? readFrom = null, CommandFlags flags = CommandFlags.None)
         {
             return Inner.StreamCreateConsumerGroupAsync(ToInner(key), groupName, readFrom, flags);
         }
@@ -631,12 +631,12 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StreamPendingAsync(ToInner(key), groupName, flags);
         }
 
-        public Task<StreamPendingMessageInfo[]> StreamPendingMessagesAsync(RedisKey key, RedisValue groupName, RedisValue minId, RedisValue maxId, int count, RedisValue consumerName, CommandFlags flags = CommandFlags.None)
+        public Task<StreamPendingMessageInfo[]> StreamPendingMessagesAsync(RedisKey key, RedisValue groupName, int count, RedisValue consumerName, RedisValue? minId = null, RedisValue? maxId = null, CommandFlags flags = CommandFlags.None)
         {
-            return Inner.StreamPendingMessagesAsync(ToInner(key), groupName, minId, maxId, count, consumerName, flags);
+            return Inner.StreamPendingMessagesAsync(ToInner(key), groupName, count, consumerName, minId, maxId, flags);
         }
 
-        public Task<RedisStreamEntry[]> StreamRangeAsync(RedisKey key, RedisValue minId, RedisValue maxId, int? count = null, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        public Task<RedisStreamEntry[]> StreamRangeAsync(RedisKey key, RedisValue? minId = null, RedisValue? maxId = null, int? count = null, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
         {
             return Inner.StreamRangeAsync(ToInner(key), minId, maxId, count, order, flags);
         }
@@ -651,7 +651,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StreamReadAsync(streamIdPairs, countPerStream, flags);
         }
 
-        public Task<RedisStreamEntry[]> StreamReadGroupAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue readFromId, int? count = null, CommandFlags flags = CommandFlags.None)
+        public Task<RedisStreamEntry[]> StreamReadGroupAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? readFromId = null, int? count = null, CommandFlags flags = CommandFlags.None)
         {
             return Inner.StreamReadGroupAsync(ToInner(key), groupName, consumerName, readFromId, count, flags);
         }
