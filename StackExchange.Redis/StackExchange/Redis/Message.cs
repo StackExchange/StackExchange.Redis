@@ -65,7 +65,9 @@ namespace StackExchange.Redis
                                                        | CommandFlags.DemandSlave
                                                        | CommandFlags.PreferMaster
                                                        | CommandFlags.PreferSlave
+#pragma warning disable CS0618
                                                        | CommandFlags.HighPriority
+#pragma warning restore CS0618
                                                        | CommandFlags.FireAndForget
                                                        | CommandFlags.NoRedirect
                                                        | CommandFlags.NoScriptCache;
@@ -199,9 +201,6 @@ namespace StackExchange.Redis
         }
 
         public bool IsFireAndForget => (flags & CommandFlags.FireAndForget) != 0;
-
-        public bool IsHighPriority => (flags & CommandFlags.HighPriority) != 0;
-
         public bool IsInternalCall => (flags & InternalCallFlag) != 0;
 
         public ResultBox ResultBox => resultBox;

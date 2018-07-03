@@ -261,8 +261,9 @@ namespace StackExchange.Redis
             }
 
             var commandMap = Multiplexer.CommandMap;
+#pragma warning disable CS0618
             const CommandFlags flags = CommandFlags.FireAndForget | CommandFlags.HighPriority | CommandFlags.NoRedirect;
-
+#pragma warning restore CS0618
             var features = GetFeatures();
             Message msg;
 
@@ -514,7 +515,9 @@ namespace StackExchange.Redis
             if (version >= RedisFeatures.v2_8_0 && Multiplexer.CommandMap.IsAvailable(RedisCommand.INFO)
                 && (bridge = GetBridge(ConnectionType.Interactive, false)) != null)
             {
+#pragma warning disable CS0618
                 var msg = Message.Create(-1, CommandFlags.FireAndForget | CommandFlags.HighPriority | CommandFlags.NoRedirect, RedisCommand.INFO, RedisLiterals.replication);
+#pragma warning restore CS0618
                 msg.SetInternalCall();
                 WriteDirectFireAndForget(msg, ResultProcessor.AutoConfigure, bridge);
                 return true;

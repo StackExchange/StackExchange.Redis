@@ -305,8 +305,9 @@ namespace StackExchange.Redis
 
             if (log == null) log = TextWriter.Null;
             CommandMap.AssertAvailable(RedisCommand.SLAVEOF);
-
+#pragma warning disable CS0618
             const CommandFlags flags = CommandFlags.NoRedirect | CommandFlags.HighPriority;
+#pragma warning restore CS0618
             Message msg;
 
             LogLocked(log, "Checking {0} is available...", Format.ToString(srv.EndPoint));
@@ -1275,8 +1276,9 @@ namespace StackExchange.Redis
                     {
                         throw new InvalidOperationException("No nodes to consider");
                     }
-
+#pragma warning disable CS0618
                     const CommandFlags flags = CommandFlags.NoRedirect | CommandFlags.HighPriority;
+#pragma warning restore CS0618
                     List<ServerEndPoint> masters = new List<ServerEndPoint>(endpoints.Count);
                     bool useTieBreakers = !string.IsNullOrWhiteSpace(configuration.TieBreaker);
 
