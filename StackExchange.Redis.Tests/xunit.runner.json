@@ -1,4 +1,6 @@
 ﻿{
   "methodDisplay": "classAndMethod",
-  "maxParallelThreads": 3
+  "maxParallelThreads": 3,
+  "diagnosticMessages": true,
+  "longRunningTestSeconds": 60
 }
