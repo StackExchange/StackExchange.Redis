@@ -86,12 +86,15 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [Fact(Skip = "Windows Redis 3.x is flaky here. The test runs fine against other servers...")]
+        [Fact]
         public void ScanResume()
         {
             using (var conn = Create(allowAdmin: true))
             {
                 const int DB = 7;
+
+                // only goes up to 3.*, so...
+                Skip.IfMissingFeature(conn, "Avoiding Redis on Windows", x => x.Version >= new Version(4, 0));
                 var db = conn.GetDatabase(DB);
                 var server = GetServer(conn);
                 server.FlushDatabase(DB);
