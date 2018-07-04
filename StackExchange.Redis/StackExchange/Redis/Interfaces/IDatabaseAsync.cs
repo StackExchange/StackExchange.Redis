@@ -1310,6 +1310,225 @@ namespace StackExchange.Redis
         Task<double?> SortedSetScoreAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Allow the consumer to mark a pending message as correctly processed. Returns the number of messages acknowledged.
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="groupName">The name of the consumer group that received the message.</param>
+        /// <param name="messageId">The ID of the message to acknowledge.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The number of messages acknowledged.</returns>
+        /// <remarks>https://redis.io/topics/streams-intro</remarks>
+        Task<long> StreamAcknowledgeAsync(RedisKey key, RedisValue groupName, RedisValue messageId, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Allow the consumer to mark a pending message as correctly processed. Returns the number of messages acknowledged.
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="groupName">The name of the consumer group that received the message.</param>
+        /// <param name="messageIds">The IDs of the messages to acknowledge.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The number of messages acknowledged.</returns>
+        /// <remarks>https://redis.io/topics/streams-intro</remarks>
+        Task<long> StreamAcknowledgeAsync(RedisKey key, RedisValue groupName, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Adds an entry using the specified values to the given stream key. If key does not exist, a new key holding a stream is created. The command returns the ID of the newly created stream entry.
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="streamField">The field name for the stream entry.</param>
+        /// <param name="streamValue">The value to set in the stream entry.</param>
+        /// <param name="messageId">The ID to assign to the stream entry, defaults to an auto-generated ID ("*").</param>
+        /// <param name="maxLength">The maximum length of the stream.</param>
+        /// <param name="useApproximateMaxLength">If true, the "~" argument is used to allow the stream to exceed max length by a small number. This improves performance when removing messages.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The ID of the newly created message.</returns>
+        /// <remarks>https://redis.io/commands/xadd</remarks>
+        Task<RedisValue> StreamAddAsync(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId = null, int? maxLength = null, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Adds an entry using the specified values to the given stream key. If key does not exist, a new key holding a stream is created. The command returns the ID of the newly created stream entry.
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="streamPairs">The fields and their associated values to set in the stream entry.</param>
+        /// <param name="messageId">The ID to assign to the stream entry, defaults to an auto-generated ID ("*").</param>
+        /// <param name="maxLength">The maximum length of the stream.</param>
+        /// <param name="useApproximateMaxLength">If true, the "~" argument is used to allow the stream to exceed max length by a small number. This improves performance when removing messages.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The ID of the newly created message.</returns>
+        /// <remarks>https://redis.io/commands/xadd</remarks>
+        Task<RedisValue> StreamAddAsync(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId = null, int? maxLength = null, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Change ownership of messages consumed, but not yet acknowledged, by a different consumer. This method returns the complete message for the claimed message(s).
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="consumerGroup">The consumer group.</param>
+        /// <param name="claimingConsumer">The consumer claiming the given messages.</param>
+        /// <param name="minIdleTimeInMs">The minimum message idle time to allow the reassignment of the message(s).</param>
+        /// <param name="messageIds">The IDs of the messages to claim for the given consumer.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The messages successfully claimed by the given consumer.</returns>
+        /// <remarks>https://redis.io/topics/streams-intro</remarks>
+        Task<RedisStreamEntry[]> StreamClaimAsync(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Change ownership of messages consumed, but not yet acknowledged, by a different consumer. This method returns the IDs for the claimed message(s).
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="consumerGroup">The consumer group.</param>
+        /// <param name="claimingConsumer">The consumer claiming the given message(s).</param>
+        /// <param name="minIdleTimeInMs">The minimum message idle time to allow the reassignment of the message(s).</param>
+        /// <param name="messageIds">The IDs of the messages to claim for the given consumer.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The message IDs for the messages successfully claimed by the given consumer.</returns>
+        /// <remarks>https://redis.io/topics/streams-intro</remarks>
+        Task<RedisValue[]> StreamClaimIdsOnlyAsync(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Retrieve information about the consumers for the given consumer group. This is the equivalent of calling "XINFO GROUPS key group".
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="groupName">The consumer group name.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>An instance of <see cref="StreamConsumerInfo"/> for each of the consumer group's consumers.</returns>
+        /// <remarks>https://redis.io/topics/streams-intro</remarks>
+        Task<StreamConsumerInfo[]> StreamConsumerInfoAsync(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Create a consumer group for the given stream.
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="groupName">The name of the group to create.</param>
+        /// <param name="readFrom">The beginning position in the stream from which to read. If null, the method will send the option ("$") to only read new messages.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>True if the group was created.</returns>
+        /// <remarks>https://redis.io/topics/streams-intro</remarks>
+        Task<bool> StreamCreateConsumerGroupAsync(RedisKey key, RedisValue groupName, RedisValue? readFrom = null, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Delete messages in the stream. This method does not delete the stream.
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="messageIds">The IDs of the messages to delete.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>Returns the number of messages successfully deleted from the stream.</returns>
+        /// <remarks>https://redis.io/topics/streams-intro</remarks>
+        Task<long> StreamDeleteAsync(RedisKey key, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Retrieve information about the groups created for the given stream. This is the equivalent of calling "XINFO GROUPS key".
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>An instance of <see cref="StreamGroupInfo"/> for each of the stream's groups.</returns>
+        /// <remarks>https://redis.io/topics/streams-intro</remarks>
+        Task<StreamGroupInfo[]> StreamGroupInfoAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Retrieve information about the given stream. This is the equivalent of calling "XINFO STREAM key".
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>A <see cref="StreamInfo"/> instance with information about the stream.</returns>
+        /// <remarks>https://redis.io/topics/streams-intro</remarks>
+        Task<StreamInfo> StreamInfoAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Return the number of entries in a stream.
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The number of entries inside the given stream.</returns>
+        /// <remarks>https://redis.io/commands/xlen</remarks>
+        Task<long> StreamLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// View information about pending messages for a stream. A pending message is a message read using StreamReadGroup (XREADGROUP) but not yet acknowledged.
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="groupName">The name of the consumer group</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>An instance of <see cref="StreamPendingInfo"/>. <see cref="StreamPendingInfo"/> contains the number of pending messages, the highest and lowest ID of the pending messages, and the consumers with their pending message count.</returns>
+        /// <remarks>The equivalent of calling XPENDING key group.</remarks>
+        /// <remarks>https://redis.io/commands/xpending</remarks>
+        Task<StreamPendingInfo> StreamPendingAsync(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// View information about each pending message.
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="groupName">The name of the consumer group.</param>
+        /// <param name="count">The maximum number of pending messages to return.</param>
+        /// <param name="consumerName">The consumer name for the pending messages. Pass RedisValue.Null to include pending messages for all consumers.</param>
+        /// <param name="minId">The minimum ID from which to read the stream of pending messages. The method will default to reading from the beginning of the stream.</param>
+        /// <param name="maxId">The maximum ID to read to within the stream of pending messages. The method will default to reading to the end of the stream.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>An instance of <see cref="StreamPendingMessageInfo"/> for each pending message.</returns>
+        /// <remarks>Equivalent of calling XPENDING key group start-id end-id count consumer-name.</remarks>
+        /// <remarks>https://redis.io/commands/xpending</remarks>
+        Task<StreamPendingMessageInfo[]> StreamPendingMessagesAsync(RedisKey key, RedisValue groupName, int count, RedisValue consumerName, RedisValue? minId = null, RedisValue? maxId = null, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Read a stream using the given range of IDs.
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="minId">The minimum ID from which to read the stream. The method will default to reading from the beginning of the stream.</param>
+        /// <param name="maxId">The maximum ID to read to within the stream. The method will default to reading to the end of the stream.</param>
+        /// <param name="count">The maximum number of messages to return.</param>
+        /// <param name="messageOrder">The order of the messages. <see cref="Order.Ascending"/> will execute XRANGE and <see cref="Order.Descending"/> wil execute XREVRANGE.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>Returns an instance of <see cref="RedisStreamEntry"/> for each message returned.</returns>
+        /// <remarks>https://redis.io/commands/xrange</remarks>
+        Task<RedisStreamEntry[]> StreamRangeAsync(RedisKey key, RedisValue? minId = null, RedisValue? maxId = null, int? count = null, Order messageOrder = Order.Ascending, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Read from a single stream.
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="afterId">The message ID from within the stream to begin reading.</param>
+        /// <param name="count">The maximum number of messages to return.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>Returns an instance of <see cref="RedisStreamEntry"/> for each message returned.</returns>
+        /// <remarks>Equivalent of calling XREAD COUNT num STREAMS key id.</remarks>
+        /// <remarks>https://redis.io/commands/xread</remarks>
+        Task<RedisStreamEntry[]> StreamReadAsync(RedisKey key, RedisValue afterId, int? count = null, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Read from multiple streams.
+        /// </summary>
+        /// <param name="streamIdPairs">The list of streams and the ID from which to begin reading for each stream.</param>
+        /// <param name="countPerStream">The maximum number of messages to return from each stream.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>An instance of <see cref="RedisStream"/> for each stream.</returns>
+        /// <remarks>Equivalent of calling XREAD COUNT num STREAMS key1 key2 id1 id2.</remarks>
+        /// <remarks>https://redis.io/commands/xread</remarks>
+        Task<RedisStream[]> StreamReadAsync(StreamIdPair[] streamIdPairs, int? countPerStream = null, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Read messages from a stream and an associated consumer group.
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="groupName">The name of the consumer group.</param>
+        /// <param name="consumerName">The consumer name.</param>
+        /// <param name="readFromId">The ID from within the stream to begin reading. If null, the method will send the option (">") to only read new, previously undelivered messages.</param>
+        /// <param name="count">The maximum number of messages to return.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>Returns an instance of <see cref="RedisStreamEntry"/> for each message returned.</returns>
+        /// <remarks>https://redis.io/commands/xreadgroup</remarks>
+        Task<RedisStreamEntry[]> StreamReadGroupAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? readFromId = null, int? count = null, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Trim the stream to a specified maximum length.
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="maxLength">The maximum length of the stream.</param>
+        /// <param name="useApproximateMaxLength">If true, the "~" argument is used to allow the stream to exceed max length by a small number. This improves performance when removing messages.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The number of messages removed from the stream.</returns>
+        /// <remarks>https://redis.io/topics/streams-intro</remarks>
+        Task<long> StreamTrimAsync(RedisKey key, int maxLength, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// If key already exists and is a string, this command appends the value at the end of the string. If key does not exist it is created and set as an empty string,
         /// so APPEND will be similar to SET in this special case.
         /// </summary>

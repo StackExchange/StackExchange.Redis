@@ -28,7 +28,8 @@ namespace StackExchange.Redis
                                          v2_8_18 = new Version(2, 8, 18),
                                          v2_9_5 = new Version(2, 9, 5),
                                          v3_0_0 = new Version(3, 0, 0),
-                                         v3_2_0 = new Version(3, 2, 0);
+                                         v3_2_0 = new Version(3, 2, 0),
+                                         v4_9_1 = new Version(4, 9, 1); // 5.0 RC1 is version 4.9.1
 
         private readonly Version version;
         /// <summary>
@@ -119,6 +120,11 @@ namespace StackExchange.Redis
         /// Does SADD support varadic usage?
         /// </summary>
         public bool SetVaradicAddRemove => Version >= v2_4_0;
+
+        /// <summary>
+        /// Are Redis Streams available?
+        /// </summary>
+        public bool Streams => Version >= v4_9_1;
 
         /// <summary>
         /// Is STRLEN available?

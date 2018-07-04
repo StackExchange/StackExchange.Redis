@@ -122,6 +122,18 @@ namespace StackExchange.Redis
             return result;
         }
 
+        private static readonly RedisValue[] nixValues = new RedisValue[0];
+        /// <summary>
+        /// Create an array of RedisValues from an array of strings.
+        /// </summary>
+        /// <param name="values">The string array to convert to RedisValues</param>
+        public static RedisValue[] ToRedisValueArray(this string[] values)
+        {
+            if (values == null) return null;
+            if (values.Length == 0) return nixValues;
+            return Array.ConvertAll(values, x => (RedisValue)x);
+        }
+
         private static readonly string[] nix = new string[0];
         /// <summary>
         /// Create an array of strings from an array of values

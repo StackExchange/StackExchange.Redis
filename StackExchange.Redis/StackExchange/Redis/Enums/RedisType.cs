@@ -38,6 +38,13 @@
         /// <remarks>https://redis.io/commands#hash</remarks>
         Hash,
         /// <summary>
+        /// A Redis Stream is a data structure which models the behavior of an append only log but it has more
+        /// advanced features for manipulating the data contained within the stream. Each entry in a
+        /// stream contains a unique message ID and a list of name/value pairs containing the entry's data.
+        /// </summary>
+        /// <remarks>https://redis.io/commands#stream</remarks>
+        Stream,
+        /// <summary>
         /// The data-type was not recognised by the client library
         /// </summary>
         Unknown,

@@ -392,6 +392,14 @@ namespace StackExchange.Redis
             _payload.CopyTo(span);
             return RedisValue.TryParseInt64(span, out value);
         }
+
+        internal static RawResult CreateMultiBulk(RawResult rawResult0, RawResult rawResult1)
+        {
+            var arr = ArrayPool<RawResult>.Shared.Rent(2);
+            arr[0] = rawResult0;
+            arr[1] = rawResult1;
+            return new RawResult(arr, 2);
+        }
     }
 }
 
