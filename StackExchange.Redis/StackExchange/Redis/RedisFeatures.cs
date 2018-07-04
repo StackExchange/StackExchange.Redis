@@ -151,6 +151,11 @@ namespace StackExchange.Redis
         public bool Geo => Version >= v3_2_0;
 
         /// <summary>
+        /// Does SetPop support popping multiple items?
+        /// </summary>
+        public bool SetPopMultiple => Version >= v3_2_0;
+
+        /// <summary>
         /// The Redis version of the server
         /// </summary>
         public Version Version => version ?? v2_0_0;

@@ -1119,9 +1119,13 @@ namespace StackExchange.Redis
             {
                 switch (result.Type)
                 {
+                    // allow a single item to pass explicitly pretending to be an array; example: SPOP {key} 1
+                    case ResultType.BulkString:
+                        var arr = new[] { result.AsRedisValue() };
+                        SetResult(message, arr);
+                        return true;
                     case ResultType.MultiBulk:
-                        var arr = result.GetItemsAsValues();
-
+                        arr = result.GetItemsAsValues();
                         SetResult(message, arr);
                         return true;
                 }

@@ -1253,13 +1253,19 @@ namespace StackExchange.Redis
 
         public RedisValue[] SetPop(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(Database, flags, RedisCommand.SPOP, key, count);
+            if (count == 0) return Array.Empty<RedisValue>();
+            var msg = count == 1
+                    ? Message.Create(Database, flags, RedisCommand.SPOP, key)
+                    : Message.Create(Database, flags, RedisCommand.SPOP, key, count);
             return ExecuteSync(msg, ResultProcessor.RedisValueArray);
         }
 
         public Task<RedisValue[]> SetPopAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(Database, flags, RedisCommand.SPOP, key, count);
+            if(count == 0) return Task.FromResult(Array.Empty<RedisValue>());
+            var msg = count == 1
+                    ? Message.Create(Database, flags, RedisCommand.SPOP, key)
+                    : Message.Create(Database, flags, RedisCommand.SPOP, key, count);
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray);
         }
 

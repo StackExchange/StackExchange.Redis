@@ -57,13 +57,16 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void SetPop()
+        public void SetPopMulti_Multi()
         {
             using (var conn = Create())
             {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SetPopMultiple), r => r.SetPopMultiple);
+
                 var db = conn.GetDatabase();
                 var key = Me();
 
+                db.KeyDelete(key);
                 for (int i = 1; i < 11; i++)
                 {
                     db.SetAdd(key, i);
@@ -81,15 +84,44 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(7, db.SetLength(key));
             }
         }
-
         [Fact]
-        public async Task SetPopAsync()
+        public void SetPopMulti_Single()
         {
             using (var conn = Create())
             {
                 var db = conn.GetDatabase();
                 var key = Me();
 
+                db.KeyDelete(key);
+                for (int i = 1; i < 11; i++)
+                {
+                    db.SetAdd(key, i);
+                }
+
+                var random = db.SetPop(key);
+                Assert.False(random.IsNull);
+                Assert.True((int)random > 0);
+                Assert.True((int)random < 10);
+                Assert.Equal(9, db.SetLength(key));
+
+                var moreRandoms = db.SetPop(key, 1);
+                Assert.Single(moreRandoms);
+                Assert.False(moreRandoms[0].IsNull);
+                Assert.Equal(8, db.SetLength(key));
+            }
+        }
+
+        [Fact]
+        public async Task SetPopMulti_Multi_Async()
+        {
+            using (var conn = Create())
+            {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.SetPopMultiple), r => r.SetPopMultiple);
+
+                var db = conn.GetDatabase();
+                var key = Me();
+
+                db.KeyDelete(key);
                 for (int i = 1; i < 11; i++)
                 {
                     db.SetAdd(key, i);
@@ -105,6 +137,56 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(2, moreRandoms.Length);
                 Assert.False(moreRandoms[0].IsNull);
                 Assert.Equal(7, db.SetLength(key));
+            }
+        }
+
+        [Fact]
+        public async Task SetPopMulti_Single_Async()
+        {
+            using (var conn = Create())
+            {
+                var db = conn.GetDatabase();
+                var key = Me();
+
+                db.KeyDelete(key);
+                for (int i = 1; i < 11; i++)
+                {
+                    db.SetAdd(key, i);
+                }
+
+                var random = await db.SetPopAsync(key).ForAwait();
+                Assert.False(random.IsNull);
+                Assert.True((int)random > 0);
+                Assert.True((int)random < 10);
+                Assert.Equal(9, db.SetLength(key));
+
+                var moreRandoms = db.SetPop(key, 1);
+                Assert.Single(moreRandoms);
+                Assert.False(moreRandoms[0].IsNull);
+                Assert.Equal(8, db.SetLength(key));
+            }
+        }
+
+        [Fact]
+        public async Task SetPopMulti_Zero_Async()
+        {
+            using (var conn = Create())
+            {
+                var db = conn.GetDatabase();
+                var key = Me();
+
+                db.KeyDelete(key);
+                for (int i = 1; i < 11; i++)
+                {
+                    db.SetAdd(key, i);
+                }
+
+                var t = db.SetPopAsync(key, count: 0);
+                Assert.True(t.IsCompleted); // sync
+                var arr = await t;
+                Assert.Empty(arr);
+
+                Assert.Equal(10, db.SetLength(key));
             }
         }
     }
