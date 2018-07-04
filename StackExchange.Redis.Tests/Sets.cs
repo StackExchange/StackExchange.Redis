@@ -75,7 +75,7 @@ namespace StackExchange.Redis.Tests
                 var random = db.SetPop(key);
                 Assert.False(random.IsNull);
                 Assert.True((int)random > 0);
-                Assert.True((int)random < 10);
+                Assert.True((int)random <= 10);
                 Assert.Equal(9, db.SetLength(key));
 
                 var moreRandoms = db.SetPop(key, 2);
@@ -101,7 +101,7 @@ namespace StackExchange.Redis.Tests
                 var random = db.SetPop(key);
                 Assert.False(random.IsNull);
                 Assert.True((int)random > 0);
-                Assert.True((int)random < 10);
+                Assert.True((int)random <= 10);
                 Assert.Equal(9, db.SetLength(key));
 
                 var moreRandoms = db.SetPop(key, 1);
@@ -130,7 +130,7 @@ namespace StackExchange.Redis.Tests
                 var random = await db.SetPopAsync(key).ForAwait();
                 Assert.False(random.IsNull);
                 Assert.True((int)random > 0);
-                Assert.True((int)random < 10);
+                Assert.True((int)random <= 10);
                 Assert.Equal(9, db.SetLength(key));
 
                 var moreRandoms = await db.SetPopAsync(key, 2).ForAwait();
@@ -157,7 +157,7 @@ namespace StackExchange.Redis.Tests
                 var random = await db.SetPopAsync(key).ForAwait();
                 Assert.False(random.IsNull);
                 Assert.True((int)random > 0);
-                Assert.True((int)random < 10);
+                Assert.True((int)random <= 10);
                 Assert.Equal(9, db.SetLength(key));
 
                 var moreRandoms = db.SetPop(key, 1);
