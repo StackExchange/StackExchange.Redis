@@ -741,6 +741,145 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void StreamAcknowledgeAsync_1()
+        {
+            wrapper.StreamAcknowledgeAsync("key", "group", "0-0", CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamAcknowledgeAsync("prefix:key", "group", "0-0", CommandFlags.HighPriority));
+        }
+
+        [Fact]
+        public void StreamAcknowledgeAsync_2()
+        {
+            var messageIds = new RedisValue[] { "0-0", "0-1", "0-2" };
+            wrapper.StreamAcknowledgeAsync("key", "group", messageIds, CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamAcknowledgeAsync("prefix:key", "group", messageIds, CommandFlags.HighPriority));
+        }
+
+        [Fact]
+        public void StreamAddAsync_1()
+        {
+            wrapper.StreamAddAsync("key", "field1", "value1", "*", 1000, true, CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamAddAsync("prefix:key", "field1", "value1", "*", 1000, true, CommandFlags.HighPriority));
+        }
+
+        [Fact]
+        public void StreamAddAsync_2()
+        {
+            var fields = new NameValueEntry[0];
+            wrapper.StreamAddAsync("key", fields, "*", 1000, true, CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamAddAsync("prefix:key", fields, "*", 1000, true, CommandFlags.HighPriority));
+        }
+
+        [Fact]
+        public void StreamClaimMessagesAsync()
+        {
+            var messageIds = new RedisValue[0];
+            wrapper.StreamClaimAsync("key", "group", "consumer", 1000, messageIds, CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamClaimAsync("prefix:key", "group", "consumer", 1000, messageIds, CommandFlags.HighPriority));
+        }
+
+        [Fact]
+        public void StreamClaimMessagesReturningIdsAsync()
+        {
+            var messageIds = new RedisValue[0];
+            wrapper.StreamClaimIdsOnlyAsync("key", "group", "consumer", 1000, messageIds, CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamClaimIdsOnlyAsync("prefix:key", "group", "consumer", 1000, messageIds, CommandFlags.HighPriority));
+        }
+
+        [Fact]
+        public void StreamConsumerInfoGetAsync()
+        {
+            wrapper.StreamConsumerInfoAsync("key", "group", CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamConsumerInfoAsync("prefix:key", "group", CommandFlags.HighPriority));
+        }
+
+        [Fact]
+        public void StreamCreateConsumerGroupAsync()
+        {
+            wrapper.StreamCreateConsumerGroupAsync("key", "group", "0-0", CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamCreateConsumerGroupAsync("prefix:key", "group", "0-0", CommandFlags.HighPriority));
+        }
+
+        [Fact]
+        public void StreamGroupInfoGetAsync()
+        {
+            wrapper.StreamGroupInfoAsync("key", CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamGroupInfoAsync("prefix:key", CommandFlags.HighPriority));
+        }
+
+        [Fact]
+        public void StreamInfoGetAsync()
+        {
+            wrapper.StreamInfoAsync("key", CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamInfoAsync("prefix:key", CommandFlags.HighPriority));
+        }
+
+        [Fact]
+        public void StreamLengthAsync()
+        {
+            wrapper.StreamLengthAsync("key", CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamLengthAsync("prefix:key", CommandFlags.HighPriority));
+        }
+
+        [Fact]
+        public void StreamMessagesDeleteAsync()
+        {
+            var messageIds = new RedisValue[0] { };
+            wrapper.StreamDeleteAsync("key", messageIds, CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamDeleteAsync("prefix:key", messageIds, CommandFlags.HighPriority));
+        }
+
+        [Fact]
+        public void StreamPendingInfoGetAsync()
+        {
+            wrapper.StreamPendingAsync("key", "group", CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamPendingAsync("prefix:key", "group", CommandFlags.HighPriority));
+        }
+
+        [Fact]
+        public void StreamPendingMessageInfoGetAsync()
+        {
+            wrapper.StreamPendingMessagesAsync("key", "group", 10, RedisValue.Null, "-", "+", CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamPendingMessagesAsync("prefix:key", "group", 10, RedisValue.Null, "-", "+", CommandFlags.HighPriority));
+        }
+
+        [Fact]
+        public void StreamRangeAsync()
+        {
+            wrapper.StreamRangeAsync("key", "-", "+", null, Order.Ascending, CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamRangeAsync("prefix:key", "-", "+", null, Order.Ascending, CommandFlags.HighPriority));
+        }
+
+        [Fact]
+        public void StreamReadAsync_1()
+        {
+            var keysAndIds = new StreamIdPair[0] { };
+            wrapper.StreamReadAsync(keysAndIds, null, CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamReadAsync(keysAndIds, null, CommandFlags.HighPriority));
+        }
+
+        [Fact]
+        public void StreamReadAsync_2()
+        {
+            wrapper.StreamReadAsync("key", "0-0", null, CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamReadAsync("prefix:key", "0-0", null, CommandFlags.HighPriority));
+        }
+
+        [Fact]
+        public void StreamReadGroupAsync()
+        {
+            wrapper.StreamReadGroupAsync("key", "group", "consumer", "0-0", 10, CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamReadGroupAsync("prefix:key", "group", "consumer", "0-0", 10, CommandFlags.HighPriority));
+        }
+
+        [Fact]
+        public void StreamTrimAsync()
+        {
+            wrapper.StreamTrimAsync("key", 1000, true, CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamTrimAsync("prefix:key", 1000, true, CommandFlags.HighPriority));
+        }
+
+        [Fact]
         public void StringAppendAsync()
         {
             wrapper.StringAppendAsync("key", "value", CommandFlags.HighPriority);

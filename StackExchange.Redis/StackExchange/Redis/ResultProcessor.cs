@@ -40,6 +40,9 @@ namespace StackExchange.Redis
         public static readonly ResultProcessor<IGrouping<string, KeyValuePair<string, string>>[]>
             Info = new InfoProcessor();
 
+        public static readonly MultiStreamProcessor
+            MultiStream = new MultiStreamProcessor();
+
         public static readonly ResultProcessor<long>
             Int64 = new Int64Processor(),
             PubSubNumSub = new PubSubNumSubProcessor();
@@ -83,6 +86,27 @@ namespace StackExchange.Redis
 
         public static readonly SortedSetEntryArrayProcessor
             SortedSetWithScores = new SortedSetEntryArrayProcessor();
+
+        public static readonly SingleStreamProcessor
+            SingleStream = new SingleStreamProcessor();
+
+        public static readonly SingleStreamProcessor
+            SingleStreamWithNameSkip = new SingleStreamProcessor(skipStreamName: true);
+
+        public static readonly StreamConsumerInfoProcessor
+            StreamConsumerInfo = new StreamConsumerInfoProcessor();
+
+        public static readonly StreamGroupInfoProcessor
+            StreamGroupInfo = new StreamGroupInfoProcessor();
+
+        public static readonly StreamInfoProcessor
+            StreamInfo = new StreamInfoProcessor();
+
+        public static readonly StreamPendingInfoProcessor
+            StreamPendingInfo = new StreamPendingInfoProcessor();
+
+        public static readonly StreamPendingMessagesProcessor
+            StreamPendingMessages = new StreamPendingMessagesProcessor();
 
         public static ResultProcessor<GeoRadiusResult[]> GeoRadiusArray(GeoRadiusOptions options) => GeoRadiusResultArrayProcessor.Get(options);
 
@@ -1298,6 +1322,424 @@ The coordinates as a two items x,y array (longitude,latitude).
                     return true;
                 }
                 return false;
+            }
+        }
+
+        internal sealed class SingleStreamProcessor : StreamProcessorBase<RedisStreamEntry[]>
+        {
+            private bool skipStreamName;
+
+            public SingleStreamProcessor(bool skipStreamName = false)
+            {
+                this.skipStreamName = skipStreamName;
+            }
+
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            {
+                if (result.IsNull)
+                {
+                    // Server returns 'nil' if no entries are returned for the given stream.
+                    SetResult(message, new RedisStreamEntry[0]);
+                    return true;
+                }
+
+                if (result.Type != ResultType.MultiBulk)
+                {
+                    return false;
+                }
+
+                RedisStreamEntry[] entries = null;
+
+                if (skipStreamName)
+                {
+                    // Skip the first element in the array (i.e., the stream name).
+                    // See https://redis.io/commands/xread.
+
+                    // > XREAD COUNT 2 STREAMS mystream 0
+                    // 1) 1) "mystream"                     <== Skip the stream name
+                    //    2) 1) 1) 1519073278252 - 0        <== Index 1 contains the array of stream entries
+                    //          2) 1) "foo"
+                    //             2) "value_1"
+                    //       2) 1) 1519073279157 - 0
+                    //          2) 1) "foo"
+                    //             2) "value_2"
+
+                    // Retrieve the initial array. For XREAD of a single stream it will
+                    // be an array of only 1 element in the response.
+                    var readResult = result.GetItems();
+
+                    // Within that single element, GetItems will return an array of
+                    // 2 elements: the stream name and the stream entries.
+                    // Skip the stream name (index 0) and only process the stream entries (index 1).
+                    entries = ParseRedisStreamEntries(readResult[0].GetItems()[1]);
+                }
+                else
+                {
+                    entries = ParseRedisStreamEntries(result);
+                }
+
+                SetResult(message, entries);
+                return true;
+            }
+        }
+
+        internal sealed class MultiStreamProcessor : StreamProcessorBase<RedisStream[]>
+        {
+            /*
+                The result is similar to the XRANGE result (see SingleStreamProcessor)
+                with the addition of the stream name as the first element of top level
+                Multibulk array.
+
+                See https://redis.io/commands/xread.
+
+                > XREAD COUNT 2 STREAMS mystream writers 0-0 0-0
+                1) 1) "mystream"
+                   2) 1) 1) 1526984818136-0
+                         2) 1) "duration"
+                            2) "1532"
+                            3) "event-id"
+                            4) "5"
+                      2) 1) 1526999352406-0
+                         2) 1) "duration"
+                            2) "812"
+                            3) "event-id"
+                            4) "9"
+                2) 1) "writers"
+                   2) 1) 1) 1526985676425-0
+                         2) 1) "name"
+                            2) "Virginia"
+                            3) "surname"
+                            4) "Woolf"
+                      2) 1) 1526985685298-0
+                         2) 1) "name"
+                            2) "Jane"
+                            3) "surname"
+                            4) "Austen"
+            */
+
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            {
+                if (result.IsNull)
+                {
+                    // Nothing returned for any of the requested streams. The server returns 'nil'.
+                    SetResult(message, new RedisStream[0]);
+                    return true;
+                }
+
+                if (result.Type != ResultType.MultiBulk)
+                {
+                    return false;
+                }
+
+                var arr = result.GetItems();
+
+                var streams = Array.ConvertAll(arr, item =>
+                {
+                    var details = item.GetItems();
+
+                    // details[0] = Name of the Stream
+                    // details[1] = Multibulk Array of Stream Entries
+
+                    return new RedisStream(key: details[0].AsRedisKey(),
+                        entries: ParseRedisStreamEntries(details[1]));
+                });
+
+                SetResult(message, streams);
+                return true;
+            }
+        }
+
+        internal sealed class StreamConsumerInfoProcessor : InterleavedStreamInfoProcessorBase<StreamConsumerInfo>
+        {
+            protected override StreamConsumerInfo ParseItem(RawResult result)
+            {
+                // Note: the base class passes a single consumer from the response into this method.
+
+                // Response format:
+                // > XINFO CONSUMERS mystream mygroup
+                // 1) 1) name
+                //    2) "Alice"
+                //    3) pending
+                //    4) (integer)1
+                //    5) idle
+                //    6) (integer)9104628
+                // 2) 1) name
+                //    2) "Bob"
+                //    3) pending
+                //    4) (integer)1
+                //    5) idle
+                //    6) (integer)83841983
+
+                var arr = result.GetItems();
+
+                return new StreamConsumerInfo(name: arr[1].AsRedisValue(),
+                            pendingMessageCount: (int)arr[3].AsRedisValue(),
+                            idleTimeInMilliseconds: (long)arr[5].AsRedisValue());
+            }
+        }
+
+        internal sealed class StreamGroupInfoProcessor : InterleavedStreamInfoProcessorBase<StreamGroupInfo>
+        {
+            protected override StreamGroupInfo ParseItem(RawResult result)
+            {
+                // Note: the base class passes a single item from the response into this method.
+
+                // Response format:
+                // > XINFO GROUPS mystream
+                // 1) 1) name
+                //    2) "mygroup"
+                //    3) consumers
+                //    4) (integer)2
+                //    5) pending
+                //    6) (integer)2
+                // 2) 1) name
+                //    2) "some-other-group"
+                //    3) consumers
+                //    4) (integer)1
+                //    5) pending
+                //    6) (integer)0
+
+                var arr = result.GetItems();
+
+                return new StreamGroupInfo(name: arr[1].AsRedisValue(),
+                    consumerCount: (int)arr[3].AsRedisValue(),
+                    pendingMessageCount: (int)arr[5].AsRedisValue());
+            }
+        }
+
+        internal abstract class InterleavedStreamInfoProcessorBase<T> : ResultProcessor<T[]>
+        {
+            protected abstract T ParseItem(RawResult result);
+
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            {
+                if (result.Type != ResultType.MultiBulk)
+                {
+                    return false;
+                }
+
+                var arr = result.GetItems();
+                var parsedItems = Array.ConvertAll(arr, item => ParseItem(item));
+
+                SetResult(message, parsedItems);
+                return true;
+            }
+        }
+
+        internal sealed class StreamInfoProcessor : StreamProcessorBase<StreamInfo>
+        {
+            // Parse the following format:
+            // > XINFO mystream
+            // 1) length
+            // 2) (integer) 13
+            // 3) radix-tree-keys
+            // 4) (integer) 1
+            // 5) radix-tree-nodes
+            // 6) (integer) 2
+            // 7) groups
+            // 8) (integer) 2
+            // 9) first-entry
+            // 10) 1) 1524494395530-0
+            //     2) 1) "a"
+            //        2) "1"
+            //        3) "b"
+            //        4) "2"
+            // 11) last-entry
+            // 12) 1) 1526569544280-0
+            //     2) 1) "message"
+            //        2) "banana"
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            {
+                if (result.Type != ResultType.MultiBulk)
+                {
+                    return false;
+                }
+
+                var arr = result.GetItems();
+
+                if (arr.Length != 12)
+                {
+                    return false;
+                }
+
+                // Note: Even if there is only 1 message in the stream, this command returns
+                //       the single entry as the first-entry and last-entry in the response.
+
+                // The first 8 items are interleaved name/value pairs.
+                // Items 9-12 represent the first and last entry in the stream. The values will
+                // be nil (stored in index 9 & 11) if the stream length is 0.
+
+                var entries = ParseRedisStreamEntries(RawResult.CreateMultiBulk(arr[9], arr[11]));
+
+                var streamInfo = new StreamInfo(length: (int)arr[1].AsRedisValue(),
+                    radixTreeKeys: (int)arr[3].AsRedisValue(),
+                    radixTreeNodes: (int)arr[5].AsRedisValue(),
+                    groups: (int)arr[7].AsRedisValue(),
+                    firstEntry: entries[0],
+                    lastEntry: entries[1]);
+
+                SetResult(message, streamInfo);
+                return true;
+            }
+        }
+
+        internal sealed class StreamPendingInfoProcessor : ResultProcessor<StreamPendingInfo>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            {
+                // Example:
+                // > XPENDING mystream mygroup
+                // 1) (integer)2
+                // 2) 1526569498055 - 0
+                // 3) 1526569506935 - 0
+                // 4) 1) 1) "Bob"
+                //       2) "2"
+                // 5) 1) 1) "Joe"
+                //       2) "8"
+
+                if (result.Type != ResultType.MultiBulk)
+                {
+                    return false;
+                }
+
+                var arr = result.GetItems();
+
+                if (arr.Length != 4)
+                {
+                    return false;
+                }
+
+                StreamConsumer[] consumers = null;
+
+                // If there are no consumers as of yet for the given group, the last
+                // item in the response array will be null.
+                if (!arr[3].IsNull)
+                {
+                    consumers = Array.ConvertAll(arr[3].GetItems(), item =>
+                    {
+                        var details = item.GetItems();
+
+                        return new StreamConsumer(
+                            name: details[0].AsRedisValue(),
+                            pendingMessageCount: (int)details[1].AsRedisValue());
+                    });
+                }
+
+                var pendingInfo = new StreamPendingInfo(pendingMessageCount: (int)arr[0].AsRedisValue(),
+                    lowestId: arr[1].AsRedisValue(),
+                    highestId: arr[2].AsRedisValue(),
+                    consumers: consumers ?? new StreamConsumer[0]);
+                    // ^^^^^
+                    // Should we bother allocating an empty array only to prevent the need for a null check?
+
+                SetResult(message, pendingInfo);
+                return true;
+            }
+        }
+
+        internal sealed class StreamPendingMessagesProcessor : ResultProcessor<StreamPendingMessageInfo[]>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            {
+                if (result.Type != ResultType.MultiBulk)
+                {
+                    return false;
+                }
+
+                var arr = result.GetItems();
+
+                var messageInfoArray = Array.ConvertAll(arr, item =>
+                {
+                    var details = item.GetItems();
+
+                    return new StreamPendingMessageInfo(messageId: details[0].AsRedisValue(),
+                        consumerName: details[1].AsRedisValue(),
+                        idleTimeInMs: (long)details[2].AsRedisValue(),
+                        deliveryCount: (int)details[3].AsRedisValue());
+                });
+
+                SetResult(message, messageInfoArray);
+                return true;
+            }
+        }
+
+        internal abstract class StreamProcessorBase<T> : ResultProcessor<T>
+        {
+            // For command response formats see https://redis.io/topics/streams-intro.
+
+            protected RedisStreamEntry[] ParseRedisStreamEntries(RawResult result)
+            {
+                if (result.Type != ResultType.MultiBulk)
+                {
+                    return null;
+                }
+
+                var arr = result.GetItems();
+
+                return Array.ConvertAll(arr, item =>
+                {
+                    if (item.IsNull || item.Type != ResultType.MultiBulk)
+                    {
+                        return RedisStreamEntry.Null;
+                    }
+
+                    // Process the Multibulk array for each entry. The entry contains the following elements:
+                    //  [0] = SimpleString (the ID of the stream entry)
+                    //  [1] = Multibulk array of the name/value pairs of the stream entry's data
+                    var entryDetails = item.GetItems();
+
+                    return new RedisStreamEntry(id: entryDetails[0].AsRedisValue(),
+                        values: ParseStreamEntryValues(entryDetails[1]));
+                });
+            }
+
+            protected NameValueEntry[] ParseStreamEntryValues(RawResult result)
+            {
+                // The XRANGE, XREVRANGE, XREAD commands return stream entries
+                // in the following format.  The name/value pairs are interleaved
+                // in the same fashion as the HGETALL response.
+                // 
+                // 1) 1) 1518951480106-0
+                //    2) 1) "sensor-id"
+                //       2) "1234"
+                //       3) "temperature"
+                //       4) "19.8"
+                // 2) 1) 1518951482479-0
+                //    2) 1) "sensor-id"
+                //       2) "9999"
+                //       3) "temperature"
+                //       4) "18.2"
+
+                if (result.Type != ResultType.MultiBulk)
+                {
+                    return null;
+                }
+
+                var arr = result.GetItems();
+
+                if (arr == null)
+                {
+                    return null;
+                }
+
+                // Calculate how many name/value pairs are in the stream entry.
+                int count = arr.Length / 2;
+
+                if (count == 0)
+                {
+                    return new NameValueEntry[0];
+                }
+
+                var pairs = new NameValueEntry[count];
+                int offset = 0;
+
+                for (int i = 0; i < pairs.Length; i++)
+                {
+                    pairs[i] = new NameValueEntry(arr[offset++].AsRedisValue(),
+                                                  arr[offset++].AsRedisValue());
+                }
+
+                return pairs;
             }
         }
 

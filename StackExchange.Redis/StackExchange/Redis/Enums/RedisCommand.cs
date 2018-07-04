@@ -163,6 +163,20 @@
 
         WATCH,
 
+        XACK,
+        XADD,
+        XCLAIM,
+        XDEL,
+        XGROUP,
+        XINFO,
+        XLEN,
+        XPENDING,
+        XRANGE,
+        XREAD,
+        XREADGROUP,
+        XREVRANGE,
+        XTRIM,
+
         ZADD,
         ZCARD,
         ZCOUNT,

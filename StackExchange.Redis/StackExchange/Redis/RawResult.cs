@@ -7,6 +7,9 @@ namespace StackExchange.Redis
     {
         public static readonly RawResult EmptyArray = new RawResult(new RawResult[0]);
         public static readonly RawResult Nil = new RawResult();
+
+        public static RawResult CreateMultiBulk(params RawResult[] results) => new RawResult(results);
+
         private static readonly byte[] emptyBlob = new byte[0];
         private readonly int offset, count;
         private readonly Array arr;
