@@ -98,6 +98,7 @@ namespace StackExchange.Redis.Tests
         private static bool UsesKey(Type type)
         {
             if (type == typeof(RedisKey)) return true;
+            if (type == typeof(StreamIdPair)) return true;
 
             if (type.IsArray)
             {

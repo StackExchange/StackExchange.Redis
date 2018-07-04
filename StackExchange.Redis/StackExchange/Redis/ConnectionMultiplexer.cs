@@ -851,10 +851,7 @@ namespace StackExchange.Redis
 
         private string failureMessage;
         private readonly Hashtable servers = new Hashtable();
-        private volatile ServerEndPoint[] serverSnapshot = NilServers;
-
-        private static readonly ServerEndPoint[] NilServers = new ServerEndPoint[0];
-
+        private volatile ServerEndPoint[] serverSnapshot = Array.Empty<ServerEndPoint>();
         internal ServerEndPoint GetServerEndPoint(EndPoint endpoint)
         {
             if (endpoint == null) return null;

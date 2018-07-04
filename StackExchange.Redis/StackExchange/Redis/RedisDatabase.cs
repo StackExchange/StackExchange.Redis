@@ -302,7 +302,7 @@ namespace StackExchange.Redis
         public RedisValue[] HashGet(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
         {
             if (hashFields == null) throw new ArgumentNullException(nameof(hashFields));
-            if (hashFields.Length == 0) return new RedisValue[0];
+            if (hashFields.Length == 0) return Array.Empty<RedisValue>();
             var msg = Message.Create(Database, flags, RedisCommand.HMGET, key, hashFields);
             return ExecuteSync(msg, ResultProcessor.RedisValueArray);
         }
@@ -2018,7 +2018,7 @@ namespace StackExchange.Redis
         public RedisValue[] StringGet(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
         {
             if (keys == null) throw new ArgumentNullException(nameof(keys));
-            if (keys.Length == 0) return new RedisValue[0];
+            if (keys.Length == 0) return Array.Empty<RedisValue>();
             var msg = Message.Create(Database, flags, RedisCommand.MGET, keys);
             return ExecuteSync(msg, ResultProcessor.RedisValueArray);
         }
@@ -2032,7 +2032,7 @@ namespace StackExchange.Redis
         public Task<RedisValue[]> StringGetAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
         {
             if (keys == null) throw new ArgumentNullException(nameof(keys));
-            if (keys.Length == 0) return CompletedTask<RedisValue[]>.FromResult(new RedisValue[0], asyncState);
+            if (keys.Length == 0) return CompletedTask<RedisValue[]>.FromResult(Array.Empty<RedisValue>(), asyncState);
             var msg = Message.Create(Database, flags, RedisCommand.MGET, keys);
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray);
         }
@@ -3163,12 +3163,11 @@ namespace StackExchange.Redis
         private sealed class ExecuteMessage : Message
         {
             private readonly string _command;
-            private static readonly object[] NoArgs = new object[0];
             private readonly ICollection<object> args;
             public ExecuteMessage(int db, CommandFlags flags, string command, ICollection<object> args) : base(db, flags, RedisCommand.UNKNOWN)
             {
                 _command = command;
-                this.args = args ?? NoArgs;
+                this.args = args ?? Array.Empty<object>();
             }
 
             internal override void WriteImpl(PhysicalConnection physical)
@@ -3234,8 +3233,8 @@ namespace StackExchange.Redis
                 this.script = script;
                 this.hexHash = hexHash;
 
-                if (keys == null) keys = RedisKey.EmptyArray;
-                if (values == null) values = RedisValue.EmptyArray;
+                if (keys == null) keys = Array.Empty<RedisKey>();
+                if (values == null) values = Array.Empty<RedisValue>();
                 for (int i = 0; i < keys.Length; i++)
                     keys[i].AssertNotNull();
                 this.keys = keys;

@@ -24,9 +24,8 @@ namespace StackExchange.Redis
     internal sealed partial class ServerEndPoint : IDisposable
     {
         internal volatile ServerEndPoint Master;
-        internal volatile ServerEndPoint[] Slaves = NoSlaves;
+        internal volatile ServerEndPoint[] Slaves = Array.Empty<ServerEndPoint>();
         private static readonly Regex nameSanitizer = new Regex("[^!-~]", RegexOptions.Compiled);
-        private static readonly ServerEndPoint[] NoSlaves = new ServerEndPoint[0];
 
         private readonly Hashtable knownScripts = new Hashtable(StringComparer.Ordinal);
 
@@ -215,7 +214,7 @@ namespace StackExchange.Redis
                         }
                     }
                     Master = master;
-                    Slaves = slaves?.ToArray() ?? NoSlaves;
+                    Slaves = slaves?.ToArray() ?? Array.Empty<ServerEndPoint>();
                 }
                 Multiplexer.Trace("Cluster configured");
             }

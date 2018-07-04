@@ -173,16 +173,14 @@ namespace StackExchange.Redis
 
         private class TransactionMessage : Message, IMultiMessage
         {
-            private static readonly ConditionResult[] NixConditions = new ConditionResult[0];
-            private static readonly QueuedMessage[] NixMessages = new QueuedMessage[0];
             private readonly ConditionResult[] conditions;
             public QueuedMessage[] InnerOperations { get; }
 
             public TransactionMessage(int db, CommandFlags flags, List<ConditionResult> conditions, List<QueuedMessage> operations)
                 : base(db, flags, RedisCommand.EXEC)
             {
-                this.InnerOperations = (operations == null || operations.Count == 0) ? NixMessages : operations.ToArray();
-                this.conditions = (conditions == null || conditions.Count == 0) ? NixConditions : conditions.ToArray();
+                this.InnerOperations = (operations == null || operations.Count == 0) ? Array.Empty<QueuedMessage>() : operations.ToArray();
+                this.conditions = (conditions == null || conditions.Count == 0) ? Array.Empty<ConditionResult>(): conditions.ToArray();
             }
 
             public bool IsAborted => command != RedisCommand.EXEC;

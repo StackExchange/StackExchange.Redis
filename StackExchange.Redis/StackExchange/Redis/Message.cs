@@ -46,7 +46,6 @@ namespace StackExchange.Redis
 
     internal abstract class Message : ICompletable
     {
-        public static readonly Message[] EmptyArray = new Message[0];
         public readonly int Db;
 
         internal const CommandFlags InternalCallFlag = (CommandFlags)128;

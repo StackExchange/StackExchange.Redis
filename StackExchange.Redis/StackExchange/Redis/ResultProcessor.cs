@@ -506,8 +506,6 @@ namespace StackExchange.Redis
 
         internal abstract class ValuePairInterleavedProcessorBase<T> : ResultProcessor<T[]>
         {
-            private static readonly T[] nix = new T[0];
-
             public bool TryParse(RawResult result, out T[] pairs)
             {
                 switch (result.Type)
@@ -523,7 +521,7 @@ namespace StackExchange.Redis
                             int count = arr.Length / 2;
                             if (count == 0)
                             {
-                                pairs = nix;
+                                pairs = Array.Empty<T>();
                             }
                             else
                             {
@@ -1069,7 +1067,7 @@ namespace StackExchange.Redis
                         RedisChannel[] final;
                         if (arr.Length == 0)
                         {
-                            final = RedisChannel.EmptyArray;
+                            final = Array.Empty<RedisChannel>();
                         }
                         else
                         {
@@ -1347,7 +1345,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 if (result.IsNull)
                 {
                     // Server returns 'nil' if no entries are returned for the given stream.
-                    SetResult(message, new RedisStreamEntry[0]);
+                    SetResult(message, Array.Empty<RedisStreamEntry>());
                     return true;
                 }
 
@@ -1647,7 +1645,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 var pendingInfo = new StreamPendingInfo(pendingMessageCount: (int)arr[0].AsRedisValue(),
                     lowestId: arr[1].AsRedisValue(),
                     highestId: arr[2].AsRedisValue(),
-                    consumers: consumers ?? new StreamConsumer[0]);
+                    consumers: consumers ?? Array.Empty<StreamConsumer>());
                     // ^^^^^
                     // Should we bother allocating an empty array only to prevent the need for a null check?
 
@@ -1744,10 +1742,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 // Calculate how many name/value pairs are in the stream entry.
                 int count = arr.Length / 2;
 
-                if (count == 0)
-                {
-                    return new NameValueEntry[0];
-                }
+                if (count == 0) return Array.Empty<NameValueEntry>();
 
                 var pairs = new NameValueEntry[count];
                 int offset = 0;

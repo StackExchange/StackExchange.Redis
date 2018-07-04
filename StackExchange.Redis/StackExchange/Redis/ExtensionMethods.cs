@@ -122,7 +122,6 @@ namespace StackExchange.Redis
             return result;
         }
 
-        private static readonly RedisValue[] nixValues = new RedisValue[0];
         /// <summary>
         /// Create an array of RedisValues from an array of strings.
         /// </summary>
@@ -130,11 +129,10 @@ namespace StackExchange.Redis
         public static RedisValue[] ToRedisValueArray(this string[] values)
         {
             if (values == null) return null;
-            if (values.Length == 0) return nixValues;
+            if (values.Length == 0) return Array.Empty<RedisValue>();
             return Array.ConvertAll(values, x => (RedisValue)x);
         }
 
-        private static readonly string[] nix = new string[0];
         /// <summary>
         /// Create an array of strings from an array of values
         /// </summary>
@@ -142,7 +140,7 @@ namespace StackExchange.Redis
         public static string[] ToStringArray(this RedisValue[] values)
         {
             if (values == null) return null;
-            if (values.Length == 0) return nix;
+            if (values.Length == 0) return Array.Empty<string>();
             return Array.ConvertAll(values, x => (string)x);
         }
 

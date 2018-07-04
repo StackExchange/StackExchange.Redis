@@ -212,7 +212,7 @@ namespace StackExchange.Redis
             }
             else if (items.Length == 0)
             {
-                return RedisKey.EmptyArray;
+                return Array.Empty<RedisKey>();
             }
             else
             {
@@ -246,8 +246,6 @@ namespace StackExchange.Redis
                 return arr;
             }
         }
-
-        private static readonly string[] NilStrings = new string[0];
         internal string[] GetItemsAsStrings()
         {
             var items = GetItems();
@@ -257,7 +255,7 @@ namespace StackExchange.Redis
             }
             else if (items.Length == 0)
             {
-                return NilStrings;
+                return Array.Empty<string>();
             }
             else
             {
@@ -295,7 +293,7 @@ namespace StackExchange.Redis
             }
             else if (items.Length == 0)
             {
-                return new GeoPosition?[0];
+                return Array.Empty<GeoPosition?>();
             }
             else
             {

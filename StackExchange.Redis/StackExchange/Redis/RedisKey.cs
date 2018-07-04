@@ -8,7 +8,6 @@ namespace StackExchange.Redis
     /// </summary>
     public struct RedisKey : IEquatable<RedisKey>
     {
-        internal static readonly RedisKey[] EmptyArray = new RedisKey[0];
         private readonly byte[] keyPrefix;
         private readonly object keyValue; // always either a string or a byte[]
         internal RedisKey(byte[] keyPrefix, object keyValue)
