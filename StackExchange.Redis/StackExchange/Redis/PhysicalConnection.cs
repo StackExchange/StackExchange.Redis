@@ -1079,7 +1079,7 @@ namespace StackExchange.Redis
                 {
                     if (result.HasValue)
                     {
-                        buffer = buffer.Slice(reader.TotalConsumed);
+                        buffer = reader.SliceFromCurrent();
 
                         messageCount++;
                         Multiplexer.Trace(result.ToString(), physicalName);
@@ -1243,7 +1243,7 @@ namespace StackExchange.Redis
 
             public ReadOnlySpan<byte> SlicedSpan => _current.Slice(OffsetThisSpan, RemainingThisSpan);
             public int OffsetThisSpan { get; private set; }
-            public int TotalConsumed { get; private set; }
+            private int TotalConsumed { get; set; } // hide this; callers should use the snapshot-aware methods instead
             public int RemainingThisSpan { get; private set; }
 
             public bool IsEmpty => RemainingThisSpan == 0;
@@ -1412,6 +1412,12 @@ namespace StackExchange.Redis
                 var value = _current[OffsetThisSpan];
                 Consume(1);
                 return value;
+            }
+
+            public ReadOnlySequence<byte> SliceFromCurrent()
+            {
+                var from = SnapshotPosition();
+                return _buffer.Slice(from);
             }
         }
 

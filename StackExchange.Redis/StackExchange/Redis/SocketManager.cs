@@ -147,7 +147,7 @@ namespace StackExchange.Redis
         public SocketManager(string name, bool useHighPrioritySocketThreads)
             : this(name, useHighPrioritySocketThreads, DEFAULT_MIN_THREADS, DEFAULT_MAX_THREADS) { }
 
-        private const int DEFAULT_MIN_THREADS = 1, DEFAULT_MAX_THREADS = 5;
+        private const int DEFAULT_MIN_THREADS = 1, DEFAULT_MAX_THREADS = 5, MINIMUM_SEGMENT_SIZE = 8 * 1024;
 
         private SocketManager(string name, bool useHighPrioritySocketThreads, int minThreads, int maxThreads)
         {
@@ -165,13 +165,13 @@ namespace StackExchange.Redis
                 defaultPipeOptions.Pool, _scheduler, _scheduler,
                 pauseWriterThreshold: defaultPipeOptions.PauseWriterThreshold,
                 resumeWriterThreshold: defaultPipeOptions.ResumeWriterThreshold,
-                defaultPipeOptions.MinimumSegmentSize,
+                minimumSegmentSize: Math.Max(defaultPipeOptions.MinimumSegmentSize, MINIMUM_SEGMENT_SIZE),
                 useSynchronizationContext: false);
             ReceivePipeOptions = new PipeOptions(
                 defaultPipeOptions.Pool, _scheduler, _scheduler,
                 pauseWriterThreshold: Receive_PauseWriterThreshold,
                 resumeWriterThreshold: Receive_ResumeWriterThreshold,
-                defaultPipeOptions.MinimumSegmentSize,
+                minimumSegmentSize: Math.Max(defaultPipeOptions.MinimumSegmentSize, MINIMUM_SEGMENT_SIZE),
                 useSynchronizationContext: false);
         }
 
