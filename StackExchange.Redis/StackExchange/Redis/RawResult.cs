@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Buffers;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace StackExchange.Redis
@@ -322,7 +323,7 @@ namespace StackExchange.Redis
             if (_payload.IsSingleSegment)
             {
                 var span = _payload.First.Span;
-                fixed (byte* ptr = &span[0])
+                fixed (byte* ptr = &MemoryMarshal.GetReference(span))
                 {
                     return Encoding.UTF8.GetString(ptr, span.Length);
                 }
@@ -334,7 +335,7 @@ namespace StackExchange.Redis
                 var span = segment.Span;
                 if (span.IsEmpty) continue;
 
-                fixed(byte* bPtr = &span[0])
+                fixed(byte* bPtr = &MemoryMarshal.GetReference(span))
                 {
                     charCount += decoder.GetCharCount(bPtr, span.Length, false);
                 }
@@ -351,7 +352,7 @@ namespace StackExchange.Redis
                     var span = segment.Span;
                     if (span.IsEmpty) continue;
 
-                    fixed (byte* bPtr = &span[0])
+                    fixed (byte* bPtr = &MemoryMarshal.GetReference(span))
                     {
                         var written = decoder.GetChars(bPtr, span.Length, cPtr, charCount, false);
                         cPtr += written;

@@ -175,12 +175,12 @@ namespace StackExchange.Redis
             var ss = DecodeUtf8(s);
             return double.TryParse(ss, NumberStyles.Any, NumberFormatInfo.InvariantInfo, out value);
         }
-        internal static unsafe string DecodeUtf8(ReadOnlySpan<byte> s)
+        internal static unsafe string DecodeUtf8(ReadOnlySpan<byte> span)
         {
-            if (s.IsEmpty) return "";
-            fixed(byte* ptr = &MemoryMarshal.GetReference(s))
+            if (span.IsEmpty) return "";
+            fixed(byte* ptr = &MemoryMarshal.GetReference(span))
             {
-                return Encoding.UTF8.GetString(ptr, s.Length);
+                return Encoding.UTF8.GetString(ptr, span.Length);
             }
         }
         private static bool CaseInsensitiveASCIIEqual(string xLowerCase, ReadOnlySpan<byte> y)

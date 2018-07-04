@@ -10,6 +10,7 @@ using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
@@ -749,22 +750,22 @@ namespace StackExchange.Redis
             }
         }
 
-        private unsafe void WriteRaw(PipeWriter writer, string value, int encodedLength)
+        private unsafe void WriteRaw(PipeWriter writer, string value, int expectedLength)
         {
             const int MaxQuickEncodeSize = 512;
 
             fixed (char* cPtr = value)
             {
                 int totalBytes;
-                if (encodedLength <= MaxQuickEncodeSize)
+                if (expectedLength <= MaxQuickEncodeSize)
                 {
                     // encode directly in one hit
-                    var span = writer.GetSpan(encodedLength);
-                    fixed (byte* bPtr = &span[0])
+                    var span = writer.GetSpan(expectedLength);
+                    fixed (byte* bPtr = &MemoryMarshal.GetReference(span))
                     {
-                        totalBytes = Encoding.UTF8.GetBytes(cPtr, value.Length, bPtr, encodedLength);
+                        totalBytes = Encoding.UTF8.GetBytes(cPtr, value.Length, bPtr, expectedLength);
                     }
-                    writer.Advance(encodedLength);
+                    writer.Advance(expectedLength);
                 }
                 else
                 {
@@ -772,22 +773,33 @@ namespace StackExchange.Redis
                     outEncoder.Reset();
                     int charsRemaining = value.Length, charOffset = 0;
                     totalBytes = 0;
-                    while (charsRemaining != 0)
+
+                    bool final = false;
+                    while (true)
                     {
-                        // note: at most 4 bytes per UTF8 character, despite what UTF8.GetMaxByteCount says
-                        var span = writer.GetSpan(4); // get *some* memory - at least enough for 1 character (but hopefully lots more)
-                        int bytesWritten, charsToWrite = span.Length >> 2; // assume worst case, because the API sucks
-                        fixed (byte* bPtr = &span[0])
+                        var span = writer.GetSpan(5); // get *some* memory - at least enough for 1 character (but hopefully lots more)
+
+                        int charsUsed, bytesUsed;
+                        bool completed;
+                        fixed (byte* bPtr = &MemoryMarshal.GetReference(span))
                         {
-                            bytesWritten = outEncoder.GetBytes(cPtr + charOffset, charsToWrite, bPtr, span.Length, false);
+                            outEncoder.Convert(cPtr + charOffset, span.Length, bPtr, span.Length, final, out charsUsed, out bytesUsed, out completed);
                         }
-                        writer.Advance(bytesWritten);
-                        totalBytes += bytesWritten;
-                        charOffset += charsToWrite;
-                        charsRemaining -= charsRemaining;
+                        writer.Advance(bytesUsed);
+                        totalBytes += bytesUsed;
+                        charOffset += charsUsed;
+                        charsRemaining -= charsUsed;
+
+                        if(charsRemaining <= 0)
+                        {
+                            if (charsRemaining < 0) throw new InvalidOperationException("String encode went negative");
+                            if (completed) break; // fine
+                            if (final) throw new InvalidOperationException("String encode failed to complete");
+                            final = true; // flush the encoder to one more span, then exit
+                        }
                     }
                 }
-                Debug.Assert(totalBytes == encodedLength);
+                if (totalBytes != expectedLength) throw new InvalidOperationException("String encode length check failure");
             }
         }
 
