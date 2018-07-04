@@ -323,13 +323,13 @@ namespace StackExchange.Redis
         //        echo = null;
         //    }
         //}
-        partial void OnWrapForLogging(ref IDuplexPipe pipe, string name)
+        partial void OnWrapForLogging(ref IDuplexPipe pipe, string name, SocketManager mgr)
         {
             foreach(var c in Path.GetInvalidFileNameChars())
             {
                 name = name.Replace(c, '_');
             }
-            pipe = new LoggingPipe(pipe, $"{name}.in", $"{name}.out");
+            pipe = new LoggingPipe(pipe, $"{name}.in", $"{name}.out", mgr);
         }
     }
 #endif

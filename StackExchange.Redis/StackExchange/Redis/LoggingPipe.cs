@@ -11,7 +11,7 @@ namespace StackExchange.Redis
     {
         private IDuplexPipe _inner;
 
-        public LoggingPipe(IDuplexPipe inner, string inPath, string outPath)
+        public LoggingPipe(IDuplexPipe inner, string inPath, string outPath, SocketManager mgr)
         {
             _inner = inner;
             if (string.IsNullOrWhiteSpace(inPath))
@@ -20,7 +20,7 @@ namespace StackExchange.Redis
             }
             else
             {
-                var pipe = new Pipe();
+                var pipe = new Pipe(mgr.ReceivePipeOptions);
                 Input = pipe.Reader;
                 CloneAsync(inPath, inner.Input, pipe.Writer);
             }
@@ -31,7 +31,7 @@ namespace StackExchange.Redis
             }
             else
             {
-                var pipe = new Pipe();
+                var pipe = new Pipe(mgr.SendPipeOptions);
                 Output = pipe.Writer;
                 CloneAsync(outPath, pipe.Reader, inner.Output);
             }

@@ -919,7 +919,7 @@ namespace StackExchange.Redis
                 {
                     pipe = SocketConnection.Create(socket, manager.SendPipeOptions, manager.ReceivePipeOptions, name: Bridge.Name);
                 }
-                OnWrapForLogging(ref pipe, physicalName);
+                OnWrapForLogging(ref pipe, physicalName, manager);
 
                 _ioPipe = pipe;
 
@@ -1021,7 +1021,7 @@ namespace StackExchange.Redis
             }
         }
 
-        partial void OnWrapForLogging(ref IDuplexPipe pipe, string name);
+        partial void OnWrapForLogging(ref IDuplexPipe pipe, string name, SocketManager mgr);
 
         private async void ReadFromPipe() // yes it is an async void; deal with it!
         {
@@ -1177,15 +1177,13 @@ namespace StackExchange.Redis
                     return new RawResult(ResultType.BulkString, ReadOnlySequence<byte>.Empty, true);
                 }
 
-                int from = reader.TotalConsumed;
-                if(reader.TryConsume(bodySize))
+                if(reader.TryConsumeAsBuffer(bodySize, out var payload))
                 {
                     switch(reader.TryConsumeCRLF())
                     {
                         case ConsumeResult.NeedMoreData:
                             break; // see NilResult below
                         case ConsumeResult.Success:
-                            var payload = bodySize == 0 ? ReadOnlySequence<byte>.Empty : buffer.Slice(from, bodySize);
                             return new RawResult(ResultType.BulkString, payload, false);
                         default:
                             throw ExceptionFactory.ConnectionFailure(Multiplexer.IncludeDetailInExceptions, ConnectionFailureType.ProtocolFailure, "Invalid bulk string terminator", Bridge.ServerEndPoint);
@@ -1200,8 +1198,8 @@ namespace StackExchange.Redis
             int crlfOffsetFromCurrent = BufferReader.FindNextCrLf(reader);
             if (crlfOffsetFromCurrent < 0) return RawResult.Nil;
 
-            var payload = buffer.Slice(reader.TotalConsumed, crlfOffsetFromCurrent);
-            reader.Consume(crlfOffsetFromCurrent + 2);
+            var payload = reader.ConsumeAsBuffer(crlfOffsetFromCurrent);
+            reader.Consume(2);
 
             return new RawResult(type, payload, false);
         }
@@ -1270,6 +1268,9 @@ namespace StackExchange.Redis
 
             public BufferReader(ReadOnlySequence<byte> buffer)
             {
+                _buffer = buffer;
+                _lastSnapshotPosition = buffer.Start;
+                _lastSnapshotBytes = 0;
                 _iterator = buffer.GetEnumerator();
                 _current = default;
                 OffsetThisSpan = RemainingThisSpan = TotalConsumed = 0;
@@ -1303,7 +1304,6 @@ namespace StackExchange.Redis
                         return result;
                 }
             }
-
             public bool TryConsume(int count)
             {
                 if (count < 0) throw new ArgumentOutOfRangeException(nameof(count));
@@ -1328,6 +1328,40 @@ namespace StackExchange.Redis
                 return false;
             }
 
+            readonly ReadOnlySequence<byte> _buffer;
+            SequencePosition _lastSnapshotPosition;
+            long _lastSnapshotBytes;
+
+            // makes an internal note of where we are, as a SequencePosition; useful
+            // to avoid having to use buffer.Slice on huge ranges
+            SequencePosition SnapshotPosition()
+            {
+                var consumed = TotalConsumed;
+                var delta = consumed - _lastSnapshotBytes;
+                if (delta == 0) return _lastSnapshotPosition;
+
+                var pos = _buffer.GetPosition(delta, _lastSnapshotPosition);
+                _lastSnapshotBytes = consumed;
+                return _lastSnapshotPosition = pos;
+            }
+            public ReadOnlySequence<byte> ConsumeAsBuffer(int count)
+            {
+                if(!TryConsumeAsBuffer(count, out var buffer)) throw new EndOfStreamException();
+                return buffer;
+            }
+
+            public bool TryConsumeAsBuffer(int count, out ReadOnlySequence<byte> buffer)
+            {
+                var from = SnapshotPosition();
+                if (!TryConsume(count))
+                {
+                    buffer = default;
+                    return false;
+                }
+                var to = SnapshotPosition();
+                buffer = _buffer.Slice(from, to);
+                return true;
+            }
             public void Consume(int count)
             {
                 if (!TryConsume(count)) throw new EndOfStreamException();
