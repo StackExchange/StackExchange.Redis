@@ -641,9 +641,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StreamPendingMessagesAsync(ToInner(key), groupName, count, consumerName, minId, maxId, flags);
         }
 
-        public Task<RedisStreamEntry[]> StreamRangeAsync(RedisKey key, RedisValue? minId = null, RedisValue? maxId = null, int? count = null, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        public Task<RedisStreamEntry[]> StreamRangeAsync(RedisKey key, RedisValue? minId = null, RedisValue? maxId = null, int? count = null, Order messageOrder = Order.Ascending, CommandFlags flags = CommandFlags.None)
         {
-            return Inner.StreamRangeAsync(ToInner(key), minId, maxId, count, order, flags);
+            return Inner.StreamRangeAsync(ToInner(key), minId, maxId, count, messageOrder, flags);
         }
 
         public Task<RedisStreamEntry[]> StreamReadAsync(RedisKey key, RedisValue afterId, int? count = null, CommandFlags flags = CommandFlags.None)

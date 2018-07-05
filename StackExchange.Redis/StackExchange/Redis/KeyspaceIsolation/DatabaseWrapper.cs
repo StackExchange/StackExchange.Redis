@@ -662,9 +662,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StreamPendingMessages(ToInner(key), groupName, count, consumerName, minId, maxId, flags);
         }
 
-        public RedisStreamEntry[] StreamRange(RedisKey key, RedisValue? minId = null, RedisValue? maxId = null, int? count = null, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        public RedisStreamEntry[] StreamRange(RedisKey key, RedisValue? minId = null, RedisValue? maxId = null, int? count = null, Order messageOrder = Order.Ascending, CommandFlags flags = CommandFlags.None)
         {
-            return Inner.StreamRange(ToInner(key), minId, maxId, count, order, flags);
+            return Inner.StreamRange(ToInner(key), minId, maxId, count, messageOrder, flags);
         }
 
         public RedisStreamEntry[] StreamRead(RedisKey key, RedisValue afterId, int? count = null, CommandFlags flags = CommandFlags.None)
