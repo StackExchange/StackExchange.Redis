@@ -129,28 +129,12 @@ namespace StackExchange.Redis
         }
     }
 
-    internal partial class CompletionManager
-    {
-        private static long asyncCompletionWorkerCount;
-
-#pragma warning disable RCS1047 // Non-asynchronous method name should not end with 'Async'.
-        partial void OnCompletedAsync() => Interlocked.Increment(ref asyncCompletionWorkerCount);
-#pragma warning restore RCS1047 // Non-asynchronous method name should not end with 'Async'.
-
-        internal static long GetAsyncCompletionWorkerCount() => Interlocked.Read(ref asyncCompletionWorkerCount);
-    }
-
     public partial class ConnectionMultiplexer
     {
         /// <summary>
         /// Gets how many result-box instances were allocated
         /// </summary>
         public static long GetResultBoxAllocationCount() => ResultBox.GetAllocationCount();
-
-        /// <summary>
-        /// Gets how many async completion workers were queueud
-        /// </summary>
-        public static long GetAsyncCompletionWorkerCount() => CompletionManager.GetAsyncCompletionWorkerCount();
 
         private volatile bool allowConnect = true,
                               ignoreConnect = false;

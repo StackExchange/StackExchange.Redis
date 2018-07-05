@@ -42,9 +42,6 @@ namespace StackExchange.Redis.Tests
                 Output.WriteLine("{2}: Time for {0} ops: {1}ms ({3}, {4}); ops/s: {5}", AsyncOpsQty, watch.ElapsedMilliseconds, Me(),
                     withContinuation ? "with continuation" : "no continuation", "any order",
                     AsyncOpsQty / watch.Elapsed.TotalSeconds);
-#if DEBUG
-                Output.WriteLine("Async completion workers: " + (ConnectionMultiplexer.GetAsyncCompletionWorkerCount() - oldAsyncCompletionCount));
-#endif
             }
         }
 

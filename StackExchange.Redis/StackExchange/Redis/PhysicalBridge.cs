@@ -177,7 +177,7 @@ namespace StackExchange.Redis
             physical?.GetCounters(counters);
         }
 
-        internal int GetOutstandingCount(out int inst, out int qs, out int qc, out int @in)
+        internal void GetOutstandingCount(out int inst, out int qs, out int @in)
         {// defined as: PendingUnsentItems + SentItemsAwaitingResponse + ResponsesAwaitingAsyncCompletion
             inst = (int)(Interlocked.Read(ref operationCount) - Interlocked.Read(ref profileLastLog));
             var tmp = physical;
@@ -190,8 +190,6 @@ namespace StackExchange.Redis
                 qs = tmp.GetSentAwaitingResponseCount();
                 @in = tmp.GetAvailableInboundBytes();
             }
-            qc = completionManager.GetOutstandingCount();
-            return qs + qc;
         }
 
         internal string GetStormLog()
@@ -200,7 +198,6 @@ namespace StackExchange.Redis
                 .Append(" at ").Append(DateTime.UtcNow)
                 .AppendLine().AppendLine();
             physical?.GetStormLog(sb);
-            completionManager.GetStormLog(sb);
             sb.Append("Circular op-count snapshot:");
             AppendProfile(sb);
             sb.AppendLine();

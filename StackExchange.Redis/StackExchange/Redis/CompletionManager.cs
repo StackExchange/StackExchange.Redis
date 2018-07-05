@@ -7,8 +7,6 @@ namespace StackExchange.Redis
 {
     internal sealed partial class CompletionManager
     {
-        private readonly Queue<ICompletable> asyncCompletionQueue = new Queue<ICompletable>();
-
         private readonly ConnectionMultiplexer multiplexer;
 
         private readonly string name;
@@ -38,37 +36,9 @@ namespace StackExchange.Redis
 
         internal void GetCounters(ConnectionCounters counters)
         {
-            lock (asyncCompletionQueue)
-            {
-                counters.ResponsesAwaitingAsyncCompletion = asyncCompletionQueue.Count;
-            }
             counters.CompletedSynchronously = Interlocked.Read(ref completedSync);
             counters.CompletedAsynchronously = Interlocked.Read(ref completedAsync);
             counters.FailedAsynchronously = Interlocked.Read(ref failedAsync);
-        }
-
-        internal int GetOutstandingCount()
-        {
-            lock(asyncCompletionQueue)
-            {
-                return asyncCompletionQueue.Count;
-            }
-        }
-
-        internal void GetStormLog(StringBuilder sb)
-        {
-            lock(asyncCompletionQueue)
-            {
-                if (asyncCompletionQueue.Count == 0) return;
-                sb.Append("Response awaiting completion: ").Append(asyncCompletionQueue.Count).AppendLine();
-                int total = 0;
-                foreach(var item in asyncCompletionQueue)
-                {
-                    if (++total >= 500) break;
-                    item.AppendStormLog(sb);
-                    sb.AppendLine();
-                }
-            }
         }
 
         private static readonly Action<object> s_AnyOrderCompletionHandler = AnyOrderCompletionHandler;
@@ -83,9 +53,6 @@ namespace StackExchange.Redis
             {
                 ConnectionMultiplexer.TraceWithoutContext("Async completion error: " + ex.Message);
             }
-        }
-
-        partial void OnCompletedAsync();
-        
+        }        
     }
 }

@@ -2041,11 +2041,9 @@ namespace StackExchange.Redis
                                 }
                             }
 
-                            int queue = server.GetOutstandingCount(message.Command, out int inst, out int qs, out int qc, out int @in);
+                            server.GetOutstandingCount(message.Command, out int inst, out int qs, out int @in);
                             add("Instantaneous", "inst", inst.ToString());
-                            add("Queue-Length", "queue", queue.ToString());
                             add("Queue-Awaiting-Response", "qs", qs.ToString());
-                            add("Queue-Completion-Outstanding", "qc", qc.ToString());
                             add("Inbound-Bytes", "in", @in.ToString());
                             add("Manager", "mgr", SocketManager?.GetState());
 
@@ -2071,7 +2069,7 @@ namespace StackExchange.Redis
                             sb.Append(timeoutHelpLink);
                             sb.Append(")");
                             errMessage = sb.ToString();
-                            if (StormLogThreshold >= 0 && queue >= StormLogThreshold && Interlocked.CompareExchange(ref haveStormLog, 1, 0) == 0)
+                            if (StormLogThreshold >= 0 && qs >= StormLogThreshold && Interlocked.CompareExchange(ref haveStormLog, 1, 0) == 0)
                             {
                                 var log = server.GetStormLog(message.Command);
                                 if (string.IsNullOrWhiteSpace(log)) Interlocked.Exchange(ref haveStormLog, 0);
