@@ -17,9 +17,6 @@ namespace StackExchange.Redis.Tests
         [InlineData(false)]
         public async Task MassiveBulkOpsAsync(bool withContinuation)
         {
-#if DEBUG
-            var oldAsyncCompletionCount = ConnectionMultiplexer.GetAsyncCompletionWorkerCount();
-#endif
             using (var muxer = Create())
             {
                 RedisKey key = "MBOA";
@@ -60,7 +57,6 @@ namespace StackExchange.Redis.Tests
                 conn.KeyDelete(key);
 #if DEBUG
                 long oldAlloc = ConnectionMultiplexer.GetResultBoxAllocationCount();
-                long oldWorkerCount = ConnectionMultiplexer.GetAsyncCompletionWorkerCount();
 #endif
                 var timeTaken = RunConcurrent(delegate
                 {
@@ -77,8 +73,7 @@ namespace StackExchange.Redis.Tests
                     , "any order", threads, (workPerThread * threads) / timeTaken.TotalSeconds);
 #if DEBUG
                 long newAlloc = ConnectionMultiplexer.GetResultBoxAllocationCount();
-                long newWorkerCount = ConnectionMultiplexer.GetAsyncCompletionWorkerCount();
-                Output.WriteLine("ResultBox allocations: {0}; workers {1}", newAlloc - oldAlloc, newWorkerCount - oldWorkerCount);
+                Output.WriteLine("ResultBox allocations: {0}", newAlloc - oldAlloc);
                 Assert.True(newAlloc - oldAlloc <= 2 * threads, "number of box allocations");
 #endif
             }
