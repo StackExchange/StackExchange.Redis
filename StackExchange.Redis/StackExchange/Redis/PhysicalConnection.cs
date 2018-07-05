@@ -783,7 +783,7 @@ namespace StackExchange.Redis
                         bool completed;
                         fixed (byte* bPtr = &MemoryMarshal.GetReference(span))
                         {
-                            outEncoder.Convert(cPtr + charOffset, span.Length, bPtr, span.Length, final, out charsUsed, out bytesUsed, out completed);
+                            outEncoder.Convert(cPtr + charOffset, charsRemaining, bPtr, span.Length, final, out charsUsed, out bytesUsed, out completed);
                         }
                         writer.Advance(bytesUsed);
                         totalBytes += bytesUsed;
