@@ -36,9 +36,8 @@ namespace StackExchange.Redis.Tests
                 }
                 Assert.Equal(AsyncOpsQty, await conn.StringGetAsync(key).ForAwait());
                 watch.Stop();
-                Output.WriteLine("{2}: Time for {0} ops: {1}ms ({3}, {4}); ops/s: {5}", AsyncOpsQty, watch.ElapsedMilliseconds, Me(),
-                    withContinuation ? "with continuation" : "no continuation", "any order",
-                    AsyncOpsQty / watch.Elapsed.TotalSeconds);
+                Output.WriteLine("{2}: Time for {0} ops: {1}ms ({3}, any order); ops/s: {4}", AsyncOpsQty, watch.ElapsedMilliseconds, Me(),
+                    withContinuation ? "with continuation" : "no continuation", AsyncOpsQty / watch.Elapsed.TotalSeconds);
             }
         }
 
@@ -68,9 +67,8 @@ namespace StackExchange.Redis.Tests
 
                 int val = (int)conn.StringGet(key);
                 Assert.Equal(workPerThread * threads, val);
-                Output.WriteLine("{2}: Time for {0} ops on {4} threads: {1}ms ({3}); ops/s: {5}",
-                    threads * workPerThread, timeTaken.TotalMilliseconds, Me()
-                    , "any order", threads, (workPerThread * threads) / timeTaken.TotalSeconds);
+                Output.WriteLine("{2}: Time for {0} ops on {3} threads: {1}ms (any order); ops/s: {4}",
+                    threads * workPerThread, timeTaken.TotalMilliseconds, Me(), threads, (workPerThread * threads) / timeTaken.TotalSeconds);
 #if DEBUG
                 long newAlloc = ConnectionMultiplexer.GetResultBoxAllocationCount();
                 Output.WriteLine("ResultBox allocations: {0}", newAlloc - oldAlloc);
@@ -106,9 +104,8 @@ namespace StackExchange.Redis.Tests
                 var val = (long)conn.StringGet(key);
                 Assert.Equal(perThread * threads, val);
 
-                Output.WriteLine("{2}: Time for {0} ops over {5} threads: {1:###,###}ms ({3}); ops/s: {4:###,###,##0}",
+                Output.WriteLine("{2}: Time for {0} ops over {4} threads: {1:###,###}ms (any order); ops/s: {3:###,###,##0}",
                     val, elapsed.TotalMilliseconds, Me(),
-                    "any order",
                     val / elapsed.TotalSeconds, threads);
 #if DEBUG
                 long newAlloc = ConnectionMultiplexer.GetResultBoxAllocationCount();

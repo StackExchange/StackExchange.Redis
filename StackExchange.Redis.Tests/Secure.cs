@@ -35,8 +35,7 @@ namespace StackExchange.Redis.Tests
                 int val = (int)conn.StringGet(key);
                 Assert.Equal(AsyncOpsQty, val);
                 watch.Stop();
-                Output.WriteLine("{2}: Time for {0} ops: {1}ms ({3}); ops/s: {4}", AsyncOpsQty, watch.ElapsedMilliseconds, Me(),
-                    "any order",
+                Output.WriteLine("{2}: Time for {0} ops: {1}ms (any order); ops/s: {3}", AsyncOpsQty, watch.ElapsedMilliseconds, Me(),
                     AsyncOpsQty / watch.Elapsed.TotalSeconds);
 #if DEBUG
                 long newAlloc = ConnectionMultiplexer.GetResultBoxAllocationCount();

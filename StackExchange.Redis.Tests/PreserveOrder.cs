@@ -32,7 +32,7 @@ namespace StackExchange.Redis.Tests
                     // the pool will end up doing everything on one thread
                 });
                 Output.WriteLine("");
-                Output.WriteLine("Sending ({0})...", "any order");
+                Output.WriteLine("Sending (any order)...");
                 lock (received)
                 {
                     received.Clear();

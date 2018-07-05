@@ -300,8 +300,7 @@ namespace StackExchange.Redis.Tests
                 var watch = Stopwatch.StartNew();
                 Assert.Throws<RedisConnectionException>(() => db.Ping());
                 watch.Stop();
-                Output.WriteLine("Time to notice quit: {0}ms ({1})", watch.ElapsedMilliseconds,
-                    "any order");
+                Output.WriteLine("Time to notice quit: {0}ms (any order)", watch.ElapsedMilliseconds);
                 Thread.Sleep(20);
                 Debug.WriteLine("Pinging...");
                 Assert.Equal(key, (string)db.StringGet(key));
@@ -322,8 +321,7 @@ namespace StackExchange.Redis.Tests
                 var watch = Stopwatch.StartNew();
                 db.Ping();
                 watch.Stop();
-                Output.WriteLine("Time to re-establish: {0}ms ({1})", watch.ElapsedMilliseconds,
-                    "any order");
+                Output.WriteLine("Time to re-establish: {0}ms (any order)", watch.ElapsedMilliseconds);
                 await Task.Delay(2000).ForAwait();
                 Debug.WriteLine("Pinging...");
                 Assert.Equal(key, db.StringGet(key));
