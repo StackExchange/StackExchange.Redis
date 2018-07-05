@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -741,6 +742,25 @@ namespace StackExchange.Redis
                     break;
             }
             return this;
+        }
+
+        /// <summary>
+        /// Create a RedisValue from a MemoryStream; it will *attempt* to use the internal buffer
+        /// directly, but if this isn't possibly it will fallback to ToArray
+        /// </summary>
+        public static RedisValue CreateFrom(MemoryStream stream)
+        {
+            if (stream == null) return Null;
+            if (stream.Length == 0) return Array.Empty<byte>();
+            if(stream.TryGetBuffer(out var segment))
+            {
+                return new Memory<byte>(segment.Array, segment.Offset, segment.Count);
+            }
+            else
+            {
+                // nowhere near as efficient, but...
+                return stream.ToArray();
+            }
         }
     }
 }
