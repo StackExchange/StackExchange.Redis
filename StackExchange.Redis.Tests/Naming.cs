@@ -87,6 +87,8 @@ namespace StackExchange.Redis.Tests
                     case nameof(IDatabaseAsync.ExecuteAsync):
                     case nameof(IDatabase.ScriptEvaluate):
                     case nameof(IDatabaseAsync.ScriptEvaluateAsync):
+                    case nameof(IDatabase.StreamRead):
+                    case nameof(IDatabase.StreamReadAsync):
                         continue; // they're fine, but don't want to widen check to return type
                 }
 
@@ -214,7 +216,8 @@ namespace StackExchange.Redis.Tests
                     || shortName.StartsWith("Set")
                     || shortName.StartsWith("Script")
                     || shortName.StartsWith("SortedSet")
-                    || shortName.StartsWith("String") 
+                    || shortName.StartsWith("String")
+                    || shortName.StartsWith("Stream")
                     , fullName + ":Prefix");
             }
 

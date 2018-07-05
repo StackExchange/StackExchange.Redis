@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -481,7 +482,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void StreamConsumerGroupViewPendingMessageInfo()
+        public async Task StreamConsumerGroupViewPendingMessageInfo()
         {
             var key = GetUniqueKey("group_pending_messages");
             var groupName = "test_group";
@@ -506,6 +507,8 @@ namespace StackExchange.Redis.Tests
 
                 // Read the remaining messages into the second consumer.
                 var consumer2Messages = db.StreamReadGroup(key, groupName, consumer2);
+
+                await Task.Delay(10);
 
                 // Get the pending info about the messages themselves.
                 var pendingMessageInfoList = db.StreamPendingMessages(key, groupName, 10, RedisValue.Null);
