@@ -30,6 +30,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// Represents a message queue of pub/sub notifications
     /// </summary>
+    /// <remarks>To create a ChannelMessageQueue, use ISubscriber.Subscribe[Async](RedisKey)</remarks>
     public sealed class ChannelMessageQueue
     {
         private readonly Channel<ChannelMessage> _channel;

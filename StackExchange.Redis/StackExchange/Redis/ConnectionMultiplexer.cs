@@ -1809,7 +1809,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets or sets whether asynchronous operations should be invoked in a way that guarantees their original delivery order
         /// </summary>
-        [Obsolete("Not supported; attempting to guarantee delivery order is consistently a cause of major performance problems", false)]
+        [Obsolete("Not supported; if you require ordered pub/sub, please see " + nameof(ChannelMessageQueue), false)]
         public bool PreserveAsyncOrder
         {
             get => false;
