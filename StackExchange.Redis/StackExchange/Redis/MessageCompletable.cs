@@ -49,7 +49,7 @@ namespace StackExchange.Redis
                     }
                     ConnectionMultiplexer.TraceWithoutContext("Invoke complete (sync)", "Subscription");
                 }
-                return asyncHandler != null; // anything async to do?
+                return asyncHandler == null; // anything async to do?
             }
         }
 
