@@ -157,7 +157,7 @@ namespace StackExchange.Redis
             var parent = _parent;
             if (parent != null)
             {
-                _parent.UnsubscribeAsync(_redisChannel, HandleMessage, flags);
+                parent.UnsubscribeAsync(_redisChannel, HandleMessage, flags);
                 _parent = null;
                 _channel.Writer.TryComplete(error);
             }
@@ -167,7 +167,7 @@ namespace StackExchange.Redis
             var parent = _parent;
             if (parent != null)
             {
-                await _parent.UnsubscribeAsync(_redisChannel, HandleMessage, flags);
+                await parent.UnsubscribeAsync(_redisChannel, HandleMessage, flags);
                 _parent = null;
                 _channel.Writer.TryComplete(error);
             }
