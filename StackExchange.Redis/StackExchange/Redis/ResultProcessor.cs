@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -1584,9 +1585,14 @@ The coordinates as a two items x,y array (longitude,latitude).
                 // Items 9-12 represent the first and last entry in the stream. The values will
                 // be nil (stored in index 9 & 11) if the stream length is 0.
 
-                var tmp = RawResult.CreateMultiBulk(arr[9], arr[11]);
+                var leased = ArrayPool<RawResult>.Shared.Rent(2);
+                leased[0] = arr[9];
+                leased[1] = arr[11];
+                var tmp = new RawResult(leased, 2);
                 var entries = ParseRedisStreamEntries(tmp);
-                tmp.Recycle();
+                // note: don't .Recycle(), would be a stack overflow because
+                // it would bridge the fake and real result set
+                ArrayPool<RawResult>.Shared.Return(leased); 
 
                 var streamInfo = new StreamInfo(length: (int)arr[1].AsRedisValue(),
                     radixTreeKeys: (int)arr[3].AsRedisValue(),

@@ -55,7 +55,7 @@ namespace StackExchange.Redis
         Task<long> PublishAsync(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Subscribe to perform some operation when a change to the preferred/active node is broadcast.
+        /// Subscribe to perform some operation when a message to the preferred/active node is broadcast, without any guarantee of ordered handling.
         /// </summary>
         /// <param name="channel">The channel to subscribe to.</param>
         /// <param name="handler">The handler to invoke when a message is received on <paramref name="channel"/>.</param>
