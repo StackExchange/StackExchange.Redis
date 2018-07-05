@@ -11,10 +11,8 @@ namespace StackExchange.Redis.Tests
     {
         public PreserveOrder(ITestOutputHelper output) : base (output) { }
 
-        [Theory]
-        [InlineData(true)]
-        [InlineData(false)]
-        public void Execute(bool preserveAsyncOrder)
+        [Fact]
+        public void Execute()
         {
             using (var conn = Create())
             {
@@ -33,9 +31,8 @@ namespace StackExchange.Redis.Tests
                     Thread.Sleep(1); // you kinda need to be slow, otherwise
                     // the pool will end up doing everything on one thread
                 });
-                conn.PreserveAsyncOrder = preserveAsyncOrder;
                 Output.WriteLine("");
-                Output.WriteLine("Sending ({0})...", preserveAsyncOrder ? "preserved order" : "any order");
+                Output.WriteLine("Sending ({0})...", "any order");
                 lock (received)
                 {
                     received.Clear();
@@ -65,8 +62,6 @@ namespace StackExchange.Redis.Tests
                             if (received[i] != i) wrongOrder++;
                         }
                         Output.WriteLine("Out of order: " + wrongOrder);
-                        if (preserveAsyncOrder) Assert.Equal(0, wrongOrder);
-                        else Assert.NotEqual(0, wrongOrder);
                     }
                 }
             }

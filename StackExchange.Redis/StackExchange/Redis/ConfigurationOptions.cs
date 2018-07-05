@@ -258,7 +258,12 @@ namespace StackExchange.Redis
         /// <summary>
         /// Specifies whether asynchronous operations should be invoked in a way that guarantees their original delivery order
         /// </summary>
-        public bool PreserveAsyncOrder { get { return preserveAsyncOrder.GetValueOrDefault(true); } set { preserveAsyncOrder = value; } }
+        [Obsolete("Not supported; attempting to guarantee delivery order is consistently a cause of major performance problems", false)]
+        public bool PreserveAsyncOrder
+        {
+            get { return preserveAsyncOrder.GetValueOrDefault(true); }
+            set { preserveAsyncOrder = value; }
+        }
 
         /// <summary>
         /// Type of proxy to use (if any); for example Proxy.Twemproxy.
@@ -646,7 +651,9 @@ namespace StackExchange.Redis
                             DefaultDatabase = OptionKeys.ParseInt32(key, value);
                             break;
                         case OptionKeys.PreserveAsyncOrder:
+#pragma warning disable CS0618
                             PreserveAsyncOrder = OptionKeys.ParseBoolean(key, value);
+#pragma warning restore CS0618
                             break;
                         case OptionKeys.SslProtocols:
                             SslProtocols = OptionKeys.ParseSslProtocols(key, value);

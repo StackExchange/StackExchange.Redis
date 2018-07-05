@@ -158,24 +158,27 @@ namespace StackExchange.Redis
             const long Receive_ResumeWriterThreshold = 3L * 1024 * 1024 * 1024;
 
             var defaultPipeOptions = PipeOptions.Default;
-            _scheduler = new DedicatedThreadPoolPipeScheduler(name,
+            _schedulerPool = new DedicatedThreadPoolPipeScheduler(name + ":IO",
                 minWorkers: minThreads, maxWorkers: maxThreads,
                 priority: useHighPrioritySocketThreads ? ThreadPriority.AboveNormal : ThreadPriority.Normal);
             SendPipeOptions = new PipeOptions(
-                defaultPipeOptions.Pool, _scheduler, _scheduler,
+                defaultPipeOptions.Pool, _schedulerPool, _schedulerPool,
                 pauseWriterThreshold: defaultPipeOptions.PauseWriterThreshold,
                 resumeWriterThreshold: defaultPipeOptions.ResumeWriterThreshold,
                 minimumSegmentSize: Math.Max(defaultPipeOptions.MinimumSegmentSize, MINIMUM_SEGMENT_SIZE),
                 useSynchronizationContext: false);
             ReceivePipeOptions = new PipeOptions(
-                defaultPipeOptions.Pool, _scheduler, _scheduler,
+                defaultPipeOptions.Pool, _schedulerPool, _schedulerPool,
                 pauseWriterThreshold: Receive_PauseWriterThreshold,
                 resumeWriterThreshold: Receive_ResumeWriterThreshold,
                 minimumSegmentSize: Math.Max(defaultPipeOptions.MinimumSegmentSize, MINIMUM_SEGMENT_SIZE),
                 useSynchronizationContext: false);
+
+            _completionPool = new DedicatedThreadPoolPipeScheduler(name + ":Completion",
+                minWorkers: 1, maxWorkers: maxThreads, useThreadPoolQueueLength: 1);
         }
 
-        private DedicatedThreadPoolPipeScheduler _scheduler;
+        private DedicatedThreadPoolPipeScheduler _schedulerPool, _completionPool;
         internal readonly PipeOptions SendPipeOptions, ReceivePipeOptions;
 
         private enum CallbackOperation
@@ -194,8 +197,10 @@ namespace StackExchange.Redis
             // note: the scheduler *can't* be collected by itself - there will
             // be threads, and those threads will be rooting the DedicatedThreadPool;
             // but: we can lend a hand! We need to do this even in the finalizer
-            try { _scheduler?.Dispose(); } catch { }
-            _scheduler = null;
+            try { _schedulerPool?.Dispose(); } catch { }
+            try { _completionPool?.Dispose(); } catch { }
+            _schedulerPool = null;
+            _completionPool = null;
             if (disposing)
             {
                 GC.SuppressFinalize(this);
@@ -354,8 +359,11 @@ namespace StackExchange.Redis
 
         internal string GetState()
         {
-            var s = _scheduler;
+            var s = _schedulerPool;
             return s == null ? null : $"{s.BusyCount} of {s.WorkerCount} busy ({s.MaxWorkerCount} max)";
         }
+
+        internal void ScheduleTask(Action<object> action, object state)
+            => _completionPool.Schedule(action, state);
     }
 }

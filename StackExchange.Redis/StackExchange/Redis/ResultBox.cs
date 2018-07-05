@@ -97,7 +97,7 @@ namespace StackExchange.Redis
         {
             if (stateOrCompletionSource is TaskCompletionSource<T> tcs)
             {
-                if (isAsync || TaskSource.IsSyncSafe(tcs.Task))
+                if (isAsync)
                 {
                     UnwrapAndRecycle(this, true, out T val, out Exception ex);
 

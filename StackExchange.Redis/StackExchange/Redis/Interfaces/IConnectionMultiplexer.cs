@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Net;
 using System.Threading.Tasks;
@@ -44,6 +44,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets or sets whether asynchronous operations should be invoked in a way that guarantees their original delivery order
         /// </summary>
+        [Obsolete("Not supported; attempting to guarantee delivery order is consistently a cause of major performance problems", false)]
         bool PreserveAsyncOrder { get; set; }
 
         /// <summary>

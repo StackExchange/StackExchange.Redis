@@ -899,7 +899,6 @@ namespace StackExchange.Redis
                 map.AssertAvailable(RedisCommand.EXISTS);
             }
 
-            PreserveAsyncOrder = configuration.PreserveAsyncOrder;
             TimeoutMilliseconds = configuration.SyncTimeout;
 
             OnCreateReaderWriter(configuration);
@@ -1810,7 +1809,12 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets or sets whether asynchronous operations should be invoked in a way that guarantees their original delivery order
         /// </summary>
-        public bool PreserveAsyncOrder { get; set; }
+        [Obsolete("Not supported; attempting to guarantee delivery order is consistently a cause of major performance problems", false)]
+        public bool PreserveAsyncOrder
+        {
+            get => false;
+            set { }
+        }
 
         /// <summary>
         /// Indicates whether any servers are connected

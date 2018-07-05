@@ -75,18 +75,19 @@ namespace StackExchange.Redis.Tests.Booksleeve
             Assert.True(withFAF.ElapsedMilliseconds < withAsync.ElapsedMilliseconds, caption);
         }
 
-        [FactLongRunning]
-        public async Task PubSubOrder()
+        // [FactLongRunning]
+        [Fact]
+        public async Task PubSubGetAllAnyOrder()
         {
-            using (var muxer = GetRemoteConnection(waitForOpen: true))
+            using (var muxer = GetRemoteConnection(waitForOpen: true,
+                syncTimeout: 20000))
             {
                 var sub = muxer.GetSubscriber();
-                const string channel = "PubSubOrder";
+                RedisChannel channel = Me();
                 const int count = 500000;
                 var syncLock = new object();
 
-                var data = new List<int>(count);
-                muxer.PreserveAsyncOrder = true;
+                var data = new HashSet<int>();
                 await sub.SubscribeAsync(channel, (key, val) =>
                 {
                     bool pulse;
@@ -118,7 +119,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
                     }
                     for (int i = 0; i < count; i++)
                     {
-                        Assert.Equal(i, data[i]);
+                        Assert.Contains(i, data);
                     }
                 }
             }

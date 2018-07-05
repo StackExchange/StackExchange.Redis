@@ -14,14 +14,11 @@ namespace StackExchange.Redis.Tests
 
         public Secure(ITestOutputHelper output) : base (output) { }
 
-        [Theory]
-        [InlineData(true)]
-        [InlineData(false)]
-        public void MassiveBulkOpsFireAndForgetSecure(bool preserveOrder)
+        [Fact]
+        public void MassiveBulkOpsFireAndForgetSecure()
         {
             using (var muxer = Create())
             {
-                muxer.PreserveAsyncOrder = preserveOrder;
 #if DEBUG
                 long oldAlloc = ConnectionMultiplexer.GetResultBoxAllocationCount();
 #endif
@@ -39,7 +36,7 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(AsyncOpsQty, val);
                 watch.Stop();
                 Output.WriteLine("{2}: Time for {0} ops: {1}ms ({3}); ops/s: {4}", AsyncOpsQty, watch.ElapsedMilliseconds, Me(),
-                    preserveOrder ? "preserve order" : "any order",
+                    "any order",
                     AsyncOpsQty / watch.Elapsed.TotalSeconds);
 #if DEBUG
                 long newAlloc = ConnectionMultiplexer.GetResultBoxAllocationCount();

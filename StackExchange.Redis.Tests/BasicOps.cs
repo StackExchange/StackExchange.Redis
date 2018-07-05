@@ -14,14 +14,11 @@ namespace StackExchange.Redis.Tests
     {
         public BasicOpsTests(ITestOutputHelper output) : base (output) { }
 
-        [Theory]
-        [InlineData(true)]
-        [InlineData(false)]
-        public void PingOnce(bool preserveOrder)
+        [Fact]
+        public void PingOnce()
         {
             using (var muxer = Create())
             {
-                muxer.PreserveAsyncOrder = preserveOrder;
                 var conn = muxer.GetDatabase();
 
                 var task = conn.PingAsync();
@@ -51,14 +48,11 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [Theory]
-        [InlineData(true)]
-        [InlineData(false)]
-        public void PingMany(bool preserveOrder)
+        [Fact]
+        public void PingMany()
         {
             using (var muxer = Create())
             {
-                muxer.PreserveAsyncOrder = preserveOrder;
                 var conn = muxer.GetDatabase();
                 var tasks = new Task<TimeSpan>[10000];
 
@@ -155,14 +149,11 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [Theory]
-        [InlineData(true)]
-        [InlineData(false)]
-        public async Task GetSetAsync(bool preserveOrder)
+        [Fact]
+        public async Task GetSetAsync()
         {
             using (var muxer = Create())
             {
-                muxer.PreserveAsyncOrder = preserveOrder;
                 var conn = muxer.GetDatabase();
 
                 RedisKey key = Me();
@@ -185,14 +176,11 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [Theory]
-        [InlineData(true)]
-        [InlineData(false)]
-        public void GetSetSync(bool preserveOrder)
+        [Fact]
+        public void GetSetSync()
         {
             using (var muxer = Create())
             {
-                muxer.PreserveAsyncOrder = preserveOrder;
                 var conn = muxer.GetDatabase();
 
                 RedisKey key = Me();
@@ -298,15 +286,12 @@ namespace StackExchange.Redis.Tests
         }
 
 #if DEBUG
-        [Theory]
-        [InlineData(true)]
-        [InlineData(false)]
-        public void TestQuit(bool preserveOrder)
+        [Fact]
+        public void TestQuit()
         {
             SetExpectedAmbientFailureCount(1);
             using (var muxer = Create(allowAdmin: true))
             {
-                muxer.PreserveAsyncOrder = preserveOrder;
                 var db = muxer.GetDatabase();
                 string key = Guid.NewGuid().ToString();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -349,14 +334,11 @@ namespace StackExchange.Redis.Tests
         }
 #endif
 
-        [Theory]
-        [InlineData(true)]
-        [InlineData(false)]
-        public async Task IncrAsync(bool preserveOrder)
+        [Fact]
+        public async Task IncrAsync()
         {
             using (var muxer = Create())
             {
-                muxer.PreserveAsyncOrder = preserveOrder;
                 var conn = muxer.GetDatabase();
                 RedisKey key = Me();
                 conn.KeyDelete(key, CommandFlags.FireAndForget);
@@ -382,14 +364,11 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [Theory]
-        [InlineData(true)]
-        [InlineData(false)]
-        public void IncrSync(bool preserveOrder)
+        [Fact]
+        public void IncrSync()
         {
             using (var muxer = Create())
             {
-                muxer.PreserveAsyncOrder = preserveOrder;
                 var conn = muxer.GetDatabase();
                 RedisKey key = Me();
                 conn.KeyDelete(key, CommandFlags.FireAndForget);
