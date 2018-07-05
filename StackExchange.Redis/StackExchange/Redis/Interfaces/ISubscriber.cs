@@ -1,5 +1,6 @@
-using System;
+﻿using System;
 using System.Net;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 
 namespace StackExchange.Redis
@@ -65,6 +66,16 @@ namespace StackExchange.Redis
         void Subscribe(RedisChannel channel, Action<RedisChannel, RedisValue> handler, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Subscribe to perform some operation when a change to the preferred/active node is broadcast, as a channel.
+        /// </summary>
+        /// <param name="channel">The redis channel to subscribe to.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>A channel that represents this source</returns>
+        /// <remarks>https://redis.io/commands/subscribe</remarks>
+        /// <remarks>https://redis.io/commands/psubscribe</remarks>
+        ChannelMessageChannel Subscribe(RedisChannel channel, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Subscribe to perform some operation when a change to the preferred/active node is broadcast.
         /// </summary>
         /// <param name="channel">The channel to subscribe to.</param>
@@ -73,6 +84,16 @@ namespace StackExchange.Redis
         /// <remarks>https://redis.io/commands/subscribe</remarks>
         /// <remarks>https://redis.io/commands/psubscribe</remarks>
         Task SubscribeAsync(RedisChannel channel, Action<RedisChannel, RedisValue> handler, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Subscribe to perform some operation when a change to the preferred/active node is broadcast, as a channel.
+        /// </summary>
+        /// <param name="channel">The redis channel to subscribe to.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>A channel that represents this source</returns>
+        /// <remarks>https://redis.io/commands/subscribe</remarks>
+        /// <remarks>https://redis.io/commands/psubscribe</remarks>
+        Task<ChannelMessageChannel> SubscribeAsync(RedisChannel channel, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Inidicate to which redis server we are actively subscribed for a given channel; returns null if

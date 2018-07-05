@@ -287,10 +287,24 @@ namespace StackExchange.Redis
             if ((flags & CommandFlags.FireAndForget) == 0) Wait(task);
         }
 
+        public ChannelMessageChannel Subscribe(RedisChannel channel, CommandFlags flags = CommandFlags.None)
+        {
+            var c = new ChannelMessageChannel(channel, this);
+            c.Subscribe(flags);
+            return c;
+        }
+
         public Task SubscribeAsync(RedisChannel channel, Action<RedisChannel, RedisValue> handler, CommandFlags flags = CommandFlags.None)
         {
             if (channel.IsNullOrEmpty) throw new ArgumentNullException(nameof(channel));
             return multiplexer.AddSubscription(channel, handler, flags, asyncState);
+        }
+
+        public async Task<ChannelMessageChannel> SubscribeAsync(RedisChannel channel, CommandFlags flags = CommandFlags.None)
+        {
+            var c = new ChannelMessageChannel(channel, this);
+            await c.SubscribeAsync(flags);
+            return c;
         }
 
         public EndPoint SubscribedEndpoint(RedisChannel channel)

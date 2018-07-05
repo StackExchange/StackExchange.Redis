@@ -75,8 +75,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
             Assert.True(withFAF.ElapsedMilliseconds < withAsync.ElapsedMilliseconds, caption);
         }
 
-        // [FactLongRunning]
-        [Fact]
+        [FactLongRunning]
         public async Task PubSubGetAllAnyOrder()
         {
             using (var muxer = GetRemoteConnection(waitForOpen: true,
@@ -124,6 +123,66 @@ namespace StackExchange.Redis.Tests.Booksleeve
                 }
             }
         }
+
+        [FactLongRunning]
+        public async Task PubSubGetAllCorrectOrder()
+        {
+            using (var muxer = GetRemoteConnection(waitForOpen: true,
+                syncTimeout: 20000))
+            {
+                var sub = muxer.GetSubscriber();
+                RedisChannel channel = Me();
+                const int count = 500000;
+                var syncLock = new object();
+
+                var dataList = new List<int>(count);
+                var dataHash = new HashSet<int>();
+                var subChannel = await sub.SubscribeAsync(channel);
+
+                await sub.PingAsync();
+
+                async Task RunLoop()
+                {
+                    while (!subChannel.IsComplete)
+                    {
+                        var work = await subChannel.ReadAsync();
+                        int i = int.Parse(Encoding.UTF8.GetString(work.Value));
+                        lock (dataList)
+                        {
+                            dataList.Add(i);
+                            dataHash.Add(i);
+                            if (dataList.Count == count) break;
+                            if ((dataList.Count % 10) == 99) Output.WriteLine(dataList.Count.ToString());
+                        }
+                    }
+                    lock (syncLock)
+                    {
+                        Monitor.PulseAll(syncLock);
+                    }
+                }
+
+                lock (syncLock)
+                {
+                    Task.Run(RunLoop);
+                    for (int i = 0; i < count; i++)
+                    {
+                        sub.Publish(channel, i.ToString(), CommandFlags.FireAndForget);
+                    }
+                    sub.Ping();
+                    // subChannel.Unsubscribe();
+                    if (!Monitor.Wait(syncLock, 20000))
+                    {
+                        throw new TimeoutException("Items: " + dataList.Count);
+                    }
+                    for (int i = 0; i < count; i++)
+                    {
+                        Assert.Contains(i, dataHash);
+                        // Assert.Equal(i, data[i]);
+                    }
+                }
+            }
+        }
+
 
         [Fact]
         public void TestPublishWithSubscribers()
