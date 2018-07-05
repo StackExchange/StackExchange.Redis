@@ -73,7 +73,7 @@ namespace StackExchange.Redis
         /// <returns>A channel that represents this source</returns>
         /// <remarks>https://redis.io/commands/subscribe</remarks>
         /// <remarks>https://redis.io/commands/psubscribe</remarks>
-        ChannelMessageChannel Subscribe(RedisChannel channel, CommandFlags flags = CommandFlags.None);
+        ChannelMessageQueue Subscribe(RedisChannel channel, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Subscribe to perform some operation when a change to the preferred/active node is broadcast.
@@ -93,7 +93,7 @@ namespace StackExchange.Redis
         /// <returns>A channel that represents this source</returns>
         /// <remarks>https://redis.io/commands/subscribe</remarks>
         /// <remarks>https://redis.io/commands/psubscribe</remarks>
-        Task<ChannelMessageChannel> SubscribeAsync(RedisChannel channel, CommandFlags flags = CommandFlags.None);
+        Task<ChannelMessageQueue> SubscribeAsync(RedisChannel channel, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Inidicate to which redis server we are actively subscribed for a given channel; returns null if

@@ -135,8 +135,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
                 const int count = 500000;
                 var syncLock = new object();
 
-                var dataList = new List<int>(count);
-                var dataHash = new HashSet<int>();
+                var data = new List<int>(count);
                 var subChannel = await sub.SubscribeAsync(channel);
 
                 await sub.PingAsync();
@@ -147,12 +146,11 @@ namespace StackExchange.Redis.Tests.Booksleeve
                     {
                         var work = await subChannel.ReadAsync();
                         int i = int.Parse(Encoding.UTF8.GetString(work.Value));
-                        lock (dataList)
+                        lock (data)
                         {
-                            dataList.Add(i);
-                            dataHash.Add(i);
-                            if (dataList.Count == count) break;
-                            if ((dataList.Count % 10) == 99) Output.WriteLine(dataList.Count.ToString());
+                            data.Add(i);
+                            if (data.Count == count) break;
+                            if ((data.Count % 10) == 99) Output.WriteLine(data.Count.ToString());
                         }
                     }
                     lock (syncLock)
@@ -172,12 +170,11 @@ namespace StackExchange.Redis.Tests.Booksleeve
                     // subChannel.Unsubscribe();
                     if (!Monitor.Wait(syncLock, 20000))
                     {
-                        throw new TimeoutException("Items: " + dataList.Count);
+                        throw new TimeoutException("Items: " + data.Count);
                     }
                     for (int i = 0; i < count; i++)
                     {
-                        Assert.Contains(i, dataHash);
-                        // Assert.Equal(i, data[i]);
+                        Assert.Equal(i, data[i]);
                     }
                 }
             }

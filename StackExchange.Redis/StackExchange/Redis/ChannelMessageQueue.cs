@@ -30,7 +30,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// Represents a message queue of pub/sub notifications
     /// </summary>
-    public sealed class ChannelMessageChannel
+    public sealed class ChannelMessageQueue
     {
         private readonly Channel<ChannelMessage> _channel;
         private readonly RedisChannel _redisChannel;
@@ -41,19 +41,36 @@ namespace StackExchange.Redis
         /// </summary>
         public bool IsComplete { get; private set; }
 
-        internal ChannelMessageChannel(RedisChannel redisChannel, ISubscriber parent)
+        internal ChannelMessageQueue(RedisChannel redisChannel, ISubscriber parent)
         {
             _redisChannel = redisChannel;
             _parent = parent;
-            _channel = Channel.CreateUnbounded<ChannelMessage>();
+            _channel = Channel.CreateUnbounded<ChannelMessage>(s_ChannelOptions);
             _channel.Reader.Completion.ContinueWith(
-                (t, state) => ((ChannelMessageChannel)state).IsComplete = true, this, TaskContinuationOptions.ExecuteSynchronously);
+                (t, state) => ((ChannelMessageQueue)state).IsComplete = true, this, TaskContinuationOptions.ExecuteSynchronously);
         }
+        static readonly UnboundedChannelOptions s_ChannelOptions = new UnboundedChannelOptions
+        {
+            SingleWriter = true,
+            SingleReader = false,
+            AllowSynchronousContinuations = false,
+        };
         internal void Subscribe(CommandFlags flags) => _parent.Subscribe(_redisChannel, HandleMessage, flags);
         internal Task SubscribeAsync(CommandFlags flags) => _parent.SubscribeAsync(_redisChannel, HandleMessage, flags);
 
         private void HandleMessage(RedisChannel channel, RedisValue value)
-            =>  _channel.Writer.TryWrite(new ChannelMessage(channel, value));
+        {
+            var writer = _channel.Writer;
+            if (channel.IsNull && value.IsNull) // see ForSyncShutdown
+            {
+                writer.TryComplete();
+            }
+            else
+            {
+                writer.TryWrite(new ChannelMessage(channel, value));
+            }
+        }
+            
 
         /// <summary>
         /// Consume a message from the channel
@@ -79,6 +96,18 @@ namespace StackExchange.Redis
                 await _parent.UnsubscribeAsync(_redisChannel, HandleMessage, flags);
                 _parent = null;
                 _channel.Writer.TryComplete(error);
+            }
+        }
+
+        internal static bool IsOneOf(Action<RedisChannel, RedisValue> handler)
+        {
+            try
+            {
+                return handler != null && handler.Target is ChannelMessageQueue
+                    && handler.Method.Name == nameof(HandleMessage);
+            } catch
+            {
+                return false;
             }
         }
 

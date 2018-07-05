@@ -301,22 +301,19 @@ namespace StackExchange.Redis.Tests
                 Assert.Throws<RedisConnectionException>(() => db.Ping());
                 watch.Stop();
                 Output.WriteLine("Time to notice quit: {0}ms ({1})", watch.ElapsedMilliseconds,
-                    preserveOrder ? "preserve order" : "any order");
+                    "any order");
                 Thread.Sleep(20);
                 Debug.WriteLine("Pinging...");
                 Assert.Equal(key, (string)db.StringGet(key));
             }
         }
 
-        [Theory]
-        [InlineData(true)]
-        [InlineData(false)]
-        public async Task TestSevered(bool preserveOrder)
+        [Fact]
+        public async Task TestSevered()
         {
             SetExpectedAmbientFailureCount(2);
             using (var muxer = Create(allowAdmin: true))
             {
-                muxer.PreserveAsyncOrder = preserveOrder;
                 var db = muxer.GetDatabase();
                 string key = Guid.NewGuid().ToString();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -326,7 +323,7 @@ namespace StackExchange.Redis.Tests
                 db.Ping();
                 watch.Stop();
                 Output.WriteLine("Time to re-establish: {0}ms ({1})", watch.ElapsedMilliseconds,
-                    preserveOrder ? "preserve order" : "any order");
+                    "any order");
                 await Task.Delay(2000).ForAwait();
                 Debug.WriteLine("Pinging...");
                 Assert.Equal(key, db.StringGet(key));
