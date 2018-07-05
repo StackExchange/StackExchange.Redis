@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
@@ -166,17 +167,24 @@ namespace StackExchange.Redis.Tests.Booksleeve
                     {
                         sub.Publish(channel, i.ToString(), CommandFlags.FireAndForget);
                     }
-                    sub.Ping();
-                    // subChannel.Unsubscribe();
                     if (!Monitor.Wait(syncLock, 20000))
                     {
                         throw new TimeoutException("Items: " + data.Count);
                     }
+                    subChannel.Unsubscribe();
+                    sub.Ping();
+                    muxer.GetDatabase().Ping();
                     for (int i = 0; i < count; i++)
                     {
                         Assert.Equal(i, data[i]);
                     }
                 }
+
+                Assert.True(subChannel.IsComplete);
+                await Assert.ThrowsAsync<ChannelClosedException>(async delegate {
+                    var final = await subChannel.ReadAsync();
+                });
+                
             }
         }
 
