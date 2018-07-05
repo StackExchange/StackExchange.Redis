@@ -118,7 +118,7 @@ namespace StackExchange.Redis
         {
             var ioPipe = _ioPipe;
             _ioPipe = null;
-            if(ioPipe != null)
+            if (ioPipe != null)
             {
                 Multiplexer.Trace("Disconnecting...", physicalName);
                 try { ioPipe.Input?.CancelPendingRead(); } catch { }
@@ -424,7 +424,7 @@ namespace StackExchange.Redis
 
         internal void Write(RedisValue value)
         {
-            switch(value.Type)
+            switch (value.Type)
             {
                 case RedisValue.StorageType.Null:
                     WriteUnified(_ioPipe.Output, (byte[])null);
@@ -681,7 +681,7 @@ namespace StackExchange.Redis
             {
                 writer.Write(NullBulkString);
             }
-            else if(value.Length == ResultProcessor.ScriptLoadProcessor.Sha1HashLength)
+            else if (value.Length == ResultProcessor.ScriptLoadProcessor.Sha1HashLength)
             {
                 // $40\r\n              = 5
                 // {40 bytes}\r\n       = 42
@@ -694,7 +694,7 @@ namespace StackExchange.Redis
                 span[4] = (byte)'\n';
 
                 int offset = 5;
-                for(int i = 0; i < value.Length; i++)
+                for (int i = 0; i < value.Length; i++)
                 {
                     var b = value[i];
                     span[offset++] = ToHexNibble(value[i] >> 4);
@@ -790,7 +790,7 @@ namespace StackExchange.Redis
                         charOffset += charsUsed;
                         charsRemaining -= charsUsed;
 
-                        if(charsRemaining <= 0)
+                        if (charsRemaining <= 0)
                         {
                             if (charsRemaining < 0) throw new InvalidOperationException("String encode went negative");
                             if (completed) break; // fine
@@ -1035,18 +1035,18 @@ namespace StackExchange.Redis
 
                     // note: TryRead will give us back the same buffer in a tight loop
                     // - so: only use that if we're making progress
-                    if(!(allowSyncRead && input.TryRead(out var readResult)))
+                    if (!(allowSyncRead && input.TryRead(out var readResult)))
                     {
                         readResult = await input.ReadAsync();
                     }
 
                     var buffer = readResult.Buffer;
                     int handled = 0;
-                    if(!buffer.IsEmpty)
+                    if (!buffer.IsEmpty)
                     {
                         handled = ProcessBuffer(ref buffer); // updates buffer.Start
                     }
-                    
+
                     allowSyncRead = handled != 0;
 
                     Multiplexer.Trace($"Processed {handled} messages", physicalName);
@@ -1177,9 +1177,9 @@ namespace StackExchange.Redis
                     return new RawResult(ResultType.BulkString, ReadOnlySequence<byte>.Empty, true);
                 }
 
-                if(reader.TryConsumeAsBuffer(bodySize, out var payload))
+                if (reader.TryConsumeAsBuffer(bodySize, out var payload))
                 {
-                    switch(reader.TryConsumeCRLF())
+                    switch (reader.TryConsumeCRLF())
                     {
                         case ConsumeResult.NeedMoreData:
                             break; // see NilResult below
@@ -1285,7 +1285,7 @@ namespace StackExchange.Redis
             /// </summary>
             public ConsumeResult TryConsumeCRLF()
             {
-                switch(RemainingThisSpan)
+                switch (RemainingThisSpan)
                 {
                     case 0:
                         return ConsumeResult.NeedMoreData;
@@ -1328,13 +1328,13 @@ namespace StackExchange.Redis
                 return false;
             }
 
-            readonly ReadOnlySequence<byte> _buffer;
-            SequencePosition _lastSnapshotPosition;
-            long _lastSnapshotBytes;
+            private readonly ReadOnlySequence<byte> _buffer;
+            private SequencePosition _lastSnapshotPosition;
+            private long _lastSnapshotBytes;
 
             // makes an internal note of where we are, as a SequencePosition; useful
             // to avoid having to use buffer.Slice on huge ranges
-            SequencePosition SnapshotPosition()
+            private SequencePosition SnapshotPosition()
             {
                 var consumed = TotalConsumed;
                 var delta = consumed - _lastSnapshotBytes;
@@ -1346,7 +1346,7 @@ namespace StackExchange.Redis
             }
             public ReadOnlySequence<byte> ConsumeAsBuffer(int count)
             {
-                if(!TryConsumeAsBuffer(count, out var buffer)) throw new EndOfStreamException();
+                if (!TryConsumeAsBuffer(count, out var buffer)) throw new EndOfStreamException();
                 return buffer;
             }
 
@@ -1380,7 +1380,7 @@ namespace StackExchange.Redis
                     var span = reader.SlicedSpan;
                     if (haveTrailingCR)
                     {
-                        if(span[0] == '\n') return totalSkipped - 1;
+                        if (span[0] == '\n') return totalSkipped - 1;
                         haveTrailingCR = false;
                     }
 

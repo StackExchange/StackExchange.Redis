@@ -1333,7 +1333,7 @@ The coordinates as a two items x,y array (longitude,latitude).
 
         internal sealed class SingleStreamProcessor : StreamProcessorBase<RedisStreamEntry[]>
         {
-            private bool skipStreamName;
+            private readonly bool skipStreamName;
 
             public SingleStreamProcessor(bool skipStreamName = false)
             {
@@ -1454,7 +1454,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 return true;
             }
         }
-        static T[] ConvertAll<T>(ReadOnlySpan<RawResult> items, Func<RawResult, T> converter)
+        private static T[] ConvertAll<T>(ReadOnlySpan<RawResult> items, Func<RawResult, T> converter)
         {
             if (items.Length == 0) return Array.Empty<T>();
             T[] arr = new T[items.Length];

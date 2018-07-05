@@ -655,7 +655,7 @@ namespace StackExchange.Redis
             private readonly MigrateOptions migrateOptions;
             private readonly int timeoutMilliseconds;
             private readonly int toDatabase;
-            private RedisValue toHost, toPort;
+            private readonly RedisValue toHost, toPort;
 
             public KeyMigrateCommandMessage(int db, RedisKey key, EndPoint toServer, int toDatabase, int timeoutMilliseconds, MigrateOptions migrateOptions, CommandFlags flags)
                 : base(db, flags, RedisCommand.MIGRATE, key)

@@ -608,7 +608,7 @@ namespace StackExchange.Redis
             const string HexValues = "0123456789ABCDEF";
 
             if (src.IsEmpty) return "";
-            var s = new string((char)0, src.Length * 3 - 1);
+            var s = new string((char)0, (src.Length * 3) - 1);
             var dst = MemoryMarshal.AsMemory(s.AsMemory()).Span;
 
             int i = 0;
