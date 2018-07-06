@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
@@ -76,17 +77,17 @@ namespace StackExchange.Redis.Tests.Booksleeve
         }
 
         [FactLongRunning]
-        public async Task PubSubOrder()
+        public async Task PubSubGetAllAnyOrder()
         {
-            using (var muxer = GetRemoteConnection(waitForOpen: true))
+            using (var muxer = GetRemoteConnection(waitForOpen: true,
+                syncTimeout: 20000))
             {
                 var sub = muxer.GetSubscriber();
-                const string channel = "PubSubOrder";
-                const int count = 500000;
+                RedisChannel channel = Me();
+                const int count = 1000;
                 var syncLock = new object();
 
-                var data = new List<int>(count);
-                muxer.PreserveAsyncOrder = true;
+                var data = new HashSet<int>();
                 await sub.SubscribeAsync(channel, (key, val) =>
                 {
                     bool pulse;
@@ -94,7 +95,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
                     {
                         data.Add(int.Parse(Encoding.UTF8.GetString(val)));
                         pulse = data.Count == count;
-                        if ((data.Count % 10) == 99) Output.WriteLine(data.Count.ToString());
+                        if ((data.Count % 100) == 99) Output.WriteLine(data.Count.ToString());
                     }
                     if (pulse)
                     {
@@ -118,9 +119,196 @@ namespace StackExchange.Redis.Tests.Booksleeve
                     }
                     for (int i = 0; i < count; i++)
                     {
+                        Assert.Contains(i, data);
+                    }
+                }
+            }
+        }
+
+        [Fact]
+        public async Task PubSubGetAllCorrectOrder()
+        {
+            using (var muxer = GetRemoteConnection(waitForOpen: true,
+                syncTimeout: 20000))
+            {
+                var sub = muxer.GetSubscriber();
+                RedisChannel channel = Me();
+                const int count = 1000;
+                var syncLock = new object();
+
+                var data = new List<int>(count);
+                var subChannel = await sub.SubscribeAsync(channel);
+
+                await sub.PingAsync();
+
+                async Task RunLoop()
+                {
+                    while (!subChannel.IsCompleted)
+                    {
+                        var work = await subChannel.ReadAsync();
+                        int i = int.Parse(Encoding.UTF8.GetString(work.Value));
+                        lock (data)
+                        {
+                            data.Add(i);
+                            if (data.Count == count) break;
+                            if ((data.Count % 100) == 99) Output.WriteLine(data.Count.ToString());
+                        }
+                    }
+                    lock (syncLock)
+                    {
+                        Monitor.PulseAll(syncLock);
+                    }
+                }
+
+                lock (syncLock)
+                {
+                    Task.Run(RunLoop);
+                    for (int i = 0; i < count; i++)
+                    {
+                        sub.Publish(channel, i.ToString(), CommandFlags.FireAndForget);
+                    }
+                    if (!Monitor.Wait(syncLock, 20000))
+                    {
+                        throw new TimeoutException("Items: " + data.Count);
+                    }
+                    subChannel.Unsubscribe();
+                    sub.Ping();
+                    muxer.GetDatabase().Ping();
+                    for (int i = 0; i < count; i++)
+                    {
                         Assert.Equal(i, data[i]);
                     }
                 }
+
+                Assert.True(subChannel.IsCompleted);
+                await Assert.ThrowsAsync<ChannelClosedException>(async delegate
+                {
+                    var final = await subChannel.ReadAsync();
+                });
+
+            }
+        }
+
+        [Fact]
+        public async Task PubSubGetAllCorrectOrder_OnMessage_Sync()
+        {
+            using (var muxer = GetRemoteConnection(waitForOpen: true,
+                syncTimeout: 20000))
+            {
+                var sub = muxer.GetSubscriber();
+                RedisChannel channel = Me();
+                const int count = 1000;
+                var syncLock = new object();
+
+                var data = new List<int>(count);
+                var subChannel = await sub.SubscribeAsync(channel);
+                subChannel.OnMessage((key, val) =>
+                {
+                    int i = int.Parse(Encoding.UTF8.GetString(val));
+                    bool pulse = false;
+                    lock (data)
+                    {
+                        data.Add(i);
+                        if (data.Count == count) pulse = true;
+                        if ((data.Count % 100) == 99) Output.WriteLine(data.Count.ToString());
+                    }
+                    if (pulse)
+                    {
+                        lock (syncLock)
+                        {
+                            Monitor.PulseAll(syncLock);
+                        }
+                    }
+                });
+                await sub.PingAsync();
+
+                lock (syncLock)
+                {
+                    for (int i = 0; i < count; i++)
+                    {
+                        sub.Publish(channel, i.ToString(), CommandFlags.FireAndForget);
+                    }
+                    if (!Monitor.Wait(syncLock, 20000))
+                    {
+                        throw new TimeoutException("Items: " + data.Count);
+                    }
+                    subChannel.Unsubscribe();
+                    sub.Ping();
+                    muxer.GetDatabase().Ping();
+                    for (int i = 0; i < count; i++)
+                    {
+                        Assert.Equal(i, data[i]);
+                    }
+                }
+
+                Assert.True(subChannel.IsCompleted);
+                await Assert.ThrowsAsync<ChannelClosedException>(async delegate
+                {
+                    var final = await subChannel.ReadAsync();
+                });
+
+            }
+        }
+
+        [Fact]
+        public async Task PubSubGetAllCorrectOrder_OnMessage_Async()
+        {
+            using (var muxer = GetRemoteConnection(waitForOpen: true,
+                syncTimeout: 20000))
+            {
+                var sub = muxer.GetSubscriber();
+                RedisChannel channel = Me();
+                const int count = 1000;
+                var syncLock = new object();
+
+                var data = new List<int>(count);
+                var subChannel = await sub.SubscribeAsync(channel);
+                subChannel.OnMessage((key, val) =>
+                {
+                    int i = int.Parse(Encoding.UTF8.GetString(val));
+                    bool pulse = false;
+                    lock (data)
+                    {
+                        data.Add(i);
+                        if (data.Count == count) pulse = true;
+                        if ((data.Count % 100) == 99) Output.WriteLine(data.Count.ToString());
+                    }
+                    if (pulse)
+                    {
+                        lock (syncLock)
+                        {
+                            Monitor.PulseAll(syncLock);
+                        }
+                    }
+                    return i % 2 == 0 ? null : Task.CompletedTask;
+                });
+                await sub.PingAsync();
+
+                lock (syncLock)
+                {
+                    for (int i = 0; i < count; i++)
+                    {
+                        sub.Publish(channel, i.ToString(), CommandFlags.FireAndForget);
+                    }
+                    if (!Monitor.Wait(syncLock, 20000))
+                    {
+                        throw new TimeoutException("Items: " + data.Count);
+                    }
+                    subChannel.Unsubscribe();
+                    sub.Ping();
+                    muxer.GetDatabase().Ping();
+                    for (int i = 0; i < count; i++)
+                    {
+                        Assert.Equal(i, data[i]);
+                    }
+                }
+
+                Assert.True(subChannel.IsCompleted);
+                await Assert.ThrowsAsync<ChannelClosedException>(async delegate
+                {
+                    var final = await subChannel.ReadAsync();
+                });
+
             }
         }
 

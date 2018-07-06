@@ -124,7 +124,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private bool? allowAdmin, abortOnConnectFail, highPrioritySocketThreads, resolveDns, ssl, preserveAsyncOrder;
+        private bool? allowAdmin, abortOnConnectFail, highPrioritySocketThreads, resolveDns, ssl;
 
         private string tieBreaker, sslHost, configChannel;
 
@@ -258,7 +258,12 @@ namespace StackExchange.Redis
         /// <summary>
         /// Specifies whether asynchronous operations should be invoked in a way that guarantees their original delivery order
         /// </summary>
-        public bool PreserveAsyncOrder { get { return preserveAsyncOrder.GetValueOrDefault(true); } set { preserveAsyncOrder = value; } }
+        [Obsolete("Not supported; if you require ordered pub/sub, please see " + nameof(ChannelMessageQueue), false)]
+        public bool PreserveAsyncOrder
+        {
+            get { return false; }
+            set { }
+        }
 
         /// <summary>
         /// Type of proxy to use (if any); for example Proxy.Twemproxy.
@@ -395,7 +400,6 @@ namespace StackExchange.Redis
                 responseTimeout = responseTimeout,
                 DefaultDatabase = DefaultDatabase,
                 ReconnectRetryPolicy = reconnectRetryPolicy,
-                preserveAsyncOrder = preserveAsyncOrder,
                 SslProtocols = SslProtocols,
             };
             foreach (var item in EndPoints)
@@ -453,7 +457,6 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.ConfigCheckSeconds, configCheckSeconds);
             Append(sb, OptionKeys.ResponseTimeout, responseTimeout);
             Append(sb, OptionKeys.DefaultDatabase, DefaultDatabase);
-            Append(sb, OptionKeys.PreserveAsyncOrder, preserveAsyncOrder);
             commandMap?.AppendDeltas(sb);
             return sb.ToString();
         }
@@ -532,7 +535,7 @@ namespace StackExchange.Redis
         {
             ClientName = ServiceName = Password = tieBreaker = sslHost = configChannel = null;
             keepAlive = syncTimeout = connectTimeout = writeBuffer = connectRetry = configCheckSeconds = DefaultDatabase = null;
-            allowAdmin = abortOnConnectFail = highPrioritySocketThreads = resolveDns = ssl = preserveAsyncOrder = null;
+            allowAdmin = abortOnConnectFail = highPrioritySocketThreads = resolveDns = ssl = null;
             defaultVersion = null;
             EndPoints.Clear();
             commandMap = null;
@@ -646,7 +649,6 @@ namespace StackExchange.Redis
                             DefaultDatabase = OptionKeys.ParseInt32(key, value);
                             break;
                         case OptionKeys.PreserveAsyncOrder:
-                            PreserveAsyncOrder = OptionKeys.ParseBoolean(key, value);
                             break;
                         case OptionKeys.SslProtocols:
                             SslProtocols = OptionKeys.ParseSslProtocols(key, value);

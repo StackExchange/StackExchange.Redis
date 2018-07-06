@@ -899,7 +899,6 @@ namespace StackExchange.Redis
                 map.AssertAvailable(RedisCommand.EXISTS);
             }
 
-            PreserveAsyncOrder = configuration.PreserveAsyncOrder;
             TimeoutMilliseconds = configuration.SyncTimeout;
 
             OnCreateReaderWriter(configuration);
@@ -1810,7 +1809,12 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets or sets whether asynchronous operations should be invoked in a way that guarantees their original delivery order
         /// </summary>
-        public bool PreserveAsyncOrder { get; set; }
+        [Obsolete("Not supported; if you require ordered pub/sub, please see " + nameof(ChannelMessageQueue), false)]
+        public bool PreserveAsyncOrder
+        {
+            get => false;
+            set { }
+        }
 
         /// <summary>
         /// Indicates whether any servers are connected
@@ -2037,11 +2041,9 @@ namespace StackExchange.Redis
                                 }
                             }
 
-                            int queue = server.GetOutstandingCount(message.Command, out int inst, out int qs, out int qc, out int @in);
+                            server.GetOutstandingCount(message.Command, out int inst, out int qs, out int @in);
                             add("Instantaneous", "inst", inst.ToString());
-                            add("Queue-Length", "queue", queue.ToString());
                             add("Queue-Awaiting-Response", "qs", qs.ToString());
-                            add("Queue-Completion-Outstanding", "qc", qc.ToString());
                             add("Inbound-Bytes", "in", @in.ToString());
                             add("Manager", "mgr", SocketManager?.GetState());
 
@@ -2067,7 +2069,7 @@ namespace StackExchange.Redis
                             sb.Append(timeoutHelpLink);
                             sb.Append(")");
                             errMessage = sb.ToString();
-                            if (StormLogThreshold >= 0 && queue >= StormLogThreshold && Interlocked.CompareExchange(ref haveStormLog, 1, 0) == 0)
+                            if (StormLogThreshold >= 0 && qs >= StormLogThreshold && Interlocked.CompareExchange(ref haveStormLog, 1, 0) == 0)
                             {
                                 var log = server.GetStormLog(message.Command);
                                 if (string.IsNullOrWhiteSpace(log)) Interlocked.Exchange(ref haveStormLog, 0);

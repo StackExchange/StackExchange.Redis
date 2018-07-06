@@ -42,23 +42,16 @@ namespace StackExchange.Redis.Tests
         }
 
         [Theory]
-        [InlineData(true, null, false)]
-        [InlineData(false, null, false)]
-        [InlineData(true, "", false)]
-        [InlineData(false, "", false)]
-        [InlineData(true, "Foo:", false)]
-        [InlineData(false, "Foo:", false)]
-        [InlineData(true, null, true)]
-        [InlineData(false, null, true)]
-        [InlineData(true, "", true)]
-        [InlineData(false, "", true)]
-        [InlineData(true, "Foo:", true)]
-        [InlineData(false, "Foo:", true)]
-        public void TestBasicPubSub(bool preserveOrder, string channelPrefix, bool wildCard)
+        [InlineData(null, false)]
+        [InlineData("", false)]
+        [InlineData("Foo:", false)]
+        [InlineData(null, true)]
+        [InlineData("", true)]
+        [InlineData("Foo:", true)]
+        public void TestBasicPubSub(string channelPrefix, bool wildCard)
         {
             using (var muxer = Create(channelPrefix: channelPrefix))
             {
-                muxer.PreserveAsyncOrder = preserveOrder;
                 var pub = GetAnyMaster(muxer);
                 var sub = muxer.GetSubscriber();
                 Ping(muxer, pub, sub);
@@ -123,14 +116,11 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [Theory]
-        [InlineData(true)]
-        [InlineData(false)]
-        public void TestBasicPubSubFireAndForget(bool preserveOrder)
+        [Fact]
+        public void TestBasicPubSubFireAndForget()
         {
             using (var muxer = Create())
             {
-                muxer.PreserveAsyncOrder = preserveOrder;
                 var pub = GetAnyMaster(muxer);
                 var sub = muxer.GetSubscriber();
 
@@ -193,14 +183,11 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [Theory]
-        [InlineData(true)]
-        [InlineData(false)]
-        public void TestPatternPubSub(bool preserveOrder)
+        [Fact]
+        public void TestPatternPubSub()
         {
             using (var muxer = Create())
             {
-                muxer.PreserveAsyncOrder = preserveOrder;
                 var pub = GetAnyMaster(muxer);
                 var sub = muxer.GetSubscriber();
 

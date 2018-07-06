@@ -10,27 +10,26 @@ namespace StackExchange.Redis.Tests.Issues
         [Fact]
         public void PreserveAsyncOrderImplicitValue_ParsedFromConnectionString()
         {
+            // We only care that it parses successfully while deprecated
             var options = ConfigurationOptions.Parse("preserveAsyncOrder=true");
-            Assert.True(options.PreserveAsyncOrder);
-            Assert.Equal("preserveAsyncOrder=True", options.ToString());
+            Assert.Equal("", options.ToString());
 
+            // We only care that it parses successfully while deprecated
             options = ConfigurationOptions.Parse("preserveAsyncOrder=false");
-            Assert.False(options.PreserveAsyncOrder);
-            Assert.Equal("preserveAsyncOrder=False", options.ToString());
+            Assert.Equal("", options.ToString());
         }
 
         [Fact]
         public void DefaultValue_IsTrue()
         {
             var options = ConfigurationOptions.Parse("ssl=true");
-            Assert.True(options.PreserveAsyncOrder);
         }
 
         [Fact]
         public void PreserveAsyncOrder_SetConnectionMultiplexerProperty()
         {
+            // We only care that it parses successfully while deprecated
             var multiplexer = ConnectionMultiplexer.Connect(TestConfig.Current.MasterServerAndPort + ",preserveAsyncOrder=false");
-            Assert.False(multiplexer.PreserveAsyncOrder);
         }
     }
 }
