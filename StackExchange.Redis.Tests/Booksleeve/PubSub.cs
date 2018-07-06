@@ -146,7 +146,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
                     while (!subChannel.IsCompleted)
                     {
                         var work = await subChannel.ReadAsync();
-                        int i = int.Parse(Encoding.UTF8.GetString(work.Value));
+                        int i = int.Parse(Encoding.UTF8.GetString(work.Message));
                         lock (data)
                         {
                             data.Add(i);
@@ -202,9 +202,9 @@ namespace StackExchange.Redis.Tests.Booksleeve
 
                 var data = new List<int>(count);
                 var subChannel = await sub.SubscribeAsync(channel);
-                subChannel.OnMessage((key, val) =>
+                subChannel.OnMessage(msg =>
                 {
-                    int i = int.Parse(Encoding.UTF8.GetString(val));
+                    int i = int.Parse(Encoding.UTF8.GetString(msg.Message));
                     bool pulse = false;
                     lock (data)
                     {
@@ -263,9 +263,9 @@ namespace StackExchange.Redis.Tests.Booksleeve
 
                 var data = new List<int>(count);
                 var subChannel = await sub.SubscribeAsync(channel);
-                subChannel.OnMessage((key, val) =>
+                subChannel.OnMessage(msg =>
                 {
-                    int i = int.Parse(Encoding.UTF8.GetString(val));
+                    int i = int.Parse(Encoding.UTF8.GetString(msg.Message));
                     bool pulse = false;
                     lock (data)
                     {

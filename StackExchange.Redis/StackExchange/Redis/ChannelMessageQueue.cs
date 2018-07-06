@@ -11,25 +11,32 @@ namespace StackExchange.Redis
     /// </summary>
     public readonly struct ChannelMessage
     {
+        private readonly ChannelMessageQueue _queue; // this is *smaller* than storing a RedisChannel for the subsribed channel
         /// <summary>
         /// See Object.ToString
         /// </summary>
-        public override string ToString() => ((string)Channel) + ":" + ((string)Value);
+        public override string ToString() => ((string)Channel) + ":" + ((string)Message);
 
         /// <summary>
         /// See Object.GetHashCode
         /// </summary>
-        public override int GetHashCode() => Channel.GetHashCode() ^ Value.GetHashCode();
+        public override int GetHashCode() => Channel.GetHashCode() ^ Message.GetHashCode();
         /// <summary>
         /// See Object.Equals
         /// </summary>
         public override bool Equals(object obj) => obj is ChannelMessage cm
-            && cm.Channel == Channel && cm.Value == Value;
-        internal ChannelMessage(RedisChannel channel, RedisValue value)
+            && cm.Channel == Channel && cm.Message == Message;
+        internal ChannelMessage(ChannelMessageQueue queue, RedisChannel channel, RedisValue value)
         {
+            _queue = queue;
             Channel = channel;
-            Value = value;
+            Message = value;
         }
+
+        /// <summary>
+        /// The channel that the subscription was created from
+        /// </summary>
+        public RedisChannel SubscriptionChannel => _queue.Channel;
 
         /// <summary>
         /// The channel that the message was broadcast to
@@ -38,7 +45,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The value that was broadcast
         /// </summary>
-        public RedisValue Value { get; }
+        public RedisValue Message { get; }
     }
 
 
@@ -48,14 +55,17 @@ namespace StackExchange.Redis
     /// <remarks>To create a ChannelMessageQueue, use ISubscriber.Subscribe[Async](RedisKey)</remarks>
     public sealed class ChannelMessageQueue
     {
-        private readonly Channel<ChannelMessage> _channel;
-        private readonly RedisChannel _redisChannel;
+        private readonly Channel<ChannelMessage> _queue;
+        /// <summary>
+        /// The Channel that was subscribed for this queue
+        /// </summary>
+        public RedisChannel Channel { get; }
         private RedisSubscriber _parent;
 
         /// <summary>
         /// See Object.ToString
         /// </summary>
-        public override string ToString() => (string)_redisChannel;
+        public override string ToString() => (string)Channel;
 
         /// <summary>
         /// Indicates if all messages that will be received have been drained from this channel
@@ -64,10 +74,10 @@ namespace StackExchange.Redis
 
         internal ChannelMessageQueue(RedisChannel redisChannel, RedisSubscriber parent)
         {
-            _redisChannel = redisChannel;
+            Channel = redisChannel;
             _parent = parent;
-            _channel = Channel.CreateUnbounded<ChannelMessage>(s_ChannelOptions);
-            _channel.Reader.Completion.ContinueWith(
+            _queue = System.Threading.Channels.Channel.CreateUnbounded<ChannelMessage>(s_ChannelOptions);
+            _queue.Reader.Completion.ContinueWith(
                 (t, state) => ((ChannelMessageQueue)state).IsCompleted = true, this, TaskContinuationOptions.ExecuteSynchronously);
         }
         static readonly UnboundedChannelOptions s_ChannelOptions = new UnboundedChannelOptions
@@ -76,19 +86,19 @@ namespace StackExchange.Redis
             SingleReader = false,
             AllowSynchronousContinuations = false,
         };
-        internal void Subscribe(CommandFlags flags) => _parent.Subscribe(_redisChannel, HandleMessage, flags);
-        internal Task SubscribeAsync(CommandFlags flags) => _parent.SubscribeAsync(_redisChannel, HandleMessage, flags);
+        internal void Subscribe(CommandFlags flags) => _parent.Subscribe(Channel, HandleMessage, flags);
+        internal Task SubscribeAsync(CommandFlags flags) => _parent.SubscribeAsync(Channel, HandleMessage, flags);
 
         private void HandleMessage(RedisChannel channel, RedisValue value)
         {
-            var writer = _channel.Writer;
+            var writer = _queue.Writer;
             if (channel.IsNull && value.IsNull) // see ForSyncShutdown
             {
                 writer.TryComplete();
             }
             else
             {
-                writer.TryWrite(new ChannelMessage(channel, value));
+                writer.TryWrite(new ChannelMessage(this, channel, value));
             }
         }
 
@@ -97,12 +107,12 @@ namespace StackExchange.Redis
         /// Consume a message from the channel
         /// </summary>
         public ValueTask<ChannelMessage> ReadAsync(CancellationToken cancellationToken = default)
-            => _channel.Reader.ReadAsync(cancellationToken);
+            => _queue.Reader.ReadAsync(cancellationToken);
 
         /// <summary>
         /// Attempt to synchronously consume a message from the channel
         /// </summary>
-        public bool TryRead(out ChannelMessage item) => _channel.Reader.TryRead(out item);
+        public bool TryRead(out ChannelMessage item) => _queue.Reader.TryRead(out item);
 
         /// <summary>
         /// Attempt to query the backlog length of the queue
@@ -112,10 +122,10 @@ namespace StackExchange.Redis
             // get this using the reflection
             try
             {
-                var prop = _channel.GetType().GetProperty("ItemsCountForDebugger", BindingFlags.Instance | BindingFlags.NonPublic);
+                var prop = _queue.GetType().GetProperty("ItemsCountForDebugger", BindingFlags.Instance | BindingFlags.NonPublic);
                 if (prop != null)
                 {
-                    count = (int)prop.GetValue(_channel);
+                    count = (int)prop.GetValue(_queue);
                     return true;
                 }
             }
@@ -134,16 +144,15 @@ namespace StackExchange.Redis
         /// <summary>
         /// Create a message loop that processes messages sequentially
         /// </summary>
-        public void OnMessage(Action<RedisChannel, RedisValue> handler)
+        public void OnMessage(Action<ChannelMessage> handler)
         {
             AssertOnMessage(handler);
             ThreadPool.QueueUserWorkItem(
                 state => ((ChannelMessageQueue)state).OnMessageSyncImpl(), this);
         }
-
         private async void OnMessageSyncImpl()
         {
-            var handler = (Action<RedisChannel, RedisValue>)_onMessageHandler;
+            var handler = (Action<ChannelMessage>)_onMessageHandler;
             while (!IsCompleted)
             {
                 ChannelMessage next;
@@ -155,7 +164,7 @@ namespace StackExchange.Redis
                     break;
                 }
 
-                try { handler.Invoke(next.Channel, next.Value); }
+                try { handler(next); }
                 catch { } // matches MessageCompletable
             }
         }
@@ -163,7 +172,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Create a message loop that processes messages sequentially
         /// </summary>
-        public void OnMessage(Func<RedisChannel, RedisValue, Task> handler)
+        public void OnMessage(Func<ChannelMessage, Task> handler)
         {
             AssertOnMessage(handler);
             ThreadPool.QueueUserWorkItem(
@@ -172,7 +181,7 @@ namespace StackExchange.Redis
 
         private async void OnMessageAsyncImpl()
         {
-            var handler = (Func<RedisChannel, RedisValue, Task>)_onMessageHandler;
+            var handler = (Func<ChannelMessage, Task>)_onMessageHandler;
             while (!IsCompleted)
             {
                 ChannelMessage next;
@@ -186,8 +195,8 @@ namespace StackExchange.Redis
 
                 try
                 {
-                    var task = handler.Invoke(next.Channel, next.Value);
-                    if (task != null) await task.ConfigureAwait(false);
+                    var task = handler(next);
+                    if (task != null && task.Status != TaskStatus.RanToCompletion) await task.ConfigureAwait(false);
                 }
                 catch { } // matches MessageCompletable
             }
@@ -197,9 +206,9 @@ namespace StackExchange.Redis
             var parent = _parent;
             if (parent != null)
             {
-                parent.UnsubscribeAsync(_redisChannel, HandleMessage, flags);
+                parent.UnsubscribeAsync(Channel, HandleMessage, flags);
                 _parent = null;
-                _channel.Writer.TryComplete(error);
+                _queue.Writer.TryComplete(error);
             }
         }
         internal async Task UnsubscribeAsyncImpl(Exception error = null, CommandFlags flags = CommandFlags.None)
@@ -207,9 +216,9 @@ namespace StackExchange.Redis
             var parent = _parent;
             if (parent != null)
             {
-                await parent.UnsubscribeAsync(_redisChannel, HandleMessage, flags).ConfigureAwait(false);
+                await parent.UnsubscribeAsync(Channel, HandleMessage, flags).ConfigureAwait(false);
                 _parent = null;
-                _channel.Writer.TryComplete(error);
+                _queue.Writer.TryComplete(error);
             }
         }
 
