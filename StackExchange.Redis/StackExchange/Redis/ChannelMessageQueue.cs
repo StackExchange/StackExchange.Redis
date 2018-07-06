@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -10,6 +11,20 @@ namespace StackExchange.Redis
     /// </summary>
     public readonly struct ChannelMessage
     {
+        /// <summary>
+        /// See Object.ToString
+        /// </summary>
+        public override string ToString() => ((string)Channel) + ":" + ((string)Value);
+
+        /// <summary>
+        /// See Object.GetHashCode
+        /// </summary>
+        public override int GetHashCode() => Channel.GetHashCode() ^ Value.GetHashCode();
+        /// <summary>
+        /// See Object.Equals
+        /// </summary>
+        public override bool Equals(object obj) => obj is ChannelMessage cm
+            && cm.Channel == Channel && cm.Value == Value;
         internal ChannelMessage(RedisChannel channel, RedisValue value)
         {
             Channel = channel;
@@ -36,6 +51,11 @@ namespace StackExchange.Redis
         private readonly Channel<ChannelMessage> _channel;
         private readonly RedisChannel _redisChannel;
         private RedisSubscriber _parent;
+
+        /// <summary>
+        /// See Object.ToString
+        /// </summary>
+        public override string ToString() => (string)_redisChannel;
 
         /// <summary>
         /// Indicates if all messages that will be received have been drained from this channel
@@ -84,6 +104,26 @@ namespace StackExchange.Redis
         /// </summary>
         public bool TryRead(out ChannelMessage item) => _channel.Reader.TryRead(out item);
 
+        /// <summary>
+        /// Attempt to query the backlog length of the queue
+        /// </summary>
+        public bool TryGetCount(out int count)
+        {
+            // get this using the reflection
+            try
+            {
+                var prop = _channel.GetType().GetProperty("ItemsCountForDebugger", BindingFlags.Instance | BindingFlags.NonPublic);
+                if (prop != null)
+                {
+                    count = (int)prop.GetValue(_channel);
+                    return true;
+                }
+            }
+            catch { }
+            count = default;
+            return false;
+        }
+
         private Delegate _onMessageHandler;
         private void AssertOnMessage(Delegate handler)
         {
@@ -107,7 +147,7 @@ namespace StackExchange.Redis
             while (!IsCompleted)
             {
                 ChannelMessage next;
-                try { if(!TryRead(out next)) next = await ReadAsync(); }
+                try { if (!TryRead(out next)) next = await ReadAsync().ConfigureAwait(false); }
                 catch (ChannelClosedException) { break; } // expected
                 catch (Exception ex)
                 {
@@ -136,7 +176,7 @@ namespace StackExchange.Redis
             while (!IsCompleted)
             {
                 ChannelMessage next;
-                try { if (!TryRead(out next)) next = await ReadAsync(); }
+                try { if (!TryRead(out next)) next = await ReadAsync().ConfigureAwait(false); }
                 catch (ChannelClosedException) { break; } // expected
                 catch (Exception ex)
                 {
@@ -147,7 +187,7 @@ namespace StackExchange.Redis
                 try
                 {
                     var task = handler.Invoke(next.Channel, next.Value);
-                    if (task != null) await task;
+                    if (task != null) await task.ConfigureAwait(false);
                 }
                 catch { } // matches MessageCompletable
             }
@@ -167,7 +207,7 @@ namespace StackExchange.Redis
             var parent = _parent;
             if (parent != null)
             {
-                await parent.UnsubscribeAsync(_redisChannel, HandleMessage, flags);
+                await parent.UnsubscribeAsync(_redisChannel, HandleMessage, flags).ConfigureAwait(false);
                 _parent = null;
                 _channel.Writer.TryComplete(error);
             }
