@@ -94,7 +94,7 @@ namespace StackExchange.Redis.Tests
                 const int DB = 7;
 
                 // only goes up to 3.*, so...
-                Skip.IfMissingFeature(conn, "Avoiding Redis on Windows", x => x.Version >= new Version(4, 0));
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scan), x => x.Scan);
                 var db = conn.GetDatabase(DB);
                 var prefix = Me();
                 var server = GetServer(conn);
@@ -129,8 +129,13 @@ namespace StackExchange.Redis.Tests
                 Output.WriteLine($"Expected: 43, Actual: {expected.Count}, Cursor: {snapCursor}, Offset: {snapOffset}, PageSize: {snapPageSize}");
                 Assert.Equal(43, expected.Count);
                 Assert.NotEqual(0, snapCursor);
-                Assert.Equal(12, snapOffset);
                 Assert.Equal(15, snapPageSize);
+
+                // note: you might think that we can say "hmmm, 57 when using page-size 15 on an empty (flushed) db (so: no skipped keys); that'll be
+                // offset 12 in the 4th page; you'd be wrong, though; page size doesn't *actually* mean page size; it is a rough analogue for
+                // page size, with zero guarantees; in this particular test, the first page actually has 19 elements, for example. So: we cannot
+                // make the following assertion:
+                // Assert.Equal(12, snapOffset);
 
                 seq = server.Keys(DB, prefix + ":*", pageSize: 15, cursor: snapCursor, pageOffset: snapOffset);
                 var seqCur = (IScanningCursor)seq;
