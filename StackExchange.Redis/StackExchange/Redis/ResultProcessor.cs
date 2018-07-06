@@ -141,7 +141,8 @@ namespace StackExchange.Redis
         {
             PhysicalConnection.IdentifyFailureType(innerException, ref fail);
 
-            string exMessage = fail.ToString() + (message == null ? "" : (" on " + message.Command));
+            string exMessage = fail.ToString() + (message == null ? "" : (" on " + (
+                fail == ConnectionFailureType.ProtocolFailure ? message.ToString() : message.CommandAndKey)));
             var ex = innerException == null ? new RedisConnectionException(fail, exMessage)
                 : new RedisConnectionException(fail, exMessage, innerException);
             SetException(message, ex);
@@ -204,12 +205,12 @@ namespace StackExchange.Redis
                             {
                                 if (isMoved && (message.Flags & CommandFlags.NoRedirect) != 0)
                                 {
-                                    err = $"Key has MOVED from Endpoint {endpoint} and hashslot {hashSlot} but CommandFlags.NoRedirect was specified - redirect not followed. ";
+                                    err = $"Key has MOVED from Endpoint {endpoint} and hashslot {hashSlot} but CommandFlags.NoRedirect was specified - redirect not followed for {message.CommandAndKey}. ";
                                 }
                                 else
                                 {
                                     unableToConnectError = true;
-                                    err = $"Endpoint {endpoint} serving hashslot {hashSlot} is not reachable at this point of time. Please check connectTimeout value. If it is low, try increasing it to give the ConnectionMultiplexer a chance to recover from the network disconnect.  ";
+                                    err = $"Endpoint {endpoint} serving hashslot {hashSlot} is not reachable at this point of time. Please check connectTimeout value. If it is low, try increasing it to give the ConnectionMultiplexer a chance to recover from the network disconnect. ";
                                 }
                                 err += ConnectionMultiplexer.GetThreadPoolAndCPUSummary(bridge.Multiplexer.IncludePerformanceCountersInExceptions);
                             }
@@ -349,7 +350,7 @@ namespace StackExchange.Redis
                     this.value = value;
                 }
 
-                internal override void WriteImpl(PhysicalConnection physical)
+                protected override void WriteImpl(PhysicalConnection physical)
                 {
                     if (value.IsNull)
                     {

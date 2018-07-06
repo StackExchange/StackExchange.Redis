@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Security.Cryptography.X509Certificates;
+using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -44,29 +45,41 @@ namespace StackExchange.Redis.Tests
         [InlineData(false, false)]
         [InlineData(true, false)]
         [InlineData(true, true)]
-        public void ConnectToSSLServer(bool useSsl, bool specifyHost)
+        public async Task ConnectToSSLServer(bool useSsl, bool specifyHost)
         {
-            Skip.IfNoConfig(nameof(TestConfig.Config.SslServer), TestConfig.Current.SslServer);
+            var server = TestConfig.Current.SslServer;
+            int? port = TestConfig.Current.SslPort;
+            string password = "";
+            bool isAzure = false;
+            if (string.IsNullOrWhiteSpace(server) && useSsl)
+            {
+                // we can bounce it past azure instead?
+                server = TestConfig.Current.AzureCacheServer;
+                password = TestConfig.Current.AzureCachePassword;
+                port = null;
+                isAzure = true;
+            }
+            Skip.IfNoConfig(nameof(TestConfig.Config.SslServer), server);
 
             var config = new ConfigurationOptions
             {
-                CommandMap = CommandMap.Create( // looks like "config" is disabled
-                    new Dictionary<string, string>
-                    {
-                        ["config"] = null,
-                        ["cluster"] = null
-                    }
-                ),
-                EndPoints = { { TestConfig.Current.SslServer, TestConfig.Current.SslPort } },
                 AllowAdmin = true,
-                SyncTimeout = Debugger.IsAttached ? int.MaxValue : 5000
+                SyncTimeout = Debugger.IsAttached ? int.MaxValue : 5000,
+                Password = password,
             };
+            var map = new Dictionary<string, string>();
+            map["config"] = null; // don't rely on config working
+            if (!isAzure) map["cluster"] = null;
+            config.CommandMap = CommandMap.Create(map);
+            if (port != null) config.EndPoints.Add(server, port.Value);
+            else config.EndPoints.Add(server);
+
             if (useSsl)
             {
                 config.Ssl = useSsl;
                 if (specifyHost)
                 {
-                    config.SslHost = TestConfig.Current.SslServer;
+                    config.SslHost = server;
                 }
                 config.CertificateValidation += (sender, cert, chain, errors) =>
                 {
@@ -90,7 +103,7 @@ namespace StackExchange.Redis.Tests
                 muxer.ConnectionFailed += OnConnectionFailed;
                 muxer.InternalError += OnInternalError;
                 var db = muxer.GetDatabase();
-                db.Ping();
+                await db.PingAsync();
                 using (var file = File.Create("ssl-" + useSsl + "-" + specifyHost + ".zip"))
                 {
                     muxer.ExportConfiguration(file);
@@ -99,14 +112,22 @@ namespace StackExchange.Redis.Tests
 
                 const int AsyncLoop = 2000;
                 // perf; async
-                db.KeyDelete(key, CommandFlags.FireAndForget);
+                await db.KeyDeleteAsync(key);
                 var watch = Stopwatch.StartNew();
                 for (int i = 0; i < AsyncLoop; i++)
                 {
-                    db.StringIncrement(key, flags: CommandFlags.FireAndForget);
+                    try
+                    {
+                        await db.StringIncrementAsync(key, flags: CommandFlags.FireAndForget);
+                    }
+                    catch (Exception ex)
+                    {
+                        Output.WriteLine($"Failure on i={i}: {ex.Message}");
+                        throw;
+                    }
                 }
                 // need to do this inside the timer to measure the TTLB
-                long value = (long)db.StringGet(key);
+                long value = (long)await db.StringGetAsync(key);
                 watch.Stop();
                 Assert.Equal(AsyncLoop, value);
                 Output.WriteLine("F&F: {0} INCR, {1:###,##0}ms, {2} ops/s; final value: {3}",
@@ -116,7 +137,7 @@ namespace StackExchange.Redis.Tests
                     value);
 
                 // perf: sync/multi-threaded
-                TestConcurrent(db, key, 30, 10);
+                // TestConcurrent(db, key, 30, 10);
                 //TestConcurrent(db, key, 30, 20);
                 //TestConcurrent(db, key, 30, 30);
                 //TestConcurrent(db, key, 30, 40);

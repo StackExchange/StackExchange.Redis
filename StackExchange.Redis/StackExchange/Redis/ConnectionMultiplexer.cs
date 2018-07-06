@@ -280,9 +280,16 @@ namespace StackExchange.Redis
                     {
                         Write<ClientInfo[]>(zip, prefix + "/clients.txt", tasks[index++], (clients, writer) =>
                         {
-                            foreach (var client in clients)
+                            if (clients == null)
                             {
-                                writer.WriteLine(client.Raw);
+                                writer.WriteLine(NoContent);
+                            }
+                            else
+                            {
+                                foreach (var client in clients)
+                                {
+                                    writer.WriteLine(client.Raw);
+                                }
                             }
                         });
                     }
@@ -445,14 +452,21 @@ namespace StackExchange.Redis
                 throw ExceptionFactory.AdminModeNotEnabled(IncludeDetailInExceptions, message.Command, message, null);
             CommandMap.AssertAvailable(message.Command);
         }
-
+        const string NoContent = "(no content)";
         private static void WriteNormalizingLineEndings(string source, StreamWriter writer)
         {
-            using (var reader = new StringReader(source))
+            if (source == null)
             {
-                string line;
-                while ((line = reader.ReadLine()) != null)
-                    writer.WriteLine(line); // normalize line endings
+                writer.WriteLine(NoContent);
+            }
+            else
+            {
+                using (var reader = new StringReader(source))
+                {
+                    string line;
+                    while ((line = reader.ReadLine()) != null)
+                        writer.WriteLine(line); // normalize line endings
+                }
             }
         }
 

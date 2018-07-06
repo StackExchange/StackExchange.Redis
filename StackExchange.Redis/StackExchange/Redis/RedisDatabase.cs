@@ -693,7 +693,7 @@ namespace StackExchange.Redis
                 this.migrateOptions = migrateOptions;
             }
 
-            internal override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(PhysicalConnection physical)
             {
                 bool isCopy = (migrateOptions & MigrateOptions.Copy) != 0;
                 bool isReplace = (migrateOptions & MigrateOptions.Replace) != 0;
@@ -3141,7 +3141,7 @@ namespace StackExchange.Redis
                 Script = script ?? throw new ArgumentNullException(nameof(script));
             }
 
-            internal override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 2);
                 physical.Write(RedisLiterals.LOAD);
@@ -3193,7 +3193,7 @@ namespace StackExchange.Redis
                 this.args = args ?? Array.Empty<object>();
             }
 
-            internal override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(_command, args.Count);
                 foreach (object arg in args)
@@ -3293,7 +3293,7 @@ namespace StackExchange.Redis
                 yield return this;
             }
 
-            internal override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(PhysicalConnection physical)
             {
                 if (hexHash != null)
                 {
@@ -3351,7 +3351,7 @@ namespace StackExchange.Redis
                 return slot;
             }
 
-            internal override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 2 + keys.Length + values.Length);
                 physical.Write(Key);
@@ -3380,7 +3380,7 @@ namespace StackExchange.Redis
             private ResultBox<TimeSpan?> box;
 
             public StringGetWithExpiryMessage(int db, CommandFlags flags, RedisCommand ttlCommand, RedisKey key)
-                : base(db, flags | CommandFlags.NoRedirect /* <== not implemented/tested */, RedisCommand.GET, key)
+                : base(db, flags, RedisCommand.GET, key)
             {
                 this.ttlCommand = ttlCommand;
             }
@@ -3410,7 +3410,7 @@ namespace StackExchange.Redis
                 return false;
             }
 
-            internal override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(command, 1);
                 physical.Write(Key);

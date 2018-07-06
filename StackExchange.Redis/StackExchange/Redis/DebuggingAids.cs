@@ -313,7 +313,7 @@ namespace StackExchange.Redis
             {
                 name = name.Replace(c, '_');
             }
-            pipe = new LoggingPipe(pipe, $"{name}.in", $"{name}.out", mgr);
+            pipe = new LoggingPipe(pipe, $"{name}.in.resp", $"{name}.out.resp", mgr);
         }
     }
 #endif

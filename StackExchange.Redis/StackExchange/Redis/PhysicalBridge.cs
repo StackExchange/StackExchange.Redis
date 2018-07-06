@@ -136,7 +136,7 @@ namespace StackExchange.Redis
             var physical = this.physical;
             if (physical == null) return WriteResult.NoConnectionAvailable;
 
-            var result = WriteMessageDirect(physical, message);
+            var result = WriteMessageTakingWriteLock(physical, message);
             LogNonPreferred(message.Flags, isSlave);
 
             return result;
@@ -322,7 +322,7 @@ namespace StackExchange.Redis
                 do
                 {
                     next = DequeueNextPendingBacklog();
-                    if (next != null) WriteMessageDirect(connection, next);
+                    if (next != null) WriteMessageTakingWriteLock(connection, next);
                 } while (next != null);
             }
         }
@@ -492,7 +492,7 @@ namespace StackExchange.Redis
             {   // deliberately not taking a single lock here; we don't care if
                 // other threads manage to interleave - in fact, it would be desirable
                 // (to avoid a batch monopolising the connection)
-                WriteMessageDirect(physical, message);
+                WriteMessageTakingWriteLock(physical, message);
                 LogNonPreferred(message.Flags, isSlave);
             }
             return true;
@@ -505,7 +505,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="physical">The phsyical connection to write to.</param>
         /// <param name="next">The message to be written.</param>
-        internal WriteResult WriteMessageDirect(PhysicalConnection physical, Message next)
+        internal WriteResult WriteMessageTakingWriteLock(PhysicalConnection physical, Message next)
         {
             Trace("Writing: " + next);
             next.SetEnqueued();
@@ -519,10 +519,10 @@ namespace StackExchange.Redis
                 var messageIsSent = false;
                 if (next is IMultiMessage)
                 {
-                    SelectDatabase(physical, next); // need to switch database *before* the transaction
+                    SelectDatabaseInsideWriteLock(physical, next); // need to switch database *before* the transaction
                     foreach (var subCommand in ((IMultiMessage)next).GetMessages(physical))
                     {
-                        result = WriteMessageToServer(physical, subCommand);
+                        result = WriteMessageToServerInsideWriteLock(physical, subCommand);
                         if (result != WriteResult.Success)
                         {
                             // we screwed up; abort; note that WriteMessageToServer already
@@ -545,7 +545,7 @@ namespace StackExchange.Redis
                 }
                 else
                 {
-                    result = WriteMessageToServer(physical, next);
+                    result = WriteMessageToServerInsideWriteLock(physical, next);
                 }
                 physical.WakeWriterAndCheckForThrottle();
             }
@@ -637,7 +637,7 @@ namespace StackExchange.Redis
             Multiplexer.OnInternalError(exception, ServerEndPoint.EndPoint, ConnectionType, origin);
         }
 
-        private void SelectDatabase(PhysicalConnection connection, Message message)
+        private void SelectDatabaseInsideWriteLock(PhysicalConnection connection, Message message)
         {
             int db = message.Db;
             if (db >= 0)
@@ -645,15 +645,15 @@ namespace StackExchange.Redis
                 var sel = connection.GetSelectDatabaseCommand(db, message);
                 if (sel != null)
                 {
-                    connection.Enqueue(sel);
-                    sel.WriteImpl(connection);
+                    sel.WriteTo(connection);
+                    connection.EnqueueInsideWriteLock(sel);
                     sel.SetRequestSent();
                     IncrementOpCount();
                 }
             }
         }
 
-        private WriteResult WriteMessageToServer(PhysicalConnection connection, Message message)
+        private WriteResult WriteMessageToServerInsideWriteLock(PhysicalConnection connection, Message message)
         {
             if (message == null) return WriteResult.Success; // for some definition of success
 
@@ -666,15 +666,15 @@ namespace StackExchange.Redis
                     throw ExceptionFactory.MasterOnly(Multiplexer.IncludeDetailInExceptions, message.Command, message, ServerEndPoint);
                 }
 
-                SelectDatabase(connection, message);
+                SelectDatabaseInsideWriteLock(connection, message);
 
                 if (!connection.TransactionActive)
                 {
                     var readmode = connection.GetReadModeCommand(isMasterOnly);
                     if (readmode != null)
                     {
-                        connection.Enqueue(readmode);
                         readmode.WriteTo(connection);
+                        connection.EnqueueInsideWriteLock(readmode);
                         readmode.SetRequestSent();
                         IncrementOpCount();
                     }
@@ -682,8 +682,8 @@ namespace StackExchange.Redis
                     if (message.IsAsking)
                     {
                         var asking = ReusableAskingCommand;
-                        connection.Enqueue(asking);
-                        asking.WriteImpl(connection);
+                        asking.WriteTo(connection);
+                        connection.EnqueueInsideWriteLock(asking);
                         asking.SetRequestSent();
                         IncrementOpCount();
                     }
@@ -701,8 +701,8 @@ namespace StackExchange.Redis
                         break;
                 }
 
-                connection.Enqueue(message);
-                message.WriteImpl(connection);
+                message.WriteTo(connection);
+                connection.EnqueueInsideWriteLock(message);
                 message.SetRequestSent();
                 IncrementOpCount();
 
@@ -728,7 +728,7 @@ namespace StackExchange.Redis
             catch (RedisCommandException ex)
             {
                 Trace("Write failed: " + ex.Message);
-                message.Fail(ConnectionFailureType.ProtocolFailure, ex);
+                message.Fail(ConnectionFailureType.InternalFailure, ex);
                 CompleteSyncOrAsync(message);
                 // this failed without actually writing; we're OK with that... unless there's a transaction
 

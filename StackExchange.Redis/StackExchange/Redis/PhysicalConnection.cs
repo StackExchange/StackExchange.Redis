@@ -57,7 +57,7 @@ namespace StackExchange.Redis
         private readonly ConnectionType connectionType;
 
         // things sent to this physical, but not yet received
-        private readonly Queue<Message> outstanding = new Queue<Message>();
+        private readonly Queue<Message> _writtenAwaitingResponse = new Queue<Message>();
 
         private readonly string physicalName;
 
@@ -241,12 +241,12 @@ namespace StackExchange.Redis
 
             // cleanup
             managerState = SocketManager.ManagerState.RecordConnectionFailed_FailOutstanding;
-            lock (outstanding)
+            lock (_writtenAwaitingResponse)
             {
-                Bridge.Trace(outstanding.Count != 0, "Failing outstanding messages: " + outstanding.Count);
-                while (outstanding.Count != 0)
+                Bridge.Trace(_writtenAwaitingResponse.Count != 0, "Failing outstanding messages: " + _writtenAwaitingResponse.Count);
+                while (_writtenAwaitingResponse.Count != 0)
                 {
-                    var next = outstanding.Dequeue();
+                    var next = _writtenAwaitingResponse.Dequeue();
                     Bridge.Trace("Failing: " + next);
                     next.SetException(innerException);
                     Bridge.CompleteSyncOrAsync(next);
@@ -275,19 +275,20 @@ namespace StackExchange.Redis
             }
         }
 
-        internal void Enqueue(Message next)
+        internal void EnqueueInsideWriteLock(Message next)
         {
-            lock (outstanding)
+            lock (_writtenAwaitingResponse)
             {
-                outstanding.Enqueue(next);
+                _writtenAwaitingResponse.Enqueue(next);
+                if (_writtenAwaitingResponse.Count == 1) Monitor.Pulse(_writtenAwaitingResponse);
             }
         }
 
         internal void GetCounters(ConnectionCounters counters)
         {
-            lock (outstanding)
+            lock (_writtenAwaitingResponse)
             {
-                counters.SentItemsAwaitingResponse = outstanding.Count;
+                counters.SentItemsAwaitingResponse = _writtenAwaitingResponse.Count;
             }
             counters.Subscriptions = SubscriptionCount;
         }
@@ -367,20 +368,20 @@ namespace StackExchange.Redis
 
         internal int GetSentAwaitingResponseCount()
         {
-            lock (outstanding)
+            lock (_writtenAwaitingResponse)
             {
-                return outstanding.Count;
+                return _writtenAwaitingResponse.Count;
             }
         }
 
         internal void GetStormLog(StringBuilder sb)
         {
-            lock (outstanding)
+            lock (_writtenAwaitingResponse)
             {
-                if (outstanding.Count == 0) return;
-                sb.Append("Sent, awaiting response from server: ").Append(outstanding.Count).AppendLine();
+                if (_writtenAwaitingResponse.Count == 0) return;
+                sb.Append("Sent, awaiting response from server: ").Append(_writtenAwaitingResponse.Count).AppendLine();
                 int total = 0;
-                foreach (var item in outstanding)
+                foreach (var item in _writtenAwaitingResponse)
                 {
                     if (++total >= 500) break;
                     item.AppendStormLog(sb);
@@ -991,10 +992,16 @@ namespace StackExchange.Redis
             }
             Multiplexer.Trace("Matching result...", physicalName);
             Message msg;
-            lock (outstanding)
+            lock (_writtenAwaitingResponse)
             {
-                Multiplexer.Trace(outstanding.Count == 0, "Nothing to respond to!", physicalName);
-                msg = outstanding.Dequeue();
+                if (_writtenAwaitingResponse.Count == 0)
+                {
+                    // we could be racing with the writer, but this *really* shouldn't
+                    // be even remotely close
+                    Monitor.Wait(_writtenAwaitingResponse, 500);
+                }
+                Multiplexer.Trace(_writtenAwaitingResponse.Count == 0, "Nothing to respond to!", physicalName);
+                msg = _writtenAwaitingResponse.Dequeue();
             }
 
             Multiplexer.Trace("Response to: " + msg, physicalName);

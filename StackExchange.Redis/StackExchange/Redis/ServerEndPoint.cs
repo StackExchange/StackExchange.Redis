@@ -443,10 +443,10 @@ namespace StackExchange.Redis
             return msg;
         }
 
-        internal bool IsSelectable(RedisCommand command)
+        internal bool IsSelectable(RedisCommand command, bool allowDisconnected = false)
         {
             var bridge = unselectableReasons == 0 ? GetBridge(command, false) : null;
-            return bridge?.IsConnected == true;
+            return bridge != null && (allowDisconnected || bridge.IsConnected);
         }
 
         internal Task OnEstablishingAsync(PhysicalConnection connection, TextWriter log)
@@ -631,7 +631,7 @@ namespace StackExchange.Redis
                 else
                 {
                     Multiplexer.Trace("Writing direct: " + message);
-                    connection.Bridge.WriteMessageDirect(connection, message);
+                    connection.Bridge.WriteMessageTakingWriteLock(connection, message);
                 }
             }
         }

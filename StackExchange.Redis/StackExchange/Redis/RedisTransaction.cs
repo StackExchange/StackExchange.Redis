@@ -146,9 +146,9 @@ namespace StackExchange.Redis
                 set => wasQueued = value;
             }
 
-            internal override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(PhysicalConnection physical)
             {
-                Wrapped.WriteImpl(physical);
+                Wrapped.WriteTo(physical);
                 Wrapped.SetRequestSent();
             }
         }
@@ -344,7 +344,7 @@ namespace StackExchange.Redis
                 yield return this; // acts as either an EXEC or an UNWATCH, depending on "aborted"
             }
 
-            internal override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 0);
             }
