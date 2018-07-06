@@ -86,7 +86,7 @@ namespace StackExchange.Redis.Tests
 
         private void Equate(RedisValue[] actual, long count, params string[] expected)
         {
-            Assert.Equal(count, expected.Length);
+            Assert.Equal(expected.Length, count);
             Assert.Equal(expected.Length, actual.Length);
             for (int i = 0; i < actual.Length; i++)
             {

@@ -432,7 +432,7 @@ namespace StackExchange.Redis.Tests
 
         public void HashSlots(string key, int slot)
         {
-            using (var muxer = Create(connectTimeout: 500, pause: false))
+            using (var muxer = Create(connectTimeout: 5000, pause: false))
             {
                 Assert.Equal(slot, muxer.HashSlot(key));
             }
@@ -595,18 +595,20 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create())
             {
                 var profiler = new TestProfiler();
+                var key = Me();
+                var db = conn.GetDatabase();
+                db.KeyDelete(key);
 
                 conn.RegisterProfiler(profiler);
                 conn.BeginProfiling(profiler.MyContext);
-                var db = conn.GetDatabase();
-                db.StringSet("hello", "world");
-                var val = db.StringGet("hello");
+                db.StringSet(key, "world");
+                var val = db.StringGet(key);
                 Assert.Equal("world", val);
 
                 var msgs = conn.FinishProfiling(profiler.MyContext);
-                Assert.Equal(2, msgs.Count());
                 Assert.Contains(msgs, m => m.Command == "GET");
                 Assert.Contains(msgs, m => m.Command == "SET");
+                Assert.Equal(2, msgs.Count());
             }
         }
 

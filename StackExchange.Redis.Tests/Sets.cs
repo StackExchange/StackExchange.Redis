@@ -17,7 +17,7 @@ namespace StackExchange.Redis.Tests
             {
                 var server = GetAnyMaster(conn);
 
-                RedisKey key = "a";
+                RedisKey key = Me();
                 var db = conn.GetDatabase();
                 db.KeyDelete(key);
 

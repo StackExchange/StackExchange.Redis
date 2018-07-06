@@ -25,14 +25,15 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create())
             {
                 var profiler = new TestProfiler();
+                var key = Me();
 
                 conn.RegisterProfiler(profiler);
                 conn.BeginProfiling(profiler.MyContext);
                 var db = conn.GetDatabase(4);
-                db.StringSet("hello", "world");
-                var val = db.StringGet("hello");
+                db.StringSet(key, "world");
+                var val = db.StringGet(key);
                 Assert.Equal("world", (string)val);
-                var result=db.ScriptEvaluate(LuaScript.Prepare("return redis.call('get', @key)"), new { key = (RedisKey)"hello" });
+                var result=db.ScriptEvaluate(LuaScript.Prepare("return redis.call('get', @key)"), new { key = (RedisKey)key });
                 Assert.Equal("world", result.AsString());
 
                 var cmds = conn.FinishProfiling(profiler.MyContext);
@@ -76,6 +77,7 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create())
             {
                 var profiler = new TestProfiler();
+                var prefix = Me();
 
                 conn.RegisterProfiler(profiler);
                 conn.BeginProfiling(profiler.MyContext);
@@ -92,7 +94,7 @@ namespace StackExchange.Redis.Tests
 
                         for (var j = 0; j < 1000; j++)
                         {
-                            var task = db.StringSetAsync("" + j, "" + j);
+                            var task = db.StringSetAsync(prefix + j, "" + j);
                             threadTasks.Add(task);
                         }
 
@@ -140,12 +142,13 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [Fact]
+        [FactLongRunning]
         public void ManyContexts()
         {
             using (var conn = Create())
             {
                 var profiler = new TestProfiler2();
+                var prefix = Me();
                 conn.RegisterProfiler(profiler);
 
                 var perThreadContexts = new List<object>();
@@ -173,8 +176,8 @@ namespace StackExchange.Redis.Tests
 
                         for (var j = 0; j < 1000; j++)
                         {
-                            allTasks.Add(db.StringGetAsync("hello" + ix));
-                            allTasks.Add(db.StringSetAsync("hello" + ix, "world" + ix));
+                            allTasks.Add(db.StringGetAsync(prefix + ix));
+                            allTasks.Add(db.StringSetAsync(prefix + ix, "world" + ix));
                         }
 
                         Task.WaitAll(allTasks.ToArray());
@@ -298,7 +301,7 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [Fact]
+        [FactLongRunning]
         public void ReuseStorage()
         {
             const int ThreadCount = 16;
@@ -309,6 +312,7 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create())
             {
                 var profiler = new TestProfiler2();
+                var prefix = Me();
                 conn.RegisterProfiler(profiler);
 
                 var perThreadContexts = new List<object>();
@@ -342,8 +346,8 @@ namespace StackExchange.Redis.Tests
 
                             for (var j = 0; j < 1000; j++)
                             {
-                                allTasks.Add(db.StringGetAsync("hello" + ix));
-                                allTasks.Add(db.StringSetAsync("hello" + ix, "world" + ix));
+                                allTasks.Add(db.StringGetAsync(prefix + ix));
+                                allTasks.Add(db.StringSetAsync(prefix + ix, "world" + ix));
                             }
 
                             Task.WaitAll(allTasks.ToArray());
@@ -461,13 +465,14 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [Fact]
+        [FactLongRunning]
         public void ProfilingMD_Ex1()
         {
             using (var c = Create())
             {
                 ConnectionMultiplexer conn = c;
                 var profiler = new ToyProfiler();
+                var prefix = Me();
                 var thisGroupContext = new object();
 
                 conn.RegisterProfiler(profiler);
@@ -484,7 +489,7 @@ namespace StackExchange.Redis.Tests
 
                         for (var j = 0; j < 1000; j++)
                         {
-                            var task = db.StringSetAsync("" + j, "" + j);
+                            var task = db.StringSetAsync(prefix + j, "" + j);
                             threadTasks.Add(task);
                         }
 
@@ -507,13 +512,14 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [Fact]
+        [FactLongRunning]
         public void ProfilingMD_Ex2()
         {
             using (var c = Create())
             {
                 ConnectionMultiplexer conn = c;
                 var profiler = new ToyProfiler();
+                var prefix = Me();
 
                 conn.RegisterProfiler(profiler);
 
@@ -533,7 +539,7 @@ namespace StackExchange.Redis.Tests
 
                         for (var j = 0; j < 1000; j++)
                         {
-                            var task = db.StringSetAsync("" + j, "" + j);
+                            var task = db.StringSetAsync(prefix + j, "" + j);
                             threadTasks.Add(task);
                         }
 

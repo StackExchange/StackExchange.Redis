@@ -62,7 +62,7 @@ namespace StackExchange.Redis.Tests
                 long count = sender.PublishReconfigure();
                 GetServer(receiver).Ping();
                 GetServer(receiver).Ping();
-                await Task.Delay(10).ConfigureAwait(false);
+                await Task.Delay(100).ConfigureAwait(false);
                 Assert.True(count == -1 || count >= 2, "subscribers");
                 Assert.True(Interlocked.CompareExchange(ref total, 0, 0) >= 1, "total (1st)");
 

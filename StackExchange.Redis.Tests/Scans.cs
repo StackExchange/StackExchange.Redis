@@ -96,12 +96,13 @@ namespace StackExchange.Redis.Tests
                 // only goes up to 3.*, so...
                 Skip.IfMissingFeature(conn, "Avoiding Redis on Windows", x => x.Version >= new Version(4, 0));
                 var db = conn.GetDatabase(DB);
+                var prefix = Me();
                 var server = GetServer(conn);
                 server.FlushDatabase(DB);
                 int i;
                 for (i = 0; i < 100; i++)
                 {
-                    db.StringSet("ScanResume:" + i, Guid.NewGuid().ToString());
+                    db.StringSet(prefix + ":" + i, Guid.NewGuid().ToString());
                 }
 
                 var expected = new HashSet<string>();
@@ -109,7 +110,7 @@ namespace StackExchange.Redis.Tests
                 int snapOffset = 0, snapPageSize = 0;
 
                 i = 0;
-                var seq = server.Keys(DB, "ScanResume:*", pageSize: 15);
+                var seq = server.Keys(DB, prefix + ":*", pageSize: 15);
                 foreach (var key in seq)
                 {
                     if (i == 57)
@@ -131,7 +132,7 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(12, snapOffset);
                 Assert.Equal(15, snapPageSize);
 
-                seq = server.Keys(DB, "ScanResume:*", pageSize: 15, cursor: snapCursor, pageOffset: snapOffset);
+                seq = server.Keys(DB, prefix + ":*", pageSize: 15, cursor: snapCursor, pageOffset: snapOffset);
                 var seqCur = (IScanningCursor)seq;
                 Assert.Equal(snapCursor, seqCur.Cursor);
                 Assert.Equal(snapPageSize, seqCur.PageSize);

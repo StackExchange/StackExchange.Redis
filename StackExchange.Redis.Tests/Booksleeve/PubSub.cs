@@ -24,7 +24,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
             }
         }
 
-        [Fact]
+        [FactLongRunning]
         public void TestMassivePublishWithWithoutFlush_Local()
         {
             using (var muxer = GetUnsecuredConnection(waitForOpen: true))
@@ -73,7 +73,9 @@ namespace StackExchange.Redis.Tests.Booksleeve
 
             Output.WriteLine("{2}: {0}ms (F+F) vs {1}ms (async)",
                 withFAF.ElapsedMilliseconds, withAsync.ElapsedMilliseconds, caption);
-            Assert.True(withFAF.ElapsedMilliseconds < withAsync.ElapsedMilliseconds, caption);
+            // We've made async so far, this test isn't really valid anymore
+            // So let's check they're at least within a few seconds.
+            Assert.True(withFAF.ElapsedMilliseconds < withAsync.ElapsedMilliseconds + 3000, caption);
         }
 
         [FactLongRunning]
@@ -397,7 +399,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
 
         internal static void AllowReasonableTimeToPublishAndProcess()
         {
-            Thread.Sleep(50);
+            Thread.Sleep(100);
         }
 
         [Fact]

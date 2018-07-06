@@ -46,6 +46,16 @@ namespace StackExchange.Redis.Tests
     [XunitTestCaseDiscoverer("StackExchange.Redis.Tests.TheoryDiscoverer", "StackExchange.Redis.Tests")]
     public class TheoryAttribute : Xunit.TheoryAttribute { }
 
+    [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
+    public class TheoryLongRunningAttribute : Xunit.TheoryAttribute
+    {
+        public override string Skip
+        {
+            get => TestConfig.Current.RunLongRunning ? base.Skip : "Config.RunLongRunning is false - skipping long test.";
+            set => base.Skip = value;
+        }
+    }
+
     public class FactDiscoverer : Xunit.Sdk.FactDiscoverer
     {
         public FactDiscoverer(IMessageSink diagnosticMessageSink) : base(diagnosticMessageSink) { }

@@ -41,7 +41,7 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [Theory]
+        [TheoryLongRunning]
         [InlineData(1)]
         [InlineData(5)]
         [InlineData(10)]
