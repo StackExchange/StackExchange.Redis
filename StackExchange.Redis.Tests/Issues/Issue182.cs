@@ -27,17 +27,17 @@ namespace StackExchange.Redis.Tests.Issues
 
                 var key = Me();
                 const int count = (int)5e6;
-                var len = await db.SetLengthAsync(key);
+                var len = await db.SetLengthAsync(key).ForAwait();
 
                 if (len != count)
                 {
-                    await db.KeyDeleteAsync(key);
+                    await db.KeyDeleteAsync(key).ForAwait();
                     foreach (var _ in Enumerable.Range(0, count))
                         db.SetAdd(key, Guid.NewGuid().ToByteArray(), CommandFlags.FireAndForget);
 
-                    Assert.Equal(count, await db.SetLengthAsync(key)); // SCARD for set
+                    Assert.Equal(count, await db.SetLengthAsync(key).ForAwait()); // SCARD for set
                 }
-                var result = await db.SetMembersAsync(key);
+                var result = await db.SetMembersAsync(key).ForAwait();
                 Assert.Equal(count, result.Length); // SMEMBERS result length
             }
         }
@@ -55,25 +55,24 @@ namespace StackExchange.Redis.Tests.Issues
 
                 const int count = (int)5e6;
 
-                var len1 = await db.SetLengthAsync(key1);
-                var len2 = await db.SetLengthAsync(key2);
-                await db.KeyDeleteAsync(dstkey);
+                var len1 = await db.SetLengthAsync(key1).ForAwait();
+                var len2 = await db.SetLengthAsync(key2).ForAwait();
+                await db.KeyDeleteAsync(dstkey).ForAwait();
 
                 if (len1 != count || len2 != count)
                 {
-                    await db.KeyDeleteAsync(key1);
-                    await db.KeyDeleteAsync(key2);
-                    
+                    await db.KeyDeleteAsync(key1).ForAwait();
+                    await db.KeyDeleteAsync(key2).ForAwait();
 
                     foreach (var _ in Enumerable.Range(0, count))
                     {
                         db.SetAdd(key1, Guid.NewGuid().ToByteArray(), CommandFlags.FireAndForget);
                         db.SetAdd(key2, Guid.NewGuid().ToByteArray(), CommandFlags.FireAndForget);
                     }
-                    Assert.Equal(count, await db.SetLengthAsync(key1)); // SCARD for set 1
-                    Assert.Equal(count, await db.SetLengthAsync(key2)); // SCARD for set 2
+                    Assert.Equal(count, await db.SetLengthAsync(key1).ForAwait()); // SCARD for set 1
+                    Assert.Equal(count, await db.SetLengthAsync(key2).ForAwait()); // SCARD for set 2
                 }
-                await db.SetCombineAndStoreAsync(SetOperation.Union, dstkey, key1, key2);
+                await db.SetCombineAndStoreAsync(SetOperation.Union, dstkey, key1, key2).ForAwait();
                 var dstLen = db.SetLength(dstkey);
                 Assert.Equal(count * 2, dstLen); // SCARD for destination set
             }

@@ -46,7 +46,7 @@ namespace StackExchange.Redis.Tests
                     {
                         using (var muxer = Create(failMessage: i + ": ", log: sw))
                         {
-                            await Task.Delay(500);
+                            await Task.Delay(500).ForAwait();
                             foreach (var ep in muxer.GetEndPoints())
                             {
                                 var srv = muxer.GetServer(ep);

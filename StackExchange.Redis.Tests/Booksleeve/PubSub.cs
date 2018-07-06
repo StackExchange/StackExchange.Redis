@@ -90,7 +90,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
                 var syncLock = new object();
 
                 var data = new HashSet<int>();
-                await sub.SubscribeAsync(channel, (key, val) =>
+                await sub.SubscribeAsync(channel, (_, val) =>
                 {
                     bool pulse;
                     lock (data)
@@ -139,15 +139,15 @@ namespace StackExchange.Redis.Tests.Booksleeve
                 var syncLock = new object();
 
                 var data = new List<int>(count);
-                var subChannel = await sub.SubscribeAsync(channel);
+                var subChannel = await sub.SubscribeAsync(channel).ForAwait();
 
-                await sub.PingAsync();
+                await sub.PingAsync().ForAwait();
 
                 async Task RunLoop()
                 {
                     while (!subChannel.IsCompleted)
                     {
-                        var work = await subChannel.ReadAsync();
+                        var work = await subChannel.ReadAsync().ForAwait();
                         int i = int.Parse(Encoding.UTF8.GetString(work.Message));
                         lock (data)
                         {
@@ -185,9 +185,8 @@ namespace StackExchange.Redis.Tests.Booksleeve
                 Assert.True(subChannel.IsCompleted);
                 await Assert.ThrowsAsync<ChannelClosedException>(async delegate
                 {
-                    var final = await subChannel.ReadAsync();
-                });
-
+                    var final = await subChannel.ReadAsync().ForAwait();
+                }).ForAwait();
             }
         }
 
@@ -203,7 +202,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
                 var syncLock = new object();
 
                 var data = new List<int>(count);
-                var subChannel = await sub.SubscribeAsync(channel);
+                var subChannel = await sub.SubscribeAsync(channel).ForAwait();
                 subChannel.OnMessage(msg =>
                 {
                     int i = int.Parse(Encoding.UTF8.GetString(msg.Message));
@@ -222,7 +221,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
                         }
                     }
                 });
-                await sub.PingAsync();
+                await sub.PingAsync().ForAwait();
 
                 lock (syncLock)
                 {
@@ -246,9 +245,8 @@ namespace StackExchange.Redis.Tests.Booksleeve
                 Assert.True(subChannel.IsCompleted);
                 await Assert.ThrowsAsync<ChannelClosedException>(async delegate
                 {
-                    var final = await subChannel.ReadAsync();
-                });
-
+                    var final = await subChannel.ReadAsync().ForAwait();
+                }).ForAwait();
             }
         }
 
@@ -264,7 +262,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
                 var syncLock = new object();
 
                 var data = new List<int>(count);
-                var subChannel = await sub.SubscribeAsync(channel);
+                var subChannel = await sub.SubscribeAsync(channel).ForAwait();
                 subChannel.OnMessage(msg =>
                 {
                     int i = int.Parse(Encoding.UTF8.GetString(msg.Message));
@@ -284,7 +282,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
                     }
                     return i % 2 == 0 ? null : Task.CompletedTask;
                 });
-                await sub.PingAsync();
+                await sub.PingAsync().ForAwait();
 
                 lock (syncLock)
                 {
@@ -308,9 +306,8 @@ namespace StackExchange.Redis.Tests.Booksleeve
                 Assert.True(subChannel.IsCompleted);
                 await Assert.ThrowsAsync<ChannelClosedException>(async delegate
                 {
-                    var final = await subChannel.ReadAsync();
-                });
-
+                    var final = await subChannel.ReadAsync().ForAwait();
+                }).ForAwait();
             }
         }
 

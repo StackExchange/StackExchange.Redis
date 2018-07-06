@@ -46,6 +46,30 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public async Task ConfigureAsync()
+        {
+            using (var muxer = Create())
+            {
+                Thread.Sleep(1000);
+                Output.WriteLine("About to reconfigure.....");
+                await muxer.ConfigureAsync().ForAwait();
+                Output.WriteLine("Reconfigured");
+            }
+        }
+
+        [Fact]
+        public void ConfigureSync()
+        {
+            using (var muxer = Create())
+            {
+                Thread.Sleep(1000);
+                Output.WriteLine("About to reconfigure.....");
+                muxer.Configure();
+                Output.WriteLine("Reconfigured");
+            }
+        }
+
+        [Fact]
         public async Task ConfigVerifyReceiveConfigChangeBroadcast()
         {
             var config = GetConfiguration();

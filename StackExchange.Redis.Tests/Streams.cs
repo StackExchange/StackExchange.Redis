@@ -65,17 +65,17 @@ namespace StackExchange.Redis.Tests
                 Assert.True(entries.Length == 1);
                 Assert.Equal(messageId, entries[0].Id);
                 Assert.True(entries[0].Values.Length == 2);
-                Assert.True(entries[0].Values[0].Name == "field1" &&
-                             entries[0].Values[0].Value == "value1");
-                Assert.True(entries[0].Values[1].Name == "field2" &&
-                             entries[0].Values[1].Value == "value2");
+                Assert.True(entries[0].Values[0].Name == "field1");
+                Assert.True(entries[0].Values[0].Value == "value1");
+                Assert.True(entries[0].Values[1].Name == "field2");
+                Assert.True(entries[0].Values[1].Value == "value2");
             }
         }
 
         [Fact]
         public void StreamAddWithManualId()
         {
-            var id = "42-0";
+            const string id = "42-0";
             var key = GetUniqueKey("manual_id");
 
             using (var conn = Create())
@@ -92,7 +92,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamAddMultipleValuePairsWithManualId()
         {
-            var id = "42-0";
+            const string id = "42-0";
             var key = GetUniqueKey("manual_id_multiple_values");
 
             using (var conn = Create())
@@ -121,7 +121,7 @@ namespace StackExchange.Redis.Tests
         public void StreamConsumerGroupWithNoConsumers()
         {
             var key = GetUniqueKey("group_with_no_consumers");
-            var groupName = "test_group";
+            const string groupName = "test_group";
 
             using (var conn = Create())
             {
@@ -146,7 +146,7 @@ namespace StackExchange.Redis.Tests
         public void StreamCreateConsumerGroup()
         {
             var key = GetUniqueKey("group_create");
-            var groupName = "test_group";
+            const string groupName = "test_group";
 
             using (var conn = Create())
             {
@@ -168,7 +168,7 @@ namespace StackExchange.Redis.Tests
         public void StreamConsumerGroupReadOnlyNewMessagesWithEmptyResponse()
         {
             var key = GetUniqueKey("group_read");
-            var groupName = "test_group";
+            const string groupName = "test_group";
 
             using (var conn = Create())
             {
@@ -194,7 +194,7 @@ namespace StackExchange.Redis.Tests
         public void StreamConsumerGroupReadFromStreamBeginning()
         {
             var key = GetUniqueKey("group_read_beginning");
-            var groupName = "test_group";
+            const string groupName = "test_group";
 
             using (var conn = Create())
             {
@@ -219,7 +219,7 @@ namespace StackExchange.Redis.Tests
         public void StreamConsumerGroupReadFromStreamBeginningWithCount()
         {
             var key = GetUniqueKey("group_read_with_count");
-            var groupName = "test_group";
+            const string groupName = "test_group";
 
             using (var conn = Create())
             {
@@ -248,8 +248,8 @@ namespace StackExchange.Redis.Tests
         public void StreamConsumerGroupAcknowledgeMessage()
         {
             var key = GetUniqueKey("group_ack");
-            var groupName = "test_group";
-            var consumer = "test_consumer";
+            const string groupName = "test_group";
+            const string consumer = "test_consumer";
 
             using (var conn = Create())
             {
@@ -290,9 +290,9 @@ namespace StackExchange.Redis.Tests
         public void StreamConsumerGroupClaimMessages()
         {
             var key = GetUniqueKey("group_claim");
-            var groupName = "test_group";
-            var consumer1 = "test_consumer_1";
-            var consumer2 = "test_consumer_2";
+            const string groupName = "test_group";
+            const string consumer1 = "test_consumer_1";
+            const string consumer2 = "test_consumer_2";
 
             using (var conn = Create())
             {
@@ -341,9 +341,9 @@ namespace StackExchange.Redis.Tests
         public void StreamConsumerGroupClaimMessagesReturningIds()
         {
             var key = GetUniqueKey("group_claim_view_ids");
-            var groupName = "test_group";
-            var consumer1 = "test_consumer_1";
-            var consumer2 = "test_consumer_2";
+            const string groupName = "test_group";
+            const string consumer1 = "test_consumer_1";
+            const string consumer2 = "test_consumer_2";
 
             using (var conn = Create())
             {
@@ -384,14 +384,13 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(id3, messageIds[1]);
                 Assert.Equal(id4, messageIds[2]);
             }
-
         }
 
         [Fact]
         public void StreamConsumerGroupViewPendingInfoNoConsumers()
         {
             var key = GetUniqueKey("group_pending_info_no_consumers");
-            var groupName = "test_group";
+            const string groupName = "test_group";
 
             using (var conn = Create())
             {
@@ -417,7 +416,7 @@ namespace StackExchange.Redis.Tests
         public void StreamConsumerGroupViewPendingInfoWhenNothingPending()
         {
             var key = GetUniqueKey("group_pending_info_nothing_pending");
-            var groupName = "test_group";
+            const string groupName = "test_group";
 
             using (var conn = Create())
             {
@@ -443,9 +442,9 @@ namespace StackExchange.Redis.Tests
         public void StreamConsumerGroupViewPendingInfoSummary()
         {
             var key = GetUniqueKey("group_pending_info");
-            var groupName = "test_group";
-            var consumer1 = "test_consumer_1";
-            var consumer2 = "test_consumer_2";
+            const string groupName = "test_group";
+            const string consumer1 = "test_consumer_1";
+            const string consumer2 = "test_consumer_2";
 
             using (var conn = Create())
             {
@@ -485,9 +484,9 @@ namespace StackExchange.Redis.Tests
         public async Task StreamConsumerGroupViewPendingMessageInfo()
         {
             var key = GetUniqueKey("group_pending_messages");
-            var groupName = "test_group";
-            var consumer1 = "test_consumer_1";
-            var consumer2 = "test_consumer_2";
+            const string groupName = "test_group";
+            const string consumer1 = "test_consumer_1";
+            const string consumer2 = "test_consumer_2";
 
             using (var conn = Create())
             {
@@ -508,7 +507,7 @@ namespace StackExchange.Redis.Tests
                 // Read the remaining messages into the second consumer.
                 var consumer2Messages = db.StreamReadGroup(key, groupName, consumer2);
 
-                await Task.Delay(10);
+                await Task.Delay(10).ForAwait();
 
                 // Get the pending info about the messages themselves.
                 var pendingMessageInfoList = db.StreamPendingMessages(key, groupName, 10, RedisValue.Null);
@@ -526,9 +525,9 @@ namespace StackExchange.Redis.Tests
         public void StreamConsumerGroupViewPendingMessageInfoForConsumer()
         {
             var key = GetUniqueKey("group_pending_for_consumer");
-            var groupName = "test_group";
-            var consumer1 = "test_consumer_1";
-            var consumer2 = "test_consumer_2";
+            const string groupName = "test_group";
+            const string consumer1 = "test_consumer_1";
+            const string consumer2 = "test_consumer_2";
 
             using (var conn = Create())
             {
@@ -612,10 +611,10 @@ namespace StackExchange.Redis.Tests
         public void StreamGroupInfoGet()
         {
             var key = GetUniqueKey("group_info");
-            var group1 = "test_group_1";
-            var group2 = "test_group_2";
-            var consumer1 = "test_consumer_1";
-            var consumer2 = "test_consumer_2";
+            const string group1 = "test_group_1";
+            const string group2 = "test_group_2";
+            const string consumer1 = "test_consumer_1";
+            const string consumer2 = "test_consumer_2";
 
             using (var conn = Create())
             {
@@ -654,9 +653,9 @@ namespace StackExchange.Redis.Tests
         public void StreamGroupConsumerInfoGet()
         {
             var key = GetUniqueKey("group_consumer_info");
-            var group = "test_group";
-            var consumer1 = "test_consumer_1";
-            var consumer2 = "test_consumer_2";
+            const string group = "test_group";
+            const string consumer1 = "test_consumer_1";
+            const string consumer2 = "test_consumer_2";
 
             using (var conn = Create())
             {
@@ -726,7 +725,7 @@ namespace StackExchange.Redis.Tests
                 // Add an entry and then delete it so the stream is empty, then run streaminfo
                 // to ensure it functions properly on an empty stream. Namely, the first-entry
                 // and last-entry messages should be null.
-                
+
                 var id = db.StreamAdd(key, "field1", "value1");
                 db.StreamDelete(key, new RedisValue[] { id });
 
@@ -763,7 +762,7 @@ namespace StackExchange.Redis.Tests
         public void StreamPendingNoMessagesOrConsumers()
         {
             var key = GetUniqueKey("stream_pending_empty");
-            var groupName = "test_group";
+            const string groupName = "test_group";
 
             using (var conn = Create())
             {
@@ -884,7 +883,6 @@ namespace StackExchange.Redis.Tests
                     new StreamIdPair("key1", "0-0"),
                     new StreamIdPair("key2", "0-0")
                 };
-
 
                 var db = conn.GetDatabase();
                 Assert.Throws<ArgumentOutOfRangeException>(() => db.StreamRead(streamPairs, 0));

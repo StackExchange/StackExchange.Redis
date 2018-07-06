@@ -9,41 +9,44 @@ namespace StackExchange.Redis.Tests.Booksleeve.Issues
 {
     public class Massive_Delete : BookSleeveTestBase
     {
-        public Massive_Delete(ITestOutputHelper output) : base(output)
+        public Massive_Delete(ITestOutputHelper output) : base(output) { }
+
+        private void Prep(int db, string key)
         {
+            var prefix = Me();
             using (var muxer = GetUnsecuredConnection(allowAdmin: true))
             {
                 GetServer(muxer).FlushDatabase(db);
                 Task last = null;
                 var conn = muxer.GetDatabase(db);
-                for (int i = 0; i < 100000; i++)
+                for (int i = 0; i < 10000; i++)
                 {
-                    string key = "key" + i;
-                    conn.StringSetAsync(key, key);
-                    last = conn.SetAddAsync(todoKey, key);
+                    string iKey = prefix + i;
+                    conn.StringSetAsync(iKey, iKey);
+                    last = conn.SetAddAsync(key, iKey);
                 }
                 conn.Wait(last);
             }
         }
 
-        private const int db = 4;
-        private const string todoKey = "todo";
-
-        [Fact]
+        [FactLongRunning]
         public async Task ExecuteMassiveDelete()
         {
+            const int db = 4;
+            var key = Me();
+            Prep(db, key);
             var watch = Stopwatch.StartNew();
             using (var muxer = GetUnsecuredConnection())
             using (var throttle = new SemaphoreSlim(1))
             {
                 var conn = muxer.GetDatabase(db);
-                var originally = await conn.SetLengthAsync(todoKey);
+                var originally = await conn.SetLengthAsync(key).ForAwait();
                 int keepChecking = 1;
                 Task last = null;
                 while (Volatile.Read(ref keepChecking) == 1)
                 {
                     throttle.Wait(); // acquire
-                    var x = conn.SetPopAsync(todoKey).ContinueWith(task =>
+                    var x = conn.SetPopAsync(key).ContinueWith(task =>
                     {
                         throttle.Release();
                         if (task.IsCompleted)
@@ -65,7 +68,7 @@ namespace StackExchange.Redis.Tests.Booksleeve.Issues
                     await last;
                 }
                 watch.Stop();
-                long remaining = await conn.SetLengthAsync(todoKey);
+                long remaining = await conn.SetLengthAsync(key).ForAwait();
                 Output.WriteLine("From {0} to {1}; {2}ms", originally, remaining,
                     watch.ElapsedMilliseconds);
 

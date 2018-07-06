@@ -66,7 +66,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task SentinelGetMasterAddressByNameAsyncNegativeTest()
         {
-            var endpoint = await Server.SentinelGetMasterAddressByNameAsync("FakeServiceName");
+            var endpoint = await Server.SentinelGetMasterAddressByNameAsync("FakeServiceName").ForAwait();
             Assert.Null(endpoint);
         }
 

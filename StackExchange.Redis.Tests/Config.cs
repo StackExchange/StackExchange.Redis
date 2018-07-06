@@ -1,15 +1,12 @@
 ﻿using System;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    [Collection(NonParallelCollection.Name)]
     public class Config : TestBase
     {
         public Config(ITestOutputHelper output) : base (output) { }
@@ -137,30 +134,6 @@ namespace StackExchange.Redis.Tests
                 Assert.True(pairs.ContainsKey("port"), "port");
                 val = int.Parse(pairs["port"]);
                 Assert.Equal(TestConfig.Current.MasterPort, val);
-            }
-        }
-
-        [Fact]
-        public async System.Threading.Tasks.Task TestConfigureAsync()
-        {
-            using (var muxer = Create())
-            {
-                Thread.Sleep(1000);
-                Debug.WriteLine("About to reconfigure.....");
-                await muxer.ConfigureAsync().ForAwait();
-                Debug.WriteLine("Reconfigured");
-            }
-        }
-
-        [Fact]
-        public void TestConfigureSync()
-        {
-            using (var muxer = Create())
-            {
-                Thread.Sleep(1000);
-                Debug.WriteLine("About to reconfigure.....");
-                muxer.Configure();
-                Debug.WriteLine("Reconfigured");
             }
         }
 

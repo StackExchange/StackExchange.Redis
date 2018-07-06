@@ -26,5 +26,6 @@ namespace StackExchange.Redis
 
         public static ConfiguredTaskAwaitable ForAwait(this Task task) => task.ConfigureAwait(false);
         public static ConfiguredTaskAwaitable<T> ForAwait<T>(this Task<T> task) => task.ConfigureAwait(false);
+        public static ConfiguredValueTaskAwaitable<T> ForAwait<T>(this ValueTask<T> task) => task.ConfigureAwait(false);
     }
 }
