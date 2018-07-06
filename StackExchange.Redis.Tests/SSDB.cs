@@ -20,7 +20,7 @@ namespace StackExchange.Redis.Tests
             RedisKey key = Me();
             using (var conn = ConnectionMultiplexer.Connect(config))
             {
-                var db = conn.GetDatabase(0);
+                var db = conn.GetDatabase();
                 db.KeyDelete(key);
                 Assert.True(db.StringGet(key).IsNull);
                 db.StringSet(key, "abc");

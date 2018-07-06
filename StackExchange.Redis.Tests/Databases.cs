@@ -11,24 +11,26 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task CountKeys()
         {
+            var db1Id = TestConfig.GetDedicatedDB();
+            var db2Id = TestConfig.GetDedicatedDB();
             using (var muxer = Create(allowAdmin: true))
             {
                 var server = GetAnyMaster(muxer);
-                server.FlushDatabase(61, CommandFlags.FireAndForget);
-                server.FlushDatabase(62, CommandFlags.FireAndForget);
+                server.FlushDatabase(db1Id, CommandFlags.FireAndForget);
+                server.FlushDatabase(db2Id, CommandFlags.FireAndForget);
             }
             using (var muxer = Create())
             {
                 RedisKey key = Me();
-                var db61 = muxer.GetDatabase(61);
-                var db62 = muxer.GetDatabase(62);
+                var db61 = muxer.GetDatabase(db1Id);
+                var db62 = muxer.GetDatabase(db2Id);
                 db61.StringSet("abc", "def", flags: CommandFlags.FireAndForget);
                 db61.StringIncrement(key, flags: CommandFlags.FireAndForget);
                 db62.StringIncrement(key, flags: CommandFlags.FireAndForget);
 
                 var server = GetAnyMaster(muxer);
-                var c0 = server.DatabaseSizeAsync(61);
-                var c1 = server.DatabaseSizeAsync(62);
+                var c0 = server.DatabaseSizeAsync(db1Id);
+                var c1 = server.DatabaseSizeAsync(db2Id);
 
                 Assert.Equal(2, await c0);
                 Assert.Equal(1, await c1);
@@ -41,9 +43,9 @@ namespace StackExchange.Redis.Tests
             using (var muxer = Create())
             {
                 RedisKey key = Me();
-                var db0 = muxer.GetDatabase(0);
-                var db1 = muxer.GetDatabase(1);
-                var db2 = muxer.GetDatabase(2);
+                var db0 = muxer.GetDatabase(TestConfig.GetDedicatedDB());
+                var db1 = muxer.GetDatabase(TestConfig.GetDedicatedDB());
+                var db2 = muxer.GetDatabase(TestConfig.GetDedicatedDB());
                 db0.Ping();
 
                 db0.KeyDelete(key, CommandFlags.FireAndForget);

@@ -14,7 +14,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         {
             using (var muxer = GetUnsecuredConnection(waitForOpen: true))
             {
-                var conn = muxer.GetDatabase(2);
+                var conn = muxer.GetDatabase();
                 var server = GetServer(muxer);
                 var key = Me();
                 conn.KeyDelete(key);
@@ -49,7 +49,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         {
             using (var muxer = GetUnsecuredConnection())
             {
-                var conn = muxer.GetDatabase(2);
+                var conn = muxer.GetDatabase();
                 var key = Me();
                 conn.KeyDeleteAsync(key);
 
@@ -69,7 +69,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         {
             using (var muxer = GetUnsecuredConnection())
             {
-                var conn = muxer.GetDatabase(2);
+                var conn = muxer.GetDatabase();
                 var prefix = Me();
                 conn.KeyDeleteAsync(prefix + "1");
                 conn.KeyDeleteAsync(prefix + "2");
@@ -101,7 +101,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
             using (var muxer = GetUnsecuredConnection(waitForOpen: true))
             {
                 Skip.IfMissingFeature(muxer, nameof(RedisFeatures.StringSetRange), r => r.StringSetRange);
-                var conn = muxer.GetDatabase(2);
+                var conn = muxer.GetDatabase();
                 var key = Me();
 
                 conn.KeyDeleteAsync(key);
@@ -121,7 +121,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         {
             using (var muxer = GetUnsecuredConnection())
             {
-                var conn = muxer.GetDatabase(2);
+                var conn = muxer.GetDatabase();
                 var key = Me();
                 conn.KeyDeleteAsync(key);
 
@@ -150,7 +150,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
             using (var muxer = GetUnsecuredConnection(waitForOpen: true))
             {
                 Skip.IfMissingFeature(muxer, nameof(RedisFeatures.IncrementFloat), r => r.IncrementFloat);
-                var conn = muxer.GetDatabase(2);
+                var conn = muxer.GetDatabase();
                 var key = Me();
                 conn.KeyDelete(key);
 
@@ -179,7 +179,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         {
             using (var muxer = GetUnsecuredConnection(waitForOpen: true))
             {
-                var conn = muxer.GetDatabase(2);
+                var conn = muxer.GetDatabase();
                 var key = Me();
                 conn.KeyDeleteAsync(key);
 
@@ -199,7 +199,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
             {
                 Skip.IfMissingFeature(muxer, nameof(RedisFeatures.BitwiseOperations), r => r.BitwiseOperations);
 
-                var conn = muxer.GetDatabase(0);
+                var conn = muxer.GetDatabase();
                 var key = Me();
                 conn.StringSetAsync(key, "foobar");
                 var r1 = conn.StringBitCountAsync(key);
@@ -218,7 +218,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
             using (var muxer = GetUnsecuredConnection(waitForOpen: true))
             {
                 Skip.IfMissingFeature(muxer, nameof(RedisFeatures.BitwiseOperations), r => r.BitwiseOperations);
-                var conn = muxer.GetDatabase(0);
+                var conn = muxer.GetDatabase();
                 var prefix = Me();
                 var key1 = prefix + "1";
                 var key2 = prefix + "2";
@@ -254,7 +254,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         {
             using (var muxer = GetUnsecuredConnection())
             {
-                var conn = muxer.GetDatabase(0);
+                var conn = muxer.GetDatabase();
                 var key = Me();
                 conn.StringSetAsync(key, "hello world");
                 var result = conn.StringGetRangeAsync(key, 2, 6);

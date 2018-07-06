@@ -13,7 +13,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                var db = conn.GetDatabase(3);
+                var db = conn.GetDatabase();
 
                 RedisKey key = Me();
                 db.KeyDelete(key);
@@ -45,7 +45,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                var db = conn.GetDatabase(3);
+                var db = conn.GetDatabase();
 
                 RedisKey key = Me();
                 db.KeyDelete(key);
@@ -77,7 +77,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                var db = conn.GetDatabase(3);
+                var db = conn.GetDatabase();
 
                 RedisKey key = Me();
                 db.KeyDelete(key);
@@ -98,7 +98,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                var db = conn.GetDatabase(3);
+                var db = conn.GetDatabase();
 
                 RedisKey key = Me();
                 db.KeyDelete(key);

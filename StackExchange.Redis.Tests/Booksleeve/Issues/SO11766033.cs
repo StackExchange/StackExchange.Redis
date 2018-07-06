@@ -10,10 +10,9 @@ namespace StackExchange.Redis.Tests.Booksleeve.Issues
         [Fact]
         public void TestNullString()
         {
-            const int db = 3;
             using (var muxer = GetUnsecuredConnection(true))
             {
-                var redis = muxer.GetDatabase(db);
+                var redis = muxer.GetDatabase();
                 const string expectedTestValue = null;
                 var uid = Me();
                 redis.StringSetAsync(uid, "abc");
@@ -26,10 +25,9 @@ namespace StackExchange.Redis.Tests.Booksleeve.Issues
         [Fact]
         public void TestEmptyString()
         {
-            const int db = 3;
             using (var muxer = GetUnsecuredConnection(true))
             {
-                var redis = muxer.GetDatabase(db);
+                var redis = muxer.GetDatabase();
                 const string expectedTestValue = "";
                 var uid = Me();
 

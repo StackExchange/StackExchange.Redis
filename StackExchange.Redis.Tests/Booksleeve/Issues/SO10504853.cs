@@ -15,7 +15,7 @@ namespace StackExchange.Redis.Tests.Booksleeve.Issues
             Trace.WriteLine("### init");
             using (var muxer = GetUnsecuredConnection())
             {
-                var conn = muxer.GetDatabase(0);
+                var conn = muxer.GetDatabase();
                 conn.KeyDelete("lots-trivial");
             }
             const int COUNT = 2;
@@ -24,14 +24,14 @@ namespace StackExchange.Redis.Tests.Booksleeve.Issues
                 Trace.WriteLine("### incr:" + i);
                 using (var muxer = GetUnsecuredConnection())
                 {
-                    var conn = muxer.GetDatabase(0);
+                    var conn = muxer.GetDatabase();
                     Assert.Equal(i + 1, conn.StringIncrement("lots-trivial"));
                 }
             }
             Trace.WriteLine("### close");
             using (var muxer = GetUnsecuredConnection())
             {
-                var conn = muxer.GetDatabase(0);
+                var conn = muxer.GetDatabase();
                 Assert.Equal(COUNT, (long)conn.StringGet("lots-trivial"));
             }
         }
@@ -41,7 +41,7 @@ namespace StackExchange.Redis.Tests.Booksleeve.Issues
         {
             using (var muxer = GetUnsecuredConnection())
             {
-                var conn = muxer.GetDatabase(0);
+                var conn = muxer.GetDatabase();
                 var task = new { priority = 3 };
                 conn.KeyDeleteAsync("item:1");
                 conn.HashSetAsync("item:1", "something else", "abc");
@@ -51,7 +51,7 @@ namespace StackExchange.Redis.Tests.Booksleeve.Issues
 
                 conn.Wait(taskResult);
 
-                var priority = Int32.Parse(taskResult.Result);
+                var priority = int.Parse(taskResult.Result);
 
                 Assert.Equal(3, priority);
             }
@@ -64,7 +64,7 @@ namespace StackExchange.Redis.Tests.Booksleeve.Issues
             {
                 using (var muxer = GetUnsecuredConnection())
                 {
-                    var conn = muxer.GetDatabase(0);
+                    var conn = muxer.GetDatabase();
                     var task = new { priority = 3 };
                     conn.KeyDeleteAsync("item:1");
                     conn.StringSetAsync("item:1", "not a hash");

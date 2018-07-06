@@ -14,12 +14,13 @@ namespace StackExchange.Redis.Tests.Booksleeve
         public void VerifyPerformanceImprovement()
         {
             int asyncTimer, sync, op = 0, asyncFaF, syncFaF;
+            var key = Me();
             using (var muxer = GetUnsecuredConnection())
             {
                 // do these outside the timings, just to ensure the core methods are JITted etc
                 for (int db = 0; db < 5; db++)
                 {
-                    muxer.GetDatabase(db).KeyDeleteAsync("perftest");
+                    muxer.GetDatabase(db).KeyDeleteAsync(key);
                 }
 
                 var timer = Stopwatch.StartNew();
@@ -31,13 +32,13 @@ namespace StackExchange.Redis.Tests.Booksleeve
                     {
                         var conn = muxer.GetDatabase(db);
                         for (int j = 0; j < 10; j++)
-                            conn.StringIncrementAsync("perftest");
+                            conn.StringIncrementAsync(key);
                     }
                 }
                 asyncFaF = (int)timer.ElapsedMilliseconds;
                 var final = new Task<RedisValue>[5];
                 for (int db = 0; db < 5; db++)
-                    final[db] = muxer.GetDatabase(db).StringGetAsync("perftest");
+                    final[db] = muxer.GetDatabase(db).StringGetAsync(key);
                 muxer.WaitAll(final);
                 timer.Stop();
                 asyncTimer = (int)timer.ElapsedMilliseconds;
@@ -54,7 +55,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
                 for (int db = 0; db < 5; db++)
                 {
                     conn.Db = db;
-                    conn.Remove("perftest");
+                    conn.Remove(key);
                 }
 
                 var timer = Stopwatch.StartNew();
@@ -68,7 +69,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
                         op++;
                         for (int j = 0; j < 10; j++)
                         {
-                            conn.Increment("perftest");
+                            conn.Increment(key);
                             op++;
                         }
                     }
@@ -78,7 +79,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
                 for (int db = 0; db < 5; db++)
                 {
                     conn.Db = db;
-                    final[db] = Encoding.ASCII.GetString(conn.Get("perftest"));
+                    final[db] = Encoding.ASCII.GetString(conn.Get(key));
                 }
                 timer.Stop();
                 sync = (int)timer.ElapsedMilliseconds;

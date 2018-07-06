@@ -23,7 +23,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
             using (var muxer = GetUnsecuredConnection(syncTimeout: 120000)) // big timeout while debugging
             {
                 var key = Me();
-                var conn = muxer.GetDatabase(0);
+                var conn = muxer.GetDatabase();
                 for (int i = 0; i < 200; i++)
                 {
                     conn.KeyDelete(key);

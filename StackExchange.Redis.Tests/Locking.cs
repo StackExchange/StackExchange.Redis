@@ -104,10 +104,10 @@ namespace StackExchange.Redis.Tests
 
         private void TestLockOpCountByVersion(ConnectionMultiplexer conn, int expectedOps, bool existFirst)
         {
-            const int DB = 0, LockDuration = 30;
+            const int LockDuration = 30;
             RedisKey Key = Me();
 
-            var db = conn.GetDatabase(DB);
+            var db = conn.GetDatabase();
             db.KeyDelete(Key);
             RedisValue newVal = "us:" + Guid.NewGuid().ToString();
             RedisValue expectedVal = newVal;
@@ -237,7 +237,7 @@ namespace StackExchange.Redis.Tests
                 Task<TimeSpan?> ttl = null;
 
                 const int LOOP = 50;
-                var db = conn.GetDatabase(0);
+                var db = conn.GetDatabase();
                 var key = Me();
                 for (int i = 0; i < LOOP; i++)
                 {
@@ -260,7 +260,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create(testMode))
             {
-                var db = conn.GetDatabase(0);
+                var db = conn.GetDatabase();
                 var key = Me();
                 db.KeyDelete(key);
                 db.StringSet(key, "old-value", TimeSpan.FromSeconds(20));

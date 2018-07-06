@@ -15,7 +15,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         {
             using (var muxer = GetUnsecuredConnection())
             {
-                var conn = muxer.GetDatabase(0);
+                var conn = muxer.GetDatabase();
                 conn.KeyDeleteAsync("batch");
                 conn.StringSetAsync("batch", "batch-not-sent");
                 var tasks = new List<Task>();
@@ -35,7 +35,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         {
             using (var muxer = GetUnsecuredConnection())
             {
-                var conn = muxer.GetDatabase(0);
+                var conn = muxer.GetDatabase();
                 conn.KeyDeleteAsync("batch");
                 conn.StringSetAsync("batch", "batch-sent");
                 var tasks = new List<Task>();

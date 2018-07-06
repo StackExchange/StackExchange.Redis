@@ -2,7 +2,6 @@
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
-using Xunit;
 using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests.Booksleeve.Issues
@@ -32,14 +31,14 @@ namespace StackExchange.Redis.Tests.Booksleeve.Issues
         [FactLongRunning]
         public async Task ExecuteMassiveDelete()
         {
-            const int db = 4;
+            var dbId = TestConfig.GetDedicatedDB();
             var key = Me();
-            Prep(db, key);
+            Prep(dbId, key);
             var watch = Stopwatch.StartNew();
             using (var muxer = GetUnsecuredConnection())
             using (var throttle = new SemaphoreSlim(1))
             {
-                var conn = muxer.GetDatabase(db);
+                var conn = muxer.GetDatabase(dbId);
                 var originally = await conn.SetLengthAsync(key).ForAwait();
                 int keepChecking = 1;
                 Task last = null;

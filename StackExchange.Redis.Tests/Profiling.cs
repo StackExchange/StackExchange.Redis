@@ -29,11 +29,11 @@ namespace StackExchange.Redis.Tests
 
                 conn.RegisterProfiler(profiler);
                 conn.BeginProfiling(profiler.MyContext);
-                var db = conn.GetDatabase(4);
+                var db = conn.GetDatabase();
                 db.StringSet(key, "world");
                 var val = db.StringGet(key);
                 Assert.Equal("world", (string)val);
-                var result=db.ScriptEvaluate(LuaScript.Prepare("return redis.call('get', @key)"), new { key = (RedisKey)key });
+                var result = db.ScriptEvaluate(LuaScript.Prepare("return redis.call('get', @key)"), new { key = (RedisKey)key });
                 Assert.Equal("world", result.AsString());
 
                 var cmds = conn.FinishProfiling(profiler.MyContext);

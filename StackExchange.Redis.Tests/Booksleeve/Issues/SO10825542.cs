@@ -14,9 +14,9 @@ namespace StackExchange.Redis.Tests.Booksleeve.Issues
         {
             using (var muxer = GetUnsecuredConnection())
             {
-                const string key = "somekey1";
+                var key = Me();
 
-                var con = muxer.GetDatabase(1);
+                var con = muxer.GetDatabase();
                 // set the field value and expiration
                 con.HashSetAsync(key, "field1", Encoding.UTF8.GetBytes("hello world"));
                 con.KeyExpireAsync(key, TimeSpan.FromSeconds(7200));

@@ -1,7 +1,7 @@
 ﻿using System.IO;
 using System;
-using System.Collections.Generic;
 using Newtonsoft.Json;
+using System.Threading;
 
 namespace StackExchange.Redis.Tests
 {
@@ -10,6 +10,9 @@ namespace StackExchange.Redis.Tests
         private const string FileName = "TestConfig.json";
 
         public static Config Current { get; }
+
+        private static int _db = 17;
+        public static int GetDedicatedDB() => Interlocked.Increment(ref _db);
 
         static TestConfig()
         {

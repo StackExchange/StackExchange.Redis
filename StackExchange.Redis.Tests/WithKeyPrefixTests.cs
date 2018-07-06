@@ -14,7 +14,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                var raw = conn.GetDatabase(1);
+                var raw = conn.GetDatabase();
                 var prefixed = raw.WithKeyPrefix(new byte[0]);
                 Assert.Same(raw, prefixed);
             }
@@ -25,7 +25,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                var raw = conn.GetDatabase(1);
+                var raw = conn.GetDatabase();
                 var prefixed = raw.WithKeyPrefix("");
                 Assert.Same(raw, prefixed);
             }
@@ -37,7 +37,7 @@ namespace StackExchange.Redis.Tests
             Assert.Throws<ArgumentNullException>(() => {
                 using (var conn = Create())
                 {
-                    var raw = conn.GetDatabase(1);
+                    var raw = conn.GetDatabase();
                     var prefixed = raw.WithKeyPrefix((byte[])null);
                 }
             });
@@ -49,7 +49,7 @@ namespace StackExchange.Redis.Tests
             Assert.Throws<ArgumentNullException>(() => {
                 using (var conn = Create())
                 {
-                    var raw = conn.GetDatabase(1);
+                    var raw = conn.GetDatabase();
                     var prefixed = raw.WithKeyPrefix((string)null);
                 }
             });
@@ -72,7 +72,7 @@ namespace StackExchange.Redis.Tests
         {
             using(var conn = Create())
             {
-                var raw = conn.GetDatabase(1);
+                var raw = conn.GetDatabase();
 
                 var prefix = Me();
                 var foo = raw.WithKeyPrefix(prefix);
@@ -106,31 +106,32 @@ namespace StackExchange.Redis.Tests
         {
             using(var conn = Create())
             {
-                var raw = conn.GetDatabase(2);
+                var raw = conn.GetDatabase();
 
-                var foo = raw.WithKeyPrefix("tran:");
+                var prefix = Me() + ":";
+                var foo = raw.WithKeyPrefix(prefix);
 
-                raw.KeyDelete("tran:abc");
-                raw.KeyDelete("tran:i");
+                raw.KeyDelete(prefix + "abc");
+                raw.KeyDelete(prefix + "i");
 
                 // execute while key exists
-                raw.StringSet("tran:abc", "def");
+                raw.StringSet(prefix + "abc", "def");
                 var tran = foo.CreateTransaction();
                 tran.AddCondition(Condition.KeyExists("abc"));
                 tran.StringIncrementAsync("i");
                 tran.Execute();
 
-                int i = (int)raw.StringGet("tran:i");
+                int i = (int)raw.StringGet(prefix + "i");
                 Assert.Equal(1, i);
 
                 // repeat without key
-                raw.KeyDelete("tran:abc");
+                raw.KeyDelete(prefix + "abc");
                 tran = foo.CreateTransaction();
                 tran.AddCondition(Condition.KeyExists("abc"));
                 tran.StringIncrementAsync("i");
                 tran.Execute();
 
-                i = (int)raw.StringGet("tran:i");
+                i = (int)raw.StringGet(prefix + "i");
                 Assert.Equal(1, i);
             }
         }

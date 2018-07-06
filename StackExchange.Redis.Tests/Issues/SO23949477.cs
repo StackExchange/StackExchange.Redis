@@ -12,7 +12,7 @@ namespace StackExchange.Redis.Tests.Issues
         {
             using (var conn = Create())
             {
-                var db = conn.GetDatabase(0);
+                var db = conn.GetDatabase();
                 RedisKey key = Me();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
                 db.SortedSetAdd(key, "c", 3, When.Always, CommandFlags.FireAndForget);

@@ -18,23 +18,23 @@ namespace StackExchange.Redis.Tests
             string[] disabledCommands = supported ? null : new[] { "scan" };
             using (var conn = Create(disabledCommands: disabledCommands, allowAdmin: true))
             {
-                const int DB = 7;
-                var db = conn.GetDatabase(DB);
+                var dbId = TestConfig.GetDedicatedDB();
+                var db = conn.GetDatabase(dbId);
                 var prefix = Me() + ":";
                 var server = GetServer(conn);
-                server.FlushDatabase(DB);
+                server.FlushDatabase(dbId);
                 for (int i = 0; i < 100; i++)
                 {
                     db.StringSet(prefix + i, Guid.NewGuid().ToString(), flags: CommandFlags.FireAndForget);
                 }
-                var seq = server.Keys(DB, pageSize: 50);
+                var seq = server.Keys(dbId, pageSize: 50);
                 bool isScanning = seq is IScanningCursor;
                 Assert.Equal(supported, isScanning);
                 Assert.Equal(100, seq.Distinct().Count());
                 Assert.Equal(100, seq.Distinct().Count());
-                Assert.Equal(100, server.Keys(DB, prefix + "*").Distinct().Count());
+                Assert.Equal(100, server.Keys(dbId, prefix + "*").Distinct().Count());
                 // 7, 70, 71, ..., 79
-                Assert.Equal(11, server.Keys(DB, prefix + "7*").Distinct().Count());
+                Assert.Equal(11, server.Keys(dbId, prefix + "7*").Distinct().Count());
             }
         }
 
@@ -44,15 +44,15 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create(allowAdmin: true))
             {
                 var prefix = Me() + Guid.NewGuid();
-                const int DB = 7;
-                var db = conn.GetDatabase(DB);
+                var dbId = TestConfig.GetDedicatedDB();
+                var db = conn.GetDatabase(dbId);
                 var server = GetServer(conn);
-                server.FlushDatabase(DB);
+                server.FlushDatabase(dbId);
                 for (int i = 0; i < 100; i++)
                 {
                     db.StringSet(prefix + i, Guid.NewGuid().ToString(), flags: CommandFlags.FireAndForget);
                 }
-                var seq = server.Keys(DB, prefix + "*", pageSize: 15);
+                var seq = server.Keys(dbId, prefix + "*", pageSize: 15);
                 using (var iter = seq.GetEnumerator())
                 {
                     IScanningCursor s0 = (IScanningCursor)seq, s1 = (IScanningCursor)iter;
@@ -91,14 +91,13 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create(allowAdmin: true))
             {
-                const int DB = 7;
-
                 // only goes up to 3.*, so...
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scan), x => x.Scan);
-                var db = conn.GetDatabase(DB);
+                var dbId = TestConfig.GetDedicatedDB();
+                var db = conn.GetDatabase(dbId);
                 var prefix = Me();
                 var server = GetServer(conn);
-                server.FlushDatabase(DB);
+                server.FlushDatabase(dbId);
                 int i;
                 for (i = 0; i < 100; i++)
                 {
@@ -110,7 +109,7 @@ namespace StackExchange.Redis.Tests
                 int snapOffset = 0, snapPageSize = 0;
 
                 i = 0;
-                var seq = server.Keys(DB, prefix + ":*", pageSize: 15);
+                var seq = server.Keys(dbId, prefix + ":*", pageSize: 15);
                 foreach (var key in seq)
                 {
                     if (i == 57)
@@ -137,7 +136,7 @@ namespace StackExchange.Redis.Tests
                 // make the following assertion:
                 // Assert.Equal(12, snapOffset);
 
-                seq = server.Keys(DB, prefix + ":*", pageSize: 15, cursor: snapCursor, pageOffset: snapOffset);
+                seq = server.Keys(dbId, prefix + ":*", pageSize: 15, cursor: snapCursor, pageOffset: snapOffset);
                 var seqCur = (IScanningCursor)seq;
                 Assert.Equal(snapCursor, seqCur.Cursor);
                 Assert.Equal(snapPageSize, seqCur.PageSize);

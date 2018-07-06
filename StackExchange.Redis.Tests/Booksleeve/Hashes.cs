@@ -18,7 +18,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         {
             using (var muxer = GetUnsecuredConnection())
             {
-                var conn = muxer.GetDatabase(5);
+                var conn = muxer.GetDatabase();
                 var key = Me();
                 await conn.KeyDeleteAsync(key).ForAwait();
                 for (int i = 1; i < 1000; i++)
@@ -37,9 +37,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
             using (var muxer = GetUnsecuredConnection(waitForOpen: true))
             {
                 Skip.IfMissingFeature(muxer, nameof(RedisFeatures.Scan), r => r.Scan);
-
-                const int db = 3;
-                var conn = muxer.GetDatabase(db);
+                var conn = muxer.GetDatabase();
 
                 var key = Me();
                 conn.KeyDeleteAsync(key);
@@ -78,7 +76,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         {
             using (var muxer = GetUnsecuredConnection())
             {
-                var conn = muxer.GetDatabase(0);
+                var conn = muxer.GetDatabase();
                 conn.KeyDeleteAsync("keynotexist");
                 var result1 = conn.Wait(conn.HashIncrementAsync("keynotexist", "fieldnotexist", 1));
                 var result2 = conn.Wait(conn.HashIncrementAsync("keynotexist", "anotherfieldnotexist", 1));
@@ -93,12 +91,13 @@ namespace StackExchange.Redis.Tests.Booksleeve
             using (var muxer = GetUnsecuredConnection(waitForOpen: true))
             {
                 Skip.IfMissingFeature(muxer, nameof(RedisFeatures.IncrementFloat), r => r.IncrementFloat);
-                var conn = muxer.GetDatabase(5);
-                await conn.KeyDeleteAsync("hash-test").ForAwait();
+                var conn = muxer.GetDatabase();
+                var key = Me();
+                await conn.KeyDeleteAsync(key).ForAwait();
                 for (int i = 1; i < 1000; i++)
                 {
-                    Assert.Equal(i, await conn.HashIncrementAsync("hash-test", "a", 1.0).ForAwait());
-                    Assert.Equal(-i, await conn.HashIncrementAsync("hash-test", "b", -1.0).ForAwait());
+                    Assert.Equal(i, await conn.HashIncrementAsync(key, "a", 1.0).ForAwait());
+                    Assert.Equal(-i, await conn.HashIncrementAsync(key, "b", -1.0).ForAwait());
                 }
             }
         }
@@ -108,8 +107,8 @@ namespace StackExchange.Redis.Tests.Booksleeve
         {
             using (var muxer = GetUnsecuredConnection())
             {
-                var conn = muxer.GetDatabase(6);
-                const string key = "hash test";
+                var conn = muxer.GetDatabase();
+                var key = Me();
                 await conn.KeyDeleteAsync(key).ForAwait();
                 var shouldMatch = new Dictionary<Guid, int>();
                 var random = new Random();
@@ -140,8 +139,8 @@ namespace StackExchange.Redis.Tests.Booksleeve
         {
             using (var muxer = GetUnsecuredConnection())
             {
-                const string key = "hash test";
-                var conn = muxer.GetDatabase(6);
+                var key = Me();
+                var conn = muxer.GetDatabase();
                 var shouldMatch = new Dictionary<Guid, int>();
                 var random = new Random();
 
@@ -170,7 +169,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         {
             using (var muxer = GetUnsecuredConnection())
             {
-                var conn = muxer.GetDatabase(9);
+                var conn = muxer.GetDatabase();
                 var hashkey = Me();
                 await conn.KeyDeleteAsync(hashkey).ForAwait();
 
@@ -209,7 +208,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         {
             using (var muxer = GetUnsecuredConnection())
             {
-                var conn = muxer.GetDatabase(9);
+                var conn = muxer.GetDatabase();
                 var hashkey = Me();
                 await conn.KeyDeleteAsync(hashkey).ForAwait();
 
@@ -240,7 +239,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         {
             using (var muxer = GetUnsecuredConnection())
             {
-                var conn = muxer.GetDatabase(9);
+                var conn = muxer.GetDatabase();
                 var hashkey = Me();
                 await conn.KeyDeleteAsync(hashkey).ForAwait();
                 var del0 = conn.HashDeleteAsync(hashkey, "field").ForAwait();
@@ -261,7 +260,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         {
             using (var muxer = GetUnsecuredConnection())
             {
-                var conn = muxer.GetDatabase(3);
+                var conn = muxer.GetDatabase();
                 var hashkey = Me();
                 conn.HashSetAsync(hashkey, "key1", "val1");
                 conn.HashSetAsync(hashkey, "key2", "val2");
@@ -299,7 +298,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         {
             using (var outer = GetUnsecuredConnection())
             {
-                var conn = outer.GetDatabase(3).CreateTransaction();
+                var conn = outer.GetDatabase().CreateTransaction();
                 {
                     var hashkey = Me();
                     conn.HashSetAsync(hashkey, "key1", "val1");
@@ -336,7 +335,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         {
             using (var muxer = GetUnsecuredConnection())
             {
-                var conn = muxer.GetDatabase(9);
+                var conn = muxer.GetDatabase();
                 var hashkey = Me();
                 await conn.KeyDeleteAsync(hashkey).ForAwait();
                 var ex0 = conn.HashExistsAsync(hashkey, "field").ForAwait();
@@ -356,7 +355,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         {
             using (var muxer = GetUnsecuredConnection())
             {
-                var conn = muxer.GetDatabase(9);
+                var conn = muxer.GetDatabase();
                 var hashKey = Me();
                 await conn.KeyDeleteAsync(hashKey).ForAwait();
 
@@ -381,7 +380,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         {
             using (var muxer = GetUnsecuredConnection())
             {
-                var conn = muxer.GetDatabase(9);
+                var conn = muxer.GetDatabase();
                 var hashkey = Me();
                 await conn.KeyDeleteAsync(hashkey).ForAwait();
 
@@ -406,7 +405,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         {
             using (var muxer = GetUnsecuredConnection())
             {
-                var conn = muxer.GetDatabase(9);
+                var conn = muxer.GetDatabase();
                 var hashkey = Me();
                 await conn.KeyDeleteAsync(hashkey).ForAwait();
 
@@ -427,7 +426,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         {
             using (var muxer = GetUnsecuredConnection())
             {
-                var conn = muxer.GetDatabase(9);
+                var conn = muxer.GetDatabase();
                 var hashkey = Me();
                 await conn.KeyDeleteAsync(hashkey).ForAwait();
 
@@ -462,7 +461,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         {
             using (var muxer = GetUnsecuredConnection())
             {
-                var conn = muxer.GetDatabase(9);
+                var conn = muxer.GetDatabase();
                 var hashkey = Me();
                 await conn.KeyDeleteAsync(hashkey).ForAwait();
 
@@ -486,7 +485,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         {
             using (var muxer = GetUnsecuredConnection())
             {
-                var conn = muxer.GetDatabase(9);
+                var conn = muxer.GetDatabase();
                 var hashkey = Me();
                 await conn.KeyDeleteAsync(hashkey).ForAwait();
 

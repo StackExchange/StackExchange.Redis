@@ -12,16 +12,15 @@ namespace StackExchange.Redis.Tests.Booksleeve.Issues
         {
             using (var muxer = GetUnsecuredConnection())
             {
-                const int DB = 5;
-                const string Key = "issue-10-list";
-                var conn = muxer.GetDatabase(DB);
-                conn.KeyDeleteAsync(Key); // contents: nil
-                conn.ListLeftPushAsync(Key, "abc"); // "abc"
-                conn.ListLeftPushAsync(Key, "def"); // "def", "abc"
-                conn.ListLeftPushAsync(Key, "ghi"); // "ghi", "def", "abc",
-                conn.ListSetByIndexAsync(Key, 1, "jkl"); // "ghi", "jkl", "abc"
+                var key = Me();
+                var conn = muxer.GetDatabase();
+                conn.KeyDeleteAsync(key); // contents: nil
+                conn.ListLeftPushAsync(key, "abc"); // "abc"
+                conn.ListLeftPushAsync(key, "def"); // "def", "abc"
+                conn.ListLeftPushAsync(key, "ghi"); // "ghi", "def", "abc",
+                conn.ListSetByIndexAsync(key, 1, "jkl"); // "ghi", "jkl", "abc"
 
-                var contents = conn.Wait(conn.ListRangeAsync(Key, 0, -1));
+                var contents = conn.Wait(conn.ListRangeAsync(key, 0, -1));
                 Assert.Equal(3, contents.Length);
                 Assert.Equal("ghi", contents[0]);
                 Assert.Equal("jkl", contents[1]);

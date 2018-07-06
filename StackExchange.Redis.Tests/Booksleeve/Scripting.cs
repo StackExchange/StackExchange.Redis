@@ -126,8 +126,7 @@ return timeTaken
         {
             using (var muxer = GetScriptConn())
             {
-                const int DB = 0; // any database number
-                var conn = muxer.GetDatabase(DB);
+                var conn = muxer.GetDatabase();
                 var prefix = Me();
                 // prime some initial values
                 conn.KeyDeleteAsync(new RedisKey[] { prefix + "a", prefix + "b", prefix + "c" });
@@ -159,8 +158,7 @@ return timeTaken
         {
             using (var muxer = GetScriptConn())
             {
-                const int DB = 0; // any database number
-                var conn = muxer.GetDatabase(DB);
+                var conn = muxer.GetDatabase();
                 var prefix = Me();
                 // prime some initial values
                 conn.KeyDeleteAsync(new RedisKey[] { prefix + "a", prefix + "b", prefix + "c" });
@@ -192,7 +190,7 @@ return timeTaken
         {
             using (var muxer = GetScriptConn())
             {
-                var conn = muxer.GetDatabase(0);
+                var conn = muxer.GetDatabase();
                 var key = Me();
                 conn.StringSet(key, "bar");
                 var result = (byte[])conn.ScriptEvaluate("return redis.call('get', KEYS[1])", new RedisKey[] { key });
@@ -205,7 +203,7 @@ return timeTaken
         { // we don't expect this to handle everything; we just expect it to be predictable
             using (var muxer = GetScriptConn(allowAdmin: true))
             {
-                var conn = muxer.GetDatabase(0);
+                var conn = muxer.GetDatabase();
                 var key = Me();
                 conn.StringSet(key, "bar");
                 var result = (string)conn.ScriptEvaluate("return redis.call('get', KEYS[1])", new RedisKey[] { key }, null);
@@ -263,7 +261,7 @@ return timeTaken
             using (var muxer = GetScriptConn())
             {
                 const string evil = "return '僕'";
-                var conn = muxer.GetDatabase(0);
+                var conn = muxer.GetDatabase();
                 GetServer(muxer).ScriptLoad(evil);
 
                 var result = (string)conn.ScriptEvaluate(evil, null, null);
@@ -278,7 +276,7 @@ return timeTaken
             {
                 using (var muxer = GetScriptConn())
                 {
-                    var conn = muxer.GetDatabase(0);
+                    var conn = muxer.GetDatabase();
                     var result = conn.ScriptEvaluateAsync("return redis.error_reply('oops')", null, null);
                     try
                     {
@@ -297,9 +295,8 @@ return timeTaken
         {
             using (var muxer = GetScriptConn())
             {
-                const int db = 0;
-                const string key = "ScriptThrowsErrorInsideTransaction";
-                var conn = muxer.GetDatabase(db);
+                var key = Me();
+                var conn = muxer.GetDatabase();
                 conn.KeyDeleteAsync(key);
                 var beforeTran = (string)conn.StringGet(key);
                 Assert.Null(beforeTran);

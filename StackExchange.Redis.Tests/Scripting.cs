@@ -484,7 +484,7 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create(allowAdmin: true))
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
-                var db = conn.GetDatabase(0);
+                var db = conn.GetDatabase();
                 var wrappedDb = KeyspaceIsolation.DatabaseExtensions.WithKeyPrefix(db, "prefix-");
                 var key = Me();
                 db.KeyDelete(key);
@@ -510,7 +510,7 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create(allowAdmin: true))
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
-                var db = conn.GetDatabase(0);
+                var db = conn.GetDatabase();
                 var wrappedDb = KeyspaceIsolation.DatabaseExtensions.WithKeyPrefix(db, "prefix2-");
                 var key = Me();
                 db.KeyDelete(key);
