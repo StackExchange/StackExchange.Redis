@@ -208,6 +208,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.KeyExpireAsync(ToInner(key), expiry, flags);
         }
 
+        public Task<TimeSpan?> KeyIdleTimeAsync(RedisKey key,CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.KeyIdleTimeAsync(ToInner(key), flags);
+        }
+
         public Task KeyMigrateAsync(RedisKey key, EndPoint toServer, int toDatabase = 0, int timeoutMilliseconds = 0, MigrateOptions migrateOptions = MigrateOptions.None, CommandFlags flags = CommandFlags.None)
         {
             return Inner.KeyMigrateAsync(ToInner(key), toServer, toDatabase, timeoutMilliseconds, migrateOptions, flags);

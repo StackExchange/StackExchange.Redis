@@ -648,6 +648,17 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Boolean, server: server);
         }
 
+        public TimeSpan? KeyIdleTime(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.OBJECT, RedisLiterals.IDLETIME, key);
+            return ExecuteSync(msg, ResultProcessor.TimeSpanFromSeconds);
+        }
+        public Task<TimeSpan?> KeyIdleTimeAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.OBJECT, RedisLiterals.IDLETIME, key);
+            return ExecuteAsync(msg, ResultProcessor.TimeSpanFromSeconds);
+        }
+
         public void KeyMigrate(RedisKey key, EndPoint toServer, int toDatabase = 0, int timeoutMilliseconds = 0, MigrateOptions migrateOptions = MigrateOptions.None, CommandFlags flags = CommandFlags.None)
         {
             if (timeoutMilliseconds <= 0) timeoutMilliseconds = multiplexer.TimeoutMilliseconds;

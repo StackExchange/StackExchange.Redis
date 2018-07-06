@@ -226,6 +226,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.KeyExpire(ToInner(key), expiry, flags);
         }
 
+        public TimeSpan? KeyIdleTime(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.KeyIdleTime(ToInner(key), flags);
+        }
+
         public void KeyMigrate(RedisKey key, EndPoint toServer, int toDatabase = 0, int timeoutMilliseconds = 0, MigrateOptions migrateOptions = MigrateOptions.None, CommandFlags flags = CommandFlags.None)
         {
             Inner.KeyMigrate(ToInner(key), toServer, toDatabase, timeoutMilliseconds, migrateOptions, flags);

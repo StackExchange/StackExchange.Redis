@@ -499,6 +499,15 @@ namespace StackExchange.Redis
         bool KeyExpire(RedisKey key, DateTime? expiry, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Returns the time since the object stored at the specified key is idle (not requested by read or write operations)
+        /// </summary>
+        /// <param name="key">The key to get the type of.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The time since the object stored at the specified key is idle</returns>
+        /// <remarks>https://redis.io/commands/object</remarks>
+        TimeSpan? KeyIdleTime(RedisKey key, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Move key from the currently selected database (see SELECT) to the specified destination database. When key already exists in the destination database, or it does not exist in the source database, it does nothing. It is possible to use MOVE as a locking primitive because of this.
         /// </summary>
         /// <param name="key">The key to move.</param>

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Text;
 
 namespace StackExchange.Redis
@@ -25,6 +25,7 @@ namespace StackExchange.Redis
             GET = "GET",
             GETNAME = "GETNAME",
             ID = "ID",
+            IDLETIME = "IDLETIME",
             KILL = "KILL",
             LIMIT = "LIMIT",
             LIST = "LIST",
