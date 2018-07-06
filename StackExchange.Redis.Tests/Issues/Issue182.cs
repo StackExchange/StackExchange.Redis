@@ -27,13 +27,16 @@ namespace StackExchange.Redis.Tests.Issues
 
                 var key = Me();
                 const int count = (int)5e6;
+                var len = await db.SetLengthAsync(key);
 
-                conn.Wait(db.KeyDeleteAsync(key));
-                foreach (var _ in Enumerable.Range(0, count))
-                    db.SetAdd(key, Guid.NewGuid().ToByteArray(), CommandFlags.FireAndForget);
+                if (len != count)
+                {
+                    await db.KeyDeleteAsync(key);
+                    foreach (var _ in Enumerable.Range(0, count))
+                        db.SetAdd(key, Guid.NewGuid().ToByteArray(), CommandFlags.FireAndForget);
 
-                Assert.Equal(count, db.SetLengthAsync(key).Result); // SCARD for set
-
+                    Assert.Equal(count, await db.SetLengthAsync(key)); // SCARD for set
+                }
                 var result = await db.SetMembersAsync(key);
                 Assert.Equal(count, result.Length); // SMEMBERS result length
             }
@@ -50,19 +53,26 @@ namespace StackExchange.Redis.Tests.Issues
                 var key2 = Me() + ":2";
                 var dstkey = Me() + ":dst";
 
-                await db.KeyDeleteAsync(key1);
-                await db.KeyDeleteAsync(key2);
+                const int count = (int)5e6;
+
+                var len1 = await db.SetLengthAsync(key1);
+                var len2 = await db.SetLengthAsync(key2);
                 await db.KeyDeleteAsync(dstkey);
 
-                const int count = (int)5e6;
-                foreach (var _ in Enumerable.Range(0, count))
+                if (len1 != count || len2 != count)
                 {
-                    db.SetAdd(key1, Guid.NewGuid().ToByteArray(), CommandFlags.FireAndForget);
-                    db.SetAdd(key2, Guid.NewGuid().ToByteArray(), CommandFlags.FireAndForget);
-                }
-                Assert.Equal(count, db.SetLengthAsync(key1).Result); // SCARD for set 1
-                Assert.Equal(count, db.SetLengthAsync(key2).Result); // SCARD for set 2
+                    await db.KeyDeleteAsync(key1);
+                    await db.KeyDeleteAsync(key2);
+                    
 
+                    foreach (var _ in Enumerable.Range(0, count))
+                    {
+                        db.SetAdd(key1, Guid.NewGuid().ToByteArray(), CommandFlags.FireAndForget);
+                        db.SetAdd(key2, Guid.NewGuid().ToByteArray(), CommandFlags.FireAndForget);
+                    }
+                    Assert.Equal(count, await db.SetLengthAsync(key1)); // SCARD for set 1
+                    Assert.Equal(count, await db.SetLengthAsync(key2)); // SCARD for set 2
+                }
                 await db.SetCombineAndStoreAsync(SetOperation.Union, dstkey, key1, key2);
                 var dstLen = db.SetLength(dstkey);
                 Assert.Equal(count * 2, dstLen); // SCARD for destination set
