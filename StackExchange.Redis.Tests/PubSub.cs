@@ -42,13 +42,13 @@ namespace StackExchange.Redis.Tests
         }
 
         [Theory]
-        [InlineData(null, false)]
-        [InlineData("", false)]
-        [InlineData("Foo:", false)]
-        [InlineData(null, true)]
-        [InlineData("", true)]
-        [InlineData("Foo:", true)]
-        public void TestBasicPubSub(string channelPrefix, bool wildCard)
+        [InlineData(null, false, "a")]
+        [InlineData("", false, "b")]
+        [InlineData("Foo:", false, "c")]
+        [InlineData(null, true, "d")]
+        [InlineData("", true, "e")]
+        [InlineData("Foo:", true, "f")]
+        public void TestBasicPubSub(string channelPrefix, bool wildCard, string breaker)
         {
             using (var muxer = Create(channelPrefix: channelPrefix))
             {
@@ -57,8 +57,8 @@ namespace StackExchange.Redis.Tests
                 Ping(muxer, pub, sub);
                 HashSet<string> received = new HashSet<string>();
                 int secondHandler = 0;
-                string subChannel = wildCard ? "a*c" : "abc";
-                const string pubChannel = "abc";
+                string subChannel = (wildCard ? "a*c" : "abc") + breaker;
+                string pubChannel = "abc" + breaker;
                 Action<RedisChannel, RedisValue> handler1 = (channel, payload) =>
                 {
                     lock (received)

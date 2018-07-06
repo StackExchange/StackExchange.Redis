@@ -102,7 +102,7 @@ namespace StackExchange.Redis
         {
             lock (subscriptions)
             {
-                bool asAsync = ChannelMessageQueue.IsOneOf(handler);
+                bool asAsync = !ChannelMessageQueue.IsOneOf(handler);
                 if (subscriptions.TryGetValue(channel, out Subscription sub) && sub.Remove(asAsync, handler))
                 {
                     subscriptions.Remove(channel);

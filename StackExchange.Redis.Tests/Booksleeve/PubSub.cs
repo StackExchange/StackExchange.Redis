@@ -46,7 +46,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
 
         private void TestMassivePublish(ISubscriber conn, string channel, string caption)
         {
-            const int loop = 100000;
+            const int loop = 10000;
 
             GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced);
             GC.WaitForPendingFinalizers();

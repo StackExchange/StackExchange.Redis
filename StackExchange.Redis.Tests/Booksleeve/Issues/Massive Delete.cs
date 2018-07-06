@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
@@ -29,20 +30,20 @@ namespace StackExchange.Redis.Tests.Booksleeve.Issues
         private const string todoKey = "todo";
 
         [Fact]
-        public void ExecuteMassiveDelete()
+        public async Task ExecuteMassiveDelete()
         {
             var watch = Stopwatch.StartNew();
             using (var muxer = GetUnsecuredConnection())
             using (var throttle = new SemaphoreSlim(1))
             {
                 var conn = muxer.GetDatabase(db);
-                var originallyTask = conn.SetLengthAsync(todoKey);
+                var originally = await conn.SetLengthAsync(todoKey);
                 int keepChecking = 1;
                 Task last = null;
                 while (Volatile.Read(ref keepChecking) == 1)
                 {
                     throttle.Wait(); // acquire
-                    conn.SetPopAsync(todoKey).ContinueWith(task =>
+                    var x = conn.SetPopAsync(todoKey).ContinueWith(task =>
                     {
                         throttle.Release();
                         if (task.IsCompleted)
@@ -57,14 +58,14 @@ namespace StackExchange.Redis.Tests.Booksleeve.Issues
                             }
                         }
                     });
+                    GC.KeepAlive(x);
                 }
                 if (last != null)
                 {
-                    conn.Wait(last);
+                    await last;
                 }
                 watch.Stop();
-                long originally = conn.Wait(originallyTask),
-                    remaining = conn.SetLength(todoKey);
+                long remaining = await conn.SetLengthAsync(todoKey);
                 Output.WriteLine("From {0} to {1}; {2}ms", originally, remaining,
                     watch.ElapsedMilliseconds);
 
