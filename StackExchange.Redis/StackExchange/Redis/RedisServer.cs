@@ -505,6 +505,18 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.PubSubNumSub);
         }
 
+        public void SwapDatabases(int first, int second, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.SWAPDB, first, second);
+            ExecuteSync(msg, ResultProcessor.DemandOK);
+        }
+
+        public Task SwapDatabasesAsync(int first, int second, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.SWAPDB, first, second);
+            return ExecuteAsync(msg, ResultProcessor.DemandOK);
+        }
+
         public DateTime Time(CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(-1, flags, RedisCommand.TIME);

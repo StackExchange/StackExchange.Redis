@@ -182,6 +182,7 @@ namespace StackExchange.Redis
                     case RedisCommand.SHUTDOWN:
                     case RedisCommand.SLAVEOF:
                     case RedisCommand.SLOWLOG:
+                    case RedisCommand.SWAPDB:
                     case RedisCommand.SYNC:
                         return true;
                     default:
@@ -381,6 +382,7 @@ namespace StackExchange.Redis
                 case RedisCommand.SPOP:
                 case RedisCommand.SREM:
                 case RedisCommand.SUNIONSTORE:
+                case RedisCommand.SWAPDB:
                 case RedisCommand.ZADD:
                 case RedisCommand.ZINTERSTORE:
                 case RedisCommand.ZINCRBY:

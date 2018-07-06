@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -536,6 +536,18 @@ namespace StackExchange.Redis
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/pubsub</remarks>
         Task<long> SubscriptionSubscriberCountAsync(RedisChannel channel, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Swaps two Redis databases, so that immediately all the clients connected to a given database will see the data of the other database, and the other way around
+        /// </summary>
+        /// <remarks>https://redis.io/commands/swapdb</remarks>
+        void SwapDatabases(int first, int second, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Swaps two Redis databases, so that immediately all the clients connected to a given database will see the data of the other database, and the other way around
+        /// </summary>
+        /// <remarks>https://redis.io/commands/swapdb</remarks>
+        Task SwapDatabasesAsync(int first, int second, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// The TIME command returns the current server time.

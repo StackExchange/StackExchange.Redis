@@ -152,6 +152,7 @@
         SUNION,
         SUNIONSTORE,
         SSCAN,
+        SWAPDB,
         SYNC,
 
         TIME,
