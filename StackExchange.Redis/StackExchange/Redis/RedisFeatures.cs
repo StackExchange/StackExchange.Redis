@@ -6,7 +6,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// Provides basic information about the features available on a particular version of Redis
     /// </summary>
-    public struct RedisFeatures
+    public readonly struct RedisFeatures
     {
         internal static readonly Version v2_0_0 = new Version(2, 0, 0),
                                          v2_1_0 = new Version(2, 1, 0),

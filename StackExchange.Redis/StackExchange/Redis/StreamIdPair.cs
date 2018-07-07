@@ -5,7 +5,7 @@ namespace StackExchange.Redis
     /// Describes a pair consisting of the Stream Key and the ID from which to read.
     /// </summary>
     /// <remarks><see cref="IDatabase.StreamRead(StreamIdPair[], int?, CommandFlags)"/></remarks>
-    public struct StreamIdPair
+    public readonly struct StreamIdPair
     {
         /// <summary>
         /// Initializes a <see cref="StreamIdPair"/> value. 

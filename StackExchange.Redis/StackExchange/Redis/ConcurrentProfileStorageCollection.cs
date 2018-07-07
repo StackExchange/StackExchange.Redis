@@ -12,7 +12,7 @@ namespace StackExchange.Redis
     /// </para>
     /// <para>This type is not threadsafe.</para>
     /// </summary>
-    public struct ProfiledCommandEnumerable : IEnumerable<IProfiledCommand>
+    public readonly struct ProfiledCommandEnumerable : IEnumerable<IProfiledCommand>
     {
         /// <summary>
         /// <para>

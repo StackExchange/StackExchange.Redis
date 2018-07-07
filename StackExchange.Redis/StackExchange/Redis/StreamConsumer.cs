@@ -4,7 +4,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// Describes a consumer off a Redis Stream.
     /// </summary>
-    public struct StreamConsumer
+    public readonly struct StreamConsumer
     {
         internal StreamConsumer(RedisValue name, int pendingMessageCount)
         {

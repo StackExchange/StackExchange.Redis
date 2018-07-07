@@ -8,7 +8,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// Represents values that can be stored in redis
     /// </summary>
-    public struct RedisValue : IEquatable<RedisValue>, IComparable<RedisValue>, IComparable, IConvertible
+    public readonly struct RedisValue : IEquatable<RedisValue>, IComparable<RedisValue>, IComparable, IConvertible
     {
         internal static readonly RedisValue[] EmptyArray = Array.Empty<RedisValue>();
 

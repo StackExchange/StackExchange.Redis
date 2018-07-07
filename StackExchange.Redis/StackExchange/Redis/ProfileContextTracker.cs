@@ -19,7 +19,7 @@ namespace StackExchange.Redis
         /// </para>
         /// <para>* Somebody starts profiling, but for whatever reason never *stops* with a context object</para>
         /// </summary>
-        private struct ProfileContextCell : IEquatable<ProfileContextCell>
+        private readonly struct ProfileContextCell : IEquatable<ProfileContextCell>
         {
             // This is a union of (object|WeakReference); if it's a WeakReference
             //   then we're actually interested in it's Target, otherwise

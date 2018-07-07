@@ -51,7 +51,7 @@ namespace StackExchange.Redis
         bool IsDataAvailable { get; }
     }
 
-    internal struct SocketToken
+    internal readonly struct SocketToken
     {
         internal readonly Socket Socket;
 

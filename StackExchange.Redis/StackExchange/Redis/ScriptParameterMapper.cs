@@ -10,10 +10,10 @@ namespace StackExchange.Redis
 {
     internal static class ScriptParameterMapper
     {
-        public struct ScriptParameters
+        public readonly struct ScriptParameters
         {
-            public RedisKey[] Keys;
-            public RedisValue[] Arguments;
+            public readonly RedisKey[] Keys;
+            public readonly RedisValue[] Arguments;
 
             public static readonly ConstructorInfo Cons = typeof(ScriptParameters).GetConstructor(new[] { typeof(RedisKey[]), typeof(RedisValue[]) });
             public ScriptParameters(RedisKey[] keys, RedisValue[] args)

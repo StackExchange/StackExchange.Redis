@@ -6,7 +6,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// Represents a key that can be stored in redis
     /// </summary>
-    public struct RedisKey : IEquatable<RedisKey>
+    public readonly struct RedisKey : IEquatable<RedisKey>
     {
         private readonly byte[] keyPrefix;
         private readonly object keyValue; // always either a string or a byte[]

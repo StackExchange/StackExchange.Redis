@@ -163,7 +163,7 @@ namespace StackExchange.Redis
 
             System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
 
-            internal struct ScanResult
+            internal readonly struct ScanResult
             {
                 public readonly long Cursor;
                 public readonly T[] Values;

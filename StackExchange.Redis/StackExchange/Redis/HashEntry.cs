@@ -7,7 +7,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// Describes a hash-field (a name/value pair)
     /// </summary>
-    public struct HashEntry : IEquatable<HashEntry>
+    public readonly struct HashEntry : IEquatable<HashEntry>
     {
         internal readonly RedisValue name, value;
 

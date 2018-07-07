@@ -10,7 +10,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// Indicates a range of slots served by a cluster node
     /// </summary>
-    public struct SlotRange : IEquatable<SlotRange>, IComparable<SlotRange>, IComparable
+    public readonly struct SlotRange : IEquatable<SlotRange>, IComparable<SlotRange>, IComparable
     {
         private readonly short from, to;
 

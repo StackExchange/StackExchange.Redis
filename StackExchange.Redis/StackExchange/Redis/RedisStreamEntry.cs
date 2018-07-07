@@ -3,7 +3,7 @@
     /// <summary>
     /// Describes an entry contained in a Redis Stream.
     /// </summary>
-    public struct RedisStreamEntry
+    public readonly struct RedisStreamEntry
     {
         internal RedisStreamEntry(RedisValue id, NameValueEntry[] values)
         {

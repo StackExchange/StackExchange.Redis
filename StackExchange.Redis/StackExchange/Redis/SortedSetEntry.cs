@@ -7,7 +7,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// Describes a sorted-set element with the corresponding value
     /// </summary>
-    public struct SortedSetEntry : IEquatable<SortedSetEntry>, IComparable, IComparable<SortedSetEntry>
+    public readonly struct SortedSetEntry : IEquatable<SortedSetEntry>, IComparable, IComparable<SortedSetEntry>
     {
         internal readonly RedisValue element;
         internal readonly double score;
