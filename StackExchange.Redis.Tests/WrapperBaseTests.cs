@@ -796,8 +796,8 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamCreateConsumerGroupAsync()
         {
-            wrapper.StreamCreateConsumerGroupAsync("key", "group", null, CommandFlags.HighPriority);
-            mock.Verify(_ => _.StreamCreateConsumerGroupAsync("prefix:key", "group", null, CommandFlags.HighPriority));
+            wrapper.StreamCreateConsumerGroupAsync("key", "group", GroupCreateOptions.ReadAfterId("0-0"), CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamCreateConsumerGroupAsync("prefix:key", "group", GroupCreateOptions.ReadAfterId("0-0"), CommandFlags.HighPriority));
         }
 
         [Fact]
@@ -875,8 +875,8 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamReadAsync_2()
         {
-            wrapper.StreamReadAsync("key", ReadOffset.FromBeginning, null, CommandFlags.HighPriority);
-            mock.Verify(_ => _.StreamReadAsync("prefix:key", ReadOffset.FromBeginning, null, CommandFlags.HighPriority));
+            wrapper.StreamReadAsync("key", ReadOffset.AfterId("0-0"), null, CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamReadAsync("prefix:key", ReadOffset.AfterId("0-0"), null, CommandFlags.HighPriority));
         }
 
         [Fact]
