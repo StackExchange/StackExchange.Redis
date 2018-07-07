@@ -72,7 +72,7 @@ namespace StackExchange.Redis
 
         private IDuplexPipe _ioPipe;
 
-        private SocketToken socketToken;
+        private Socket _socket;
 
         public PhysicalConnection(PhysicalBridge bridge)
         {
@@ -94,7 +94,7 @@ namespace StackExchange.Redis
             var endpoint = Bridge.ServerEndPoint.EndPoint;
 
             Multiplexer.Trace("Connecting...", physicalName);
-            socketToken = Multiplexer.SocketManager.BeginConnect(endpoint, this, Multiplexer, log);
+            _socket = Multiplexer.SocketManager.BeginConnect(endpoint, this, Multiplexer, log);
         }
 
         private enum ReadMode : byte
@@ -129,10 +129,10 @@ namespace StackExchange.Redis
             }
             try { using (ioPipe as IDisposable) { } } catch { }
 
-            if (socketToken.HasValue)
+            if (_socket != null)
             {
-                Multiplexer.SocketManager?.Shutdown(socketToken);
-                socketToken = default(SocketToken);
+                Multiplexer.SocketManager?.Shutdown(_socket);
+                _socket = default;
                 Multiplexer.Trace("Disconnected", physicalName);
                 RecordConnectionFailed(ConnectionFailureType.ConnectionDisposed);
             }
@@ -255,7 +255,7 @@ namespace StackExchange.Redis
 
             // burn the socket
             managerState = SocketManager.ManagerState.RecordConnectionFailed_ShutdownSocket;
-            Multiplexer.SocketManager?.Shutdown(socketToken);
+            Multiplexer.SocketManager?.Shutdown(_socket);
         }
 
         public override string ToString()
@@ -845,7 +845,7 @@ namespace StackExchange.Redis
             writer.Advance(bytes);
         }
 
-        internal int GetAvailableInboundBytes() => socketToken.Available;
+        internal int GetAvailableInboundBytes() => _socket?.Available ?? 0;
 
         private static LocalCertificateSelectionCallback GetAmbientCertificateCallback()
         {
@@ -1128,15 +1128,6 @@ namespace StackExchange.Redis
         //        Interlocked.Decrement(ref haveReader);
         //    }
         //}
-
-        bool ISocketCallback.IsDataAvailable
-        {
-            get
-            {
-                try { return socketToken.Available > 0; }
-                catch { return false; }
-            }
-        }
 
         private RawResult ReadArray(in ReadOnlySequence<byte> buffer, ref BufferReader reader)
         {

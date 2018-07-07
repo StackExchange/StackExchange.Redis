@@ -47,22 +47,6 @@ namespace StackExchange.Redis
 
         // check for write-read timeout
         void CheckForStaleConnection(ref SocketManager.ManagerState state);
-
-        bool IsDataAvailable { get; }
-    }
-
-    internal readonly struct SocketToken
-    {
-        internal readonly Socket Socket;
-
-        public SocketToken(Socket socket)
-        {
-            Socket = socket;
-        }
-
-        public int Available => Socket?.Available ?? 0;
-
-        public bool HasValue => Socket != null;
     }
 
     /// <summary>
@@ -213,7 +197,7 @@ namespace StackExchange.Redis
         /// </summary>
         ~SocketManager() => Dispose(false);
 
-        internal SocketToken BeginConnect(EndPoint endpoint, ISocketCallback callback, ConnectionMultiplexer multiplexer, TextWriter log)
+        internal Socket BeginConnect(EndPoint endpoint, ISocketCallback callback, ConnectionMultiplexer multiplexer, TextWriter log)
         {
             void RunWithCompletionType(Func<AsyncCallback, IAsyncResult> beginAsync, AsyncCallback asyncCallback)
             {
@@ -275,15 +259,8 @@ namespace StackExchange.Redis
                 }
                 throw;
             }
-            var token = new SocketToken(socket);
-            return token;
+            return socket;
         }
-
-        internal void Shutdown(SocketToken token)
-        {
-            Shutdown(token.Socket);
-        }
-
         private async void EndConnectImpl(IAsyncResult ar, ConnectionMultiplexer multiplexer, TextWriter log, Tuple<Socket, ISocketCallback> tuple)
         {
             var socket = tuple.Item1;
@@ -346,7 +323,7 @@ namespace StackExchange.Redis
         partial void ShouldIgnoreConnect(ISocketCallback callback, ref bool ignore);
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")]
-        private void Shutdown(Socket socket)
+        internal void Shutdown(Socket socket)
         {
             if (socket != null)
             {
