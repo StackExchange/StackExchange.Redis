@@ -157,7 +157,11 @@ namespace StackExchange.Redis
         /// </summary>
         public override string ToString() => ((string)this) ?? "(null)";
 
-        internal RedisValue AsRedisValue() => (byte[])this;
+        internal RedisValue AsRedisValue()
+        {
+            if (keyPrefix == null && keyValue is string) return (string)keyValue;
+            return (byte[])this;
+        }
 
         internal void AssertNotNull()
         {

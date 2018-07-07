@@ -14,11 +14,10 @@
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Debug' and '$(Computername)'=='OCHO'">
-    <DefineConstants>$(DefineConstants);LOGOUTPUT</DefineConstants>
+    <!--<DefineConstants>$(DefineConstants);LOGOUTPUT</DefineConstants>-->
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="System.Reflection.Emit.Lightweight" Version="4.3.0" />
     <PackageReference Include="System.IO.Pipelines" Version="$(CoreFxVersion)" />
     <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="$(CoreFxVersion)" />
   </ItemGroup>
