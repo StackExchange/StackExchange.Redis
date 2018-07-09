@@ -835,17 +835,5 @@ namespace StackExchange.Redis.KeyspaceIsolation
         {
             return Inner.SortedSetScan(ToInner(key), pattern, pageSize, cursor, pageOffset, flags);
         }
-
-#if DEBUG
-        public string ClientGetName(CommandFlags flags = CommandFlags.None)
-        {
-            return Inner.ClientGetName(flags);
-        }
-
-        public void Quit(CommandFlags flags = CommandFlags.None)
-        {
-            Inner.Quit(flags);
-        }
-#endif
     }
 }

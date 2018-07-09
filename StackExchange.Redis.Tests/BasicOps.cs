@@ -285,7 +285,6 @@ namespace StackExchange.Redis.Tests
             Assert.Equal("WRONGTYPE Operation against a key holding the wrong kind of value", ex.Message);
         }
 
-#if DEBUG
         [Fact]
         public void TestQuit()
         {
@@ -296,16 +295,18 @@ namespace StackExchange.Redis.Tests
                 string key = Guid.NewGuid().ToString();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
                 db.StringSet(key, key, flags: CommandFlags.FireAndForget);
-                GetServer(muxer).Quit(CommandFlags.FireAndForget);
-                var watch = Stopwatch.StartNew();
+                GetServer(muxer).Execute("QUIT", null, CommandFlags.FireAndForget);
+                var watch = System.Diagnostics.Stopwatch.StartNew();
                 Assert.Throws<RedisConnectionException>(() => db.Ping());
                 watch.Stop();
                 Output.WriteLine("Time to notice quit: {0}ms (any order)", watch.ElapsedMilliseconds);
-                Thread.Sleep(20);
-                Debug.WriteLine("Pinging...");
+                System.Threading.Thread.Sleep(20);
+                System.Diagnostics.Debug.WriteLine("Pinging...");
                 Assert.Equal(key, (string)db.StringGet(key));
             }
         }
+
+#if DEBUG
 
         [Fact]
         public async Task TestSevered()

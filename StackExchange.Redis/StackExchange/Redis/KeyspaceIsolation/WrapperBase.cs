@@ -805,14 +805,6 @@ namespace StackExchange.Redis.KeyspaceIsolation
         {
             Inner.WaitAll(tasks);
         }
-
-#if DEBUG
-        public Task<string> ClientGetNameAsync(CommandFlags flags = CommandFlags.None)
-        {
-            return Inner.ClientGetNameAsync(flags);
-        }
-#endif
-
         protected internal RedisKey ToInner(RedisKey outer)
         {
             return RedisKey.WithPrefix(Prefix, outer);

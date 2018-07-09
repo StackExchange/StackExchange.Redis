@@ -82,10 +82,10 @@ namespace StackExchange.Redis.Tests
 
                 var conn = muxer.GetDatabase();
                 conn.Ping();
-#if DEBUG
-                var name = GetAnyMaster(muxer).ClientGetName();
+
+                var name = (string)GetAnyMaster(muxer).Execute("CLIENT", "GETNAME");
                 Assert.Equal("TestRig", name);
-#endif
+
             }
         }
 
@@ -97,10 +97,10 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(Environment.MachineName, muxer.ClientName);
                 var conn = muxer.GetDatabase();
                 conn.Ping();
-#if DEBUG
-                var name = GetAnyMaster(muxer).ClientGetName();
+
+                var name = (string)GetAnyMaster(muxer).Execute("CLIENT", "GETNAME");
                 Assert.Equal(Environment.MachineName, name);
-#endif
+
             }
         }
 

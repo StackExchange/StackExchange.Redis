@@ -1,11 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
-using System.IO;
-using System.IO.Pipelines;
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
@@ -13,95 +8,18 @@ namespace StackExchange.Redis
     internal partial class ResultBox
     {
         internal static long allocations;
-        public static long GetAllocationCount() => Interlocked.Read(ref allocations);
-        static partial void OnAllocated() => Interlocked.Increment(ref allocations);
+        public static long GetAllocationCount() => System.Threading.Interlocked.Read(ref allocations);
+        static partial void OnAllocated() => System.Threading.Interlocked.Increment(ref allocations);
     }
 
     public partial interface IServer
     {
         /// <summary>
-        /// Get the value of key. If the key does not exist the special value nil is returned. An error is returned if the value stored at key is not a string, because GET only handles string values.
-        /// </summary>
-        /// <param name="db">The database to get <paramref name="key"/> from.</param>
-        /// <param name="key">The key to get.</param>
-        /// <param name="flags">The command flags to use.</param>
-        /// <returns>the value of key, or nil when key does not exist.</returns>
-        /// <remarks>https://redis.io/commands/get</remarks>
-        RedisValue StringGet(int db, RedisKey key, CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
-        /// Get the value of key. If the key does not exist the special value nil is returned. An error is returned if the value stored at key is not a string, because GET only handles string values.
-        /// </summary>
-        /// <param name="db">The database to get <paramref name="key"/> from.</param>
-        /// <param name="key">The key to get.</param>
-        /// <param name="flags">The command flags to use.</param>
-        /// <returns>the value of key, or nil when key does not exist.</returns>
-        /// <remarks>https://redis.io/commands/get</remarks>
-        Task<RedisValue> StringGetAsync(int db, RedisKey key, CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
         /// Break the connection without mercy or thought
         /// </summary>
         void SimulateConnectionFailure();
-
-        /// <summary>
-        /// DEBUG SEGFAULT performs an invalid memory access that crashes Redis. It is used to simulate bugs during the development.
-        /// </summary>
-        /// <remarks>https://redis.io/commands/debug-segfault</remarks>
-        void Crash();
-
-        /// <summary>
-        /// CLIENT PAUSE is a connections control command able to suspend all the Redis clients for the specified amount of time (in milliseconds).
-        /// </summary>
-        /// <param name="duration">The time span to hang for.</param>
-        /// <param name="flags">The command flags to use.</param>
-        /// <remarks>https://redis.io/commands/client-pause</remarks>
-        void Hang(TimeSpan duration, CommandFlags flags = CommandFlags.None);
     }
-
-    public partial interface IRedis
-    {
-        /// <summary>
-        /// The CLIENT GETNAME returns the name of the current connection as set by CLIENT SETNAME. Since every new connection starts without an associated name, if no name was assigned a null string is returned.
-        /// </summary>
-        /// <param name="flags">The command flags to use.</param>
-        /// <remarks>https://redis.io/commands/client-getname</remarks>
-        /// <returns>The connection name, or a null string if no name is set.</returns>
-        string ClientGetName(CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
-        /// Ask the server to close the connection. The connection is closed as soon as all pending replies have been written to the client.
-        /// </summary>
-        /// <param name="flags">The command flags to use.</param>
-        /// <remarks>https://redis.io/commands/quit</remarks>
-        void Quit(CommandFlags flags = CommandFlags.None);
-    }
-
-    public partial interface IRedisAsync
-    {
-        /// <summary>
-        /// The CLIENT GETNAME returns the name of the current connection as set by CLIENT SETNAME. Since every new connection starts without an associated name, if no name was assigned a null string is returned.
-        /// </summary>
-        /// <param name="flags">The command flags to use.</param>
-        /// <remarks>https://redis.io/commands/client-getname</remarks>
-        /// <returns>The connection name, or a null string if no name is set.</returns>
-        Task<string> ClientGetNameAsync(CommandFlags flags = CommandFlags.None);
-    }
-
-    internal partial class RedisBase
-    {
-        string IRedis.ClientGetName(CommandFlags flags)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.CLIENT, RedisLiterals.GETNAME);
-            return ExecuteSync(msg, ResultProcessor.String);
-        }
-
-        Task<string> IRedisAsync.ClientGetNameAsync(CommandFlags flags)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.CLIENT, RedisLiterals.GETNAME);
-            return ExecuteAsync(msg, ResultProcessor.String);
-        }
-    }
+    
 
     internal partial class ServerEndPoint
     {
@@ -115,18 +33,6 @@ namespace StackExchange.Redis
     internal partial class RedisServer
     {
         void IServer.SimulateConnectionFailure() => server.SimulateConnectionFailure();
-        void IServer.Crash()
-        {
-            // using DB-0 because we also use "DEBUG OBJECT", which is db-centric
-            var msg = Message.Create(0, CommandFlags.FireAndForget, RedisCommand.DEBUG, RedisLiterals.SEGFAULT);
-            ExecuteSync(msg, ResultProcessor.DemandOK);
-        }
-
-        void IServer.Hang(TimeSpan duration, CommandFlags flags)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.CLIENT, RedisLiterals.PAUSE, (long)duration.TotalMilliseconds);
-            ExecuteSync(msg, ResultProcessor.DemandOK);
-        }
     }
 
     public partial class ConnectionMultiplexer
@@ -187,14 +93,6 @@ namespace StackExchange.Redis
         {
             get => emulateStaleConnection;
             set => emulateStaleConnection = value;
-        }
-
-        partial void DebugEmulateStaleConnection(ref int firstUnansweredWrite)
-        {
-            if (emulateStaleConnection)
-            {
-                firstUnansweredWrite = Environment.TickCount - 100000;
-            }
         }
     }
 #endif
@@ -273,35 +171,8 @@ namespace StackExchange.Redis
 #endif
 
 #if LOGOUTPUT
-    partial class ConnectionMultiplexer
-    {
-        /// <summary>
-        /// Dumps a copy of the stream
-        /// </summary>
-        public static string EchoPath { get; set; }
-    }
-
     partial class PhysicalConnection
     {
-        //private Stream echo;
-        //partial void OnCreateEcho()
-        //{
-        //    if (!string.IsNullOrEmpty(ConnectionMultiplexer.EchoPath))
-        //    {
-        //        string fullPath = Path.Combine(ConnectionMultiplexer.EchoPath,
-        //            Regex.Replace(physicalName, @"[\-\.\@\#\:]", "_"));
-        //        echo = File.Open(Path.ChangeExtension(fullPath, "txt"), FileMode.Create, FileAccess.Write, FileShare.ReadWrite);
-        //    }
-        //}
-        //partial void OnCloseEcho()
-        //{
-        //    if (echo != null)
-        //    {
-        //        try { echo.Close(); } catch { }
-        //        try { echo.Dispose(); } catch { }
-        //        echo = null;
-        //    }
-        //}
         partial void OnWrapForLogging(ref IDuplexPipe pipe, string name, SocketManager mgr)
         {
             foreach(var c in Path.GetInvalidFileNameChars())

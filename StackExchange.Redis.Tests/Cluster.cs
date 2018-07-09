@@ -163,6 +163,9 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void IntentionalWrongServer()
         {
+            string StringGet(IServer server, RedisKey key, CommandFlags flags = CommandFlags.None)
+                => (string)server.Execute("GET", new object[] { key }, flags);
+
             using (var conn = Create())
             {
                 var endpoints = conn.GetEndPoints();
@@ -181,8 +184,7 @@ namespace StackExchange.Redis.Tests
                 Assert.NotNull(rightMasterNode);
                 Output.WriteLine("Right Master: {0} {1}", rightMasterNode.EndPoint, rightMasterNode.NodeId);
 
-#if DEBUG
-                string a = conn.GetServer(rightMasterNode.EndPoint).StringGet(db.Database, key);
+                string a = StringGet(conn.GetServer(rightMasterNode.EndPoint), key);
                 Assert.Equal(value, a); // right master
 
                 var node = config.Nodes.FirstOrDefault(x => !x.IsSlave && x.NodeId != rightMasterNode.NodeId);
@@ -190,10 +192,10 @@ namespace StackExchange.Redis.Tests
                 Output.WriteLine("Using Master: {0}", node.EndPoint, node.NodeId);
                 if (node != null)
                 {
-                    string b = conn.GetServer(node.EndPoint).StringGet(db.Database, key);
+                    string b = StringGet(conn.GetServer(node.EndPoint), key);
                     Assert.Equal(value, b); // wrong master, allow redirect
 
-                    var ex = Assert.Throws<RedisServerException>(() => conn.GetServer(node.EndPoint).StringGet(db.Database, key, CommandFlags.NoRedirect));
+                    var ex = Assert.Throws<RedisServerException>(() => StringGet(conn.GetServer(node.EndPoint), key, CommandFlags.NoRedirect));
                     Assert.StartsWith($"Key has MOVED from Endpoint {rightMasterNode.EndPoint} and hashslot {slot}", ex.Message);
                 }
 
@@ -201,7 +203,7 @@ namespace StackExchange.Redis.Tests
                 Assert.NotNull(node);
                 if (node != null)
                 {
-                    string d = conn.GetServer(node.EndPoint).StringGet(db.Database, key);
+                    string d = StringGet(conn.GetServer(node.EndPoint), key);
                     Assert.Equal(value, d); // right slave
                 }
 
@@ -209,13 +211,12 @@ namespace StackExchange.Redis.Tests
                 Assert.NotNull(node);
                 if (node != null)
                 {
-                    string e = conn.GetServer(node.EndPoint).StringGet(db.Database, key);
+                    string e = StringGet(conn.GetServer(node.EndPoint), key);
                     Assert.Equal(value, e); // wrong slave, allow redirect
 
-                    var ex = Assert.Throws<RedisServerException>(() => conn.GetServer(node.EndPoint).StringGet(db.Database, key, CommandFlags.NoRedirect));
+                    var ex = Assert.Throws<RedisServerException>(() => StringGet(conn.GetServer(node.EndPoint), key, CommandFlags.NoRedirect));
                     Assert.StartsWith($"Key has MOVED from Endpoint {rightMasterNode.EndPoint} and hashslot {slot}", ex.Message);
                 }
-#endif
 
             }
         }
@@ -701,13 +702,13 @@ namespace StackExchange.Redis.Tests
                 var rightMasterNode = config.GetBySlot(Key);
                 Assert.NotNull(rightMasterNode);
 
-                string a = conn.GetServer(rightMasterNode.EndPoint).StringGet(db.Database, Key);
+                string a = (string)conn.GetServer(rightMasterNode.EndPoint).Execute("GET", Key);
                 Assert.Equal(Value, a); // right master
 
                 var wrongMasterNode = config.Nodes.FirstOrDefault(x => !x.IsSlave && x.NodeId != rightMasterNode.NodeId);
                 Assert.NotNull(wrongMasterNode);
 
-                string b = conn.GetServer(wrongMasterNode.EndPoint).StringGet(db.Database, Key);
+                string b = (string)conn.GetServer(wrongMasterNode.EndPoint).Execute("GET", Key);
                 Assert.Equal(Value, b); // wrong master, allow redirect
 
                 var msgs = conn.FinishProfiling(profiler.MyContext).ToList();
