@@ -85,7 +85,11 @@ namespace StackExchange.Redis
         protected Message(int db, CommandFlags flags, RedisCommand command)
         {
             bool dbNeeded = RequiresDatabase(command);
-            if (db < 0)
+            if (command == RedisCommand.UNKNOWN)
+            {
+                // all bets are off here
+            }
+            else if (db < 0)
             {
                 if (dbNeeded)
                 {

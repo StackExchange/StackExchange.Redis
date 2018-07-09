@@ -3207,7 +3207,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private sealed class ExecuteMessage : Message
+        internal sealed class ExecuteMessage : Message
         {
             private readonly string _command;
             private readonly ICollection<object> args;
