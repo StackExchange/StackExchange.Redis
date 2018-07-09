@@ -298,5 +298,43 @@ namespace StackExchange.Redis.Tests
             };
             Assert.True(options.SslHost == null);
         }
+
+        [Fact]
+        public void SSLParseViaConfig_Issue883_ConfigObject()
+        {
+            Skip.IfNoConfig(nameof(TestConfig.Config.AzureCacheServer), TestConfig.Current.AzureCacheServer);
+            Skip.IfNoConfig(nameof(TestConfig.Config.AzureCachePassword), TestConfig.Current.AzureCachePassword);
+
+            var options = new ConfigurationOptions
+            {
+                AbortOnConnectFail = false,
+                Ssl = true,
+                ConnectRetry = 3,
+                ConnectTimeout = 5000,
+                SyncTimeout = 5000,
+                DefaultDatabase = 0,
+                EndPoints = { { TestConfig.Current.AzureCacheServer, 6380 } },
+                Password = TestConfig.Current.AzureCachePassword
+            };
+            using (var conn = ConnectionMultiplexer.Connect(options))
+            {
+                conn.GetDatabase().Ping();
+            }
+        }
+
+
+        [Fact]
+        public void SSLParseViaConfig_Issue883_ConfigString()
+        {
+            Skip.IfNoConfig(nameof(TestConfig.Config.AzureCacheServer), TestConfig.Current.AzureCacheServer);
+            Skip.IfNoConfig(nameof(TestConfig.Config.AzureCachePassword), TestConfig.Current.AzureCachePassword);
+
+            var configString = $"{TestConfig.Current.AzureCacheServer}:6380,password={TestConfig.Current.AzureCachePassword},connectRetry=3,connectTimeout=5000,syncTimeout=5000,defaultDatabase=0,ssl=true,abortConnect=false";
+            var options = ConfigurationOptions.Parse(configString);
+            using (var conn = ConnectionMultiplexer.Connect(options))
+            {
+                conn.GetDatabase().Ping();
+            }
+        }
     }
 }
