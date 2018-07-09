@@ -97,5 +97,34 @@ namespace StackExchange.Redis.Tests.Booksleeve
             Assert.True(effectiveAsync < effectiveSync, "Everything");
             Assert.True(asyncFaF < syncFaF, "Fire and Forget");
         }
+
+        [Fact]
+        public async Task BasicStringGetPerf()
+        {
+            using (var conn = GetUnsecuredConnection())
+            {
+                RedisKey key = Me();
+                var db = conn.GetDatabase();
+                await db.StringSetAsync(key, "some value");
+
+                // this is just to JIT everything before we try testing
+                var syncVal = db.StringGet(key);
+                var asyncVal = await db.StringGetAsync(key);
+
+                var syncTimer = Stopwatch.StartNew();
+                syncVal = db.StringGet(key);
+                syncTimer.Stop();
+
+                var asyncTimer = Stopwatch.StartNew();
+                asyncVal = await db.StringGetAsync(key);
+                asyncTimer.Stop();
+
+                Output.WriteLine($"Sync: {syncTimer.ElapsedMilliseconds}; Async: {asyncTimer.ElapsedMilliseconds}");
+                Assert.Equal("some value", syncVal);
+                Assert.Equal("some value", asyncVal);
+                // let's allow 20% async overhead
+                Assert.True(asyncTimer.ElapsedTicks <= (syncTimer.ElapsedTicks * 1.2M));
+            }
+        }
     }
 }
