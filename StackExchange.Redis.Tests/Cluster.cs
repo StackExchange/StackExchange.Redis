@@ -612,6 +612,68 @@ namespace StackExchange.Redis.Tests
             }
         }
 
+        [Fact]
+        public void MultiKeyQueryFails()
+        {
+            var keys = InventKeys(); // note the rules expected of this data are enforced in GroupedQueriesWork
+
+            using (var conn = Create())
+            {
+                var ex = Assert.Throws<RedisCommandException>(() => conn.GetDatabase(0).StringGet(keys));
+                Assert.Contains("Multi-key operations must involve a single slot", ex.Message);
+            }
+        }
+
+        static RedisKey[] InventKeys()
+        {
+            RedisKey[] keys = new RedisKey[512];
+            Random rand = new Random(12324);
+            string InventString()
+            {
+                const string alphabet = "abcdefghijklmnopqrstuvwxyz012345689";
+                var len = rand.Next(10, 50);
+                char[] chars = new char[len];
+                for (int i = 0; i < len; i++)
+                    chars[i] = alphabet[rand.Next(alphabet.Length)];
+                return new string(chars);
+            }
+
+            for (int i = 0; i < keys.Length; i++)
+            {
+                keys[i] = InventString();
+            }
+            return keys;
+        }
+
+        [Fact]
+        public void GroupedQueriesWork()
+        {
+            // note it doesn't matter that the data doesn't exist for this;
+            // the point here is that the entire thing *won't work* otherwise,
+            // as per above test
+
+            var keys = InventKeys();
+            using (var conn = Create())
+            {
+                var grouped = keys.GroupBy(key => conn.GetHashSlot(key));
+                Assert.True(grouped.Count() > 1); // check not all a super-group
+                Assert.True(grouped.Count() < keys.Length); // check not all singleton groups
+                Assert.Equal(keys.Length, grouped.Sum(x => x.Count())); // check they're all there
+                Assert.Contains(grouped, x => x.Count() > 1); // check at least one group with multiple items (redundant from above, but... meh)
+
+                Output.WriteLine($"{grouped.Count()} groups, min: {grouped.Min(x => x.Count())}, max: {grouped.Max(x => x.Count())}, avg: {grouped.Average(x => x.Count())}");
+
+                var db = conn.GetDatabase(0);
+                var all = grouped.SelectMany(grp => {
+                    var grpKeys = grp.ToArray();
+                    var values = db.StringGet(grpKeys);
+                    return Enumerable.Zip(grpKeys, values, (key, val) => new { key, val });
+                }).ToDictionary(x => x.key, x => x.val);
+
+                Assert.Equal(keys.Length, all.Count);
+            }
+        }
+
 #if DEBUG
         [Fact]
         public void MovedProfiling()

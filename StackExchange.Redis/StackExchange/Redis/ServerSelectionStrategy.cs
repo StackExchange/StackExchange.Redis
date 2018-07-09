@@ -61,7 +61,10 @@ namespace StackExchange.Redis
         /// Computes the hash-slot that would be used by the given key
         /// </summary>
         /// <param name="key">The <see cref="RedisKey"/> to determine a slot ID for.</param>
-        public unsafe int HashSlot(RedisKey key)
+        public int HashSlot(RedisKey key)
+            => ServerType == ServerType.Standalone ? NoSlot : GetClusterSlot(key);
+
+        private static unsafe int GetClusterSlot(RedisKey key)
         {
             //HASH_SLOT = CRC16(key) mod 16384
             if (key.IsNull) return NoSlot;

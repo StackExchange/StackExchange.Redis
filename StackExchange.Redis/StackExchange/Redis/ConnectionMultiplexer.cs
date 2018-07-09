@@ -2214,6 +2214,11 @@ namespace StackExchange.Redis
 
             return GetSubscriber().PublishAsync(channel, RedisLiterals.Wildcard, flags);
         }
+
+        /// <summary>
+        /// Get the hash-slot associated with a given key, if applicable; this can be useful for grouping operations
+        /// </summary>
+        public int GetHashSlot(RedisKey key) => ServerSelectionStrategy.HashSlot(key);
     }
     internal enum WriteResult
     {
