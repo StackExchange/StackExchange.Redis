@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -769,6 +770,10 @@ namespace StackExchange.Redis
         /// </summary>
         public bool StartsWith(RedisValue value)
         {
+            if (this.IsNull || value.IsNull) return false;
+            if (value.IsNullOrEmpty) return true;
+            if (this.IsNullOrEmpty) return false;
+
             ReadOnlyMemory<byte> rawThis, rawOther;
             var thisType = this.Type;
             if (thisType == value.Type) // same? can often optimize
@@ -785,10 +790,50 @@ namespace StackExchange.Redis
                         return rawThis.Span.StartsWith(rawOther.Span);
                 }
             }
-            rawThis = (ReadOnlyMemory<byte>)this;
-            rawOther = (ReadOnlyMemory<byte>)value;
-            return rawThis.Span.StartsWith(rawOther.Span);
+            byte[] arr0 = null, arr1 = null;
+            try
+            {
+                rawThis = this.AsMemory(out arr0);
+                rawOther = value.AsMemory(out arr1);
 
+                return rawThis.Span.StartsWith(rawOther.Span);
+            }
+            finally
+            {
+                if (arr0 != null) ArrayPool<byte>.Shared.Return(arr0);
+                if (arr1 != null) ArrayPool<byte>.Shared.Return(arr1);
+            }
+        }
+
+        private ReadOnlyMemory<byte> AsMemory(out byte[] leased)
+        {
+            switch(Type)
+            {
+                case StorageType.Raw:
+                    leased = null;
+                    return _memory;
+                case StorageType.String:
+                    string s = (string)_objectOrSentinel;
+                    HaveString:
+                    if(s.Length == 0)
+                    {
+                        leased = null;
+                        return default;
+                    }
+                    leased = ArrayPool<byte>.Shared.Rent(Encoding.UTF8.GetByteCount(s));
+                    var len = Encoding.UTF8.GetBytes(s, 0, s.Length, leased, 0);
+                    return new ReadOnlyMemory<byte>(leased, 0, len);
+                case StorageType.Double:
+                    s = Format.ToString(OverlappedValueDouble);
+                    goto HaveString;
+                case StorageType.Int64:
+                    leased = ArrayPool<byte>.Shared.Rent(PhysicalConnection.MaxInt64TextLen + 2); // reused code has CRLF terminator
+                    len = PhysicalConnection.WriteRaw(leased, _overlappedValue64) - 2; // drop the CRLF
+                    return new ReadOnlyMemory<byte>(leased, 0, len);
+
+            }
+            leased = null;
+            return default;
         }
     }
 }
