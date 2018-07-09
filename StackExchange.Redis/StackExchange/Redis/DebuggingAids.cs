@@ -152,15 +152,10 @@ namespace StackExchange.Redis
 
     public partial class SocketManager
     {
-        partial void ShouldIgnoreConnect(ISocketCallback callback, ref bool ignore)
+        partial void ShouldIgnoreConnect(PhysicalConnection callback, ref bool ignore)
         {
             ignore = callback.IgnoreConnect;
         }
-    }
-
-    internal partial interface ISocketCallback
-    {
-        bool IgnoreConnect { get; }
     }
 
     internal partial class PhysicalBridge
@@ -185,7 +180,7 @@ namespace StackExchange.Redis
             }
         }
 
-        bool ISocketCallback.IgnoreConnect => Multiplexer.IgnoreConnect;
+        public bool IgnoreConnect => Multiplexer.IgnoreConnect;
 
         private static volatile bool emulateStaleConnection;
         public static bool EmulateStaleConnection
