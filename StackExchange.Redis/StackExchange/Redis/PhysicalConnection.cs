@@ -20,7 +20,7 @@ using Pipelines.Sockets.Unofficial;
 
 namespace StackExchange.Redis
 {
-    internal sealed partial class PhysicalConnection : IDisposable, ISocketCallback
+    internal sealed partial class PhysicalConnection : IDisposable
     {
         internal readonly byte[] ChannelPrefix;
 
@@ -390,7 +390,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal void OnHeartbeat()
+        internal void OnBridgeHeartbeat()
         {
             Interlocked.Exchange(ref lastBeatTickCount, Environment.TickCount);
         }
@@ -871,7 +871,7 @@ namespace StackExchange.Redis
             return null;
         }
 
-        async ValueTask<SocketMode> ISocketCallback.ConnectedAsync(Socket socket, TextWriter log, SocketManager manager)
+        internal async ValueTask<SocketMode> ConnectedAsync(Socket socket, TextWriter log, SocketManager manager)
         {
             try
             {
@@ -937,7 +937,7 @@ namespace StackExchange.Redis
             }
         }
 
-        void ISocketCallback.Error()
+        internal void Error()
         {
             RecordConnectionFailed(ConnectionFailureType.SocketFailure);
         }
@@ -1016,7 +1016,7 @@ namespace StackExchange.Redis
         partial void OnCreateEcho();
         partial void OnDebugAbort();
 
-        void ISocketCallback.OnHeartbeat()
+        internal void OnHeartbeat()
         {
             try
             {
@@ -1202,7 +1202,7 @@ namespace StackExchange.Redis
             return new RawResult(type, payload, false);
         }
 
-        void ISocketCallback.StartReading() => ReadFromPipe();
+        internal void StartReading() => ReadFromPipe();
 
         private RawResult TryParseResult(in ReadOnlySequence<byte> buffer, ref BufferReader reader)
         {

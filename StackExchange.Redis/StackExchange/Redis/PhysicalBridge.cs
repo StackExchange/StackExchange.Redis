@@ -401,7 +401,7 @@ namespace StackExchange.Redis
                                 Interlocked.Exchange(ref connectTimeoutRetryCount, 0);
                                 tmp.Bridge.ServerEndPoint.ClearUnselectable(UnselectableFlags.DidNotRespond);
                             }
-                            tmp.OnHeartbeat();
+                            tmp.OnBridgeHeartbeat();
                             int writeEverySeconds = ServerEndPoint.WriteEverySeconds,
                                 checkConfigSeconds = Multiplexer.RawConfig.ConfigCheckSeconds;
 

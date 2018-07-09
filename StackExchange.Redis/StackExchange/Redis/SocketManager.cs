@@ -16,40 +16,6 @@ namespace StackExchange.Redis
     }
 
     /// <summary>
-    /// Allows callbacks from SocketManager as work is discovered
-    /// </summary>
-    internal partial interface ISocketCallback
-    {
-        /// <summary>
-        /// Indicates that a socket has connected
-        /// </summary>
-        /// <param name="socket">The socket.</param>
-        /// <param name="log">A text logger to write to.</param>
-        /// <param name="manager">The manager that will be owning this socket.</param>
-        ValueTask<SocketMode> ConnectedAsync(Socket socket, TextWriter log, SocketManager manager);
-
-        /// <summary>
-        /// Indicates that the socket has signalled an error condition
-        /// </summary>
-        void Error();
-
-        void OnHeartbeat();
-
-        ///// <summary>
-        ///// Indicates that data is available on the socket, and that the consumer should read synchronously from the socket while there is data
-        ///// </summary>
-        //void Read();
-
-        /// <summary>
-        /// Indicates that we cannot know whether data is available, and that the consume should commence reading asynchronously
-        /// </summary>
-        void StartReading();
-
-        // check for write-read timeout
-        void CheckForStaleConnection(ref SocketManager.ManagerState state);
-    }
-
-    /// <summary>
     /// A SocketManager monitors multiple sockets for availability of data; this is done using
     /// the Socket.Select API and a dedicated reader-thread, which allows for fast responses
     /// even when the system is under ambient load.
@@ -197,7 +163,7 @@ namespace StackExchange.Redis
         /// </summary>
         ~SocketManager() => Dispose(false);
 
-        internal Socket BeginConnect(EndPoint endpoint, ISocketCallback callback, ConnectionMultiplexer multiplexer, TextWriter log)
+        internal Socket BeginConnect(EndPoint endpoint, PhysicalConnection callback, ConnectionMultiplexer multiplexer, TextWriter log)
         {
             void RunWithCompletionType(Func<AsyncCallback, IAsyncResult> beginAsync, AsyncCallback asyncCallback)
             {
@@ -225,28 +191,27 @@ namespace StackExchange.Redis
             try
             {
                 var formattedEndpoint = Format.ToString(endpoint);
-                var tuple = Tuple.Create(socket, callback);
                 multiplexer.LogLocked(log, "BeginConnect: {0}", formattedEndpoint);
                 // A work-around for a Mono bug in BeginConnect(EndPoint endpoint, AsyncCallback callback, object state)
                 if (endpoint is DnsEndPoint dnsEndpoint)
                 {
                     RunWithCompletionType(
-                        cb => socket.BeginConnect(dnsEndpoint.Host, dnsEndpoint.Port, cb, tuple),
+                        cb => socket.BeginConnect(dnsEndpoint.Host, dnsEndpoint.Port, cb, null),
                         ar =>
                         {
                             multiplexer.LogLocked(log, "EndConnect: {0}", formattedEndpoint);
-                            EndConnectImpl(ar, multiplexer, log, tuple);
+                            EndConnectImpl(ar, multiplexer, log, socket, callback);
                             multiplexer.LogLocked(log, "Connect complete: {0}", formattedEndpoint);
                         });
                 }
                 else
                 {
                     RunWithCompletionType(
-                        cb => socket.BeginConnect(endpoint, cb, tuple),
+                        cb => socket.BeginConnect(endpoint, cb, null),
                         ar =>
                         {
                             multiplexer.LogLocked(log, "EndConnect: {0}", formattedEndpoint);
-                            EndConnectImpl(ar, multiplexer, log, tuple);
+                            EndConnectImpl(ar, multiplexer, log, socket, callback);
                             multiplexer.LogLocked(log, "Connect complete: {0}", formattedEndpoint);
                         });
                 }
@@ -261,24 +226,24 @@ namespace StackExchange.Redis
             }
             return socket;
         }
-        private async void EndConnectImpl(IAsyncResult ar, ConnectionMultiplexer multiplexer, TextWriter log, Tuple<Socket, ISocketCallback> tuple)
+        private async void EndConnectImpl(IAsyncResult ar, ConnectionMultiplexer multiplexer, TextWriter log, Socket socket, PhysicalConnection connection)
         {
-            var socket = tuple.Item1;
-            var callback = tuple.Item2;
             try
             {
                 bool ignoreConnect = false;
-                ShouldIgnoreConnect(tuple.Item2, ref ignoreConnect);
+                ShouldIgnoreConnect(connection, ref ignoreConnect);
                 if (ignoreConnect) return;
                 socket.EndConnect(ar);
 
-                var socketMode = callback == null ? SocketMode.Abort : await callback.ConnectedAsync(socket, log, this);
+                var socketMode = connection == null ? SocketMode.Abort : await connection.ConnectedAsync(socket, log, this).ForAwait();
                 switch (socketMode)
                 {
                     case SocketMode.Async:
                         multiplexer.LogLocked(log, "Starting read");
                         try
-                        { callback.StartReading(); }
+                        {
+                            connection.StartReading();
+                        }
                         catch (Exception ex)
                         {
                             ConnectionMultiplexer.TraceWithoutContext(ex.Message);
@@ -294,9 +259,9 @@ namespace StackExchange.Redis
             catch (ObjectDisposedException)
             {
                 multiplexer.LogLocked(log, "(socket shutdown)");
-                if (callback != null)
+                if (connection != null)
                 {
-                    try { callback.Error(); }
+                    try { connection.Error(); }
                     catch (Exception inner)
                     {
                         ConnectionMultiplexer.TraceWithoutContext(inner.Message);
@@ -306,9 +271,9 @@ namespace StackExchange.Redis
             catch (Exception outer)
             {
                 ConnectionMultiplexer.TraceWithoutContext(outer.Message);
-                if (callback != null)
+                if (connection != null)
                 {
-                    try { callback.Error(); }
+                    try { connection.Error(); }
                     catch (Exception inner)
                     {
                         ConnectionMultiplexer.TraceWithoutContext(inner.Message);
@@ -320,7 +285,7 @@ namespace StackExchange.Redis
         partial void OnDispose();
         partial void OnShutdown(Socket socket);
 
-        partial void ShouldIgnoreConnect(ISocketCallback callback, ref bool ignore);
+        partial void ShouldIgnoreConnect(PhysicalConnection callback, ref bool ignore);
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")]
         internal void Shutdown(Socket socket)
