@@ -3,7 +3,7 @@
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// A position within a stream.
+    /// A position within a stream. Defaults to <see cref="Position.New"/>.
     /// </summary>
     public struct Position
     {
@@ -25,9 +25,9 @@ namespace StackExchange.Redis
             ExplicitValue = RedisValue.Null;
         }
 
-        internal PositionKind Kind { get; }
+        private PositionKind? Kind { get; }
 
-        internal RedisValue ExplicitValue { get; }
+        private RedisValue ExplicitValue { get; }
 
         /// <summary>
         /// Read new messages.
@@ -41,11 +41,14 @@ namespace StackExchange.Redis
 
         internal RedisValue ResolveForCommand(RedisCommand command)
         {
-            if (Kind == PositionKind.Explicit) return ExplicitValue;
-            if (Kind == PositionKind.Beginning) return StreamConstants.ReadMinValue;
+            // Handle the default struct value.
+            var actualKind = Kind ?? PositionKind.Beginning;
+
+            if (actualKind == PositionKind.Explicit) return ExplicitValue;
+            if (actualKind == PositionKind.Beginning) return StreamConstants.ReadMinValue;
 
             // PositionKind.New
-            if (command == RedisCommand.XREAD) throw new InvalidOperationException("StreamPosition.New cannot be used with StreamRead.");
+            if (command == RedisCommand.XREAD) throw new InvalidOperationException("Position.New cannot be used with StreamRead.");
             if (command == RedisCommand.XREADGROUP) return StreamConstants.UndeliveredMessages;
             if (command == RedisCommand.XGROUP) return StreamConstants.NewMessages;
 

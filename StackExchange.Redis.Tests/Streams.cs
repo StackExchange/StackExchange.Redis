@@ -1059,6 +1059,43 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void StreamPositionDefaultValueIsBeginning()
+        {
+            Position position = new Position();
+
+            Assert.Equal(StreamConstants.ReadMinValue, position.ResolveForCommand(RedisCommand.XREAD));
+            Assert.Equal(StreamConstants.ReadMinValue, position.ResolveForCommand(RedisCommand.XREADGROUP));
+            Assert.Equal(StreamConstants.ReadMinValue, position.ResolveForCommand(RedisCommand.XGROUP));
+        }
+
+        [Fact]
+        public void StreamPositionValidateBeginning()
+        {
+            var position = Position.Beginning;
+
+            Assert.Equal(StreamConstants.ReadMinValue, position.ResolveForCommand(RedisCommand.XREAD));
+        }
+
+        [Fact]
+        public void StreamPositionValidateExplicit()
+        {
+            var explicitValue = "1-0";
+            var position = new Position(explicitValue);
+
+            Assert.Equal(explicitValue, position.ResolveForCommand(RedisCommand.XREAD));
+        }
+
+        [Fact]
+        public void StreamPositionValidateNew()
+        {
+            var position = Position.New;
+
+            Assert.Equal(StreamConstants.NewMessages, position.ResolveForCommand(RedisCommand.XGROUP));
+            Assert.Equal(StreamConstants.UndeliveredMessages, position.ResolveForCommand(RedisCommand.XREADGROUP));
+            Assert.ThrowsAny<InvalidOperationException>(() => position.ResolveForCommand(RedisCommand.XREAD));
+        }
+
+        [Fact]
         public void StreamRead()
         {
             var key = GetUniqueKey("read");
