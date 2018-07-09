@@ -60,7 +60,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Indicate the type of result that was received from redis
         /// </summary>
-        public abstract ResultType ResultType { get; }
+        public abstract ResultType Type { get; }
 
         /// <summary>
         /// Indicates whether this result was a null result
@@ -199,7 +199,7 @@ namespace StackExchange.Redis
             public override bool IsNull => value == null;
             private readonly RedisResult[] value;
 
-            public override ResultType ResultType => ResultType.MultiBulk;
+            public override ResultType Type => ResultType.MultiBulk;
             public ArrayRedisResult(RedisResult[] value)
             {
                 this.value = value ?? throw new ArgumentNullException(nameof(value));
@@ -302,7 +302,7 @@ namespace StackExchange.Redis
         {
             private readonly string value;
 
-            public override ResultType ResultType => ResultType.Error;
+            public override ResultType Type => ResultType.Error;
             public ErrorRedisResult(string value)
             {
                 this.value = value ?? throw new ArgumentNullException(nameof(value));
@@ -337,7 +337,7 @@ namespace StackExchange.Redis
         {
             private readonly RedisValue _value;
             private readonly ResultType _resultType;
-            public override ResultType ResultType => _resultType;
+            public override ResultType Type => _resultType;
             public SingleRedisResult(RedisValue value, ResultType? resultType)
             {
                 _value = value;

@@ -762,5 +762,33 @@ namespace StackExchange.Redis
                 return stream.ToArray();
             }
         }
+
+
+        /// <summary>
+        /// Indicates whether the current value has the supplied value as a prefix
+        /// </summary>
+        public bool StartsWith(RedisValue value)
+        {
+            ReadOnlyMemory<byte> rawThis, rawOther;
+            var thisType = this.Type;
+            if (thisType == value.Type) // same? can often optimize
+            {
+                switch(thisType)
+                {
+                    case StorageType.String:
+                        var sThis = ((string)this._objectOrSentinel);
+                        var sOther = ((string)value._objectOrSentinel);
+                        return sThis.StartsWith(sOther, StringComparison.Ordinal);
+                    case StorageType.Raw:
+                        rawThis = this._memory;
+                        rawOther = value._memory;
+                        return rawThis.Span.StartsWith(rawOther.Span);
+                }
+            }
+            rawThis = (ReadOnlyMemory<byte>)this;
+            rawOther = (ReadOnlyMemory<byte>)value;
+            return rawThis.Span.StartsWith(rawOther.Span);
+
+        }
     }
 }

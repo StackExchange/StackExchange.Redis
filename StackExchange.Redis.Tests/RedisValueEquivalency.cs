@@ -150,5 +150,40 @@ namespace StackExchange.Redis.Tests
         }
 
         private static byte[] Bytes(string s) => s == null ? null : Encoding.UTF8.GetBytes(s);
+
+        [Fact]
+        public void RedisValueStartsWith()
+        {
+            // test strings
+            RedisValue x = "abc";
+            Assert.True(x.StartsWith("a"));
+            Assert.True(x.StartsWith("ab"));
+            Assert.True(x.StartsWith("abc"));
+            Assert.False(x.StartsWith("abd"));
+            Assert.False(x.StartsWith("abcd"));
+            Assert.False(x.StartsWith(123));
+            Assert.False(x.StartsWith(false));
+
+            // test binary
+            x = Encoding.ASCII.GetBytes("abc");
+            Assert.True(x.StartsWith("a"));
+            Assert.True(x.StartsWith("ab"));
+            Assert.True(x.StartsWith("abc"));
+            Assert.False(x.StartsWith("abd"));
+            Assert.False(x.StartsWith("abcd"));
+            Assert.False(x.StartsWith(123));
+            Assert.False(x.StartsWith(false));
+
+            Assert.True(x.StartsWith(Encoding.ASCII.GetBytes("a")));
+            Assert.True(x.StartsWith(Encoding.ASCII.GetBytes("ab")));
+            Assert.True(x.StartsWith(Encoding.ASCII.GetBytes("abc")));
+            Assert.False(x.StartsWith(Encoding.ASCII.GetBytes("abd")));
+            Assert.False(x.StartsWith(Encoding.ASCII.GetBytes("abcd")));
+
+            x = 10; // integers are effectively strings in this context
+            Assert.True(x.StartsWith(1));
+            Assert.True(x.StartsWith(10));
+            Assert.False(x.StartsWith(100));
+        }
     }
 }
