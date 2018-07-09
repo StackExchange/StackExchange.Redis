@@ -541,11 +541,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.SortedSetRangeByScoreWithScoresAsync(ToInner(key), start, stop, exclude, order, skip, take, flags);
         }
 
-
         public Task<RedisValue[]> SortedSetRangeByValueAsync(RedisKey key, RedisValue min, RedisValue max, Exclude exclude, long skip, long take, CommandFlags flags)
         {
             return Inner.SortedSetRangeByValueAsync(ToInner(key), min, max, exclude, Order.Ascending, skip, take, flags);
         }
+
         public Task<RedisValue[]> SortedSetRangeByValueAsync(RedisKey key, RedisValue min = default(RedisValue), RedisValue max = default(RedisValue), Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
         {
             return Inner.SortedSetRangeByValueAsync(ToInner(key), min, max, exclude, order, skip, take, flags);

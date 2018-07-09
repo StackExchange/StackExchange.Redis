@@ -565,9 +565,10 @@ namespace StackExchange.Redis.KeyspaceIsolation
         {
             return Inner.SortedSetRangeByValue(ToInner(key), min, max, exclude, Order.Ascending, skip, take, flags);
         }
+
         public RedisValue[] SortedSetRangeByValue(RedisKey key, RedisValue min = default(RedisValue), RedisValue max = default(RedisValue), Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
         {
-            return Inner.SortedSetRangeByValue(ToInner(key), min, max, exclude, skip, take, flags);
+            return Inner.SortedSetRangeByValue(ToInner(key), min, max, exclude, order, skip, take, flags);
         }
 
         public long? SortedSetRank(RedisKey key, RedisValue member, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)

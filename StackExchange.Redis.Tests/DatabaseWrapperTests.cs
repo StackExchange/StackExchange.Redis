@@ -725,7 +725,14 @@ namespace StackExchange.Redis.Tests
         public void SortedSetRangeByValue()
         {
             wrapper.SortedSetRangeByValue("key", "min", "max", Exclude.Start, 123, 456, CommandFlags.HighPriority);
-            mock.Verify(_ => _.SortedSetRangeByValue("prefix:key", "min", "max", Exclude.Start, 123, 456, CommandFlags.HighPriority));
+            mock.Verify(_ => _.SortedSetRangeByValue("prefix:key", "min", "max", Exclude.Start, Order.Ascending, 123, 456, CommandFlags.HighPriority));
+        }
+
+        [Fact]
+        public void SortedSetRangeByValueDesc()
+        {
+            wrapper.SortedSetRangeByValue("key", "min", "max", Exclude.Start, Order.Descending, 123, 456, CommandFlags.HighPriority);
+            mock.Verify(_ => _.SortedSetRangeByValue("prefix:key", "min", "max", Exclude.Start, Order.Descending, 123, 456, CommandFlags.HighPriority));
         }
 
         [Fact]
