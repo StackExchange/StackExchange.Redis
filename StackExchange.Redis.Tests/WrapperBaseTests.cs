@@ -794,10 +794,17 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void StreamConsumerGroupSetPositionAsync()
+        {
+            wrapper.StreamConsumerGroupSetPositionAsync("key", "group", Position.Beginning, CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamConsumerGroupSetPositionAsync("prefix:key", "group", Position.Beginning, CommandFlags.HighPriority));
+        }
+
+        [Fact]
         public void StreamCreateConsumerGroupAsync()
         {
-            wrapper.StreamCreateConsumerGroupAsync("key", "group", GroupCreateOptions.ReadAfterId("0-0"), CommandFlags.HighPriority);
-            mock.Verify(_ => _.StreamCreateConsumerGroupAsync("prefix:key", "group", GroupCreateOptions.ReadAfterId("0-0"), CommandFlags.HighPriority));
+            wrapper.StreamCreateConsumerGroupAsync("key", "group", new Position("0-0"), CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamCreateConsumerGroupAsync("prefix:key", "group", new Position("0-0"), CommandFlags.HighPriority));
         }
 
         [Fact]
@@ -853,45 +860,45 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamPendingMessageInfoGetAsync()
         {
-            wrapper.StreamPendingMessagesAsync("key", "group", 10, RedisValue.Null, Range.All, CommandFlags.HighPriority);
-            mock.Verify(_ => _.StreamPendingMessagesAsync("prefix:key", "group", 10, RedisValue.Null, Range.All, CommandFlags.HighPriority));
+            wrapper.StreamPendingMessagesAsync("key", "group", 10, RedisValue.Null, "-", "+", CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamPendingMessagesAsync("prefix:key", "group", 10, RedisValue.Null, "-", "+", CommandFlags.HighPriority));
         }
 
         [Fact]
         public void StreamRangeAsync()
         {
-            wrapper.StreamRangeAsync("key", Range.All, null, CommandFlags.HighPriority);
-            mock.Verify(_ => _.StreamRangeAsync("prefix:key", Range.All, null, CommandFlags.HighPriority));
+            wrapper.StreamRangeAsync("key", "-", "+", null, Order.Ascending, CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamRangeAsync("prefix:key", "-", "+", null, Order.Ascending, CommandFlags.HighPriority));
         }
 
         [Fact]
         public void StreamReadAsync_1()
         {
-            var streamOffsetPairs = new StreamReadOffsetPair[0] { };
-            wrapper.StreamReadAsync(streamOffsetPairs, null, CommandFlags.HighPriority);
-            mock.Verify(_ => _.StreamReadAsync(streamOffsetPairs, null, CommandFlags.HighPriority));
+            var streamPositions = new StreamPosition[0] { };
+            wrapper.StreamReadAsync(streamPositions, null, CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamReadAsync(streamPositions, null, CommandFlags.HighPriority));
         }
 
         [Fact]
         public void StreamReadAsync_2()
         {
-            wrapper.StreamReadAsync("key", ReadOffset.AfterId("0-0"), null, CommandFlags.HighPriority);
-            mock.Verify(_ => _.StreamReadAsync("prefix:key", ReadOffset.AfterId("0-0"), null, CommandFlags.HighPriority));
+            wrapper.StreamReadAsync("key", new Position("0-0"), null, CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamReadAsync("prefix:key", new Position("0-0"), null, CommandFlags.HighPriority));
         }
 
         [Fact]
         public void StreamReadGroupAsync_1()
         {
-            wrapper.StreamReadGroupAsync("key", "group", "consumer", GroupReadOffset.All, 10, CommandFlags.HighPriority);
-            mock.Verify(_ => _.StreamReadGroupAsync("prefix:key", "group", "consumer", GroupReadOffset.All, 10, CommandFlags.HighPriority));
+            wrapper.StreamReadGroupAsync("key", "group", "consumer", Position.Beginning, 10, CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamReadGroupAsync("prefix:key", "group", "consumer", Position.Beginning, 10, CommandFlags.HighPriority));
         }
 
         [Fact]
         public void StreamStreamReadGroupAsync_2()
         {
-            var streamOffsetPairs = new StreamGroupReadOffsetPair[0] { };
-            wrapper.StreamReadGroupAsync(streamOffsetPairs, "group", "consumer", 10, CommandFlags.HighPriority);
-            mock.Verify(_ => _.StreamReadGroupAsync(streamOffsetPairs, "group", "consumer", 10, CommandFlags.HighPriority));
+            var streamPositions = new StreamPosition[0] { };
+            wrapper.StreamReadGroupAsync(streamPositions, "group", "consumer", 10, CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamReadGroupAsync(streamPositions, "group", "consumer", 10, CommandFlags.HighPriority));
         }
 
         [Fact]

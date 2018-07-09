@@ -829,6 +829,13 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void StreamConsumerGroupSetPosition()
+        {
+            wrapper.StreamConsumerGroupSetPosition("key", "group", Position.Beginning, CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamConsumerGroupSetPosition("prefix:key", "group", Position.Beginning, CommandFlags.HighPriority));
+        }
+
+        [Fact]
         public void StreamConsumerInfoGet()
         {
             wrapper.StreamConsumerInfo("key", "group", CommandFlags.HighPriority);
@@ -838,8 +845,8 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamCreateConsumerGroup()
         {
-            wrapper.StreamCreateConsumerGroup("key", "group", GroupCreateOptions.ReadBeginning, CommandFlags.HighPriority);
-            mock.Verify(_ => _.StreamCreateConsumerGroup("prefix:key", "group", GroupCreateOptions.ReadBeginning, CommandFlags.HighPriority));
+            wrapper.StreamCreateConsumerGroup("key", "group", Position.Beginning, CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamCreateConsumerGroup("prefix:key", "group", Position.Beginning, CommandFlags.HighPriority));
         }
 
         [Fact]
@@ -895,45 +902,45 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamPendingMessageInfoGet()
         {
-            wrapper.StreamPendingMessages("key", "group", 10, RedisValue.Null, Range.All, CommandFlags.HighPriority);
-            mock.Verify(_ => _.StreamPendingMessages("prefix:key", "group", 10, RedisValue.Null, Range.All, CommandFlags.HighPriority));
+            wrapper.StreamPendingMessages("key", "group", 10, RedisValue.Null, "-", "+", CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamPendingMessages("prefix:key", "group", 10, RedisValue.Null, "-", "+", CommandFlags.HighPriority));
         }
 
         [Fact]
         public void StreamRange()
         {
-            wrapper.StreamRange("key", Range.All, null, CommandFlags.HighPriority);
-            mock.Verify(_ => _.StreamRange("prefix:key", Range.All, null, CommandFlags.HighPriority));
+            wrapper.StreamRange("key", "-", "+", null, Order.Ascending, CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamRange("prefix:key", "-", "+", null, Order.Ascending, CommandFlags.HighPriority));
         }
 
         [Fact]
         public void StreamRead_1()
         {
-            var streamOffsetPairs = new StreamReadOffsetPair[0] { };
-            wrapper.StreamRead(streamOffsetPairs, null, CommandFlags.HighPriority);
-            mock.Verify(_ => _.StreamRead(streamOffsetPairs, null, CommandFlags.HighPriority));
+            var streamPositions = new StreamPosition[0] { };
+            wrapper.StreamRead(streamPositions, null, CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamRead(streamPositions, null, CommandFlags.HighPriority));
         }
 
         [Fact]
         public void StreamRead_2()
         {
-            wrapper.StreamRead("key", ReadOffset.AfterId("0-0"), null, CommandFlags.HighPriority);
-            mock.Verify(_ => _.StreamRead("prefix:key", ReadOffset.AfterId("0-0"), null, CommandFlags.HighPriority));
+            wrapper.StreamRead("key", new Position("0-0"), null, CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamRead("prefix:key", new Position("0-0"), null, CommandFlags.HighPriority));
         }
 
         [Fact]
         public void StreamStreamReadGroup_1()
         {
-            wrapper.StreamReadGroup("key", "group", "consumer", GroupReadOffset.AfterId("0-0"), 10, CommandFlags.HighPriority);
-            mock.Verify(_ => _.StreamReadGroup("prefix:key", "group", "consumer", GroupReadOffset.AfterId("0-0"), 10, CommandFlags.HighPriority));
+            wrapper.StreamReadGroup("key", "group", "consumer", new Position("0-0"), 10, CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamReadGroup("prefix:key", "group", "consumer", new Position("0-0"), 10, CommandFlags.HighPriority));
         }
 
         [Fact]
         public void StreamStreamReadGroup_2()
         {
-            var streamOffsetPairs = new StreamGroupReadOffsetPair[0] { };
-            wrapper.StreamReadGroup(streamOffsetPairs, "group", "consumer", 10, CommandFlags.HighPriority);
-            mock.Verify(_ => _.StreamReadGroup(streamOffsetPairs, "group", "consumer", 10, CommandFlags.HighPriority));
+            var streamPositions = new StreamPosition[0] { };
+            wrapper.StreamReadGroup(streamPositions, "group", "consumer", 10, CommandFlags.HighPriority);
+            mock.Verify(_ => _.StreamReadGroup(streamPositions, "group", "consumer", 10, CommandFlags.HighPriority));
         }
 
         [Fact]

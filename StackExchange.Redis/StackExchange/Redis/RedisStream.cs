@@ -5,7 +5,7 @@
     /// </summary>
     public struct RedisStream
     {
-        internal RedisStream(RedisKey key, RedisStreamEntry[] entries)
+        internal RedisStream(RedisKey key, StreamEntry[] entries)
         {
             Key = key;
             Entries = entries;
@@ -19,6 +19,6 @@
         /// <summary>
         /// An arry of entries contained within the stream.
         /// </summary>
-        public RedisStreamEntry[] Entries { get; }
+        public StreamEntry[] Entries { get; }
     }
 }
