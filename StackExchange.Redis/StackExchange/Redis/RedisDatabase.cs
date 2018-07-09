@@ -3057,9 +3057,29 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
-        public RedisValue[] SortedSetRangeByValue(RedisKey key, RedisValue min = default(RedisValue), RedisValue max = default(RedisValue), Exclude exclude = Exclude.None, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
+        public RedisValue[] SortedSetRangeByValue(RedisKey key, RedisValue min, RedisValue max, Exclude exclude, long skip, long take, CommandFlags flags)
+            => SortedSetRangeByValue(key, min, max, exclude, Order.Ascending, skip, take, flags);
+
+        static void ReverseLimits(Order order, ref Exclude exclude, ref RedisValue start, ref RedisValue stop)
         {
-            var msg = GetLexMessage(RedisCommand.ZRANGEBYLEX, key, min, max, exclude, skip, take, flags);
+            bool reverseLimits = (order == Order.Ascending) == start.CompareTo(stop) > 0;
+            if (reverseLimits)
+            {
+                var tmp = start;
+                start = stop;
+                stop = tmp;
+                switch (exclude)
+                {
+                    case Exclude.Start: exclude = Exclude.Stop; break;
+                    case Exclude.Stop: exclude = Exclude.Start; break;
+                }
+            }
+        }
+        public RedisValue[] SortedSetRangeByValue(RedisKey key, RedisValue min = default(RedisValue), RedisValue max = default(RedisValue),
+            Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
+        {
+            ReverseLimits(order, ref exclude, ref min, ref max);
+            var msg = GetLexMessage(order == Order.Ascending ? RedisCommand.ZRANGEBYLEX : RedisCommand.ZREVRANGEBYLEX, key, min, max, exclude, skip, take, flags);
             return ExecuteSync(msg, ResultProcessor.RedisValueArray);
         }
 
@@ -3075,9 +3095,13 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
-        public Task<RedisValue[]> SortedSetRangeByValueAsync(RedisKey key, RedisValue min = default(RedisValue), RedisValue max = default(RedisValue), Exclude exclude = Exclude.None, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
+        public Task<RedisValue[]> SortedSetRangeByValueAsync(RedisKey key, RedisValue min, RedisValue max, Exclude exclude, long skip, long take, CommandFlags flags)
+            => SortedSetRangeByValueAsync(key, min, max, exclude, Order.Ascending, skip, take, flags);
+        public Task<RedisValue[]> SortedSetRangeByValueAsync(RedisKey key, RedisValue min = default(RedisValue), RedisValue max = default(RedisValue),
+            Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
         {
-            var msg = GetLexMessage(RedisCommand.ZRANGEBYLEX, key, min, max, exclude, skip, take, flags);
+            ReverseLimits(order, ref exclude, ref min, ref max);
+            var msg = GetLexMessage(order == Order.Ascending ? RedisCommand.ZRANGEBYLEX : RedisCommand.ZREVRANGEBYLEX, key, min, max, exclude, skip, take, flags);
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray);
         }
 

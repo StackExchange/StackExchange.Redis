@@ -1304,9 +1304,32 @@ namespace StackExchange.Redis
         /// <remarks>https://redis.io/commands/zrangebylex</remarks>
         /// <returns>list of elements in the specified score range.</returns>
         RedisValue[] SortedSetRangeByValue(RedisKey key,
+            RedisValue min,
+            RedisValue max,
+            Exclude exclude,
+            long skip,
+            long take = -1,
+            CommandFlags flags = CommandFlags.None); // defaults removed to avoid ambiguity with overload with order
+
+        /// <summary>
+        /// When all the elements in a sorted set are inserted with the same score, in order to force lexicographical ordering, this command returns all the elements in the sorted set at key with a value between min and max.
+        /// </summary>
+        /// <param name="key">The key of the sorted set.</param>
+        /// <param name="min">The min value to filter by.</param>
+        /// <param name="max">The max value to filter by.</param>
+        /// <param name="exclude">Which of <paramref name="min"/> and <paramref name="max"/> to exclude (defaults to both inclusive).</param>
+        /// <param name="order">Whether to order the data ascending or descending</param>
+        /// <param name="skip">How many items to skip.</param>
+        /// <param name="take">How many items to take.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <remarks>https://redis.io/commands/zrangebylex</remarks>
+        /// <remarks>https://redis.io/commands/zrevrangebylex</remarks>
+        /// <returns>list of elements in the specified score range.</returns>
+        RedisValue[] SortedSetRangeByValue(RedisKey key,
             RedisValue min = default(RedisValue),
             RedisValue max = default(RedisValue),
             Exclude exclude = Exclude.None,
+            Order order = Order.Ascending,
             long skip = 0,
             long take = -1,
             CommandFlags flags = CommandFlags.None);
