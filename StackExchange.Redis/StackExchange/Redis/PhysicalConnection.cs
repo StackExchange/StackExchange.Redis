@@ -159,21 +159,13 @@ namespace StackExchange.Redis
 
         public void RecordConnectionFailed(ConnectionFailureType failureType, Exception innerException = null, [CallerMemberName] string origin = null)
         {
-            var mgrState = SocketManager.ManagerState.CheckForStaleConnections;
-            RecordConnectionFailed(failureType, ref mgrState, innerException, origin);
-        }
-
-        public void RecordConnectionFailed(ConnectionFailureType failureType, ref SocketManager.ManagerState managerState, Exception innerException = null, [CallerMemberName] string origin = null)
-        {
             IdentifyFailureType(innerException, ref failureType);
 
-            managerState = SocketManager.ManagerState.RecordConnectionFailed_OnInternalError;
             if (failureType == ConnectionFailureType.InternalFailure) OnInternalError(innerException, origin);
 
             // stop anything new coming in...
             Bridge.Trace("Failed: " + failureType);
             int @in = -1;
-            managerState = SocketManager.ManagerState.RecordConnectionFailed_OnDisconnected;
             Bridge.OnDisconnected(failureType, this, out bool isCurrent, out PhysicalBridge.State oldState);
             if (oldState == PhysicalBridge.State.ConnectedEstablished)
             {
@@ -186,7 +178,6 @@ namespace StackExchange.Redis
 
             if (isCurrent && Interlocked.CompareExchange(ref failureReported, 1, 0) == 0)
             {
-                managerState = SocketManager.ManagerState.RecordConnectionFailed_ReportFailure;
                 int now = Environment.TickCount, lastRead = Thread.VolatileRead(ref lastReadTickCount), lastWrite = Thread.VolatileRead(ref lastWriteTickCount),
                     lastBeat = Thread.VolatileRead(ref lastBeatTickCount);
                 int unansweredRead = Thread.VolatileRead(ref firstUnansweredWriteTickCount);
@@ -235,12 +226,10 @@ namespace StackExchange.Redis
                     ex.Data["Redis-" + kv.Item1] = kv.Item2;
                 }
 
-                managerState = SocketManager.ManagerState.RecordConnectionFailed_OnConnectionFailed;
                 Bridge.OnConnectionFailed(this, failureType, ex);
             }
 
             // cleanup
-            managerState = SocketManager.ManagerState.RecordConnectionFailed_FailOutstanding;
             lock (_writtenAwaitingResponse)
             {
                 Bridge.Trace(_writtenAwaitingResponse.Count != 0, "Failing outstanding messages: " + _writtenAwaitingResponse.Count);
@@ -254,7 +243,6 @@ namespace StackExchange.Redis
             }
 
             // burn the socket
-            managerState = SocketManager.ManagerState.RecordConnectionFailed_ShutdownSocket;
             Multiplexer.SocketManager?.Shutdown(_socket);
         }
 
@@ -1416,22 +1404,6 @@ namespace StackExchange.Redis
             {
                 var from = SnapshotPosition();
                 return _buffer.Slice(from);
-            }
-        }
-
-        partial void DebugEmulateStaleConnection(ref int firstUnansweredWrite);
-
-        public void CheckForStaleConnection(ref SocketManager.ManagerState state)
-        {
-            int firstUnansweredWrite = Thread.VolatileRead(ref firstUnansweredWriteTickCount);
-
-            DebugEmulateStaleConnection(ref firstUnansweredWrite);
-
-            int now = Environment.TickCount;
-
-            if (firstUnansweredWrite != 0 && (now - firstUnansweredWrite) > Multiplexer.RawConfig.ResponseTimeout)
-            {
-                RecordConnectionFailed(ConnectionFailureType.SocketFailure, ref state, origin: "CheckForStaleConnection");
             }
         }
     }

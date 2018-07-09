@@ -4,7 +4,6 @@ using System.IO.Pipelines;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
-using System.Threading.Tasks;
 using Pipelines.Sockets.Unofficial;
 
 namespace StackExchange.Redis
@@ -22,41 +21,6 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed partial class SocketManager : IDisposable
     {
-        internal enum ManagerState
-        {
-            Inactive,
-            Preparing,
-            Faulted,
-            CheckForHeartbeat,
-            ExecuteHeartbeat,
-            LocateActiveSockets,
-            NoSocketsPause,
-            PrepareActiveSockets,
-            CullDeadSockets,
-            NoActiveSocketsPause,
-            GrowingSocketArray,
-            CopyingPointersForSelect,
-            ExecuteSelect,
-            ExecuteSelectComplete,
-            CheckForStaleConnections,
-
-            RecordConnectionFailed_OnInternalError,
-            RecordConnectionFailed_OnDisconnected,
-            RecordConnectionFailed_ReportFailure,
-            RecordConnectionFailed_OnConnectionFailed,
-            RecordConnectionFailed_FailOutstanding,
-            RecordConnectionFailed_ShutdownSocket,
-
-            CheckForStaleConnectionsDone,
-            EnqueueRead,
-            EnqueueError,
-            EnqueueReadFallback,
-            RequestAssistance,
-            ProcessQueues,
-            ProcessReadQueue,
-            ProcessErrorQueue,
-        }
-
         /// <summary>
         /// Gets the name of this SocketManager instance
         /// </summary>
