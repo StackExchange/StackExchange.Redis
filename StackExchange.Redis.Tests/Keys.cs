@@ -24,7 +24,7 @@ namespace StackExchange.Redis.Tests
                 for (int i = 0; i < Count; i++)
                     db.StringSet(prefix + "x" + i, "y" + i, flags: CommandFlags.FireAndForget);
 
-                var count = server.Keys(dbId).Count();
+                var count = server.Keys(dbId, prefix + "*").Count();
                 Assert.Equal(Count, count);
             }
         }
