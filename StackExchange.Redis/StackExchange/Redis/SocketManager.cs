@@ -137,27 +137,28 @@ namespace StackExchange.Redis
             return socket;
         }
 
-        static void ConfigureTimeout(SocketAsyncEventArgs args, int timeoutMilliseconds)
+        private static void ConfigureTimeout(SocketAsyncEventArgs args, int timeoutMilliseconds)
         {
             var timeout = Task.Delay(timeoutMilliseconds);
-            timeout.ContinueWith((t, state) =>
+            timeout.ContinueWith((_, state) =>
             {
                 var a = (SocketAsyncEventArgs)state;
                 try { Socket.CancelConnectAsync(a); } catch { }
-                try
-                { ((SocketAwaitable)a.UserToken).Complete(0, SocketError.TimedOut); }
-                catch { }
+                try { ((SocketAwaitable)a.UserToken).Complete(0, SocketError.TimedOut); } catch { }
             }, args);
         }
-        internal void BeginConnectAsync(EndPoint endpoint, Socket socket, PhysicalConnection physicalConnection, ConnectionMultiplexer multiplexer, TextWriter log)
+
+        internal async void BeginConnectAsync(EndPoint endpoint, Socket socket, PhysicalConnection physicalConnection, ConnectionMultiplexer multiplexer, TextWriter log)
         {
             var formattedEndpoint = Format.ToString(endpoint);
             multiplexer.LogLocked(log, "BeginConnect: {0}", formattedEndpoint);
 
             var awaitable = new SocketAwaitable();
-            var args = new SocketAsyncEventArgs();
-            args.UserToken = awaitable;
-            args.RemoteEndPoint = endpoint;
+            var args = new SocketAsyncEventArgs
+            {
+                UserToken = awaitable,
+                RemoteEndPoint = endpoint
+            };
             args.Completed += SocketAwaitable.Callback;
             try
             {
@@ -170,7 +171,52 @@ namespace StackExchange.Redis
                     SocketAwaitable.OnCompleted(args);
                 }
 
-                EndConnectAsync(awaitable, multiplexer, log, socket, physicalConnection);
+                // Complete connection
+                try
+                {
+                    bool ignoreConnect = false;
+                    ShouldIgnoreConnect(physicalConnection, ref ignoreConnect);
+                    if (ignoreConnect) return;
+                    await awaitable;
+
+                    switch (physicalConnection == null ? SocketMode.Abort : await physicalConnection.ConnectedAsync(socket, log, this).ForAwait())
+                    {
+                        case SocketMode.Async:
+                            multiplexer.LogLocked(log, "Starting read");
+                            try
+                            {
+                                physicalConnection.StartReading();
+                            }
+                            catch (Exception ex)
+                            {
+                                ConnectionMultiplexer.TraceWithoutContext(ex.Message);
+                                Shutdown(socket);
+                            }
+                            break;
+                        default:
+                            ConnectionMultiplexer.TraceWithoutContext("Aborting socket");
+                            Shutdown(socket);
+                            break;
+                    }
+                }
+                catch (ObjectDisposedException)
+                {
+                    multiplexer.LogLocked(log, "(socket shutdown)");
+                    try { physicalConnection?.Error(); }
+                    catch (Exception inner)
+                    {
+                        ConnectionMultiplexer.TraceWithoutContext(inner.Message);
+                    }
+                }
+                catch (Exception outer)
+                {
+                    ConnectionMultiplexer.TraceWithoutContext(outer.Message);
+                    try { physicalConnection?.Error(); }
+                    catch (Exception inner)
+                    {
+                        ConnectionMultiplexer.TraceWithoutContext(inner.Message);
+                    }
+                }
             }
             catch (NotImplementedException ex)
             {
@@ -179,61 +225,6 @@ namespace StackExchange.Redis
                     throw new InvalidOperationException("BeginConnect failed with NotImplementedException; consider using IP endpoints, or enable ResolveDns in the configuration", ex);
                 }
                 throw;
-            }
-        }
-        private async void EndConnectAsync(SocketAwaitable awaitable, ConnectionMultiplexer multiplexer, TextWriter log, Socket socket, PhysicalConnection connection)
-        {
-            try
-            {
-                bool ignoreConnect = false;
-                ShouldIgnoreConnect(connection, ref ignoreConnect);
-                if (ignoreConnect) return;
-                await awaitable;
-
-                var socketMode = connection == null ? SocketMode.Abort : await connection.ConnectedAsync(socket, log, this).ForAwait();
-                switch (socketMode)
-                {
-                    case SocketMode.Async:
-                        multiplexer.LogLocked(log, "Starting read");
-                        try
-                        {
-                            connection.StartReading();
-                        }
-                        catch (Exception ex)
-                        {
-                            ConnectionMultiplexer.TraceWithoutContext(ex.Message);
-                            Shutdown(socket);
-                        }
-                        break;
-                    default:
-                        ConnectionMultiplexer.TraceWithoutContext("Aborting socket");
-                        Shutdown(socket);
-                        break;
-                }
-            }
-            catch (ObjectDisposedException)
-            {
-                multiplexer.LogLocked(log, "(socket shutdown)");
-                if (connection != null)
-                {
-                    try { connection.Error(); }
-                    catch (Exception inner)
-                    {
-                        ConnectionMultiplexer.TraceWithoutContext(inner.Message);
-                    }
-                }
-            }
-            catch (Exception outer)
-            {
-                ConnectionMultiplexer.TraceWithoutContext(outer.Message);
-                if (connection != null)
-                {
-                    try { connection.Error(); }
-                    catch (Exception inner)
-                    {
-                        ConnectionMultiplexer.TraceWithoutContext(inner.Message);
-                    }
-                }
             }
         }
 
