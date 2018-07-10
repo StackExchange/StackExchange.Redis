@@ -104,7 +104,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal static Exception NoConnectionAvailable(bool includeDetail, bool includePerformanceCounters, RedisCommand command, Message message, ServerEndPoint server, ServerEndPoint[] serverSnapshot)
+        internal static Exception NoConnectionAvailable(bool includeDetail, bool includePerformanceCounters, RedisCommand command, Message message, ServerEndPoint server, ReadOnlySpan<ServerEndPoint> serverSnapshot)
         {
             string commandLabel = GetLabel(includeDetail, command, message);
 
@@ -138,7 +138,7 @@ namespace StackExchange.Redis
             return ex;
         }
 
-        internal static Exception PopulateInnerExceptions(ServerEndPoint[] serverSnapshot)
+        internal static Exception PopulateInnerExceptions(ReadOnlySpan<ServerEndPoint> serverSnapshot)
         {
             var innerExceptions = new List<Exception>();
             if (serverSnapshot != null)
