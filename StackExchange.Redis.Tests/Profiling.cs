@@ -29,7 +29,8 @@ namespace StackExchange.Redis.Tests
 
                 conn.RegisterProfiler(profiler);
                 conn.BeginProfiling(profiler.MyContext);
-                var db = conn.GetDatabase();
+                var dbId = TestConfig.GetDedicatedDB();
+                var db = conn.GetDatabase(dbId);
                 db.StringSet(key, "world");
                 var val = db.StringGet(key);
                 Assert.Equal("world", (string)val);
@@ -49,17 +50,17 @@ namespace StackExchange.Redis.Tests
                 Assert.True(set.CommandCreated <= get.CommandCreated);
                 Assert.True(get.CommandCreated <= eval.CommandCreated);
 
-                AssertProfiledCommandValues(set, conn);
+                AssertProfiledCommandValues(set, conn, dbId);
 
-                AssertProfiledCommandValues(get, conn);
+                AssertProfiledCommandValues(get, conn, dbId);
 
-                AssertProfiledCommandValues(eval, conn);
+                AssertProfiledCommandValues(eval, conn, dbId);
             }
         }
 
-        private static void AssertProfiledCommandValues(IProfiledCommand command, ConnectionMultiplexer conn)
+        private static void AssertProfiledCommandValues(IProfiledCommand command, ConnectionMultiplexer conn, int dbId)
         {
-            Assert.Equal(4, command.Db);
+            Assert.Equal(dbId, command.Db);
             Assert.Equal(conn.GetEndPoints()[0], command.EndPoint);
             Assert.True(command.CreationToEnqueued > TimeSpan.Zero);
             Assert.True(command.EnqueuedToSending > TimeSpan.Zero);
