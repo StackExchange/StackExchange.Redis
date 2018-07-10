@@ -3,10 +3,8 @@ using System.Threading.Tasks;
 using StackExchange.Redis.KeyspaceIsolation;
 using Xunit;
 using Xunit.Abstractions;
-#if DEBUG
 using System.Diagnostics;
 using System.Threading;
-#endif
 
 namespace StackExchange.Redis.Tests
 {
