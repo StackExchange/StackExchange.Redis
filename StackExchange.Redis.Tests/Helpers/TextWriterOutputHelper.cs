@@ -10,7 +10,8 @@ namespace StackExchange.Redis.Tests.Helpers
         private StringBuilder Buffer { get; } = new StringBuilder(2048);
         public override Encoding Encoding => Encoding.UTF8;
         private readonly ITestOutputHelper Output;
-        public TextWriterOutputHelper(ITestOutputHelper outputHelper) => Output = outputHelper;
+        private readonly bool ToConsole;
+        public TextWriterOutputHelper(ITestOutputHelper outputHelper, bool echoToConsole) => (Output, ToConsole) = (outputHelper, echoToConsole);
 
         public override void WriteLine(string value)
         {
@@ -57,6 +58,10 @@ namespace StackExchange.Redis.Tests.Helpers
         {
             var text = Buffer.ToString();
             Output.WriteLine(text);
+            if (ToConsole)
+            {
+                Console.WriteLine(text);
+            }
             Buffer.Clear();
         }
     }

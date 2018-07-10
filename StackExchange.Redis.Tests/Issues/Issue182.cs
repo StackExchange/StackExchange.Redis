@@ -19,9 +19,9 @@ namespace StackExchange.Redis.Tests.Issues
             {
                 conn.ConnectionFailed += (s, a) =>
                 {
-                    Output.WriteLine(a.FailureType.ToString());
-                    Output.WriteLine(a.Exception.Message);
-                    Output.WriteLine(a.Exception.StackTrace);
+                    Log(a.FailureType.ToString());
+                    Log(a.Exception.Message);
+                    Log(a.Exception.StackTrace);
                 };
                 var db = conn.GetDatabase();
 

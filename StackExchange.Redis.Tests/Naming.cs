@@ -8,10 +8,9 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    public class Naming
+    public class Naming : TestBase
     {
-        public ITestOutputHelper Output;
-        public Naming(ITestOutputHelper output) => Output = output;
+        public Naming(ITestOutputHelper output) : base(output) { }
 
         [Theory]
         [InlineData(typeof(IDatabase), false)]
@@ -50,21 +49,21 @@ namespace StackExchange.Redis.Tests
 
                 if (!isMasterOnly)
                 {
-                    Output.WriteLine(val?.ToString());
+                    Log(val?.ToString());
                 }
             }
-            Output.WriteLine("master-only: {0}, vs master/slave: {1}", masterOnly.Count, masterSlave.Count);
-            Output.WriteLine("");
-            Output.WriteLine("master-only:");
+            Log("master-only: {0}, vs master/slave: {1}", masterOnly.Count, masterSlave.Count);
+            Log("");
+            Log("master-only:");
             foreach (var val in masterOnly)
             {
-                Output.WriteLine(val?.ToString());
+                Log(val?.ToString());
             }
-            Output.WriteLine("");
-            Output.WriteLine("master/slave:");
+            Log("");
+            Log("master/slave:");
             foreach (var val in masterSlave)
             {
-                Output.WriteLine(val?.ToString());
+                Log(val?.ToString());
             }
         }
 
@@ -169,7 +168,7 @@ namespace StackExchange.Redis.Tests
                 }
                 var pFrom = method.GetParameters();
                 Type[] args = pFrom.Select(x => x.ParameterType).ToArray();
-                Output.WriteLine("Checking: {0}.{1}", from.Name, method.Name);
+                Log("Checking: {0}.{1}", from.Name, method.Name);
                 Assert.Equal(typeof(CommandFlags), args.Last());
                 var found = to.GetMethod(huntName, flags, null, method.CallingConvention, args, null);
                 Assert.NotNull(found); // "Found " + name + ", no " + huntName
@@ -183,7 +182,7 @@ namespace StackExchange.Redis.Tests
 
                 count++;
             }
-            Output.WriteLine("Validated: {0} ({1} methods)", from.Name, count);
+            Log("Validated: {0} ({1} methods)", from.Name, count);
         }
 
         private static readonly Type ignoreType = typeof(ConnectionMultiplexer).Assembly.GetType("StackExchange.Redis.IgnoreNamePrefixAttribute");

@@ -51,8 +51,8 @@ namespace StackExchange.Redis.Tests
                             {
                                 var srv = muxer.GetServer(ep);
                                 var counters = srv.GetCounters();
-                                Output.WriteLine($"{i}; interactive, {ep}, count: {counters.Interactive.SocketCount}");
-                                Output.WriteLine($"{i}; subscription, {ep}, count: {counters.Subscription.SocketCount}");
+                                Log($"{i}; interactive, {ep}, count: {counters.Interactive.SocketCount}");
+                                Log($"{i}; subscription, {ep}, count: {counters.Subscription.SocketCount}");
                             }
                             foreach (var ep in muxer.GetEndPoints())
                             {
@@ -67,7 +67,7 @@ namespace StackExchange.Redis.Tests
                 finally
                 {
                     // Connection info goes at the end...
-                    Output.WriteLine(sw.ToString());
+                    Log(sw.ToString());
                 }
             }
         }
@@ -78,17 +78,17 @@ namespace StackExchange.Redis.Tests
             using (var muxer = Create())
             {
                 var counters = muxer.GetCounters();
-                Output.WriteLine(counters.ToString());
+                Log(counters.ToString());
             }
         }
 
         private void PrintEndpoints(EndPoint[] endpoints)
         {
-            Output.WriteLine($"Endpoints Expected: {TestConfig.Current.ClusterStartPort}+{TestConfig.Current.ClusterServerCount}");
-            Output.WriteLine("Endpoints Found:");
+            Log($"Endpoints Expected: {TestConfig.Current.ClusterStartPort}+{TestConfig.Current.ClusterServerCount}");
+            Log("Endpoints Found:");
             foreach (var endpoint in endpoints)
             {
-                Output.WriteLine("  Endpoint: " + endpoint);
+                Log("  Endpoint: " + endpoint);
             }
         }
 
@@ -106,7 +106,7 @@ namespace StackExchange.Redis.Tests
                 }
                 else
                 {
-                    Output.WriteLine(sw.ToString());
+                    Log(sw.ToString());
                 }
 
                 Assert.Equal(TestConfig.Current.ClusterServerCount, endpoints.Length);
@@ -119,16 +119,16 @@ namespace StackExchange.Redis.Tests
                     {
                         failed.Add(endpoint);
                     }
-                    Output.WriteLine("endpoint:" + endpoint);
+                    Log("endpoint:" + endpoint);
                     Assert.Equal(endpoint, server.EndPoint);
 
-                    Output.WriteLine("endpoint-type:" + endpoint);
+                    Log("endpoint-type:" + endpoint);
                     Assert.IsType<IPEndPoint>(endpoint);
 
-                    Output.WriteLine("port:" + endpoint);
+                    Log("port:" + endpoint);
                     Assert.True(expectedPorts.Remove(((IPEndPoint)endpoint).Port));
 
-                    Output.WriteLine("server-type:" + endpoint);
+                    Log("server-type:" + endpoint);
                     Assert.Equal(ServerType.Cluster, server.ServerType);
 
                     if (server.IsSlave) slaves++;
@@ -136,10 +136,10 @@ namespace StackExchange.Redis.Tests
                 }
                 if (failed.Count != 0)
                 {
-                    Output.WriteLine("{0} failues", failed.Count);
+                    Log("{0} failues", failed.Count);
                     foreach (var fail in failed)
                     {
-                        Output.WriteLine(fail.ToString());
+                        Log(fail.ToString());
                     }
                     Assert.True(false, "not all servers connected");
                 }
@@ -182,14 +182,14 @@ namespace StackExchange.Redis.Tests
                 int slot = conn.HashSlot(key);
                 var rightMasterNode = config.GetBySlot(key);
                 Assert.NotNull(rightMasterNode);
-                Output.WriteLine("Right Master: {0} {1}", rightMasterNode.EndPoint, rightMasterNode.NodeId);
+                Log("Right Master: {0} {1}", rightMasterNode.EndPoint, rightMasterNode.NodeId);
 
                 string a = StringGet(conn.GetServer(rightMasterNode.EndPoint), key);
                 Assert.Equal(value, a); // right master
 
                 var node = config.Nodes.FirstOrDefault(x => !x.IsSlave && x.NodeId != rightMasterNode.NodeId);
                 Assert.NotNull(node);
-                Output.WriteLine("Using Master: {0}", node.EndPoint, node.NodeId);
+                Log("Using Master: {0}", node.EndPoint, node.NodeId);
                 if (node != null)
                 {
                     string b = StringGet(conn.GetServer(node.EndPoint), key);
@@ -246,8 +246,8 @@ namespace StackExchange.Redis.Tests
                     } while (--abort > 0 && config.GetBySlot(y) == xNode);
                     if (abort == 0) Skip.Inconclusive("failed to find a different node to use");
                     var yNode = config.GetBySlot(y);
-                    Output.WriteLine("x={0}, served by {1}", x, xNode.NodeId);
-                    Output.WriteLine("y={0}, served by {1}", y, yNode.NodeId);
+                    Log("x={0}, served by {1}", x, xNode.NodeId);
+                    Log("y={0}, served by {1}", y, yNode.NodeId);
                     Assert.NotEqual(xNode.NodeId, yNode.NodeId);
 
                     // wipe those keys
@@ -302,8 +302,8 @@ namespace StackExchange.Redis.Tests
                     } while (--abort > 0 && config.GetBySlot(y) != xNode);
                     if (abort == 0) Skip.Inconclusive("failed to find a key with the same node to use");
                     var yNode = config.GetBySlot(y);
-                    Output.WriteLine("x={0}, served by {1}", x, xNode.NodeId);
-                    Output.WriteLine("y={0}, served by {1}", y, yNode.NodeId);
+                    Log("x={0}, served by {1}", x, xNode.NodeId);
+                    Log("y={0}, served by {1}", y, yNode.NodeId);
                     Assert.Equal(xNode.NodeId, yNode.NodeId);
 
                     // wipe those keys
@@ -353,8 +353,8 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(muxer.HashSlot(x), muxer.HashSlot(y));
                 var xNode = config.GetBySlot(x);
                 var yNode = config.GetBySlot(y);
-                Output.WriteLine("x={0}, served by {1}", x, xNode.NodeId);
-                Output.WriteLine("y={0}, served by {1}", y, yNode.NodeId);
+                Log("x={0}, served by {1}", x, xNode.NodeId);
+                Log("y={0}, served by {1}", y, yNode.NodeId);
                 Assert.Equal(xNode.NodeId, yNode.NodeId);
 
                 // wipe those keys
@@ -396,11 +396,11 @@ namespace StackExchange.Redis.Tests
                 try
                 {
                     Assert.False(server.Keys(pattern: pattern, pageSize: pageSize).Any());
-                    Output.WriteLine("Complete: '{0}' / {1}", pattern, pageSize);
+                    Log("Complete: '{0}' / {1}", pattern, pageSize);
                 }
                 catch
                 {
-                    Output.WriteLine("Failed: '{0}' / {1}", pattern, pageSize);
+                    Log("Failed: '{0}' / {1}", pattern, pageSize);
                     throw;
                 }
             }
@@ -472,17 +472,17 @@ namespace StackExchange.Redis.Tests
                 var server = muxer.GetServer(endpoints[0]);
                 var nodes = server.ClusterNodes();
 
-                Output.WriteLine("Endpoints:");
+                Log("Endpoints:");
                 foreach (var endpoint in endpoints)
                 {
-                    Output.WriteLine(endpoint.ToString());
+                    Log(endpoint.ToString());
                 }
-                Output.WriteLine("Nodes:");
+                Log("Nodes:");
                 foreach (var node in nodes.Nodes.OrderBy(x => x))
                 {
-                    Output.WriteLine(node.ToString());
+                    Log(node.ToString());
                 }
-                Output.WriteLine(sw.ToString());
+                Log(sw.ToString());
 
                 Assert.Equal(TestConfig.Current.ClusterServerCount, endpoints.Length);
                 Assert.Equal(TestConfig.Current.ClusterServerCount, nodes.Nodes.Count);
@@ -498,7 +498,7 @@ namespace StackExchange.Redis.Tests
                 int slotMovedCount = 0;
                 conn.HashSlotMoved += (s, a) =>
                 {
-                    Output.WriteLine("{0} moved from {1} to {2}", a.HashSlot, Describe(a.OldEndPoint), Describe(a.NewEndPoint));
+                    Log("{0} moved from {1} to {2}", a.HashSlot, Describe(a.OldEndPoint), Describe(a.NewEndPoint));
                     Interlocked.Increment(ref slotMovedCount);
                 };
                 var pairs = new Dictionary<string, string>();
@@ -546,7 +546,7 @@ namespace StackExchange.Redis.Tests
                     if (!server.IsSlave)
                     {
                         int count = server.Keys(pageSize: 100).Count();
-                        Output.WriteLine("{0} has {1} keys", server.EndPoint, count);
+                        Log("{0} has {1} keys", server.EndPoint, count);
                         Interlocked.Add(ref total, count);
                     }
                 });
@@ -554,7 +554,7 @@ namespace StackExchange.Redis.Tests
                 foreach (var server in servers)
                 {
                     var counters = server.GetCounters();
-                    Output.WriteLine(counters.ToString());
+                    Log(counters.ToString());
                 }
                 int final = Interlocked.CompareExchange(ref total, 0, 0);
                 Assert.Equal(COUNT, final);
@@ -662,7 +662,7 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(keys.Length, grouped.Sum(x => x.Count())); // check they're all there
                 Assert.Contains(grouped, x => x.Count() > 1); // check at least one group with multiple items (redundant from above, but... meh)
 
-                Output.WriteLine($"{grouped.Count()} groups, min: {grouped.Min(x => x.Count())}, max: {grouped.Max(x => x.Count())}, avg: {grouped.Average(x => x.Count())}");
+                Log($"{grouped.Count()} groups, min: {grouped.Min(x => x.Count())}, max: {grouped.Max(x => x.Count())}, avg: {grouped.Average(x => x.Count())}");
 
                 var db = conn.GetDatabase(0);
                 var all = grouped.SelectMany(grp => {

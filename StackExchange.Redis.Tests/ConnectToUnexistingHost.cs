@@ -33,8 +33,8 @@ namespace StackExchange.Redis.Tests
             catch (RedisConnectionException)
             {
                 var elapsed = sw.ElapsedMilliseconds;
-                Output.WriteLine("Elapsed time: " + elapsed);
-                Output.WriteLine("Timeout: " + timeout);
+                Log("Elapsed time: " + elapsed);
+                Log("Timeout: " + timeout);
                 Assert.True(elapsed < 9000, "Connect should fail within ConnectTimeout, ElapsedMs: " + elapsed);
             }
         }

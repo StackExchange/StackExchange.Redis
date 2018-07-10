@@ -27,6 +27,23 @@ namespace StackExchange.Redis.Tests.Booksleeve
             };
         }
 
+        protected void Log(string message)
+        {
+            Output.WriteLine(message);
+            if (TestConfig.Current.LogToConsole)
+            {
+                Console.WriteLine(message);
+            }
+        }
+        protected void Log(string message, params object[] args)
+        {
+            Output.WriteLine(message, args);
+            if (TestConfig.Current.LogToConsole)
+            {
+                Console.WriteLine(message, args);
+            }
+        }
+
         protected static string Me([CallerFilePath] string filePath = null, [CallerMemberName] string caller = null) => TestBase.Me(filePath, caller);
 
         internal static IServer GetServer(ConnectionMultiplexer conn) => conn.GetServer(conn.GetEndPoints()[0]);

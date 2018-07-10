@@ -23,7 +23,7 @@ namespace StackExchange.Redis.Tests
 
                 var task = conn.PingAsync();
                 var duration = muxer.Wait(task);
-                Output.WriteLine("Ping took: " + duration);
+                Log("Ping took: " + duration);
                 Assert.True(duration.TotalMilliseconds > 0);
             }
         }
@@ -256,7 +256,7 @@ namespace StackExchange.Redis.Tests
                 {
                     try
                     {
-                        Output.WriteLine("Key: " + (string)key);
+                        Log("Key: " + (string)key);
                         var async = await db.StringGetWithExpiryAsync(key).ForAwait();
                     }
                     catch (AggregateException e)
@@ -296,12 +296,12 @@ namespace StackExchange.Redis.Tests
                 db.KeyDelete(key, CommandFlags.FireAndForget);
                 db.StringSet(key, key, flags: CommandFlags.FireAndForget);
                 GetServer(muxer).Execute("QUIT", null, CommandFlags.FireAndForget);
-                var watch = System.Diagnostics.Stopwatch.StartNew();
+                var watch = Stopwatch.StartNew();
                 Assert.Throws<RedisConnectionException>(() => db.Ping());
                 watch.Stop();
-                Output.WriteLine("Time to notice quit: {0}ms (any order)", watch.ElapsedMilliseconds);
-                System.Threading.Thread.Sleep(20);
-                System.Diagnostics.Debug.WriteLine("Pinging...");
+                Log("Time to notice quit: {0}ms (any order)", watch.ElapsedMilliseconds);
+                Thread.Sleep(20);
+                Debug.WriteLine("Pinging...");
                 Assert.Equal(key, (string)db.StringGet(key));
             }
         }
@@ -322,7 +322,7 @@ namespace StackExchange.Redis.Tests
                 var watch = Stopwatch.StartNew();
                 db.Ping();
                 watch.Stop();
-                Output.WriteLine("Time to re-establish: {0}ms (any order)", watch.ElapsedMilliseconds);
+                Log("Time to re-establish: {0}ms (any order)", watch.ElapsedMilliseconds);
                 await Task.Delay(2000).ForAwait();
                 Debug.WriteLine("Pinging...");
                 Assert.Equal(key, db.StringGet(key));

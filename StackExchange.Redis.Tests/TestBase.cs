@@ -15,7 +15,7 @@ namespace StackExchange.Redis.Tests
 {
     public abstract class TestBase : IDisposable
     {
-        protected ITestOutputHelper Output { get; }
+        private ITestOutputHelper Output { get; }
         protected TextWriterOutputHelper Writer { get; }
         protected static bool RunningInCI { get; } = Environment.GetEnvironmentVariable("APPVEYOR") != null;
         protected virtual string GetConfiguration() => TestConfig.Current.MasterServerAndPort + "," + TestConfig.Current.SlaveServerAndPort;
@@ -24,8 +24,25 @@ namespace StackExchange.Redis.Tests
         {
             Output = output;
             Output.WriteFrameworkVersion();
-            Writer = new TextWriterOutputHelper(output);
+            Writer = new TextWriterOutputHelper(output, TestConfig.Current.LogToConsole);
             ClearAmbientFailures();
+        }
+
+        protected void Log(string message)
+        {
+            Output.WriteLine(message);
+            if (TestConfig.Current.LogToConsole)
+            {
+                Console.WriteLine(message);
+            }
+        }
+        protected void Log(string message, params object[] args)
+        {
+            Output.WriteLine(message, args);
+            if (TestConfig.Current.LogToConsole)
+            {
+                Console.WriteLine(message, args);
+            }
         }
 
         protected void CollectGarbage()
@@ -142,14 +159,14 @@ namespace StackExchange.Redis.Tests
                 {
                     foreach (var item in privateExceptions.Take(5))
                     {
-                        Output.WriteLine(item);
+                        Log(item);
                     }
                 }
                 lock (backgroundExceptions)
                 {
                     foreach (var item in backgroundExceptions.Take(5))
                     {
-                        Output.WriteLine(item);
+                        Log(item);
                     }
                 }
                 Assert.True(false, $"There were {privateFailCount} private and {sharedFailCount.Value} ambient exceptions; expected {expectedFailCount}.");
@@ -245,7 +262,7 @@ namespace StackExchange.Redis.Tests
             {
                 Assert.True(false, "Failure: Be sure to call the TestBase constuctor like this: BasicOpsTests(ITestOutputHelper output) : base(output) { }");
             }
-            Output.WriteLine("Connect took: " + watch.ElapsedMilliseconds + "ms");
+            Log("Connect took: " + watch.ElapsedMilliseconds + "ms");
             var muxer = task.Result;
             if (checkConnect && (muxer == null || !muxer.IsConnected))
             {

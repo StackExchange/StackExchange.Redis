@@ -69,11 +69,11 @@ namespace StackExchange.Redis.Tests.Booksleeve.Issues
                 }
                 watch.Stop();
                 long remaining = await conn.SetLengthAsync(key).ForAwait();
-                Output.WriteLine("From {0} to {1}; {2}ms", originally, remaining,
+                Log("From {0} to {1}; {2}ms", originally, remaining,
                     watch.ElapsedMilliseconds);
 
                 var counters = GetServer(muxer).GetCounters();
-                Output.WriteLine("Completions: {0} sync, {1} async", counters.Interactive.CompletedSynchronously, counters.Interactive.CompletedAsynchronously);
+                Log("Completions: {0} sync, {1} async", counters.Interactive.CompletedSynchronously, counters.Interactive.CompletedAsynchronously);
             }
         }
     }

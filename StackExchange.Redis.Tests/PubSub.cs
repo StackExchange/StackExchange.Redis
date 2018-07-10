@@ -69,7 +69,7 @@ namespace StackExchange.Redis.Tests
                         }
                         else
                         {
-                            Output.WriteLine((string)channel);
+                            Log((string)channel);
                         }
                     }
                 }

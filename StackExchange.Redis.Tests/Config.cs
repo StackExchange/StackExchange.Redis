@@ -26,7 +26,7 @@ namespace StackExchange.Redis.Tests
             var log = new StringWriter();
             using (var conn = ConnectionMultiplexer.Connect(config, log))
             {
-                Output.WriteLine(log.ToString());
+                Log(log.ToString());
                 Assert.False(conn.IsConnected);
             }
         }
@@ -41,7 +41,7 @@ namespace StackExchange.Redis.Tests
 
                 var before = muxer.OperationCount;
 
-                Output.WriteLine("sleeping to test heartbeat...");
+                Log("sleeping to test heartbeat...");
                 Thread.Sleep(TimeSpan.FromSeconds(5));
 
                 var after = muxer.OperationCount;
@@ -120,7 +120,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create(allowAdmin: true))
             {
-                Output.WriteLine("about to get config");
+                Log("about to get config");
                 var conn = GetAnyMaster(muxer);
                 var all = conn.ConfigGet();
                 Assert.True(all.Length > 0, "any");
@@ -144,7 +144,7 @@ namespace StackExchange.Redis.Tests
             {
                 var server = GetAnyMaster(muxer);
                 var serverTime = server.Time();
-                Output.WriteLine(serverTime.ToString());
+                Log(serverTime.ToString());
                 var delta = Math.Abs((DateTime.UtcNow - serverTime).TotalSeconds);
 
                 Assert.True(delta < 5);
@@ -174,16 +174,16 @@ namespace StackExchange.Redis.Tests
                 var server = GetAnyMaster(muxer);
                 var info1 = server.Info();
                 Assert.True(info1.Length > 5);
-                Output.WriteLine("All sections");
+                Log("All sections");
                 foreach (var group in info1)
                 {
-                    Output.WriteLine(group.Key);
+                    Log(group.Key);
                 }
                 var first = info1[0];
-                Output.WriteLine("Full info for: " + first.Key);
+                Log("Full info for: " + first.Key);
                 foreach (var setting in first)
                 {
-                    Output.WriteLine("{0}  ==>  {1}", setting.Key, setting.Value);
+                    Log("{0}  ==>  {1}", setting.Key, setting.Value);
                 }
 
                 var info2 = server.Info("cpu");
@@ -253,7 +253,7 @@ namespace StackExchange.Redis.Tests
 
                         var before = innerMuxer.OperationCount;
 
-                        Output.WriteLine("sleeping to test heartbeat...");
+                        Log("sleeping to test heartbeat...");
                         Thread.Sleep(TimeSpan.FromSeconds(8));
 
                         var after = innerMuxer.OperationCount;

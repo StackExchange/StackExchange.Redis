@@ -71,7 +71,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
             conn.WaitAll(tasks);
             withAsync.Stop();
 
-            Output.WriteLine("{2}: {0}ms (F+F) vs {1}ms (async)",
+            Log("{2}: {0}ms (F+F) vs {1}ms (async)",
                 withFAF.ElapsedMilliseconds, withAsync.ElapsedMilliseconds, caption);
             // We've made async so far, this test isn't really valid anymore
             // So let's check they're at least within a few seconds.
@@ -97,7 +97,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
                     {
                         data.Add(int.Parse(Encoding.UTF8.GetString(val)));
                         pulse = data.Count == count;
-                        if ((data.Count % 100) == 99) Output.WriteLine(data.Count.ToString());
+                        if ((data.Count % 100) == 99) Log(data.Count.ToString());
                     }
                     if (pulse)
                     {
@@ -153,7 +153,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
                         {
                             data.Add(i);
                             if (data.Count == count) break;
-                            if ((data.Count % 100) == 99) Output.WriteLine(data.Count.ToString());
+                            if ((data.Count % 100) == 99) Log(data.Count.ToString());
                         }
                     }
                     lock (syncLock)
@@ -211,7 +211,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
                     {
                         data.Add(i);
                         if (data.Count == count) pulse = true;
-                        if ((data.Count % 100) == 99) Output.WriteLine(data.Count.ToString());
+                        if ((data.Count % 100) == 99) Log(data.Count.ToString());
                     }
                     if (pulse)
                     {
@@ -271,7 +271,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
                     {
                         data.Add(i);
                         if (data.Count == count) pulse = true;
-                        if ((data.Count % 100) == 99) Output.WriteLine(data.Count.ToString());
+                        if ((data.Count % 100) == 99) Log(data.Count.ToString());
                     }
                     if (pulse)
                     {

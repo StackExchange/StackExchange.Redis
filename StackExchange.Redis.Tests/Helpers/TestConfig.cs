@@ -44,6 +44,7 @@ namespace StackExchange.Redis.Tests
         public class Config
         {
             public bool RunLongRunning { get; set; }
+            public bool LogToConsole { get; set; }
 
             public string MasterServer { get; set; } = "127.0.0.1";
             public int MasterPort { get; set; } = 6379;
