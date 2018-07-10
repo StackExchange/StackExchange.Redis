@@ -286,16 +286,21 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void TestQuit()
         {
+            string Time() => DateTime.UtcNow.ToString("HH:mm:ss.fff");
             SetExpectedAmbientFailureCount(1);
             using (var muxer = Create(allowAdmin: true))
             {
+                muxer.ConnectionFailed += (_, __) => Log("{0}: Connection Failed", Time());
+                muxer.ConnectionRestored += (_, __) => Log("{0}: Connection Restored", Time());
+
                 var db = muxer.GetDatabase();
                 string key = Guid.NewGuid().ToString();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
                 db.StringSet(key, key, flags: CommandFlags.FireAndForget);
-                GetServer(muxer).Execute("QUIT", null, CommandFlags.FireAndForget);
+                Log("{0}: Issuing QUIT", Time());
+                GetServer(muxer).Execute("QUIT", null);
                 var watch = Stopwatch.StartNew();
-                Assert.Throws<RedisConnectionException>(() => db.Ping());
+                Assert.Throws<RedisConnectionException>(() => Log("Ping time: " + db.Ping().ToString()));
                 watch.Stop();
                 Log("Time to notice quit: {0}ms (any order)", watch.ElapsedMilliseconds);
                 Thread.Sleep(20);
