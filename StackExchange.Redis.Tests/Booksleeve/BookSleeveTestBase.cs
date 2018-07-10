@@ -1,6 +1,7 @@
 ﻿using StackExchange.Redis.Tests.Helpers;
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using Xunit.Abstractions;
@@ -26,14 +27,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
             };
         }
 
-        protected static string Me([CallerMemberName] string caller = null) =>
-#if NET462
-            "net462-" + caller;
-#elif NETCOREAPP2_0
-            "netcoreapp2.0-" + caller;
-#else
-            "unknown-" + caller;
-#endif
+        protected static string Me([CallerFilePath] string filePath = null, [CallerMemberName] string caller = null) => TestBase.Me(filePath, caller);
 
         internal static IServer GetServer(ConnectionMultiplexer conn) => conn.GetServer(conn.GetEndPoints()[0]);
 
