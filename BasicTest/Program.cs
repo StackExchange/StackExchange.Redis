@@ -46,9 +46,7 @@ namespace BasicTest
         /// </summary>
         public RedisBenchmarks()
         {
-            mgr = new SocketManager(GetType().Name);
-            var options = ConfigurationOptions.Parse("127.0.0.1:6379,syncTimeout=1000");
-            options.SocketManager = mgr;
+            var options = ConfigurationOptions.Parse("127.0.0.1:6379");
             connection = ConnectionMultiplexer.Connect(options);
             db = connection.GetDatabase(3);
         }

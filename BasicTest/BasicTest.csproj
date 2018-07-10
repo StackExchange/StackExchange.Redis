@@ -13,17 +13,10 @@
 
   <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" Version="0.10.14" />
-    <PackageReference Include="System.Numerics.Vectors" Version="4.5.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\StackExchange.Redis\StackExchange.Redis.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Update="t8.shakespeare.txt">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
   </ItemGroup>
 
 </Project>
