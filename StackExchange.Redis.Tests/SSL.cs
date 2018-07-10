@@ -67,8 +67,10 @@ namespace StackExchange.Redis.Tests
                 SyncTimeout = Debugger.IsAttached ? int.MaxValue : 5000,
                 Password = password,
             };
-            var map = new Dictionary<string, string>();
-            map["config"] = null; // don't rely on config working
+            var map = new Dictionary<string, string>
+            {
+                ["config"] = null // don't rely on config working
+            };
             if (!isAzure) map["cluster"] = null;
             config.CommandMap = CommandMap.Create(map);
             if (port != null) config.EndPoints.Add(server, port.Value);
@@ -321,7 +323,6 @@ namespace StackExchange.Redis.Tests
                 conn.GetDatabase().Ping();
             }
         }
-
 
         [Fact]
         public void SSLParseViaConfig_Issue883_ConfigString()

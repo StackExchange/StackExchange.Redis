@@ -85,7 +85,6 @@ namespace StackExchange.Redis.Tests
 
                 var name = (string)GetAnyMaster(muxer).Execute("CLIENT", "GETNAME");
                 Assert.Equal("TestRig", name);
-
             }
         }
 
@@ -100,7 +99,6 @@ namespace StackExchange.Redis.Tests
 
                 var name = (string)GetAnyMaster(muxer).Execute("CLIENT", "GETNAME");
                 Assert.Equal(Environment.MachineName, name);
-
             }
         }
 

@@ -217,7 +217,6 @@ namespace StackExchange.Redis.Tests
                     var ex = Assert.Throws<RedisServerException>(() => StringGet(conn.GetServer(node.EndPoint), key, CommandFlags.NoRedirect));
                     Assert.StartsWith($"Key has MOVED from Endpoint {rightMasterNode.EndPoint} and hashslot {slot}", ex.Message);
                 }
-
             }
         }
 
@@ -625,7 +624,7 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        static RedisKey[] InventKeys()
+        private static RedisKey[] InventKeys()
         {
             RedisKey[] keys = new RedisKey[512];
             Random rand = new Random(12324);
