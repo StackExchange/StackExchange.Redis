@@ -247,7 +247,7 @@ namespace StackExchange.Redis
             Trace("OnConnected");
             if (physical == connection && !isDisposed && ChangeState(State.Connecting, State.ConnectedEstablishing))
             {
-                await ServerEndPoint.OnEstablishingAsync(connection, log);
+                await ServerEndPoint.OnEstablishingAsync(connection, log).ForAwait();
             }
             else
             {

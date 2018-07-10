@@ -468,7 +468,7 @@ namespace StackExchange.Redis
         {
             try
             {
-                await handshake;
+                await handshake.ForAwait();
             }
             catch (Exception ex)
             {
