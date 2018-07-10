@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFrameworks>netcoreapp2.1;net462</TargetFrameworks>
+    <TargetFrameworks>netcoreapp2.0;netcoreapp2.1;net47</TargetFrameworks>
     <LangVersion>latest</LangVersion>
   </PropertyGroup>
 
@@ -11,6 +11,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\BasicTest\BasicTest.csproj" />
     <ProjectReference Include="..\StackExchange.Redis\StackExchange.Redis.csproj" />
   </ItemGroup>
   <ItemGroup>
