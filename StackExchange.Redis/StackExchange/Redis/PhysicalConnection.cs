@@ -94,7 +94,8 @@ namespace StackExchange.Redis
             var endpoint = Bridge.ServerEndPoint.EndPoint;
 
             Multiplexer.Trace("Connecting...", physicalName);
-            _socket = Multiplexer.SocketManager.BeginConnect(endpoint, this, Multiplexer, log);
+            _socket = SocketManager.CreateSocket(endpoint);
+            Multiplexer.SocketManager.BeginConnectAsync(endpoint, _socket, this, Multiplexer, log);
         }
 
         private enum ReadMode : byte
