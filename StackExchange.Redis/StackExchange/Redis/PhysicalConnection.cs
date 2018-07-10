@@ -73,6 +73,7 @@ namespace StackExchange.Redis
         private IDuplexPipe _ioPipe;
 
         private Socket _socket;
+        private SocketAsyncEventArgs _socketArgs;
 
         public PhysicalConnection(PhysicalBridge bridge)
         {
@@ -88,14 +89,101 @@ namespace StackExchange.Redis
             OnCreateEcho();
         }
 
-        public void BeginConnect(TextWriter log)
+        internal async void BeginConnectAsync(TextWriter log)
         {
             Thread.VolatileWrite(ref firstUnansweredWriteTickCount, 0);
             var endpoint = Bridge.ServerEndPoint.EndPoint;
 
             Multiplexer.Trace("Connecting...", physicalName);
             _socket = SocketManager.CreateSocket(endpoint);
-            Multiplexer.SocketManager.BeginConnectAsync(endpoint, _socket, this, Multiplexer, log);
+
+            Multiplexer.LogLocked(log, "BeginConnect: {0}", Format.ToString(endpoint));
+
+            var awaitable = new SocketAwaitable();
+            _socketArgs = new SocketAsyncEventArgs
+            {
+                UserToken = awaitable,
+                RemoteEndPoint = endpoint,
+            };
+            _socketArgs.Completed += SocketAwaitable.Callback;
+            try
+            {
+                if (_socket.ConnectAsync(_socketArgs))
+                {   // asynchronous operation is pending
+                    ConfigureTimeout(_socketArgs, Multiplexer.RawConfig.ConnectTimeout);
+                }
+                else
+                {   // completed synchronously
+                    SocketAwaitable.OnCompleted(_socketArgs);
+                }
+
+                // Complete connection
+                try
+                {
+                    bool ignoreConnect = false;
+                    ShouldIgnoreConnect(ref ignoreConnect);
+                    if (ignoreConnect) return;
+
+                    await awaitable; // wait for the connect to complete or fail (will throw)
+
+                    if (await ConnectedAsync(_socket, log, Multiplexer.SocketManager).ForAwait())
+                    {
+                        Multiplexer.LogLocked(log, "Starting read");
+                        try
+                        {
+                            StartReading();
+                            // Normal return
+                        }
+                        catch (Exception ex)
+                        {
+                            ConnectionMultiplexer.TraceWithoutContext(ex.Message);
+                            Shutdown();
+                        }
+                    }
+                    else
+                    {
+                        ConnectionMultiplexer.TraceWithoutContext("Aborting socket");
+                        Shutdown();
+                    }
+                }
+                catch (ObjectDisposedException)
+                {
+                    Multiplexer.LogLocked(log, "(socket shutdown)");
+                    try { Error(); }
+                    catch (Exception inner)
+                    {
+                        ConnectionMultiplexer.TraceWithoutContext(inner.Message);
+                    }
+                }
+                catch (Exception outer)
+                {
+                    ConnectionMultiplexer.TraceWithoutContext(outer.Message);
+                    try { Error(); }
+                    catch (Exception inner)
+                    {
+                        ConnectionMultiplexer.TraceWithoutContext(inner.Message);
+                    }
+                }
+            }
+            catch (NotImplementedException ex)
+            {
+                if (!(endpoint is IPEndPoint))
+                {
+                    throw new InvalidOperationException("BeginConnect failed with NotImplementedException; consider using IP endpoints, or enable ResolveDns in the configuration", ex);
+                }
+                throw;
+            }
+        }
+
+        private static void ConfigureTimeout(SocketAsyncEventArgs args, int timeoutMilliseconds)
+        {
+            var timeout = Task.Delay(timeoutMilliseconds);
+            timeout.ContinueWith((_, state) =>
+            {
+                var a = (SocketAsyncEventArgs)state;
+                try { Socket.CancelConnectAsync(a); } catch { }
+                try { ((SocketAwaitable)a.UserToken).Complete(0, SocketError.TimedOut); } catch { }
+            }, args);
         }
 
         private enum ReadMode : byte
@@ -115,6 +203,20 @@ namespace StackExchange.Redis
 
         public bool TransactionActive { get; internal set; }
 
+        partial void ShouldIgnoreConnect(ref bool ignore);
+
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")]
+        private  void Shutdown()
+        {
+            if (_socket != null)
+            {
+                try { _socket.Shutdown(SocketShutdown.Both); } catch { }
+                try { _socket.Close(); } catch { }
+                try { _socket.Dispose(); } catch { }
+            }
+            try { using (_socketArgs) { } } catch { }
+        }
+
         public void Dispose()
         {
             var ioPipe = _ioPipe;
@@ -132,7 +234,7 @@ namespace StackExchange.Redis
 
             if (_socket != null)
             {
-                Multiplexer.SocketManager?.Shutdown(_socket);
+                Shutdown();
                 _socket = default;
                 Multiplexer.Trace("Disconnected", physicalName);
                 RecordConnectionFailed(ConnectionFailureType.ConnectionDisposed);
@@ -244,7 +346,7 @@ namespace StackExchange.Redis
             }
 
             // burn the socket
-            Multiplexer.SocketManager?.Shutdown(_socket);
+            Shutdown();
         }
 
         public override string ToString()

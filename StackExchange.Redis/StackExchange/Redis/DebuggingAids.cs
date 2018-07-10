@@ -56,14 +56,6 @@ namespace StackExchange.Redis
         public bool IgnoreConnect { get { return ignoreConnect; } set { ignoreConnect = value; } }
     }
 
-    public partial class SocketManager
-    {
-        partial void ShouldIgnoreConnect(PhysicalConnection callback, ref bool ignore)
-        {
-            ignore = callback.IgnoreConnect;
-        }
-    }
-
     internal partial class PhysicalBridge
     {
         internal void SimulateConnectionFailure()
@@ -78,6 +70,11 @@ namespace StackExchange.Redis
 
     internal partial class PhysicalConnection
     {
+        partial void ShouldIgnoreConnect(ref bool ignore)
+        {
+            ignore = IgnoreConnect;
+        }
+
         partial void OnDebugAbort()
         {
             if (!Multiplexer.AllowConnect)
