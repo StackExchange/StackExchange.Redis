@@ -13,20 +13,15 @@ namespace TestConsole
             var watch = Stopwatch.StartNew();
             try
             {
-#if DEBUG
-                // Pipelines.Sockets.Unofficial.DebugCounters.SetLog(Console.Out);
-#endif
 
                 var config = new ConfigurationOptions
                 {
                     ConnectRetry = 0,
-                    EndPoints = { "127.0.0.1:6381" },
-                    Password = "abc",
+                    EndPoints = { "127.0.0.1:6379" },
                 };
-                using (var conn = ConnectionMultiplexer.Connect(config, log: null))
+                using (var conn = ConnectionMultiplexer.Connect(config, log: Console.Out))
                 {
-                    //Execute(conn);
-                    
+                    Execute(conn);                   
 
                 }
                 return 0;
@@ -46,14 +41,14 @@ namespace TestConsole
 
         private static void Execute(ConnectionMultiplexer conn)
         {
+            Console.WriteLine("Executing...");
             var key = "abc";
-            Console.ReadKey();
             var db = conn.GetDatabase(0);
             var t = db.CreateTransaction();
             t.HashSetAsync(key, "foo", "bar");
             t.KeyExpireAsync(key, TimeSpan.FromSeconds(3600));
             t.Execute();
-            Console.ReadKey();
+            Console.WriteLine("Done");
         }
     }
 }

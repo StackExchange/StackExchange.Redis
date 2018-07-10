@@ -18,6 +18,8 @@ namespace StackExchange.Redis
             this.server = server ?? throw new ArgumentNullException(nameof(server));
         }
 
+        int IServer.DatabaseCount => server.Databases;
+
         public ClusterConfiguration ClusterConfiguration => server.ClusterConfiguration;
 
         public EndPoint EndPoint => server.EndPoint;

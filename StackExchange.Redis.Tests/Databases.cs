@@ -15,12 +15,16 @@ namespace StackExchange.Redis.Tests
             var db2Id = TestConfig.GetDedicatedDB();
             using (var muxer = Create(allowAdmin: true))
             {
+                Skip.IfMissingDatabase(muxer, db1Id);
+                Skip.IfMissingDatabase(muxer, db2Id);
                 var server = GetAnyMaster(muxer);
                 server.FlushDatabase(db1Id, CommandFlags.FireAndForget);
                 server.FlushDatabase(db2Id, CommandFlags.FireAndForget);
             }
             using (var muxer = Create())
             {
+                Skip.IfMissingDatabase(muxer, db1Id);
+                Skip.IfMissingDatabase(muxer, db2Id);
                 RedisKey key = Me();
                 var db61 = muxer.GetDatabase(db1Id);
                 var db62 = muxer.GetDatabase(db2Id);
@@ -43,9 +47,9 @@ namespace StackExchange.Redis.Tests
             using (var muxer = Create())
             {
                 RedisKey key = Me();
-                var db0 = muxer.GetDatabase(TestConfig.GetDedicatedDB());
-                var db1 = muxer.GetDatabase(TestConfig.GetDedicatedDB());
-                var db2 = muxer.GetDatabase(TestConfig.GetDedicatedDB());
+                var db0 = muxer.GetDatabase(TestConfig.GetDedicatedDB(muxer));
+                var db1 = muxer.GetDatabase(TestConfig.GetDedicatedDB(muxer));
+                var db2 = muxer.GetDatabase(TestConfig.GetDedicatedDB(muxer));
                 db0.Ping();
 
                 db0.KeyDelete(key, CommandFlags.FireAndForget);
