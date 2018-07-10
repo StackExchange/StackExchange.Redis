@@ -4,6 +4,7 @@ using System.IO.Pipelines;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
+using System.Threading.Tasks;
 using Pipelines.Sockets.Unofficial;
 
 namespace StackExchange.Redis
@@ -127,58 +128,49 @@ namespace StackExchange.Redis
         /// </summary>
         ~SocketManager() => Dispose(false);
 
-        internal Socket BeginConnect(EndPoint endpoint, PhysicalConnection callback, ConnectionMultiplexer multiplexer, TextWriter log)
+        internal static Socket CreateSocket(EndPoint endpoint)
         {
-            void RunWithCompletionType(Func<AsyncCallback, IAsyncResult> beginAsync, AsyncCallback asyncCallback)
-            {
-                void proxyCallback(IAsyncResult ar)
-                {
-                    if (!ar.CompletedSynchronously)
-                    {
-                        asyncCallback(ar);
-                    }
-                }
-
-                var result = beginAsync(proxyCallback);
-                if (result.CompletedSynchronously)
-                {
-                    result.AsyncWaitHandle.WaitOne();
-                    asyncCallback(result);
-                }
-            }
-
             var addressFamily = endpoint.AddressFamily == AddressFamily.Unspecified ? AddressFamily.InterNetwork : endpoint.AddressFamily;
             var protocolType = addressFamily == AddressFamily.Unix ? ProtocolType.Unspecified : ProtocolType.Tcp;
             var socket = new Socket(addressFamily, SocketType.Stream, protocolType);
             SocketConnection.SetRecommendedClientOptions(socket);
+            return socket;
+        }
 
+        static void ConfigureTimeout(SocketAsyncEventArgs args, int timeoutMilliseconds)
+        {
+            var timeout = Task.Delay(timeoutMilliseconds);
+            timeout.ContinueWith((t, state) =>
+            {
+                var a = (SocketAsyncEventArgs)state;
+                try { Socket.CancelConnectAsync(a); } catch { }
+                try
+                { ((SocketAwaitable)a.UserToken).Complete(0, SocketError.TimedOut); }
+                catch { }
+            }, args);
+        }
+        internal void BeginConnectAsync(EndPoint endpoint, Socket socket, PhysicalConnection physicalConnection, ConnectionMultiplexer multiplexer, TextWriter log)
+        {
+            var formattedEndpoint = Format.ToString(endpoint);
+            multiplexer.LogLocked(log, "BeginConnect: {0}", formattedEndpoint);
+
+            var awaitable = new SocketAwaitable();
+            var args = new SocketAsyncEventArgs();
+            args.UserToken = awaitable;
+            args.RemoteEndPoint = endpoint;
+            args.Completed += SocketAwaitable.Callback;
             try
             {
-                var formattedEndpoint = Format.ToString(endpoint);
-                multiplexer.LogLocked(log, "BeginConnect: {0}", formattedEndpoint);
-                // A work-around for a Mono bug in BeginConnect(EndPoint endpoint, AsyncCallback callback, object state)
-                if (endpoint is DnsEndPoint dnsEndpoint)
+                if (socket.ConnectAsync(args))
                 {
-                    RunWithCompletionType(
-                        cb => socket.BeginConnect(dnsEndpoint.Host, dnsEndpoint.Port, cb, null),
-                        ar =>
-                        {
-                            multiplexer.LogLocked(log, "EndConnect: {0}", formattedEndpoint);
-                            EndConnectImpl(ar, multiplexer, log, socket, callback);
-                            multiplexer.LogLocked(log, "Connect complete: {0}", formattedEndpoint);
-                        });
+                    ConfigureTimeout(args, multiplexer.RawConfig.ConnectTimeout);
                 }
                 else
                 {
-                    RunWithCompletionType(
-                        cb => socket.BeginConnect(endpoint, cb, null),
-                        ar =>
-                        {
-                            multiplexer.LogLocked(log, "EndConnect: {0}", formattedEndpoint);
-                            EndConnectImpl(ar, multiplexer, log, socket, callback);
-                            multiplexer.LogLocked(log, "Connect complete: {0}", formattedEndpoint);
-                        });
+                    SocketAwaitable.OnCompleted(args);
                 }
+
+                EndConnectAsync(awaitable, multiplexer, log, socket, physicalConnection);
             }
             catch (NotImplementedException ex)
             {
@@ -188,16 +180,15 @@ namespace StackExchange.Redis
                 }
                 throw;
             }
-            return socket;
         }
-        private async void EndConnectImpl(IAsyncResult ar, ConnectionMultiplexer multiplexer, TextWriter log, Socket socket, PhysicalConnection connection)
+        private async void EndConnectAsync(SocketAwaitable awaitable, ConnectionMultiplexer multiplexer, TextWriter log, Socket socket, PhysicalConnection connection)
         {
             try
             {
                 bool ignoreConnect = false;
                 ShouldIgnoreConnect(connection, ref ignoreConnect);
                 if (ignoreConnect) return;
-                socket.EndConnect(ar);
+                await awaitable;
 
                 var socketMode = connection == null ? SocketMode.Abort : await connection.ConnectedAsync(socket, log, this).ForAwait();
                 switch (socketMode)
