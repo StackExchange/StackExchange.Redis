@@ -18,7 +18,7 @@ namespace StackExchange.Redis.Tests
             {
                 var sub = conn.GetSubscriber();
                 var received = new List<int>();
-                Output.WriteLine("Subscribing...");
+                Log("Subscribing...");
                 const int COUNT = 1000;
                 sub.Subscribe("foo", (channel, message) =>
                 {
@@ -31,8 +31,8 @@ namespace StackExchange.Redis.Tests
                     Thread.Sleep(1); // you kinda need to be slow, otherwise
                     // the pool will end up doing everything on one thread
                 });
-                Output.WriteLine("");
-                Output.WriteLine("Sending (any order)...");
+                Log("");
+                Log("Sending (any order)...");
                 lock (received)
                 {
                     received.Clear();
@@ -45,23 +45,23 @@ namespace StackExchange.Redis.Tests
                         sub.Publish("foo", i);
                     }
 
-                    Output.WriteLine("Allowing time for delivery etc...");
+                    Log("Allowing time for delivery etc...");
                     var watch = Stopwatch.StartNew();
                     if (!Monitor.Wait(received, 10000))
                     {
-                        Output.WriteLine("Timed out; expect less data");
+                        Log("Timed out; expect less data");
                     }
                     watch.Stop();
-                    Output.WriteLine("Checking...");
+                    Log("Checking...");
                     lock (received)
                     {
-                        Output.WriteLine("Received: {0} in {1}ms", received.Count, watch.ElapsedMilliseconds);
+                        Log("Received: {0} in {1}ms", received.Count, watch.ElapsedMilliseconds);
                         int wrongOrder = 0;
                         for (int i = 0; i < Math.Min(COUNT, received.Count); i++)
                         {
                             if (received[i] != i) wrongOrder++;
                         }
-                        Output.WriteLine("Out of order: " + wrongOrder);
+                        Log("Out of order: " + wrongOrder);
                     }
                 }
             }

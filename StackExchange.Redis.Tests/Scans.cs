@@ -117,7 +117,7 @@ namespace StackExchange.Redis.Tests
                         snapCursor = ((IScanningCursor)seq).Cursor;
                         snapOffset = ((IScanningCursor)seq).PageOffset;
                         snapPageSize = ((IScanningCursor)seq).PageSize;
-                        Output.WriteLine($"i: {i}, Cursor: {snapCursor}, Offset: {snapOffset}, PageSize: {snapPageSize}");
+                        Log($"i: {i}, Cursor: {snapCursor}, Offset: {snapOffset}, PageSize: {snapPageSize}");
                     }
                     if (i >= 57)
                     {
@@ -125,7 +125,7 @@ namespace StackExchange.Redis.Tests
                     }
                     i++;
                 }
-                Output.WriteLine($"Expected: 43, Actual: {expected.Count}, Cursor: {snapCursor}, Offset: {snapOffset}, PageSize: {snapPageSize}");
+                Log($"Expected: 43, Actual: {expected.Count}, Cursor: {snapCursor}, Offset: {snapOffset}, PageSize: {snapPageSize}");
                 Assert.Equal(43, expected.Count);
                 Assert.NotEqual(0, snapCursor);
                 Assert.Equal(15, snapPageSize);

@@ -141,7 +141,7 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(LOOP, (long)scriptResult);
                 Assert.Equal(LOOP, directResult);
 
-                Output.WriteLine("script: {0}ms; direct: {1}ms",
+                Log("script: {0}ms; direct: {1}ms",
                     scriptTime.TotalMilliseconds,
                     directTime.TotalMilliseconds);
             }

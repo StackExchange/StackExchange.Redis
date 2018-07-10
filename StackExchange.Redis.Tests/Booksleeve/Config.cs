@@ -44,7 +44,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
                 }
                 finally
                 {
-                    Output.WriteLine(log.ToString());
+                    Log(log.ToString());
                 }
             });
         }
@@ -63,10 +63,10 @@ namespace StackExchange.Redis.Tests.Booksleeve
                 }
                 finally
                 {
-                    Output.WriteLine(log.ToString());
+                    Log(log.ToString());
                 }
             }).ForAwait();
-            Output.WriteLine(ex.ToString());
+            Log(ex.ToString());
         }
 
         [Fact]
@@ -83,7 +83,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
             }
             finally
             {
-                Output.WriteLine(log.ToString());
+                Log(log.ToString());
             }
         }
 
@@ -101,7 +101,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
             }
             finally
             {
-                Output.WriteLine(log.ToString());
+                Log(log.ToString());
             }
         }
         

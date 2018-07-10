@@ -33,11 +33,11 @@ namespace StackExchange.Redis.Tests
             }
             options.Ssl = ssl;
             options.Password = TestConfig.Current.AzureCachePassword;
-            Output.WriteLine(options.ToString());
+            Log(options.ToString());
             using (var connection = ConnectionMultiplexer.Connect(options))
             {
                 var ttl = connection.GetDatabase().Ping();
-                Output.WriteLine(ttl.ToString());
+                Log(ttl.ToString());
             }
         }
 
@@ -83,23 +83,23 @@ namespace StackExchange.Redis.Tests
                 }
                 config.CertificateValidation += (sender, cert, chain, errors) =>
                 {
-                    Output.WriteLine("errors: " + errors);
-                    Output.WriteLine("cert issued to: " + cert.Subject);
+                    Log("errors: " + errors);
+                    Log("cert issued to: " + cert.Subject);
                     return true; // fingers in ears, pretend we don't know this is wrong
                 };
             }
 
             var configString = config.ToString();
-            Output.WriteLine("config: " + configString);
+            Log("config: " + configString);
             var clone = ConfigurationOptions.Parse(configString);
             Assert.Equal(configString, clone.ToString());
 
             using (var log = new StringWriter())
             using (var muxer = ConnectionMultiplexer.Connect(config, log))
             {
-                Output.WriteLine("Connect log:");
-                Output.WriteLine(log.ToString());
-                Output.WriteLine("====");
+                Log("Connect log:");
+                Log(log.ToString());
+                Log("====");
                 muxer.ConnectionFailed += OnConnectionFailed;
                 muxer.InternalError += OnInternalError;
                 var db = muxer.GetDatabase();
@@ -122,7 +122,7 @@ namespace StackExchange.Redis.Tests
                     }
                     catch (Exception ex)
                     {
-                        Output.WriteLine($"Failure on i={i}: {ex.Message}");
+                        Log($"Failure on i={i}: {ex.Message}");
                         throw;
                     }
                 }
@@ -130,7 +130,7 @@ namespace StackExchange.Redis.Tests
                 long value = (long)await db.StringGetAsync(key);
                 watch.Stop();
                 Assert.Equal(AsyncLoop, value);
-                Output.WriteLine("F&F: {0} INCR, {1:###,##0}ms, {2} ops/s; final value: {3}",
+                Log("F&F: {0} INCR, {1:###,##0}ms, {2} ops/s; final value: {3}",
                     AsyncLoop,
                     (long)watch.ElapsedMilliseconds,
                     (long)(AsyncLoop / watch.Elapsed.TotalSeconds),
@@ -158,7 +158,7 @@ namespace StackExchange.Redis.Tests
             }, Threads, timeout: 45000);
             value = (long)db.StringGet(key);
             Assert.Equal(SyncLoop * Threads, value);
-            Output.WriteLine("Sync: {0} INCR using {1} threads, {2:###,##0}ms, {3} ops/s; final value: {4}",
+            Log("Sync: {0} INCR using {1} threads, {2:###,##0}ms, {3} ops/s; final value: {4}",
                 SyncLoop * Threads, Threads,
                 (long)time.TotalMilliseconds,
                 (long)((SyncLoop * Threads) / time.TotalSeconds),
@@ -203,7 +203,7 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal("abc", s);
 
                 var latency = db.Ping();
-                Output.WriteLine("RedisLabs latency: {0:###,##0.##}ms", latency.TotalMilliseconds);
+                Log("RedisLabs latency: {0:###,##0.##}ms", latency.TotalMilliseconds);
 
                 using (var file = File.Create("RedisLabs.zip"))
                 {
@@ -256,7 +256,7 @@ namespace StackExchange.Redis.Tests
                     Assert.Equal("abc", s);
 
                     var latency = db.Ping();
-                    Output.WriteLine("RedisLabs latency: {0:###,##0.##}ms", latency.TotalMilliseconds);
+                    Log("RedisLabs latency: {0:###,##0.##}ms", latency.TotalMilliseconds);
 
                     using (var file = File.Create("RedisLabs.zip"))
                     {

@@ -116,7 +116,7 @@ local timeTaken = 60000 - redis.call('pttl', KEYS[1])
 redis.call('del', KEYS[1])
 return timeTaken
 ", new RedisKey[] { key }, null);
-                Output.WriteLine(result.ToString());
+                Log(result.ToString());
                 Assert.True(result > 0);
             }
         }
@@ -333,7 +333,7 @@ return timeTaken
                 muxer.GetDatabase(1).StringSet(key, "db 1");
                 muxer.GetDatabase(2).StringSet(key, "db 2");
 
-                Output.WriteLine("Key: " + key);
+                Log("Key: " + key);
                 var conn = muxer.GetDatabase(2);
                 var evalResult = conn.ScriptEvaluateAsync(@"redis.call('select', 1)
         return redis.call('get','" + key +"')", null, null);

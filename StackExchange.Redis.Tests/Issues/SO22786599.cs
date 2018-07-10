@@ -29,7 +29,7 @@ namespace StackExchange.Redis.Tests.Issues
                 var watch = Stopwatch.StartNew();
                 var isOperationSuccessful = tran.Execute();
                 watch.Stop();
-                Output.WriteLine("{0}ms", watch.ElapsedMilliseconds);
+                Log("{0}ms", watch.ElapsedMilliseconds);
                 Assert.True(isOperationSuccessful);
             }
         }

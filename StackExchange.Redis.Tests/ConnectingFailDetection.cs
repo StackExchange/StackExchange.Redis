@@ -37,7 +37,7 @@ namespace StackExchange.Redis.Tests
 
                     // should reconnect within 1 keepalive interval
                     muxer.AllowConnect = true;
-                    Output.WriteLine("Waiting for reconnect");
+                    Log("Waiting for reconnect");
                     Thread.Sleep(2000);
 
                     Assert.True(muxer.IsConnected);
@@ -96,7 +96,7 @@ namespace StackExchange.Redis.Tests
 
                     // should reconnect within 1 keepalive interval
                     muxer.AllowConnect = true;
-                    Output.WriteLine("Waiting for reconnect");
+                    Log("Waiting for reconnect");
                     Thread.Sleep(2000);
 
                     Assert.True(muxer.IsConnected);

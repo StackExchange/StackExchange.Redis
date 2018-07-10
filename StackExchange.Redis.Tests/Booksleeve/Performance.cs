@@ -42,7 +42,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
                 muxer.WaitAll(final);
                 timer.Stop();
                 asyncTimer = (int)timer.ElapsedMilliseconds;
-                Output.WriteLine("async to completion (local): {0}ms", timer.ElapsedMilliseconds);
+                Log("async to completion (local): {0}ms", timer.ElapsedMilliseconds);
                 for (int db = 0; db < 5; db++)
                 {
                     Assert.Equal(1000, (long)final[db].Result); // "async, db:" + db
@@ -83,7 +83,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
                 }
                 timer.Stop();
                 sync = (int)timer.ElapsedMilliseconds;
-                Output.WriteLine("sync to completion (local): {0}ms", timer.ElapsedMilliseconds);
+                Log("sync to completion (local): {0}ms", timer.ElapsedMilliseconds);
                 for (int db = 0; db < 5; db++)
                 {
                     Assert.Equal("1000", final[db]); // "async, db:" + db
@@ -91,9 +91,9 @@ namespace StackExchange.Redis.Tests.Booksleeve
             }
             int effectiveAsync = ((10 * asyncTimer) + 3) / 10;
             int effectiveSync = ((10 * sync) + (op * 3)) / 10;
-            Output.WriteLine("async to completion with assumed 0.3ms LAN latency: " + effectiveAsync);
-            Output.WriteLine("sync to completion with assumed 0.3ms LAN latency: " + effectiveSync);
-            Output.WriteLine("fire-and-forget: {0}ms sync vs {1}ms async ", syncFaF, asyncFaF);
+            Log("async to completion with assumed 0.3ms LAN latency: " + effectiveAsync);
+            Log("sync to completion with assumed 0.3ms LAN latency: " + effectiveSync);
+            Log("fire-and-forget: {0}ms sync vs {1}ms async ", syncFaF, asyncFaF);
             Assert.True(effectiveAsync < effectiveSync, "Everything");
             Assert.True(asyncFaF < syncFaF, "Fire and Forget");
         }
@@ -119,7 +119,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
                 asyncVal = await db.StringGetAsync(key);
                 asyncTimer.Stop();
 
-                Output.WriteLine($"Sync: {syncTimer.ElapsedMilliseconds}; Async: {asyncTimer.ElapsedMilliseconds}");
+                Log($"Sync: {syncTimer.ElapsedMilliseconds}; Async: {asyncTimer.ElapsedMilliseconds}");
                 Assert.Equal("some value", syncVal);
                 Assert.Equal("some value", asyncVal);
                 // let's allow 20% async overhead
