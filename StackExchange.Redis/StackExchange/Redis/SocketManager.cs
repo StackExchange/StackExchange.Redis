@@ -9,12 +9,6 @@ using Pipelines.Sockets.Unofficial;
 
 namespace StackExchange.Redis
 {
-    internal enum SocketMode
-    {
-        Abort,
-        Async,
-    }
-
     /// <summary>
     /// A SocketManager monitors multiple sockets for availability of data; this is done using
     /// the Socket.Select API and a dedicated reader-thread, which allows for fast responses
@@ -150,8 +144,7 @@ namespace StackExchange.Redis
 
         internal async void BeginConnectAsync(EndPoint endpoint, Socket socket, PhysicalConnection physicalConnection, ConnectionMultiplexer multiplexer, TextWriter log)
         {
-            var formattedEndpoint = Format.ToString(endpoint);
-            multiplexer.LogLocked(log, "BeginConnect: {0}", formattedEndpoint);
+            multiplexer.LogLocked(log, "BeginConnect: {0}", Format.ToString(endpoint));
 
             var awaitable = new SocketAwaitable();
             var args = new SocketAsyncEventArgs
@@ -180,24 +173,24 @@ namespace StackExchange.Redis
 
                     await awaitable; // wait for the connect to complete or fail (will throw)
 
-                    switch (physicalConnection == null ? SocketMode.Abort : await physicalConnection.ConnectedAsync(socket, log, this).ForAwait())
+                    if (physicalConnection != null && await physicalConnection.ConnectedAsync(socket, log, this).ForAwait())
                     {
-                        case SocketMode.Async:
-                            multiplexer.LogLocked(log, "Starting read");
-                            try
-                            {
-                                physicalConnection.StartReading();
-                            }
-                            catch (Exception ex)
-                            {
-                                ConnectionMultiplexer.TraceWithoutContext(ex.Message);
-                                Shutdown(socket);
-                            }
-                            break;
-                        default:
-                            ConnectionMultiplexer.TraceWithoutContext("Aborting socket");
+                        multiplexer.LogLocked(log, "Starting read");
+                        try
+                        {
+                            physicalConnection.StartReading();
+                            // Normal return
+                        }
+                        catch (Exception ex)
+                        {
+                            ConnectionMultiplexer.TraceWithoutContext(ex.Message);
                             Shutdown(socket);
-                            break;
+                        }
+                    }
+                    else
+                    {
+                        ConnectionMultiplexer.TraceWithoutContext("Aborting socket");
+                        Shutdown(socket);
                     }
                 }
                 catch (ObjectDisposedException)

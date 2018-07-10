@@ -860,12 +860,10 @@ namespace StackExchange.Redis
             return null;
         }
 
-        internal async ValueTask<SocketMode> ConnectedAsync(Socket socket, TextWriter log, SocketManager manager)
+        internal async ValueTask<bool> ConnectedAsync(Socket socket, TextWriter log, SocketManager manager)
         {
             try
             {
-                const SocketMode socketMode = SocketMode.Async;
-
                 // disallow connection in some cases
                 OnDebugAbort();
 
@@ -901,7 +899,7 @@ namespace StackExchange.Redis
                     {
                         RecordConnectionFailed(ConnectionFailureType.AuthenticationFailure, authexception);
                         Multiplexer.Trace("Encryption failure");
-                        return SocketMode.Abort;
+                        return false;
                     }
                     pipe = StreamConnection.GetDuplex(ssl, manager.SendPipeOptions, manager.ReceivePipeOptions, name: Bridge.Name);
                 }
@@ -915,14 +913,14 @@ namespace StackExchange.Redis
 
                 Multiplexer.LogLocked(log, "Connected {0}", Bridge);
 
-                await Bridge.OnConnectedAsync(this, log);
-                return socketMode;
+                await Bridge.OnConnectedAsync(this, log).ForAwait();
+                return true;
             }
             catch (Exception ex)
             {
                 RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex); // includes a bridge.OnDisconnected
                 Multiplexer.Trace("Could not connect: " + ex.Message, physicalName);
-                return SocketMode.Abort;
+                return false;
             }
         }
 
