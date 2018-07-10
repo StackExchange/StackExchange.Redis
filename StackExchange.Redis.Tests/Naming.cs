@@ -185,39 +185,43 @@ namespace StackExchange.Redis.Tests
             Log("Validated: {0} ({1} methods)", from.Name, count);
         }
 
-        private static readonly Type ignoreType = typeof(ConnectionMultiplexer).Assembly.GetType("StackExchange.Redis.IgnoreNamePrefixAttribute");
         private void CheckMethod(MethodInfo method, bool isAsync)
         {
-#if DEBUG
-            bool ignorePrefix = ignoreType != null && Attribute.IsDefined(method, ignoreType);
-            if (ignorePrefix)
-            {
-                Attribute attrib = Attribute.GetCustomAttribute(method, ignoreType);
-                if ((bool)attrib.GetType().GetProperty("IgnoreEntireMethod").GetValue(attrib))
-                {
-                    return;
-                }
-            }
             string shortName = method.Name, fullName = method.DeclaringType.Name + "." + shortName;
-            CheckName(method, isAsync);
-            if (!ignorePrefix)
+
+            switch (shortName)
             {
-                Assert.True(
-                    shortName.StartsWith("Debug")
-                    || shortName.StartsWith("Execute")
-                    || shortName.StartsWith("Geo")
-                    || shortName.StartsWith("Hash")
-                    || shortName.StartsWith("HyperLogLog")
-                    || shortName.StartsWith("Key")
-                    || shortName.StartsWith("List")
-                    || shortName.StartsWith("Lock")
-                    || shortName.StartsWith("Publish")
-                    || shortName.StartsWith("Set")
-                    || shortName.StartsWith("Script")
-                    || shortName.StartsWith("SortedSet")
-                    || shortName.StartsWith("String")
-                    || shortName.StartsWith("Stream")
-                    , fullName + ":Prefix");
+                case nameof(IDatabaseAsync.IsConnected):
+                    return;
+                case nameof(IDatabase.CreateBatch):
+                case nameof(IDatabase.CreateTransaction):
+                case nameof(IDatabase.IdentifyEndpoint):
+                case nameof(IDatabase.Sort):
+                case nameof(IDatabase.SortAndStore):
+                case nameof(IDatabaseAsync.IdentifyEndpointAsync):
+                case nameof(IDatabaseAsync.SortAsync):
+                case nameof(IDatabaseAsync.SortAndStoreAsync):
+                    CheckName(method, isAsync);
+                    break;
+                default:
+                    CheckName(method, isAsync);
+                    var isValid = shortName.StartsWith("Debug")
+                        || shortName.StartsWith("Execute")
+                        || shortName.StartsWith("Geo")
+                        || shortName.StartsWith("Hash")
+                        || shortName.StartsWith("HyperLogLog")
+                        || shortName.StartsWith("Key")
+                        || shortName.StartsWith("List")
+                        || shortName.StartsWith("Lock")
+                        || shortName.StartsWith("Publish")
+                        || shortName.StartsWith("Set")
+                        || shortName.StartsWith("Script")
+                        || shortName.StartsWith("SortedSet")
+                        || shortName.StartsWith("String")
+                        || shortName.StartsWith("Stream");
+                    Log(fullName + ": " + (isValid ? "valid" : "invalid"));
+                    Assert.True(isValid, fullName + ":Prefix");
+                    break;
             }
 
             Assert.False(shortName.Contains("If"), fullName + ":If"); // should probably be a When option
@@ -231,7 +235,6 @@ namespace StackExchange.Redis.Tests
             {
                 Assert.False(typeof(Task).IsAssignableFrom(returnType), fullName + ":Task");
             }
-#endif
         }
 
         private void CheckName(MemberInfo member, bool isAsync)

@@ -15,7 +15,6 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="channel">The channel to identify the server endpoint by.</param>
         /// <param name="flags">The command flags to use.</param>
-        [IgnoreNamePrefix]
         EndPoint IdentifyEndpoint(RedisChannel channel, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -23,7 +22,6 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="channel">The channel to identify the server endpoint by.</param>
         /// <param name="flags">The command flags to use.</param>
-        [IgnoreNamePrefix]
         Task<EndPoint> IdentifyEndpointAsync(RedisChannel channel, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -100,7 +98,6 @@ namespace StackExchange.Redis
         /// the channel is not actively subscribed
         /// </summary>
         /// <param name="channel">The channel to check which server endpoint was subscribed on.</param>
-        [IgnoreNamePrefix]
         EndPoint SubscribedEndpoint(RedisChannel channel);
 
         /// <summary>

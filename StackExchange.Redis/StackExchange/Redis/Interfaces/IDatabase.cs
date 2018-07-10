@@ -20,7 +20,6 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="asyncState">The async object state to be passed into the created <see cref="IBatch"/>.</param>
         /// <returns>The created batch.</returns>
-        [IgnoreNamePrefix]
         IBatch CreateBatch(object asyncState = null);
 
         /// <summary>
@@ -29,7 +28,6 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="asyncState">The async object state to be passed into the created <see cref="ITransaction"/>.</param>
         /// <returns>The created transaction.</returns>
-        [IgnoreNamePrefix]
         ITransaction CreateTransaction(object asyncState = null);
 
         /// <summary>
@@ -422,7 +420,6 @@ namespace StackExchange.Redis
         /// <param name="key">The key to check.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The endpoint serving the key.</returns>
-        [IgnoreNamePrefix]
         EndPoint IdentifyEndpoint(RedisKey key = default(RedisKey), CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1073,7 +1070,6 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The sorted elements, or the external values if <c>get</c> is specified.</returns>
         /// <remarks>https://redis.io/commands/sort</remarks>
-        [IgnoreNamePrefix]
         RedisValue[] Sort(RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default(RedisValue), RedisValue[] get = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1094,7 +1090,6 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of elements stored in the new list.</returns>
         /// <remarks>https://redis.io/commands/sort</remarks>
-        [IgnoreNamePrefix]
         long SortAndStore(RedisKey destination, RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default(RedisValue), RedisValue[] get = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>

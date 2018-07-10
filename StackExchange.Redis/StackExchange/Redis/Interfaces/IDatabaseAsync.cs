@@ -16,7 +16,6 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="key">The key to check for.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        [IgnoreNamePrefix(true)]
         bool IsConnected(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -385,7 +384,6 @@ namespace StackExchange.Redis
         /// <param name="key">The key to check.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The endpoint serving the key.</returns>
-        [IgnoreNamePrefix]
         Task<EndPoint> IdentifyEndpointAsync(RedisKey key = default(RedisKey), CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1012,7 +1010,6 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The sorted elements, or the external values if <c>get</c> is specified.</returns>
         /// <remarks>https://redis.io/commands/sort</remarks>
-        [IgnoreNamePrefix]
         Task<RedisValue[]> SortAsync(RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default(RedisValue), RedisValue[] get = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1033,7 +1030,6 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of elements stored in the new list.</returns>
         /// <remarks>https://redis.io/commands/sort</remarks>
-        [IgnoreNamePrefix]
         Task<long> SortAndStoreAsync(RedisKey destination, RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default(RedisValue), RedisValue[] get = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
