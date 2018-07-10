@@ -598,7 +598,7 @@ namespace StackExchange.Redis
                             // separate creation and connection for case when connection completes synchronously
                             // in that case PhysicalConnection will call back to PhysicalBridge, and most of  PhysicalBridge methods assumes that physical is not null;
                             physical = new PhysicalConnection(this);
-                            physical.BeginConnect(log);
+                            physical.BeginConnectAsync(log);
                         }
                     }
                     return null;
