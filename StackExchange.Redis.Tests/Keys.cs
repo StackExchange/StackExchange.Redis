@@ -34,7 +34,8 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create(allowAdmin: true))
             {
-                var dbId = TestConfig.GetDedicatedDB();
+                var dbId = TestConfig.GetDedicatedDB(conn);
+                Skip.IfMissingDatabase(conn, dbId);
                 var db = conn.GetDatabase(dbId);
                 var prefix = Me();
                 conn.GetServer(TestConfig.Current.MasterServerAndPort).FlushDatabase(dbId);

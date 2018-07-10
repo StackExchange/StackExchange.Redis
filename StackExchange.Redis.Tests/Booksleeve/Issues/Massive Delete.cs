@@ -15,6 +15,7 @@ namespace StackExchange.Redis.Tests.Booksleeve.Issues
             var prefix = Me();
             using (var muxer = GetUnsecuredConnection(allowAdmin: true))
             {
+                Skip.IfMissingDatabase(muxer, db);
                 GetServer(muxer).FlushDatabase(db);
                 Task last = null;
                 var conn = muxer.GetDatabase(db);

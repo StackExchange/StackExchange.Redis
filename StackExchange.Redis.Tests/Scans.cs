@@ -18,7 +18,7 @@ namespace StackExchange.Redis.Tests
             string[] disabledCommands = supported ? null : new[] { "scan" };
             using (var conn = Create(disabledCommands: disabledCommands, allowAdmin: true))
             {
-                var dbId = TestConfig.GetDedicatedDB();
+                var dbId = TestConfig.GetDedicatedDB(conn);
                 var db = conn.GetDatabase(dbId);
                 var prefix = Me() + ":";
                 var server = GetServer(conn);
@@ -44,7 +44,7 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create(allowAdmin: true))
             {
                 var prefix = Me() + Guid.NewGuid();
-                var dbId = TestConfig.GetDedicatedDB();
+                var dbId = TestConfig.GetDedicatedDB(conn);
                 var db = conn.GetDatabase(dbId);
                 var server = GetServer(conn);
                 server.FlushDatabase(dbId);
@@ -93,7 +93,7 @@ namespace StackExchange.Redis.Tests
             {
                 // only goes up to 3.*, so...
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scan), x => x.Scan);
-                var dbId = TestConfig.GetDedicatedDB();
+                var dbId = TestConfig.GetDedicatedDB(conn);
                 var db = conn.GetDatabase(dbId);
                 var prefix = Me();
                 var server = GetServer(conn);
