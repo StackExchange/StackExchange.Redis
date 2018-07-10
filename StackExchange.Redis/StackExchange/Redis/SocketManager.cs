@@ -163,11 +163,11 @@ namespace StackExchange.Redis
             try
             {
                 if (socket.ConnectAsync(args))
-                {
+                {   // asynchronous operation is pending
                     ConfigureTimeout(args, multiplexer.RawConfig.ConnectTimeout);
                 }
                 else
-                {
+                {   // completed synchronously
                     SocketAwaitable.OnCompleted(args);
                 }
 
@@ -177,7 +177,8 @@ namespace StackExchange.Redis
                     bool ignoreConnect = false;
                     ShouldIgnoreConnect(physicalConnection, ref ignoreConnect);
                     if (ignoreConnect) return;
-                    await awaitable;
+
+                    await awaitable; // wait for the connect to complete or fail (will throw)
 
                     switch (physicalConnection == null ? SocketMode.Abort : await physicalConnection.ConnectedAsync(socket, log, this).ForAwait())
                     {

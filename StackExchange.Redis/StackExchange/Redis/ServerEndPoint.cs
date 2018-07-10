@@ -53,7 +53,6 @@ namespace StackExchange.Redis
             isSlave = false;
             databases = 0;
             writeEverySeconds = config.KeepAlive > 0 ? config.KeepAlive : 60;
-            interactive = CreateBridge(ConnectionType.Interactive, log);
             serverType = ServerType.Standalone;
 
             // overrides for twemproxy
@@ -635,7 +634,6 @@ namespace StackExchange.Redis
                 }
             }
         }
-
         private PhysicalBridge CreateBridge(ConnectionType type, TextWriter log)
         {
             Multiplexer.Trace(type.ToString());

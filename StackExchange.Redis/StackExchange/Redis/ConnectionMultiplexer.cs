@@ -38,7 +38,7 @@ namespace StackExchange.Redis
         /// </summary>
         public ServerCounters GetCounters()
         {
-            var snapshot = serverSnapshot;
+            var snapshot = GetServerSnapshot();
 
             var counters = new ServerCounters(null);
             for (int i = 0; i < snapshot.Length; i++)
@@ -233,7 +233,7 @@ namespace StackExchange.Redis
 
             using (var zip = new ZipArchive(destination, ZipArchiveMode.Create, true))
             {
-                var arr = serverSnapshot;
+                var arr = GetServerSnapshot();
                 foreach (var server in arr)
                 {
                     const CommandFlags flags = CommandFlags.None;
@@ -328,7 +328,7 @@ namespace StackExchange.Redis
                 throw;
             }
 
-            var nodes = serverSnapshot;
+            var nodes = GetServerSnapshot();
             RedisValue newMaster = Format.ToString(server.EndPoint);
 
             RedisKey tieBreakerKey = default(RedisKey);
@@ -509,7 +509,7 @@ namespace StackExchange.Redis
         {
             if (configuredOnly) return configuration.EndPoints.ToArray();
 
-            return Array.ConvertAll(serverSnapshot, x => x.EndPoint);
+            return _serverSnapshot.GetEndPoints();
         }
 
         private readonly ConfigurationOptions configuration;
@@ -698,7 +698,7 @@ namespace StackExchange.Redis
 
         internal ServerEndPoint AnyConnected(ServerType serverType, uint startOffset, RedisCommand command, CommandFlags flags)
         {
-            var tmp = serverSnapshot;
+            var tmp = GetServerSnapshot();
             int len = tmp.Length;
             ServerEndPoint fallback = null;
             for (int i = 0; i < len; i++)
@@ -865,13 +865,60 @@ namespace StackExchange.Redis
 
         private string failureMessage;
         private readonly Hashtable servers = new Hashtable();
-        private volatile ServerEndPoint[] serverSnapshot = Array.Empty<ServerEndPoint>();
-        internal ServerEndPoint GetServerEndPoint(EndPoint endpoint)
+        private volatile ServerSnapshot _serverSnapshot = ServerSnapshot.Empty;
+        internal ReadOnlySpan<ServerEndPoint> GetServerSnapshot() => _serverSnapshot.Span;
+        sealed class ServerSnapshot
+        {
+            public static ServerSnapshot Empty { get; } = new ServerSnapshot(Array.Empty<ServerEndPoint>(), 0);
+            private ServerSnapshot(ServerEndPoint[] arr, int count)
+            {
+                _arr = arr;
+                _count = count;
+            }
+            private ServerEndPoint[] _arr;
+            private int _count;
+            public ReadOnlySpan<ServerEndPoint> Span => new ReadOnlySpan<ServerEndPoint>(_arr, 0, _count);
+
+            internal ServerSnapshot Add(ServerEndPoint value)
+            {
+                if (value == null) return this;
+
+                ServerEndPoint[] arr;
+                if (_arr.Length > _count)
+                {
+                    arr = _arr;
+                }
+                else
+                {
+                    // no more room; need a new array
+                    int newLen = _arr.Length << 1;
+                    if (newLen == 0) newLen = 4;
+                    arr = new ServerEndPoint[newLen];
+                    _arr.CopyTo(arr, 0);
+                }
+                arr[_count] = value;
+                return new ServerSnapshot(arr, _count + 1);
+            }
+
+            internal EndPoint[] GetEndPoints()
+            {
+                if (_count == 0) return Array.Empty<EndPoint>();
+
+                var arr = new EndPoint[_count];
+                for(int i = 0; i < _count; i++)
+                {
+                    arr[i] = _arr[i].EndPoint;
+                }
+                return arr;
+            }
+        }
+        internal ServerEndPoint GetServerEndPoint(EndPoint endpoint, TextWriter log = null, bool activate = true)
         {
             if (endpoint == null) return null;
             var server = (ServerEndPoint)servers[endpoint];
             if (server == null)
             {
+                bool isNew = false;
                 lock (servers)
                 {
                     server = (ServerEndPoint)servers[endpoint];
@@ -879,19 +926,14 @@ namespace StackExchange.Redis
                     {
                         if (isDisposed) throw new ObjectDisposedException(ToString());
 
-                        server = new ServerEndPoint(this, endpoint, null);
-                        // ^^ this causes ReconfigureAsync() which calls GetServerEndpoint() which can modify servers, so double check!
-                        if (!servers.ContainsKey(endpoint))
-                        {
-                            servers.Add(endpoint, server);
-                        }
-
-                        var newSnapshot = serverSnapshot;
-                        Array.Resize(ref newSnapshot, newSnapshot.Length + 1);
-                        newSnapshot[newSnapshot.Length - 1] = server;
-                        serverSnapshot = newSnapshot;
+                        server = new ServerEndPoint(this, endpoint, log);
+                        servers.Add(endpoint, server);
+                        isNew = true;
+                        _serverSnapshot = _serverSnapshot.Add(server);
                     }
                 }
+                // spin up the connection if this is new
+                if (isNew && activate) server.Activate(ConnectionType.Interactive, log);
             }
             return server;
         }
@@ -943,7 +985,7 @@ namespace StackExchange.Redis
                 Interlocked.Exchange(ref lastGlobalHeartbeatTicks, now);
                 Trace("heartbeat");
 
-                var tmp = serverSnapshot;
+                var tmp = GetServerSnapshot();
                 for (int i = 0; i < tmp.Length; i++)
                     tmp[i].OnHeartbeat();
             }
@@ -1097,7 +1139,7 @@ namespace StackExchange.Redis
             get
             {
                 long total = 0;
-                var snapshot = serverSnapshot;
+                var snapshot = GetServerSnapshot();
                 for (int i = 0; i < snapshot.Length; i++) total += snapshot[i].OperationCount;
                 return total;
             }
@@ -1193,7 +1235,7 @@ namespace StackExchange.Redis
         {
             if (log == null) return;
 
-            var tmp = serverSnapshot;
+            var tmp = GetServerSnapshot();
             foreach (var server in tmp)
             {
                 LogLocked(log, server.Summary());
@@ -1204,6 +1246,17 @@ namespace StackExchange.Redis
                 Interlocked.Read(ref syncTimeouts), Interlocked.Read(ref fireAndForgets), LastHeartbeatSecondsAgo);
         }
 
+        private void ActivateAllServers(TextWriter log)
+        {
+            foreach (var server in GetServerSnapshot())
+            {
+                server.Activate(ConnectionType.Interactive, log);
+                if (CommandMap.IsAvailable(RedisCommand.SUBSCRIBE))
+                {
+                    server.Activate(ConnectionType.Subscription, null); // no need to log the SUB stuff
+                }
+            }
+        }
         internal async Task<bool> ReconfigureAsync(bool first, bool reconfigureAll, TextWriter log, EndPoint blame, string cause, bool publishReconfigure = false, CommandFlags publishReconfigureFlags = CommandFlags.None)
         {
             if (isDisposed) throw new ObjectDisposedException(ToString());
@@ -1240,34 +1293,11 @@ namespace StackExchange.Redis
                             throw new TimeoutException("Timeout resolving endpoints");
                         }
                     }
-                    int index = 0;
-                    lock (servers)
+                    foreach (var endpoint in configuration.EndPoints)
                     {
-                        var newSnapshot = new ServerEndPoint[configuration.EndPoints.Count];
-                        foreach (var endpoint in configuration.EndPoints)
-                        {
-                            var server = (ServerEndPoint)servers[endpoint];
-                            if (server == null)
-                            {
-                                server = new ServerEndPoint(this, endpoint, log);
-                                // ^^ this causes ReconfigureAsync() which calls GetServerEndpoint() which can modify servers, so double check!
-                                if (!servers.ContainsKey(endpoint))
-                                {
-                                    servers.Add(endpoint, server);
-                                }
-                            }
-                            newSnapshot[index++] = server;
-                        }
-                        serverSnapshot = newSnapshot;
+                        GetServerEndPoint(endpoint, log, false);
                     }
-                    foreach (var server in serverSnapshot)
-                    {
-                        server.Activate(ConnectionType.Interactive, log);
-                        if (CommandMap.IsAvailable(RedisCommand.SUBSCRIBE))
-                        {
-                            server.Activate(ConnectionType.Subscription, null); // no need to log the SUB stuff
-                        }
-                    }
+                    ActivateAllServers(log);
                 }
                 int attemptsLeft = first ? configuration.ConnectRetry : 1;
 
@@ -1562,7 +1592,7 @@ namespace StackExchange.Redis
 
         private void ResetAllNonConnected()
         {
-            var snapshot = serverSnapshot;
+            var snapshot = GetServerSnapshot();
             foreach (var server in snapshot)
             {
                 server.ResetNonConnected();
@@ -1735,12 +1765,6 @@ namespace StackExchange.Redis
 
         private Timer pulse;
 
-        internal ServerEndPoint[] GetServerSnapshot()
-        {
-            var tmp = serverSnapshot;
-            return tmp;
-        }
-
         internal ServerEndPoint SelectServer(Message message)
         {
             if (message == null) return null;
@@ -1837,7 +1861,7 @@ namespace StackExchange.Redis
         {
             get
             {
-                var tmp = serverSnapshot;
+                var tmp = GetServerSnapshot();
                 for (int i = 0; i < tmp.Length; i++)
                     if (tmp[i].IsConnected) return true;
                 return false;
@@ -1851,7 +1875,7 @@ namespace StackExchange.Redis
         {
             get
             {
-                var tmp = serverSnapshot;
+                var tmp = GetServerSnapshot();
                 for (int i = 0; i < tmp.Length; i++)
                     if (tmp[i].IsConnecting) return true;
                 return false;
