@@ -18,7 +18,7 @@ namespace StackExchange.Redis.Tests
                 var db = muxer.GetDatabase(dbId);
                 var server = GetAnyMaster(muxer);
                 var prefix = Me();
-                server.FlushDatabase(flags: CommandFlags.FireAndForget);
+                server.FlushDatabase(dbId, flags: CommandFlags.FireAndForget);
 
                 const int Count = 1000;
                 for (int i = 0; i < Count; i++)

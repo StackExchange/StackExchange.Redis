@@ -333,6 +333,7 @@ return timeTaken
                 muxer.GetDatabase(1).StringSet(key, "db 1");
                 muxer.GetDatabase(2).StringSet(key, "db 2");
 
+                Output.WriteLine("Key: " + key);
                 var conn = muxer.GetDatabase(2);
                 var evalResult = conn.ScriptEvaluateAsync(@"redis.call('select', 1)
         return redis.call('get','" + key +"')", null, null);
