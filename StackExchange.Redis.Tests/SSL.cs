@@ -190,7 +190,7 @@ namespace StackExchange.Redis.Tests
                 }, false)
             };
             
-            options.CertificateValidation += ConfigurationOptions.TrustIssuer("redislabs_ca.pem");
+            options.TrustIssuer("redislabs_ca.pem");
 
 
 

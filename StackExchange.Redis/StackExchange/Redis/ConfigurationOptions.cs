@@ -179,13 +179,15 @@ namespace StackExchange.Redis
         /// <summary>
         /// Create a certificate validation check that checks against the supplied issuer even if not known by the machine
         /// </summary>
-        public static RemoteCertificateValidationCallback TrustIssuer(string issuerCertificatePath)
-            => TrustIssuer(new X509Certificate2(issuerCertificatePath));
-
+        public void TrustIssuer(string issuerCertificatePath) => CertificateValidationCallback = TrustIssuerCallback(issuerCertificatePath);
         /// <summary>
         /// Create a certificate validation check that checks against the supplied issuer even if not known by the machine
         /// </summary>
-        public static RemoteCertificateValidationCallback TrustIssuer(X509Certificate2 issuer)
+        public void TrustIssuer(X509Certificate2 issuer) => CertificateValidationCallback = TrustIssuerCallback(issuer);
+
+        internal static RemoteCertificateValidationCallback TrustIssuerCallback(string issuerCertificatePath)
+            => TrustIssuerCallback(new X509Certificate2(issuerCertificatePath));
+        private static RemoteCertificateValidationCallback TrustIssuerCallback(X509Certificate2 issuer)
         {
             if (issuer == null) throw new ArgumentNullException(nameof(issuer));
 

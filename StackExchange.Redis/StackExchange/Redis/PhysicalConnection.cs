@@ -949,7 +949,7 @@ namespace StackExchange.Redis
             try
             {
                 var issuerPath = Environment.GetEnvironmentVariable("SERedis_IssuerCertPath");
-                if (!string.IsNullOrEmpty(issuerPath)) return ConfigurationOptions.TrustIssuer(issuerPath);
+                if (!string.IsNullOrEmpty(issuerPath)) return ConfigurationOptions.TrustIssuerCallback(issuerPath);
             }
             catch (Exception ex)
             {
