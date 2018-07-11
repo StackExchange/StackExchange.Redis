@@ -1,4 +1,5 @@
 ﻿using System.Threading;
+using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -10,7 +11,7 @@ namespace StackExchange.Redis.Tests
 
 #if DEBUG
         [Fact]
-        public void FastNoticesFailOnConnectingSyncComlpetion()
+        public async Task FastNoticesFailOnConnectingSyncComlpetion()
         {
             try
             {
@@ -38,7 +39,7 @@ namespace StackExchange.Redis.Tests
                     // should reconnect within 1 keepalive interval
                     muxer.AllowConnect = true;
                     Log("Waiting for reconnect");
-                    Thread.Sleep(2000);
+                    await Task.Delay(2000).ForAwait();
 
                     Assert.True(muxer.IsConnected);
                 }
@@ -69,7 +70,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void FastNoticesFailOnConnectingAsyncComlpetion()
+        public async Task FastNoticesFailOnConnectingAsyncComlpetion()
         {
             try
             {
@@ -97,7 +98,7 @@ namespace StackExchange.Redis.Tests
                     // should reconnect within 1 keepalive interval
                     muxer.AllowConnect = true;
                     Log("Waiting for reconnect");
-                    Thread.Sleep(2000);
+                    await Task.Delay(2000).ForAwait();
 
                     Assert.True(muxer.IsConnected);
                 }
@@ -109,7 +110,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void ReconnectsOnStaleConnection()
+        public async Task ReconnectsOnStaleConnection()
         {
             try
             {
@@ -121,11 +122,11 @@ namespace StackExchange.Redis.Tests
                     Assert.True(muxer.IsConnected);
 
                     PhysicalConnection.EmulateStaleConnection = true;
-                    Thread.Sleep(500);
+                    await Task.Delay(500).ForAwait();
                     Assert.False(muxer.IsConnected);
 
                     PhysicalConnection.EmulateStaleConnection = false;
-                    Thread.Sleep(1000);
+                    await Task.Delay(1000).ForAwait();
                     Assert.True(muxer.IsConnected);
                 }
             }

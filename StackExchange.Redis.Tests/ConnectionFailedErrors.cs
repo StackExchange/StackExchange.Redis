@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Threading;
+using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -12,7 +13,7 @@ namespace StackExchange.Redis.Tests
         [Theory]
         [InlineData(true)]
         [InlineData(false)]
-        public void SSLCertificateValidationError(bool isCertValidationSucceeded)
+        public async Task SSLCertificateValidationError(bool isCertValidationSucceeded)
         {
             Skip.IfNoConfig(nameof(TestConfig.Config.AzureCacheServer), TestConfig.Current.AzureCacheServer);
             Skip.IfNoConfig(nameof(TestConfig.Config.AzureCachePassword), TestConfig.Current.AzureCachePassword);
@@ -42,12 +43,12 @@ namespace StackExchange.Redis.Tests
                 }
 
                 //wait for a second for connectionfailed event to fire
-                Thread.Sleep(1000);
+                await Task.Delay(1000).ForAwait();
             }
         }
 
         [Fact]
-        public void AuthenticationFailureError()
+        public async Task AuthenticationFailureError()
         {
             Skip.IfNoConfig(nameof(TestConfig.Config.AzureCacheServer), TestConfig.Current.AzureCacheServer);
 
@@ -66,7 +67,7 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(ConnectionFailureType.AuthenticationFailure, rde.FailureType);
                 Assert.Equal("Error: NOAUTH Authentication required. Verify if the Redis password provided is correct.", rde.InnerException.Message);
                 //wait for a second  for connectionfailed event to fire
-                Thread.Sleep(1000);
+                await Task.Delay(1000).ForAwait();
             }
         }
 
@@ -108,7 +109,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void CheckFailureRecovered()
+        public async Task CheckFailureRecovered()
         {
             try
             {
@@ -125,7 +126,7 @@ namespace StackExchange.Redis.Tests
 
                     // should reconnect within 1 keepalive interval
                     muxer.AllowConnect = true;
-                    Thread.Sleep(2000);
+                    await Task.Delay(2000).ForAwait();
 
                     Assert.Null(muxer.GetServerSnapshot()[0].LastException);
                 }

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Threading;
+using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -10,7 +11,7 @@ namespace StackExchange.Redis.Tests.Issues
         public SO24807536(ITestOutputHelper output) : base (output) { }
 
         [Fact]
-        public void Exec()
+        public async Task Exec()
         {
             var key = Me();
             using(var conn = Create())
@@ -31,7 +32,7 @@ namespace StackExchange.Redis.Tests.Issues
                 Assert.Equal("some value", fullWait.Result);
 
                 // wait for expiry
-                Thread.Sleep(TimeSpan.FromSeconds(4));
+                await Task.Delay(4000).ForAwait();
 
                 // test once expired
                 keyExists = cache.KeyExists(key);

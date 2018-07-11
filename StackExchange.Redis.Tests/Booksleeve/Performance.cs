@@ -105,25 +105,25 @@ namespace StackExchange.Redis.Tests.Booksleeve
             {
                 RedisKey key = Me();
                 var db = conn.GetDatabase();
-                await db.StringSetAsync(key, "some value");
+                await db.StringSetAsync(key, "some value").ForAwait();
 
                 // this is just to JIT everything before we try testing
                 var syncVal = db.StringGet(key);
-                var asyncVal = await db.StringGetAsync(key);
+                var asyncVal = await db.StringGetAsync(key).ForAwait();
 
                 var syncTimer = Stopwatch.StartNew();
                 syncVal = db.StringGet(key);
                 syncTimer.Stop();
 
                 var asyncTimer = Stopwatch.StartNew();
-                asyncVal = await db.StringGetAsync(key);
+                asyncVal = await db.StringGetAsync(key).ForAwait();
                 asyncTimer.Stop();
 
                 Log($"Sync: {syncTimer.ElapsedMilliseconds}; Async: {asyncTimer.ElapsedMilliseconds}");
                 Assert.Equal("some value", syncVal);
                 Assert.Equal("some value", asyncVal);
                 // let's allow 20% async overhead
-                Assert.True(asyncTimer.ElapsedTicks <= (syncTimer.ElapsedTicks * 1.2M));
+                Assert.True(asyncTimer.ElapsedMilliseconds <= (syncTimer.ElapsedMilliseconds * 1.2M));
             }
         }
     }

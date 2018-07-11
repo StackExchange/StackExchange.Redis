@@ -1,4 +1,5 @@
 ﻿using System.Threading;
+using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -9,7 +10,7 @@ namespace StackExchange.Redis.Tests
         public RealWorld(ITestOutputHelper output) : base(output) { }
 
         [Fact]
-        public void WhyDoesThisNotWork()
+        public async Task WhyDoesThisNotWork()
         {
             Log("first:");
             var config = ConfigurationOptions.Parse("localhost:6379,localhost:6380,name=Core (Q&A),tiebreaker=:RedisMaster,abortConnect=False");
@@ -21,7 +22,7 @@ namespace StackExchange.Redis.Tests
             {
                 Log("");
                 Log("pausing...");
-                Thread.Sleep(200);
+                await Task.Delay(200).ForAwait();
                 Log("second:");
 
                 bool result = conn.Configure(Writer);

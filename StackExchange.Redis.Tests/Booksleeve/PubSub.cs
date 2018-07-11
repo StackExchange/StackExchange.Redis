@@ -333,7 +333,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         }
 
         [Fact]
-        public void TestMultipleSubscribersGetMessage()
+        public async Task TestMultipleSubscribersGetMessage()
         {
             var channel = Me();
             using (var muxerA = GetUnsecuredConnection())
@@ -350,7 +350,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
                 listenA.Wait(tA);
                 listenB.Wait(tB);
                 Assert.Equal(2, pub.Publish(channel, "message"));
-                AllowReasonableTimeToPublishAndProcess();
+                await AllowReasonableTimeToPublishAndProcess().ForAwait();
                 Assert.Equal(1, Interlocked.CompareExchange(ref gotA, 0, 0));
                 Assert.Equal(1, Interlocked.CompareExchange(ref gotB, 0, 0));
 
@@ -358,14 +358,14 @@ namespace StackExchange.Redis.Tests.Booksleeve
                 tA = listenA.UnsubscribeAsync(channel);
                 listenA.Wait(tA);
                 Assert.Equal(1, pub.Publish(channel, "message"));
-                AllowReasonableTimeToPublishAndProcess();
+                await AllowReasonableTimeToPublishAndProcess().ForAwait();
                 Assert.Equal(1, Interlocked.CompareExchange(ref gotA, 0, 0));
                 Assert.Equal(2, Interlocked.CompareExchange(ref gotB, 0, 0));
             }
         }
 
         [Fact]
-        public void Issue38()
+        public async Task Issue38()
         { // https://code.google.com/p/booksleeve/issues/detail?id=38
             using (var pub = GetUnsecuredConnection(waitForOpen: true))
             {
@@ -387,20 +387,17 @@ namespace StackExchange.Redis.Tests.Booksleeve
                 pub.WaitAll(c, d, e, f);
                 long total = c.Result + d.Result + e.Result + f.Result;
 
-                AllowReasonableTimeToPublishAndProcess();
+                await AllowReasonableTimeToPublishAndProcess().ForAwait();
 
                 Assert.Equal(6, total); // sent
                 Assert.Equal(6, Interlocked.CompareExchange(ref count, 0, 0)); // received
             }
         }
 
-        internal static void AllowReasonableTimeToPublishAndProcess()
-        {
-            Thread.Sleep(100);
-        }
+        internal static Task AllowReasonableTimeToPublishAndProcess() => Task.Delay(100);
 
         [Fact]
-        public void TestPartialSubscriberGetMessage()
+        public async Task TestPartialSubscriberGetMessage()
         {
             using (var muxerA = GetUnsecuredConnection())
             using (var muxerB = GetUnsecuredConnection())
@@ -416,7 +413,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
                 listenA.Wait(tA);
                 listenB.Wait(tB);
                 Assert.Equal(2, pub.Publish(prefix + "channel", "message"));
-                AllowReasonableTimeToPublishAndProcess();
+                await AllowReasonableTimeToPublishAndProcess().ForAwait();
                 Assert.Equal(1, Interlocked.CompareExchange(ref gotA, 0, 0));
                 Assert.Equal(1, Interlocked.CompareExchange(ref gotB, 0, 0));
 
@@ -424,14 +421,14 @@ namespace StackExchange.Redis.Tests.Booksleeve
                 tB = listenB.UnsubscribeAsync(prefix + "chann*", null);
                 listenB.Wait(tB);
                 Assert.Equal(1, pub.Publish(prefix + "channel", "message"));
-                AllowReasonableTimeToPublishAndProcess();
+                await AllowReasonableTimeToPublishAndProcess().ForAwait();
                 Assert.Equal(2, Interlocked.CompareExchange(ref gotA, 0, 0));
                 Assert.Equal(1, Interlocked.CompareExchange(ref gotB, 0, 0));
             }
         }
 
         [Fact]
-        public void TestSubscribeUnsubscribeAndSubscribeAgain()
+        public async Task TestSubscribeUnsubscribeAndSubscribeAgain()
         {
             using (var pubMuxer = GetUnsecuredConnection())
             using (var subMuxer = GetUnsecuredConnection())
@@ -444,7 +441,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
                 var t2 = sub.SubscribeAsync(prefix + "ab*", delegate { Interlocked.Increment(ref y); });
                 sub.WaitAll(t1, t2);
                 pub.Publish(prefix + "abc", "");
-                AllowReasonableTimeToPublishAndProcess();
+                await AllowReasonableTimeToPublishAndProcess().ForAwait();
                 Assert.Equal(1, Volatile.Read(ref x));
                 Assert.Equal(1, Volatile.Read(ref y));
                 t1 = sub.UnsubscribeAsync(prefix + "abc", null);
@@ -457,7 +454,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
                 t2 = sub.SubscribeAsync(prefix + "ab*", delegate { Interlocked.Increment(ref y); });
                 sub.WaitAll(t1, t2);
                 pub.Publish(prefix + "abc", "");
-                AllowReasonableTimeToPublishAndProcess();
+                await AllowReasonableTimeToPublishAndProcess().ForAwait();
                 Assert.Equal(2, Volatile.Read(ref x));
                 Assert.Equal(2, Volatile.Read(ref y));
             }

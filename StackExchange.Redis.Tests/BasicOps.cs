@@ -52,7 +52,7 @@ namespace StackExchange.Redis.Tests
             using (var muxer = Create())
             {
                 var conn = muxer.GetDatabase();
-                var tasks = new Task<TimeSpan>[10000];
+                var tasks = new Task<TimeSpan>[100];
 
                 for (int i = 0; i < tasks.Length; i++)
                 {
@@ -284,7 +284,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void TestQuit()
+        public async Task TestQuit()
         {
             string Time() => DateTime.UtcNow.ToString("HH:mm:ss.fff");
             SetExpectedAmbientFailureCount(1);
@@ -303,7 +303,7 @@ namespace StackExchange.Redis.Tests
                 Assert.Throws<RedisConnectionException>(() => Log("Ping time: " + db.Ping().ToString()));
                 watch.Stop();
                 Log("Time to notice quit: {0}ms (any order)", watch.ElapsedMilliseconds);
-                Thread.Sleep(20);
+                await Task.Delay(20).ForAwait();
                 Debug.WriteLine("Pinging...");
                 Assert.Equal(key, (string)db.StringGet(key));
             }

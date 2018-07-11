@@ -280,7 +280,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [FactLongRunning]
-        public void LeaksCollectedAndRePooled()
+        public async Task LeaksCollectedAndRePooled()
         {
             const int ThreadCount = 16;
 
@@ -292,7 +292,7 @@ namespace StackExchange.Redis.Tests
                 GC.Collect(3, GCCollectionMode.Forced, blocking: true);
                 GC.WaitForPendingFinalizers();
 
-                Thread.Sleep(TimeSpan.FromMinutes(1.01));
+                await Task.Delay(TimeSpan.FromMinutes(1.01)).ForAwait();
                 conn.FinishProfiling(anyContext);
 
                 // make sure we haven't left anything in the active contexts dictionary

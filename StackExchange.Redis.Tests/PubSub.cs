@@ -12,7 +12,7 @@ namespace StackExchange.Redis.Tests
         public PubSub(ITestOutputHelper output) : base(output) { }
 
         [Fact]
-        public void ExplicitPublishMode()
+        public async Task ExplicitPublishMode()
         {
             using (var mx = Create(channelPrefix: "foo:"))
             {
@@ -23,16 +23,16 @@ namespace StackExchange.Redis.Tests
                 pub.Subscribe(new RedisChannel("ab*d", RedisChannel.PatternMode.Auto), (x, y) => Interlocked.Increment(ref c));
                 pub.Subscribe("abc*", (x, y) => Interlocked.Increment(ref d));
 
-                Thread.Sleep(1000);
+                await Task.Delay(4100).ForAwait();
                 pub.Publish("abcd", "efg");
-                Thread.Sleep(500);
+                await Task.Delay(500).ForAwait();
                 Assert.Equal(0, Thread.VolatileRead(ref a));
                 Assert.Equal(1, Thread.VolatileRead(ref b));
                 Assert.Equal(1, Thread.VolatileRead(ref c));
                 Assert.Equal(1, Thread.VolatileRead(ref d));
 
                 pub.Publish("*bcd", "efg");
-                Thread.Sleep(500);
+                await Task.Delay(500).ForAwait();
                 Assert.Equal(1, Thread.VolatileRead(ref a));
                 //Assert.Equal(1, Thread.VolatileRead(ref b));
                 //Assert.Equal(1, Thread.VolatileRead(ref c));
@@ -48,13 +48,13 @@ namespace StackExchange.Redis.Tests
         [InlineData(null, true, "d")]
         [InlineData("", true, "e")]
         [InlineData("Foo:", true, "f")]
-        public void TestBasicPubSub(string channelPrefix, bool wildCard, string breaker)
+        public async Task TestBasicPubSub(string channelPrefix, bool wildCard, string breaker)
         {
             using (var muxer = Create(channelPrefix: channelPrefix))
             {
                 var pub = GetAnyMaster(muxer);
                 var sub = muxer.GetSubscriber();
-                Ping(muxer, pub, sub);
+                await PingAsync(muxer, pub, sub).ForAwait();
                 HashSet<string> received = new HashSet<string>();
                 int secondHandler = 0;
                 string subChannel = (wildCard ? "a*c" : "abc") + breaker;
@@ -84,7 +84,7 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(0, Thread.VolatileRead(ref secondHandler));
                 var count = sub.Publish(pubChannel, "def");
 
-                Ping(muxer, pub, sub, 3);
+                await PingAsync(muxer, pub, sub, 3).ForAwait();
 
                 lock (received)
                 {
@@ -95,7 +95,7 @@ namespace StackExchange.Redis.Tests
                 // unsubscribe from first; should still see second
                 sub.Unsubscribe(subChannel, handler1);
                 count = sub.Publish(pubChannel, "ghi");
-                Ping(muxer, pub, sub);
+                await PingAsync(muxer, pub, sub).ForAwait();
                 lock (received)
                 {
                     Assert.Single(received);
@@ -106,7 +106,7 @@ namespace StackExchange.Redis.Tests
                 // unsubscribe from second; should see nothing this time
                 sub.Unsubscribe(subChannel, handler2);
                 count = sub.Publish(pubChannel, "ghi");
-                Ping(muxer, pub, sub);
+                await PingAsync(muxer, pub, sub).ForAwait();
                 lock (received)
                 {
                     Assert.Single(received);
@@ -117,7 +117,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void TestBasicPubSubFireAndForget()
+        public async Task TestBasicPubSubFireAndForget()
         {
             using (var muxer = Create())
             {
@@ -127,7 +127,7 @@ namespace StackExchange.Redis.Tests
                 RedisChannel key = Guid.NewGuid().ToString();
                 HashSet<string> received = new HashSet<string>();
                 int secondHandler = 0;
-                Ping(muxer, pub, sub);
+                await PingAsync(muxer, pub, sub).ForAwait();
                 sub.Subscribe(key, (channel, payload) =>
                 {
                     lock (received)
@@ -146,9 +146,9 @@ namespace StackExchange.Redis.Tests
                     Assert.Empty(received);
                 }
                 Assert.Equal(0, Thread.VolatileRead(ref secondHandler));
-                Ping(muxer, pub, sub);
+                await PingAsync(muxer, pub, sub).ForAwait();
                 var count = sub.Publish(key, "def", CommandFlags.FireAndForget);
-                Ping(muxer, pub, sub);
+                await PingAsync(muxer, pub, sub).ForAwait();
 
                 lock (received)
                 {
@@ -159,7 +159,7 @@ namespace StackExchange.Redis.Tests
                 sub.Unsubscribe(key);
                 count = sub.Publish(key, "ghi", CommandFlags.FireAndForget);
 
-                Ping(muxer, pub, sub);
+                await PingAsync(muxer, pub, sub).ForAwait();
 
                 lock (received)
                 {
@@ -169,7 +169,7 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        private static void Ping(ConnectionMultiplexer muxer, IServer pub, ISubscriber sub, int times = 1)
+        private static async Task PingAsync(ConnectionMultiplexer muxer, IServer pub, ISubscriber sub, int times = 1)
         {
             while (times-- > 0)
             {
@@ -177,14 +177,14 @@ namespace StackExchange.Redis.Tests
                 // way to prove that is to use TPL objects
                 var t1 = sub.PingAsync();
                 var t2 = pub.PingAsync();
-                Thread.Sleep(100); // especially useful when testing any-order mode
+                await Task.Delay(100).ForAwait(); // especially useful when testing any-order mode
 
                 if (!Task.WaitAll(new[] { t1, t2 }, muxer.TimeoutMilliseconds * 2)) throw new TimeoutException();
             }
         }
 
         [Fact]
-        public void TestPatternPubSub()
+        public async Task TestPatternPubSub()
         {
             using (var muxer = Create())
             {
@@ -212,7 +212,7 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(0, Thread.VolatileRead(ref secondHandler));
                 var count = sub.Publish("abc", "def");
 
-                Ping(muxer, pub, sub);
+                await PingAsync(muxer, pub, sub).ForAwait();
 
                 lock (received)
                 {
@@ -223,7 +223,7 @@ namespace StackExchange.Redis.Tests
                 sub.Unsubscribe("a*c");
                 count = sub.Publish("abc", "ghi");
 
-                Ping(muxer, pub, sub);
+                await PingAsync(muxer, pub, sub).ForAwait();
 
                 lock (received)
                 {

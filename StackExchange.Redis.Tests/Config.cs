@@ -2,6 +2,7 @@
 using System.IO;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -32,7 +33,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void TestManaulHeartbeat()
+        public async Task TestManaulHeartbeat()
         {
             using (var muxer = Create(keepAlive: 2))
             {
@@ -42,7 +43,7 @@ namespace StackExchange.Redis.Tests
                 var before = muxer.OperationCount;
 
                 Log("sleeping to test heartbeat...");
-                Thread.Sleep(TimeSpan.FromSeconds(5));
+                await Task.Delay(5000).ForAwait();
 
                 var after = muxer.OperationCount;
 
@@ -232,7 +233,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void TestAutomaticHeartbeat()
+        public async Task TestAutomaticHeartbeat()
         {
             RedisValue oldTimeout = RedisValue.Null;
             using (var configMuxer = Create(allowAdmin: true))
@@ -252,7 +253,7 @@ namespace StackExchange.Redis.Tests
                         var before = innerMuxer.OperationCount;
 
                         Log("sleeping to test heartbeat...");
-                        Thread.Sleep(TimeSpan.FromSeconds(8));
+                        await Task.Delay(8000).ForAwait();
 
                         var after = innerMuxer.OperationCount;
                         Assert.True(after >= before + 4);

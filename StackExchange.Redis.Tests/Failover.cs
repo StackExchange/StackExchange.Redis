@@ -50,7 +50,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create())
             {
-                Thread.Sleep(1000);
+                await Task.Delay(1000).ForAwait();
                 Log("About to reconfigure.....");
                 await muxer.ConfigureAsync().ForAwait();
                 Log("Reconfigured");
@@ -58,11 +58,11 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void ConfigureSync()
+        public async Task ConfigureSync()
         {
             using (var muxer = Create())
             {
-                Thread.Sleep(1000);
+                await Task.Delay(1000).ForAwait();
                 Log("About to reconfigure.....");
                 muxer.Configure();
                 Log("Reconfigured");

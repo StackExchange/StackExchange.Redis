@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using System.Threading;
+using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -11,7 +12,7 @@ namespace StackExchange.Redis.Tests
         public ConnectionShutdown(ITestOutputHelper output) : base (output) { }
 
         [Fact(Skip="Unfriendly")]
-        public void ShutdownRaisesConnectionFailedAndRestore()
+        public async Task ShutdownRaisesConnectionFailedAndRestore()
         {
             using (var conn = Create(allowAdmin: true))
             {
@@ -31,6 +32,7 @@ namespace StackExchange.Redis.Tests
                 db.Ping();
                 Assert.Equal(0, Interlocked.CompareExchange(ref failed, 0, 0));
                 Assert.Equal(0, Interlocked.CompareExchange(ref restored, 0, 0));
+                await Task.Delay(1).ForAwait(); // To make compiler happy in Release
 
 #if DEBUG
                 conn.AllowConnect = false;
@@ -40,12 +42,12 @@ namespace StackExchange.Redis.Tests
                 server.SimulateConnectionFailure();
 
                 db.Ping(CommandFlags.FireAndForget);
-                Thread.Sleep(250);
+                await Task.Delay(250).ForAwait();
                 Assert.Equal(2, Interlocked.CompareExchange(ref failed, 0, 0));
                 Assert.Equal(0, Interlocked.CompareExchange(ref restored, 0, 0));
                 conn.AllowConnect = true;
                 db.Ping(CommandFlags.FireAndForget);
-                Thread.Sleep(1500);
+                await Task.Delay(1500).ForAwait();
                 Assert.Equal(2, Interlocked.CompareExchange(ref failed, 0, 0));
                 Assert.Equal(2, Interlocked.CompareExchange(ref restored, 0, 0));
 #endif
