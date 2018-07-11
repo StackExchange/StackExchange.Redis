@@ -2,8 +2,8 @@
 {
     internal enum PositionKind
     {
-        Beginning,
-        Explicit,
-        New
+        Beginning = 0,
+        Explicit = 1,
+        New = 2
     }
 }

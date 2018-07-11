@@ -1057,11 +1057,11 @@ namespace StackExchange.Redis.Tests
                 Assert.True(pendingInfo.Consumers.Length == 0);
             }
         }
-
+        
         [Fact]
         public void StreamPositionDefaultValueIsBeginning()
         {
-            Position position = new Position();
+            Position position = default(Position);
 
             Assert.Equal(StreamConstants.ReadMinValue, position.ResolveForCommand(RedisCommand.XREAD));
             Assert.Equal(StreamConstants.ReadMinValue, position.ResolveForCommand(RedisCommand.XREADGROUP));

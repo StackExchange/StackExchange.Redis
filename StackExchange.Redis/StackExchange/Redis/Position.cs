@@ -25,7 +25,7 @@ namespace StackExchange.Redis
             ExplicitValue = RedisValue.Null;
         }
 
-        private PositionKind? Kind { get; }
+        private PositionKind Kind { get; }
 
         private RedisValue ExplicitValue { get; }
 
@@ -41,17 +41,14 @@ namespace StackExchange.Redis
 
         internal RedisValue ResolveForCommand(RedisCommand command)
         {
-            // Handle the default struct value.
-            var actualKind = Kind ?? PositionKind.Beginning;
-
-            if (actualKind == PositionKind.Explicit) return ExplicitValue;
-            if (actualKind == PositionKind.Beginning) return StreamConstants.ReadMinValue;
+            if (Kind == PositionKind.Explicit) return ExplicitValue;
+            if (Kind == PositionKind.Beginning) return StreamConstants.ReadMinValue;
 
             // PositionKind.New
             if (command == RedisCommand.XREAD) throw new InvalidOperationException("Position.New cannot be used with StreamRead.");
             if (command == RedisCommand.XREADGROUP) return StreamConstants.UndeliveredMessages;
             if (command == RedisCommand.XGROUP) return StreamConstants.NewMessages;
-
+            
             throw new ArgumentException($"Unsupported command in ResolveForCommand: {command}.", nameof(command));
         }
     }
