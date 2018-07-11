@@ -6,6 +6,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Security;
 using System.Security.Authentication;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -174,6 +175,38 @@ namespace StackExchange.Redis
         /// Automatically encodes and decodes channels
         /// </summary>
         public RedisChannel ChannelPrefix { get; set; }
+
+        /// <summary>
+        /// Create a certificate validation check that checks against the supplied issuer even if not known by the machine
+        /// </summary>
+        public static RemoteCertificateValidationCallback TrustIssuer(string issuerCertificatePath)
+            => TrustIssuer(new X509Certificate2(issuerCertificatePath));
+
+        /// <summary>
+        /// Create a certificate validation check that checks against the supplied issuer even if not known by the machine
+        /// </summary>
+        public static RemoteCertificateValidationCallback TrustIssuer(X509Certificate2 issuer)
+        {
+            if (issuer == null) throw new ArgumentNullException(nameof(issuer));
+
+            return (object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyError)
+                => sslPolicyError == SslPolicyErrors.RemoteCertificateChainErrors && certificate is X509Certificate2 v2
+                    && CheckTrustedIssuer(v2, issuer);
+        }
+        static bool CheckTrustedIssuer(X509Certificate2 certificateToValidate, X509Certificate2 authority)
+        {
+            // reference: https://stackoverflow.com/questions/6497040/how-do-i-validate-that-a-certificate-was-created-by-a-particular-certification-a
+            X509Chain chain = new X509Chain();
+            chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
+            chain.ChainPolicy.RevocationFlag = X509RevocationFlag.ExcludeRoot;
+            chain.ChainPolicy.VerificationFlags = X509VerificationFlags.AllowUnknownCertificateAuthority;
+            chain.ChainPolicy.VerificationTime = DateTime.Now;
+            chain.ChainPolicy.UrlRetrievalTimeout = new TimeSpan(0, 0, 0);
+
+            chain.ChainPolicy.ExtraStore.Add(authority);
+            return chain.Build(certificateToValidate);
+        }
+        
 
         /// <summary>
         /// The client name to use for all connections

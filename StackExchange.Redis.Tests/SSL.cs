@@ -173,6 +173,11 @@ namespace StackExchange.Redis.Tests
             Skip.IfNoConfig(nameof(TestConfig.Config.RedisLabsSslServer), TestConfig.Current.RedisLabsSslServer);
             Skip.IfNoConfig(nameof(TestConfig.Config.RedisLabsPfxPath), TestConfig.Current.RedisLabsPfxPath);
 
+
+            var cert = new X509Certificate2(TestConfig.Current.RedisLabsPfxPath, "");
+            Assert.NotNull(cert);
+            Writer.WriteLine("Thumbprint: " + cert.Thumbprint);
+
             int timeout = 5000;
             if (Debugger.IsAttached) timeout *= 100;
             var options = new ConfigurationOptions
@@ -184,6 +189,11 @@ namespace StackExchange.Redis.Tests
                     "subscribe", "unsubscribe", "cluster"
                 }, false)
             };
+            
+            options.CertificateValidation += ConfigurationOptions.TrustIssuer("redislabs_ca.pem");
+
+
+
             if (!Directory.Exists(Me())) Directory.CreateDirectory(Me());
 #if LOGOUTPUT
             ConnectionMultiplexer.EchoPath = Me();
@@ -191,7 +201,7 @@ namespace StackExchange.Redis.Tests
             options.Ssl = true;
             options.CertificateSelection += delegate
             {
-                return new X509Certificate2(TestConfig.Current.RedisLabsPfxPath, "");
+                return cert;
             };
             RedisKey key = Me();
             using (var conn = ConnectionMultiplexer.Connect(options))
@@ -227,6 +237,10 @@ namespace StackExchange.Redis.Tests
                 if (setEnv)
                 {
                     Environment.SetEnvironmentVariable("SERedis_ClientCertPfxPath", TestConfig.Current.RedisLabsPfxPath);
+                    Environment.SetEnvironmentVariable("SERedis_IssuerCertPath", "redislabs_ca.pem");
+                    // check env worked
+                    Assert.Equal(TestConfig.Current.RedisLabsPfxPath, Environment.GetEnvironmentVariable("SERedis_ClientCertPfxPath"));
+                    Assert.Equal("redislabs_ca.pem", Environment.GetEnvironmentVariable("SERedis_IssuerCertPath"));
                 }
                 int timeout = 5000;
                 if (Debugger.IsAttached) timeout *= 100;
@@ -239,6 +253,7 @@ namespace StackExchange.Redis.Tests
                         "subscribe", "unsubscribe", "cluster"
                     }, false)
                 };
+                
                 if (!Directory.Exists(Me())) Directory.CreateDirectory(Me());
 #if LOGOUTPUT
             ConnectionMultiplexer.EchoPath = Me();

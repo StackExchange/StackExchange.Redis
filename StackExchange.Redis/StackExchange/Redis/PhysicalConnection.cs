@@ -944,7 +944,20 @@ namespace StackExchange.Redis
 
         internal int GetAvailableInboundBytes() => _socket?.Available ?? 0;
 
-        private static LocalCertificateSelectionCallback GetAmbientCertificateCallback()
+        private RemoteCertificateValidationCallback GetAmbientIssuerCertificateCallback()
+        {
+            try
+            {
+                var issuerPath = Environment.GetEnvironmentVariable("SERedis_IssuerCertPath");
+                if (!string.IsNullOrEmpty(issuerPath)) return ConfigurationOptions.TrustIssuer(issuerPath);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex.Message);
+            }
+            return null;
+        }
+        private static LocalCertificateSelectionCallback GetAmbientClientCertificateCallback()
         {
             try
             {
@@ -963,8 +976,10 @@ namespace StackExchange.Redis
                     return delegate { return new X509Certificate2(pfxPath, pfxPassword ?? "", flags ?? X509KeyStorageFlags.DefaultKeySet); };
                 }
             }
-            catch
-            { }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex.Message);
+            }
             return null;
         }
 
@@ -987,8 +1002,9 @@ namespace StackExchange.Redis
                     var host = config.SslHost;
                     if (string.IsNullOrWhiteSpace(host)) host = Format.ToStringHostOnly(Bridge.ServerEndPoint.EndPoint);
 
-                    var ssl = new SslStream(new NetworkStream(socket), false, config.CertificateValidationCallback,
-                        config.CertificateSelectionCallback ?? GetAmbientCertificateCallback(),
+                    var ssl = new SslStream(new NetworkStream(socket), false,
+                        config.CertificateValidationCallback ?? GetAmbientIssuerCertificateCallback(),
+                        config.CertificateSelectionCallback ?? GetAmbientClientCertificateCallback(),
                         EncryptionPolicy.RequireEncryption);
                     try
                     {
@@ -996,8 +1012,9 @@ namespace StackExchange.Redis
                         {
                             ssl.AuthenticateAsClient(host, config.SslProtocols);
                         }
-                        catch
+                        catch(Exception ex)
                         {
+                            Debug.WriteLine(ex.Message);
                             Multiplexer?.SetAuthSuspect();
                             throw;
                         }
