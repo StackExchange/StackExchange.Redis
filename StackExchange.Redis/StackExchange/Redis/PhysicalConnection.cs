@@ -180,9 +180,15 @@ namespace StackExchange.Redis
             var timeout = Task.Delay(timeoutMilliseconds);
             timeout.ContinueWith((_, state) =>
             {
-                var a = (SocketAsyncEventArgs)state;
-                try { Socket.CancelConnectAsync(a); } catch { }
-                try { ((SocketAwaitable)a.UserToken).Complete(0, SocketError.TimedOut); } catch { }
+                try
+                {
+                    var a = (SocketAsyncEventArgs)state;
+                    if (((SocketAwaitable)a.UserToken).TryComplete(0, SocketError.TimedOut))
+                    {
+                        Socket.CancelConnectAsync(a);
+                    }
+                }
+                catch { }
             }, args);
         }
 

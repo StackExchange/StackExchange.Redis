@@ -14,8 +14,4 @@
     <ProjectReference Include="..\BasicTest\BasicTest.csproj" />
     <ProjectReference Include="..\StackExchange.Redis\StackExchange.Redis.csproj" />
   </ItemGroup>
-  <ItemGroup>
-    <PackageReference Include="Pipelines.Sockets.Unofficial" Version="0.2.1-alpha.62" />
-  </ItemGroup>
-
 </Project>
