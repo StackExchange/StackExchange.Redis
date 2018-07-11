@@ -432,7 +432,7 @@ namespace StackExchange.Redis.Tests
 
         public void HashSlots(string key, int slot)
         {
-            using (var muxer = Create(connectTimeout: 5000, pause: false))
+            using (var muxer = Create(connectTimeout: 5000))
             {
                 Assert.Equal(slot, muxer.HashSlot(key));
             }
