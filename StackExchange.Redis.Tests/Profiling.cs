@@ -404,7 +404,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void LowAllocationEnumerable()
         {
-            const int OuterLoop = 10000;
+            const int OuterLoop = 1000;
 
             using (var conn = Create())
             {
