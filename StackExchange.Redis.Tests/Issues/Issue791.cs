@@ -28,8 +28,10 @@ namespace StackExchange.Redis.Tests.Issues
         [Fact]
         public void PreserveAsyncOrder_SetConnectionMultiplexerProperty()
         {
-            // We only care that it parses successfully while deprecated
-            var multiplexer = ConnectionMultiplexer.Connect(TestConfig.Current.MasterServerAndPort + ",preserveAsyncOrder=false");
+            using (var multiplexer = ConnectionMultiplexer.Connect(TestConfig.Current.MasterServerAndPort + ",preserveAsyncOrder=false"))
+            {
+                // We only care that it parses successfully while deprecated
+            }
         }
     }
 }
