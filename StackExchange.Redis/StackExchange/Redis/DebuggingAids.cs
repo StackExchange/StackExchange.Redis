@@ -170,9 +170,9 @@ namespace StackExchange.Redis
 #if LOGOUTPUT
     partial class PhysicalConnection
     {
-        partial void OnWrapForLogging(ref IDuplexPipe pipe, string name, SocketManager mgr)
+        partial void OnWrapForLogging(ref System.IO.Pipelines.IDuplexPipe pipe, string name, SocketManager mgr)
         {
-            foreach(var c in Path.GetInvalidFileNameChars())
+            foreach(var c in System.IO.Path.GetInvalidFileNameChars())
             {
                 name = name.Replace(c, '_');
             }

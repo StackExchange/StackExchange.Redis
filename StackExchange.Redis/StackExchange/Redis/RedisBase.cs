@@ -30,18 +30,6 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.ResponseTimer);
         }
 
-        public void Quit(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.QUIT);
-            ExecuteSync(msg, ResultProcessor.DemandOK);
-        }
-
-        public Task QuitAsync(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.QUIT);
-            return ExecuteAsync(msg, ResultProcessor.DemandOK);
-        }
-
         public override string ToString() => multiplexer.ToString();
 
         public bool TryWait(Task task) => task.Wait(multiplexer.TimeoutMilliseconds);

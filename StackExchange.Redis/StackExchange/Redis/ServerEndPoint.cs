@@ -320,16 +320,16 @@ namespace StackExchange.Redis
         internal uint NextReplicaOffset() // used to round-robin between multiple replicas
             => (uint)System.Threading.Interlocked.Increment(ref _nextReplicaOffset);
 
-        internal Task Close()
+        internal Task Close(ConnectionType connectionType)
         {
-            var tmp = interactive;
+            var tmp = GetBridge(connectionType, create: false);
             if (tmp == null || !tmp.IsConnected || !Multiplexer.CommandMap.IsAvailable(RedisCommand.QUIT))
             {
                 return CompletedTask<bool>.Default(null);
             }
             else
             {
-                return WriteDirectAsync(Message.Create(-1, CommandFlags.None, RedisCommand.QUIT), ResultProcessor.DemandOK, bridge: interactive);
+                return WriteDirectAsync(Message.Create(-1, CommandFlags.None, RedisCommand.QUIT), ResultProcessor.DemandOK, bridge: tmp);
             }
         }
 
@@ -636,6 +636,7 @@ namespace StackExchange.Redis
         }
         private PhysicalBridge CreateBridge(ConnectionType type, TextWriter log)
         {
+            if (Multiplexer.IsDisposed) return null;
             Multiplexer.Trace(type.ToString());
             var bridge = new PhysicalBridge(this, type, Multiplexer.TimeoutMilliseconds);
             bridge.TryConnect(log);

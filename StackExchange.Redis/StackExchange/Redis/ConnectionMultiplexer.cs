@@ -1925,7 +1925,7 @@ namespace StackExchange.Redis
 
         private Task[] QuitAllServers()
         {
-            Task[] quits = new Task[servers.Count];
+            var quits = new Task[2 * servers.Count];
             lock (servers)
             {
                 var iter = servers.GetEnumerator();
@@ -1933,7 +1933,8 @@ namespace StackExchange.Redis
                 while (iter.MoveNext())
                 {
                     var server = (ServerEndPoint)iter.Value;
-                    quits[index++] = server.Close();
+                    quits[index++] = server.Close(ConnectionType.Interactive);
+                    quits[index++] = server.Close(ConnectionType.Subscription);
                 }
             }
             return quits;
