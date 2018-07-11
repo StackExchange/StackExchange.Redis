@@ -1,4 +1,5 @@
 ﻿// .NET port of https://github.com/RedisLabs/JRediSearch/
+using NRediSearch.Aggregation;
 using StackExchange.Redis;
 using System;
 using System.Collections.Generic;
@@ -454,6 +455,17 @@ namespace NRediSearch
                 args.Add(max);
             }
             return (string[])await _db.ExecuteAsync("FT.SUGGET", args).ConfigureAwait(false);
+        }
+
+        public async List<Dictionary<string, RedisValue>> AggregateAsync(AggregationRequest query)
+        {
+            var args = new List<object>();
+            args.Add(_boxedIndexName);
+            query.SerializeRedisArgs(args);
+
+            var resp = await _db.ExecuteAsync("FT.AGGREGATE", args).ConfigureAwait(false);
+            
+
         }
     }
 }
