@@ -13,4 +13,7 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="$(xUnitVersion)" />
     <DotNetCliToolReference Include="dotnet-xunit" Version="$(xUnitVersion)" />
   </ItemGroup>
+  <ItemGroup>
+    <Folder Include="QueryBuilder\" />
+  </ItemGroup>
 </Project>

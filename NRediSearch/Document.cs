@@ -1,5 +1,6 @@
 ﻿// .NET port of https://github.com/RedisLabs/JRediSearch/
 
+using System;
 using System.Collections.Generic;
 using StackExchange.Redis;
 
@@ -13,7 +14,7 @@ namespace NRediSearch
         public string Id { get; }
         public double Score { get; }
         public byte[] Payload { get; }
-        private readonly Dictionary<string, RedisValue> _properties;
+        internal readonly Dictionary<string, RedisValue> _properties;
         public Document(string id, double score, byte[] payload) : this(id, null, score, payload) { }
         public Document(string id) : this(id, null, 1.0, null) { }
 
@@ -50,5 +51,24 @@ namespace NRediSearch
         }
 
         public bool HasProperty(string key) => _properties.ContainsKey(key);
+
+        internal static Document Parse(string docId, RedisResult result)
+        {
+            if (result == null || result.IsNull) return null;
+            var arr = (RedisResult[])result;
+            var doc = new Document(docId);
+            
+            for(int i = 0; i < arr.Length; )
+            {
+                doc[(string)arr[i++]] = (RedisValue)arr[i++];
+            }
+            return doc;
+        }
+
+        public Document Set(string field, RedisValue value)
+        {
+            this[field] = value;
+            return this;
+        }
     }
 }

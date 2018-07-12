@@ -12,7 +12,7 @@ namespace NRediSearch.Test
         {
             var query = GetQuery();
             Assert.False(query.NoContent);
-            query.NoContent = true;
+            Assert.Same(query, query.SetNoContent());
             Assert.True(query.NoContent);
         }
 
@@ -21,7 +21,7 @@ namespace NRediSearch.Test
         {
             var query = GetQuery();
             Assert.False(query.WithScores);
-            query.WithScores = true;
+            Assert.Same(query, query.SetWithScores());
             Assert.True(query.WithScores);
         }
 
@@ -83,7 +83,7 @@ namespace NRediSearch.Test
         {
             var query = GetQuery();
             Assert.False(query.Verbatim);
-            query.Verbatim = true;
+            Assert.Same(query, query.SetVerbatim());
             Assert.True(query.Verbatim);
         }
 
@@ -93,7 +93,7 @@ namespace NRediSearch.Test
         {
             var query = GetQuery();
             Assert.False(query.NoStopwords);
-            query.NoStopwords = true;
+            Assert.Same(query, query.SetNoStopwords());
             Assert.True(query.NoStopwords);
 
         }
@@ -104,7 +104,7 @@ namespace NRediSearch.Test
         {
             var query = GetQuery();
             Assert.Null(query.Language);
-            query.Language = "chinese";
+            Assert.Same(query, query.SetLanguage("chinese"));
             Assert.Equal("chinese", query.Language);
         }
 

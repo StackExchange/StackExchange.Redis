@@ -17,14 +17,18 @@ namespace NRediSearch.Test
         public ExampleUsage(ITestOutputHelper output)
         {
             Output = output;
+            conn = GetWithFT(output);
+            db = conn.GetDatabase();
+        }
+        internal static ConnectionMultiplexer GetWithFT(ITestOutputHelper output)
+        {
             const string ep = "127.0.0.1:6379";
             var options = new ConfigurationOptions
             {
                 EndPoints = {ep},
                 AllowAdmin = true
             };
-            conn = ConnectionMultiplexer.Connect(options);
-            db = conn.GetDatabase();
+            var conn = ConnectionMultiplexer.Connect(options);
 
             var server = conn.GetServer(ep);
             var arr = (RedisResult[])server.Execute("module", "list");
@@ -36,23 +40,24 @@ namespace NRediSearch.Test
                 {
                     found = true;
                     if(parsed.TryGetValue("ver", out val))
-                        Output.WriteLine($"Version: {val}");
+                        output?.WriteLine($"Version: {val}");
                     break;
                 }      
             }
 
             if (!found)
             {
-                Output.WriteLine("Module not found; attempting to load...");
+                output?.WriteLine("Module not found; attempting to load...");
                 var config = server.Info("server").SelectMany(_ => _).FirstOrDefault(x => x.Key == "config_file").Value;
                 if(!string.IsNullOrEmpty(config))
                 {
                     var i = config.LastIndexOf('/');
                     var modulePath = config.Substring(0, i + 1) + "redisearch.so";
                     var result = server.Execute("module", "load", modulePath);
-                    Output.WriteLine((string)result);
+                    output?.WriteLine((string)result);
                 }
             }
+            return conn;
         }
         static Dictionary<string, RedisValue> Parse(RedisResult module)
         {

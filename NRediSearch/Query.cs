@@ -381,5 +381,34 @@ namespace NRediSearch
             SortAscending = ascending;
             return this;
         }
+
+        public Query SetWithScores(bool value = true)
+        {
+            WithScores = value;
+            return this;
+        }
+
+        public Query SetNoContent(bool value = true)
+        {
+            NoContent = value;
+            return this;
+        }
+
+        public Query SetVerbatim(bool value = true)
+        {
+            Verbatim = value;
+            return this;
+        }
+
+        public Query SetNoStopwords(bool value = true)
+        {
+            NoStopwords = value;
+            return this;
+        }
+        public Query SetLanguage(string language)
+        {
+            Language = language;
+            return this;
+        }
     }
 }
