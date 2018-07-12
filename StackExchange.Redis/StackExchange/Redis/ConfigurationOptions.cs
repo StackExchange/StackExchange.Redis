@@ -362,7 +362,7 @@ namespace StackExchange.Redis
         /// The size of the output buffer to use
         /// </summary>
         [Obsolete("This setting no longer has any effect, and should not be used")]
-        public int WriteBuffer { get { return writeBuffer.GetValueOrDefault(4096); } set { writeBuffer = value; } }
+        public int WriteBuffer { get { return 0; } set { } }
 
         internal LocalCertificateSelectionCallback CertificateSelectionCallback { get { return CertificateSelection; } private set { CertificateSelection = value; } }
 
