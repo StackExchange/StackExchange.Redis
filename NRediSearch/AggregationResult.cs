@@ -13,13 +13,16 @@ namespace NRediSearch
             var arr = (RedisResult[])result;
 
             _results = new Dictionary<string, RedisValue>[arr.Length - 1];
-            for (int i = 0; i < arr.Length; i++)
+            for (int i = 1; i < arr.Length; i++)
             {
                 var raw = (RedisResult[])arr[i];
                 var cur = new Dictionary<string, RedisValue>();
                 for (int j = 0; j < raw.Length;)
                 {
-                    cur.Add((string)raw[j++], (RedisValue)raw[j++]);
+                    var key = (string)raw[j++];
+                    var val = raw[j++];
+                    if (val.Type != ResultType.MultiBulk)
+                        cur.Add(key, (RedisValue)val);
                 }
                 _results[i - 1] = cur;
             }

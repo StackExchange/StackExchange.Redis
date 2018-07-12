@@ -1,88 +1,20 @@
 ﻿using System;
-using Xunit;
-using StackExchange.Redis;
 using System.Collections.Generic;
 using System.Linq;
+using StackExchange.Redis;
+using Xunit;
 using Xunit.Abstractions;
-using System.IO;
 
 namespace NRediSearch.Test
 {
-    public class ExampleUsage : IDisposable
+    public class ExampleUsage : RediSearchTestBase
     {
-        private ConnectionMultiplexer conn;
-        private IDatabase db;
-
-        private ITestOutputHelper Output { get; }
-        public ExampleUsage(ITestOutputHelper output)
-        {
-            Output = output;
-            conn = GetWithFT(output);
-            db = conn.GetDatabase();
-        }
-        internal static ConnectionMultiplexer GetWithFT(ITestOutputHelper output)
-        {
-            const string ep = "127.0.0.1:6379";
-            var options = new ConfigurationOptions
-            {
-                EndPoints = {ep},
-                AllowAdmin = true
-            };
-            var conn = ConnectionMultiplexer.Connect(options);
-
-            var server = conn.GetServer(ep);
-            var arr = (RedisResult[])server.Execute("module", "list");
-            bool found = false;
-            foreach(var module in arr)
-            {
-                var parsed = Parse(module);
-                if(parsed.TryGetValue("name", out var val) && val == "ft")
-                {
-                    found = true;
-                    if(parsed.TryGetValue("ver", out val))
-                        output?.WriteLine($"Version: {val}");
-                    break;
-                }      
-            }
-
-            if (!found)
-            {
-                output?.WriteLine("Module not found; attempting to load...");
-                var config = server.Info("server").SelectMany(_ => _).FirstOrDefault(x => x.Key == "config_file").Value;
-                if(!string.IsNullOrEmpty(config))
-                {
-                    var i = config.LastIndexOf('/');
-                    var modulePath = config.Substring(0, i + 1) + "redisearch.so";
-                    var result = server.Execute("module", "load", modulePath);
-                    output?.WriteLine((string)result);
-                }
-            }
-            return conn;
-        }
-        static Dictionary<string, RedisValue> Parse(RedisResult module)
-        {
-            var data = new Dictionary<string, RedisValue>();
-            var lines = (RedisResult[])module;
-            for(int i = 0; i < lines.Length;)
-            {
-                var key = (string)lines[i++];
-                var value = (RedisValue)lines[i++];
-                data[key] = value;
-            }
-            return data;
-        }
-
-        public void Dispose()
-        {
-            conn?.Dispose();
-            conn = null;
-            db = null;
-        }
+        public ExampleUsage(ITestOutputHelper output) : base(output) { }
 
         [Fact]
         public void BasicUsage()
         {
-            var client = new Client("testung", db);
+            var client = GetClient();
 
             try { client.DropIndex(); } catch { } // reset DB
 

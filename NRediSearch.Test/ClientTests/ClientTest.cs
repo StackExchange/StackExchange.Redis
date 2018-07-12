@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Runtime.CompilerServices;
 using System.Text;
 using StackExchange.Redis;
 using Xunit;
@@ -8,40 +7,10 @@ using Xunit.Abstractions;
 
 namespace NRediSearch.Test.ClientTests
 {
-    public class ClientTest : IDisposable
+    public class ClientTest : RediSearchTestBase
     {
-        private ITestOutputHelper Output;
-        public ClientTest(ITestOutputHelper output)
-        {
-            muxer = ExampleUsage.GetWithFT(output);
-            Output = output;
-            db = muxer.GetDatabase();
-        }
-        private ConnectionMultiplexer muxer;
-        private IDatabase db;
-
-        public void Dispose()
-        {
-            muxer?.Dispose();
-            muxer = null;
-        }
-
-        private Client GetClient([CallerMemberName] string caller = null)
-            => Reset(new Client("ClientTests:" + caller, db));
-
-        static Client Reset(Client client)
-        {
-            try
-            {
-                client.DropIndex(); // tests create them
-            }
-            catch (RedisServerException ex)
-            {
-                if (ex.Message != "Unknown Index name") throw;
-            }
-            return client;
-        }
-
+        public ClientTest(ITestOutputHelper output) : base(output) { }
+     
         [Fact]
         public void search()
         {
@@ -323,8 +292,8 @@ namespace NRediSearch.Test.ClientTests
             Schema sc = new Schema().AddTextField("title", 1.0);
             Assert.True(cl.CreateIndex(sc, Client.IndexOptions.Default));
             RedisKey hashKey = (string)cl.IndexName + ":foo";
-            db.KeyDelete(hashKey);
-            db.HashSet(hashKey, "title", "hello world");
+            Db.KeyDelete(hashKey);
+            Db.HashSet(hashKey, "title", "hello world");
 
             Assert.True(cl.AddHash(hashKey, 1, false));
             SearchResult res = cl.Search(new Query("hello world").SetVerbatim());
@@ -336,7 +305,7 @@ namespace NRediSearch.Test.ClientTests
         public void testDrop()
         {
             Client cl = GetClient();
-            db.Execute("FLUSHDB"); // yeah, this is horrible, deal with it
+            Db.Execute("FLUSHDB"); // yeah, this is horrible, deal with it
 
             Schema sc = new Schema().AddTextField("title", 1.0);
 
@@ -351,12 +320,12 @@ namespace NRediSearch.Test.ClientTests
             SearchResult res = cl.Search(new Query("hello world"));
             Assert.Equal(100, res.TotalResults);
 
-            var key = (string)db.KeyRandom();
+            var key = (string)Db.KeyRandom();
             Assert.NotNull(key);
 
             Reset(cl);
 
-            key = (string)db.KeyRandom();
+            key = (string)Db.KeyRandom();
             Assert.Null(key);
         }
 

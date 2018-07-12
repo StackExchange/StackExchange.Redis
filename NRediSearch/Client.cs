@@ -288,9 +288,9 @@ namespace NRediSearch
         /// <param name="doc">The document to add</param>
         /// <param name="options">Options for the operation</param>
         /// <returns>true if the operation succeeded, false otherwise. Note that if the operation fails, an exception will be thrown</returns>
-        public bool AddDocument(Document doc, AddOptions options)
+        public bool AddDocument(Document doc, AddOptions options = null)
         {
-            var args = BuildAddDocumentArgs(doc.Id, doc._properties, doc.Score, options.NoSave, options.ReplacePolicy, doc.Payload, options.Language);
+            var args = BuildAddDocumentArgs(doc.Id, doc._properties, doc.Score, options?.NoSave ?? false, options?.ReplacePolicy ?? AddOptions.ReplacementPolicy.None, doc.Payload, options?.Language);
             return (string)DbSync.Execute("FT.ADD", args) == "OK";
         }
 
@@ -300,9 +300,9 @@ namespace NRediSearch
         /// <param name="doc">The document to add</param>
         /// <param name="options">Options for the operation</param>
         /// <returns>true if the operation succeeded, false otherwise. Note that if the operation fails, an exception will be thrown</returns>
-        public async Task<bool> AddDocumentAsync(Document doc, AddOptions options)
+        public async Task<bool> AddDocumentAsync(Document doc, AddOptions options = null)
         {
-            var args = BuildAddDocumentArgs(doc.Id, doc._properties, doc.Score, options.NoSave, options.ReplacePolicy, doc.Payload, options.Language);
+            var args = BuildAddDocumentArgs(doc.Id, doc._properties, doc.Score, options?.NoSave ?? false, options?.ReplacePolicy ?? AddOptions.ReplacementPolicy.None, doc.Payload, options?.Language);
             return (string)await _db.ExecuteAsync("FT.ADD", args).ConfigureAwait(false) == "OK";
         }
 
