@@ -445,7 +445,6 @@ namespace NRediSearch
                 {
                     info.Add((string)res[i], (RedisValue)val);
                 }
-                
             }
             return info;
         }
