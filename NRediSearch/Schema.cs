@@ -23,13 +23,15 @@ namespace NRediSearch
         {
             public String Name { get; }
             public FieldType Type { get; }
-            public bool Sortable {get;}
+            public bool Sortable { get; }
+            public bool NoIndex { get; }
 
-            internal Field(string name, FieldType type, bool sortable)
+            internal Field(string name, FieldType type, bool sortable, bool noIndex = false)
             {
                 Name = name;
                 Type = type;
                 Sortable = sortable;
+                NoIndex = noIndex;
             }
 
             internal virtual void SerializeRedisArgs(List<object> args)
@@ -47,21 +49,20 @@ namespace NRediSearch
                 }
                 args.Add(Name);
                 args.Add(GetForRedis(Type));
-                if(Sortable){args.Add("SORTABLE");}
+                if (Sortable) { args.Add("SORTABLE".Literal()); }
+                if (NoIndex) { args.Add("NOINDEX".Literal()); }
             }
         }
 
         public class TextField : Field
         {
             public double Weight { get; }
-            internal TextField(string name, double weight = 1.0) : base(name, FieldType.FullText, false)
-            {
-                Weight = weight;
-            }
+            public bool NoStem { get; }
 
-            internal TextField(string name, bool sortable, double weight = 1.0) : base(name, FieldType.FullText, sortable)
+            public TextField(string name, double weight = 1.0, bool sortable = false, bool noStem = false, bool noIndex = false) : base(name, FieldType.FullText, sortable, noIndex)
             {
                 Weight = weight;
+                NoStem = noStem;
             }
 
             internal override void SerializeRedisArgs(List<object> args)
@@ -72,10 +73,21 @@ namespace NRediSearch
                     args.Add("WEIGHT".Literal());
                     args.Add(Weight);
                 }
+                if (NoStem) args.Add("NOSTEM".Literal());
             }
         }
 
         public List<Field> Fields { get; } = new List<Field>();
+
+        /// <summary>
+        /// Add a field to the schema
+        /// </summary>
+        /// <returns>the schema object</returns>
+        public Schema AddField(Field field)
+        {
+            Fields.Add(field ?? throw new ArgumentNullException(nameof(field)));
+            return this;
+        }
 
         /// <summary>
         /// Add a text field to the schema with a given weight
@@ -97,7 +109,7 @@ namespace NRediSearch
         /// <returns>the schema object</returns>
         public Schema AddSortableTextField(string name, double weight = 1.0)
         {
-            Fields.Add(new TextField(name, true, weight));
+            Fields.Add(new TextField(name, weight, true));
             return this;
         }
 

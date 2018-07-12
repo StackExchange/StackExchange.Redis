@@ -1,15 +1,16 @@
 ﻿// .NET port of https://github.com/RedisLabs/JRediSearch/
-using StackExchange.Redis;
+
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using StackExchange.Redis;
 
 namespace NRediSearch
 {
     /// <summary>
     ///  Query represents query parameters and filters to load results from the engine
     /// </summary>
-    public class Query
+    public sealed class Query
     {
         /// <summary>
         /// Filter represents a filtering rules in a query 
@@ -85,19 +86,11 @@ namespace NRediSearch
                 args.Add(lon);
                 args.Add(lat);
                 args.Add(radius);
-
-                switch (unit)
-                {
-                    case GeoUnit.Feet: args.Add("ft".Literal()); break;
-                    case GeoUnit.Kilometers: args.Add("km".Literal()); break;
-                    case GeoUnit.Meters: args.Add("m".Literal()); break;
-                    case GeoUnit.Miles: args.Add("mi".Literal()); break;
-                    default: throw new InvalidOperationException($"Unknown unit: {unit}");
-                }
+                args.Add(unit.AsRedisString().Literal());
             }
         }
 
-        private struct Paging
+        internal readonly struct Paging
         {
             public int Offset { get; }
             public int Count { get; }
@@ -112,7 +105,7 @@ namespace NRediSearch
         /// <summary>
         /// The query's filter list. We only support AND operation on all those filters 
         /// </summary>
-        private readonly List<Filter> _filters = new List<Filter>();
+        internal readonly List<Filter> _filters = new List<Filter>();
 
         /// <summary>
         /// The textual part of the query 
@@ -122,7 +115,7 @@ namespace NRediSearch
         /// <summary>
         /// The sorting parameters 
         /// </summary>
-        private Paging _paging = new Paging(0, 10);
+        internal Paging _paging = new Paging(0, 10);
 
         /// <summary>
         /// Set the query to verbatim mode, disabling stemming and query expansion
@@ -149,7 +142,7 @@ namespace NRediSearch
         /// Set the query language, for stemming purposes; see http://redisearch.io for documentation on languages and stemming
         /// </summary>
         public string Language { get; set; }
-        protected String[] _fields = null;
+        internal string[] _fields = null;
         /// <summary>
         /// Set the query payload to be evaluated by the scoring function
         /// </summary>
@@ -164,6 +157,14 @@ namespace NRediSearch
         /// Set the query parameter to sort by ASC by default
         /// </summary>
         public bool SortAscending { get; set; } = true;
+
+        // highlight and summarize
+        internal bool _wantsHighlight = false, _wantsSummarize = false;
+        internal string[] _highlightFields = null;
+        internal string[] _summarizeFields = null;
+        internal HighlightTags? _highlightTags = null;
+        internal string _summarizeSeparator = null;
+        internal int _summarizeNumFragments = -1, _summarizeFragmentLen = -1;
 
         /// <summary>
         /// Create a new index
@@ -206,7 +207,7 @@ namespace NRediSearch
             if (_fields?.Length > 0)
             {
                 args.Add("INFIELDS".Literal());
-                args.Add(_fields.Length);
+                args.Add(_fields.Length.Boxed());
                 args.AddRange(_fields);
             }
 
@@ -226,8 +227,8 @@ namespace NRediSearch
             if (_paging.Offset != 0 || _paging.Count != 10)
             {
                 args.Add("LIMIT".Literal());
-                args.Add(_paging.Offset);
-                args.Add(_paging.Count);
+                args.Add(_paging.Offset.Boxed());
+                args.Add(_paging.Count.Boxed());
             }
 
             if (_filters?.Count > 0)
@@ -235,6 +236,55 @@ namespace NRediSearch
                 foreach (var f in _filters)
                 {
                     f.SerializeRedisArgs(args);
+                }
+            }
+
+            if (_wantsHighlight)
+            {
+                args.Add("HIGHLIGHT".Literal());
+                if (_highlightFields != null)
+                {
+                    args.Add("FIELDS".Literal());
+                    args.Add(_highlightFields.Length.Boxed());
+                    foreach (var s in _highlightFields)
+                    {
+                        args.Add(s);
+                    }
+                }
+                if (_highlightTags != null)
+                {
+                    args.Add("TAGS".Literal());
+                    var tags = _highlightTags.GetValueOrDefault();
+                    args.Add(tags.Open);
+                    args.Add(tags.Close);
+                }
+            }
+            if (_wantsSummarize)
+            {
+                args.Add("SUMMARIZE".Literal());
+                if (_summarizeFields != null)
+                {
+                    args.Add("FIELDS".Literal());
+                    args.Add(_summarizeFields.Length.Boxed());
+                    foreach (var s in _summarizeFields)
+                    {
+                        args.Add(s);
+                    }
+                }
+                if (_summarizeNumFragments != -1)
+                {
+                    args.Add("FRAGS".Literal());
+                    args.Add(_summarizeNumFragments.Boxed());
+                }
+                if (_summarizeFragmentLen != -1)
+                {
+                    args.Add("LEN".Literal());
+                    args.Add(_summarizeFragmentLen.Boxed());
+                }
+                if (_summarizeSeparator != null)
+                {
+                    args.Add("SEPARATOR".Literal());
+                    args.Add(_summarizeSeparator);
                 }
             }
         }
@@ -273,6 +323,45 @@ namespace NRediSearch
             return this;
         }
 
+        public readonly struct HighlightTags
+        {
+            public HighlightTags(string open, string close)
+            {
+                Open = open;
+                Close = close;
+            }
+            public string Open { get; }
+            public string Close { get; }
+        }
+
+        public Query HighlightFields(HighlightTags tags, params string[] fields) => HighlightFieldsImpl(tags, fields);
+        public Query HighlightFields(params string[] fields) => HighlightFieldsImpl(null, fields);
+        private Query HighlightFieldsImpl(HighlightTags? tags, string[] fields)
+        {
+            if (fields == null || fields.Length > 0)
+            {
+                _highlightFields = fields;
+            }
+            _highlightTags = tags;
+            _wantsHighlight = true;
+            return this;
+        }
+
+        public Query SummarizeFields(int contextLen, int fragmentCount, string separator, params string[] fields)
+        {
+            if (fields == null || fields.Length > 0)
+            {
+                _summarizeFields = fields;
+            }
+            _summarizeFragmentLen = contextLen;
+            _summarizeNumFragments = fragmentCount;
+            _summarizeSeparator = separator;
+            _wantsSummarize = true;
+            return this;
+        }
+
+        public Query SummarizeFields(params string[] fields) => SummarizeFields(-1, -1, null, fields);
+
         /// <summary>
         /// Set the query to be sorted by a sortable field defined in the schema
         /// </summary>
@@ -283,6 +372,35 @@ namespace NRediSearch
         {
             SortBy = field;
             SortAscending = ascending;
+            return this;
+        }
+
+        public Query SetWithScores(bool value = true)
+        {
+            WithScores = value;
+            return this;
+        }
+
+        public Query SetNoContent(bool value = true)
+        {
+            NoContent = value;
+            return this;
+        }
+
+        public Query SetVerbatim(bool value = true)
+        {
+            Verbatim = value;
+            return this;
+        }
+
+        public Query SetNoStopwords(bool value = true)
+        {
+            NoStopwords = value;
+            return this;
+        }
+        public Query SetLanguage(string language)
+        {
+            Language = language;
             return this;
         }
     }
