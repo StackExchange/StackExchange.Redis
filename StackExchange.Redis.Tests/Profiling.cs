@@ -38,6 +38,11 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal("world", result.AsString());
 
                 var cmds = conn.FinishProfiling(profiler.MyContext);
+                var i = 0;
+                foreach (var cmd in cmds)
+                {
+                    Log("Command {0}: {1}", i++, cmd.ToString().Replace("\n", ", "));
+                }
                 Assert.Equal(3, cmds.Count());
 
                 var set = cmds.SingleOrDefault(cmd => cmd.Command == "SET");
