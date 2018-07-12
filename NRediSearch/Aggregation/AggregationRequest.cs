@@ -1,7 +1,7 @@
-﻿using System;
-using System.Collections;
+﻿// .NET port of https://github.com/RedisLabs/JRediSearch/
+using System;
 using System.Collections.Generic;
-using System.Linq;
+using NRediSearch.Aggregation.Reducers;
 using StackExchange.Redis;
 
 namespace NRediSearch.Aggregation
@@ -84,7 +84,7 @@ namespace NRediSearch.Aggregation
         public AggregationRequest GroupBy(IList<string> fields, IList<Reducer> reducers)
         {
             Group g = new Group(fields);
-            foreach(var r in reducers)
+            foreach (var r in reducers)
             {
                 g.Reduce(r);
             }
@@ -111,7 +111,7 @@ namespace NRediSearch.Aggregation
         private static void addCmdArgs<T>(List<object> dst, string cmd, IList<T> src)
         {
             addCmdLen(dst, cmd, src.Count);
-            foreach(var obj in src)
+            foreach (var obj in src)
                 dst.Add(obj);
         }
 
@@ -126,7 +126,7 @@ namespace NRediSearch.Aggregation
 
             if (_groups.Count != 0)
             {
-                foreach(var group in _groups)
+                foreach (var group in _groups)
                 {
                     args.Add("GROUPBY".Literal());
                     group.SerializeRedisArgs(args);
@@ -136,7 +136,7 @@ namespace NRediSearch.Aggregation
             if (_projections.Count != 0)
             {
                 args.Add("APPLY".Literal());
-                foreach(var e in _projections)
+                foreach (var e in _projections)
                 {
                     args.Add(e.Value);
                     args.Add("AS".Literal());
@@ -147,16 +147,16 @@ namespace NRediSearch.Aggregation
             if (_sortby.Count != 0)
             {
                 args.Add("SORTBY".Literal());
-                args.Add(_sortby.Count * 2);
+                args.Add((_sortby.Count * 2).Boxed());
                 foreach (var field in _sortby)
                 {
                     args.Add(field.Field);
-                    args.Add(field.OrderArgValue());
+                    args.Add(field.OrderAsArg());
                 }
                 if (_sortByMax > 0)
                 {
                     args.Add("MAX".Literal());
-                    args.Add(_sortByMax);
+                    args.Add(_sortByMax.Boxed());
                 }
             }
 

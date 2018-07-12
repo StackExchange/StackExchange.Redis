@@ -1,4 +1,4 @@
-﻿using System;
+﻿// .NET port of https://github.com/RedisLabs/JRediSearch/
 using System.Collections.Generic;
 
 namespace NRediSearch.Aggregation
@@ -17,8 +17,8 @@ namespace NRediSearch.Aggregation
         {
             if (_count == 0) return;
             args.Add("LIMIT".Literal());
-            args.Add(_offset);
-            args.Add(_count);
+            args.Add(_offset.Boxed());
+            args.Add(_count.Boxed());
         }
     }
 }

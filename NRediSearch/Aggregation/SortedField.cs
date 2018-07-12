@@ -1,24 +1,19 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿// .NET port of https://github.com/RedisLabs/JRediSearch/
 using StackExchange.Redis;
 
 namespace NRediSearch.Aggregation
 {
-    public sealed class SortedField
+    public readonly struct SortedField
     {
-        private string field;
-        private Order order;
-
         public SortedField(string field, Order order)
         {
-            this.field = field;
-            this.order = order;
+            Field = field;
+            Order = order;
         }
 
-        internal object OrderArgValue()
-        {
-            throw new NotImplementedException();
-        }
+        public string Field { get; }
+        public Order Order { get; }
+
+        internal object OrderAsArg() => (Order == Order.Ascending ? "ASC" : "DESC").Literal();
     }
 }

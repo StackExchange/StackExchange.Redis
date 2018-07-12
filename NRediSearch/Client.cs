@@ -58,7 +58,7 @@ namespace NRediSearch
             if ((flags & IndexOptions.DisableStopWords) == IndexOptions.DisableStopWords)
             {
                 args.Add("STOPWORDS".Literal());
-                args.Add(0);
+                args.Add(0.Boxed());
             }
         }
 
@@ -434,7 +434,7 @@ namespace NRediSearch
             if (max != 5)
             {
                 args.Add("MAX".Literal());
-                args.Add(max);
+                args.Add(max.Boxed());
             }
             return (string[])DbSync.Execute("FT.SUGGET", args);
         }
@@ -452,7 +452,7 @@ namespace NRediSearch
             if (max != 5)
             {
                 args.Add("MAX".Literal());
-                args.Add(max);
+                args.Add(max.Boxed());
             }
             return (string[])await _db.ExecuteAsync("FT.SUGGET", args).ConfigureAwait(false);
         }
