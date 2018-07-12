@@ -1,4 +1,6 @@
 ﻿// .NET port of https://github.com/RedisLabs/JRediSearch/
+
+using NRediSearch.Aggregation;
 using StackExchange.Redis;
 using System;
 using System.Collections.Generic;
@@ -40,24 +42,57 @@ namespace NRediSearch
             DisableStopWords = 8
         }
 
-        private static void SerializeRedisArgs(IndexOptions flags, List<object> args)
+        public sealed class ConfiguredIndexOptions
         {
-            if ((flags & IndexOptions.UseTermOffsets) == 0)
+            private IndexOptions _options;
+            private string[] _stopwords;
+            public ConfiguredIndexOptions(IndexOptions options)
             {
-                args.Add("NOOFFSETS".Literal());
+                _options = options;
             }
-            if ((flags & IndexOptions.KeepFieldFlags) == 0)
+            /// <summary>
+            /// Set a custom stopword list
+            /// </summary>
+            public ConfiguredIndexOptions SetStopwords(params string[] stopwords)
             {
-                args.Add("NOFIELDS".Literal());
+                _stopwords = stopwords ?? throw new ArgumentNullException(nameof(stopwords));
+                if (stopwords.Length == 0) _options |= IndexOptions.DisableStopWords;
+                else _options &= ~IndexOptions.DisableStopWords;
+                return this;
             }
-            if ((flags & IndexOptions.UseScoreIndexes) == 0)
+
+            internal void SerializeRedisArgs(List<object> args)
             {
-                args.Add("NOSCOREIDX".Literal());
+                SerializeRedisArgs(_options, args);
+                if (_stopwords != null && _stopwords.Length != 0)
+                {
+                    // note that DisableStopWords will not be set in this case
+                    args.Add("STOPWORDS".Literal());
+                    args.Add(_stopwords.Length.Boxed());
+                    foreach (var word in _stopwords)
+                        args.Add(word);
+                }
             }
-            if ((flags & IndexOptions.DisableStopWords) == IndexOptions.DisableStopWords)
+
+            internal static void SerializeRedisArgs(IndexOptions flags, List<object> args)
             {
-                args.Add("STOPWORDS".Literal());
-                args.Add(0);
+                if ((flags & IndexOptions.UseTermOffsets) == 0)
+                {
+                    args.Add("NOOFFSETS".Literal());
+                }
+                if ((flags & IndexOptions.KeepFieldFlags) == 0)
+                {
+                    args.Add("NOFIELDS".Literal());
+                }
+                if ((flags & IndexOptions.UseScoreIndexes) == 0)
+                {
+                    args.Add("NOSCOREIDX".Literal());
+                }
+                if ((flags & IndexOptions.DisableStopWords) == IndexOptions.DisableStopWords)
+                {
+                    args.Add("STOPWORDS".Literal());
+                    args.Add(0.Boxed());
+                }
             }
         }
 
@@ -87,7 +122,30 @@ namespace NRediSearch
             {
                 _boxedIndexName
             };
-            SerializeRedisArgs(options, args);
+            ConfiguredIndexOptions.SerializeRedisArgs(options, args);
+            args.Add("SCHEMA".Literal());
+
+            foreach (var f in schema.Fields)
+            {
+                f.SerializeRedisArgs(args);
+            }
+
+            return (string)DbSync.Execute("FT.CREATE", args) == "OK";
+        }
+
+        /// <summary>
+        /// Create the index definition in redis
+        /// </summary>
+        /// <param name="schema">a schema definition <seealso cref="Schema"/></param>
+        /// <param name="options">index option flags <seealso cref="IndexOptions"/></param>
+        /// <returns>true if successful</returns>
+        public bool CreateIndex(Schema schema, ConfiguredIndexOptions options)
+        {
+            var args = new List<object>
+            {
+                _boxedIndexName
+            };
+            options.SerializeRedisArgs(args);
             args.Add("SCHEMA".Literal());
 
             foreach (var f in schema.Fields)
@@ -110,7 +168,31 @@ namespace NRediSearch
             {
                 _boxedIndexName
             };
-            SerializeRedisArgs(options, args);
+            ConfiguredIndexOptions.SerializeRedisArgs(options, args);
+            args.Add("SCHEMA".Literal());
+
+            foreach (var f in schema.Fields)
+            {
+                f.SerializeRedisArgs(args);
+            }
+
+            return (string)await _db.ExecuteAsync("FT.CREATE", args).ConfigureAwait(false) == "OK";
+        }
+
+
+        /// <summary>
+        /// Create the index definition in redis
+        /// </summary>
+        /// <param name="schema">a schema definition <seealso cref="Schema"/></param>
+        /// <param name="options">index option flags <seealso cref="IndexOptions"/></param>
+        /// <returns>true if successful</returns>
+        public async Task<bool> CreateIndexAsync(Schema schema, ConfiguredIndexOptions options)
+        {
+            var args = new List<object>
+            {
+                _boxedIndexName
+            };
+            options.SerializeRedisArgs(args);
             args.Add("SCHEMA".Literal());
 
             foreach (var f in schema.Fields)
@@ -201,21 +283,56 @@ namespace NRediSearch
             return (string)await _db.ExecuteAsync("FT.ADD", args).ConfigureAwait(false) == "OK";
         }
 
+        /// <summary>
+        /// Add a document to the index
+        /// </summary>
+        /// <param name="doc">The document to add</param>
+        /// <param name="options">Options for the operation</param>
+        /// <returns>true if the operation succeeded, false otherwise. Note that if the operation fails, an exception will be thrown</returns>
+        public bool AddDocument(Document doc, AddOptions options = null)
+        {
+            var args = BuildAddDocumentArgs(doc.Id, doc._properties, doc.Score, options?.NoSave ?? false, options?.ReplacePolicy ?? AddOptions.ReplacementPolicy.None, doc.Payload, options?.Language);
+            return (string)DbSync.Execute("FT.ADD", args) == "OK";
+        }
+
+        /// <summary>
+        /// Add a document to the index
+        /// </summary>
+        /// <param name="doc">The document to add</param>
+        /// <param name="options">Options for the operation</param>
+        /// <returns>true if the operation succeeded, false otherwise. Note that if the operation fails, an exception will be thrown</returns>
+        public async Task<bool> AddDocumentAsync(Document doc, AddOptions options = null)
+        {
+            var args = BuildAddDocumentArgs(doc.Id, doc._properties, doc.Score, options?.NoSave ?? false, options?.ReplacePolicy ?? AddOptions.ReplacementPolicy.None, doc.Payload, options?.Language);
+            return (string)await _db.ExecuteAsync("FT.ADD", args).ConfigureAwait(false) == "OK";
+        }
+
         private List<object> BuildAddDocumentArgs(string docId, Dictionary<string, RedisValue> fields, double score, bool noSave, bool replace, byte[] payload)
+            => BuildAddDocumentArgs(docId, fields, score, noSave, replace ? AddOptions.ReplacementPolicy.Full : AddOptions.ReplacementPolicy.None, payload, null);
+        private List<object> BuildAddDocumentArgs(string docId, Dictionary<string, RedisValue> fields, double score, bool noSave, AddOptions.ReplacementPolicy replacementPolicy, byte[] payload, string language)
         {
             var args = new List<object> { _boxedIndexName, docId, score };
             if (noSave)
             {
                 args.Add("NOSAVE".Literal());
             }
-            if (replace)
+            if (replacementPolicy != AddOptions.ReplacementPolicy.None)
             {
                 args.Add("REPLACE".Literal());
+                if (replacementPolicy == AddOptions.ReplacementPolicy.Partial)
+                {
+                    args.Add("PARTIAL".Literal());
+                }
             }
+            if (!string.IsNullOrWhiteSpace(language))
+            {
+                args.Add("LANGUAGE".Literal());
+                args.Add(language);
+            }
+
             if (payload != null)
             {
                 args.Add("PAYLOAD".Literal());
-                // TODO: Fix this
                 args.Add(payload);
             }
 
@@ -255,7 +372,16 @@ namespace NRediSearch
         /// <param name="score">the document's index score, between 0 and 1</param>
         /// <param name="replace">if set, and the document already exists, we reindex and update it</param>
         /// <returns>true on success</returns>
-        public bool AddHash(string docId, double score, bool replace)
+        public bool AddHash(string docId, double score, bool replace) => AddHash((RedisKey)docId, score, replace);
+
+        /// <summary>
+        /// Index a document already in redis as a HASH key.
+        /// </summary>
+        /// <param name="docId">the id of the document in redis. This must match an existing, unindexed HASH key</param>
+        /// <param name="score">the document's index score, between 0 and 1</param>
+        /// <param name="replace">if set, and the document already exists, we reindex and update it</param>
+        /// <returns>true on success</returns>
+        public bool AddHash(RedisKey docId, double score, bool replace)
         {
             var args = new List<object> { _boxedIndexName, docId, score };
             if (replace)
@@ -264,6 +390,7 @@ namespace NRediSearch
             }
             return (string)DbSync.Execute("FT.ADDHASH", args) == "OK";
         }
+
         /// <summary>
         /// Index a document already in redis as a HASH key.
         /// </summary>
@@ -271,7 +398,16 @@ namespace NRediSearch
         /// <param name="score">the document's index score, between 0 and 1</param>
         /// <param name="replace">if set, and the document already exists, we reindex and update it</param>
         /// <returns>true on success</returns>
-        public async Task<bool> AddHashAsync(string docId, double score, bool replace)
+        public Task<bool> AddHashAsync(string docId, double score, bool replace) => AddHashAsync((RedisKey)docId, score, replace);
+
+        /// <summary>
+        /// Index a document already in redis as a HASH key.
+        /// </summary>
+        /// <param name="docId">the id of the document in redis. This must match an existing, unindexed HASH key</param>
+        /// <param name="score">the document's index score, between 0 and 1</param>
+        /// <param name="replace">if set, and the document already exists, we reindex and update it</param>
+        /// <returns>true on success</returns>
+        public async Task<bool> AddHashAsync(RedisKey docId, double score, bool replace)
         {
             var args = new List<object> { _boxedIndexName, docId, score };
             if (replace)
@@ -299,13 +435,17 @@ namespace NRediSearch
 
         private static Dictionary<string, RedisValue> ParseGetInfo(RedisResult value)
         {
-            var res = (RedisValue[])value;
+
+            var res = (RedisResult[])value;
             var info = new Dictionary<string, RedisValue>();
             for (int i = 0; i < res.Length; i += 2)
             {
-                var key = (string)res[i];
                 var val = res[i + 1];
-                info.Add(key, val);
+                if (val.Type != ResultType.MultiBulk)
+                {
+                    info.Add((string)res[i], (RedisValue)val);
+                }
+                
             }
             return info;
         }
@@ -344,7 +484,7 @@ namespace NRediSearch
         /// <returns>true on success</returns>
         public async Task<bool> DropIndexAsync()
         {
-            return (string) await _db.ExecuteAsync("FT.DROP", _boxedIndexName).ConfigureAwait(false) == "OK";
+            return (string)await _db.ExecuteAsync("FT.DROP", _boxedIndexName).ConfigureAwait(false) == "OK";
         }
 
         /// <summary>
@@ -360,7 +500,7 @@ namespace NRediSearch
         /// </summary>
         public async Task<long> OptimizeIndexAsync()
         {
-            return (long) await _db.ExecuteAsync("FT.OPTIMIZE", _boxedIndexName).ConfigureAwait(false);
+            return (long)await _db.ExecuteAsync("FT.OPTIMIZE", _boxedIndexName).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -428,12 +568,12 @@ namespace NRediSearch
         /// <returns>a list of the top suggestions matching the prefix</returns>
         public string[] GetSuggestions(string prefix, bool fuzzy = false, int max = 5)
         {
-            var args = new List<object> { _boxedIndexName, prefix};
+            var args = new List<object> { _boxedIndexName, prefix };
             if (fuzzy) args.Add("FUZZY".Literal());
             if (max != 5)
             {
                 args.Add("MAX".Literal());
-                args.Add(max);
+                args.Add(max.Boxed());
             }
             return (string[])DbSync.Execute("FT.SUGGET", args);
         }
@@ -451,9 +591,105 @@ namespace NRediSearch
             if (max != 5)
             {
                 args.Add("MAX".Literal());
-                args.Add(max);
+                args.Add(max.Boxed());
             }
             return (string[])await _db.ExecuteAsync("FT.SUGGET", args).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Perform an aggregate query
+        /// </summary>
+        /// <param name="query">The query to watch</param>
+        public AggregationResult Aggregate(AggregationRequest query)
+        {
+            var args = new List<object>();
+            args.Add(_boxedIndexName);
+            query.SerializeRedisArgs(args);
+
+            var resp = DbSync.Execute("FT.AGGREGATE", args);
+
+            return new AggregationResult(resp);
+        }
+        /// <summary>
+        /// Perform an aggregate query
+        /// </summary>
+        /// <param name="query">The query to watch</param>
+        public async Task<AggregationResult> AggregateAsync(AggregationRequest query)
+        {
+            var args = new List<object>();
+            args.Add(_boxedIndexName);
+            query.SerializeRedisArgs(args);
+
+            var resp = await _db.ExecuteAsync("FT.AGGREGATE", args).ConfigureAwait(false);
+
+            return new AggregationResult(resp);
+        }
+
+        /// <summary>
+        /// Generate an explanatory textual query tree for this query string
+        /// </summary>
+        /// <param name="q">The query to explain</param>
+        /// <returns>A string describing this query</returns>
+        public string Explain(Query q)
+        {
+            var args = new List<object>
+            {
+                _boxedIndexName
+            };
+            q.SerializeRedisArgs(args);
+            return (string)DbSync.Execute("FT.EXPLAIN", args);
+        }
+
+        /// <summary>
+        /// Generate an explanatory textual query tree for this query string
+        /// </summary>
+        /// <param name="q">The query to explain</param>
+        /// <returns>A string describing this query</returns>
+        public async Task<string> ExplainAsync(Query q)
+        {
+            var args = new List<object>
+            {
+                _boxedIndexName
+            };
+            q.SerializeRedisArgs(args);
+            return (string)await _db.ExecuteAsync("FT.EXPLAIN", args).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Get a document from the index
+        /// </summary>
+        /// <param name="docId">The document ID to retrieve</param>
+        /// <returns>The document as stored in the index. If the document does not exist, null is returned.</returns>
+        public Document GetDocument(string docId)
+            => Document.Parse(docId, DbSync.Execute("FT.GET", _boxedIndexName, docId));
+
+        /// <summary>
+        /// Get a document from the index
+        /// </summary>
+        /// <param name="docId">The document ID to retrieve</param>
+        /// <returns>The document as stored in the index. If the document does not exist, null is returned.</returns>
+        public async Task<Document> GetDocumentAsync(string docId)
+            => Document.Parse(docId, await _db.ExecuteAsync("FT.GET", _boxedIndexName, docId));
+
+        /// <summary>
+        /// Replace specific fields in a document. Unlike #replaceDocument(), fields not present in the field list
+        /// are not erased, but retained. This avoids reindexing the entire document if the new values are not
+        /// indexed (though a reindex will happen
+        /// </summary>
+        public bool UpdateDocument(string docId, Dictionary<string, RedisValue> fields, double score = 1.0)
+        {
+            var args = BuildAddDocumentArgs(docId, fields, score, false, AddOptions.ReplacementPolicy.Partial, null, null);
+            return (string)DbSync.Execute("FT.ADD", args) == "OK";
+        }
+        /// <summary>
+        /// Replace specific fields in a document. Unlike #replaceDocument(), fields not present in the field list
+        /// are not erased, but retained. This avoids reindexing the entire document if the new values are not
+        /// indexed (though a reindex will happen
+        /// </summary>
+        public async Task<bool> UpdateDocumentAsync(string docId, Dictionary<string, RedisValue> fields, double score = 1.0)
+        {
+            var args = BuildAddDocumentArgs(docId, fields, score, false, AddOptions.ReplacementPolicy.Partial, null, null);
+            return  ((string)await _db.ExecuteAsync("FT.ADD", args).ConfigureAwait(false) == "OK");
         }
     }
 }

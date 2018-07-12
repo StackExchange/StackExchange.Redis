@@ -1,32 +1,20 @@
-using System;
-using Xunit;
-using StackExchange.Redis;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using StackExchange.Redis;
+using Xunit;
+using Xunit.Abstractions;
 
 namespace NRediSearch.Test
 {
-    public class ExampleUsage : IDisposable
+    public class ExampleUsage : RediSearchTestBase
     {
-        private ConnectionMultiplexer conn;
-        private IDatabase db;
-        public ExampleUsage()
-        {
-            conn = ConnectionMultiplexer.Connect("127.0.0.1:6379");
-            db = conn.GetDatabase();
-        }
-
-        public void Dispose()
-        {
-            conn?.Dispose();
-            conn = null;
-            db = null;
-        }
+        public ExampleUsage(ITestOutputHelper output) : base(output) { }
 
         [Fact]
         public void BasicUsage()
         {
-            var client = new Client("testung", db);
+            var client = GetClient();
 
             try { client.DropIndex(); } catch { } // reset DB
 

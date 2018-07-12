@@ -1,5 +1,9 @@
-﻿using StackExchange.Redis;
+﻿// .NET port of https://github.com/RedisLabs/JRediSearch/
+
+using StackExchange.Redis;
 using System.Collections;
+using System.Linq;
+
 namespace NRediSearch
 {
     /// <summary>
@@ -33,5 +37,14 @@ namespace NRediSearch
             }
             return boxed;
         }
+
+
+        const int BOXED_MIN = -1, BOXED_MAX = 20;
+        static readonly object[] s_Boxed = Enumerable.Range(BOXED_MIN, BOXED_MAX - BOXED_MIN).Select(i => (object)i).ToArray();
+
+        /// <summary>
+        /// Obtain a pre-boxed integer if possible, else box the inbound value
+        /// </summary>
+        public static object Boxed(this int value) => value >= BOXED_MIN && value <= BOXED_MAX ? s_Boxed[value - BOXED_MIN] : value;
     }
 }
