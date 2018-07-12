@@ -97,7 +97,7 @@ namespace NRediSearch
             }
         }
 
-        private readonly struct Paging
+        internal readonly struct Paging
         {
             public int Offset { get; }
             public int Count { get; }
@@ -112,7 +112,7 @@ namespace NRediSearch
         /// <summary>
         /// The query's filter list. We only support AND operation on all those filters 
         /// </summary>
-        private readonly List<Filter> _filters = new List<Filter>();
+        internal readonly List<Filter> _filters = new List<Filter>();
 
         /// <summary>
         /// The textual part of the query 
@@ -122,7 +122,7 @@ namespace NRediSearch
         /// <summary>
         /// The sorting parameters 
         /// </summary>
-        private Paging _paging = new Paging(0, 10);
+        internal Paging _paging = new Paging(0, 10);
 
         /// <summary>
         /// Set the query to verbatim mode, disabling stemming and query expansion
@@ -149,7 +149,7 @@ namespace NRediSearch
         /// Set the query language, for stemming purposes; see http://redisearch.io for documentation on languages and stemming
         /// </summary>
         public string Language { get; set; }
-        private string[] _fields = null;
+        internal string[] _fields = null;
         /// <summary>
         /// Set the query payload to be evaluated by the scoring function
         /// </summary>
@@ -166,13 +166,12 @@ namespace NRediSearch
         public bool SortAscending { get; set; } = true;
 
         // highlight and summarize
-        private bool _wantsHighlight = false, _wantsSummarize = false;
-        private string[] _highlightFields = null;
-        private string[] _summarizeFields = null;
-        private HighlightTags? _highlightTags = null;
-        private string _summarizeSeparator = null;
-        private int _summarizeNumFragments = -1;
-        private int _summarizeFragmentLen = -1;
+        internal bool _wantsHighlight = false, _wantsSummarize = false;
+        internal string[] _highlightFields = null;
+        internal string[] _summarizeFields = null;
+        internal HighlightTags? _highlightTags = null;
+        internal string _summarizeSeparator = null;
+        internal int _summarizeNumFragments = -1, _summarizeFragmentLen = -1;
 
         /// <summary>
         /// Create a new index
