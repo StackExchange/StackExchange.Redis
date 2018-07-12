@@ -698,8 +698,16 @@ namespace StackExchange.Redis
 
         internal void WakeWriterAndCheckForThrottle()
         {
-            var flush = _ioPipe.Output.FlushAsync();
-            if (!flush.IsCompletedSuccessfully) flush.AsTask().Wait();
+            try
+            {
+                var flush = _ioPipe.Output.FlushAsync();
+                if (!flush.IsCompletedSuccessfully) flush.AsTask().Wait();
+            }
+            catch (ConnectionResetException ex)
+            {
+                RecordConnectionFailed(ConnectionFailureType.SocketClosed, ex);
+                throw;
+            }
         }
 
         private static readonly byte[] NullBulkString = Encoding.ASCII.GetBytes("$-1\r\n"), EmptyBulkString = Encoding.ASCII.GetBytes("$0\r\n\r\n");
