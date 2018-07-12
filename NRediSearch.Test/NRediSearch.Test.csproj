@@ -3,7 +3,6 @@
     <OutputType>Library</OutputType>
     <TargetFrameworks>netcoreapp2.0</TargetFrameworks>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
-    <SignAssembly>true</SignAssembly>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\StackExchange.Redis\StackExchange.Redis.csproj" />

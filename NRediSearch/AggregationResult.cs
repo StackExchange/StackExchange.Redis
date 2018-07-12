@@ -22,8 +22,8 @@ namespace NRediSearch
                 {
                     var key = (string)raw[j++];
                     var val = raw[j++];
-                    if (val.Type != ResultType.MultiBulk)
-                        cur.Add(key, (RedisValue)val);
+                    try { cur.Add(key, (RedisValue)val); }
+                    catch { }                        
                 }
                 _results[i - 1] = cur;
             }
