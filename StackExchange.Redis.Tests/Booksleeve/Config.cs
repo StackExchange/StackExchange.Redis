@@ -104,11 +104,10 @@ namespace StackExchange.Redis.Tests.Booksleeve
                 Log(log.ToString());
             }
         }
-        
+
         [Fact]
         public void SslProtocols_SingleValue()
         {
-            var log = new StringWriter();
             var options = ConfigurationOptions.Parse("myhost,sslProtocols=Tls11");
             Assert.Equal(SslProtocols.Tls11, options.SslProtocols.Value);
         }
@@ -116,7 +115,6 @@ namespace StackExchange.Redis.Tests.Booksleeve
         [Fact]
         public void SslProtocols_MultipleValues()
         {
-            var log = new StringWriter();
             var options = ConfigurationOptions.Parse("myhost,sslProtocols=Tls11|Tls12");
             Assert.Equal(SslProtocols.Tls11 | SslProtocols.Tls12, options.SslProtocols.Value);
         }
@@ -124,8 +122,6 @@ namespace StackExchange.Redis.Tests.Booksleeve
         [Fact]
         public void SslProtocols_UsingIntegerValue()
         {
-            var log = new StringWriter();
-
             // The below scenario is for cases where the *targeted*
             // .NET framework version (e.g. .NET 4.0) doesn't define an enum value (e.g. Tls11)
             // but the OS has been patched with support
@@ -137,7 +133,6 @@ namespace StackExchange.Redis.Tests.Booksleeve
         [Fact]
         public void SslProtocols_InvalidValue()
         {
-            var log = new StringWriter();
             Assert.Throws<ArgumentOutOfRangeException>(() => ConfigurationOptions.Parse("myhost,sslProtocols=InvalidSslProtocol"));
         }
 
@@ -196,6 +191,17 @@ namespace StackExchange.Redis.Tests.Booksleeve
             var options = new ConfigurationOptions();
             Assert.True(options.DefaultVersion.Equals(new Version(2, 0, 0)));
             Assert.True(options.AbortOnConnectFail);
+        }
+
+        [Fact]
+        public void ConfigurationOptionsSyncTimeout()
+        {
+            // Default check
+            var options = new ConfigurationOptions();
+            Assert.Equal(5000, options.SyncTimeout);
+
+            options = ConfigurationOptions.Parse("syncTimeout=20");
+            Assert.Equal(20, options.SyncTimeout);
         }
     }
 }
