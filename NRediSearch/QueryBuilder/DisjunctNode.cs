@@ -1,4 +1,6 @@
-﻿namespace NRediSearch.QueryBuilder
+﻿// .NET port of https://github.com/RedisLabs/JRediSearch/
+
+namespace NRediSearch.QueryBuilder
 {
     /// <summary>
     /// A disjunct node. evaluates to true if any of its children are false. Conversely, this node evaluates to false

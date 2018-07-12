@@ -1,4 +1,6 @@
-﻿using StackExchange.Redis;
+﻿// .NET port of https://github.com/RedisLabs/JRediSearch/
+
+using StackExchange.Redis;
 using System.Collections;
 using System.Linq;
 

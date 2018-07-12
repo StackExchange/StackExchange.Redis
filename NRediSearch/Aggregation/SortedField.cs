@@ -1,4 +1,5 @@
 ﻿// .NET port of https://github.com/RedisLabs/JRediSearch/
+
 using StackExchange.Redis;
 
 namespace NRediSearch.Aggregation

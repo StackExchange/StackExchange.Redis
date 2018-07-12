@@ -1,4 +1,6 @@
-﻿namespace NRediSearch.QueryBuilder
+﻿// .NET port of https://github.com/RedisLabs/JRediSearch/
+
+namespace NRediSearch.QueryBuilder
 {
     /// <summary>
     /// A disjunct union node is the inverse of a UnionNode. It evaluates to true only iff <b>all</b> its

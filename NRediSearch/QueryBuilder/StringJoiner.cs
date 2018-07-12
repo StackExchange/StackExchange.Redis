@@ -1,8 +1,10 @@
-﻿using System.Text;
+﻿// .NET port of https://github.com/RedisLabs/JRediSearch/
+
+using System.Text;
 
 namespace NRediSearch.QueryBuilder
 {
-    internal ref struct StringJoiner
+    internal ref struct StringJoiner // this is to replace a Java feature cleanly
     {
         readonly StringBuilder _sb;
         readonly string _delimiter;

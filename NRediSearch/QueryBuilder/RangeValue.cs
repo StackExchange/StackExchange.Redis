@@ -1,4 +1,5 @@
-﻿using System.Globalization;
+﻿// .NET port of https://github.com/RedisLabs/JRediSearch/
+
 using System.Text;
 
 namespace NRediSearch.QueryBuilder
