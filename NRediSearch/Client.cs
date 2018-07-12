@@ -457,15 +457,63 @@ namespace NRediSearch
             return (string[])await _db.ExecuteAsync("FT.SUGGET", args).ConfigureAwait(false);
         }
 
-        public async List<Dictionary<string, RedisValue>> AggregateAsync(AggregationRequest query)
+        /// <summary>
+        /// Perform an aggregate query
+        /// </summary>
+        /// <param name="query">The query to watch</param>
+        public AggregationResult Aggregate(AggregationRequest query)
+        {
+            var args = new List<object>();
+            args.Add(_boxedIndexName);
+            query.SerializeRedisArgs(args);
+
+            var resp = DbSync.Execute("FT.AGGREGATE", args);
+
+            return new AggregationResult(resp);
+        }
+        /// <summary>
+        /// Perform an aggregate query
+        /// </summary>
+        /// <param name="query">The query to watch</param>
+        public async Task<AggregationResult> AggregateAsync(AggregationRequest query)
         {
             var args = new List<object>();
             args.Add(_boxedIndexName);
             query.SerializeRedisArgs(args);
 
             var resp = await _db.ExecuteAsync("FT.AGGREGATE", args).ConfigureAwait(false);
-            
 
+            return new AggregationResult(resp);
+        }
+
+        /// <summary>
+        /// Generate an explanatory textual query tree for this query string
+        /// </summary>
+        /// <param name="q">The query to explain</param>
+        /// <returns>A string describing this query</returns>
+        public string Explain(Query q)
+        {
+            var args = new List<object>
+            {
+                _boxedIndexName
+            };
+            q.SerializeRedisArgs(args);
+            return (string)DbSync.Execute("FT.EXPLAIN", args);
+        }
+
+        /// <summary>
+        /// Generate an explanatory textual query tree for this query string
+        /// </summary>
+        /// <param name="q">The query to explain</param>
+        /// <returns>A string describing this query</returns>
+        public async Task<string> ExplainAsync(Query q)
+        {
+            var args = new List<object>
+            {
+                _boxedIndexName
+            };
+            q.SerializeRedisArgs(args);
+            return (string)await _db.ExecuteAsync("FT.EXPLAIN", args);
         }
     }
 }
