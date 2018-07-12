@@ -72,8 +72,9 @@ namespace NRediSearch.Aggregation
             return this;
         }
 
-        public AggregationRequest SortBy(string field, Order order)
-        => SortBy(new SortedField(field, order));
+        public AggregationRequest SortBy(string field, Order order) => SortBy(new SortedField(field, order));
+        public AggregationRequest SortByAscending(string field) => SortBy(field, Order.Ascending);
+        public AggregationRequest SortByDescending(string field) => SortBy(field, Order.Descending);
 
         public AggregationRequest Apply(string projection, string alias)
         {
@@ -103,14 +104,14 @@ namespace NRediSearch.Aggregation
             return this;
         }
 
-        private static void addCmdLen(List<object> list, string cmd, int len)
+        private static void AddCmdLen(List<object> list, string cmd, int len)
         {
             list.Add(cmd.Literal());
             list.Add(len);
         }
-        private static void addCmdArgs<T>(List<object> dst, string cmd, IList<T> src)
+        private static void AddCmdArgs<T>(List<object> dst, string cmd, IList<T> src)
         {
-            addCmdLen(dst, cmd, src.Count);
+            AddCmdLen(dst, cmd, src.Count);
             foreach (var obj in src)
                 dst.Add(obj);
         }
@@ -121,7 +122,7 @@ namespace NRediSearch.Aggregation
 
             if (_load.Count != 0)
             {
-                addCmdArgs(args, "LOAD", _load);
+                AddCmdArgs(args, "LOAD", _load);
             }
 
             if (_groups.Count != 0)

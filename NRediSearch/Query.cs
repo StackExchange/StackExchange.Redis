@@ -85,15 +85,7 @@ namespace NRediSearch
                 args.Add(lon);
                 args.Add(lat);
                 args.Add(radius);
-
-                switch (unit)
-                {
-                    case GeoUnit.Feet: args.Add("ft".Literal()); break;
-                    case GeoUnit.Kilometers: args.Add("km".Literal()); break;
-                    case GeoUnit.Meters: args.Add("m".Literal()); break;
-                    case GeoUnit.Miles: args.Add("mi".Literal()); break;
-                    default: throw new InvalidOperationException($"Unknown unit: {unit}");
-                }
+                args.Add(unit.AsRedisString().Literal());
             }
         }
 

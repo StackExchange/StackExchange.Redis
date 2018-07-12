@@ -1,0 +1,7 @@
+﻿namespace NRediSearch.QueryBuilder
+{
+    public abstract class Value
+    {
+        public virtual bool IsCombinable() => false;
+    }
+}
