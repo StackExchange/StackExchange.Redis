@@ -18,7 +18,7 @@ namespace StackExchange.Redis.Tests
         private ITestOutputHelper Output { get; }
         protected TextWriterOutputHelper Writer { get; }
         protected static bool RunningInCI { get; } = Environment.GetEnvironmentVariable("APPVEYOR") != null;
-        protected virtual string GetConfiguration() => TestConfig.Current.MasterServerAndPort + "," + TestConfig.Current.SlaveServerAndPort;
+        protected virtual string GetConfiguration() => TestConfig.Current.MasterServerAndPort;
 
         protected TestBase(ITestOutputHelper output)
         {

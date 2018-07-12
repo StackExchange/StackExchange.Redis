@@ -9,6 +9,7 @@
     <Authors>Stack Exchange, Inc.; marc.gravell</Authors>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <CodeAnalysisRuleset>$(MSBuildThisFileDirectory)Shared.ruleset</CodeAnalysisRuleset>
+    <MSBuildWarningsAsMessages>NETSDK1069</MSBuildWarningsAsMessages>
 
     <PackageReleaseNotes>https://stackexchange.github.io/StackExchange.Redis/ReleaseNotes</PackageReleaseNotes>
     <PackageProjectUrl>https://github.com/StackExchange/StackExchange.Redis/</PackageProjectUrl>

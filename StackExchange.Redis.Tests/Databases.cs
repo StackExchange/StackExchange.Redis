@@ -42,6 +42,20 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void DatabaseCount()
+        {
+            using (var muxer = Create(allowAdmin: true))
+            {
+                var server = GetAnyMaster(muxer);
+                var count = server.DatabaseCount;
+                Log("Count: " + count);
+                var configVal = server.ConfigGet("databases")[0].Value;
+                Log("Config databases: " + configVal);
+                Assert.Equal(int.Parse(configVal), count);
+            }
+        }
+
+        [Fact]
         public void MultiDatabases()
         {
             using (var muxer = Create())
