@@ -32,10 +32,10 @@ namespace StackExchange.Redis.Tests
                 var dbId = TestConfig.GetDedicatedDB();
                 var db = conn.GetDatabase(dbId);
                 db.StringSet(key, "world");
-                var val = db.StringGet(key);
-                Assert.Equal("world", (string)val);
                 var result = db.ScriptEvaluate(LuaScript.Prepare("return redis.call('get', @key)"), new { key = (RedisKey)key });
                 Assert.Equal("world", result.AsString());
+                var val = db.StringGet(key);
+                Assert.Equal("world", (string)val);
 
                 var cmds = conn.FinishProfiling(profiler.MyContext);
                 var i = 0;
@@ -44,12 +44,16 @@ namespace StackExchange.Redis.Tests
                     Log("Command {0}: {1}", i++, cmd.ToString().Replace("\n", ", "));
                 }
 
+                Log("Checking for SET");
                 var set = cmds.SingleOrDefault(cmd => cmd.Command == "SET");
                 Assert.NotNull(set);
+                Log("Checking for GET");
                 var get = cmds.SingleOrDefault(cmd => cmd.Command == "GET");
                 Assert.NotNull(get);
+                Log("Checking for EVAL");
                 var eval = cmds.SingleOrDefault(cmd => cmd.Command == "EVAL");
                 Assert.NotNull(eval);
+
                 Assert.Equal(3, cmds.Count());
 
                 Assert.True(set.CommandCreated <= get.CommandCreated);
