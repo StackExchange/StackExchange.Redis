@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
@@ -49,12 +50,18 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create(syncTimeout: 1000))
             {
                 var db = conn.GetDatabase();
+                await db.ExecuteAsync("client", "pause", 4000); // client pause returns immediately
+
+                var ms = Stopwatch.StartNew();
                 var ex = await Assert.ThrowsAsync<RedisTimeoutException>(async () =>
                 {
-                    await db.ExecuteAsync("client", "pause", 2500); // client pause returns immediately
                     await db.PingAsync(); // but *subsequent* operations are paused
-
+                    ms.Stop();
+                    Writer.WriteLine($"Unexpectedly succeeded after {ms.ElapsedMilliseconds}ms");
                 });
+                ms.Stop();
+                Writer.WriteLine($"Timed out after {ms.ElapsedMilliseconds}ms");
+
                 Assert.Contains("Timeout awaiting response", ex.Message);
                 Writer.WriteLine(ex.Message);
             }
