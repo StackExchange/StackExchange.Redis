@@ -53,6 +53,6 @@ namespace StackExchange.Redis
             {
                 ConnectionMultiplexer.TraceWithoutContext("Async completion error: " + ex.Message);
             }
-        }        
+        }
     }
 }

@@ -20,7 +20,7 @@ namespace StackExchange.Redis.Tests
                 var received = new List<int>();
                 Log("Subscribing...");
                 const int COUNT = 1000;
-                sub.Subscribe("foo", (channel, message) =>
+                sub.Subscribe("foo", (_, message) =>
                 {
                     lock (received)
                     {

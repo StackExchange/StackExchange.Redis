@@ -563,8 +563,8 @@ namespace StackExchange.Redis.Tests
                 conn.GetDatabase().Ping();
                 var pub = conn.GetSubscriber();
                 int gotA = 0, gotB = 0;
-                var tA = listenA.SubscribeAsync(channel, (s, msg) => { if (msg == "message") Interlocked.Increment(ref gotA); });
-                var tB = listenB.SubscribeAsync(channel, (s, msg) => { if (msg == "message") Interlocked.Increment(ref gotB); });
+                var tA = listenA.SubscribeAsync(channel, (_, msg) => { if (msg == "message") Interlocked.Increment(ref gotA); });
+                var tB = listenB.SubscribeAsync(channel, (_, msg) => { if (msg == "message") Interlocked.Increment(ref gotB); });
                 listenA.Wait(tA);
                 listenB.Wait(tB);
                 Assert.Equal(2, pub.Publish(channel, "message"));

@@ -644,7 +644,9 @@ namespace StackExchange.Redis
                     if (MemoryMarshal.TryGetArray(value._memory, out var segment)
                         && segment.Offset == 0
                         && segment.Count == (segment.Array?.Length ?? -1))
+                    {
                         return segment.Array; // the memory is backed by an array, and we're reading all of it
+                    }
 
                     return value._memory.ToArray();
                 case StorageType.Int64:
@@ -738,8 +740,7 @@ namespace StackExchange.Redis
                 case StorageType.Double:
                     // is the double actually an integer?
                     f64 = OverlappedValueDouble;
-                    if (f64 >= long.MinValue && f64 <= long.MaxValue
-                        && (i64 = (long)f64) == f64) return i64;
+                    if (f64 >= long.MinValue && f64 <= long.MaxValue && (i64 = (long)f64) == f64) return i64;
                     break;
             }
             return this;
@@ -749,6 +750,7 @@ namespace StackExchange.Redis
         /// Create a RedisValue from a MemoryStream; it will *attempt* to use the internal buffer
         /// directly, but if this isn't possibly it will fallback to ToArray
         /// </summary>
+        /// <param name="stream">The <see cref="MemoryStream"/> to create a value from.</param>
         public static RedisValue CreateFrom(MemoryStream stream)
         {
             if (stream == null) return Null;
@@ -764,28 +766,28 @@ namespace StackExchange.Redis
             }
         }
 
-
         /// <summary>
-        /// Indicates whether the current value has the supplied value as a prefix
+        /// Indicates whether the current value has the supplied value as a prefix.
         /// </summary>
+        /// <param name="value">The <see cref="RedisValue"/> to check.</param>
         public bool StartsWith(RedisValue value)
         {
-            if (this.IsNull || value.IsNull) return false;
+            if (IsNull || value.IsNull) return false;
             if (value.IsNullOrEmpty) return true;
-            if (this.IsNullOrEmpty) return false;
+            if (IsNullOrEmpty) return false;
 
             ReadOnlyMemory<byte> rawThis, rawOther;
-            var thisType = this.Type;
+            var thisType = Type;
             if (thisType == value.Type) // same? can often optimize
             {
                 switch(thisType)
                 {
                     case StorageType.String:
-                        var sThis = ((string)this._objectOrSentinel);
+                        var sThis = ((string)_objectOrSentinel);
                         var sOther = ((string)value._objectOrSentinel);
                         return sThis.StartsWith(sOther, StringComparison.Ordinal);
                     case StorageType.Raw:
-                        rawThis = this._memory;
+                        rawThis = _memory;
                         rawOther = value._memory;
                         return rawThis.Span.StartsWith(rawOther.Span);
                 }
@@ -793,7 +795,7 @@ namespace StackExchange.Redis
             byte[] arr0 = null, arr1 = null;
             try
             {
-                rawThis = this.AsMemory(out arr0);
+                rawThis = AsMemory(out arr0);
                 rawOther = value.AsMemory(out arr1);
 
                 return rawThis.Span.StartsWith(rawOther.Span);
@@ -830,7 +832,6 @@ namespace StackExchange.Redis
                     leased = ArrayPool<byte>.Shared.Rent(PhysicalConnection.MaxInt64TextLen + 2); // reused code has CRLF terminator
                     len = PhysicalConnection.WriteRaw(leased, _overlappedValue64) - 2; // drop the CRLF
                     return new ReadOnlyMemory<byte>(leased, 0, len);
-
             }
             leased = null;
             return default;

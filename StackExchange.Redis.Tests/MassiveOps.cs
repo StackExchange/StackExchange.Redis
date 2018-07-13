@@ -22,10 +22,10 @@ namespace StackExchange.Redis.Tests
                 RedisKey key = "MBOA";
                 var conn = muxer.GetDatabase();
                 await conn.PingAsync().ForAwait();
-                Action<Task> nonTrivial = delegate
+                void nonTrivial(Task _)
                 {
                     Thread.SpinWait(5);
-                };
+                }
                 var watch = Stopwatch.StartNew();
                 for (int i = 0; i <= AsyncOpsQty; i++)
                 {

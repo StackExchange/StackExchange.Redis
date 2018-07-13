@@ -179,10 +179,13 @@ namespace StackExchange.Redis
         /// <summary>
         /// Create a certificate validation check that checks against the supplied issuer even if not known by the machine
         /// </summary>
+        /// <param name="issuerCertificatePath">The file system path to find the certificate at.</param>
         public void TrustIssuer(string issuerCertificatePath) => CertificateValidationCallback = TrustIssuerCallback(issuerCertificatePath);
+
         /// <summary>
         /// Create a certificate validation check that checks against the supplied issuer even if not known by the machine
         /// </summary>
+        /// <param name="issuer">The issuer to trust.</param>
         public void TrustIssuer(X509Certificate2 issuer) => CertificateValidationCallback = TrustIssuerCallback(issuer);
 
         internal static RemoteCertificateValidationCallback TrustIssuerCallback(string issuerCertificatePath)
@@ -195,7 +198,8 @@ namespace StackExchange.Redis
                 => sslPolicyError == SslPolicyErrors.RemoteCertificateChainErrors && certificate is X509Certificate2 v2
                     && CheckTrustedIssuer(v2, issuer);
         }
-        static bool CheckTrustedIssuer(X509Certificate2 certificateToValidate, X509Certificate2 authority)
+
+        private static bool CheckTrustedIssuer(X509Certificate2 certificateToValidate, X509Certificate2 authority)
         {
             // reference: https://stackoverflow.com/questions/6497040/how-do-i-validate-that-a-certificate-was-created-by-a-particular-certification-a
             X509Chain chain = new X509Chain();
@@ -208,7 +212,6 @@ namespace StackExchange.Redis
             chain.ChainPolicy.ExtraStore.Add(authority);
             return chain.Build(certificateToValidate);
         }
-        
 
         /// <summary>
         /// The client name to use for all connections
@@ -717,14 +720,8 @@ namespace StackExchange.Redis
             }
         }
 
-        private bool GetDefaultAbortOnConnectFailSetting()
-        {
-            // Microsoft Azure team wants abortConnect=false by default
-            if (IsAzureEndpoint())
-                return false;
-
-            return true;
-        }
+        // Microsoft Azure team wants abortConnect=false by default
+        private bool GetDefaultAbortOnConnectFailSetting() => !IsAzureEndpoint();
 
         private bool IsAzureEndpoint()
         {

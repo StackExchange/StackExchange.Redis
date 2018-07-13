@@ -43,7 +43,6 @@ namespace StackExchange.Redis.Tests
                 set = db.SortedSetRangeByValue(key, "aaa", "g", Exclude.Stop, 1, 3);
                 Equate(set, set.Length, "c", "d", "e");
 
-
                 set = db.SortedSetRangeByValue(key, "aaa", "g", Exclude.Stop, Order.Descending, 1, 3);
                 Equate(set, set.Length, "e", "d", "c");
 

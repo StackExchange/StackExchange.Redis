@@ -43,7 +43,6 @@ namespace StackExchange.Redis.Tests
                 {
                     Log("Command {0}: {1}", i++, cmd.ToString().Replace("\n", ", "));
                 }
-                Assert.Equal(3, cmds.Count());
 
                 var set = cmds.SingleOrDefault(cmd => cmd.Command == "SET");
                 Assert.NotNull(set);
@@ -51,6 +50,7 @@ namespace StackExchange.Redis.Tests
                 Assert.NotNull(get);
                 var eval = cmds.SingleOrDefault(cmd => cmd.Command == "EVAL");
                 Assert.NotNull(eval);
+                Assert.Equal(3, cmds.Count());
 
                 Assert.True(set.CommandCreated <= get.CommandCreated);
                 Assert.True(get.CommandCreated <= eval.CommandCreated);
@@ -453,7 +453,7 @@ namespace StackExchange.Redis.Tests
 
                     Assert.True(object.ReferenceEquals(i, j));
                 }
-                
+
                 Assert.Equal(OuterLoop, res.Count(r => r.Command == "GET"));
                 Assert.Equal(OuterLoop, res.Count(r => r.Command == "SET"));
                 Assert.Equal(OuterLoop * 2, res.Count());

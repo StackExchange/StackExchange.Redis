@@ -452,7 +452,7 @@ namespace StackExchange.Redis
                 throw ExceptionFactory.AdminModeNotEnabled(IncludeDetailInExceptions, message.Command, message, null);
             CommandMap.AssertAvailable(message.Command);
         }
-        const string NoContent = "(no content)";
+        private const string NoContent = "(no content)";
         private static void WriteNormalizingLineEndings(string source, StreamWriter writer)
         {
             if (source == null)
@@ -794,13 +794,13 @@ namespace StackExchange.Redis
         {
             if (configuration == null) throw new ArgumentNullException(nameof(configuration));
             ConfigurationOptions config;
-            if (configuration is string)
+            if (configuration is string s)
             {
-                config = ConfigurationOptions.Parse((string)configuration);
+                config = ConfigurationOptions.Parse(s);
             }
-            else if (configuration is ConfigurationOptions)
+            else if (configuration is ConfigurationOptions configurationOptions)
             {
-                config = ((ConfigurationOptions)configuration).Clone();
+                config = (configurationOptions).Clone();
             }
             else
             {
@@ -867,7 +867,7 @@ namespace StackExchange.Redis
         private readonly Hashtable servers = new Hashtable();
         private volatile ServerSnapshot _serverSnapshot = ServerSnapshot.Empty;
         internal ReadOnlySpan<ServerEndPoint> GetServerSnapshot() => _serverSnapshot.Span;
-        sealed class ServerSnapshot
+        private sealed class ServerSnapshot
         {
             public static ServerSnapshot Empty { get; } = new ServerSnapshot(Array.Empty<ServerEndPoint>(), 0);
             private ServerSnapshot(ServerEndPoint[] arr, int count)
@@ -875,8 +875,8 @@ namespace StackExchange.Redis
                 _arr = arr;
                 _count = count;
             }
-            private ServerEndPoint[] _arr;
-            private int _count;
+            private readonly ServerEndPoint[] _arr;
+            private readonly int _count;
             public ReadOnlySpan<ServerEndPoint> Span => new ReadOnlySpan<ServerEndPoint>(_arr, 0, _count);
 
             internal ServerSnapshot Add(ServerEndPoint value)
@@ -2243,8 +2243,10 @@ namespace StackExchange.Redis
         /// <summary>
         /// Get the hash-slot associated with a given key, if applicable; this can be useful for grouping operations
         /// </summary>
+        /// <param name="key">The <see cref="RedisKey"/> to determine the hash slot for.</param>
         public int GetHashSlot(RedisKey key) => ServerSelectionStrategy.HashSlot(key);
     }
+
     internal enum WriteResult
     {
         Success,

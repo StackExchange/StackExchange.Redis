@@ -2638,7 +2638,7 @@ namespace StackExchange.Redis
             var offset = 0;
 
             values[offset++] = messageId;
-            
+
             if (maxLength.HasValue)
             {
                 values[offset++] = StreamConstants.MaxLen;
@@ -3060,7 +3060,7 @@ namespace StackExchange.Redis
         public RedisValue[] SortedSetRangeByValue(RedisKey key, RedisValue min, RedisValue max, Exclude exclude, long skip, long take, CommandFlags flags)
             => SortedSetRangeByValue(key, min, max, exclude, Order.Ascending, skip, take, flags);
 
-        static void ReverseLimits(Order order, ref Exclude exclude, ref RedisValue start, ref RedisValue stop)
+        private static void ReverseLimits(Order order, ref Exclude exclude, ref RedisValue start, ref RedisValue stop)
         {
             bool reverseLimits = (order == Order.Ascending) == start.CompareTo(stop) > 0;
             if (reverseLimits)
@@ -3097,6 +3097,7 @@ namespace StackExchange.Redis
 
         public Task<RedisValue[]> SortedSetRangeByValueAsync(RedisKey key, RedisValue min, RedisValue max, Exclude exclude, long skip, long take, CommandFlags flags)
             => SortedSetRangeByValueAsync(key, min, max, exclude, Order.Ascending, skip, take, flags);
+
         public Task<RedisValue[]> SortedSetRangeByValueAsync(RedisKey key, RedisValue min = default(RedisValue), RedisValue max = default(RedisValue),
             Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
         {
@@ -3124,7 +3125,7 @@ namespace StackExchange.Redis
                 this.key = key;
                 this.pattern = pattern;
                 this.command = command;
-                this.Processor = processor;
+                Processor = processor;
             }
 
             protected override ResultProcessor<CursorEnumerable<T>.ScanResult> Processor { get; }
@@ -3222,13 +3223,13 @@ namespace StackExchange.Redis
                 physical.WriteHeader(_command, args.Count);
                 foreach (object arg in args)
                 {
-                    if (arg is RedisKey)
+                    if (arg is RedisKey key)
                     {
-                        physical.Write((RedisKey)arg);
+                        physical.Write(key);
                     }
-                    else if (arg is RedisChannel)
+                    else if (arg is RedisChannel channel)
                     {
-                        physical.Write((RedisChannel)arg);
+                        physical.Write(channel);
                     }
                     else
                     {   // recognises well-known types
@@ -3246,9 +3247,9 @@ namespace StackExchange.Redis
                 int slot = ServerSelectionStrategy.NoSlot;
                 foreach (object arg in args)
                 {
-                    if (arg is RedisKey)
+                    if (arg is RedisKey key)
                     {
-                        slot = serverSelectionStrategy.CombineSlot(slot, (RedisKey)arg);
+                        slot = serverSelectionStrategy.CombineSlot(slot, key);
                     }
                 }
                 return slot;
@@ -3260,7 +3261,9 @@ namespace StackExchange.Redis
             private readonly RedisKey[] keys;
             private readonly string script;
             private readonly RedisValue[] values;
-            private byte[] asciiHash, hexHash;
+            private byte[] asciiHash;
+            private readonly byte[] hexHash;
+
             public ScriptEvalMessage(int db, CommandFlags flags, string script, RedisKey[] keys, RedisValue[] values)
                 : this(db, flags, ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA : RedisCommand.EVAL, script, null, keys, values)
             {
