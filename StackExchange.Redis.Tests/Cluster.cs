@@ -606,7 +606,9 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal("world", val);
 
                 var msgs = conn.FinishProfiling(profiler.MyContext);
+                Log("Checking GET...");
                 Assert.Contains(msgs, m => m.Command == "GET");
+                Log("Checking SET...");
                 Assert.Contains(msgs, m => m.Command == "SET");
                 Assert.Equal(2, msgs.Count());
             }

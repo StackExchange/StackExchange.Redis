@@ -453,10 +453,10 @@ namespace StackExchange.Redis.Tests
 
                     Assert.True(object.ReferenceEquals(i, j));
                 }
-
-                Assert.Equal(OuterLoop * 2, res.Count());
+                
                 Assert.Equal(OuterLoop, res.Count(r => r.Command == "GET"));
                 Assert.Equal(OuterLoop, res.Count(r => r.Command == "SET"));
+                Assert.Equal(OuterLoop * 2, res.Count());
             }
         }
 
