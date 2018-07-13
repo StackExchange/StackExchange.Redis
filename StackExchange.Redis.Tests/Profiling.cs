@@ -71,14 +71,14 @@ namespace StackExchange.Redis.Tests
         {
             Assert.Equal(dbId, command.Db);
             Assert.Equal(conn.GetEndPoints()[0], command.EndPoint);
-            Assert.True(command.CreationToEnqueued > TimeSpan.Zero);
-            Assert.True(command.EnqueuedToSending > TimeSpan.Zero);
-            Assert.True(command.SentToResponse > TimeSpan.Zero);
-            Assert.True(command.ResponseToCompletion > TimeSpan.Zero);
-            Assert.True(command.ElapsedTime > TimeSpan.Zero);
-            Assert.True(command.ElapsedTime > command.CreationToEnqueued && command.ElapsedTime > command.EnqueuedToSending && command.ElapsedTime > command.SentToResponse);
-            Assert.True(command.RetransmissionOf == null);
-            Assert.True(command.RetransmissionReason == null);
+            Assert.True(command.CreationToEnqueued > TimeSpan.Zero, nameof(command.CreationToEnqueued));
+            Assert.True(command.EnqueuedToSending > TimeSpan.Zero, nameof(command.EnqueuedToSending));
+            Assert.True(command.SentToResponse > TimeSpan.Zero, nameof(command.SentToResponse));
+            Assert.True(command.ResponseToCompletion > TimeSpan.Zero, nameof(command.ResponseToCompletion));
+            Assert.True(command.ElapsedTime > TimeSpan.Zero, nameof(command.ElapsedTime));
+            Assert.True(command.ElapsedTime > command.CreationToEnqueued && command.ElapsedTime > command.EnqueuedToSending && command.ElapsedTime > command.SentToResponse, "Comparisons");
+            Assert.True(command.RetransmissionOf == null, nameof(command.RetransmissionOf));
+            Assert.True(command.RetransmissionReason == null, nameof(command.RetransmissionReason));
         }
 
         [Fact]
