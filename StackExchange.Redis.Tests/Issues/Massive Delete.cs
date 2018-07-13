@@ -4,16 +4,16 @@ using System.Threading;
 using System.Threading.Tasks;
 using Xunit.Abstractions;
 
-namespace StackExchange.Redis.Tests.Booksleeve.Issues
+namespace StackExchange.Redis.Tests.Issues
 {
-    public class Massive_Delete : BookSleeveTestBase
+    public class Massive_Delete : TestBase
     {
         public Massive_Delete(ITestOutputHelper output) : base(output) { }
 
         private void Prep(int db, string key)
         {
             var prefix = Me();
-            using (var muxer = GetUnsecuredConnection(allowAdmin: true))
+            using (var muxer = Create(allowAdmin: true))
             {
                 Skip.IfMissingDatabase(muxer, db);
                 GetServer(muxer).FlushDatabase(db);
@@ -36,7 +36,7 @@ namespace StackExchange.Redis.Tests.Booksleeve.Issues
             var key = Me();
             Prep(dbId, key);
             var watch = Stopwatch.StartNew();
-            using (var muxer = GetUnsecuredConnection())
+            using (var muxer = Create())
             using (var throttle = new SemaphoreSlim(1))
             {
                 var conn = muxer.GetDatabase(dbId);

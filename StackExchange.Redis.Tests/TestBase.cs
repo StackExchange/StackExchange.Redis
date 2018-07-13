@@ -213,9 +213,10 @@ namespace StackExchange.Redis.Tests
             bool fail = true, string[] disabledCommands = null, string[] enabledCommands = null,
             bool checkConnect = true, string failMessage = null,
             string channelPrefix = null, Proxy? proxy = null,
+            string configuration = null,
             [CallerMemberName] string caller = null)
         {
-            string configuration = GetConfiguration();
+            configuration = configuration ?? GetConfiguration();
             var config = ConfigurationOptions.Parse(configuration);
             if (disabledCommands != null && disabledCommands.Length != 0)
             {

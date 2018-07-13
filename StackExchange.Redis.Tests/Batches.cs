@@ -4,49 +4,51 @@ using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace StackExchange.Redis.Tests.Booksleeve
+namespace StackExchange.Redis.Tests
 {
-    public class Batches : BookSleeveTestBase
+    public class Batches : TestBase
     {
         public Batches(ITestOutputHelper output) : base(output) { }
 
         [Fact]
         public void TestBatchNotSent()
         {
-            using (var muxer = GetUnsecuredConnection())
+            using (var muxer = Create())
             {
                 var conn = muxer.GetDatabase();
-                conn.KeyDeleteAsync("batch");
-                conn.StringSetAsync("batch", "batch-not-sent");
+                var key = Me();
+                conn.KeyDeleteAsync(key);
+                conn.StringSetAsync(key, "batch-not-sent");
                 var tasks = new List<Task>();
                 var batch = conn.CreateBatch();
 
-                tasks.Add(batch.KeyDeleteAsync("batch"));
-                tasks.Add(batch.SetAddAsync("batch", "a"));
-                tasks.Add(batch.SetAddAsync("batch", "b"));
-                tasks.Add(batch.SetAddAsync("batch", "c"));
+                tasks.Add(batch.KeyDeleteAsync(key));
+                tasks.Add(batch.SetAddAsync(key, "a"));
+                tasks.Add(batch.SetAddAsync(key, "b"));
+                tasks.Add(batch.SetAddAsync(key, "c"));
 
-                Assert.Equal("batch-not-sent", conn.StringGet("batch"));
+                Assert.Equal("batch-not-sent", conn.StringGet(key));
             }
         }
 
         [Fact]
         public void TestBatchSent()
         {
-            using (var muxer = GetUnsecuredConnection())
+            using (var muxer = Create())
             {
                 var conn = muxer.GetDatabase();
-                conn.KeyDeleteAsync("batch");
-                conn.StringSetAsync("batch", "batch-sent");
+                var key = Me();
+                conn.KeyDeleteAsync(key);
+                conn.StringSetAsync(key, "batch-sent");
                 var tasks = new List<Task>();
                 var batch = conn.CreateBatch();
-                tasks.Add(batch.KeyDeleteAsync("batch"));
-                tasks.Add(batch.SetAddAsync("batch", "a"));
-                tasks.Add(batch.SetAddAsync("batch", "b"));
-                tasks.Add(batch.SetAddAsync("batch", "c"));
+                tasks.Add(batch.KeyDeleteAsync(key));
+                tasks.Add(batch.SetAddAsync(key, "a"));
+                tasks.Add(batch.SetAddAsync(key, "b"));
+                tasks.Add(batch.SetAddAsync(key, "c"));
                 batch.Execute();
 
-                var result = conn.SetMembersAsync("batch");
+                var result = conn.SetMembersAsync(key);
                 tasks.Add(result);
                 Task.WhenAll(tasks.ToArray());
 

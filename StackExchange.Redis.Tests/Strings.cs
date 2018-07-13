@@ -3,16 +3,16 @@ using System.Text;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace StackExchange.Redis.Tests.Booksleeve
+namespace StackExchange.Redis.Tests
 {
-    public class Strings : BookSleeveTestBase // https://redis.io/commands#string
+    public class Strings : TestBase // https://redis.io/commands#string
     {
         public Strings(ITestOutputHelper output) : base(output) { }
 
         [Fact]
         public void Append()
         {
-            using (var muxer = GetUnsecuredConnection(waitForOpen: true))
+            using (var muxer = Create())
             {
                 var conn = muxer.GetDatabase();
                 var server = GetServer(muxer);
@@ -47,7 +47,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         [Fact]
         public void Set()
         {
-            using (var muxer = GetUnsecuredConnection())
+            using (var muxer = Create())
             {
                 var conn = muxer.GetDatabase();
                 var key = Me();
@@ -67,7 +67,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         [Fact]
         public void SetNotExists()
         {
-            using (var muxer = GetUnsecuredConnection())
+            using (var muxer = Create())
             {
                 var conn = muxer.GetDatabase();
                 var prefix = Me();
@@ -98,7 +98,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         [Fact]
         public void Ranges()
         {
-            using (var muxer = GetUnsecuredConnection(waitForOpen: true))
+            using (var muxer = Create())
             {
                 Skip.IfMissingFeature(muxer, nameof(RedisFeatures.StringSetRange), r => r.StringSetRange);
                 var conn = muxer.GetDatabase();
@@ -119,7 +119,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         [Fact]
         public void IncrDecr()
         {
-            using (var muxer = GetUnsecuredConnection())
+            using (var muxer = Create())
             {
                 var conn = muxer.GetDatabase();
                 var key = Me();
@@ -147,7 +147,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         [Fact]
         public void IncrDecrFloat()
         {
-            using (var muxer = GetUnsecuredConnection(waitForOpen: true))
+            using (var muxer = Create())
             {
                 Skip.IfMissingFeature(muxer, nameof(RedisFeatures.IncrementFloat), r => r.IncrementFloat);
                 var conn = muxer.GetDatabase();
@@ -177,7 +177,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         [Fact]
         public void GetRange()
         {
-            using (var muxer = GetUnsecuredConnection(waitForOpen: true))
+            using (var muxer = Create())
             {
                 var conn = muxer.GetDatabase();
                 var key = Me();
@@ -195,7 +195,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         [Fact]
         public void BitCount()
         {
-            using (var muxer = GetUnsecuredConnection(waitForOpen: true))
+            using (var muxer = Create())
             {
                 Skip.IfMissingFeature(muxer, nameof(RedisFeatures.BitwiseOperations), r => r.BitwiseOperations);
 
@@ -215,7 +215,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         [Fact]
         public void BitOp()
         {
-            using (var muxer = GetUnsecuredConnection(waitForOpen: true))
+            using (var muxer = Create())
             {
                 Skip.IfMissingFeature(muxer, nameof(RedisFeatures.BitwiseOperations), r => r.BitwiseOperations);
                 var conn = muxer.GetDatabase();
@@ -252,7 +252,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         [Fact]
         public void RangeString()
         {
-            using (var muxer = GetUnsecuredConnection())
+            using (var muxer = Create())
             {
                 var conn = muxer.GetDatabase();
                 var key = Me();

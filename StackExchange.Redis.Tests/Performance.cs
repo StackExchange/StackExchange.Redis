@@ -4,9 +4,9 @@ using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace StackExchange.Redis.Tests.Booksleeve
+namespace StackExchange.Redis.Tests
 {
-    public class Performance : BookSleeveTestBase
+    public class Performance : TestBase
     {
         public Performance(ITestOutputHelper output) : base(output) { }
 
@@ -15,7 +15,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         {
             int asyncTimer, sync, op = 0, asyncFaF, syncFaF;
             var key = Me();
-            using (var muxer = GetUnsecuredConnection())
+            using (var muxer = Create())
             {
                 // do these outside the timings, just to ensure the core methods are JITted etc
                 for (int db = 0; db < 5; db++)
@@ -101,7 +101,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         [Fact]
         public async Task BasicStringGetPerf()
         {
-            using (var conn = GetUnsecuredConnection())
+            using (var conn = Create())
             {
                 RedisKey key = Me();
                 var db = conn.GetDatabase();

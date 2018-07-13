@@ -1,11 +1,10 @@
-﻿using System.Runtime.CompilerServices;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace StackExchange.Redis.Tests.Booksleeve
+namespace StackExchange.Redis.Tests
 {
-    public class Constraints : BookSleeveTestBase
+    public class Constraints : TestBase
     {
         public Constraints(ITestOutputHelper output) : base(output) { }
 
@@ -20,7 +19,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         [Fact]
         public void TestManualIncr()
         {
-            using (var muxer = GetUnsecuredConnection(syncTimeout: 120000)) // big timeout while debugging
+            using (var muxer = Create(syncTimeout: 120000)) // big timeout while debugging
             {
                 var key = Me();
                 var conn = muxer.GetDatabase();

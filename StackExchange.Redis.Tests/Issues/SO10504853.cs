@@ -3,9 +3,9 @@ using System.Diagnostics;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace StackExchange.Redis.Tests.Booksleeve.Issues
+namespace StackExchange.Redis.Tests.Issues
 {
-    public class SO10504853 : BookSleeveTestBase
+    public class SO10504853 : TestBase
     {
         public SO10504853(ITestOutputHelper output) : base(output) { }
 
@@ -13,7 +13,7 @@ namespace StackExchange.Redis.Tests.Booksleeve.Issues
         public void LoopLotsOfTrivialStuff()
         {
             Trace.WriteLine("### init");
-            using (var muxer = GetUnsecuredConnection())
+            using (var muxer = Create())
             {
                 var conn = muxer.GetDatabase();
                 conn.KeyDelete("lots-trivial");
@@ -22,14 +22,14 @@ namespace StackExchange.Redis.Tests.Booksleeve.Issues
             for (int i = 0; i < COUNT; i++)
             {
                 Trace.WriteLine("### incr:" + i);
-                using (var muxer = GetUnsecuredConnection())
+                using (var muxer = Create())
                 {
                     var conn = muxer.GetDatabase();
                     Assert.Equal(i + 1, conn.StringIncrement("lots-trivial"));
                 }
             }
             Trace.WriteLine("### close");
-            using (var muxer = GetUnsecuredConnection())
+            using (var muxer = Create())
             {
                 var conn = muxer.GetDatabase();
                 Assert.Equal(COUNT, (long)conn.StringGet("lots-trivial"));
@@ -39,7 +39,7 @@ namespace StackExchange.Redis.Tests.Booksleeve.Issues
         [Fact]
         public void ExecuteWithEmptyStartingPoint()
         {
-            using (var muxer = GetUnsecuredConnection())
+            using (var muxer = Create())
             {
                 var conn = muxer.GetDatabase();
                 var task = new { priority = 3 };
@@ -62,7 +62,7 @@ namespace StackExchange.Redis.Tests.Booksleeve.Issues
         {
             Assert.Throws<RedisServerException>(() =>
             {
-                using (var muxer = GetUnsecuredConnection())
+                using (var muxer = Create())
                 {
                     var conn = muxer.GetDatabase();
                     var task = new { priority = 3 };

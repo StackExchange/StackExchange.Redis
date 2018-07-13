@@ -1,7 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Linq;
-using System.Threading;
+using System.Security.Authentication;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
@@ -11,6 +11,105 @@ namespace StackExchange.Redis.Tests
     public class Config : TestBase
     {
         public Config(ITestOutputHelper output) : base (output) { }
+
+        [Fact]
+        public void SslProtocols_SingleValue()
+        {
+            var options = ConfigurationOptions.Parse("myhost,sslProtocols=Tls11");
+            Assert.Equal(SslProtocols.Tls11, options.SslProtocols.Value);
+        }
+
+        [Fact]
+        public void SslProtocols_MultipleValues()
+        {
+            var options = ConfigurationOptions.Parse("myhost,sslProtocols=Tls11|Tls12");
+            Assert.Equal(SslProtocols.Tls11 | SslProtocols.Tls12, options.SslProtocols.Value);
+        }
+
+        [Fact]
+        public void SslProtocols_UsingIntegerValue()
+        {
+            // The below scenario is for cases where the *targeted*
+            // .NET framework version (e.g. .NET 4.0) doesn't define an enum value (e.g. Tls11)
+            // but the OS has been patched with support
+            const int integerValue = (int)(SslProtocols.Tls11 | SslProtocols.Tls12);
+            var options = ConfigurationOptions.Parse("myhost,sslProtocols=" + integerValue);
+            Assert.Equal(SslProtocols.Tls11 | SslProtocols.Tls12, options.SslProtocols.Value);
+        }
+
+        [Fact]
+        public void SslProtocols_InvalidValue()
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() => ConfigurationOptions.Parse("myhost,sslProtocols=InvalidSslProtocol"));
+        }
+
+        [Fact]
+        public void ConfigurationOptionsDefaultForAzure()
+        {
+            var options = ConfigurationOptions.Parse("contoso.redis.cache.windows.net");
+            Assert.True(options.DefaultVersion.Equals(new Version(3, 0, 0)));
+            Assert.False(options.AbortOnConnectFail);
+        }
+
+        [Fact]
+        public void ConfigurationOptionsForAzureWhenSpecified()
+        {
+            var options = ConfigurationOptions.Parse("contoso.redis.cache.windows.net,abortConnect=true, version=2.1.1");
+            Assert.True(options.DefaultVersion.Equals(new Version(2, 1, 1)));
+            Assert.True(options.AbortOnConnectFail);
+        }
+
+        [Fact]
+        public void ConfigurationOptionsDefaultForAzureChina()
+        {
+            // added a few upper case chars to validate comparison
+            var options = ConfigurationOptions.Parse("contoso.REDIS.CACHE.chinacloudapi.cn");
+            Assert.True(options.DefaultVersion.Equals(new Version(3, 0, 0)));
+            Assert.False(options.AbortOnConnectFail);
+        }
+
+        [Fact]
+        public void ConfigurationOptionsDefaultForAzureGermany()
+        {
+            var options = ConfigurationOptions.Parse("contoso.redis.cache.cloudapi.de");
+            Assert.True(options.DefaultVersion.Equals(new Version(3, 0, 0)));
+            Assert.False(options.AbortOnConnectFail);
+        }
+
+        [Fact]
+        public void ConfigurationOptionsDefaultForAzureUSGov()
+        {
+            var options = ConfigurationOptions.Parse("contoso.redis.cache.usgovcloudapi.net");
+            Assert.True(options.DefaultVersion.Equals(new Version(3, 0, 0)));
+            Assert.False(options.AbortOnConnectFail);
+        }
+
+        [Fact]
+        public void ConfigurationOptionsDefaultForNonAzure()
+        {
+            var options = ConfigurationOptions.Parse("redis.contoso.com");
+            Assert.True(options.DefaultVersion.Equals(new Version(2, 0, 0)));
+            Assert.True(options.AbortOnConnectFail);
+        }
+
+        [Fact]
+        public void ConfigurationOptionsDefaultWhenNoEndpointsSpecifiedYet()
+        {
+            var options = new ConfigurationOptions();
+            Assert.True(options.DefaultVersion.Equals(new Version(2, 0, 0)));
+            Assert.True(options.AbortOnConnectFail);
+        }
+
+        [Fact]
+        public void ConfigurationOptionsSyncTimeout()
+        {
+            // Default check
+            var options = new ConfigurationOptions();
+            Assert.Equal(5000, options.SyncTimeout);
+
+            options = ConfigurationOptions.Parse("syncTimeout=20");
+            Assert.Equal(20, options.SyncTimeout);
+        }
 
         [Fact]
         public void TalkToNonsenseServer()

@@ -1,16 +1,16 @@
 ﻿using Xunit;
 using Xunit.Abstractions;
 
-namespace StackExchange.Redis.Tests.Booksleeve.Issues
+namespace StackExchange.Redis.Tests.Issues
 {
-    public class SO11766033 : BookSleeveTestBase
+    public class SO11766033 : TestBase
     {
         public SO11766033(ITestOutputHelper output) : base(output) { }
 
         [Fact]
         public void TestNullString()
         {
-            using (var muxer = GetUnsecuredConnection(true))
+            using (var muxer = Create())
             {
                 var redis = muxer.GetDatabase();
                 const string expectedTestValue = null;
@@ -25,7 +25,7 @@ namespace StackExchange.Redis.Tests.Booksleeve.Issues
         [Fact]
         public void TestEmptyString()
         {
-            using (var muxer = GetUnsecuredConnection(true))
+            using (var muxer = Create())
             {
                 var redis = muxer.GetDatabase();
                 const string expectedTestValue = "";

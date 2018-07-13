@@ -1,16 +1,16 @@
 ﻿using Xunit;
 using Xunit.Abstractions;
 
-namespace StackExchange.Redis.Tests.Booksleeve.Issues
+namespace StackExchange.Redis.Tests.Issues
 {
-    public class Issue10 : BookSleeveTestBase
+    public class Issue10 : TestBase
     {
         public Issue10(ITestOutputHelper output) : base(output) { }
 
         [Fact]
         public void Execute()
         {
-            using (var muxer = GetUnsecuredConnection())
+            using (var muxer = Create())
             {
                 var key = Me();
                 var conn = muxer.GetDatabase();

@@ -7,16 +7,16 @@ using Xunit;
 using Xunit.Abstractions;
 using System.Threading.Tasks;
 
-namespace StackExchange.Redis.Tests.Booksleeve
+namespace StackExchange.Redis.Tests
 {
-    public class Hashes : BookSleeveTestBase // https://redis.io/commands#hash
+    public class Hashes : TestBase // https://redis.io/commands#hash
     {
         public Hashes(ITestOutputHelper output) : base(output) { }
 
         [Fact]
         public async Task TestIncrBy()
         {
-            using (var muxer = GetUnsecuredConnection())
+            using (var muxer = Create())
             {
                 var conn = muxer.GetDatabase();
                 var key = Me();
@@ -34,7 +34,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         [Fact]
         public void Scan()
         {
-            using (var muxer = GetUnsecuredConnection(waitForOpen: true))
+            using (var muxer = Create())
             {
                 Skip.IfMissingFeature(muxer, nameof(RedisFeatures.Scan), r => r.Scan);
                 var conn = muxer.GetDatabase();
@@ -74,7 +74,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         [Fact]
         public void TestIncrementOnHashThatDoesntExist()
         {
-            using (var muxer = GetUnsecuredConnection())
+            using (var muxer = Create())
             {
                 var conn = muxer.GetDatabase();
                 conn.KeyDeleteAsync("keynotexist");
@@ -88,7 +88,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         [Fact]
         public async Task TestIncrByFloat()
         {
-            using (var muxer = GetUnsecuredConnection(waitForOpen: true))
+            using (var muxer = Create())
             {
                 Skip.IfMissingFeature(muxer, nameof(RedisFeatures.IncrementFloat), r => r.IncrementFloat);
                 var conn = muxer.GetDatabase();
@@ -105,7 +105,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         [Fact]
         public async Task TestGetAll()
         {
-            using (var muxer = GetUnsecuredConnection())
+            using (var muxer = Create())
             {
                 var conn = muxer.GetDatabase();
                 var key = Me();
@@ -137,7 +137,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         [Fact]
         public async Task TestGet()
         {
-            using (var muxer = GetUnsecuredConnection())
+            using (var muxer = Create())
             {
                 var key = Me();
                 var conn = muxer.GetDatabase();
@@ -167,7 +167,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         [Fact]
         public async Task TestSet() // https://redis.io/commands/hset
         {
-            using (var muxer = GetUnsecuredConnection())
+            using (var muxer = Create())
             {
                 var conn = muxer.GetDatabase();
                 var hashkey = Me();
@@ -206,7 +206,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         [Fact]
         public async Task TestSetNotExists() // https://redis.io/commands/hsetnx
         {
-            using (var muxer = GetUnsecuredConnection())
+            using (var muxer = Create())
             {
                 var conn = muxer.GetDatabase();
                 var hashkey = Me();
@@ -237,7 +237,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         [Fact]
         public async Task TestDelSingle() // https://redis.io/commands/hdel
         {
-            using (var muxer = GetUnsecuredConnection())
+            using (var muxer = Create())
             {
                 var conn = muxer.GetDatabase();
                 var hashkey = Me();
@@ -258,7 +258,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         [Fact]
         public void TestDelMulti() // https://redis.io/commands/hdel
         {
-            using (var muxer = GetUnsecuredConnection())
+            using (var muxer = Create())
             {
                 var conn = muxer.GetDatabase();
                 var hashkey = Me();
@@ -296,7 +296,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         [Fact]
         public void TestDelMultiInsideTransaction() // https://redis.io/commands/hdel
         {
-            using (var outer = GetUnsecuredConnection())
+            using (var outer = Create())
             {
                 var conn = outer.GetDatabase().CreateTransaction();
                 {
@@ -333,7 +333,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         [Fact]
         public async Task TestExists() // https://redis.io/commands/hexists
         {
-            using (var muxer = GetUnsecuredConnection())
+            using (var muxer = Create())
             {
                 var conn = muxer.GetDatabase();
                 var hashkey = Me();
@@ -353,7 +353,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         [Fact]
         public async Task TestHashKeys() // https://redis.io/commands/hkeys
         {
-            using (var muxer = GetUnsecuredConnection())
+            using (var muxer = Create())
             {
                 var conn = muxer.GetDatabase();
                 var hashKey = Me();
@@ -378,7 +378,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         [Fact]
         public async Task TestHashValues() // https://redis.io/commands/hvals
         {
-            using (var muxer = GetUnsecuredConnection())
+            using (var muxer = Create())
             {
                 var conn = muxer.GetDatabase();
                 var hashkey = Me();
@@ -403,7 +403,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         [Fact]
         public async Task TestHashLength() // https://redis.io/commands/hlen
         {
-            using (var muxer = GetUnsecuredConnection())
+            using (var muxer = Create())
             {
                 var conn = muxer.GetDatabase();
                 var hashkey = Me();
@@ -424,7 +424,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         [Fact]
         public async Task TestGetMulti() // https://redis.io/commands/hmget
         {
-            using (var muxer = GetUnsecuredConnection())
+            using (var muxer = Create())
             {
                 var conn = muxer.GetDatabase();
                 var hashkey = Me();
@@ -459,7 +459,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         [Fact]
         public async Task TestGetPairs() // https://redis.io/commands/hgetall
         {
-            using (var muxer = GetUnsecuredConnection())
+            using (var muxer = Create())
             {
                 var conn = muxer.GetDatabase();
                 var hashkey = Me();
@@ -483,7 +483,7 @@ namespace StackExchange.Redis.Tests.Booksleeve
         [Fact]
         public async Task TestSetPairs() // https://redis.io/commands/hmset
         {
-            using (var muxer = GetUnsecuredConnection())
+            using (var muxer = Create())
             {
                 var conn = muxer.GetDatabase();
                 var hashkey = Me();

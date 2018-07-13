@@ -75,6 +75,7 @@ namespace StackExchange.Redis.Tests
 
             public string RemoteServer { get; set; } = "127.0.0.1";
             public int RemotePort { get; set; } = 6379;
+            public string RemoteServerAndPort => RemoteServer + ":" + RemotePort.ToString();
 
             public string SentinelServer { get; set; } = "127.0.0.1";
             public int SentinelPort { get; set; } = 26379;
