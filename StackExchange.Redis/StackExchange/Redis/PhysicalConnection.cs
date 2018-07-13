@@ -489,7 +489,30 @@ namespace StackExchange.Redis
 
         internal void OnBridgeHeartbeat()
         {
-            Interlocked.Exchange(ref lastBeatTickCount, Environment.TickCount);
+            var now = Environment.TickCount;
+            Interlocked.Exchange(ref lastBeatTickCount, now);
+            
+            lock (_writtenAwaitingResponse)
+            {
+                if (_writtenAwaitingResponse.Count != 0)
+                {
+                    bool includeDetail = Multiplexer.IncludeDetailInExceptions;
+                    var server = Bridge.ServerEndPoint;
+                    var timeout = Multiplexer.TimeoutMilliseconds;
+                    foreach (var msg in _writtenAwaitingResponse)
+                    {
+                        if (msg.HasTimedOut(now, timeout, out var elapsed))
+                        {
+                            var timeoutEx = ExceptionFactory.Timeout(includeDetail, $"Timeout awaiting response ({elapsed}ms elapsed, timeout is {timeout}ms)", msg, server);
+                            msg.SetException(timeoutEx); // tell the message that it is doomed
+                            Bridge.CompleteSyncOrAsync(msg); // prod it - kicks off async continuations etc
+                        }
+                        // note: it is important that we **do not** remove the message unless we're tearing down the socket; that
+                        // would disrupt the chain for MatchResult; we just pre-emptively abort the message from the caller's
+                        // perspective, and set a flag on the message so we don't keep doing it
+                    }
+                }
+            }
         }
 
         internal void OnInternalError(Exception exception, [CallerMemberName] string origin = null)

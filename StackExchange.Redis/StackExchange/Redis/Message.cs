@@ -49,10 +49,12 @@ namespace StackExchange.Redis
         public readonly int Db;
 
         internal const CommandFlags InternalCallFlag = (CommandFlags)128;
+
         protected RedisCommand command;
 
         private const CommandFlags AskingFlag = (CommandFlags)32,
-                                   ScriptUnavailableFlag = (CommandFlags)256;
+                                   ScriptUnavailableFlag = (CommandFlags)256,
+                                   TimedOutFlag = (CommandFlags)1024;
 
         private const CommandFlags MaskMasterServerPreference = CommandFlags.DemandMaster
                                                               | CommandFlags.DemandSlave
@@ -612,10 +614,33 @@ namespace StackExchange.Redis
             performance?.SetEnqueued();
         }
 
+
+
         internal void SetRequestSent()
         {
             Status = CommandStatus.Sent;
+            _writeTickCount = Environment.TickCount; // note this might be reset if we resend a message, cluster-moved etc; I'm OK with that
             performance?.SetRequestSent();
+        }
+        // the time (ticks) at which this message was considered written
+        private int _writeTickCount;
+
+        internal bool HasTimedOut(int now, int timeoutMilliseconds, out int millisecondsTaken)
+        {
+            if ((flags & TimedOutFlag) == 0)
+            {
+                millisecondsTaken = unchecked(now - _writeTickCount); // note: we can't just check "if sent < cutoff" because of wrap-aro
+                if (millisecondsTaken >= timeoutMilliseconds)
+                {
+                    flags |= TimedOutFlag; // note: we don't remove it from the queue - still might need to marry it up; but: it is toast
+                    return true;
+                }
+            }
+            else
+            {
+                millisecondsTaken = default;
+            }
+            return false;
         }
 
         internal void SetAsking(bool value)

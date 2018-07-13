@@ -1,4 +1,6 @@
-﻿using System.Linq;
+﻿using System;
+using System.Linq;
+using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -40,5 +42,22 @@ namespace StackExchange.Redis.Tests
             }
         }
 #endif
+
+        [Fact]
+        public async Task AsyncTimeoutIsNoticed()
+        {
+            using (var conn = Create(syncTimeout: 1000))
+            {
+                var db = conn.GetDatabase();
+                var ex = await Assert.ThrowsAsync<RedisTimeoutException>(async () =>
+                {
+                    await db.ExecuteAsync("client", "pause", 2500); // client pause returns immediately
+                    await db.PingAsync(); // but *subsequent* operations are paused
+
+                });
+                Assert.Contains("Timeout awaiting response", ex.Message);
+                Writer.WriteLine(ex.Message);
+            }
+        }
     }
 }
