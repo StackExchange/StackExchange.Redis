@@ -65,6 +65,7 @@ namespace StackExchange.Redis
             internal const string
                 AbortOnConnectFail = "abortConnect",
                 AllowAdmin = "allowAdmin",
+                AsyncTimeout = "asyncTimeout",
                 ChannelPrefix = "channelPrefix",
                 ConfigChannel = "configChannel",
                 ConfigCheckSeconds = "configCheckSeconds",
@@ -92,6 +93,7 @@ namespace StackExchange.Redis
             {
                 AbortOnConnectFail,
                 AllowAdmin,
+                AsyncTimeout,
                 ChannelPrefix,
                 ClientName,
                 ConfigChannel,
@@ -133,7 +135,7 @@ namespace StackExchange.Redis
 
         private Version defaultVersion;
 
-        private int? keepAlive, syncTimeout, connectTimeout, responseTimeout, writeBuffer, connectRetry, configCheckSeconds;
+        private int? keepAlive, asyncTimeout, syncTimeout, connectTimeout, responseTimeout, writeBuffer, connectRetry, configCheckSeconds;
 
         private Proxy? proxy;
 
@@ -162,6 +164,11 @@ namespace StackExchange.Redis
         /// Indicates whether admin operations should be allowed
         /// </summary>
         public bool AllowAdmin { get { return allowAdmin.GetValueOrDefault(); } set { allowAdmin = value; } }
+
+        /// <summary>
+        /// Specifies the time in milliseconds that the system should allow for asynchronous operations (defaults to SyncTimeout)
+        /// </summary>
+        public int AsyncTimeout { get { return asyncTimeout ?? SyncTimeout; } set { asyncTimeout = value; } }
 
         /// <summary>
         /// Indicates whether the connection should be encrypted
@@ -412,6 +419,7 @@ namespace StackExchange.Redis
                 ServiceName = ServiceName,
                 keepAlive = keepAlive,
                 syncTimeout = syncTimeout,
+                asyncTimeout = asyncTimeout,
                 allowAdmin = allowAdmin,
                 defaultVersion = defaultVersion,
                 connectTimeout = connectTimeout,
@@ -474,6 +482,7 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.ServiceName, ServiceName);
             Append(sb, OptionKeys.KeepAlive, keepAlive);
             Append(sb, OptionKeys.SyncTimeout, syncTimeout);
+            Append(sb, OptionKeys.AsyncTimeout, asyncTimeout);
             Append(sb, OptionKeys.AllowAdmin, allowAdmin);
             Append(sb, OptionKeys.Version, defaultVersion);
             Append(sb, OptionKeys.ConnectTimeout, connectTimeout);
@@ -569,7 +578,7 @@ namespace StackExchange.Redis
         private void Clear()
         {
             ClientName = ServiceName = Password = tieBreaker = sslHost = configChannel = null;
-            keepAlive = syncTimeout = connectTimeout = writeBuffer = connectRetry = configCheckSeconds = DefaultDatabase = null;
+            keepAlive = syncTimeout = asyncTimeout = connectTimeout = writeBuffer = connectRetry = configCheckSeconds = DefaultDatabase = null;
             allowAdmin = abortOnConnectFail = highPrioritySocketThreads = resolveDns = ssl = null;
             defaultVersion = null;
             EndPoints.Clear();
@@ -617,6 +626,9 @@ namespace StackExchange.Redis
                     {
                         case OptionKeys.SyncTimeout:
                             SyncTimeout = OptionKeys.ParseInt32(key, value, minValue: 1);
+                            break;
+                        case OptionKeys.AsyncTimeout:
+                            AsyncTimeout = OptionKeys.ParseInt32(key, value, minValue: 1);
                             break;
                         case OptionKeys.AllowAdmin:
                             AllowAdmin = OptionKeys.ParseBoolean(key, value);

@@ -9,7 +9,7 @@ namespace StackExchange.Redis.Tests
 {
     public class AsyncTests : TestBase
     {
-        public AsyncTests(ITestOutputHelper output) : base (output) { }
+        public AsyncTests(ITestOutputHelper output) : base(output) { }
 
         protected override string GetConfiguration() => TestConfig.Current.MasterServerAndPort;
 
@@ -49,13 +49,25 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create(syncTimeout: 1000))
             {
+                var opt = ConfigurationOptions.Parse(conn.Configuration);
+                if (!Debugger.IsAttached)
+                { // we max the timeouts if a degugger is detected
+                    Assert.Equal(1000, opt.AsyncTimeout);
+                }
+
+                RedisKey key = Me();
+                var val = Guid.NewGuid().ToString();
                 var db = conn.GetDatabase();
+                db.StringSet(key, val);
+
+                Assert.Contains("; async timeouts: 0;", conn.GetStatus());
+
                 await db.ExecuteAsync("client", "pause", 4000); // client pause returns immediately
 
                 var ms = Stopwatch.StartNew();
                 var ex = await Assert.ThrowsAsync<RedisTimeoutException>(async () =>
                 {
-                    await db.PingAsync(); // but *subsequent* operations are paused
+                    var actual = await db.StringGetAsync(key); // but *subsequent* operations are paused
                     ms.Stop();
                     Writer.WriteLine($"Unexpectedly succeeded after {ms.ElapsedMilliseconds}ms");
                 });
@@ -64,6 +76,10 @@ namespace StackExchange.Redis.Tests
 
                 Assert.Contains("Timeout awaiting response", ex.Message);
                 Writer.WriteLine(ex.Message);
+
+                string status = conn.GetStatus();
+                Writer.WriteLine(status);
+                Assert.Contains("; async timeouts: 1;", status);
             }
         }
     }

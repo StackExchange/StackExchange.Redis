@@ -54,7 +54,7 @@ namespace StackExchange.Redis
 
         private const CommandFlags AskingFlag = (CommandFlags)32,
                                    ScriptUnavailableFlag = (CommandFlags)256,
-                                   TimedOutFlag = (CommandFlags)1024;
+                                   NeedsAsyncTimeoutCheckFlag = (CommandFlags)1024;
 
         private const CommandFlags MaskMasterServerPreference = CommandFlags.DemandMaster
                                                               | CommandFlags.DemandSlave
@@ -619,20 +619,24 @@ namespace StackExchange.Redis
         internal void SetRequestSent()
         {
             Status = CommandStatus.Sent;
-            _writeTickCount = Environment.TickCount; // note this might be reset if we resend a message, cluster-moved etc; I'm OK with that
+            if ((flags & NeedsAsyncTimeoutCheckFlag) != 0)
+            {
+                _writeTickCount = Environment.TickCount; // note this might be reset if we resend a message, cluster-moved etc; I'm OK with that
+            }
             performance?.SetRequestSent();
         }
         // the time (ticks) at which this message was considered written
         private int _writeTickCount;
 
-        internal bool HasTimedOut(int now, int timeoutMilliseconds, out int millisecondsTaken)
+        private void SetNeedsTimeoutCheck() => flags |= NeedsAsyncTimeoutCheckFlag;
+        internal bool HasAsyncTimedOut(int now, int timeoutMilliseconds, out int millisecondsTaken)
         {
-            if ((flags & TimedOutFlag) == 0)
+            if ((flags & NeedsAsyncTimeoutCheckFlag) != 0)
             {
                 millisecondsTaken = unchecked(now - _writeTickCount); // note: we can't just check "if sent < cutoff" because of wrap-aro
                 if (millisecondsTaken >= timeoutMilliseconds)
                 {
-                    flags |= TimedOutFlag; // note: we don't remove it from the queue - still might need to marry it up; but: it is toast
+                    flags &= ~NeedsAsyncTimeoutCheckFlag; // note: we don't remove it from the queue - still might need to marry it up; but: it is toast
                     return true;
                 }
             }
@@ -666,12 +670,14 @@ namespace StackExchange.Redis
 
         internal void SetSource(ResultProcessor resultProcessor, ResultBox resultBox)
         { // note order here reversed to prevent overload resolution errors
+            if (resultBox != null && resultBox.IsAsync) SetNeedsTimeoutCheck();
             this.resultBox = resultBox;
             this.resultProcessor = resultProcessor;
         }
 
         internal void SetSource<T>(ResultBox<T> resultBox, ResultProcessor<T> resultProcessor)
         {
+            if (resultBox != null && resultBox.IsAsync) SetNeedsTimeoutCheck();
             this.resultBox = resultBox;
             this.resultProcessor = resultProcessor;
         }

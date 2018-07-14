@@ -8,6 +8,7 @@ namespace StackExchange.Redis
     internal abstract partial class ResultBox
     {
         protected Exception _exception;
+        public abstract bool IsAsync { get; }
 
         public void SetException(Exception exception) => _exception = exception;
 
@@ -81,6 +82,8 @@ namespace StackExchange.Redis
         {
             this.value = value;
         }
+
+        public override bool IsAsync => stateOrCompletionSource is TaskCompletionSource<T>;
 
         public override bool TryComplete(bool isAsync)
         {

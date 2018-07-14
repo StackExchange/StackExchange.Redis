@@ -498,14 +498,15 @@ namespace StackExchange.Redis
                 {
                     bool includeDetail = Multiplexer.IncludeDetailInExceptions;
                     var server = Bridge.ServerEndPoint;
-                    var timeout = Multiplexer.TimeoutMilliseconds;
+                    var timeout = Multiplexer.AsyncTimeoutMilliseconds;
                     foreach (var msg in _writtenAwaitingResponse)
                     {
-                        if (msg.HasTimedOut(now, timeout, out var elapsed))
+                        if (msg.HasAsyncTimedOut(now, timeout, out var elapsed))
                         {
                             var timeoutEx = ExceptionFactory.Timeout(includeDetail, $"Timeout awaiting response ({elapsed}ms elapsed, timeout is {timeout}ms)", msg, server);
                             msg.SetException(timeoutEx); // tell the message that it is doomed
                             Bridge.CompleteSyncOrAsync(msg); // prod it - kicks off async continuations etc
+                            Multiplexer.OnAsyncTimeout();
                         }
                         // note: it is important that we **do not** remove the message unless we're tearing down the socket; that
                         // would disrupt the chain for MatchResult; we just pre-emptively abort the message from the caller's

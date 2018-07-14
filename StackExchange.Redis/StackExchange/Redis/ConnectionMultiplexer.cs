@@ -497,9 +497,13 @@ namespace StackExchange.Redis
         public event EventHandler<EndPointEventArgs> ConfigurationChangedBroadcast;
 
         /// <summary>
-        /// Gets the timeout associated with the connections
+        /// Gets the synchronous timeout associated with the connections
         /// </summary>
         public int TimeoutMilliseconds { get; }
+        /// <summary>
+        /// Gets the asynchronous timeout associated with the connections
+        /// </summary>
+        internal int AsyncTimeoutMilliseconds { get; }
 
         /// <summary>
         /// Gets all endpoints defined on the server
@@ -956,6 +960,7 @@ namespace StackExchange.Redis
             }
 
             TimeoutMilliseconds = configuration.SyncTimeout;
+            AsyncTimeoutMilliseconds = configuration.AsyncTimeout;
 
             OnCreateReaderWriter(configuration);
             UnprocessableCompletionManager = new CompletionManager(this, "multiplexer");
@@ -1242,8 +1247,9 @@ namespace StackExchange.Redis
                 LogLocked(log, server.GetCounters().ToString());
                 LogLocked(log, server.GetProfile());
             }
-            LogLocked(log, "Sync timeouts: {0}; fire and forget: {1}; last heartbeat: {2}s ago",
-                Interlocked.Read(ref syncTimeouts), Interlocked.Read(ref fireAndForgets), LastHeartbeatSecondsAgo);
+            LogLocked(log, "Sync timeouts: {0}; async timeouts: {1}; fire and forget: {2}; last heartbeat: {3}s ago",
+                Interlocked.Read(ref syncTimeouts), Interlocked.Read(ref asyncTimeouts),
+                Interlocked.Read(ref fireAndForgets), LastHeartbeatSecondsAgo);
         }
 
         private void ActivateAllServers(TextWriter log)
@@ -1955,7 +1961,7 @@ namespace StackExchange.Redis
             if (allowCommandsToComplete)
             {
                 var quits = QuitAllServers();
-                await WaitAllIgnoreErrorsAsync(quits, configuration.SyncTimeout, null).ForAwait();
+                await WaitAllIgnoreErrorsAsync(quits, configuration.AsyncTimeout, null).ForAwait();
             }
 
             DisposeAndClearServers();
@@ -2199,7 +2205,9 @@ namespace StackExchange.Redis
             Interlocked.Exchange(ref haveStormLog, 0);
         }
 
-        private long syncTimeouts, fireAndForgets;
+        private long syncTimeouts, fireAndForgets, asyncTimeouts;
+
+        internal void OnAsyncTimeout() => Interlocked.Increment(ref asyncTimeouts);
 
         /// <summary>
         /// Request all compatible clients to reconfigure or reconnect
