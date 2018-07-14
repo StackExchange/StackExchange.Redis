@@ -91,7 +91,7 @@ namespace StackExchange.Redis.Tests
             Interlocked.Increment(ref privateFailCount);
             lock (privateExceptions)
             {
-                privateExceptions.Add("Connection failed: " + EndPointCollection.ToString(e.EndPoint) + "/" + e.ConnectionType);
+                privateExceptions.Add($"Connection failed ({e.FailureType}): {EndPointCollection.ToString(e.EndPoint)}/{e.ConnectionType}: {e.Exception}");
             }
         }
 
