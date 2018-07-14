@@ -56,8 +56,8 @@ namespace StackExchange.Redis.Tests
 
                 Assert.Equal(3, cmds.Count());
 
-                Assert.True(set.CommandCreated <= get.CommandCreated);
-                Assert.True(get.CommandCreated <= eval.CommandCreated);
+                Assert.True(set.CommandCreated <= eval.CommandCreated);
+                Assert.True(eval.CommandCreated <= get.CommandCreated);
 
                 AssertProfiledCommandValues(set, conn, dbId);
 
