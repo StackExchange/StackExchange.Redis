@@ -270,9 +270,8 @@ namespace StackExchange.Redis
             return Task.CompletedTask;
         }
 
-        public Exception RecordConnectionFailed(ConnectionFailureType failureType, Exception innerException = null, [CallerMemberName] string origin = null)
+        public void RecordConnectionFailed(ConnectionFailureType failureType, Exception innerException = null, [CallerMemberName] string origin = null)
         {
-            Exception ex = innerException;
             IdentifyFailureType(innerException, ref failureType);
 
             if (failureType == ConnectionFailureType.InternalFailure) OnInternalError(innerException, origin);
@@ -331,7 +330,7 @@ namespace StackExchange.Redis
                     add("Last-Global-Heartbeat", "global", ConnectionMultiplexer.LastGlobalHeartbeatSecondsAgo + "s ago");
                 }
 
-                ex = innerException == null
+                var ex = innerException == null
                     ? new RedisConnectionException(failureType, exMessage.ToString())
                     : new RedisConnectionException(failureType, exMessage.ToString(), innerException);
 
@@ -358,7 +357,6 @@ namespace StackExchange.Redis
 
             // burn the socket
             Shutdown();
-            return ex;
         }
 
         public override string ToString()
@@ -702,16 +700,18 @@ namespace StackExchange.Redis
             return WriteCrlf(span, offset);
         }
 
-        internal void WakeWriterAndCheckForThrottle()
+        internal WriteResult WakeWriterAndCheckForThrottle()
         {
             try
             {
                 var flush = _ioPipe.Output.FlushAsync();
                 if (!flush.IsCompletedSuccessfully) flush.AsTask().Wait();
+                return WriteResult.Success;
             }
             catch (ConnectionResetException ex)
             {
-                throw RecordConnectionFailed(ConnectionFailureType.SocketClosed, ex);
+                RecordConnectionFailed(ConnectionFailureType.SocketClosed, ex);
+                return WriteResult.WriteFailure;
             }
         }
 
