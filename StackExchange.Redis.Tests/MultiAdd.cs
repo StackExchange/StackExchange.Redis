@@ -16,22 +16,22 @@ namespace StackExchange.Redis.Tests
                 var db = conn.GetDatabase();
 
                 RedisKey key = Me();
-                db.KeyDelete(key);
-                db.SortedSetAdd(key, "a", 1);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.SortedSetAdd(key, "a", 1, CommandFlags.FireAndForget);
                 db.SortedSetAdd(key, new[] {
-                    new SortedSetEntry("b", 2) });
+                    new SortedSetEntry("b", 2) }, CommandFlags.FireAndForget);
                 db.SortedSetAdd(key, new[] {
                     new SortedSetEntry("c", 3),
-                    new SortedSetEntry("d", 4)});
+                    new SortedSetEntry("d", 4)}, CommandFlags.FireAndForget);
                 db.SortedSetAdd(key, new[] {
                     new SortedSetEntry("e", 5),
                     new SortedSetEntry("f", 6),
-                    new SortedSetEntry("g", 7)});
+                    new SortedSetEntry("g", 7)}, CommandFlags.FireAndForget);
                 db.SortedSetAdd(key, new[] {
                     new SortedSetEntry("h", 8),
                     new SortedSetEntry("i", 9),
                     new SortedSetEntry("j", 10),
-                    new SortedSetEntry("k", 11)});
+                    new SortedSetEntry("k", 11)}, CommandFlags.FireAndForget);
                 var vals = db.SortedSetRangeByScoreWithScores(key);
                 string s = string.Join(",", vals.OrderByDescending(x => x.Score).Select(x => x.Element));
                 Assert.Equal("k,j,i,h,g,f,e,d,c,b,a", s);
@@ -48,22 +48,22 @@ namespace StackExchange.Redis.Tests
                 var db = conn.GetDatabase();
 
                 RedisKey key = Me();
-                db.KeyDelete(key);
-                db.HashSet(key, "a", 1);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.HashSet(key, "a", 1, flags: CommandFlags.FireAndForget);
                 db.HashSet(key, new[] {
-                    new HashEntry("b", 2) });
+                    new HashEntry("b", 2) }, CommandFlags.FireAndForget);
                 db.HashSet(key, new[] {
                     new HashEntry("c", 3),
-                    new HashEntry("d", 4)});
+                    new HashEntry("d", 4)}, CommandFlags.FireAndForget);
                 db.HashSet(key, new[] {
                     new HashEntry("e", 5),
                     new HashEntry("f", 6),
-                    new HashEntry("g", 7)});
+                    new HashEntry("g", 7)}, CommandFlags.FireAndForget);
                 db.HashSet(key, new[] {
                     new HashEntry("h", 8),
                     new HashEntry("i", 9),
                     new HashEntry("j", 10),
-                    new HashEntry("k", 11)});
+                    new HashEntry("k", 11)}, CommandFlags.FireAndForget);
                 var vals = db.HashGetAll(key);
                 string s = string.Join(",", vals.OrderByDescending(x => (double)x.Value).Select(x => x.Name));
                 Assert.Equal("k,j,i,h,g,f,e,d,c,b,a", s);
@@ -80,12 +80,12 @@ namespace StackExchange.Redis.Tests
                 var db = conn.GetDatabase();
 
                 RedisKey key = Me();
-                db.KeyDelete(key);
-                db.SetAdd(key, "a");
-                db.SetAdd(key, new RedisValue[] { "b" });
-                db.SetAdd(key, new RedisValue[] { "c", "d" });
-                db.SetAdd(key, new RedisValue[] { "e", "f", "g" });
-                db.SetAdd(key, new RedisValue[] { "h", "i", "j", "k" });
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.SetAdd(key, "a", CommandFlags.FireAndForget);
+                db.SetAdd(key, new RedisValue[] { "b" }, CommandFlags.FireAndForget);
+                db.SetAdd(key, new RedisValue[] { "c", "d" }, CommandFlags.FireAndForget);
+                db.SetAdd(key, new RedisValue[] { "e", "f", "g" }, CommandFlags.FireAndForget);
+                db.SetAdd(key, new RedisValue[] { "h", "i", "j", "k" }, CommandFlags.FireAndForget);
 
                 var vals = db.SetMembers(key);
                 string s = string.Join(",", vals.OrderByDescending(x => x));
@@ -101,12 +101,12 @@ namespace StackExchange.Redis.Tests
                 var db = conn.GetDatabase();
 
                 RedisKey key = Me();
-                db.KeyDelete(key);
-                db.SetAdd(key, "a");
-                db.SetAdd(key, new RedisValue[] { "1" });
-                db.SetAdd(key, new RedisValue[] { "11", "2" });
-                db.SetAdd(key, new RedisValue[] { "10", "3", "1.5" });
-                db.SetAdd(key, new RedisValue[] { "2.2", "-1", "s", "t" });
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.SetAdd(key, "a", CommandFlags.FireAndForget);
+                db.SetAdd(key, new RedisValue[] { "1" }, CommandFlags.FireAndForget);
+                db.SetAdd(key, new RedisValue[] { "11", "2" }, CommandFlags.FireAndForget);
+                db.SetAdd(key, new RedisValue[] { "10", "3", "1.5" }, CommandFlags.FireAndForget);
+                db.SetAdd(key, new RedisValue[] { "2.2", "-1", "s", "t" }, CommandFlags.FireAndForget);
 
                 var vals = db.SetMembers(key);
                 string s = string.Join(",", vals.OrderByDescending(x => x));

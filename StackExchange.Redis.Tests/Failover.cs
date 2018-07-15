@@ -236,8 +236,10 @@ namespace StackExchange.Redis.Tests
                 Log("B: " + EndPointCollection.ToString(epB));
                 subA.Publish(channel, "A1");
                 subB.Publish(channel, "B1");
-                subA.Ping();
-                subB.Ping();
+                Log("SubA ping: " + subA.Ping());
+                Log("SubB ping: " + subB.Ping());
+                // If redis is under load due to this suite, it may take a moment to send across.
+                await Task.Delay(250).ForAwait();
 
                 Assert.Equal(2, Interlocked.Read(ref aCount));
                 Assert.Equal(2, Interlocked.Read(ref bCount));

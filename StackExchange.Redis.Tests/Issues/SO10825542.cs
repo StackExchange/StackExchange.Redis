@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Text;
+using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -10,7 +11,7 @@ namespace StackExchange.Redis.Tests.Issues
         public SO10825542(ITestOutputHelper output) : base(output) { }
 
         [Fact]
-        public void Execute()
+        public async Task Execute()
         {
             using (var muxer = Create())
             {
@@ -18,14 +19,13 @@ namespace StackExchange.Redis.Tests.Issues
 
                 var con = muxer.GetDatabase();
                 // set the field value and expiration
-                con.HashSetAsync(key, "field1", Encoding.UTF8.GetBytes("hello world"));
-                con.KeyExpireAsync(key, TimeSpan.FromSeconds(7200));
-                con.HashSetAsync(key, "field2", "fooobar");
-                var task = con.HashGetAllAsync(key);
-                con.Wait(task);
+                var hsa = con.HashSetAsync(key, "field1", Encoding.UTF8.GetBytes("hello world"));
+                var kea = con.KeyExpireAsync(key, TimeSpan.FromSeconds(7200));
+                var hsa2 = con.HashSetAsync(key, "field2", "fooobar");
+                var result = await con.HashGetAllAsync(key).ForAwait();
 
-                Assert.Equal(2, task.Result.Length);
-                var dict = task.Result.ToStringDictionary();
+                Assert.Equal(2, result.Length);
+                var dict = result.ToStringDictionary();
                 Assert.Equal("hello world", dict["field1"]);
                 Assert.Equal("fooobar", dict["field2"]);
             }

@@ -124,7 +124,7 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal("some value", asyncVal);
                 // let's allow 20% async overhead
                 // But with a floor, since the base can often be zero
-                Assert.True(asyncTimer.ElapsedMilliseconds <= System.Math.Max(syncTimer.ElapsedMilliseconds * 1.2M, 20));
+                Assert.True(asyncTimer.ElapsedMilliseconds <= System.Math.Max(syncTimer.ElapsedMilliseconds * 1.2M, 50));
             }
         }
     }

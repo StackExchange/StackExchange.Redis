@@ -452,7 +452,7 @@ namespace StackExchange.Redis
                 throw ExceptionFactory.AdminModeNotEnabled(IncludeDetailInExceptions, message.Command, message, null);
             CommandMap.AssertAvailable(message.Command);
         }
-        const string NoContent = "(no content)";
+        private const string NoContent = "(no content)";
         private static void WriteNormalizingLineEndings(string source, StreamWriter writer)
         {
             if (source == null)
@@ -645,8 +645,10 @@ namespace StackExchange.Redis
                 }
 
                 var allTasks = Task.WhenAll(tasks).ObserveErrors();
-                var any = Task.WhenAny(allTasks, Task.Delay(remaining)).ObserveErrors();
+                var cts = new CancellationTokenSource();
+                var any = Task.WhenAny(allTasks, Task.Delay(remaining, cts.Token)).ObserveErrors();
                 bool all = await any.ForAwait() == allTasks;
+                cts.Cancel();
                 LogLockedWithThreadPoolStats(log, all ? "All tasks completed cleanly" : $"Not all tasks completed cleanly (from {caller}#{callerLineNumber}, timeout {timeoutMilliseconds}ms)", out busyWorkerCount);
                 return all;
             }
@@ -798,13 +800,13 @@ namespace StackExchange.Redis
         {
             if (configuration == null) throw new ArgumentNullException(nameof(configuration));
             ConfigurationOptions config;
-            if (configuration is string)
+            if (configuration is string s)
             {
-                config = ConfigurationOptions.Parse((string)configuration);
+                config = ConfigurationOptions.Parse(s);
             }
-            else if (configuration is ConfigurationOptions)
+            else if (configuration is ConfigurationOptions configurationOptions)
             {
-                config = ((ConfigurationOptions)configuration).Clone();
+                config = (configurationOptions).Clone();
             }
             else
             {
@@ -871,7 +873,7 @@ namespace StackExchange.Redis
         private readonly Hashtable servers = new Hashtable();
         private volatile ServerSnapshot _serverSnapshot = ServerSnapshot.Empty;
         internal ReadOnlySpan<ServerEndPoint> GetServerSnapshot() => _serverSnapshot.Span;
-        sealed class ServerSnapshot
+        private sealed class ServerSnapshot
         {
             public static ServerSnapshot Empty { get; } = new ServerSnapshot(Array.Empty<ServerEndPoint>(), 0);
             private ServerSnapshot(ServerEndPoint[] arr, int count)
@@ -879,8 +881,8 @@ namespace StackExchange.Redis
                 _arr = arr;
                 _count = count;
             }
-            private ServerEndPoint[] _arr;
-            private int _count;
+            private readonly ServerEndPoint[] _arr;
+            private readonly int _count;
             public ReadOnlySpan<ServerEndPoint> Span => new ReadOnlySpan<ServerEndPoint>(_arr, 0, _count);
 
             internal ServerSnapshot Add(ServerEndPoint value)
@@ -1293,11 +1295,13 @@ namespace StackExchange.Redis
                 {
                     if (configuration.ResolveDns && configuration.HasDnsEndPoints())
                     {
+                        var cts = new CancellationTokenSource();
                         var dns = configuration.ResolveEndPointsAsync(this, log).ObserveErrors();
-                        if ((await Task.WhenAny(dns, Task.Delay(TimeoutMilliseconds)).ForAwait()) != dns)
+                        if ((await Task.WhenAny(dns, Task.Delay(TimeoutMilliseconds, cts.Token)).ForAwait()) != dns)
                         {
                             throw new TimeoutException("Timeout resolving endpoints");
                         }
+                        cts.Cancel();
                     }
                     foreach (var endpoint in configuration.EndPoints)
                     {
@@ -2251,8 +2255,10 @@ namespace StackExchange.Redis
         /// <summary>
         /// Get the hash-slot associated with a given key, if applicable; this can be useful for grouping operations
         /// </summary>
+        /// <param name="key">The <see cref="RedisKey"/> to determine the hash slot for.</param>
         public int GetHashSlot(RedisKey key) => ServerSelectionStrategy.HashSlot(key);
     }
+
     internal enum WriteResult
     {
         Success,

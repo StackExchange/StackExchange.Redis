@@ -32,28 +32,32 @@ namespace StackExchange.Redis.Tests
                 var dbId = TestConfig.GetDedicatedDB();
                 var db = conn.GetDatabase(dbId);
                 db.StringSet(key, "world");
-                var val = db.StringGet(key);
-                Assert.Equal("world", (string)val);
                 var result = db.ScriptEvaluate(LuaScript.Prepare("return redis.call('get', @key)"), new { key = (RedisKey)key });
                 Assert.Equal("world", result.AsString());
+                var val = db.StringGet(key);
+                Assert.Equal("world", (string)val);
 
                 var cmds = conn.FinishProfiling(profiler.MyContext);
                 var i = 0;
                 foreach (var cmd in cmds)
                 {
-                    Log("Command {0}: {1}", i++, cmd.ToString().Replace("\n", ", "));
+                    Log("Command {0} (DB: {1}): {2}", i++, cmd.Db, cmd.ToString().Replace("\n", ", "));
                 }
-                Assert.Equal(3, cmds.Count());
 
+                Log("Checking for SET");
                 var set = cmds.SingleOrDefault(cmd => cmd.Command == "SET");
                 Assert.NotNull(set);
+                Log("Checking for GET");
                 var get = cmds.SingleOrDefault(cmd => cmd.Command == "GET");
                 Assert.NotNull(get);
+                Log("Checking for EVAL");
                 var eval = cmds.SingleOrDefault(cmd => cmd.Command == "EVAL");
                 Assert.NotNull(eval);
 
-                Assert.True(set.CommandCreated <= get.CommandCreated);
-                Assert.True(get.CommandCreated <= eval.CommandCreated);
+                Assert.Equal(3, cmds.Count());
+
+                Assert.True(set.CommandCreated <= eval.CommandCreated);
+                Assert.True(eval.CommandCreated <= get.CommandCreated);
 
                 AssertProfiledCommandValues(set, conn, dbId);
 
@@ -67,14 +71,14 @@ namespace StackExchange.Redis.Tests
         {
             Assert.Equal(dbId, command.Db);
             Assert.Equal(conn.GetEndPoints()[0], command.EndPoint);
-            Assert.True(command.CreationToEnqueued > TimeSpan.Zero);
-            Assert.True(command.EnqueuedToSending > TimeSpan.Zero);
-            Assert.True(command.SentToResponse > TimeSpan.Zero);
-            Assert.True(command.ResponseToCompletion > TimeSpan.Zero);
-            Assert.True(command.ElapsedTime > TimeSpan.Zero);
-            Assert.True(command.ElapsedTime > command.CreationToEnqueued && command.ElapsedTime > command.EnqueuedToSending && command.ElapsedTime > command.SentToResponse);
-            Assert.True(command.RetransmissionOf == null);
-            Assert.True(command.RetransmissionReason == null);
+            Assert.True(command.CreationToEnqueued > TimeSpan.Zero, nameof(command.CreationToEnqueued));
+            Assert.True(command.EnqueuedToSending > TimeSpan.Zero, nameof(command.EnqueuedToSending));
+            Assert.True(command.SentToResponse > TimeSpan.Zero, nameof(command.SentToResponse));
+            Assert.True(command.ResponseToCompletion > TimeSpan.Zero, nameof(command.ResponseToCompletion));
+            Assert.True(command.ElapsedTime > TimeSpan.Zero, nameof(command.ElapsedTime));
+            Assert.True(command.ElapsedTime > command.CreationToEnqueued && command.ElapsedTime > command.EnqueuedToSending && command.ElapsedTime > command.SentToResponse, "Comparisons");
+            Assert.True(command.RetransmissionOf == null, nameof(command.RetransmissionOf));
+            Assert.True(command.RetransmissionReason == null, nameof(command.RetransmissionReason));
         }
 
         [Fact]
@@ -89,8 +93,8 @@ namespace StackExchange.Redis.Tests
                 conn.BeginProfiling(profiler.MyContext);
 
                 var threads = new List<Thread>();
-
-                for (var i = 0; i < 16; i++)
+                const int CountPer = 100;
+                for (var i = 1; i <= 16; i++)
                 {
                     var db = conn.GetDatabase(i);
 
@@ -98,7 +102,7 @@ namespace StackExchange.Redis.Tests
                     {
                         var threadTasks = new List<Task>();
 
-                        for (var j = 0; j < 1000; j++)
+                        for (var j = 0; j < CountPer; j++)
                         {
                             var task = db.StringSetAsync(prefix + j, "" + j);
                             threadTasks.Add(task);
@@ -112,22 +116,27 @@ namespace StackExchange.Redis.Tests
                 threads.ForEach(thread => thread.Join());
 
                 var allVals = conn.FinishProfiling(profiler.MyContext);
+                var relevant = allVals.Where(cmd => cmd.Db > 0).ToList();
 
-                var kinds = allVals.Select(cmd => cmd.Command).Distinct().ToList();
+                var kinds = relevant.Select(cmd => cmd.Command).Distinct().ToList();
+                foreach (var k in kinds)
+                {
+                    Log("Kind Seen: " + k);
+                }
                 Assert.True(kinds.Count <= 2);
                 Assert.Contains("SET", kinds);
-                if (kinds.Count == 2 && !kinds.Contains("SELECT"))
+                if (kinds.Count == 2 && !kinds.Contains("SELECT") && !kinds.Contains("GET"))
                 {
-                    Assert.True(false, "Non-SET, Non-SELECT command seen");
+                    Assert.True(false, "Non-SET, Non-SELECT, Non-GET command seen");
                 }
 
-                Assert.Equal(16 * 1000, allVals.Count());
+                Assert.Equal(16 * CountPer, relevant.Count);
                 Assert.Equal(16, allVals.Select(cmd => cmd.Db).Distinct().Count());
 
-                for (var i = 0; i < 16; i++)
+                for (var i = 1; i <= 16; i++)
                 {
-                    var setsInDb = allVals.Count(cmd => cmd.Db == i && cmd.Command == "SET");
-                    Assert.Equal(1000, setsInDb);
+                    var setsInDb = relevant.Count(cmd => cmd.Db == i);
+                    Assert.Equal(CountPer, setsInDb);
                 }
             }
         }
@@ -294,7 +303,7 @@ namespace StackExchange.Redis.Tests
                 var anyContext = LeaksCollectedAndRePooled_Initialize(conn, ThreadCount);
 
                 // force collection of everything but `anyContext`
-                GC.Collect(3, GCCollectionMode.Forced, blocking: true);
+                GC.Collect(3, GCCollectionMode.Forced);
                 GC.WaitForPendingFinalizers();
 
                 await Task.Delay(TimeSpan.FromMinutes(1.01)).ForAwait();
@@ -419,7 +428,7 @@ namespace StackExchange.Redis.Tests
                 conn.BeginProfiling(profiler.MyContext);
 
                 var prefix = Me();
-                var db = conn.GetDatabase();
+                var db = conn.GetDatabase(1);
 
                 var allTasks = new List<Task<string>>();
 
@@ -453,10 +462,10 @@ namespace StackExchange.Redis.Tests
 
                     Assert.True(object.ReferenceEquals(i, j));
                 }
-                
-                Assert.Equal(OuterLoop, res.Count(r => r.Command == "GET"));
-                Assert.Equal(OuterLoop, res.Count(r => r.Command == "SET"));
-                Assert.Equal(OuterLoop * 2, res.Count());
+
+                Assert.Equal(OuterLoop, res.Count(r => r.Command == "GET" && r.Db > 0));
+                Assert.Equal(OuterLoop, res.Count(r => r.Command == "SET" && r.Db > 0));
+                Assert.Equal(OuterLoop * 2, res.Count(r => r.Db > 0));
             }
         }
 

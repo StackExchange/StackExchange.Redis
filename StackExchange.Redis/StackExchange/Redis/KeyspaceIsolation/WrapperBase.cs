@@ -831,13 +831,13 @@ namespace StackExchange.Redis.KeyspaceIsolation
                 foreach(var oldArg in args)
                 {
                     object newArg;
-                    if (oldArg is RedisKey)
+                    if (oldArg is RedisKey key)
                     {
-                        newArg    = ToInner((RedisKey)oldArg);
+                        newArg    = ToInner(key);
                     }
-                    else if (oldArg is RedisChannel)
+                    else if (oldArg is RedisChannel channel)
                     {
-                        newArg = ToInner((RedisChannel)oldArg);
+                        newArg = ToInner(channel);
                     }
                     else
                     {

@@ -242,11 +242,11 @@ namespace RedisSharp
             if (socket == null)
                 return false;
 
-            var s = args.Length > 0 ? String.Format(cmd, args) : cmd;
+            var s = args.Length > 0 ? string.Format(cmd, args) : cmd;
             byte[] r = Encoding.UTF8.GetBytes(s);
             try
             {
-                Log("S: " + String.Format(cmd, args));
+                Log("S: " + string.Format(cmd, args));
                 socket.Send(r);
                 if (data != null)
                 {
@@ -272,11 +272,11 @@ namespace RedisSharp
             if (socket == null)
                 return false;
 
-            var s = args?.Length > 0 ? String.Format(cmd, args) : cmd;
+            var s = args?.Length > 0 ? string.Format(cmd, args) : cmd;
             byte[] r = Encoding.UTF8.GetBytes(s);
             try
             {
-                Log("S: " + String.Format(cmd, args));
+                Log("S: " + string.Format(cmd, args));
                 socket.Send(r);
             }
             catch (SocketException)
@@ -293,7 +293,7 @@ namespace RedisSharp
         [Conditional("DEBUG")]
         private void Log(string fmt, params object[] args)
         {
-            Console.WriteLine("{0}", String.Format(fmt, args).Trim());
+            Console.WriteLine("{0}", string.Format(fmt, args).Trim());
         }
 
         private void ExpectSuccess()
@@ -416,7 +416,7 @@ namespace RedisSharp
                 if (r == "$-1")
                     return null;
 
-                if (Int32.TryParse(r.Substring(1), out int n))
+                if (int.TryParse(r.Substring(1), out int n))
                 {
                     var retbuf = new byte[n];
 
@@ -439,7 +439,7 @@ namespace RedisSharp
             //returns the number of matches
             if (c == '*')
             {
-                if (Int32.TryParse(r.Substring(1), out int n))
+                if (int.TryParse(r.Substring(1), out int n))
                     return n <= 0 ? new byte[0] : ReadData();
 
                 throw new ResponseException("Unexpected length parameter" + r);
@@ -759,16 +759,16 @@ namespace RedisSharp
 
         private void StoreSetCommands(string cmd, string destKey, params string[] keys)
         {
-            if (String.IsNullOrEmpty(cmd))
+            if (string.IsNullOrEmpty(cmd))
                 throw new ArgumentNullException(nameof(cmd));
 
-            if (String.IsNullOrEmpty(destKey))
+            if (string.IsNullOrEmpty(destKey))
                 throw new ArgumentNullException(nameof(destKey));
 
             if (keys == null)
                 throw new ArgumentNullException(nameof(keys));
 
-            SendExpectSuccess("{0} {1} {2}\r\n", cmd, destKey, String.Join(" ", keys));
+            SendExpectSuccess("{0} {1} {2}\r\n", cmd, destKey, string.Join(" ", keys));
         }
 
         public void StoreUnionOfSets(string destKey, params string[] keys)
@@ -835,15 +835,15 @@ namespace RedisSharp
         public string Key { get; set; }
         public bool Descending { get; set; }
         public bool Lexographically { get; set; }
-        public Int32 LowerLimit { get; set; }
-        public Int32 UpperLimit { get; set; }
+        public int LowerLimit { get; set; }
+        public int UpperLimit { get; set; }
         public string By { get; set; }
         public string StoreInKey { get; set; }
         public string Get { get; set; }
 
         public string ToCommand()
         {
-            var command = "SORT " + this.Key;
+            var command = "SORT " + Key;
             if (LowerLimit != 0 || UpperLimit != 0)
                 command += " LIMIT " + LowerLimit + " " + UpperLimit;
             if (Lexographically)

@@ -547,7 +547,7 @@ namespace StackExchange.Redis
                 {
                     result = WriteMessageToServerInsideWriteLock(physical, next);
                 }
-                physical.WakeWriterAndCheckForThrottle();
+                result = physical.WakeWriterAndCheckForThrottle();
             }
             finally
             {

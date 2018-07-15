@@ -38,7 +38,7 @@ namespace StackExchange.Redis.Tests
                 Skip.IfMissingDatabase(conn, dbId);
                 var db = conn.GetDatabase(dbId);
                 var prefix = Me();
-                conn.GetServer(TestConfig.Current.MasterServerAndPort).FlushDatabase(dbId);
+                conn.GetServer(TestConfig.Current.MasterServerAndPort).FlushDatabase(dbId, CommandFlags.FireAndForget);
                 string anyKey = db.KeyRandom();
 
                 Assert.Null(anyKey);
@@ -56,12 +56,12 @@ namespace StackExchange.Redis.Tests
             {
                 var db = conn.GetDatabase();
                 var key = Me();
-                db.KeyDelete(key);
-                db.StringSet(key, 123);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.StringSet(key, 123, flags: CommandFlags.FireAndForget);
                 int k = (int)db.StringGet(key);
                 Assert.Equal(123, k);
 
-                db.KeyDelete(key);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
                 int i = (int)db.StringGet(key);
                 Assert.Equal(0, i);
 

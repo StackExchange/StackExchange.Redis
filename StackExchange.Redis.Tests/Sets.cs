@@ -19,15 +19,14 @@ namespace StackExchange.Redis.Tests
 
                 RedisKey key = Me();
                 var db = conn.GetDatabase();
-                db.KeyDelete(key);
-
                 int totalUnfiltered = 0, totalFiltered = 0;
-                for (int i = 0; i < 1000; i++)
+                for (int i = 1; i < 1001; i++)
                 {
-                    db.SetAdd(key, i);
+                    db.SetAdd(key, i, CommandFlags.FireAndForget);
                     totalUnfiltered += i;
                     if (i.ToString().Contains("3")) totalFiltered += i;
                 }
+
                 var unfilteredActual = db.SetScan(key).Select(x => (int)x).Sum();
                 Assert.Equal(totalUnfiltered, unfilteredActual);
                 if (server.Features.Scan)
@@ -47,12 +46,12 @@ namespace StackExchange.Redis.Tests
                 var key = Me();
 
                 RedisValue[] values = null;
-                Assert.Throws<ArgumentNullException>(() => db.SetRemove(key, values, CommandFlags.HighPriority));
-                await Assert.ThrowsAsync<ArgumentNullException>(async () => await db.SetRemoveAsync(key, values, CommandFlags.HighPriority).ForAwait()).ForAwait();
+                Assert.Throws<ArgumentNullException>(() => db.SetRemove(key, values));
+                await Assert.ThrowsAsync<ArgumentNullException>(async () => await db.SetRemoveAsync(key, values).ForAwait()).ForAwait();
 
                 values = new RedisValue[0];
-                Assert.Equal(0, db.SetRemove(key, values, CommandFlags.HighPriority));
-                Assert.Equal(0, await db.SetRemoveAsync(key, values, CommandFlags.HighPriority).ForAwait());
+                Assert.Equal(0, db.SetRemove(key, values));
+                Assert.Equal(0, await db.SetRemoveAsync(key, values).ForAwait());
             }
         }
 
@@ -66,10 +65,10 @@ namespace StackExchange.Redis.Tests
                 var db = conn.GetDatabase();
                 var key = Me();
 
-                db.KeyDelete(key);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
                 for (int i = 1; i < 11; i++)
                 {
-                    db.SetAdd(key, i);
+                    db.SetAddAsync(key, i, CommandFlags.FireAndForget);
                 }
 
                 var random = db.SetPop(key);
@@ -92,10 +91,10 @@ namespace StackExchange.Redis.Tests
                 var db = conn.GetDatabase();
                 var key = Me();
 
-                db.KeyDelete(key);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
                 for (int i = 1; i < 11; i++)
                 {
-                    db.SetAdd(key, i);
+                    db.SetAdd(key, i, CommandFlags.FireAndForget);
                 }
 
                 var random = db.SetPop(key);
@@ -121,10 +120,10 @@ namespace StackExchange.Redis.Tests
                 var db = conn.GetDatabase();
                 var key = Me();
 
-                db.KeyDelete(key);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
                 for (int i = 1; i < 11; i++)
                 {
-                    db.SetAdd(key, i);
+                    db.SetAdd(key, i, CommandFlags.FireAndForget);
                 }
 
                 var random = await db.SetPopAsync(key).ForAwait();
@@ -148,10 +147,10 @@ namespace StackExchange.Redis.Tests
                 var db = conn.GetDatabase();
                 var key = Me();
 
-                db.KeyDelete(key);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
                 for (int i = 1; i < 11; i++)
                 {
-                    db.SetAdd(key, i);
+                    db.SetAdd(key, i, CommandFlags.FireAndForget);
                 }
 
                 var random = await db.SetPopAsync(key).ForAwait();
@@ -175,10 +174,10 @@ namespace StackExchange.Redis.Tests
                 var db = conn.GetDatabase();
                 var key = Me();
 
-                db.KeyDelete(key);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
                 for (int i = 1; i < 11; i++)
                 {
-                    db.SetAdd(key, i);
+                    db.SetAdd(key, i, CommandFlags.FireAndForget);
                 }
 
                 var t = db.SetPopAsync(key, count: 0);

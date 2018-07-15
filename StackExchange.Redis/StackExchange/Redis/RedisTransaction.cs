@@ -179,7 +179,7 @@ namespace StackExchange.Redis
             public TransactionMessage(int db, CommandFlags flags, List<ConditionResult> conditions, List<QueuedMessage> operations)
                 : base(db, flags, RedisCommand.EXEC)
             {
-                this.InnerOperations = (operations == null || operations.Count == 0) ? Array.Empty<QueuedMessage>() : operations.ToArray();
+                InnerOperations = (operations == null || operations.Count == 0) ? Array.Empty<QueuedMessage>() : operations.ToArray();
                 this.conditions = (conditions == null || conditions.Count == 0) ? Array.Empty<ConditionResult>(): conditions.ToArray();
             }
 

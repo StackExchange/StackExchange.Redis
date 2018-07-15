@@ -183,11 +183,11 @@ namespace StackExchange.Redis.Tests
             {
                 RedisKey key = Me();
                 var db = conn.GetDatabase();
-                db.KeyDelete(key);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
 
-                db.SetAdd(key, "a");
-                db.SetAdd(key, "b");
-                db.SetAdd(key, "c");
+                db.SetAdd(key, "a", CommandFlags.FireAndForget);
+                db.SetAdd(key, "b", CommandFlags.FireAndForget);
+                db.SetAdd(key, "c", CommandFlags.FireAndForget);
                 var arr = db.SetScan(key).ToArray();
                 Assert.Equal(3, arr.Length);
                 Assert.True(arr.Contains("a"), "a");
@@ -206,11 +206,11 @@ namespace StackExchange.Redis.Tests
             {
                 RedisKey key = Me() + supported;
                 var db = conn.GetDatabase();
-                db.KeyDelete(key);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
 
-                db.SortedSetAdd(key, "a", 1);
-                db.SortedSetAdd(key, "b", 2);
-                db.SortedSetAdd(key, "c", 3);
+                db.SortedSetAdd(key, "a", 1, CommandFlags.FireAndForget);
+                db.SortedSetAdd(key, "b", 2, CommandFlags.FireAndForget);
+                db.SortedSetAdd(key, "c", 3, CommandFlags.FireAndForget);
 
                 var arr = db.SortedSetScan(key).ToArray();
                 Assert.Equal(3, arr.Length);
@@ -274,11 +274,11 @@ namespace StackExchange.Redis.Tests
             {
                 RedisKey key = Me();
                 var db = conn.GetDatabase();
-                db.KeyDelete(key);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
 
-                db.HashSet(key, "a", "1");
-                db.HashSet(key, "b", "2");
-                db.HashSet(key, "c", "3");
+                db.HashSet(key, "a", "1", flags: CommandFlags.FireAndForget);
+                db.HashSet(key, "b", "2", flags: CommandFlags.FireAndForget);
+                db.HashSet(key, "c", "3", flags: CommandFlags.FireAndForget);
 
                 var arr = db.HashScan(key).ToArray();
                 Assert.Equal(3, arr.Length);
@@ -315,7 +315,7 @@ namespace StackExchange.Redis.Tests
             {
                 RedisKey key = Me() + pageSize;
                 var db = conn.GetDatabase();
-                db.KeyDelete(key);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
 
                 for (int i = 0; i < 2000; i++)
                     db.HashSet(key, "k" + i, "v" + i, flags: CommandFlags.FireAndForget);
@@ -342,14 +342,14 @@ namespace StackExchange.Redis.Tests
         private bool GotCursors(ConnectionMultiplexer conn, RedisKey key, int count)
         {
             var db = conn.GetDatabase();
-            db.KeyDelete(key);
+            db.KeyDelete(key, CommandFlags.FireAndForget);
 
             var entries = new HashEntry[count];
             for (var i = 0; i < count; i++)
             {
                 entries[i] = new HashEntry("Item:" + i, i);
             }
-            db.HashSet(key, entries);
+            db.HashSet(key, entries, CommandFlags.FireAndForget);
 
             var found = false;
             var response = db.HashScan(key);
@@ -375,7 +375,7 @@ namespace StackExchange.Redis.Tests
             {
                 RedisKey key = Me() + pageSize;
                 var db = conn.GetDatabase();
-                db.KeyDelete(key);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
 
                 for (int i = 0; i < 2000; i++)
                     db.SetAdd(key, "s" + i, flags: CommandFlags.FireAndForget);
@@ -396,7 +396,7 @@ namespace StackExchange.Redis.Tests
             {
                 RedisKey key = Me() + pageSize;
                 var db = conn.GetDatabase();
-                db.KeyDelete(key);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
 
                 for (int i = 0; i < 2000; i++)
                     db.SortedSetAdd(key, "z" + i, i, flags: CommandFlags.FireAndForget);

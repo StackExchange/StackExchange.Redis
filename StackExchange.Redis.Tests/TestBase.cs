@@ -47,11 +47,9 @@ namespace StackExchange.Redis.Tests
 
         protected void CollectGarbage()
         {
-            for (int i = 0; i < 3; i++)
-            {
-                GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced);
-                GC.WaitForPendingFinalizers();
-            }
+            GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced);
+            GC.WaitForPendingFinalizers();
+            GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced);
         }
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1063:ImplementIDisposableCorrectly")]
@@ -63,7 +61,7 @@ namespace StackExchange.Redis.Tests
 #if VERBOSE
         protected const int AsyncOpsQty = 100, SyncOpsQty = 10;
 #else
-        protected const int AsyncOpsQty = 100000, SyncOpsQty = 10000;
+        protected const int AsyncOpsQty = 10000, SyncOpsQty = 10000;
 #endif
 
         static TestBase()
@@ -91,7 +89,7 @@ namespace StackExchange.Redis.Tests
             Interlocked.Increment(ref privateFailCount);
             lock (privateExceptions)
             {
-                privateExceptions.Add("Connection failed: " + EndPointCollection.ToString(e.EndPoint) + "/" + e.ConnectionType);
+                privateExceptions.Add($"Connection failed ({e.FailureType}): {EndPointCollection.ToString(e.EndPoint)}/{e.ConnectionType}: {e.Exception}");
             }
         }
 
@@ -113,7 +111,6 @@ namespace StackExchange.Redis.Tests
 
         public void ClearAmbientFailures()
         {
-            Collect();
             Interlocked.Exchange(ref privateFailCount, 0);
             lock (sharedFailCount)
             {
@@ -135,18 +132,8 @@ namespace StackExchange.Redis.Tests
             expectedFailCount = count;
         }
 
-        private static void Collect()
-        {
-            for (int i = 0; i < GC.MaxGeneration; i++)
-            {
-                GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, true);
-                GC.WaitForPendingFinalizers();
-            }
-        }
-
         public void Teardown()
         {
-            Collect();
             int sharedFails;
             lock (sharedFailCount)
             {

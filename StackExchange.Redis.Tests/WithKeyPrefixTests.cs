@@ -7,7 +7,7 @@ namespace StackExchange.Redis.Tests
 {
     public class WithKeyPrefixTests : TestBase
     {
-        public WithKeyPrefixTests(ITestOutputHelper output) : base (output) { }
+        public WithKeyPrefixTests(ITestOutputHelper output) : base(output) { }
 
         [Fact]
         public void BlankPrefixYieldsSame_Bytes()
@@ -34,7 +34,8 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void NullPrefixIsError_Bytes()
         {
-            Assert.Throws<ArgumentNullException>(() => {
+            Assert.Throws<ArgumentNullException>(() =>
+            {
                 using (var conn = Create())
                 {
                     var raw = conn.GetDatabase();
@@ -46,7 +47,8 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void NullPrefixIsError_String()
         {
-            Assert.Throws<ArgumentNullException>(() => {
+            Assert.Throws<ArgumentNullException>(() =>
+            {
                 using (var conn = Create())
                 {
                     var raw = conn.GetDatabase();
@@ -61,7 +63,8 @@ namespace StackExchange.Redis.Tests
         [InlineData(null)]
         public void NullDatabaseIsError(string prefix)
         {
-            Assert.Throws<ArgumentNullException>(() => {
+            Assert.Throws<ArgumentNullException>(() =>
+            {
                 IDatabase raw = null;
                 var prefixed = raw.WithKeyPrefix(prefix);
             });
@@ -70,7 +73,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void BasicSmokeTest()
         {
-            using(var conn = Create())
+            using (var conn = Create())
             {
                 var raw = conn.GetDatabase();
 
@@ -82,11 +85,11 @@ namespace StackExchange.Redis.Tests
 
                 string s = Guid.NewGuid().ToString(), t = Guid.NewGuid().ToString();
 
-                foo.StringSet(key, s);
+                foo.StringSet(key, s, flags: CommandFlags.FireAndForget);
                 var val = (string)foo.StringGet(key);
                 Assert.Equal(s, val); // fooBasicSmokeTest
 
-                foobar.StringSet(key, t);
+                foobar.StringSet(key, t, flags: CommandFlags.FireAndForget);
                 val = (string)foobar.StringGet(key);
                 Assert.Equal(t, val); // foobarBasicSmokeTest
 
@@ -104,18 +107,18 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void ConditionTest()
         {
-            using(var conn = Create())
+            using (var conn = Create())
             {
                 var raw = conn.GetDatabase();
 
                 var prefix = Me() + ":";
                 var foo = raw.WithKeyPrefix(prefix);
 
-                raw.KeyDelete(prefix + "abc");
-                raw.KeyDelete(prefix + "i");
+                raw.KeyDelete(prefix + "abc", CommandFlags.FireAndForget);
+                raw.KeyDelete(prefix + "i", CommandFlags.FireAndForget);
 
                 // execute while key exists
-                raw.StringSet(prefix + "abc", "def");
+                raw.StringSet(prefix + "abc", "def", flags: CommandFlags.FireAndForget);
                 var tran = foo.CreateTransaction();
                 tran.AddCondition(Condition.KeyExists("abc"));
                 tran.StringIncrementAsync("i");
@@ -125,7 +128,7 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(1, i);
 
                 // repeat without key
-                raw.KeyDelete(prefix + "abc");
+                raw.KeyDelete(prefix + "abc", CommandFlags.FireAndForget);
                 tran = foo.CreateTransaction();
                 tran.AddCondition(Condition.KeyExists("abc"));
                 tran.StringIncrementAsync("i");

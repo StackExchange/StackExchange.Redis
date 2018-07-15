@@ -13,14 +13,13 @@ namespace StackExchange.Redis.Tests
         public BasicOpsTests(ITestOutputHelper output) : base (output) { }
 
         [Fact]
-        public void PingOnce()
+        public async Task PingOnce()
         {
             using (var muxer = Create())
             {
                 var conn = muxer.GetDatabase();
 
-                var task = conn.PingAsync();
-                var duration = muxer.Wait(task);
+                var duration = await conn.PingAsync().ForAwait();
                 Log("Ping took: " + duration);
                 Assert.True(duration.TotalMilliseconds > 0);
             }
@@ -33,7 +32,7 @@ namespace StackExchange.Redis.Tests
             using (var primary = Create())
             {
                 var conn = primary.GetDatabase();
-                conn.KeyDelete(key);
+                conn.KeyDelete(key, CommandFlags.FireAndForget);
 
                 for (int i = 0; i < 10; i++)
                 {
@@ -47,18 +46,17 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void PingMany()
+        public async Task PingMany()
         {
             using (var muxer = Create())
             {
                 var conn = muxer.GetDatabase();
                 var tasks = new Task<TimeSpan>[100];
-
                 for (int i = 0; i < tasks.Length; i++)
                 {
                     tasks[i] = conn.PingAsync();
                 }
-                muxer.WaitAll(tasks);
+                await Task.WhenAll(tasks).ForAwait();
                 Assert.True(tasks[0].Result.TotalMilliseconds > 0);
                 Assert.True(tasks[tasks.Length - 1].Result.TotalMilliseconds > 0);
             }
@@ -99,7 +97,7 @@ namespace StackExchange.Redis.Tests
 
                 db.StringSet(key, "abc", flags: CommandFlags.FireAndForget);
                 Assert.True(db.KeyExists(key));
-                db.StringSet(key, value);
+                db.StringSet(key, value, flags: CommandFlags.FireAndForget);
 
                 var actual = (string)db.StringGet(key);
                 Assert.Null(actual);
@@ -119,7 +117,7 @@ namespace StackExchange.Redis.Tests
 
                 db.StringSet(key, "abc", flags: CommandFlags.FireAndForget);
                 Assert.True(db.KeyExists(key));
-                db.StringSet(key, value);
+                db.StringSet(key, value, flags: CommandFlags.FireAndForget);
 
                 var actual = (string)db.StringGet(key);
                 Assert.Null(actual);
@@ -139,7 +137,7 @@ namespace StackExchange.Redis.Tests
 
                 db.StringSet(key, "abc", flags: CommandFlags.FireAndForget);
                 Assert.True(db.KeyExists(key));
-                db.StringSet(key, value);
+                db.StringSet(key, value, flags: CommandFlags.FireAndForget);
 
                 var actual = (string)db.StringGet(key);
                 Assert.Equal("0", actual);
@@ -182,10 +180,10 @@ namespace StackExchange.Redis.Tests
                 var conn = muxer.GetDatabase();
 
                 RedisKey key = Me();
-                conn.KeyDelete(key);
+                conn.KeyDelete(key, CommandFlags.FireAndForget);
                 var d1 = conn.KeyDelete(key);
                 var g1 = conn.StringGet(key);
-                conn.StringSet(key, "123");
+                conn.StringSet(key, "123", flags: CommandFlags.FireAndForget);
                 var g2 = conn.StringGet(key);
                 var d2 = conn.KeyDelete(key);
 
@@ -204,23 +202,23 @@ namespace StackExchange.Redis.Tests
         [InlineData(false, false)]
         [InlineData(true, true)]
         [InlineData(true, false)]
-        public void GetWithExpiry(bool exists, bool hasExpiry)
+        public async Task GetWithExpiry(bool exists, bool hasExpiry)
         {
             using (var conn = Create())
             {
                 var db = conn.GetDatabase();
                 RedisKey key = Me();
-                db.KeyDelete(key);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
                 if (exists)
                 {
                     if (hasExpiry)
-                        db.StringSet(key, "val", TimeSpan.FromMinutes(5));
+                        db.StringSet(key, "val", TimeSpan.FromMinutes(5), flags: CommandFlags.FireAndForget);
                     else
-                        db.StringSet(key, "val");
+                        db.StringSet(key, "val", flags: CommandFlags.FireAndForget);
                 }
                 var async = db.StringGetWithExpiryAsync(key);
                 var syncResult = db.StringGetWithExpiry(key);
-                var asyncResult = db.Wait(async);
+                var asyncResult = await async;
 
                 if (exists)
                 {
@@ -248,8 +246,8 @@ namespace StackExchange.Redis.Tests
             {
                 var db = conn.GetDatabase();
                 RedisKey key = Me();
-                db.KeyDelete(key);
-                db.SetAdd(key, "abc");
+                var del = db.KeyDeleteAsync(key);
+                var add = db.SetAddAsync(key, "abc");
                 var ex = await Assert.ThrowsAsync<RedisServerException>(async () =>
                 {
                     try
@@ -269,14 +267,14 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void GetWithExpiryWrongTypeSync()
         {
+            RedisKey key = Me();
             var ex = Assert.Throws<RedisServerException>(() =>
             {
                 using (var conn = Create())
                 {
                     var db = conn.GetDatabase();
-                    RedisKey key = Me();
-                    db.KeyDelete(key);
-                    db.SetAdd(key, "abc");
+                    db.KeyDelete(key, CommandFlags.FireAndForget);
+                    db.SetAdd(key, "abc", CommandFlags.FireAndForget);
                     db.StringGetWithExpiry(key);
                 }
             });
@@ -431,15 +429,16 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void WrappedDatabasePrefixIntegration()
         {
+            var key = Me();
             using (var conn = Create())
             {
                 var db = conn.GetDatabase().WithKeyPrefix("abc");
-                db.KeyDelete("count");
-                db.StringIncrement("count");
-                db.StringIncrement("count");
-                db.StringIncrement("count");
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.StringIncrement(key, flags: CommandFlags.FireAndForget);
+                db.StringIncrement(key, flags: CommandFlags.FireAndForget);
+                db.StringIncrement(key, flags: CommandFlags.FireAndForget);
 
-                int count = (int)conn.GetDatabase().StringGet("abccount");
+                int count = (int)conn.GetDatabase().StringGet("abc" + key);
                 Assert.Equal(3, count);
             }
         }

@@ -17,14 +17,14 @@ namespace StackExchange.Redis.Tests
                 RedisKey key = Me();
 
                 db.KeyDelete(key, CommandFlags.FireAndForget);
-                db.ListRightPush(key, "abcdefghijklmnopqrstuvwxyz".Select(x => (RedisValue)x.ToString()).ToArray());
+                db.ListRightPush(key, "abcdefghijklmnopqrstuvwxyz".Select(x => (RedisValue)x.ToString()).ToArray(), CommandFlags.FireAndForget);
 
                 Assert.Equal(26, db.ListLength(key));
                 Assert.Equal("abcdefghijklmnopqrstuvwxyz", string.Concat(db.ListRange(key)));
 
                 var last10 = db.ListRange(key, -10, -1);
                 Assert.Equal("qrstuvwxyz", string.Concat(last10));
-                db.ListTrim(key, 0, -11);
+                db.ListTrim(key, 0, -11, CommandFlags.FireAndForget);
 
                 Assert.Equal(16, db.ListLength(key));
                 Assert.Equal("abcdefghijklmnop", string.Concat(db.ListRange(key)));

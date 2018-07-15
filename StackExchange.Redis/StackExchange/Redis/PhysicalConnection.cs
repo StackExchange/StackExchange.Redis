@@ -106,11 +106,12 @@ namespace StackExchange.Redis
                 RemoteEndPoint = endpoint,
             };
             _socketArgs.Completed += SocketAwaitable.Callback;
+            CancellationTokenSource timeoutSource = null;
             try
             {
                 if (_socket.ConnectAsync(_socketArgs))
                 {   // asynchronous operation is pending
-                    ConfigureTimeout(_socketArgs, Multiplexer.RawConfig.ConnectTimeout);
+                    timeoutSource = ConfigureTimeout(_socketArgs, Multiplexer.RawConfig.ConnectTimeout);
                 }
                 else
                 {   // completed synchronously
@@ -125,6 +126,7 @@ namespace StackExchange.Redis
                     if (ignoreConnect) return;
 
                     await awaitable; // wait for the connect to complete or fail (will throw)
+                    timeoutSource?.Cancel();
 
                     if (await ConnectedAsync(_socket, log, Multiplexer.SocketManager).ForAwait())
                     {
@@ -175,9 +177,10 @@ namespace StackExchange.Redis
             }
         }
 
-        private static void ConfigureTimeout(SocketAsyncEventArgs args, int timeoutMilliseconds)
+        private static CancellationTokenSource ConfigureTimeout(SocketAsyncEventArgs args, int timeoutMilliseconds)
         {
-            var timeout = Task.Delay(timeoutMilliseconds);
+            var cts = new CancellationTokenSource();
+            var timeout = Task.Delay(timeoutMilliseconds, cts.Token);
             timeout.ContinueWith((_, state) =>
             {
                 try
@@ -190,6 +193,7 @@ namespace StackExchange.Redis
                 }
                 catch { }
             }, args);
+            return cts;
         }
 
         private enum ReadMode : byte
@@ -720,17 +724,18 @@ namespace StackExchange.Redis
             return WriteCrlf(span, offset);
         }
 
-        internal void WakeWriterAndCheckForThrottle()
+        internal WriteResult WakeWriterAndCheckForThrottle()
         {
             try
             {
                 var flush = _ioPipe.Output.FlushAsync();
                 if (!flush.IsCompletedSuccessfully) flush.AsTask().Wait();
+                return WriteResult.Success;
             }
             catch (ConnectionResetException ex)
             {
                 RecordConnectionFailed(ConnectionFailureType.SocketClosed, ex);
-                throw;
+                return WriteResult.WriteFailure;
             }
         }
 
