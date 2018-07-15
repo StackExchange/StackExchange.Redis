@@ -1,12 +1,12 @@
 ﻿using System;
 using System.Diagnostics;
-using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
+    [Collection(NonParallelCollection.Name)]
     public class AsyncTests : TestBase
     {
         public AsyncTests(ITestOutputHelper output) : base(output) { }
@@ -62,15 +62,15 @@ namespace StackExchange.Redis.Tests
 
                 Assert.Contains("; async timeouts: 0;", conn.GetStatus());
 
-                await db.ExecuteAsync("client", "pause", 4000); // client pause returns immediately
+                await db.ExecuteAsync("client", "pause", 4000).ForAwait(); // client pause returns immediately
 
                 var ms = Stopwatch.StartNew();
                 var ex = await Assert.ThrowsAsync<RedisTimeoutException>(async () =>
                 {
-                    var actual = await db.StringGetAsync(key); // but *subsequent* operations are paused
+                    var actual = await db.StringGetAsync(key).ForAwait(); // but *subsequent* operations are paused
                     ms.Stop();
                     Writer.WriteLine($"Unexpectedly succeeded after {ms.ElapsedMilliseconds}ms");
-                });
+                }).ForAwait();
                 ms.Stop();
                 Writer.WriteLine($"Timed out after {ms.ElapsedMilliseconds}ms");
 
