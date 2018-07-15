@@ -14,7 +14,7 @@ namespace StackExchange.Redis.Tests
             {
                 var db = conn.GetDatabase();
                 RedisKey key = Me();
-                db.KeyDelete(key);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
 
                 db.SortedSetAdd(key,
                     new SortedSetEntry[]
@@ -26,7 +26,7 @@ namespace StackExchange.Redis.Tests
                     new SortedSetEntry("e", 0),
                     new SortedSetEntry("f", 0),
                     new SortedSetEntry("g", 0),
-                });
+                }, CommandFlags.FireAndForget);
 
                 var set = db.SortedSetRangeByValue(key, default(RedisValue), "c");
                 var count = db.SortedSetLengthByValue(key, default(RedisValue), "c");
@@ -58,7 +58,7 @@ namespace StackExchange.Redis.Tests
             {
                 var db = conn.GetDatabase();
                 RedisKey key = Me();
-                db.KeyDelete(key);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
 
                 db.SortedSetAdd(key,
                     new SortedSetEntry[]
@@ -68,7 +68,7 @@ namespace StackExchange.Redis.Tests
                     new SortedSetEntry("c", 0),
                     new SortedSetEntry("d", 0),
                     new SortedSetEntry("e", 0),
-                });
+                }, CommandFlags.FireAndForget);
                 db.SortedSetAdd(key,
                     new SortedSetEntry[]
                 {
@@ -77,7 +77,7 @@ namespace StackExchange.Redis.Tests
                     new SortedSetEntry("zip", 0),
                     new SortedSetEntry("ALPHA", 0),
                     new SortedSetEntry("alpha", 0),
-                });
+                }, CommandFlags.FireAndForget);
 
                 var set = db.SortedSetRangeByRank(key);
                 Equate(set, set.Length, "ALPHA", "aaaa", "alpha", "b", "c", "d", "e", "foo", "zap", "zip");

@@ -19,9 +19,9 @@ namespace StackExchange.Redis.Tests.Issues
                 var cache = conn.GetDatabase();
 
                 // setup some data
-                cache.KeyDelete(key);
-                cache.HashSet(key, "full", "some value");
-                cache.KeyExpire(key, TimeSpan.FromSeconds(3));
+                cache.KeyDelete(key, CommandFlags.FireAndForget);
+                cache.HashSet(key, "full", "some value", flags: CommandFlags.FireAndForget);
+                cache.KeyExpire(key, TimeSpan.FromSeconds(3), CommandFlags.FireAndForget);
 
                 // test while exists
                 var keyExists = cache.KeyExists(key);
@@ -41,7 +41,7 @@ namespace StackExchange.Redis.Tests.Issues
 
                 Assert.False(keyExists);
                 Assert.Null(ttl);
-                var r = fullWait.Result;
+                var r = await fullWait;
                 Assert.True(r.IsNull);
                 Assert.Null((string)r);
             }

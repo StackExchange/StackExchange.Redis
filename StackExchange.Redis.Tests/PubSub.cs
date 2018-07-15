@@ -530,7 +530,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void TestPublishWithSubscribers()
+        public async Task TestPublishWithSubscribers()
         {
             var channel = Me();
             using (var muxerA = Create())
@@ -542,11 +542,10 @@ namespace StackExchange.Redis.Tests
                 var t1 = listenA.SubscribeAsync(channel, delegate { });
                 var t2 = listenB.SubscribeAsync(channel, delegate { });
 
-                listenA.Wait(t1);
-                listenB.Wait(t2);
+                await Task.WhenAll(t1, t2).ForAwait();
 
                 var pub = conn.GetSubscriber().PublishAsync(channel, "message");
-                Assert.Equal(2, conn.Wait(pub)); // delivery count
+                Assert.Equal(2, await pub); // delivery count
             }
         }
 
@@ -565,8 +564,7 @@ namespace StackExchange.Redis.Tests
                 int gotA = 0, gotB = 0;
                 var tA = listenA.SubscribeAsync(channel, (_, msg) => { if (msg == "message") Interlocked.Increment(ref gotA); });
                 var tB = listenB.SubscribeAsync(channel, (_, msg) => { if (msg == "message") Interlocked.Increment(ref gotB); });
-                listenA.Wait(tA);
-                listenB.Wait(tB);
+                await Task.WhenAll(tA, tB).ForAwait();
                 Assert.Equal(2, pub.Publish(channel, "message"));
                 await AllowReasonableTimeToPublishAndProcess().ForAwait();
                 Assert.Equal(1, Interlocked.CompareExchange(ref gotA, 0, 0));
@@ -574,7 +572,7 @@ namespace StackExchange.Redis.Tests
 
                 // and unsubscibe...
                 tA = listenA.UnsubscribeAsync(channel);
-                listenA.Wait(tA);
+                await tA;
                 Assert.Equal(1, pub.Publish(channel, "message"));
                 await AllowReasonableTimeToPublishAndProcess().ForAwait();
                 Assert.Equal(1, Interlocked.CompareExchange(ref gotA, 0, 0));
@@ -596,14 +594,14 @@ namespace StackExchange.Redis.Tests
                 var a1 = sub.SubscribeAsync(prefix + "bar", handler);
                 var b0 = sub.SubscribeAsync(prefix + "f*o", handler);
                 var b1 = sub.SubscribeAsync(prefix + "b*r", handler);
-                sub.WaitAll(a0, a1, b0, b1);
+                await Task.WhenAll(a0, a1, b0, b1).ForAwait();
 
                 var c = sub.PublishAsync(prefix + "foo", "foo");
                 var d = sub.PublishAsync(prefix + "f@o", "f@o");
                 var e = sub.PublishAsync(prefix + "bar", "bar");
                 var f = sub.PublishAsync(prefix + "b@r", "b@r");
+                await Task.WhenAll(c, d, e, f).ForAwait();
 
-                pub.WaitAll(c, d, e, f);
                 long total = c.Result + d.Result + e.Result + f.Result;
 
                 await AllowReasonableTimeToPublishAndProcess().ForAwait();
@@ -629,8 +627,7 @@ namespace StackExchange.Redis.Tests
                 var prefix = Me();
                 var tA = listenA.SubscribeAsync(prefix + "channel", (s, msg) => { if (s == prefix + "channel" && msg == "message") Interlocked.Increment(ref gotA); });
                 var tB = listenB.SubscribeAsync(prefix + "chann*", (s, msg) => { if (s == prefix + "channel" && msg == "message") Interlocked.Increment(ref gotB); });
-                listenA.Wait(tA);
-                listenB.Wait(tB);
+                await Task.WhenAll(tA, tB).ForAwait();
                 Assert.Equal(2, pub.Publish(prefix + "channel", "message"));
                 await AllowReasonableTimeToPublishAndProcess().ForAwait();
                 Assert.Equal(1, Interlocked.CompareExchange(ref gotA, 0, 0));
@@ -638,7 +635,7 @@ namespace StackExchange.Redis.Tests
 
                 // and unsubscibe...
                 tB = listenB.UnsubscribeAsync(prefix + "chann*", null);
-                listenB.Wait(tB);
+                await tB;
                 Assert.Equal(1, pub.Publish(prefix + "channel", "message"));
                 await AllowReasonableTimeToPublishAndProcess().ForAwait();
                 Assert.Equal(2, Interlocked.CompareExchange(ref gotA, 0, 0));
@@ -658,20 +655,20 @@ namespace StackExchange.Redis.Tests
                 int x = 0, y = 0;
                 var t1 = sub.SubscribeAsync(prefix + "abc", delegate { Interlocked.Increment(ref x); });
                 var t2 = sub.SubscribeAsync(prefix + "ab*", delegate { Interlocked.Increment(ref y); });
-                sub.WaitAll(t1, t2);
+                await Task.WhenAll(t1, t2).ForAwait();
                 pub.Publish(prefix + "abc", "");
                 await AllowReasonableTimeToPublishAndProcess().ForAwait();
                 Assert.Equal(1, Volatile.Read(ref x));
                 Assert.Equal(1, Volatile.Read(ref y));
                 t1 = sub.UnsubscribeAsync(prefix + "abc", null);
                 t2 = sub.UnsubscribeAsync(prefix + "ab*", null);
-                sub.WaitAll(t1, t2);
+                await Task.WhenAll(t1, t2).ForAwait();
                 pub.Publish(prefix + "abc", "");
                 Assert.Equal(1, Volatile.Read(ref x));
                 Assert.Equal(1, Volatile.Read(ref y));
                 t1 = sub.SubscribeAsync(prefix + "abc", delegate { Interlocked.Increment(ref x); });
                 t2 = sub.SubscribeAsync(prefix + "ab*", delegate { Interlocked.Increment(ref y); });
-                sub.WaitAll(t1, t2);
+                await Task.WhenAll(t1, t2).ForAwait();
                 pub.Publish(prefix + "abc", "");
                 await AllowReasonableTimeToPublishAndProcess().ForAwait();
                 Assert.Equal(2, Volatile.Read(ref x));

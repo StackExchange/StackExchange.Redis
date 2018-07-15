@@ -12,11 +12,12 @@ namespace StackExchange.Redis.Tests.Issues
         [Fact]
         public void LoopLotsOfTrivialStuff()
         {
+            var key = Me();
             Trace.WriteLine("### init");
             using (var muxer = Create())
             {
                 var conn = muxer.GetDatabase();
-                conn.KeyDelete("lots-trivial");
+                conn.KeyDelete(key, CommandFlags.FireAndForget);
             }
             const int COUNT = 2;
             for (int i = 0; i < COUNT; i++)
@@ -25,14 +26,14 @@ namespace StackExchange.Redis.Tests.Issues
                 using (var muxer = Create())
                 {
                     var conn = muxer.GetDatabase();
-                    Assert.Equal(i + 1, conn.StringIncrement("lots-trivial"));
+                    Assert.Equal(i + 1, conn.StringIncrement(key));
                 }
             }
             Trace.WriteLine("### close");
             using (var muxer = Create())
             {
                 var conn = muxer.GetDatabase();
-                Assert.Equal(COUNT, (long)conn.StringGet("lots-trivial"));
+                Assert.Equal(COUNT, (long)conn.StringGet(key));
             }
         }
 
@@ -42,12 +43,13 @@ namespace StackExchange.Redis.Tests.Issues
             using (var muxer = Create())
             {
                 var conn = muxer.GetDatabase();
+                var key = Me();
                 var task = new { priority = 3 };
-                conn.KeyDeleteAsync("item:1");
-                conn.HashSetAsync("item:1", "something else", "abc");
-                conn.HashSetAsync("item:1", "priority", task.priority.ToString());
+                conn.KeyDeleteAsync(key);
+                conn.HashSetAsync(key, "something else", "abc");
+                conn.HashSetAsync(key, "priority", task.priority.ToString());
 
-                var taskResult = conn.HashGetAsync("item:1", "priority");
+                var taskResult = conn.HashGetAsync(key, "priority");
 
                 conn.Wait(taskResult);
 
@@ -60,17 +62,18 @@ namespace StackExchange.Redis.Tests.Issues
         [Fact]
         public void ExecuteWithNonHashStartingPoint()
         {
+            var key = Me();
             Assert.Throws<RedisServerException>(() =>
             {
                 using (var muxer = Create())
                 {
                     var conn = muxer.GetDatabase();
                     var task = new { priority = 3 };
-                    conn.KeyDeleteAsync("item:1");
-                    conn.StringSetAsync("item:1", "not a hash");
-                    conn.HashSetAsync("item:1", "priority", task.priority.ToString());
+                    conn.KeyDeleteAsync(key);
+                    conn.StringSetAsync(key, "not a hash");
+                    conn.HashSetAsync(key, "priority", task.priority.ToString());
 
-                    var taskResult = conn.HashGetAsync("item:1", "priority");
+                    var taskResult = conn.HashGetAsync(key, "priority");
 
                     try
                     {

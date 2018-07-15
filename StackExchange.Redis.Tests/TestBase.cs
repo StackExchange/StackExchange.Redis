@@ -63,7 +63,7 @@ namespace StackExchange.Redis.Tests
 #if VERBOSE
         protected const int AsyncOpsQty = 100, SyncOpsQty = 10;
 #else
-        protected const int AsyncOpsQty = 100000, SyncOpsQty = 10000;
+        protected const int AsyncOpsQty = 10000, SyncOpsQty = 10000;
 #endif
 
         static TestBase()

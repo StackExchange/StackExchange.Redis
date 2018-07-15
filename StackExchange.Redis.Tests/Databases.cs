@@ -26,11 +26,11 @@ namespace StackExchange.Redis.Tests
                 Skip.IfMissingDatabase(muxer, db1Id);
                 Skip.IfMissingDatabase(muxer, db2Id);
                 RedisKey key = Me();
-                var db61 = muxer.GetDatabase(db1Id);
-                var db62 = muxer.GetDatabase(db2Id);
-                db61.StringSet("abc", "def", flags: CommandFlags.FireAndForget);
-                db61.StringIncrement(key, flags: CommandFlags.FireAndForget);
-                db62.StringIncrement(key, flags: CommandFlags.FireAndForget);
+                var dba = muxer.GetDatabase(db1Id);
+                var dbb = muxer.GetDatabase(db2Id);
+                dba.StringSet("abc", "def", flags: CommandFlags.FireAndForget);
+                dba.StringIncrement(key, flags: CommandFlags.FireAndForget);
+                dbb.StringIncrement(key, flags: CommandFlags.FireAndForget);
 
                 var server = GetAnyMaster(muxer);
                 var c0 = server.DatabaseSizeAsync(db1Id);
@@ -56,7 +56,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void MultiDatabases()
+        public async Task MultiDatabases()
         {
             using (var muxer = Create())
             {
@@ -64,26 +64,22 @@ namespace StackExchange.Redis.Tests
                 var db0 = muxer.GetDatabase(TestConfig.GetDedicatedDB(muxer));
                 var db1 = muxer.GetDatabase(TestConfig.GetDedicatedDB(muxer));
                 var db2 = muxer.GetDatabase(TestConfig.GetDedicatedDB(muxer));
-                db0.Ping();
 
                 db0.KeyDelete(key, CommandFlags.FireAndForget);
                 db1.KeyDelete(key, CommandFlags.FireAndForget);
                 db2.KeyDelete(key, CommandFlags.FireAndForget);
 
-                muxer.WaitAll(
-                    db0.StringSetAsync(key, "a"),
-                    db1.StringSetAsync(key, "b"),
-                    db2.StringSetAsync(key, "c")
-                );
+                db0.StringSet(key, "a", flags: CommandFlags.FireAndForget);
+                db1.StringSet(key, "b", flags: CommandFlags.FireAndForget);
+                db2.StringSet(key, "c", flags: CommandFlags.FireAndForget);
 
                 var a = db0.StringGetAsync(key);
                 var b = db1.StringGetAsync(key);
                 var c = db2.StringGetAsync(key);
-                muxer.WaitAll(a, b, c);
 
-                Assert.Equal("a", muxer.Wait(a)); // db:0
-                Assert.Equal("b", muxer.Wait(b)); // db:1
-                Assert.Equal("c", muxer.Wait(c)); // db:2
+                Assert.Equal("a", await a); // db:0
+                Assert.Equal("b", await b); // db:1
+                Assert.Equal("c", await c); // db:2
             }
         }
     }

@@ -17,32 +17,30 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void TestManualIncr()
+        public async Task TestManualIncr()
         {
             using (var muxer = Create(syncTimeout: 120000)) // big timeout while debugging
             {
                 var key = Me();
                 var conn = muxer.GetDatabase();
-                for (int i = 0; i < 200; i++)
+                for (int i = 0; i < 10; i++)
                 {
-                    conn.KeyDelete(key);
-                    Assert.Equal(1, conn.Wait(ManualIncr(conn, key)));
-                    Assert.Equal(2, conn.Wait(ManualIncr(conn, key)));
+                    conn.KeyDelete(key, CommandFlags.FireAndForget);
+                    Assert.Equal(1, await ManualIncrAsync(conn, key));
+                    Assert.Equal(2, await ManualIncrAsync(conn, key));
                     Assert.Equal(2, (long)conn.StringGet(key));
                 }
             }
         }
 
-        public async Task<long?> ManualIncr(IDatabase connection, RedisKey key)
+        public async Task<long?> ManualIncrAsync(IDatabase connection, RedisKey key)
         {
             var oldVal = (long?)await connection.StringGetAsync(key).ForAwait();
             var newVal = (oldVal ?? 0) + 1;
             var tran = connection.CreateTransaction();
             { // check hasn't changed
-#pragma warning disable 4014
                 tran.AddCondition(Condition.StringEqual(key, oldVal));
-                tran.StringSetAsync(key, newVal);
-#pragma warning restore 4014
+                var t = tran.StringSetAsync(key, newVal);
                 if (!await tran.ExecuteAsync().ForAwait()) return null; // aborted
                 return newVal;
             }

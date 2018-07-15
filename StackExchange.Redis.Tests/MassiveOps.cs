@@ -53,7 +53,7 @@ namespace StackExchange.Redis.Tests
             {
                 RedisKey key = "MBOS";
                 var conn = muxer.GetDatabase();
-                conn.KeyDelete(key);
+                conn.KeyDelete(key, CommandFlags.FireAndForget);
 #if DEBUG
                 long oldAlloc = ConnectionMultiplexer.GetResultBoxAllocationCount();
 #endif
@@ -61,7 +61,7 @@ namespace StackExchange.Redis.Tests
                 {
                     for (int i = 0; i < workPerThread; i++)
                     {
-                        conn.StringIncrement(key);
+                        conn.StringIncrement(key, flags: CommandFlags.FireAndForget);
                     }
                 }, threads);
 

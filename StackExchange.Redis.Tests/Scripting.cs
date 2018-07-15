@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -31,7 +32,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void BasicScripting()
+        public async Task BasicScripting()
         {
             using (var muxer = GetScriptConn())
             {
@@ -40,14 +41,14 @@ namespace StackExchange.Redis.Tests
                     new RedisKey[] { "key1", "key2" }, new RedisValue[] { "first", "second" });
                 var cache = conn.ScriptEvaluateAsync("return {KEYS[1],KEYS[2],ARGV[1],ARGV[2]}",
                     new RedisKey[] { "key1", "key2" }, new RedisValue[] { "first", "second" });
-                var results = (string[])conn.Wait(noCache);
+                var results = (string[])await noCache;
                 Assert.Equal(4, results.Length);
                 Assert.Equal("key1", results[0]);
                 Assert.Equal("key2", results[1]);
                 Assert.Equal("first", results[2]);
                 Assert.Equal("second", results[3]);
 
-                results = (string[])conn.Wait(cache);
+                results = (string[])await cache;
                 Assert.Equal(4, results.Length);
                 Assert.Equal("key1", results[0]);
                 Assert.Equal("key2", results[1]);
@@ -63,14 +64,14 @@ namespace StackExchange.Redis.Tests
             {
                 var conn = muxer.GetDatabase();
                 var key = Me();
-                conn.StringSet(key, "bar");
+                conn.StringSet(key, "bar", flags: CommandFlags.FireAndForget);
                 var result = (string)conn.ScriptEvaluate("return redis.call('get', KEYS[1])", new RedisKey[] { key }, null);
                 Assert.Equal("bar", result);
             }
         }
 
         [Fact]
-        public void TestRandomThingFromForum()
+        public async Task TestRandomThingFromForum()
         {
             const string script = @"local currentVal = tonumber(redis.call('GET', KEYS[1]));
                 if (currentVal <= 0 ) then return 1 elseif (currentVal - (tonumber(ARGV[1])) < 0 ) then return 0 end;
@@ -80,22 +81,22 @@ namespace StackExchange.Redis.Tests
             {
                 var prefix = Me();
                 var conn = muxer.GetDatabase();
-                conn.StringSetAsync(prefix + "A", "0");
-                conn.StringSetAsync(prefix + "B", "5");
-                conn.StringSetAsync(prefix + "C", "10");
+                conn.StringSet(prefix + "A", "0", flags: CommandFlags.FireAndForget);
+                conn.StringSet(prefix + "B", "5", flags: CommandFlags.FireAndForget);
+                conn.StringSet(prefix + "C", "10", flags: CommandFlags.FireAndForget);
 
-                var a = conn.ScriptEvaluateAsync(script, new RedisKey[] { prefix + "A" }, new RedisValue[] { 6 });
-                var b = conn.ScriptEvaluateAsync(script, new RedisKey[] { prefix + "B" }, new RedisValue[] { 6 });
-                var c = conn.ScriptEvaluateAsync(script, new RedisKey[] { prefix + "C" }, new RedisValue[] { 6 });
+                var a = conn.ScriptEvaluateAsync(script, new RedisKey[] { prefix + "A" }, new RedisValue[] { 6 }).ForAwait();
+                var b = conn.ScriptEvaluateAsync(script, new RedisKey[] { prefix + "B" }, new RedisValue[] { 6 }).ForAwait();
+                var c = conn.ScriptEvaluateAsync(script, new RedisKey[] { prefix + "C" }, new RedisValue[] { 6 }).ForAwait();
 
-                var vals = conn.StringGetAsync(new RedisKey[] { prefix + "A", prefix + "B", prefix + "C" });
+                var vals = await conn.StringGetAsync(new RedisKey[] { prefix + "A", prefix + "B", prefix + "C" }).ForAwait();
 
-                Assert.Equal(1, (long)conn.Wait(a)); // exit code when current val is non-positive
-                Assert.Equal(0, (long)conn.Wait(b)); // exit code when result would be negative
-                Assert.Equal(4, (long)conn.Wait(c)); // 10 - 6 = 4
-                Assert.Equal("0", conn.Wait(vals)[0]);
-                Assert.Equal("5", conn.Wait(vals)[1]);
-                Assert.Equal("4", conn.Wait(vals)[2]);
+                Assert.Equal(1, (long)await a); // exit code when current val is non-positive
+                Assert.Equal(0, (long)await b); // exit code when result would be negative
+                Assert.Equal(4, (long)await c); // 10 - 6 = 4
+                Assert.Equal("0", vals[0]);
+                Assert.Equal("5", vals[1]);
+                Assert.Equal("4", vals[2]);
             }
         }
 
@@ -106,7 +107,7 @@ namespace StackExchange.Redis.Tests
             {
                 var key = Me();
                 var conn = muxer.GetDatabase();
-                conn.StringSetAsync(key + "foo", "bar");
+                conn.StringSet(key + "foo", "bar", flags: CommandFlags.FireAndForget);
                 var result = (long)conn.ScriptEvaluate(@"
 redis.call('psetex', KEYS[1], 60000, 'timing')
 for i = 1,100000 do
@@ -122,66 +123,66 @@ return timeTaken
         }
 
         [Fact]
-        public void MultiIncrWithoutReplies()
+        public async Task MultiIncrWithoutReplies()
         {
             using (var muxer = GetScriptConn())
             {
                 var conn = muxer.GetDatabase();
                 var prefix = Me();
                 // prime some initial values
-                conn.KeyDeleteAsync(new RedisKey[] { prefix + "a", prefix + "b", prefix + "c" });
-                conn.StringIncrementAsync(prefix + "b");
-                conn.StringIncrementAsync(prefix + "c");
-                conn.StringIncrementAsync(prefix + "c");
+                conn.KeyDelete(new RedisKey[] { prefix + "a", prefix + "b", prefix + "c" }, CommandFlags.FireAndForget);
+                conn.StringIncrement(prefix + "b", flags: CommandFlags.FireAndForget);
+                conn.StringIncrement(prefix + "c", flags: CommandFlags.FireAndForget);
+                conn.StringIncrement(prefix + "c", flags: CommandFlags.FireAndForget);
 
                 // run the script, passing "a", "b", "c", "c" to
                 // increment a & b by 1, c twice
                 var result = conn.ScriptEvaluateAsync(
                     "for i,key in ipairs(KEYS) do redis.call('incr', key) end",
                     new RedisKey[] { prefix + "a", prefix + "b", prefix + "c", prefix + "c" }, // <== aka "KEYS" in the script
-                    null); // <== aka "ARGV" in the script
+                    null).ForAwait(); // <== aka "ARGV" in the script
 
                 // check the incremented values
-                var a = conn.StringGetAsync(prefix + "a");
-                var b = conn.StringGetAsync(prefix + "b");
-                var c = conn.StringGetAsync(prefix + "c");
+                var a = conn.StringGetAsync(prefix + "a").ForAwait();
+                var b = conn.StringGetAsync(prefix + "b").ForAwait();
+                var c = conn.StringGetAsync(prefix + "c").ForAwait();
 
-                Assert.True(conn.Wait(result).IsNull, "result");
-                Assert.Equal(1, (long)conn.Wait(a));
-                Assert.Equal(2, (long)conn.Wait(b));
-                Assert.Equal(4, (long)conn.Wait(c));
+                Assert.True((await result).IsNull, "result");
+                Assert.Equal(1, (long)await a);
+                Assert.Equal(2, (long)await b);
+                Assert.Equal(4, (long)await c);
             }
         }
 
         [Fact]
-        public void MultiIncrByWithoutReplies()
+        public async Task MultiIncrByWithoutReplies()
         {
             using (var muxer = GetScriptConn())
             {
                 var conn = muxer.GetDatabase();
                 var prefix = Me();
                 // prime some initial values
-                conn.KeyDeleteAsync(new RedisKey[] { prefix + "a", prefix + "b", prefix + "c" });
-                conn.StringIncrementAsync(prefix + "b");
-                conn.StringIncrementAsync(prefix + "c");
-                conn.StringIncrementAsync(prefix + "c");
+                conn.KeyDelete(new RedisKey[] { prefix + "a", prefix + "b", prefix + "c" }, CommandFlags.FireAndForget);
+                conn.StringIncrement(prefix + "b", flags: CommandFlags.FireAndForget);
+                conn.StringIncrement(prefix + "c", flags: CommandFlags.FireAndForget);
+                conn.StringIncrement(prefix + "c", flags: CommandFlags.FireAndForget);
 
                 //run the script, passing "a", "b", "c" and 1,2,3
                 // increment a &b by 1, c twice
                 var result = conn.ScriptEvaluateAsync(
                     "for i,key in ipairs(KEYS) do redis.call('incrby', key, ARGV[i]) end",
                     new RedisKey[] { prefix + "a", prefix + "b", prefix + "c" }, // <== aka "KEYS" in the script
-                    new RedisValue[] { 1, 1, 2 }); // <== aka "ARGV" in the script
+                    new RedisValue[] { 1, 1, 2 }).ForAwait(); // <== aka "ARGV" in the script
 
                 // check the incremented values
-                var a = conn.StringGetAsync(prefix + "a");
-                var b = conn.StringGetAsync(prefix + "b");
-                var c = conn.StringGetAsync(prefix + "c");
+                var a = conn.StringGetAsync(prefix + "a").ForAwait();
+                var b = conn.StringGetAsync(prefix + "b").ForAwait();
+                var c = conn.StringGetAsync(prefix + "c").ForAwait();
 
-                Assert.True(conn.Wait(result).IsNull, "result");
-                Assert.Equal(1, (long)conn.Wait(a));
-                Assert.Equal(2, (long)conn.Wait(b));
-                Assert.Equal(4, (long)conn.Wait(c));
+                Assert.True((await result).IsNull, "result");
+                Assert.Equal(1, (long)await a);
+                Assert.Equal(2, (long)await b);
+                Assert.Equal(4, (long)await c);
             }
         }
 
@@ -192,7 +193,7 @@ return timeTaken
             {
                 var conn = muxer.GetDatabase();
                 var key = Me();
-                conn.StringSet(key, "bar");
+                conn.StringSet(key, "bar", flags: CommandFlags.FireAndForget);
                 var result = (byte[])conn.ScriptEvaluate("return redis.call('get', KEYS[1])", new RedisKey[] { key });
                 Assert.Equal("bar", Encoding.UTF8.GetString(result));
             }
@@ -205,7 +206,7 @@ return timeTaken
             {
                 var conn = muxer.GetDatabase();
                 var key = Me();
-                conn.StringSet(key, "bar");
+                conn.StringSet(key, "bar", flags: CommandFlags.FireAndForget);
                 var result = (string)conn.ScriptEvaluate("return redis.call('get', KEYS[1])", new RedisKey[] { key }, null);
                 Assert.Equal("bar", result);
 
@@ -270,24 +271,23 @@ return timeTaken
         }
 
         [Fact]
-        public void ScriptThrowsError()
+        public async Task ScriptThrowsError()
         {
-            Assert.Throws<RedisServerException>(() =>
+            await Assert.ThrowsAsync<RedisServerException>(async () =>
             {
                 using (var muxer = GetScriptConn())
                 {
                     var conn = muxer.GetDatabase();
-                    var result = conn.ScriptEvaluateAsync("return redis.error_reply('oops')", null, null);
                     try
                     {
-                        conn.Wait(result);
+                        await conn.ScriptEvaluateAsync("return redis.error_reply('oops')", null, null).ForAwait();
                     }
                     catch (AggregateException ex)
                     {
                         throw ex.InnerExceptions[0];
                     }
                 }
-            });
+            }).ForAwait();
         }
 
         [Fact]
@@ -297,7 +297,7 @@ return timeTaken
             {
                 var key = Me();
                 var conn = muxer.GetDatabase();
-                conn.KeyDeleteAsync(key);
+                conn.KeyDelete(key, CommandFlags.FireAndForget);
                 var beforeTran = (string)conn.StringGet(key);
                 Assert.Null(beforeTran);
                 var tran = conn.CreateTransaction();
@@ -307,8 +307,8 @@ return timeTaken
                     var c = tran.StringIncrementAsync(key);
                     var complete = tran.ExecuteAsync();
 
-                    Assert.True(tran.Wait(complete));
-                    Assert.True(a.IsCompleted);
+                    Assert.True(muxer.Wait(complete));
+                    Assert.True(a.IsCompleted, a.Status.ToString());
                     Assert.True(c.IsCompleted);
                     Assert.Equal(1L, a.Result);
                     Assert.Equal(2L, c.Result);
@@ -325,13 +325,13 @@ return timeTaken
         }
 
         [Fact]
-        public void ChangeDbInScript()
+        public async Task ChangeDbInScript()
         {
             using (var muxer = GetScriptConn())
             {
                 var key = Me();
-                muxer.GetDatabase(1).StringSet(key, "db 1");
-                muxer.GetDatabase(2).StringSet(key, "db 2");
+                muxer.GetDatabase(1).StringSet(key, "db 1", flags: CommandFlags.FireAndForget);
+                muxer.GetDatabase(2).StringSet(key, "db 2", flags: CommandFlags.FireAndForget);
 
                 Log("Key: " + key);
                 var conn = muxer.GetDatabase(2);
@@ -339,20 +339,20 @@ return timeTaken
         return redis.call('get','" + key + "')", null, null);
                 var getResult = conn.StringGetAsync(key);
 
-                Assert.Equal("db 1", (string)conn.Wait(evalResult));
+                Assert.Equal("db 1", (string)await evalResult);
                 // now, our connection thought it was in db 2, but the script changed to db 1
-                Assert.Equal("db 2", conn.Wait(getResult));
+                Assert.Equal("db 2", await getResult);
             }
         }
 
         [Fact]
-        public void ChangeDbInTranScript()
+        public async Task ChangeDbInTranScript()
         {
             using (var muxer = GetScriptConn())
             {
                 var key = Me();
-                muxer.GetDatabase(1).StringSet(key, "db 1");
-                muxer.GetDatabase(2).StringSet(key, "db 2");
+                muxer.GetDatabase(1).StringSet(key, "db 1", flags: CommandFlags.FireAndForget);
+                muxer.GetDatabase(2).StringSet(key, "db 2", flags: CommandFlags.FireAndForget);
 
                 var conn = muxer.GetDatabase(2);
                 var tran = conn.CreateTransaction();
@@ -361,9 +361,9 @@ return timeTaken
                 var getResult = tran.StringGetAsync(key);
                 Assert.True(tran.Execute());
 
-                Assert.Equal("db 1", (string)conn.Wait(evalResult));
+                Assert.Equal("db 1", (string)await evalResult);
                 // now, our connection thought it was in db 2, but the script changed to db 1
-                Assert.Equal("db 2", conn.Wait(getResult));
+                Assert.Equal("db 2", await getResult);
             }
         }
 
@@ -376,8 +376,8 @@ return timeTaken
                 RedisValue newId = Guid.NewGuid().ToString();
                 RedisKey key = Me();
                 var db = conn.GetDatabase();
-                db.KeyDelete(key);
-                db.HashSet(key, "id", 123);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.HashSet(key, "id", 123, flags: CommandFlags.FireAndForget);
 
                 var wasSet = (bool)db.ScriptEvaluate("if redis.call('hexists', KEYS[1], 'UniqueId') then return redis.call('hset', KEYS[1], 'UniqueId', ARGV[1]) else return 0 end",
                     new RedisKey[] { key }, new RedisValue[] { newId });
@@ -393,7 +393,7 @@ return timeTaken
         [Theory]
         [InlineData(true)]
         [InlineData(false)]
-        public void CheckLoads(bool async)
+        public async Task CheckLoads(bool async)
         {
             using (var conn0 = Create(allowAdmin: true))
             using (var conn1 = Create(allowAdmin: true))
@@ -425,17 +425,8 @@ return timeTaken
                 if (async)
                 {
                     // now: fails the first time
-                    try
-                    {
-                        db.Wait(db.ScriptEvaluateAsync(script));
-                        Assert.True(false, "ScriptEvaluateAsync should fail");
-                    }
-                    catch (AggregateException ex)
-                    {
-                        Assert.Single(ex.InnerExceptions);
-                        Assert.IsType<RedisServerException>(ex.InnerExceptions[0]);
-                        Assert.Equal("NOSCRIPT No matching script. Please use EVAL.", ex.InnerExceptions[0].Message);
-                    }
+                    var ex = await Assert.ThrowsAsync<RedisServerException>(async () => await db.ScriptEvaluateAsync(script).ForAwait()).ForAwait();
+                    Assert.Equal("NOSCRIPT No matching script. Please use EVAL.", ex.Message);
                 }
                 else
                 {
@@ -472,7 +463,7 @@ return timeTaken
                 RedisKey[] keys = new[] { key }; // script takes an array
 
                 // run via script
-                db.KeyDelete(key);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
                 CollectGarbage();
                 var watch = Stopwatch.StartNew();
                 for (int i = 1; i < LOOP; i++) // the i=1 is to do all-but-one
@@ -484,7 +475,7 @@ return timeTaken
                 TimeSpan scriptTime = watch.Elapsed;
 
                 // run via raw op
-                db.KeyDelete(key);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
                 CollectGarbage();
                 watch = Stopwatch.StartNew();
                 for (int i = 1; i < LOOP; i++) // the i=1 is to do all-but-one
@@ -519,14 +510,14 @@ return timeTaken
 
                 var db = conn.GetDatabase();
                 var key = Me();
-                db.KeyDelete(key);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
                 RedisKey[] keys = { key };
 
                 string hexHash = string.Concat(hash.Select(x => x.ToString("X2")));
                 Assert.Equal("2BAB3B661081DB58BD2341920E0BA7CF5DC77B25", hexHash);
 
-                db.ScriptEvaluate(hexHash, keys);
-                db.ScriptEvaluate(hash, keys);
+                db.ScriptEvaluate(hexHash, keys, flags: CommandFlags.FireAndForget);
+                db.ScriptEvaluate(hash, keys, flags: CommandFlags.FireAndForget);
 
                 var count = (int)db.StringGet(keys)[0];
                 Assert.Equal(2, count);
@@ -595,11 +586,11 @@ return timeTaken
 
                 var db = conn.GetDatabase();
                 var key = Me();
-                db.KeyDelete(key);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
 
                 var p = new { key = (RedisKey)key, value = 123 };
 
-                script.Evaluate(db, p);
+                script.Evaluate(db, p, flags: CommandFlags.FireAndForget);
                 var val = db.StringGet(key);
                 Assert.Equal(123, (int)val);
 
@@ -627,11 +618,11 @@ return timeTaken
 
                 var db = conn.GetDatabase();
                 var key = Me();
-                db.KeyDelete(key);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
 
                 var p = new { key };
 
-                script.Evaluate(db, p);
+                script.Evaluate(db, p, flags: CommandFlags.FireAndForget);
                 var val = db.StringGet(key);
                 Assert.Equal("hello@example", val);
             }
@@ -710,11 +701,11 @@ return timeTaken
 
                 var db = conn.GetDatabase();
                 var key = Me();
-                db.KeyDelete(key);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
 
                 var p = new { key = (RedisKey)key, value = 123 };
 
-                prepared.Evaluate(db, p);
+                prepared.Evaluate(db, p, flags: CommandFlags.FireAndForget);
                 var val = db.StringGet(key);
                 Assert.Equal(123, (int)val);
 
@@ -780,14 +771,14 @@ return timeTaken
                 var script = LuaScript.Prepare(Script);
                 var db = conn.GetDatabase();
                 var key = Me();
-                db.KeyDelete(key);
-                db.ScriptEvaluate(script, new { key = (RedisKey)key, value = "value" });
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.ScriptEvaluate(script, new { key = (RedisKey)key, value = "value" }, flags: CommandFlags.FireAndForget);
                 var val = db.StringGet(key);
                 Assert.Equal("value", val);
 
                 var prepared = script.Load(conn.GetServer(conn.GetEndPoints()[0]));
 
-                db.ScriptEvaluate(prepared, new { key = (RedisKey)(key + "2"), value = "value2" });
+                db.ScriptEvaluate(prepared, new { key = (RedisKey)(key + "2"), value = "value2" }, flags: CommandFlags.FireAndForget);
                 var val2 = db.StringGet(key + "2");
                 Assert.Equal("value2", val2);
             }
@@ -805,11 +796,11 @@ return timeTaken
                 var server = conn.GetServer(conn.GetEndPoints()[0]);
                 var db = conn.GetDatabase();
                 var key = Me();
-                db.KeyDelete(key);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
 
                 var prepared = server.ScriptLoad(script);
 
-                db.ScriptEvaluate(prepared, new { key = (RedisKey)key, value = "value3" });
+                db.ScriptEvaluate(prepared, new { key = (RedisKey)key, value = "value3" }, flags: CommandFlags.FireAndForget);
                 var val = db.StringGet(key);
                 Assert.Equal("value3", val);
             }
@@ -844,10 +835,10 @@ return timeTaken
                 var db = conn.GetDatabase();
                 var wrappedDb = KeyspaceIsolation.DatabaseExtensions.WithKeyPrefix(db, "prefix-");
                 var key = Me();
-                db.KeyDelete(key);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
 
                 var prepared = LuaScript.Prepare(Script);
-                wrappedDb.ScriptEvaluate(prepared, new { key = (RedisKey)key, value = 123 });
+                wrappedDb.ScriptEvaluate(prepared, new { key = (RedisKey)key, value = 123 }, flags: CommandFlags.FireAndForget);
                 var val1 = wrappedDb.StringGet(key);
                 Assert.Equal(123, (int)val1);
 
@@ -870,11 +861,11 @@ return timeTaken
                 var db = conn.GetDatabase();
                 var wrappedDb = KeyspaceIsolation.DatabaseExtensions.WithKeyPrefix(db, "prefix2-");
                 var key = Me();
-                db.KeyDelete(key);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
 
                 var server = conn.GetServer(conn.GetEndPoints()[0]);
                 var prepared = LuaScript.Prepare(Script).Load(server);
-                wrappedDb.ScriptEvaluate(prepared, new { key = (RedisKey)key, value = 123 });
+                wrappedDb.ScriptEvaluate(prepared, new { key = (RedisKey)key, value = 123 }, flags: CommandFlags.FireAndForget);
                 var val1 = wrappedDb.StringGet(key);
                 Assert.Equal(123, (int)val1);
 

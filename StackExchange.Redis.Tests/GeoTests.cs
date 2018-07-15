@@ -23,7 +23,7 @@ namespace StackExchange.Redis.Tests
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Geo), r => r.Geo);
                 var db = conn.GetDatabase();
                 RedisKey key = Me();
-                db.KeyDelete(key);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
 
                 // add while not there
                 Assert.True(db.GeoAdd(key, cefalù.Longitude, cefalù.Latitude, cefalù.Member));
@@ -51,8 +51,8 @@ namespace StackExchange.Redis.Tests
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Geo), r => r.Geo);
                 var db = conn.GetDatabase();
                 RedisKey key = Me();
-                db.KeyDelete(key);
-                db.GeoAdd(key, all);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.GeoAdd(key, all, CommandFlags.FireAndForget);
                 var val = db.GeoDistance(key, "Palermo", "Catania", GeoUnit.Meters);
                 Assert.True(val.HasValue);
                 var rounded = Math.Round(val.Value, 10);
@@ -71,8 +71,8 @@ namespace StackExchange.Redis.Tests
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Geo), r => r.Geo);
                 var db = conn.GetDatabase();
                 RedisKey key = Me();
-                db.KeyDelete(key);
-                db.GeoAdd(key, all);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.GeoAdd(key, all, CommandFlags.FireAndForget);
 
                 var hashes = db.GeoHash(key, new RedisValue[] { palermo.Member, "Nowhere", agrigento.Member });
                 Assert.Equal(3, hashes.Length);
@@ -96,8 +96,8 @@ namespace StackExchange.Redis.Tests
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Geo), r => r.Geo);
                 var db = conn.GetDatabase();
                 RedisKey key = Me();
-                db.KeyDelete(key);
-                db.GeoAdd(key, all);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.GeoAdd(key, all, CommandFlags.FireAndForget);
 
                 var pos = db.GeoPosition(key, palermo.Member);
                 Assert.True(pos.HasValue);
@@ -117,8 +117,8 @@ namespace StackExchange.Redis.Tests
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Geo), r => r.Geo);
                 var db = conn.GetDatabase();
                 RedisKey key = Me();
-                db.KeyDelete(key);
-                db.GeoAdd(key, all);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.GeoAdd(key, all, CommandFlags.FireAndForget);
 
                 var pos = db.GeoPosition(key, "Palermo");
                 Assert.True(pos.HasValue);
@@ -140,8 +140,8 @@ namespace StackExchange.Redis.Tests
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Geo), r => r.Geo);
                 var db = conn.GetDatabase();
                 RedisKey key = Me();
-                db.KeyDelete(key);
-                db.GeoAdd(key, all);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.GeoAdd(key, all, CommandFlags.FireAndForget);
 
                 var results = db.GeoRadius(key, cefalù.Member, 60, GeoUnit.Miles, 2, Order.Ascending);
                 Assert.Equal(2, results.Length);
@@ -180,7 +180,7 @@ namespace StackExchange.Redis.Tests
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Geo), r => r.Geo);
                 var db = conn.GetDatabase();
                 RedisKey key = Me();
-                db.KeyDelete(key);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
 
                 Assert.True(db.GeoAdd(key, -1.759925, 52.19493, "steve"));
                 Assert.True(db.GeoAdd(key, -3.360655, 54.66395, "dave"));

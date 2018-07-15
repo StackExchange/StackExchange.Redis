@@ -36,7 +36,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public async Task ConnectUsesSingleSocket()
+        public void ConnectUsesSingleSocket()
         {
             using (var sw = new StringWriter())
             {
@@ -46,7 +46,6 @@ namespace StackExchange.Redis.Tests
                     {
                         using (var muxer = Create(failMessage: i + ": ", log: sw))
                         {
-                            await Task.Delay(500).ForAwait();
                             foreach (var ep in muxer.GetEndPoints())
                             {
                                 var srv = muxer.GetServer(ep);
@@ -174,8 +173,8 @@ namespace StackExchange.Redis.Tests
                 var key = Me();
                 const string value = "abc";
                 var db = conn.GetDatabase();
-                db.KeyDelete(key);
-                db.StringSet(key, value);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.StringSet(key, value, flags: CommandFlags.FireAndForget);
                 servers.First().Ping();
                 var config = servers.First().ClusterConfiguration;
                 Assert.NotNull(config);
@@ -445,12 +444,12 @@ namespace StackExchange.Redis.Tests
             {
                 RedisKey key = "a";
                 var db = conn.GetDatabase();
-                db.KeyDelete(key);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
 
                 int totalUnfiltered = 0, totalFiltered = 0;
                 for (int i = 0; i < 1000; i++)
                 {
-                    db.SetAdd(key, i);
+                    db.SetAdd(key, i, CommandFlags.FireAndForget);
                     totalUnfiltered += i;
                     if (i.ToString().Contains("3")) totalFiltered += i;
                 }
@@ -502,7 +501,6 @@ namespace StackExchange.Redis.Tests
                 };
                 var pairs = new Dictionary<string, string>();
                 const int COUNT = 500;
-                Task[] send = new Task[COUNT];
                 int index = 0;
 
                 var servers = conn.GetEndPoints().Select(x => conn.GetServer(x));
@@ -520,9 +518,8 @@ namespace StackExchange.Redis.Tests
                     var key = Guid.NewGuid().ToString();
                     var value = Guid.NewGuid().ToString();
                     pairs.Add(key, value);
-                    send[index++] = cluster.StringSetAsync(key, value);
+                    cluster.StringSet(key, value, flags: CommandFlags.FireAndForget);
                 }
-                conn.WaitAll(send);
 
                 var expected = new string[COUNT];
                 var actual = new Task<RedisValue>[COUNT];
@@ -597,7 +594,7 @@ namespace StackExchange.Redis.Tests
                 var profiler = new TestProfiler();
                 var key = Me();
                 var db = conn.GetDatabase();
-                db.KeyDelete(key);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
 
                 conn.RegisterProfiler(profiler);
                 conn.BeginProfiling(profiler.MyContext);

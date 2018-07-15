@@ -105,7 +105,7 @@ namespace StackExchange.Redis.Tests
                 muxer.ConnectionFailed += OnConnectionFailed;
                 muxer.InternalError += OnInternalError;
                 var db = muxer.GetDatabase();
-                await db.PingAsync();
+                await db.PingAsync().ForAwait();
                 using (var file = File.Create("ssl-" + useSsl + "-" + specifyHost + ".zip"))
                 {
                     muxer.ExportConfiguration(file);
@@ -114,13 +114,13 @@ namespace StackExchange.Redis.Tests
 
                 const int AsyncLoop = 2000;
                 // perf; async
-                await db.KeyDeleteAsync(key);
+                await db.KeyDeleteAsync(key).ForAwait();
                 var watch = Stopwatch.StartNew();
                 for (int i = 0; i < AsyncLoop; i++)
                 {
                     try
                     {
-                        await db.StringIncrementAsync(key, flags: CommandFlags.FireAndForget);
+                        await db.StringIncrementAsync(key, flags: CommandFlags.FireAndForget).ForAwait();
                     }
                     catch (Exception ex)
                     {
@@ -129,7 +129,7 @@ namespace StackExchange.Redis.Tests
                     }
                 }
                 // need to do this inside the timer to measure the TTLB
-                long value = (long)await db.StringGetAsync(key);
+                long value = (long)await db.StringGetAsync(key).ForAwait();
                 watch.Stop();
                 Assert.Equal(AsyncLoop, value);
                 Log("F&F: {0} INCR, {1:###,##0}ms, {2} ops/s; final value: {3}",
@@ -173,7 +173,6 @@ namespace StackExchange.Redis.Tests
             Skip.IfNoConfig(nameof(TestConfig.Config.RedisLabsSslServer), TestConfig.Current.RedisLabsSslServer);
             Skip.IfNoConfig(nameof(TestConfig.Config.RedisLabsPfxPath), TestConfig.Current.RedisLabsPfxPath);
 
-
             var cert = new X509Certificate2(TestConfig.Current.RedisLabsPfxPath, "");
             Assert.NotNull(cert);
             Writer.WriteLine("Thumbprint: " + cert.Thumbprint);
@@ -189,10 +188,8 @@ namespace StackExchange.Redis.Tests
                     "subscribe", "unsubscribe", "cluster"
                 }, false)
             };
-            
+
             options.TrustIssuer("redislabs_ca.pem");
-
-
 
             if (!Directory.Exists(Me())) Directory.CreateDirectory(Me());
 #if LOGOUTPUT
@@ -207,10 +204,10 @@ namespace StackExchange.Redis.Tests
             using (var conn = ConnectionMultiplexer.Connect(options))
             {
                 var db = conn.GetDatabase();
-                db.KeyDelete(key);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
                 string s = db.StringGet(key);
                 Assert.Null(s);
-                db.StringSet(key, "abc");
+                db.StringSet(key, "abc", flags: CommandFlags.FireAndForget);
                 s = db.StringGet(key);
                 Assert.Equal("abc", s);
 
@@ -253,7 +250,7 @@ namespace StackExchange.Redis.Tests
                         "subscribe", "unsubscribe", "cluster"
                     }, false)
                 };
-                
+
                 if (!Directory.Exists(Me())) Directory.CreateDirectory(Me());
 #if LOGOUTPUT
             ConnectionMultiplexer.EchoPath = Me();
@@ -265,7 +262,7 @@ namespace StackExchange.Redis.Tests
                     if (!setEnv) Assert.True(false, "Could not set environment");
 
                     var db = conn.GetDatabase();
-                    db.KeyDelete(key);
+                    db.KeyDelete(key, CommandFlags.FireAndForget);
                     string s = db.StringGet(key);
                     Assert.Null(s);
                     db.StringSet(key, "abc");
