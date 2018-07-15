@@ -9,6 +9,7 @@ namespace StackExchange.Redis
     {
         protected Exception _exception;
         public abstract bool IsAsync { get; }
+        public bool IsFaulted => _exception != null;
 
         public void SetException(Exception exception) => _exception = exception;
 

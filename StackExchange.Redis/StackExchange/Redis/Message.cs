@@ -587,14 +587,16 @@ namespace StackExchange.Redis
         // true if ready to be completed (i.e. false if re-issued to another server)
         internal bool ComputeResult(PhysicalConnection connection, RawResult result)
         {
+            var box = resultBox;
             try
             {
+                if (box != null && box.IsFaulted) return false; // already failed (timeout, etc)
                 return resultProcessor == null || resultProcessor.SetResult(connection, this, result);
             }
             catch (Exception ex)
             {
-                resultBox?.SetException(ex);
-                return true; // we still want to pulse/complete
+                box?.SetException(ex);
+                return box != null; // we still want to pulse/complete
             }
         }
 
