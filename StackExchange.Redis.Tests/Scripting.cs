@@ -309,7 +309,7 @@ return timeTaken
 
                     Assert.True(muxer.Wait(complete));
                     Assert.True(a.IsCompleted, a.Status.ToString());
-                    Assert.True(c.IsCompleted);
+                    Assert.True(c.IsCompleted, "State: " + c.Status);
                     Assert.Equal(1L, a.Result);
                     Assert.Equal(2L, c.Result);
 
