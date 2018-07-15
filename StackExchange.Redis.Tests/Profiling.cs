@@ -41,7 +41,7 @@ namespace StackExchange.Redis.Tests
                 var i = 0;
                 foreach (var cmd in cmds)
                 {
-                    Log("Command {0}: {1}", i++, cmd.ToString().Replace("\n", ", "));
+                    Log("Command {0} (DB: {1}): {2}", i++, cmd.Db, cmd.ToString().Replace("\n", ", "));
                 }
 
                 Log("Checking for SET");
@@ -94,7 +94,7 @@ namespace StackExchange.Redis.Tests
 
                 var threads = new List<Thread>();
                 const int CountPer = 100;
-                for (var i = 0; i < 16; i++)
+                for (var i = 1; i <= 16; i++)
                 {
                     var db = conn.GetDatabase(i);
 
@@ -116,8 +116,9 @@ namespace StackExchange.Redis.Tests
                 threads.ForEach(thread => thread.Join());
 
                 var allVals = conn.FinishProfiling(profiler.MyContext);
+                var relevant = allVals.Where(cmd => cmd.Db > 0).ToList();
 
-                var kinds = allVals.Select(cmd => cmd.Command).Distinct().ToList();
+                var kinds = relevant.Select(cmd => cmd.Command).Distinct().ToList();
                 foreach (var k in kinds)
                 {
                     Log("Kind Seen: " + k);
@@ -129,12 +130,12 @@ namespace StackExchange.Redis.Tests
                     Assert.True(false, "Non-SET, Non-SELECT, Non-GET command seen");
                 }
 
-                Assert.Equal(16 * CountPer, allVals.Count(cmd => cmd.Command == "SET"));
+                Assert.Equal(16 * CountPer, relevant.Count);
                 Assert.Equal(16, allVals.Select(cmd => cmd.Db).Distinct().Count());
 
-                for (var i = 0; i < 16; i++)
+                for (var i = 1; i <= 16; i++)
                 {
-                    var setsInDb = allVals.Count(cmd => cmd.Db == i && cmd.Command == "SET");
+                    var setsInDb = relevant.Count(cmd => cmd.Db == i);
                     Assert.Equal(CountPer, setsInDb);
                 }
             }
@@ -427,7 +428,7 @@ namespace StackExchange.Redis.Tests
                 conn.BeginProfiling(profiler.MyContext);
 
                 var prefix = Me();
-                var db = conn.GetDatabase();
+                var db = conn.GetDatabase(1);
 
                 var allTasks = new List<Task<string>>();
 
@@ -462,9 +463,9 @@ namespace StackExchange.Redis.Tests
                     Assert.True(object.ReferenceEquals(i, j));
                 }
 
-                Assert.Equal(OuterLoop, res.Count(r => r.Command == "GET"));
-                Assert.Equal(OuterLoop, res.Count(r => r.Command == "SET"));
-                Assert.Equal(OuterLoop * 2, res.Count());
+                Assert.Equal(OuterLoop, res.Count(r => r.Command == "GET" && r.Db > 0));
+                Assert.Equal(OuterLoop, res.Count(r => r.Command == "SET" && r.Db > 0));
+                Assert.Equal(OuterLoop * 2, res.Count(r => r.Db > 0));
             }
         }
 
