@@ -23,7 +23,7 @@ namespace StackExchange.Redis.Tests
                 toDb.KeyDelete(key, CommandFlags.FireAndForget);
                 fromDb.StringSet(key, "foo", flags: CommandFlags.FireAndForget);
                 var dest = to.GetEndPoints(true).Single();
-                fromDb.KeyMigrate(key, dest, flags: CommandFlags.FireAndForget);
+                fromDb.KeyMigrate(key, dest);
                 Assert.False(fromDb.KeyExists(key));
                 Assert.True(toDb.KeyExists(key));
                 string s = toDb.StringGet(key);
