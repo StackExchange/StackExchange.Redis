@@ -118,6 +118,10 @@ namespace StackExchange.Redis.Tests
                 var allVals = conn.FinishProfiling(profiler.MyContext);
 
                 var kinds = allVals.Select(cmd => cmd.Command).Distinct().ToList();
+                foreach (var k in kinds)
+                {
+                    Log("Kind Seen: " + k);
+                }
                 Assert.True(kinds.Count <= 2);
                 Assert.Contains("SET", kinds);
                 if (kinds.Count == 2 && !kinds.Contains("SELECT"))
