@@ -3,10 +3,8 @@ using System.Threading.Tasks;
 using StackExchange.Redis.KeyspaceIsolation;
 using Xunit;
 using Xunit.Abstractions;
-#if DEBUG
 using System.Diagnostics;
 using System.Threading;
-#endif
 
 namespace StackExchange.Redis.Tests
 {
@@ -14,19 +12,15 @@ namespace StackExchange.Redis.Tests
     {
         public BasicOpsTests(ITestOutputHelper output) : base (output) { }
 
-        [Theory]
-        [InlineData(true)]
-        [InlineData(false)]
-        public void PingOnce(bool preserveOrder)
+        [Fact]
+        public async Task PingOnce()
         {
             using (var muxer = Create())
             {
-                muxer.PreserveAsyncOrder = preserveOrder;
                 var conn = muxer.GetDatabase();
 
-                var task = conn.PingAsync();
-                var duration = muxer.Wait(task);
-                Output.WriteLine("Ping took: " + duration);
+                var duration = await conn.PingAsync().ForAwait();
+                Log("Ping took: " + duration);
                 Assert.True(duration.TotalMilliseconds > 0);
             }
         }
@@ -38,7 +32,7 @@ namespace StackExchange.Redis.Tests
             using (var primary = Create())
             {
                 var conn = primary.GetDatabase();
-                conn.KeyDelete(key);
+                conn.KeyDelete(key, CommandFlags.FireAndForget);
 
                 for (int i = 0; i < 10; i++)
                 {
@@ -51,22 +45,18 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [Theory]
-        [InlineData(true)]
-        [InlineData(false)]
-        public void PingMany(bool preserveOrder)
+        [Fact]
+        public async Task PingMany()
         {
             using (var muxer = Create())
             {
-                muxer.PreserveAsyncOrder = preserveOrder;
                 var conn = muxer.GetDatabase();
-                var tasks = new Task<TimeSpan>[10000];
-
+                var tasks = new Task<TimeSpan>[100];
                 for (int i = 0; i < tasks.Length; i++)
                 {
                     tasks[i] = conn.PingAsync();
                 }
-                muxer.WaitAll(tasks);
+                await Task.WhenAll(tasks).ForAwait();
                 Assert.True(tasks[0].Result.TotalMilliseconds > 0);
                 Assert.True(tasks[tasks.Length - 1].Result.TotalMilliseconds > 0);
             }
@@ -107,7 +97,7 @@ namespace StackExchange.Redis.Tests
 
                 db.StringSet(key, "abc", flags: CommandFlags.FireAndForget);
                 Assert.True(db.KeyExists(key));
-                db.StringSet(key, value);
+                db.StringSet(key, value, flags: CommandFlags.FireAndForget);
 
                 var actual = (string)db.StringGet(key);
                 Assert.Null(actual);
@@ -127,7 +117,7 @@ namespace StackExchange.Redis.Tests
 
                 db.StringSet(key, "abc", flags: CommandFlags.FireAndForget);
                 Assert.True(db.KeyExists(key));
-                db.StringSet(key, value);
+                db.StringSet(key, value, flags: CommandFlags.FireAndForget);
 
                 var actual = (string)db.StringGet(key);
                 Assert.Null(actual);
@@ -147,7 +137,7 @@ namespace StackExchange.Redis.Tests
 
                 db.StringSet(key, "abc", flags: CommandFlags.FireAndForget);
                 Assert.True(db.KeyExists(key));
-                db.StringSet(key, value);
+                db.StringSet(key, value, flags: CommandFlags.FireAndForget);
 
                 var actual = (string)db.StringGet(key);
                 Assert.Equal("0", actual);
@@ -155,14 +145,11 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [Theory]
-        [InlineData(true)]
-        [InlineData(false)]
-        public async Task GetSetAsync(bool preserveOrder)
+        [Fact]
+        public async Task GetSetAsync()
         {
             using (var muxer = Create())
             {
-                muxer.PreserveAsyncOrder = preserveOrder;
                 var conn = muxer.GetDatabase();
 
                 RedisKey key = Me();
@@ -185,21 +172,18 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [Theory]
-        [InlineData(true)]
-        [InlineData(false)]
-        public void GetSetSync(bool preserveOrder)
+        [Fact]
+        public void GetSetSync()
         {
             using (var muxer = Create())
             {
-                muxer.PreserveAsyncOrder = preserveOrder;
                 var conn = muxer.GetDatabase();
 
                 RedisKey key = Me();
-                conn.KeyDelete(key);
+                conn.KeyDelete(key, CommandFlags.FireAndForget);
                 var d1 = conn.KeyDelete(key);
                 var g1 = conn.StringGet(key);
-                conn.StringSet(key, "123");
+                conn.StringSet(key, "123", flags: CommandFlags.FireAndForget);
                 var g2 = conn.StringGet(key);
                 var d2 = conn.KeyDelete(key);
 
@@ -218,23 +202,23 @@ namespace StackExchange.Redis.Tests
         [InlineData(false, false)]
         [InlineData(true, true)]
         [InlineData(true, false)]
-        public void GetWithExpiry(bool exists, bool hasExpiry)
+        public async Task GetWithExpiry(bool exists, bool hasExpiry)
         {
             using (var conn = Create())
             {
                 var db = conn.GetDatabase();
                 RedisKey key = Me();
-                db.KeyDelete(key);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
                 if (exists)
                 {
                     if (hasExpiry)
-                        db.StringSet(key, "val", TimeSpan.FromMinutes(5));
+                        db.StringSet(key, "val", TimeSpan.FromMinutes(5), flags: CommandFlags.FireAndForget);
                     else
-                        db.StringSet(key, "val");
+                        db.StringSet(key, "val", flags: CommandFlags.FireAndForget);
                 }
                 var async = db.StringGetWithExpiryAsync(key);
                 var syncResult = db.StringGetWithExpiry(key);
-                var asyncResult = db.Wait(async);
+                var asyncResult = await async;
 
                 if (exists)
                 {
@@ -262,13 +246,13 @@ namespace StackExchange.Redis.Tests
             {
                 var db = conn.GetDatabase();
                 RedisKey key = Me();
-                db.KeyDelete(key);
-                db.SetAdd(key, "abc");
+                var del = db.KeyDeleteAsync(key);
+                var add = db.SetAddAsync(key, "abc");
                 var ex = await Assert.ThrowsAsync<RedisServerException>(async () =>
                 {
                     try
                     {
-                        Output.WriteLine("Key: " + (string)key);
+                        Log("Key: " + (string)key);
                         var async = await db.StringGetWithExpiryAsync(key).ForAwait();
                     }
                     catch (AggregateException e)
@@ -283,55 +267,54 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void GetWithExpiryWrongTypeSync()
         {
+            RedisKey key = Me();
             var ex = Assert.Throws<RedisServerException>(() =>
             {
                 using (var conn = Create())
                 {
                     var db = conn.GetDatabase();
-                    RedisKey key = Me();
-                    db.KeyDelete(key);
-                    db.SetAdd(key, "abc");
+                    db.KeyDelete(key, CommandFlags.FireAndForget);
+                    db.SetAdd(key, "abc", CommandFlags.FireAndForget);
                     db.StringGetWithExpiry(key);
                 }
             });
             Assert.Equal("WRONGTYPE Operation against a key holding the wrong kind of value", ex.Message);
         }
 
-#if DEBUG
-        [Theory]
-        [InlineData(true)]
-        [InlineData(false)]
-        public void TestQuit(bool preserveOrder)
+        [Fact]
+        public async Task TestQuit()
         {
+            string Time() => DateTime.UtcNow.ToString("HH:mm:ss.fff");
             SetExpectedAmbientFailureCount(1);
             using (var muxer = Create(allowAdmin: true))
             {
-                muxer.PreserveAsyncOrder = preserveOrder;
+                muxer.ConnectionFailed += (_, __) => Log("{0}: Connection Failed", Time());
+                muxer.ConnectionRestored += (_, __) => Log("{0}: Connection Restored", Time());
+
                 var db = muxer.GetDatabase();
                 string key = Guid.NewGuid().ToString();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
                 db.StringSet(key, key, flags: CommandFlags.FireAndForget);
-                GetServer(muxer).Quit(CommandFlags.FireAndForget);
+                Log("{0}: Issuing QUIT", Time());
+                GetServer(muxer).Execute("QUIT", null);
                 var watch = Stopwatch.StartNew();
-                Assert.Throws<RedisConnectionException>(() => db.Ping());
+                Assert.Throws<RedisConnectionException>(() => Log("Ping time: " + db.Ping().ToString()));
                 watch.Stop();
-                Output.WriteLine("Time to notice quit: {0}ms ({1})", watch.ElapsedMilliseconds,
-                    preserveOrder ? "preserve order" : "any order");
-                Thread.Sleep(20);
+                Log("Time to notice quit: {0}ms (any order)", watch.ElapsedMilliseconds);
+                await Task.Delay(20).ForAwait();
                 Debug.WriteLine("Pinging...");
                 Assert.Equal(key, (string)db.StringGet(key));
             }
         }
 
-        [Theory]
-        [InlineData(true)]
-        [InlineData(false)]
-        public async Task TestSevered(bool preserveOrder)
+#if DEBUG
+
+        [Fact]
+        public async Task TestSevered()
         {
             SetExpectedAmbientFailureCount(2);
             using (var muxer = Create(allowAdmin: true))
             {
-                muxer.PreserveAsyncOrder = preserveOrder;
                 var db = muxer.GetDatabase();
                 string key = Guid.NewGuid().ToString();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
@@ -340,8 +323,7 @@ namespace StackExchange.Redis.Tests
                 var watch = Stopwatch.StartNew();
                 db.Ping();
                 watch.Stop();
-                Output.WriteLine("Time to re-establish: {0}ms ({1})", watch.ElapsedMilliseconds,
-                    preserveOrder ? "preserve order" : "any order");
+                Log("Time to re-establish: {0}ms (any order)", watch.ElapsedMilliseconds);
                 await Task.Delay(2000).ForAwait();
                 Debug.WriteLine("Pinging...");
                 Assert.Equal(key, db.StringGet(key));
@@ -349,14 +331,11 @@ namespace StackExchange.Redis.Tests
         }
 #endif
 
-        [Theory]
-        [InlineData(true)]
-        [InlineData(false)]
-        public async Task IncrAsync(bool preserveOrder)
+        [Fact]
+        public async Task IncrAsync()
         {
             using (var muxer = Create())
             {
-                muxer.PreserveAsyncOrder = preserveOrder;
                 var conn = muxer.GetDatabase();
                 RedisKey key = Me();
                 conn.KeyDelete(key, CommandFlags.FireAndForget);
@@ -382,14 +361,11 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [Theory]
-        [InlineData(true)]
-        [InlineData(false)]
-        public void IncrSync(bool preserveOrder)
+        [Fact]
+        public void IncrSync()
         {
             using (var muxer = Create())
             {
-                muxer.PreserveAsyncOrder = preserveOrder;
                 var conn = muxer.GetDatabase();
                 RedisKey key = Me();
                 conn.KeyDelete(key, CommandFlags.FireAndForget);
@@ -453,15 +429,16 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void WrappedDatabasePrefixIntegration()
         {
+            var key = Me();
             using (var conn = Create())
             {
                 var db = conn.GetDatabase().WithKeyPrefix("abc");
-                db.KeyDelete("count");
-                db.StringIncrement("count");
-                db.StringIncrement("count");
-                db.StringIncrement("count");
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.StringIncrement(key, flags: CommandFlags.FireAndForget);
+                db.StringIncrement(key, flags: CommandFlags.FireAndForget);
+                db.StringIncrement(key, flags: CommandFlags.FireAndForget);
 
-                int count = (int)conn.GetDatabase().StringGet("abccount");
+                int count = (int)conn.GetDatabase().StringGet("abc" + key);
                 Assert.Equal(3, count);
             }
         }

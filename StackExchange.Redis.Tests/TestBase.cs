@@ -15,42 +15,53 @@ namespace StackExchange.Redis.Tests
 {
     public abstract class TestBase : IDisposable
     {
-        protected ITestOutputHelper Output { get; }
+        private ITestOutputHelper Output { get; }
         protected TextWriterOutputHelper Writer { get; }
         protected static bool RunningInCI { get; } = Environment.GetEnvironmentVariable("APPVEYOR") != null;
-        protected virtual string GetConfiguration() => TestConfig.Current.MasterServerAndPort + "," + TestConfig.Current.SlaveServerAndPort;
+        protected virtual string GetConfiguration() => TestConfig.Current.MasterServerAndPort;
 
         protected TestBase(ITestOutputHelper output)
         {
             Output = output;
             Output.WriteFrameworkVersion();
-            Writer = new TextWriterOutputHelper(output);
-            socketManager = new SocketManager(GetType().Name);
+            Writer = new TextWriterOutputHelper(output, TestConfig.Current.LogToConsole);
             ClearAmbientFailures();
+        }
+
+        protected void Log(string message)
+        {
+            Output.WriteLine(message);
+            if (TestConfig.Current.LogToConsole)
+            {
+                Console.WriteLine(message);
+            }
+        }
+        protected void Log(string message, params object[] args)
+        {
+            Output.WriteLine(message, args);
+            if (TestConfig.Current.LogToConsole)
+            {
+                Console.WriteLine(message, args);
+            }
         }
 
         protected void CollectGarbage()
         {
-            for (int i = 0; i < 3; i++)
-            {
-                GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced);
-                GC.WaitForPendingFinalizers();
-            }
+            GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced);
+            GC.WaitForPendingFinalizers();
+            GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced);
         }
-
-        private readonly SocketManager socketManager;
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1063:ImplementIDisposableCorrectly")]
         public void Dispose()
         {
-            socketManager?.Dispose();
             Teardown();
         }
 
 #if VERBOSE
         protected const int AsyncOpsQty = 100, SyncOpsQty = 10;
 #else
-        protected const int AsyncOpsQty = 100000, SyncOpsQty = 10000;
+        protected const int AsyncOpsQty = 10000, SyncOpsQty = 10000;
 #endif
 
         static TestBase()
@@ -78,7 +89,7 @@ namespace StackExchange.Redis.Tests
             Interlocked.Increment(ref privateFailCount);
             lock (privateExceptions)
             {
-                privateExceptions.Add("Connection failed: " + EndPointCollection.ToString(e.EndPoint) + "/" + e.ConnectionType);
+                privateExceptions.Add($"Connection failed ({e.FailureType}): {EndPointCollection.ToString(e.EndPoint)}/{e.ConnectionType}: {e.Exception}");
             }
         }
 
@@ -100,7 +111,6 @@ namespace StackExchange.Redis.Tests
 
         public void ClearAmbientFailures()
         {
-            Collect();
             Interlocked.Exchange(ref privateFailCount, 0);
             lock (sharedFailCount)
             {
@@ -122,18 +132,8 @@ namespace StackExchange.Redis.Tests
             expectedFailCount = count;
         }
 
-        private static void Collect()
-        {
-            for (int i = 0; i < GC.MaxGeneration; i++)
-            {
-                GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, true);
-                GC.WaitForPendingFinalizers();
-            }
-        }
-
         public void Teardown()
         {
-            Collect();
             int sharedFails;
             lock (sharedFailCount)
             {
@@ -146,14 +146,14 @@ namespace StackExchange.Redis.Tests
                 {
                     foreach (var item in privateExceptions.Take(5))
                     {
-                        Output.WriteLine(item);
+                        Log(item);
                     }
                 }
                 lock (backgroundExceptions)
                 {
                     foreach (var item in backgroundExceptions.Take(5))
                     {
-                        Output.WriteLine(item);
+                        Log(item);
                     }
                 }
                 Assert.True(false, $"There were {privateFailCount} private and {sharedFailCount.Value} ambient exceptions; expected {expectedFailCount}.");
@@ -198,11 +198,12 @@ namespace StackExchange.Redis.Tests
             string clientName = null, int? syncTimeout = null, bool? allowAdmin = null, int? keepAlive = null,
             int? connectTimeout = null, string password = null, string tieBreaker = null, TextWriter log = null,
             bool fail = true, string[] disabledCommands = null, string[] enabledCommands = null,
-            bool checkConnect = true, bool pause = true, string failMessage = null,
-            string channelPrefix = null, bool useSharedSocketManager = true, Proxy? proxy = null)
+            bool checkConnect = true, string failMessage = null,
+            string channelPrefix = null, Proxy? proxy = null,
+            string configuration = null,
+            [CallerMemberName] string caller = null)
         {
-            if (pause) Thread.Sleep(250); // get a lot of glitches when hammering new socket creations etc; pace it out a bit
-            string configuration = GetConfiguration();
+            configuration = configuration ?? GetConfiguration();
             var config = ConfigurationOptions.Parse(configuration);
             if (disabledCommands != null && disabledCommands.Length != 0)
             {
@@ -218,11 +219,11 @@ namespace StackExchange.Redis.Tests
                 syncTimeout = int.MaxValue;
             }
 
-            if (useSharedSocketManager) config.SocketManager = socketManager;
             if (channelPrefix != null) config.ChannelPrefix = channelPrefix;
             if (tieBreaker != null) config.TieBreaker = tieBreaker;
             if (password != null) config.Password = string.IsNullOrEmpty(password) ? null : password;
             if (clientName != null) config.ClientName = clientName;
+            else if (caller != null) config.ClientName = caller;
             if (syncTimeout != null) config.SyncTimeout = syncTimeout.Value;
             if (allowAdmin != null) config.AllowAdmin = allowAdmin.Value;
             if (keepAlive != null) config.KeepAlive = keepAlive.Value;
@@ -248,7 +249,7 @@ namespace StackExchange.Redis.Tests
             {
                 Assert.True(false, "Failure: Be sure to call the TestBase constuctor like this: BasicOpsTests(ITestOutputHelper output) : base(output) { }");
             }
-            Output.WriteLine("Connect took: " + watch.ElapsedMilliseconds + "ms");
+            Log("Connect took: " + watch.ElapsedMilliseconds + "ms");
             var muxer = task.Result;
             if (checkConnect && (muxer == null || !muxer.IsConnected))
             {
@@ -261,13 +262,13 @@ namespace StackExchange.Redis.Tests
             return muxer;
         }
 
-        protected static string Me([CallerMemberName] string caller = null) =>
+        public static string Me([CallerFilePath] string filePath = null, [CallerMemberName] string caller = null) =>
 #if NET462
-            "net462-" + caller;
+            "net462-" + Path.GetFileNameWithoutExtension(filePath) + "-" + caller;
 #elif NETCOREAPP2_0
-            "netcoreapp2.0-" + caller;
+            "netcoreapp2.0-" + Path.GetFileNameWithoutExtension(filePath) + "-" + caller;
 #else
-            "unknown-" + caller;
+            "unknown-" + Path.GetFileNameWithoutExtension(filePath) + "-" + caller;
 #endif
 
         protected static TimeSpan RunConcurrent(Action work, int threads, int timeout = 10000, [CallerMemberName] string caller = null)

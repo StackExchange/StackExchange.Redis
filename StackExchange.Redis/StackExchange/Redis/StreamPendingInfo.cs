@@ -4,7 +4,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// Describes basic information about pending messages for a consumer group.
     /// </summary>
-    public struct StreamPendingInfo
+    public readonly struct StreamPendingInfo
     {
         internal StreamPendingInfo(int pendingMessageCount,
             RedisValue lowestId,

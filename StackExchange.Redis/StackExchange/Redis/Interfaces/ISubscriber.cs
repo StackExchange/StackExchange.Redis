@@ -1,5 +1,6 @@
-using System;
+﻿using System;
 using System.Net;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 
 namespace StackExchange.Redis
@@ -14,7 +15,6 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="channel">The channel to identify the server endpoint by.</param>
         /// <param name="flags">The command flags to use.</param>
-        [IgnoreNamePrefix]
         EndPoint IdentifyEndpoint(RedisChannel channel, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -22,7 +22,6 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="channel">The channel to identify the server endpoint by.</param>
         /// <param name="flags">The command flags to use.</param>
-        [IgnoreNamePrefix]
         Task<EndPoint> IdentifyEndpointAsync(RedisChannel channel, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -55,7 +54,7 @@ namespace StackExchange.Redis
         Task<long> PublishAsync(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Subscribe to perform some operation when a change to the preferred/active node is broadcast.
+        /// Subscribe to perform some operation when a message to the preferred/active node is broadcast, without any guarantee of ordered handling.
         /// </summary>
         /// <param name="channel">The channel to subscribe to.</param>
         /// <param name="handler">The handler to invoke when a message is received on <paramref name="channel"/>.</param>
@@ -63,6 +62,16 @@ namespace StackExchange.Redis
         /// <remarks>https://redis.io/commands/subscribe</remarks>
         /// <remarks>https://redis.io/commands/psubscribe</remarks>
         void Subscribe(RedisChannel channel, Action<RedisChannel, RedisValue> handler, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Subscribe to perform some operation when a message to the preferred/active node is broadcast, as a queue that guarantees ordered handling.
+        /// </summary>
+        /// <param name="channel">The redis channel to subscribe to.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>A channel that represents this source</returns>
+        /// <remarks>https://redis.io/commands/subscribe</remarks>
+        /// <remarks>https://redis.io/commands/psubscribe</remarks>
+        ChannelMessageQueue Subscribe(RedisChannel channel, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Subscribe to perform some operation when a change to the preferred/active node is broadcast.
@@ -75,11 +84,20 @@ namespace StackExchange.Redis
         Task SubscribeAsync(RedisChannel channel, Action<RedisChannel, RedisValue> handler, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Subscribe to perform some operation when a change to the preferred/active node is broadcast, as a channel.
+        /// </summary>
+        /// <param name="channel">The redis channel to subscribe to.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>A channel that represents this source</returns>
+        /// <remarks>https://redis.io/commands/subscribe</remarks>
+        /// <remarks>https://redis.io/commands/psubscribe</remarks>
+        Task<ChannelMessageQueue> SubscribeAsync(RedisChannel channel, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Inidicate to which redis server we are actively subscribed for a given channel; returns null if
         /// the channel is not actively subscribed
         /// </summary>
         /// <param name="channel">The channel to check which server endpoint was subscribed on.</param>
-        [IgnoreNamePrefix]
         EndPoint SubscribedEndpoint(RedisChannel channel);
 
         /// <summary>

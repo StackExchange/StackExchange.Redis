@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading;
@@ -146,9 +146,9 @@ namespace StackExchange.Redis
                 set => wasQueued = value;
             }
 
-            internal override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(PhysicalConnection physical)
             {
-                Wrapped.WriteImpl(physical);
+                Wrapped.WriteTo(physical);
                 Wrapped.SetRequestSent();
             }
         }
@@ -173,16 +173,14 @@ namespace StackExchange.Redis
 
         private class TransactionMessage : Message, IMultiMessage
         {
-            private static readonly ConditionResult[] NixConditions = new ConditionResult[0];
-            private static readonly QueuedMessage[] NixMessages = new QueuedMessage[0];
             private readonly ConditionResult[] conditions;
             public QueuedMessage[] InnerOperations { get; }
 
             public TransactionMessage(int db, CommandFlags flags, List<ConditionResult> conditions, List<QueuedMessage> operations)
                 : base(db, flags, RedisCommand.EXEC)
             {
-                this.InnerOperations = (operations == null || operations.Count == 0) ? NixMessages : operations.ToArray();
-                this.conditions = (conditions == null || conditions.Count == 0) ? NixConditions : conditions.ToArray();
+                InnerOperations = (operations == null || operations.Count == 0) ? Array.Empty<QueuedMessage>() : operations.ToArray();
+                this.conditions = (conditions == null || conditions.Count == 0) ? Array.Empty<ConditionResult>(): conditions.ToArray();
             }
 
             public bool IsAborted => command != RedisCommand.EXEC;
@@ -250,7 +248,7 @@ namespace StackExchange.Redis
                         {
                             // need to get those sent ASAP; if they are stuck in the buffers, we die
                             multiplexer.Trace("Flushing and waiting for precondition responses");
-                            connection.Flush();
+                            connection.FlushAsync().Wait();
                             if (Monitor.Wait(lastBox, multiplexer.TimeoutMilliseconds))
                             {
                                 if (!AreAllConditionsSatisfied(multiplexer))
@@ -297,7 +295,7 @@ namespace StackExchange.Redis
                         if (explicitCheckForQueued && lastBox != null)
                         {
                             multiplexer.Trace("Flushing and waiting for precondition+queued responses");
-                            connection.Flush(); // make sure they get sent, so we can check for QUEUED (and the pre-conditions if necessary)
+                            connection.FlushAsync().Wait(); // make sure they get sent, so we can check for QUEUED (and the pre-conditions if necessary)
                             if (Monitor.Wait(lastBox, multiplexer.TimeoutMilliseconds))
                             {
                                 if (!AreAllConditionsSatisfied(multiplexer))
@@ -346,7 +344,7 @@ namespace StackExchange.Redis
                 yield return this; // acts as either an EXEC or an UNWATCH, depending on "aborted"
             }
 
-            internal override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 0);
             }
@@ -423,7 +421,7 @@ namespace StackExchange.Redis
                             if (!tran.IsAborted)
                             {
                                 var arr = result.GetItems();
-                                if (arr == null)
+                                if (result.IsNull)
                                 {
                                     connection.Multiplexer.Trace("Server aborted due to failed WATCH");
                                     foreach (var op in wrapped)

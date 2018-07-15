@@ -18,22 +18,23 @@ namespace StackExchange.Redis.Tests
             string[] disabledCommands = supported ? null : new[] { "scan" };
             using (var conn = Create(disabledCommands: disabledCommands, allowAdmin: true))
             {
-                const int DB = 7;
-                var db = conn.GetDatabase(DB);
+                var dbId = TestConfig.GetDedicatedDB(conn);
+                var db = conn.GetDatabase(dbId);
+                var prefix = Me() + ":";
                 var server = GetServer(conn);
-                server.FlushDatabase(DB);
+                server.FlushDatabase(dbId);
                 for (int i = 0; i < 100; i++)
                 {
-                    db.StringSet("KeysScan:" + i, Guid.NewGuid().ToString(), flags: CommandFlags.FireAndForget);
+                    db.StringSet(prefix + i, Guid.NewGuid().ToString(), flags: CommandFlags.FireAndForget);
                 }
-                var seq = server.Keys(DB, pageSize: 50);
+                var seq = server.Keys(dbId, pageSize: 50);
                 bool isScanning = seq is IScanningCursor;
                 Assert.Equal(supported, isScanning);
                 Assert.Equal(100, seq.Distinct().Count());
                 Assert.Equal(100, seq.Distinct().Count());
-                Assert.Equal(100, server.Keys(DB, "KeysScan:*").Distinct().Count());
+                Assert.Equal(100, server.Keys(dbId, prefix + "*").Distinct().Count());
                 // 7, 70, 71, ..., 79
-                Assert.Equal(11, server.Keys(DB, "KeysScan:7*").Distinct().Count());
+                Assert.Equal(11, server.Keys(dbId, prefix + "7*").Distinct().Count());
             }
         }
 
@@ -43,15 +44,15 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create(allowAdmin: true))
             {
                 var prefix = Me() + Guid.NewGuid();
-                const int DB = 7;
-                var db = conn.GetDatabase(DB);
+                var dbId = TestConfig.GetDedicatedDB(conn);
+                var db = conn.GetDatabase(dbId);
                 var server = GetServer(conn);
-                server.FlushDatabase(DB);
+                server.FlushDatabase(dbId);
                 for (int i = 0; i < 100; i++)
                 {
                     db.StringSet(prefix + i, Guid.NewGuid().ToString(), flags: CommandFlags.FireAndForget);
                 }
-                var seq = server.Keys(DB, prefix + "*", pageSize: 15);
+                var seq = server.Keys(dbId, prefix + "*", pageSize: 15);
                 using (var iter = seq.GetEnumerator())
                 {
                     IScanningCursor s0 = (IScanningCursor)seq, s1 = (IScanningCursor)iter;
@@ -85,19 +86,22 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [Fact(Skip = "Windows Redis 3.x is flaky here. The test runs fine against other servers...")]
+        [Fact]
         public void ScanResume()
         {
             using (var conn = Create(allowAdmin: true))
             {
-                const int DB = 7;
-                var db = conn.GetDatabase(DB);
+                // only goes up to 3.*, so...
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scan), x => x.Scan);
+                var dbId = TestConfig.GetDedicatedDB(conn);
+                var db = conn.GetDatabase(dbId);
+                var prefix = Me();
                 var server = GetServer(conn);
-                server.FlushDatabase(DB);
+                server.FlushDatabase(dbId);
                 int i;
                 for (i = 0; i < 100; i++)
                 {
-                    db.StringSet("ScanResume:" + i, Guid.NewGuid().ToString());
+                    db.StringSet(prefix + ":" + i, Guid.NewGuid().ToString());
                 }
 
                 var expected = new HashSet<string>();
@@ -105,7 +109,7 @@ namespace StackExchange.Redis.Tests
                 int snapOffset = 0, snapPageSize = 0;
 
                 i = 0;
-                var seq = server.Keys(DB, "ScanResume:*", pageSize: 15);
+                var seq = server.Keys(dbId, prefix + ":*", pageSize: 15);
                 foreach (var key in seq)
                 {
                     if (i == 57)
@@ -113,7 +117,7 @@ namespace StackExchange.Redis.Tests
                         snapCursor = ((IScanningCursor)seq).Cursor;
                         snapOffset = ((IScanningCursor)seq).PageOffset;
                         snapPageSize = ((IScanningCursor)seq).PageSize;
-                        Output.WriteLine($"i: {i}, Cursor: {snapCursor}, Offset: {snapOffset}, PageSize: {snapPageSize}");
+                        Log($"i: {i}, Cursor: {snapCursor}, Offset: {snapOffset}, PageSize: {snapPageSize}");
                     }
                     if (i >= 57)
                     {
@@ -121,13 +125,18 @@ namespace StackExchange.Redis.Tests
                     }
                     i++;
                 }
-                Output.WriteLine($"Expected: 43, Actual: {expected.Count}, Cursor: {snapCursor}, Offset: {snapOffset}, PageSize: {snapPageSize}");
+                Log($"Expected: 43, Actual: {expected.Count}, Cursor: {snapCursor}, Offset: {snapOffset}, PageSize: {snapPageSize}");
                 Assert.Equal(43, expected.Count);
                 Assert.NotEqual(0, snapCursor);
-                Assert.Equal(12, snapOffset);
                 Assert.Equal(15, snapPageSize);
 
-                seq = server.Keys(DB, "ScanResume:*", pageSize: 15, cursor: snapCursor, pageOffset: snapOffset);
+                // note: you might think that we can say "hmmm, 57 when using page-size 15 on an empty (flushed) db (so: no skipped keys); that'll be
+                // offset 12 in the 4th page; you'd be wrong, though; page size doesn't *actually* mean page size; it is a rough analogue for
+                // page size, with zero guarantees; in this particular test, the first page actually has 19 elements, for example. So: we cannot
+                // make the following assertion:
+                // Assert.Equal(12, snapOffset);
+
+                seq = server.Keys(dbId, prefix + ":*", pageSize: 15, cursor: snapCursor, pageOffset: snapOffset);
                 var seqCur = (IScanningCursor)seq;
                 Assert.Equal(snapCursor, seqCur.Cursor);
                 Assert.Equal(snapPageSize, seqCur.PageSize);
@@ -174,11 +183,11 @@ namespace StackExchange.Redis.Tests
             {
                 RedisKey key = Me();
                 var db = conn.GetDatabase();
-                db.KeyDelete(key);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
 
-                db.SetAdd(key, "a");
-                db.SetAdd(key, "b");
-                db.SetAdd(key, "c");
+                db.SetAdd(key, "a", CommandFlags.FireAndForget);
+                db.SetAdd(key, "b", CommandFlags.FireAndForget);
+                db.SetAdd(key, "c", CommandFlags.FireAndForget);
                 var arr = db.SetScan(key).ToArray();
                 Assert.Equal(3, arr.Length);
                 Assert.True(arr.Contains("a"), "a");
@@ -195,13 +204,13 @@ namespace StackExchange.Redis.Tests
             string[] disabledCommands = supported ? null : new[] { "zscan" };
             using (var conn = Create(disabledCommands: disabledCommands))
             {
-                RedisKey key = Me();
+                RedisKey key = Me() + supported;
                 var db = conn.GetDatabase();
-                db.KeyDelete(key);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
 
-                db.SortedSetAdd(key, "a", 1);
-                db.SortedSetAdd(key, "b", 2);
-                db.SortedSetAdd(key, "c", 3);
+                db.SortedSetAdd(key, "a", 1, CommandFlags.FireAndForget);
+                db.SortedSetAdd(key, "b", 2, CommandFlags.FireAndForget);
+                db.SortedSetAdd(key, "c", 3, CommandFlags.FireAndForget);
 
                 var arr = db.SortedSetScan(key).ToArray();
                 Assert.Equal(3, arr.Length);
@@ -265,11 +274,11 @@ namespace StackExchange.Redis.Tests
             {
                 RedisKey key = Me();
                 var db = conn.GetDatabase();
-                db.KeyDelete(key);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
 
-                db.HashSet(key, "a", "1");
-                db.HashSet(key, "b", "2");
-                db.HashSet(key, "c", "3");
+                db.HashSet(key, "a", "1", flags: CommandFlags.FireAndForget);
+                db.HashSet(key, "b", "2", flags: CommandFlags.FireAndForget);
+                db.HashSet(key, "c", "3", flags: CommandFlags.FireAndForget);
 
                 var arr = db.HashScan(key).ToArray();
                 Assert.Equal(3, arr.Length);
@@ -304,9 +313,9 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                RedisKey key = Me();
+                RedisKey key = Me() + pageSize;
                 var db = conn.GetDatabase();
-                db.KeyDelete(key);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
 
                 for (int i = 0; i < 2000; i++)
                     db.HashSet(key, "k" + i, "v" + i, flags: CommandFlags.FireAndForget);
@@ -333,14 +342,14 @@ namespace StackExchange.Redis.Tests
         private bool GotCursors(ConnectionMultiplexer conn, RedisKey key, int count)
         {
             var db = conn.GetDatabase();
-            db.KeyDelete(key);
+            db.KeyDelete(key, CommandFlags.FireAndForget);
 
             var entries = new HashEntry[count];
             for (var i = 0; i < count; i++)
             {
                 entries[i] = new HashEntry("Item:" + i, i);
             }
-            db.HashSet(key, entries);
+            db.HashSet(key, entries, CommandFlags.FireAndForget);
 
             var found = false;
             var response = db.HashScan(key);
@@ -364,9 +373,9 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                RedisKey key = Me();
+                RedisKey key = Me() + pageSize;
                 var db = conn.GetDatabase();
-                db.KeyDelete(key);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
 
                 for (int i = 0; i < 2000; i++)
                     db.SetAdd(key, "s" + i, flags: CommandFlags.FireAndForget);
@@ -385,9 +394,9 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                RedisKey key = Me();
+                RedisKey key = Me() + pageSize;
                 var db = conn.GetDatabase();
-                db.KeyDelete(key);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
 
                 for (int i = 0; i < 2000; i++)
                     db.SortedSetAdd(key, "z" + i, i, flags: CommandFlags.FireAndForget);

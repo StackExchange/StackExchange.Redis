@@ -8,11 +8,19 @@ namespace StackExchange.Redis
     public abstract class RedisResult
     {
         /// <summary>
-        /// Create a new RedisResult.
+        /// Create a new RedisResult representing a single value.
         /// </summary>
         /// <param name="value">The <see cref="RedisValue"/> to create a result from.</param>
         /// <returns> new <see cref="RedisResult"/>.</returns>
-        public static RedisResult Create(RedisValue value) => new SingleRedisResult(value);
+        public static RedisResult Create(RedisValue value) => new SingleRedisResult(value, null);
+
+        /// <summary>
+        /// Create a new RedisResult representing an array of values.
+        /// </summary>
+        /// <param name="values">The <see cref="RedisValue"/>s to create a result from.</param>
+        /// <returns> new <see cref="RedisResult"/>.</returns>
+        public static RedisResult Create(RedisValue[] values) => new ArrayRedisResult(
+            values == null ? null : Array.ConvertAll(values, value => new SingleRedisResult(value, null)));
 
         // internally, this is very similar to RawResult, except it is designed to be usable
         // outside of the IO-processing pipeline: the buffers are standalone, etc
@@ -26,10 +34,10 @@ namespace StackExchange.Redis
                     case ResultType.Integer:
                     case ResultType.SimpleString:
                     case ResultType.BulkString:
-                        return new SingleRedisResult(result.AsRedisValue());
+                        return new SingleRedisResult(result.AsRedisValue(), result.Type);
                     case ResultType.MultiBulk:
                         var items = result.GetItems();
-                        var arr = new RedisResult[items.Length];
+                        var arr = result.IsNull ? null : new RedisResult[items.Length];
                         for (int i = 0; i < arr.Length; i++)
                         {
                             var next = TryCreate(connection, items[i]);
@@ -42,12 +50,17 @@ namespace StackExchange.Redis
                     default:
                         return null;
                 }
-            } catch(Exception ex)
+            } catch (Exception ex)
             {
                 connection?.OnInternalError(ex);
                 return null; // will be logged as a protocol fail by the processor
             }
         }
+
+        /// <summary>
+        /// Indicate the type of result that was received from redis
+        /// </summary>
+        public abstract ResultType Type { get; }
 
         /// <summary>
         /// Indicates whether this result was a null result
@@ -185,6 +198,8 @@ namespace StackExchange.Redis
         {
             public override bool IsNull => value == null;
             private readonly RedisResult[] value;
+
+            public override ResultType Type => ResultType.MultiBulk;
             public ArrayRedisResult(RedisResult[] value)
             {
                 this.value = value ?? throw new ArgumentNullException(nameof(value));
@@ -286,6 +301,8 @@ namespace StackExchange.Redis
         private sealed class ErrorRedisResult : RedisResult
         {
             private readonly string value;
+
+            public override ResultType Type => ResultType.Error;
             public ErrorRedisResult(string value)
             {
                 this.value = value ?? throw new ArgumentNullException(nameof(value));
@@ -318,35 +335,38 @@ namespace StackExchange.Redis
 
         private sealed class SingleRedisResult : RedisResult
         {
-            private readonly RedisValue value;
-            public SingleRedisResult(RedisValue value)
+            private readonly RedisValue _value;
+            private readonly ResultType _resultType;
+            public override ResultType Type => _resultType;
+            public SingleRedisResult(RedisValue value, ResultType? resultType)
             {
-                this.value = value;
+                _value = value;
+                _resultType = resultType ?? (value.IsInteger ? ResultType.Integer : ResultType.BulkString);
             }
 
-            public override bool IsNull => value.IsNull;
+            public override bool IsNull => _value.IsNull;
 
-            public override string ToString() => value.ToString();
-            internal override bool AsBoolean() => (bool)value;
+            public override string ToString() => _value.ToString();
+            internal override bool AsBoolean() => (bool)_value;
             internal override bool[] AsBooleanArray() => new[] { AsBoolean() };
-            internal override byte[] AsByteArray() => (byte[])value;
+            internal override byte[] AsByteArray() => (byte[])_value;
             internal override byte[][] AsByteArrayArray() => new[] { AsByteArray() };
-            internal override double AsDouble() => (double)value;
+            internal override double AsDouble() => (double)_value;
             internal override double[] AsDoubleArray() => new[] { AsDouble() };
-            internal override int AsInt32() => (int)value;
+            internal override int AsInt32() => (int)_value;
             internal override int[] AsInt32Array() => new[] { AsInt32() };
-            internal override long AsInt64() => (long)value;
+            internal override long AsInt64() => (long)_value;
             internal override long[] AsInt64Array() => new[] { AsInt64() };
-            internal override bool? AsNullableBoolean() => (bool?)value;
-            internal override double? AsNullableDouble() => (double?)value;
-            internal override int? AsNullableInt32() => (int?)value;
-            internal override long? AsNullableInt64() => (long?)value;
-            internal override RedisKey AsRedisKey() => (byte[])value;
+            internal override bool? AsNullableBoolean() => (bool?)_value;
+            internal override double? AsNullableDouble() => (double?)_value;
+            internal override int? AsNullableInt32() => (int?)_value;
+            internal override long? AsNullableInt64() => (long?)_value;
+            internal override RedisKey AsRedisKey() => (byte[])_value;
             internal override RedisKey[] AsRedisKeyArray() => new[] { AsRedisKey() };
             internal override RedisResult[] AsRedisResultArray() => throw new InvalidCastException();
-            internal override RedisValue AsRedisValue() => value;
+            internal override RedisValue AsRedisValue() => _value;
             internal override RedisValue[] AsRedisValueArray() => new[] { AsRedisValue() };
-            internal override string AsString() => (string)value;
+            internal override string AsString() => (string)_value;
             internal override string[] AsStringArray() => new[] { AsString() };
         }
     }

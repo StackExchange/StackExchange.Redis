@@ -11,18 +11,16 @@ namespace StackExchange.Redis.Tests
     {
         public PreserveOrder(ITestOutputHelper output) : base (output) { }
 
-        [Theory]
-        [InlineData(true)]
-        [InlineData(false)]
-        public void Execute(bool preserveAsyncOrder)
+        [Fact]
+        public void Execute()
         {
             using (var conn = Create())
             {
                 var sub = conn.GetSubscriber();
                 var received = new List<int>();
-                Output.WriteLine("Subscribing...");
+                Log("Subscribing...");
                 const int COUNT = 1000;
-                sub.Subscribe("foo", (channel, message) =>
+                sub.Subscribe("foo", (_, message) =>
                 {
                     lock (received)
                     {
@@ -33,9 +31,8 @@ namespace StackExchange.Redis.Tests
                     Thread.Sleep(1); // you kinda need to be slow, otherwise
                     // the pool will end up doing everything on one thread
                 });
-                conn.PreserveAsyncOrder = preserveAsyncOrder;
-                Output.WriteLine("");
-                Output.WriteLine("Sending ({0})...", preserveAsyncOrder ? "preserved order" : "any order");
+                Log("");
+                Log("Sending (any order)...");
                 lock (received)
                 {
                     received.Clear();
@@ -48,25 +45,23 @@ namespace StackExchange.Redis.Tests
                         sub.Publish("foo", i);
                     }
 
-                    Output.WriteLine("Allowing time for delivery etc...");
+                    Log("Allowing time for delivery etc...");
                     var watch = Stopwatch.StartNew();
                     if (!Monitor.Wait(received, 10000))
                     {
-                        Output.WriteLine("Timed out; expect less data");
+                        Log("Timed out; expect less data");
                     }
                     watch.Stop();
-                    Output.WriteLine("Checking...");
+                    Log("Checking...");
                     lock (received)
                     {
-                        Output.WriteLine("Received: {0} in {1}ms", received.Count, watch.ElapsedMilliseconds);
+                        Log("Received: {0} in {1}ms", received.Count, watch.ElapsedMilliseconds);
                         int wrongOrder = 0;
                         for (int i = 0; i < Math.Min(COUNT, received.Count); i++)
                         {
                             if (received[i] != i) wrongOrder++;
                         }
-                        Output.WriteLine("Out of order: " + wrongOrder);
-                        if (preserveAsyncOrder) Assert.Equal(0, wrongOrder);
-                        else Assert.NotEqual(0, wrongOrder);
+                        Log("Out of order: " + wrongOrder);
                     }
                 }
             }

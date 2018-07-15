@@ -5,7 +5,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// Describes a value/expiry pair
     /// </summary>
-    public struct RedisValueWithExpiry
+    public readonly struct RedisValueWithExpiry
     {
         internal RedisValueWithExpiry(RedisValue value, TimeSpan? expiry)
         {

@@ -1,39 +1,12 @@
-using Xunit;
+﻿using Xunit;
 using System;
-using System.IO;
 using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
-    public class AzureTestAttribute : FactAttribute
-    {
-    }
-
     public class GeoTests : TestBase
     {
         public GeoTests(ITestOutputHelper output) : base (output) { }
-
-        private ConnectionMultiplexer Create()
-        {
-            Skip.IfNoConfig(nameof(TestConfig.Config.AzureCacheServer), TestConfig.Current.AzureCacheServer);
-            Skip.IfNoConfig(nameof(TestConfig.Config.AzureCachePassword), TestConfig.Current.AzureCachePassword);
-
-            var options = new ConfigurationOptions();
-            options.EndPoints.Add(TestConfig.Current.AzureCacheServer);
-            options.Ssl = true;
-            options.ConnectTimeout = 5000;
-            options.Password = TestConfig.Current.AzureCachePassword;
-            options.TieBreaker = "";
-            var log = new StringWriter();
-            var conn = ConnectionMultiplexer.Connect(options, log);
-            var s = log.ToString();
-            Output.WriteLine(s);
-            Skip.IfMissingFeature(conn, nameof(RedisFeatures.Geo), r => r.Geo);
-            return conn;
-        }
-
-        public const int Db = 0;
 
         public static GeoEntry
             palermo = new GeoEntry(13.361389, 38.115556, "Palermo"),
@@ -42,14 +15,15 @@ namespace StackExchange.Redis.Tests
             cefalù = new GeoEntry(14.0188, 38.0084, "Cefalù");
         public static GeoEntry[] all = { palermo, catania, agrigento, cefalù };
 
-        [AzureTest]
+        [Fact]
         public void GeoAdd()
         {
             using (var conn = Create())
             {
-                var db = conn.GetDatabase(Db);
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Geo), r => r.Geo);
+                var db = conn.GetDatabase();
                 RedisKey key = Me();
-                db.KeyDelete(key);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
 
                 // add while not there
                 Assert.True(db.GeoAdd(key, cefalù.Longitude, cefalù.Latitude, cefalù.Member));
@@ -60,18 +34,25 @@ namespace StackExchange.Redis.Tests
                 Assert.False(db.GeoAdd(key, cefalù.Longitude, cefalù.Latitude, cefalù.Member));
                 Assert.Equal(0, db.GeoAdd(key, new GeoEntry[] { palermo, catania }));
                 Assert.False(db.GeoAdd(key, agrigento));
+
+                // Validate
+                var pos = db.GeoPosition(key, palermo.Member);
+                Assert.NotNull(pos);
+                Assert.Equal(palermo.Longitude, pos.Value.Longitude, 5);
+                Assert.Equal(palermo.Latitude, pos.Value.Latitude, 5);
             }
         }
 
-        [AzureTest]
+        [Fact]
         public void GetDistance()
         {
             using (var conn = Create())
             {
-                var db = conn.GetDatabase(Db);
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Geo), r => r.Geo);
+                var db = conn.GetDatabase();
                 RedisKey key = Me();
-                db.KeyDelete(key);
-                db.GeoAdd(key, all);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.GeoAdd(key, all, CommandFlags.FireAndForget);
                 var val = db.GeoDistance(key, "Palermo", "Catania", GeoUnit.Meters);
                 Assert.True(val.HasValue);
                 var rounded = Math.Round(val.Value, 10);
@@ -82,15 +63,16 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [AzureTest]
+        [Fact]
         public void GeoHash()
         {
             using (var conn = Create())
             {
-                var db = conn.GetDatabase(Db);
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Geo), r => r.Geo);
+                var db = conn.GetDatabase();
                 RedisKey key = Me();
-                db.KeyDelete(key);
-                db.GeoAdd(key, all);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.GeoAdd(key, all, CommandFlags.FireAndForget);
 
                 var hashes = db.GeoHash(key, new RedisValue[] { palermo.Member, "Nowhere", agrigento.Member });
                 Assert.Equal(3, hashes.Length);
@@ -106,15 +88,16 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [AzureTest]
+        [Fact]
         public void GeoGetPosition()
         {
             using (var conn = Create())
             {
-                var db = conn.GetDatabase(Db);
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Geo), r => r.Geo);
+                var db = conn.GetDatabase();
                 RedisKey key = Me();
-                db.KeyDelete(key);
-                db.GeoAdd(key, all);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.GeoAdd(key, all, CommandFlags.FireAndForget);
 
                 var pos = db.GeoPosition(key, palermo.Member);
                 Assert.True(pos.HasValue);
@@ -126,15 +109,16 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [AzureTest]
+        [Fact]
         public void GeoRemove()
         {
             using (var conn = Create())
             {
-                var db = conn.GetDatabase(Db);
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Geo), r => r.Geo);
+                var db = conn.GetDatabase();
                 RedisKey key = Me();
-                db.KeyDelete(key);
-                db.GeoAdd(key, all);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.GeoAdd(key, all, CommandFlags.FireAndForget);
 
                 var pos = db.GeoPosition(key, "Palermo");
                 Assert.True(pos.HasValue);
@@ -148,15 +132,16 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [AzureTest]
+        [Fact]
         public void GeoRadius()
         {
             using (var conn = Create())
             {
-                var db = conn.GetDatabase(Db);
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Geo), r => r.Geo);
+                var db = conn.GetDatabase();
                 RedisKey key = Me();
-                db.KeyDelete(key);
-                db.GeoAdd(key, all);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.GeoAdd(key, all, CommandFlags.FireAndForget);
 
                 var results = db.GeoRadius(key, cefalù.Member, 60, GeoUnit.Miles, 2, Order.Ascending);
                 Assert.Equal(2, results.Length);
@@ -184,6 +169,29 @@ namespace StackExchange.Redis.Tests
                 Assert.False(results[1].Position.HasValue);
                 Assert.False(results[1].Distance.HasValue);
                 Assert.False(results[1].Hash.HasValue);
+            }
+        }
+
+        [Fact]
+        public void GeoRadiusOverloads()
+        {
+            using (var conn = Create())
+            {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Geo), r => r.Geo);
+                var db = conn.GetDatabase();
+                RedisKey key = Me();
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+
+                Assert.True(db.GeoAdd(key, -1.759925, 52.19493, "steve"));
+                Assert.True(db.GeoAdd(key, -3.360655, 54.66395, "dave"));
+
+                // Invalid overload, but due to implcit double => RedisValue conversion it happily calls
+                var ex = Assert.Throws<RedisServerException>(() => db.GeoRadius(key, -1.759925, 52.19493, GeoUnit.Miles, 500, Order.Ascending, GeoRadiusOptions.WithDistance));
+                Assert.Equal("ERR could not decode requested zset member", ex.Message);
+
+                // The good stuff
+                GeoRadiusResult[] result = db.GeoRadius(key, -1.759925, 52.19493, 500, unit: GeoUnit.Miles, order: Order.Ascending, options: GeoRadiusOptions.WithDistance);
+                Assert.NotNull(result);
             }
         }
     }

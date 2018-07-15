@@ -10,7 +10,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// Indicates a range of slots served by a cluster node
     /// </summary>
-    public struct SlotRange : IEquatable<SlotRange>, IComparable<SlotRange>, IComparable
+    public readonly struct SlotRange : IEquatable<SlotRange>, IComparable<SlotRange>, IComparable
     {
         private readonly short from, to;
 
@@ -269,10 +269,6 @@ namespace StackExchange.Redis
     {
         private static readonly ClusterNode Dummy = new ClusterNode();
 
-        private static readonly IList<ClusterNode> NoNodes = new ClusterNode[0];
-
-        private static readonly IList<SlotRange> NoSlots = new SlotRange[0];
-
         private readonly ClusterConfiguration configuration;
 
         private IList<ClusterNode> children;
@@ -322,7 +318,7 @@ namespace StackExchange.Redis
                     (slots ?? (slots = new List<SlotRange>(parts.Length - i))).Add(range);
                 }
             }
-            Slots = slots?.AsReadOnly() ?? NoSlots;
+            Slots = slots?.AsReadOnly() ?? (IList<SlotRange>)Array.Empty<SlotRange>();
             IsConnected = parts[7] == "connected"; // Can be "connected" or "disconnected"
         }
         /// <summary>
@@ -342,7 +338,7 @@ namespace StackExchange.Redis
                         (nodes ?? (nodes = new List<ClusterNode>())).Add(node);
                     }
                 }
-                children = nodes?.AsReadOnly() ?? NoNodes;
+                children = nodes?.AsReadOnly() ?? (IList<ClusterNode>)Array.Empty<ClusterNode>();
                 return children;
             }
         }

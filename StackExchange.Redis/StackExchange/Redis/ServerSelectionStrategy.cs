@@ -61,7 +61,10 @@ namespace StackExchange.Redis
         /// Computes the hash-slot that would be used by the given key
         /// </summary>
         /// <param name="key">The <see cref="RedisKey"/> to determine a slot ID for.</param>
-        public unsafe int HashSlot(RedisKey key)
+        public int HashSlot(RedisKey key)
+            => ServerType == ServerType.Standalone ? NoSlot : GetClusterSlot(key);
+
+        private static unsafe int GetClusterSlot(RedisKey key)
         {
             //HASH_SLOT = CRC16(key) mod 16384
             if (key.IsNull) return NoSlot;
@@ -124,6 +127,7 @@ namespace StackExchange.Redis
                     {
                         message.SetAsking(!isMoved);
                         message.SetNoRedirect(); // once is enough
+                        if (isMoved) message.SetInternalCall();
 
                         // note that everything so far is talking about MASTER nodes; we might be
                         // wanting a SLAVE, so we'll check
@@ -132,16 +136,16 @@ namespace StackExchange.Redis
                         switch (Message.GetMasterSlaveFlags(message.Flags))
                         {
                             case CommandFlags.DemandMaster:
-                                resendVia = server.IsSelectable(command) ? server : null;
+                                resendVia = server.IsSelectable(command, isMoved) ? server : null;
                                 break;
                             case CommandFlags.PreferMaster:
-                                resendVia = server.IsSelectable(command) ? server : FindSlave(server, command);
+                                resendVia = server.IsSelectable(command, isMoved) ? server : FindSlave(server, command);
                                 break;
                             case CommandFlags.PreferSlave:
-                                resendVia = FindSlave(server, command) ?? (server.IsSelectable(command) ? server : null);
+                                resendVia = FindSlave(server, command, isMoved) ?? (server.IsSelectable(command, isMoved) ? server : null);
                                 break;
                             case CommandFlags.DemandSlave:
-                                resendVia = FindSlave(server, command);
+                                resendVia = FindSlave(server, command, isMoved);
                                 break;
                         }
                         if (resendVia == null)
@@ -151,7 +155,7 @@ namespace StackExchange.Redis
                         else
                         {
                             message.PrepareToResend(resendVia, isMoved);
-                            retry = resendVia.TryEnqueue(message);
+                            retry = resendVia.TryWrite(message) == WriteResult.Success;
                         }
                     }
 
@@ -235,9 +239,9 @@ namespace StackExchange.Redis
             return null;
         }
 
-        private ServerEndPoint FindSlave(ServerEndPoint endpoint, RedisCommand command)
+        private ServerEndPoint FindSlave(ServerEndPoint endpoint, RedisCommand command, bool allowDisconnected = false)
         {
-            if (endpoint.IsSlave && endpoint.IsSelectable(command)) return endpoint;
+            if (endpoint.IsSlave && endpoint.IsSelectable(command, allowDisconnected)) return endpoint;
 
             var slaves = endpoint.Slaves;
             var len = slaves.Length;
@@ -245,7 +249,7 @@ namespace StackExchange.Redis
             for (int i = 0; i < len; i++)
             {
                 endpoint = slaves[(int)(((uint)i + startOffset) % len)];
-                if (endpoint.IsSlave && endpoint.IsSelectable(command)) return endpoint;
+                if (endpoint.IsSlave && endpoint.IsSelectable(command, allowDisconnected)) return endpoint;
             }
             return null;
         }

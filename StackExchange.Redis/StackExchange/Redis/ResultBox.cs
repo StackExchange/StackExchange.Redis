@@ -7,20 +7,11 @@ namespace StackExchange.Redis
 {
     internal abstract partial class ResultBox
     {
-        protected Exception exception;
+        protected Exception _exception;
+        public abstract bool IsAsync { get; }
+        public bool IsFaulted => _exception != null;
 
-        public void SetException(Exception exception)
-        {
-            this.exception = exception;
-            //try
-            //{
-            //    throw exception;
-            //}
-            //catch (Exception caught)
-            //{ // stacktrace etc
-            //    this.exception = caught;
-            //}
-        }
+        public void SetException(Exception exception) => _exception = exception;
 
         public abstract bool TryComplete(bool isAsync);
 
@@ -75,9 +66,9 @@ namespace StackExchange.Redis
             else
             {
                 value = box.value;
-                exception = box.exception;
+                exception = box._exception;
                 box.value = default(T);
-                box.exception = null;
+                box._exception = null;
                 if (recycle)
                 {
                     for (int i = 0; i < store.Length; i++)
@@ -93,11 +84,13 @@ namespace StackExchange.Redis
             this.value = value;
         }
 
+        public override bool IsAsync => stateOrCompletionSource is TaskCompletionSource<T>;
+
         public override bool TryComplete(bool isAsync)
         {
             if (stateOrCompletionSource is TaskCompletionSource<T> tcs)
             {
-                if (isAsync || TaskSource.IsSyncSafe(tcs.Task))
+                if (isAsync)
                 {
                     UnwrapAndRecycle(this, true, out T val, out Exception ex);
 
@@ -134,7 +127,7 @@ namespace StackExchange.Redis
         private void Reset(object stateOrCompletionSource)
         {
             value = default(T);
-            exception = null;
+            _exception = null;
 
             this.stateOrCompletionSource = stateOrCompletionSource;
         }

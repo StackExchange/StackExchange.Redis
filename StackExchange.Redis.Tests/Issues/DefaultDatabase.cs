@@ -35,7 +35,7 @@ namespace StackExchange.Redis.Tests.Issues
             }
             finally
             {
-                Output.WriteLine(log.ToString());
+                Log(log.ToString());
             }
         }
 
@@ -52,7 +52,7 @@ namespace StackExchange.Redis.Tests.Issues
             }
             finally
             {
-                Output.WriteLine(log.ToString());
+                Log(log.ToString());
             }
         }
 	}

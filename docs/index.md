@@ -27,14 +27,6 @@ StackExchange.Redis can be installed via the nuget UI (as [StackExchange.Redis](
 PM> Install-Package StackExchange.Redis
 ```
 
-If you require a strong-named package (because your project is strong-named), then you may wish to use instead:
-
-```PowerShell
-PM> Install-Package StackExchange.Redis.StrongName
-```
-
-([for further reading, see here](http://blog.marcgravell.com/2014/06/snk-we-need-to-talk.html))
-
 Documentation
 ---
 
@@ -47,7 +39,7 @@ Documentation
 - [Pub/Sub Message Order](PubSubOrder) - advice on sequential and concurrent processing
 - [Where are `KEYS` / `SCAN` / `FLUSH*`?](KeysScan) - how to use server-based commands
 - [Profiling](Profiling) - profiling interfaces, as well as how to profile in an `async` world
-- [Scripting](Scripting) - running Lua scripts with convenient named parameter replacement 
+- [Scripting](Scripting) - running Lua scripts with convenient named parameter replacement
 - [Testing](Testing) - running the `StackExchange.Redis.Tests` suite to validate changes
 
 Questions and Contributions

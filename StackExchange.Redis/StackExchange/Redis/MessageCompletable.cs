@@ -7,35 +7,50 @@ namespace StackExchange.Redis
     {
         private readonly RedisChannel channel;
 
-        private readonly Action<RedisChannel, RedisValue> handler;
+        private readonly Action<RedisChannel, RedisValue> syncHandler, asyncHandler;
 
         private readonly RedisValue message;
-
-        public MessageCompletable(RedisChannel channel, RedisValue message, Action<RedisChannel, RedisValue> handler)
+        public MessageCompletable(RedisChannel channel, RedisValue message, Action<RedisChannel, RedisValue> syncHandler, Action<RedisChannel, RedisValue> asyncHandler)
         {
             this.channel = channel;
             this.message = message;
-            this.handler = handler;
+            this.syncHandler = syncHandler;
+            this.asyncHandler = asyncHandler;
         }
 
         public override string ToString() => (string)channel;
 
         public bool TryComplete(bool isAsync)
         {
-            if (handler == null) return true;
             if (isAsync)
             {
-                ConnectionMultiplexer.TraceWithoutContext("Invoking...: " + (string)channel, "Subscription");
-                foreach(Action<RedisChannel, RedisValue> sub in handler.GetInvocationList())
+                if (asyncHandler != null)
                 {
-                    try { sub.Invoke(channel, message); }
-                    catch { }
+                    ConnectionMultiplexer.TraceWithoutContext("Invoking (async)...: " + (string)channel, "Subscription");
+                    foreach (Action<RedisChannel, RedisValue> sub in asyncHandler.GetInvocationList())
+                    {
+                        try { sub.Invoke(channel, message); }
+                        catch { }
+                    }
+                    ConnectionMultiplexer.TraceWithoutContext("Invoke complete (async)", "Subscription");
                 }
-                ConnectionMultiplexer.TraceWithoutContext("Invoke complete", "Subscription");
                 return true;
             }
-            // needs to be called async (unless there is nothing to do!)
-            return false;
+            else
+            {
+
+                if (syncHandler != null)
+                {
+                    ConnectionMultiplexer.TraceWithoutContext("Invoking (sync)...: " + (string)channel, "Subscription");
+                    foreach (Action<RedisChannel, RedisValue> sub in syncHandler.GetInvocationList())
+                    {
+                        try { sub.Invoke(channel, message); }
+                        catch { }
+                    }
+                    ConnectionMultiplexer.TraceWithoutContext("Invoke complete (sync)", "Subscription");
+                }
+                return asyncHandler == null; // anything async to do?
+            }
         }
 
         void ICompletable.AppendStormLog(StringBuilder sb)

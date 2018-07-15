@@ -53,8 +53,7 @@ namespace NRediSearch.Test
             var conn = ConnectionMultiplexer.Connect(options);
 
             var server = conn.GetServer(ep);
-            var db = conn.GetDatabase();
-            var arr = (RedisResult[])db.Execute("module", "list");
+            var arr = (RedisResult[])server.Execute("module", "list");
             bool found = false;
             foreach (var module in arr)
             {
@@ -76,7 +75,7 @@ namespace NRediSearch.Test
                 {
                     var i = config.LastIndexOf('/');
                     var modulePath = config.Substring(0, i + 1) + "redisearch.so";
-                    var result = db.Execute("module", "load", modulePath);
+                    var result = server.Execute("module", "load", modulePath);
                     output?.WriteLine((string)result);
                 }
             }

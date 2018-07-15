@@ -36,8 +36,8 @@ namespace NRediSearch.Test
                 {
                     Console.WriteLine(ex.Message);
                     Console.WriteLine("Module not installed, aborting");
-                    return; // the module isn't installed
                 }
+                throw;
             }
 
             Assert.True(result);

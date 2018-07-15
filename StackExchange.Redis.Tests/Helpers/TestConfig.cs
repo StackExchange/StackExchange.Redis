@@ -1,7 +1,7 @@
 ﻿using System.IO;
-using Jil;
 using System;
-using System.Collections.Generic;
+using Newtonsoft.Json;
+using System.Threading;
 
 namespace StackExchange.Redis.Tests
 {
@@ -10,6 +10,14 @@ namespace StackExchange.Redis.Tests
         private const string FileName = "TestConfig.json";
 
         public static Config Current { get; }
+
+        private static int _db = 17;
+        public static int GetDedicatedDB(ConnectionMultiplexer conn = null)
+        {
+            int db = Interlocked.Increment(ref _db);
+            if (conn != null) Skip.IfMissingDatabase(conn, db);
+            return db;
+        }
 
         static TestConfig()
         {
@@ -22,7 +30,7 @@ namespace StackExchange.Redis.Tests
                     {
                         using (var reader = new StreamReader(stream))
                         {
-                            Current = JSON.Deserialize<Config>(reader);
+                            Current = JsonConvert.DeserializeObject<Config>(reader.ReadToEnd());
                         }
                     }
                 }
@@ -36,6 +44,7 @@ namespace StackExchange.Redis.Tests
         public class Config
         {
             public bool RunLongRunning { get; set; }
+            public bool LogToConsole { get; set; }
 
             public string MasterServer { get; set; } = "127.0.0.1";
             public int MasterPort { get; set; } = 6379;
@@ -66,6 +75,7 @@ namespace StackExchange.Redis.Tests
 
             public string RemoteServer { get; set; } = "127.0.0.1";
             public int RemotePort { get; set; } = 6379;
+            public string RemoteServerAndPort => RemoteServer + ":" + RemotePort.ToString();
 
             public string SentinelServer { get; set; } = "127.0.0.1";
             public int SentinelPort { get; set; } = 26379;
@@ -87,8 +97,6 @@ namespace StackExchange.Redis.Tests
 
             public string SSDBServer { get; set; }
             public int SSDBPort { get; set; } = 8888;
-
-            public List<string> VPNConfigs { get; set; }
         }
     }
 }

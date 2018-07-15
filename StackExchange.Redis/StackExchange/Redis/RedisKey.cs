@@ -6,9 +6,8 @@ namespace StackExchange.Redis
     /// <summary>
     /// Represents a key that can be stored in redis
     /// </summary>
-    public struct RedisKey : IEquatable<RedisKey>
+    public readonly struct RedisKey : IEquatable<RedisKey>
     {
-        internal static readonly RedisKey[] EmptyArray = new RedisKey[0];
         private readonly byte[] keyPrefix;
         private readonly object keyValue; // always either a string or a byte[]
         internal RedisKey(byte[] keyPrefix, object keyValue)
@@ -158,7 +157,11 @@ namespace StackExchange.Redis
         /// </summary>
         public override string ToString() => ((string)this) ?? "(null)";
 
-        internal RedisValue AsRedisValue() => (byte[])this;
+        internal RedisValue AsRedisValue()
+        {
+            if (keyPrefix == null && keyValue is string) return (string)keyValue;
+            return (byte[])this;
+        }
 
         internal void AssertNotNull()
         {
@@ -277,19 +280,21 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Prepends p to this RedisKey, returning a new RedisKey.
-        /// 
+        /// <para>Prepends p to this RedisKey, returning a new RedisKey.</para>
+        /// <para>
         /// Avoids some allocations if possible, repeated Prepend/Appends make
         /// it less possible.
+        /// </para>
         /// </summary>
         /// <param name="prefix">The prefix to prepend.</param>
         public RedisKey Prepend(RedisKey prefix) => WithPrefix(prefix, this);
 
         /// <summary>
-        /// Appends p to this RedisKey, returning a new RedisKey.
-        /// 
+        /// <para>Appends p to this RedisKey, returning a new RedisKey.</para>
+        /// <para>
         /// Avoids some allocations if possible, repeated Prepend/Appends make
         /// it less possible.
+        /// </para>
         /// </summary>
         /// <param name="suffix">The suffix to append.</param>
         public RedisKey Append(RedisKey suffix) => WithPrefix(this, suffix);

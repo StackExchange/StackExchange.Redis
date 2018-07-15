@@ -3,7 +3,7 @@
     /// <summary>
     /// Describes a Redis Stream with an associated array of entries.
     /// </summary>
-    public struct RedisStream
+    public readonly struct RedisStream
     {
         internal RedisStream(RedisKey key, RedisStreamEntry[] entries)
         {

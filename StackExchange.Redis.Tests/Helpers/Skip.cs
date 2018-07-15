@@ -34,6 +34,12 @@ namespace StackExchange.Redis.Tests
                 };
             }
         }
+
+        internal static void IfMissingDatabase(ConnectionMultiplexer conn, int dbId)
+        {
+            var dbCount = conn.GetServer(conn.GetEndPoints()[0]).DatabaseCount;
+            if (dbId >= dbCount) throw new SkipTestException($"Database {dbId} is not supported on this server.");
+        }
     }
 
 #pragma warning disable RCS1194 // Implement exception constructors.

@@ -16,7 +16,7 @@ namespace StackExchange.Redis
             this.asyncState = asyncState;
         }
 
-        ConnectionMultiplexer IRedisAsync.Multiplexer => multiplexer;
+        IConnectionMultiplexer IRedisAsync.Multiplexer => multiplexer;
 
         public virtual TimeSpan Ping(CommandFlags flags = CommandFlags.None)
         {
@@ -28,18 +28,6 @@ namespace StackExchange.Redis
         {
             var msg = GetTimerMessage(flags);
             return ExecuteAsync(msg, ResultProcessor.ResponseTimer);
-        }
-
-        public void Quit(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.QUIT);
-            ExecuteSync(msg, ResultProcessor.DemandOK);
-        }
-
-        public Task QuitAsync(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.QUIT);
-            return ExecuteAsync(msg, ResultProcessor.DemandOK);
         }
 
         public override string ToString() => multiplexer.ToString();
@@ -163,7 +151,7 @@ namespace StackExchange.Redis
 
             System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
 
-            internal struct ScanResult
+            internal readonly struct ScanResult
             {
                 public readonly long Cursor;
                 public readonly T[] Values;

@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Globalization;
 using System.Net;
+using System.Numerics;
+using System.Runtime.InteropServices;
+using System.Text;
 
 namespace StackExchange.Redis
 {
@@ -59,7 +62,16 @@ namespace StackExchange.Redis
             return value.ToString("G17", NumberFormatInfo.InvariantInfo);
         }
 
-        internal static string ToString(object value) => Convert.ToString(value, CultureInfo.InvariantCulture);
+        internal static string ToString(object value)
+        {
+            if (value == null) return "";
+            if (value is long l) return ToString(l);
+            if (value is int i) return ToString(i);
+            if (value is float f) return ToString(f);
+            if (value is double d) return ToString(d);
+            if (value is EndPoint e) return ToString(e);
+            return Convert.ToString(value, CultureInfo.InvariantCulture);
+        }
 
         internal static string ToString(EndPoint endpoint)
         {
@@ -135,6 +147,50 @@ namespace StackExchange.Redis
                 return true;
             }
             return double.TryParse(s, NumberStyles.Any, NumberFormatInfo.InvariantInfo, out value);
+        }
+
+        internal static bool TryParseDouble(ReadOnlySpan<byte> s, out double value)
+        {
+            if (s.IsEmpty)
+            {
+                value = 0;
+                return false;
+            }
+            if (s.Length == 1 && s[0] >= '0' && s[0] <= '9')
+            {
+                value = (int)(s[0] - '0');
+                return true;
+            }
+            // need to handle these
+            if (CaseInsensitiveASCIIEqual("+inf", s) || CaseInsensitiveASCIIEqual("inf", s))
+            {
+                value = double.PositiveInfinity;
+                return true;
+            }
+            if (CaseInsensitiveASCIIEqual("-inf", s))
+            {
+                value = double.NegativeInfinity;
+                return true;
+            }
+            var ss = DecodeUtf8(s);
+            return double.TryParse(ss, NumberStyles.Any, NumberFormatInfo.InvariantInfo, out value);
+        }
+        internal static unsafe string DecodeUtf8(ReadOnlySpan<byte> span)
+        {
+            if (span.IsEmpty) return "";
+            fixed(byte* ptr = &MemoryMarshal.GetReference(span))
+            {
+                return Encoding.UTF8.GetString(ptr, span.Length);
+            }
+        }
+        private static bool CaseInsensitiveASCIIEqual(string xLowerCase, ReadOnlySpan<byte> y)
+        {
+            if (y.Length != xLowerCase.Length) return false;
+            for(int i = 0; i < y.Length; i++)
+            {
+                if (char.ToLower((char)y[i]) != xLowerCase[i]) return false;
+            }
+            return true;
         }
 
         internal static EndPoint TryParseEndPoint(string endpoint)

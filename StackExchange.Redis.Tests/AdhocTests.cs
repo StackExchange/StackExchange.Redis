@@ -17,7 +17,7 @@ namespace StackExchange.Redis.Tests
                 // needs explicit RedisKey type for key-based
                 // sharding to work; will still work with strings,
                 // but no key-based sharding support
-                RedisKey key = "some_key";
+                RedisKey key = Me();
 
                 // note: if command renames are configured in
                 // the API, they will still work automatically 

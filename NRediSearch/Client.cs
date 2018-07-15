@@ -441,9 +441,10 @@ namespace NRediSearch
             for (int i = 0; i < res.Length; i += 2)
             {
                 var val = res[i + 1];
-                try { info.Add((string)res[i], (RedisValue)val); }
-                catch { }
-                
+                if (val.Type != ResultType.MultiBulk)
+                {
+                    info.Add((string)res[i], (RedisValue)val);
+                }
             }
             return info;
         }

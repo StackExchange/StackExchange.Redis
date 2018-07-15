@@ -8,20 +8,22 @@
     <PackageId>StackExchange.Redis</PackageId>
     <PackageTags>Async;Redis;Cache;PubSub;Messaging</PackageTags>
     <OutputTypeEx>Library</OutputTypeEx>
+    <SignAssembly>true</SignAssembly>
+    <PublicSign Condition=" '$(OS)' != 'Windows_NT' ">true</PublicSign>
+    <LangVersion>latest</LangVersion>
   </PropertyGroup>
 
-  <ItemGroup Condition=" '$(TargetFramework)' == 'net45' OR '$(TargetFramework)' == 'net46' ">
-    <Reference Include="Microsoft.CSharp" />
-    <Reference Include="System.IO.Compression" />
-  </ItemGroup>
-
-  <PropertyGroup Condition=" '$(TargetFramework)' == 'net45' or '$(TargetFramework)' == 'net46'">
-    <DefineConstants>$(DefineConstants);FEATURE_SOCKET_MODE_POLL;FEATURE_PERFCOUNTER;</DefineConstants>
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug' and '$(Computername)'=='OCHO'">
+    <!--<DefineConstants>$(DefineConstants);LOGOUTPUT</DefineConstants>-->
   </PropertyGroup>
 
-  <ItemGroup Condition=" '$(TargetFramework)' == 'netstandard2.0' ">
-    <PackageReference Include="System.Reflection.Emit.Lightweight" Version="$(CoreFxVersion)" />
-    <PackageReference Include="System.Reflection.Emit.ILGeneration" Version="$(CoreFxVersion)" />
+  <ItemGroup>
+    <PackageReference Include="System.IO.Pipelines" Version="$(CoreFxVersion)" />
+    <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="$(CoreFxVersion)" />
   </ItemGroup>
-
+  
+  <ItemGroup>
+    <PackageReference Include="Pipelines.Sockets.Unofficial" Version="0.2.1-alpha.65" />
+    <PackageReference Include="System.Threading.Channels" Version="4.5.0" />
+  </ItemGroup>
 </Project>

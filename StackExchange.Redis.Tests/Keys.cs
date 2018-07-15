@@ -14,34 +14,38 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create(allowAdmin: true))
             {
-                const int Database = 43;
-                var db = muxer.GetDatabase(Database);
+                var dbId = TestConfig.GetDedicatedDB();
+                var db = muxer.GetDatabase(dbId);
                 var server = GetAnyMaster(muxer);
-                server.FlushDatabase(flags: CommandFlags.FireAndForget);
+                var prefix = Me();
+                server.FlushDatabase(dbId, flags: CommandFlags.FireAndForget);
 
                 const int Count = 1000;
                 for (int i = 0; i < Count; i++)
-                    db.StringSet("x" + i, "y" + i, flags: CommandFlags.FireAndForget);
+                    db.StringSet(prefix + "x" + i, "y" + i, flags: CommandFlags.FireAndForget);
 
-                var count = server.Keys(Database).Count();
+                var count = server.Keys(dbId, prefix + "*").Count();
                 Assert.Equal(Count, count);
             }
         }
 
         [Fact]
-        public void RandomKey()
+        public void FlushFetchRandomKey()
         {
             using (var conn = Create(allowAdmin: true))
             {
-                var db = conn.GetDatabase();
-                conn.GetServer(TestConfig.Current.MasterServerAndPort).FlushDatabase();
+                var dbId = TestConfig.GetDedicatedDB(conn);
+                Skip.IfMissingDatabase(conn, dbId);
+                var db = conn.GetDatabase(dbId);
+                var prefix = Me();
+                conn.GetServer(TestConfig.Current.MasterServerAndPort).FlushDatabase(dbId, CommandFlags.FireAndForget);
                 string anyKey = db.KeyRandom();
 
                 Assert.Null(anyKey);
-                db.StringSet("abc", "def");
+                db.StringSet(prefix + "abc", "def");
                 byte[] keyBytes = db.KeyRandom();
 
-                Assert.Equal("abc", Encoding.UTF8.GetString(keyBytes));
+                Assert.Equal(prefix + "abc", Encoding.UTF8.GetString(keyBytes));
             }
         }
 
@@ -51,17 +55,18 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create())
             {
                 var db = conn.GetDatabase();
-                db.KeyDelete("abc");
-                db.StringSet("abc", 123);
-                int k = (int)db.StringGet("abc");
+                var key = Me();
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.StringSet(key, 123, flags: CommandFlags.FireAndForget);
+                int k = (int)db.StringGet(key);
                 Assert.Equal(123, k);
 
-                db.KeyDelete("abc");
-                int i = (int)db.StringGet("abc");
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                int i = (int)db.StringGet(key);
                 Assert.Equal(0, i);
 
-                Assert.True(db.StringGet("abc").IsNull);
-                int? value = (int?)db.StringGet("abc");
+                Assert.True(db.StringGet(key).IsNull);
+                int? value = (int?)db.StringGet(key);
                 Assert.False(value.HasValue);
             }
         }

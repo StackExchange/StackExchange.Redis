@@ -45,6 +45,9 @@ dotnet_style_coalesce_expression = true:suggestion
 dotnet_style_null_propagation = true:suggestion
 dotnet_style_explicit_tuple_names = true:suggestion
 
+# Ignore silly if statements
+dotnet_style_prefer_conditional_expression_over_return = false:none
+
 # CSharp code style settings:
 [*.cs]
 # Prefer method-like constructs to have a expression-body
@@ -74,3 +77,6 @@ csharp_new_line_before_members_in_anonymous_types = true
 
 # Space settings
 csharp_space_after_keywords_in_control_flow_statements = true:suggestion
+
+# Language settings
+csharp_prefer_simple_default_expression = false:none

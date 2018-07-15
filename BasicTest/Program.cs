@@ -1,37 +1,89 @@
-﻿using StackExchange.Redis;
+﻿using System;
 using System.Reflection;
-using System.Runtime.CompilerServices;
-using System;
-
-[assembly: AssemblyVersion("1.0.0")]
+using BenchmarkDotNet.Attributes;
+using BenchmarkDotNet.Columns;
+using BenchmarkDotNet.Configs;
+using BenchmarkDotNet.Diagnosers;
+using BenchmarkDotNet.Jobs;
+using BenchmarkDotNet.Running;
+using BenchmarkDotNet.Toolchains.InProcess;
+using BenchmarkDotNet.Validators;
+using StackExchange.Redis;
 
 namespace BasicTest
 {
     internal static class Program
     {
-        public static void Main()
+        private static void Main(string[] args) => BenchmarkSwitcher.FromAssembly(typeof(Program).GetTypeInfo().Assembly).Run(args);
+    }
+    internal class CustomConfig : ManualConfig
+    {
+        public CustomConfig()
         {
-            using (var conn = ConnectionMultiplexer.Connect("127.0.0.1:6379"))
-            {
-                var db = conn.GetDatabase();
+            Job Get(Job j) => j
+                .With(new GcMode { Force = true })
+                .With(InProcessToolchain.Instance);
 
-                RedisKey key = Me();
-                db.KeyDelete(key);
-                db.StringSet(key, "abc");
+            Add(new MemoryDiagnoser());
+            Add(StatisticColumn.OperationsPerSecond);
+            Add(JitOptimizationsValidator.FailOnError);
+            Add(Get(Job.Clr));
+            //Add(Get(Job.Core));
+        }
+    }
+    /// <summary>
+    /// The tests
+    /// </summary>
+    [Config(typeof(CustomConfig))]
+    public class RedisBenchmarks : IDisposable
+    {
+        SocketManager mgr;
+        ConnectionMultiplexer connection;
+        IDatabase db;
 
-                string s = (string)db.ScriptEvaluate(@"
-    local val = redis.call('get', KEYS[1])
-    redis.call('del', KEYS[1])
-    return val", new RedisKey[] { key }, flags: CommandFlags.NoScriptCache);
-
-                Console.WriteLine(s);
-                Console.WriteLine(db.KeyExists(key));
-            }
+        /// <summary>
+        /// Create
+        /// </summary>
+        public RedisBenchmarks()
+        {
+            var options = ConfigurationOptions.Parse("127.0.0.1:6379");
+            connection = ConnectionMultiplexer.Connect(options);
+            db = connection.GetDatabase(3);
+        }
+        void IDisposable.Dispose()
+        {
+            mgr?.Dispose();
+            connection?.Dispose();
+            mgr = null;
+            db = null;
+            connection = null;
         }
 
-        internal static string Me([CallerMemberName] string caller = null)
+        private const int COUNT = 10000;
+
+        /// <summary>
+        /// Run INCRBY lots of times
+        /// </summary>
+#if TEST_BASELINE
+        [Benchmark(Description = "INCRBY:v1", OperationsPerInvoke = COUNT)]
+#else
+        [Benchmark(Description = "INCRBY:v2", OperationsPerInvoke = COUNT)]
+#endif
+        public int Execute()
         {
-            return caller;
+            var rand = new Random(12345);
+            RedisKey counter = "counter";
+            db.KeyDelete(counter, CommandFlags.FireAndForget);
+            int expected = 0;
+            for (int i = 0; i < COUNT; i++)
+            {
+                int x = rand.Next(50);
+                expected += x;
+                db.StringIncrement(counter, x, CommandFlags.FireAndForget);
+            }
+            int actual = (int)db.StringGet(counter);
+            if (actual != expected) throw new InvalidOperationException($"expected: {expected}, actual: {actual}");
+            return actual;
         }
     }
 }

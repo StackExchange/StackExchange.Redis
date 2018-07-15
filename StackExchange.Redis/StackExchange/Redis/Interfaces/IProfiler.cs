@@ -4,10 +4,11 @@ using System.Net;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// A profiled command against a redis instance.
-    /// 
+    /// <para>A profiled command against a redis instance.</para>
+    /// <para>
     /// TimeSpans returned by this interface use a high precision timer if possible.
     /// DateTimes returned by this interface are no more precise than DateTime.UtcNow.
+    /// </para>
     /// </summary>
     public interface IProfiledCommand
     {

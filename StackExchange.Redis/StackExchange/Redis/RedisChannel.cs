@@ -6,10 +6,8 @@ namespace StackExchange.Redis
     /// <summary>
     /// Represents a pub/sub channel name
     /// </summary>
-    public struct RedisChannel : IEquatable<RedisChannel>
+    public readonly struct RedisChannel : IEquatable<RedisChannel>
     {
-        internal static readonly RedisChannel[] EmptyArray = new RedisChannel[0];
-
         internal readonly byte[] Value;
         internal readonly bool IsPatternBased;
 

@@ -44,7 +44,7 @@ namespace StackExchange.Redis.Tests
         [InlineData(false, true, false)]
         [InlineData(true, false, false)]
         [InlineData(true, true, true)]
-        public void BasicTranWithExistsCondition(bool demandKeyExists, bool keyExists, bool expectTranResult)
+        public async Task BasicTranWithExistsCondition(bool demandKeyExists, bool keyExists, bool expectTranResult)
         {
             using (var muxer = Create(disabledCommands: new[] { "info", "config" }))
             {
@@ -62,17 +62,17 @@ namespace StackExchange.Redis.Tests
                 var exec = tran.ExecuteAsync();
                 var get = db.StringGet(key);
 
-                Assert.Equal(expectTranResult, db.Wait(exec));
+                Assert.Equal(expectTranResult, await exec);
                 if (demandKeyExists == keyExists)
                 {
-                    Assert.True(db.Wait(exec), "eq: exec");
+                    Assert.True(await exec, "eq: exec");
                     Assert.True(cond.WasSatisfied, "eq: was satisfied");
-                    Assert.Equal(1, db.Wait(incr)); // eq: incr                    
+                    Assert.Equal(1, await incr); // eq: incr                    
                     Assert.Equal(1, (long)get); // eq: get
                 }
                 else
                 {
-                    Assert.False(db.Wait(exec), "neq: exec");
+                    Assert.False(await exec, "neq: exec");
                     Assert.False(cond.WasSatisfied, "neq: was satisfied");
                     Assert.Equal(TaskStatus.Canceled, incr.Status); // neq: incr                    
                     Assert.Equal(0, (long)get); // neq: get
@@ -92,7 +92,7 @@ namespace StackExchange.Redis.Tests
         [InlineData("x", null, false, true)]
         [InlineData(null, "y", false, true)]
         [InlineData(null, null, false, false)]
-        public void BasicTranWithEqualsCondition(string expected, string value, bool expectEqual, bool expectTranResult)
+        public async Task BasicTranWithEqualsCondition(string expected, string value, bool expectEqual, bool expectTranResult)
         {
             using (var muxer = Create())
             {
@@ -111,17 +111,17 @@ namespace StackExchange.Redis.Tests
                 var exec = tran.ExecuteAsync();
                 var get = db.StringGet(key);
 
-                Assert.Equal(expectTranResult, db.Wait(exec));
+                Assert.Equal(expectTranResult, await exec);
                 if (expectEqual == (value == expected))
                 {
-                    Assert.True(db.Wait(exec), "eq: exec");
+                    Assert.True(await exec, "eq: exec");
                     Assert.True(cond.WasSatisfied, "eq: was satisfied");
-                    Assert.Equal(1, db.Wait(incr)); // eq: incr
+                    Assert.Equal(1, await incr); // eq: incr
                     Assert.Equal(1, (long)get); // eq: get
                 }
                 else
                 {
-                    Assert.False(db.Wait(exec), "neq: exec");
+                    Assert.False(await exec, "neq: exec");
                     Assert.False(cond.WasSatisfied, "neq: was satisfied");
                     Assert.Equal(TaskStatus.Canceled, incr.Status); // neq: incr
                     Assert.Equal(0, (long)get); // neq: get
@@ -134,7 +134,7 @@ namespace StackExchange.Redis.Tests
         [InlineData(false, true, false)]
         [InlineData(true, false, false)]
         [InlineData(true, true, true)]
-        public void BasicTranWithHashExistsCondition(bool demandKeyExists, bool keyExists, bool expectTranResult)
+        public async Task BasicTranWithHashExistsCondition(bool demandKeyExists, bool keyExists, bool expectTranResult)
         {
             using (var muxer = Create(disabledCommands: new[] { "info", "config" }))
             {
@@ -153,17 +153,17 @@ namespace StackExchange.Redis.Tests
                 var exec = tran.ExecuteAsync();
                 var get = db.StringGet(key);
 
-                Assert.Equal(expectTranResult, db.Wait(exec));
+                Assert.Equal(expectTranResult, await exec);
                 if (demandKeyExists == keyExists)
                 {
-                    Assert.True(db.Wait(exec), "eq: exec");
+                    Assert.True(await exec, "eq: exec");
                     Assert.True(cond.WasSatisfied, "eq: was satisfied");
-                    Assert.Equal(1, db.Wait(incr)); // eq: incr
+                    Assert.Equal(1, await incr); // eq: incr
                     Assert.Equal(1, (long)get); // eq: get
                 }
                 else
                 {
-                    Assert.False(db.Wait(exec), "neq: exec");
+                    Assert.False(await exec, "neq: exec");
                     Assert.False(cond.WasSatisfied, "neq: was satisfied");
                     Assert.Equal(TaskStatus.Canceled, incr.Status); // neq: incr
                     Assert.Equal(0, (long)get); // neq: get
@@ -183,7 +183,7 @@ namespace StackExchange.Redis.Tests
         [InlineData("x", null, false, true)]
         [InlineData(null, "y", false, true)]
         [InlineData(null, null, false, false)]
-        public void BasicTranWithHashEqualsCondition(string expected, string value, bool expectEqual, bool expectedTranResult)
+        public async Task BasicTranWithHashEqualsCondition(string expected, string value, bool expectEqual, bool expectedTranResult)
         {
             using (var muxer = Create())
             {
@@ -203,17 +203,17 @@ namespace StackExchange.Redis.Tests
                 var exec = tran.ExecuteAsync();
                 var get = db.StringGet(key);
 
-                Assert.Equal(expectedTranResult, db.Wait(exec));
+                Assert.Equal(expectedTranResult, await exec);
                 if (expectEqual == (value == expected))
                 {
-                    Assert.True(db.Wait(exec), "eq: exec");
+                    Assert.True(await exec, "eq: exec");
                     Assert.True(cond.WasSatisfied, "eq: was satisfied");
-                    Assert.Equal(1, db.Wait(incr)); // eq: incr
+                    Assert.Equal(1, await incr); // eq: incr
                     Assert.Equal(1, (long)get); // eq: get
                 }
                 else
                 {
-                    Assert.False(db.Wait(exec), "neq: exec");
+                    Assert.False(await exec, "neq: exec");
                     Assert.False(cond.WasSatisfied, "neq: was satisfied");
                     Assert.Equal(TaskStatus.Canceled, incr.Status); // neq: incr
                     Assert.Equal(0, (long)get); // neq: get
@@ -226,7 +226,7 @@ namespace StackExchange.Redis.Tests
         [InlineData(false, true, false)]
         [InlineData(true, false, false)]
         [InlineData(true, true, true)]
-        public void BasicTranWithListExistsCondition(bool demandKeyExists, bool keyExists, bool expectTranResult)
+        public async Task BasicTranWithListExistsCondition(bool demandKeyExists, bool keyExists, bool expectTranResult)
         {
             using (var muxer = Create(disabledCommands: new[] { "info", "config" }))
             {
@@ -244,17 +244,17 @@ namespace StackExchange.Redis.Tests
                 var exec = tran.ExecuteAsync();
                 var get = db.ListGetByIndex(key, 0);
 
-                Assert.Equal(expectTranResult, db.Wait(exec));
+                Assert.Equal(expectTranResult, await exec);
                 if (demandKeyExists == keyExists)
                 {
-                    Assert.True(db.Wait(exec), "eq: exec");
+                    Assert.True(await exec, "eq: exec");
                     Assert.True(cond.WasSatisfied, "eq: was satisfied");
-                    Assert.Equal(1, db.Wait(push)); // eq: push
+                    Assert.Equal(1, await push); // eq: push
                     Assert.Equal("any value", (string)get); // eq: get
                 }
                 else
                 {
-                    Assert.False(db.Wait(exec), "neq: exec");
+                    Assert.False(await exec, "neq: exec");
                     Assert.False(cond.WasSatisfied, "neq: was satisfied");
                     Assert.Equal(TaskStatus.Canceled, push.Status); // neq: push
                     Assert.Null((string)get); // neq: get
@@ -274,7 +274,7 @@ namespace StackExchange.Redis.Tests
         [InlineData("x", null, false, true)]
         [InlineData(null, "y", false, true)]
         [InlineData(null, null, false, false)]
-        public void BasicTranWithListEqualsCondition(string expected, string value, bool expectEqual, bool expectTranResult)
+        public async Task BasicTranWithListEqualsCondition(string expected, string value, bool expectEqual, bool expectTranResult)
         {
             using (var muxer = Create())
             {
@@ -293,17 +293,17 @@ namespace StackExchange.Redis.Tests
                 var exec = tran.ExecuteAsync();
                 var get = db.ListGetByIndex(key, 0);
 
-                Assert.Equal(expectTranResult, db.Wait(exec));
+                Assert.Equal(expectTranResult, await exec);
                 if (expectEqual == (value == expected))
                 {
-                    Assert.True(db.Wait(exec), "eq: exec");
+                    Assert.True(await exec, "eq: exec");
                     Assert.True(cond.WasSatisfied, "eq: was satisfied");
-                    Assert.Equal(1, db.Wait(push)); // eq: push
+                    Assert.Equal(1, await push); // eq: push
                     Assert.Equal("any value", get); // eq: get
                 }
                 else
                 {
-                    Assert.False(db.Wait(exec), "neq: exec");
+                    Assert.False(await exec, "neq: exec");
                     Assert.False(cond.WasSatisfied, "neq: was satisfied");
                     Assert.Equal(TaskStatus.Canceled, push.Status); // neq: push
                     Assert.Null((string)get); // neq: get
@@ -342,7 +342,7 @@ namespace StackExchange.Redis.Tests
         [InlineData("", ComparisonType.GreaterThan, 0L, false)]
         [InlineData(null, ComparisonType.GreaterThan, 1L, false)]
         [InlineData(null, ComparisonType.GreaterThan, 0L, false)]
-        public void BasicTranWithStringLengthCondition(string value, ComparisonType type, long length, bool expectTranResult)
+        public async Task BasicTranWithStringLengthCondition(string value, ComparisonType type, long length, bool expectTranResult)
         {
             using (var muxer = Create())
             {
@@ -383,18 +383,18 @@ namespace StackExchange.Redis.Tests
                 var exec = tran.ExecuteAsync();
                 var get = db.StringLength(key);
 
-                Assert.Equal(expectTranResult, db.Wait(exec));
+                Assert.Equal(expectTranResult, await exec);
 
                 if (expectSuccess)
                 {
-                    Assert.True(db.Wait(exec), "eq: exec");
+                    Assert.True(await exec, "eq: exec");
                     Assert.True(cond.WasSatisfied, "eq: was satisfied");
-                    Assert.True(db.Wait(push)); // eq: push
+                    Assert.True(await push); // eq: push
                     Assert.Equal("any value".Length, get); // eq: get
                 }
                 else
                 {
-                    Assert.False(db.Wait(exec), "neq: exec");
+                    Assert.False(await exec, "neq: exec");
                     Assert.False(cond.WasSatisfied, "neq: was satisfied");
                     Assert.Equal(TaskStatus.Canceled, push.Status); // neq: push
                     Assert.Equal(0, get); // neq: get
@@ -420,7 +420,7 @@ namespace StackExchange.Redis.Tests
         [InlineData("three", ComparisonType.GreaterThan, 3L, true)]
         [InlineData("", ComparisonType.GreaterThan, 2L, false)]
         [InlineData("", ComparisonType.GreaterThan, 0L, false)]
-        public void BasicTranWithHashLengthCondition(string value, ComparisonType type, long length, bool expectTranResult)
+        public async Task BasicTranWithHashLengthCondition(string value, ComparisonType type, long length, bool expectTranResult)
         {
             using (var muxer = Create())
             {
@@ -461,18 +461,18 @@ namespace StackExchange.Redis.Tests
                 var exec = tran.ExecuteAsync();
                 var get = db.StringLength(key);
 
-                Assert.Equal(expectTranResult, db.Wait(exec));
+                Assert.Equal(expectTranResult, await exec);
 
                 if (expectSuccess)
                 {
-                    Assert.True(db.Wait(exec), "eq: exec");
+                    Assert.True(await exec, "eq: exec");
                     Assert.True(cond.WasSatisfied, "eq: was satisfied");
-                    Assert.True(db.Wait(push)); // eq: push
+                    Assert.True(await push); // eq: push
                     Assert.Equal("any value".Length, get); // eq: get
                 }
                 else
                 {
-                    Assert.False(db.Wait(exec), "neq: exec");
+                    Assert.False(await exec, "neq: exec");
                     Assert.False(cond.WasSatisfied, "neq: was satisfied");
                     Assert.Equal(TaskStatus.Canceled, push.Status); // neq: push
                     Assert.Equal(0, get); // neq: get
@@ -498,7 +498,7 @@ namespace StackExchange.Redis.Tests
         [InlineData("three", ComparisonType.GreaterThan, 3L, true)]
         [InlineData("", ComparisonType.GreaterThan, 2L, false)]
         [InlineData("", ComparisonType.GreaterThan, 0L, false)]
-        public void BasicTranWithSetCardinalityCondition(string value, ComparisonType type, long length, bool expectTranResult)
+        public async Task BasicTranWithSetCardinalityCondition(string value, ComparisonType type, long length, bool expectTranResult)
         {
             using (var muxer = Create())
             {
@@ -539,18 +539,18 @@ namespace StackExchange.Redis.Tests
                 var exec = tran.ExecuteAsync();
                 var get = db.StringLength(key);
 
-                Assert.Equal(expectTranResult, db.Wait(exec));
+                Assert.Equal(expectTranResult, await exec);
 
                 if (expectSuccess)
                 {
-                    Assert.True(db.Wait(exec), "eq: exec");
+                    Assert.True(await exec, "eq: exec");
                     Assert.True(cond.WasSatisfied, "eq: was satisfied");
-                    Assert.True(db.Wait(push)); // eq: push
+                    Assert.True(await push); // eq: push
                     Assert.Equal("any value".Length, get); // eq: get
                 }
                 else
                 {
-                    Assert.False(db.Wait(exec), "neq: exec");
+                    Assert.False(await exec, "neq: exec");
                     Assert.False(cond.WasSatisfied, "neq: was satisfied");
                     Assert.Equal(TaskStatus.Canceled, push.Status); // neq: push
                     Assert.Equal(0, get); // neq: get
@@ -563,7 +563,7 @@ namespace StackExchange.Redis.Tests
         [InlineData(false, true, false)]
         [InlineData(true, false, false)]
         [InlineData(true, true, true)]
-        public void BasicTranWithSetContainsCondition(bool demandKeyExists, bool keyExists, bool expectTranResult)
+        public async Task BasicTranWithSetContainsCondition(bool demandKeyExists, bool keyExists, bool expectTranResult)
         {
             using (var muxer = Create(disabledCommands: new[] { "info", "config" }))
             {
@@ -582,17 +582,17 @@ namespace StackExchange.Redis.Tests
                 var exec = tran.ExecuteAsync();
                 var get = db.StringGet(key);
 
-                Assert.Equal(expectTranResult, db.Wait(exec));
+                Assert.Equal(expectTranResult, await exec);
                 if (demandKeyExists == keyExists)
                 {
-                    Assert.True(db.Wait(exec), "eq: exec");
+                    Assert.True(await exec, "eq: exec");
                     Assert.True(cond.WasSatisfied, "eq: was satisfied");
-                    Assert.Equal(1, db.Wait(incr)); // eq: incr
+                    Assert.Equal(1, await incr); // eq: incr
                     Assert.Equal(1, (long)get); // eq: get
                 }
                 else
                 {
-                    Assert.False(db.Wait(exec), "neq: exec");
+                    Assert.False(await exec, "neq: exec");
                     Assert.False(cond.WasSatisfied, "neq: was satisfied");
                     Assert.Equal(TaskStatus.Canceled, incr.Status); // neq: incr
                     Assert.Equal(0, (long)get); // neq: get
@@ -618,7 +618,7 @@ namespace StackExchange.Redis.Tests
         [InlineData("three", ComparisonType.GreaterThan, 3L, true)]
         [InlineData("", ComparisonType.GreaterThan, 2L, false)]
         [InlineData("", ComparisonType.GreaterThan, 0L, false)]
-        public void BasicTranWithSortedSetCardinalityCondition(string value, ComparisonType type, long length, bool expectTranResult)
+        public async Task BasicTranWithSortedSetCardinalityCondition(string value, ComparisonType type, long length, bool expectTranResult)
         {
             using (var muxer = Create())
             {
@@ -659,18 +659,18 @@ namespace StackExchange.Redis.Tests
                 var exec = tran.ExecuteAsync();
                 var get = db.StringLength(key);
 
-                Assert.Equal(expectTranResult, db.Wait(exec));
+                Assert.Equal(expectTranResult, await exec);
 
                 if (expectSuccess)
                 {
-                    Assert.True(db.Wait(exec), "eq: exec");
+                    Assert.True(await exec, "eq: exec");
                     Assert.True(cond.WasSatisfied, "eq: was satisfied");
-                    Assert.True(db.Wait(push)); // eq: push
+                    Assert.True(await push); // eq: push
                     Assert.Equal("any value".Length, get); // eq: get
                 }
                 else
                 {
-                    Assert.False(db.Wait(exec), "neq: exec");
+                    Assert.False(await exec, "neq: exec");
                     Assert.False(cond.WasSatisfied, "neq: was satisfied");
                     Assert.Equal(TaskStatus.Canceled, push.Status); // neq: push
                     Assert.Equal(0, get); // neq: get
@@ -683,7 +683,7 @@ namespace StackExchange.Redis.Tests
         [InlineData(false, true, false)]
         [InlineData(true, false, false)]
         [InlineData(true, true, true)]
-        public void BasicTranWithSortedSetContainsCondition(bool demandKeyExists, bool keyExists, bool expectTranResult)
+        public async Task BasicTranWithSortedSetContainsCondition(bool demandKeyExists, bool keyExists, bool expectTranResult)
         {
             using (var muxer = Create(disabledCommands: new[] { "info", "config" }))
             {
@@ -702,17 +702,17 @@ namespace StackExchange.Redis.Tests
                 var exec = tran.ExecuteAsync();
                 var get = db.StringGet(key);
 
-                Assert.Equal(expectTranResult, db.Wait(exec));
+                Assert.Equal(expectTranResult, await exec);
                 if (demandKeyExists == keyExists)
                 {
-                    Assert.True(db.Wait(exec), "eq: exec");
+                    Assert.True(await exec, "eq: exec");
                     Assert.True(cond.WasSatisfied, "eq: was satisfied");
-                    Assert.Equal(1, db.Wait(incr)); // eq: incr
+                    Assert.Equal(1, await incr); // eq: incr
                     Assert.Equal(1, (long)get); // eq: get
                 }
                 else
                 {
-                    Assert.False(db.Wait(exec), "neq: exec");
+                    Assert.False(await exec, "neq: exec");
                     Assert.False(cond.WasSatisfied, "neq: was satisfied");
                     Assert.Equal(TaskStatus.Canceled, incr.Status); // neq: incr
                     Assert.Equal(0, (long)get); // neq: get
@@ -738,7 +738,7 @@ namespace StackExchange.Redis.Tests
         [InlineData("three", ComparisonType.GreaterThan, 3L, true)]
         [InlineData("", ComparisonType.GreaterThan, 2L, false)]
         [InlineData("", ComparisonType.GreaterThan, 0L, false)]
-        public void BasicTranWithListLengthCondition(string value, ComparisonType type, long length, bool expectTranResult)
+        public async Task BasicTranWithListLengthCondition(string value, ComparisonType type, long length, bool expectTranResult)
         {
             using (var muxer = Create())
             {
@@ -779,18 +779,18 @@ namespace StackExchange.Redis.Tests
                 var exec = tran.ExecuteAsync();
                 var get = db.StringLength(key);
 
-                Assert.Equal(expectTranResult, db.Wait(exec));
+                Assert.Equal(expectTranResult, await exec);
 
                 if (expectSuccess)
                 {
-                    Assert.True(db.Wait(exec), "eq: exec");
+                    Assert.True(await exec, "eq: exec");
                     Assert.True(cond.WasSatisfied, "eq: was satisfied");
-                    Assert.True(db.Wait(push)); // eq: push
+                    Assert.True(await push); // eq: push
                     Assert.Equal("any value".Length, get); // eq: get
                 }
                 else
                 {
-                    Assert.False(db.Wait(exec), "neq: exec");
+                    Assert.False(await exec, "neq: exec");
                     Assert.False(cond.WasSatisfied, "neq: was satisfied");
                     Assert.Equal(TaskStatus.Canceled, push.Status); // neq: push
                     Assert.Equal(0, get); // neq: get
@@ -821,9 +821,9 @@ namespace StackExchange.Redis.Tests
                 Assert.False(d.IsCompleted);
                 Assert.False(e.IsCompleted);
                 Assert.False(f.IsCompleted);
-                var result = db.Wait(tran.ExecuteAsync());
+                var result = await tran.ExecuteAsync().ForAwait();
                 Assert.True(result, "result");
-                db.WaitAll(a, b, c, d, e, f);
+                await Task.WhenAll(a, b, c, d, e, f).ForAwait();
                 Assert.True(a.IsCompleted, "a");
                 Assert.True(b.IsCompleted, "b");
                 Assert.True(c.IsCompleted, "c");
@@ -844,7 +844,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void CombineFireAndForgetAndRegularAsyncInTransaction()
+        public async Task CombineFireAndForgetAndRegularAsyncInTransaction()
         {
             using (var muxer = Create())
             {
@@ -860,11 +860,11 @@ namespace StackExchange.Redis.Tests
                 Assert.True(tran.Execute());
                 var count = (long)db.StringGet(key);
 
-                Assert.Equal(5, db.Wait(a));
+                Assert.Equal(5, await a);
                 Assert.Equal("state", a.AsyncState);
-                Assert.Equal(0, db.Wait(b));
+                Assert.Equal(0, await b);
                 Assert.Null(b.AsyncState);
-                Assert.Equal(30, db.Wait(c));
+                Assert.Equal(30, await c);
                 Assert.Equal("state", a.AsyncState);
                 Assert.Equal(30, count);
             }

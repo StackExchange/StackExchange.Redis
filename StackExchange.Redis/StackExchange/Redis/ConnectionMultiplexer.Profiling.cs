@@ -10,11 +10,12 @@ namespace StackExchange.Redis
         internal ProfileContextTracker profiledCommands;
 
         /// <summary>
-        /// Sets an IProfiler instance for this ConnectionMultiplexer.
-        /// 
+        /// <para>Sets an IProfiler instance for this ConnectionMultiplexer.</para>
+        /// <para>
         /// An IProfiler instances is used to determine which context to associate an
         /// IProfiledCommand with.  See BeginProfiling(object) and FinishProfiling(object)
         /// for more details.
+        /// </para>
         /// </summary>
         /// <param name="profiler">The profiler to register.</param>
         public void RegisterProfiler(IProfiler profiler)
@@ -26,14 +27,13 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Begins profiling for the given context.
-        /// 
+        /// <para>Begins profiling for the given context.</para>
+        /// <para>
         /// If the same context object is returned by the registered IProfiler, the IProfiledCommands
         /// will be associated with each other.
-        /// 
-        /// Call FinishProfiling with the same context to get the assocated commands.
-        /// 
-        /// Note that forContext cannot be a WeakReference or a WeakReference&lt;T&gt;
+        /// </para>
+        /// <para>Call FinishProfiling with the same context to get the assocated commands.</para>
+        /// <para>Note that forContext cannot be a WeakReference or a WeakReference&lt;T</para>&gt;
         /// </summary>
         /// <param name="forContext">The context to begin profiling.</param>
         public void BeginProfiling(object forContext)
@@ -49,9 +49,8 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Stops profiling for the given context, returns all IProfiledCommands associated.
-        /// 
-        /// By default this may do a sweep for dead profiling contexts, you can disable this by passing "allowCleanupSweep: false".
+        /// <para>Stops profiling for the given context, returns all IProfiledCommands associated.</para>
+        /// <para>By default this may do a sweep for dead profiling contexts, you can disable this by passing "allowCleanupSweep: false".</para>
         /// </summary>
         /// <param name="forContext">The context to begin profiling.</param>
         /// <param name="allowCleanupSweep">Whether to allow cleanup of old profiling sessions.</param>

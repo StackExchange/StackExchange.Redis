@@ -4,7 +4,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// Describes stream information retrieved using the XINFO STREAM command. <see cref="IDatabase.StreamInfo"/>
     /// </summary>
-    public struct StreamInfo
+    public readonly struct StreamInfo
     {
         internal StreamInfo(int length,
             int radixTreeKeys,

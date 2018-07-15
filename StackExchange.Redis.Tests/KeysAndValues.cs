@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Globalization;
 using Xunit;
 
@@ -61,17 +62,31 @@ namespace StackExchange.Redis.Tests
             CheckNotSame(bool1, bool2);
         }
 
-        private void CheckSame(RedisValue x, RedisValue y)
+        internal static void CheckSame(RedisValue x, RedisValue y)
         {
-            Assert.True(Equals(x, y));
-            Assert.True(x.Equals(y));
-            Assert.True(y.Equals(x));
-            Assert.True(x.GetHashCode() == y.GetHashCode());
+            Assert.True(Equals(x, y), "Equals(x, y)");
+            Assert.True(Equals(y, x), "Equals(y, x)");
+            Assert.True(EqualityComparer<RedisValue>.Default.Equals(x, y), "EQ(x,y)");
+            Assert.True(EqualityComparer<RedisValue>.Default.Equals(y, x), "EQ(y,x)");
+            Assert.True(x == y, "x==y");
+            Assert.True(y == x, "y==x");
+            Assert.False(x != y, "x!=y");
+            Assert.False(y != x, "y!=x");
+            Assert.True(x.Equals(y),"x.EQ(y)");
+            Assert.True(y.Equals(x), "y.EQ(x)");
+            Assert.True(x.GetHashCode() == y.GetHashCode(), "GetHashCode");
         }
 
         private void CheckNotSame(RedisValue x, RedisValue y)
         {
             Assert.False(Equals(x, y));
+            Assert.False(Equals(y, x));
+            Assert.False(EqualityComparer<RedisValue>.Default.Equals(x, y));
+            Assert.False(EqualityComparer<RedisValue>.Default.Equals(y, x));
+            Assert.False(x == y);
+            Assert.False(y == x);
+            Assert.True(x != y);
+            Assert.True(y != x);
             Assert.False(x.Equals(y));
             Assert.False(y.Equals(x));
             Assert.False(x.GetHashCode() == y.GetHashCode()); // well, very unlikely
@@ -93,7 +108,7 @@ namespace StackExchange.Redis.Tests
             CheckNotSame(value, (byte[])null);
         }
 
-        private void CheckNull(RedisValue value)
+        internal static void CheckNull(RedisValue value)
         {
             Assert.True(value.IsNull);
             Assert.True(value.IsNullOrEmpty);
@@ -107,9 +122,9 @@ namespace StackExchange.Redis.Tests
             Assert.Equal(0L, (long)value);
 
             CheckSame(value, value);
-            CheckSame(value, default(RedisValue));
-            CheckSame(value, (string)null);
-            CheckSame(value, (byte[])null);
+            //CheckSame(value, default(RedisValue));
+            //CheckSame(value, (string)null);
+            //CheckSame(value, (byte[])null);
         }
 
         [Fact]
@@ -156,43 +171,6 @@ namespace StackExchange.Redis.Tests
             Assert.Equal((byte)'a', blob[0]);
             Assert.Equal((byte)'b', blob[1]);
             Assert.Equal((byte)'c', blob[2]);
-        }
-
-        [Fact]
-        public void TryParse()
-        {
-            {
-                RedisValue val = "1";
-                Assert.True(val.TryParse(out int i));
-                Assert.Equal(1, i);
-                Assert.True(val.TryParse(out long l));
-                Assert.Equal(1L, l);
-                Assert.True(val.TryParse(out double d));
-                Assert.Equal(1.0, l);
-            }
-
-            {
-                RedisValue val = "8675309";
-                Assert.True(val.TryParse(out int i));
-                Assert.Equal(8675309, i);
-                Assert.True(val.TryParse(out long l));
-                Assert.Equal(8675309L, l);
-                Assert.True(val.TryParse(out double d));
-                Assert.Equal(8675309.0, l);
-            }
-
-            {
-                RedisValue val = "3.14159";
-                Assert.True(val.TryParse(out double d));
-                Assert.Equal(3.14159, d);
-            }
-
-            {
-                RedisValue val = "not a real number";
-                Assert.False(val.TryParse(out int i));
-                Assert.False(val.TryParse(out long l));
-                Assert.False(val.TryParse(out double d));
-            }
         }
     }
 }

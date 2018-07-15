@@ -4,23 +4,23 @@ using System.Threading;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// A collection of IProfiledCommands.
-    /// 
-    /// This is a very light weight data structure, only supporting enumeration.
-    /// 
+    /// <para>A collection of IProfiledCommands.</para>
+    /// <para>This is a very light weight data structure, only supporting enumeration.</para>
+    /// <para>
     /// While it implements IEnumerable, it there are fewer allocations if one uses
     /// it's explicit GetEnumerator() method.  Using `foreach` does this automatically.
-    /// 
-    /// This type is not threadsafe.
+    /// </para>
+    /// <para>This type is not threadsafe.</para>
     /// </summary>
-    public struct ProfiledCommandEnumerable : IEnumerable<IProfiledCommand>
+    public readonly struct ProfiledCommandEnumerable : IEnumerable<IProfiledCommand>
     {
         /// <summary>
+        /// <para>
         /// Implements IEnumerator for ProfiledCommandEnumerable.
         /// This implementation is comparable to List.Enumerator and Dictionary.Enumerator,
         /// and is provided to reduce allocations in the common (ie. foreach) case.
-        /// 
-        /// This type is not threadsafe.
+        /// </para>
+        /// <para>This type is not threadsafe.</para>
         /// </summary>
         public struct Enumerator : IEnumerator<IProfiledCommand>
         {
@@ -89,10 +89,11 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// <para>
         /// Returns an implementor of IEnumerator that, provided it isn't accessed
         /// though an interface, avoids allocations.
-        /// 
-        /// `foreach` will automatically use this method.
+        /// </para>
+        /// <para>`foreach` will automatically use this method.</para>
         /// </summary>
         public Enumerator GetEnumerator() => new Enumerator(Head);
 
@@ -102,10 +103,11 @@ namespace StackExchange.Redis
     }
 
     /// <summary>
+    /// <para>
     /// A thread-safe collection tailored to the "always append, with high contention, then enumerate once with no contention"
     /// behavior of our profiling.
-    /// 
-    /// Performs better than ConcurrentBag, which is important since profiling code shouldn't impact timings.
+    /// </para>
+    /// <para>Performs better than ConcurrentBag, which is important since profiling code shouldn't impact timings.</para>
     /// </summary>
     internal sealed class ConcurrentProfileStorageCollection
     {
@@ -137,13 +139,10 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// This method is thread-safe.
-        /// 
-        /// Adds an element to the bag.
-        /// 
-        /// Order is not preserved.
-        /// 
-        /// The element can only be a member of *one* bag.
+        /// <para>This method is thread-safe.</para>
+        /// <para>Adds an element to the bag.</para>
+        /// <para>Order is not preserved.</para>
+        /// <para>The element can only be a member of *one* bag.</para>
         /// </summary>
         /// <param name="command">The command to add.</param>
         public void Add(ProfileStorage command)
@@ -163,12 +162,12 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// <para>
         /// This method returns an enumerable view of the bag, and returns it to 
         /// an internal pool for reuse by GetOrCreate().
-        /// 
-        /// It is not thread safe.
-        /// 
-        /// It should only be called once the bag is finished being mutated.
+        /// </para>
+        /// <para>It is not thread safe.</para>
+        /// <para>It should only be called once the bag is finished being mutated.</para>
         /// </summary>
         public ProfiledCommandEnumerable EnumerateAndReturnForReuse()
         {
@@ -194,10 +193,11 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Returns a ConcurrentProfileStorageCollection to use.
-        /// 
+        /// <para>Returns a ConcurrentProfileStorageCollection to use.</para>
+        /// <para>
         /// It *may* have allocated a new one, or it may return one that has previously been released.
         /// To return the collection, call EnumerateAndReturnForReuse()
+        /// </para>
         /// </summary>
         public static ConcurrentProfileStorageCollection GetOrCreate()
         {

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 
 namespace StackExchange.Redis
@@ -15,17 +15,5 @@ namespace StackExchange.Redis
         /// <returns>The observed latency.</returns>
         /// <remarks>https://redis.io/commands/ping</remarks>
         TimeSpan Ping(CommandFlags flags = CommandFlags.None);
-    }
-
-    [Conditional("DEBUG")]
-    [AttributeUsage(AttributeTargets.Method, AllowMultiple = false, Inherited = true)]
-    internal class IgnoreNamePrefixAttribute : Attribute
-    {
-        public IgnoreNamePrefixAttribute(bool ignoreEntireMethod = false)
-        {
-            IgnoreEntireMethod = ignoreEntireMethod;
-        }
-
-        public bool IgnoreEntireMethod { get; }
     }
 }

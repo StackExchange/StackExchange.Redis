@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 namespace StackExchange.Redis
 {
@@ -33,7 +33,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// The result of a GeoRadius command.
     /// </summary>
-    public struct GeoRadiusResult
+    public readonly struct GeoRadiusResult
     {
         /// <summary>
         /// Indicate the member being represented
@@ -80,7 +80,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// Describes the longitude and latitude of a GeoEntry
     /// </summary>
-    public struct GeoPosition : IEquatable<GeoPosition>
+    public readonly struct GeoPosition : IEquatable<GeoPosition>
     {
         internal static string GetRedisUnit(GeoUnit unit)
         {
@@ -161,7 +161,7 @@ namespace StackExchange.Redis
     /// Describes a GeoEntry element with the corresponding value
     /// GeoEntries are stored in redis as SortedSetEntries
     /// </summary>
-    public struct GeoEntry : IEquatable<GeoEntry>
+    public readonly struct GeoEntry : IEquatable<GeoEntry>
     {
         /// <summary>
         /// The name of the geo entry

@@ -6,7 +6,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// Describes a value contained in a stream (a name/value pair).
     /// </summary>
-    public struct NameValueEntry : IEquatable<NameValueEntry>
+    public readonly struct NameValueEntry : IEquatable<NameValueEntry>
     {
         internal readonly RedisValue name, value;
 

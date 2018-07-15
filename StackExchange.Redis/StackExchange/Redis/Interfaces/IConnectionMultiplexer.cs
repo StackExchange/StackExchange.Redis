@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Net;
 using System.Threading.Tasks;
@@ -44,6 +44,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets or sets whether asynchronous operations should be invoked in a way that guarantees their original delivery order
         /// </summary>
+        [Obsolete("Not supported; if you require ordered pub/sub, please see " + nameof(ChannelMessageQueue), false)]
         bool PreserveAsyncOrder { get; set; }
 
         /// <summary>
@@ -281,5 +282,11 @@ namespace StackExchange.Redis
         /// <param name="flags">The command flags to use.</param>
         /// <returns>The number of instances known to have received the message (however, the actual number can be higher)</returns>
         Task<long> PublishReconfigureAsync(CommandFlags flags = CommandFlags.None);
+
+
+        /// <summary>
+        /// Get the hash-slot associated with a given key, if applicable; this can be useful for grouping operations
+        /// </summary>
+        int GetHashSlot(RedisKey key);
     }
 }

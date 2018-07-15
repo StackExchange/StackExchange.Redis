@@ -18,9 +18,9 @@ namespace StackExchange.Redis.Tests
             {
                 var server = conn.GetServer(conn.GetEndPoints()[0]);
                 conn.ConnectionFailed += (s, a) =>
-                    Output.WriteLine("Disconnected: " + EndPointCollection.ToString(a.EndPoint));
+                    Log("Disconnected: " + EndPointCollection.ToString(a.EndPoint));
                 conn.ConnectionRestored += (s, a) =>
-                    Output.WriteLine("Reconnected: " + EndPointCollection.ToString(a.EndPoint));
+                    Log("Reconnected: " + EndPointCollection.ToString(a.EndPoint));
 
                 // No need to delay, we're going to try a disconnected connection immediately so it'll fail...
                 conn.IgnoreConnect = true;
@@ -32,7 +32,7 @@ namespace StackExchange.Redis.Tests
                 await Task.Delay(5000).ConfigureAwait(false);
 
                 var time = server.Ping();
-                Output.WriteLine(time.ToString());
+                Log(time.ToString());
             }
         }
 #endif

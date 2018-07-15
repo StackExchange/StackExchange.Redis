@@ -3,11 +3,12 @@
     <OutputType>Library</OutputType>
     <TargetFrameworks>netcoreapp2.0</TargetFrameworks>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <SignAssembly>true</SignAssembly>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\StackExchange.Redis\StackExchange.Redis.csproj" />
     <ProjectReference Include="..\NRediSearch\NRediSearch.csproj" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="15.0.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="15.7.2" />
     <PackageReference Include="xunit" Version="$(xUnitVersion)" />
     <PackageReference Include="xunit.runner.visualstudio" Version="$(xUnitVersion)" />
     <DotNetCliToolReference Include="dotnet-xunit" Version="$(xUnitVersion)" />

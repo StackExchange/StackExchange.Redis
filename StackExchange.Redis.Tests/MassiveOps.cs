@@ -13,25 +13,19 @@ namespace StackExchange.Redis.Tests
         public MassiveOps(ITestOutputHelper output) : base(output) { }
 
         [Theory]
-        [InlineData(true, true)]
-        [InlineData(true, false)]
-        [InlineData(false, true)]
-        [InlineData(false, false)]
-        public async Task MassiveBulkOpsAsync(bool preserveOrder, bool withContinuation)
+        [InlineData(true)]
+        [InlineData(false)]
+        public async Task MassiveBulkOpsAsync(bool withContinuation)
         {
-#if DEBUG
-            var oldAsyncCompletionCount = ConnectionMultiplexer.GetAsyncCompletionWorkerCount();
-#endif
             using (var muxer = Create())
             {
-                muxer.PreserveAsyncOrder = preserveOrder;
                 RedisKey key = "MBOA";
                 var conn = muxer.GetDatabase();
                 await conn.PingAsync().ForAwait();
-                Action<Task> nonTrivial = delegate
+                void nonTrivial(Task _)
                 {
                     Thread.SpinWait(5);
-                };
+                }
                 var watch = Stopwatch.StartNew();
                 for (int i = 0; i <= AsyncOpsQty; i++)
                 {
@@ -42,69 +36,54 @@ namespace StackExchange.Redis.Tests
                 }
                 Assert.Equal(AsyncOpsQty, await conn.StringGetAsync(key).ForAwait());
                 watch.Stop();
-                Output.WriteLine("{2}: Time for {0} ops: {1}ms ({3}, {4}); ops/s: {5}", AsyncOpsQty, watch.ElapsedMilliseconds, Me(),
-                    withContinuation ? "with continuation" : "no continuation", preserveOrder ? "preserve order" : "any order",
-                    AsyncOpsQty / watch.Elapsed.TotalSeconds);
-#if DEBUG
-                Output.WriteLine("Async completion workers: " + (ConnectionMultiplexer.GetAsyncCompletionWorkerCount() - oldAsyncCompletionCount));
-#endif
+                Log("{2}: Time for {0} ops: {1}ms ({3}, any order); ops/s: {4}", AsyncOpsQty, watch.ElapsedMilliseconds, Me(),
+                    withContinuation ? "with continuation" : "no continuation", AsyncOpsQty / watch.Elapsed.TotalSeconds);
             }
         }
 
-        [Theory]
-        [InlineData(true, 1)]
-        [InlineData(false, 1)]
-        [InlineData(true, 5)]
-        [InlineData(false, 5)]
-        [InlineData(true, 10)]
-        [InlineData(false, 10)]
-        [InlineData(true, 50)]
-        [InlineData(false, 50)]
-        public void MassiveBulkOpsSync(bool preserveOrder, int threads)
+        [TheoryLongRunning]
+        [InlineData(1)]
+        [InlineData(5)]
+        [InlineData(10)]
+        [InlineData(50)]
+        public void MassiveBulkOpsSync(int threads)
         {
             int workPerThread = SyncOpsQty / threads;
             using (var muxer = Create(syncTimeout: 30000))
             {
-                muxer.PreserveAsyncOrder = preserveOrder;
                 RedisKey key = "MBOS";
                 var conn = muxer.GetDatabase();
-                conn.KeyDelete(key);
+                conn.KeyDelete(key, CommandFlags.FireAndForget);
 #if DEBUG
                 long oldAlloc = ConnectionMultiplexer.GetResultBoxAllocationCount();
-                long oldWorkerCount = ConnectionMultiplexer.GetAsyncCompletionWorkerCount();
 #endif
                 var timeTaken = RunConcurrent(delegate
                 {
                     for (int i = 0; i < workPerThread; i++)
                     {
-                        conn.StringIncrement(key);
+                        conn.StringIncrement(key, flags: CommandFlags.FireAndForget);
                     }
                 }, threads);
 
                 int val = (int)conn.StringGet(key);
                 Assert.Equal(workPerThread * threads, val);
-                Output.WriteLine("{2}: Time for {0} ops on {4} threads: {1}ms ({3}); ops/s: {5}",
-                    threads * workPerThread, timeTaken.TotalMilliseconds, Me()
-                    , preserveOrder ? "preserve order" : "any order", threads, (workPerThread * threads) / timeTaken.TotalSeconds);
+                Log("{2}: Time for {0} ops on {3} threads: {1}ms (any order); ops/s: {4}",
+                    threads * workPerThread, timeTaken.TotalMilliseconds, Me(), threads, (workPerThread * threads) / timeTaken.TotalSeconds);
 #if DEBUG
                 long newAlloc = ConnectionMultiplexer.GetResultBoxAllocationCount();
-                long newWorkerCount = ConnectionMultiplexer.GetAsyncCompletionWorkerCount();
-                Output.WriteLine("ResultBox allocations: {0}; workers {1}", newAlloc - oldAlloc, newWorkerCount - oldWorkerCount);
+                Log("ResultBox allocations: {0}", newAlloc - oldAlloc);
                 Assert.True(newAlloc - oldAlloc <= 2 * threads, "number of box allocations");
 #endif
             }
         }
 
         [Theory]
-        [InlineData(true, 1)]
-        [InlineData(false, 1)]
-        [InlineData(true, 5)]
-        [InlineData(false, 5)]
-        public void MassiveBulkOpsFireAndForget(bool preserveOrder, int threads)
+        [InlineData(1)]
+        [InlineData(5)]
+        public void MassiveBulkOpsFireAndForget(int threads)
         {
             using (var muxer = Create(syncTimeout: 30000))
             {
-                muxer.PreserveAsyncOrder = preserveOrder;
 #if DEBUG
                 long oldAlloc = ConnectionMultiplexer.GetResultBoxAllocationCount();
 #endif
@@ -125,13 +104,12 @@ namespace StackExchange.Redis.Tests
                 var val = (long)conn.StringGet(key);
                 Assert.Equal(perThread * threads, val);
 
-                Output.WriteLine("{2}: Time for {0} ops over {5} threads: {1:###,###}ms ({3}); ops/s: {4:###,###,##0}",
+                Log("{2}: Time for {0} ops over {4} threads: {1:###,###}ms (any order); ops/s: {3:###,###,##0}",
                     val, elapsed.TotalMilliseconds, Me(),
-                    preserveOrder ? "preserve order" : "any order",
                     val / elapsed.TotalSeconds, threads);
 #if DEBUG
                 long newAlloc = ConnectionMultiplexer.GetResultBoxAllocationCount();
-                Output.WriteLine("ResultBox allocations: {0}",
+                Log("ResultBox allocations: {0}",
                     newAlloc - oldAlloc);
                 Assert.True(newAlloc - oldAlloc <= 4);
 #endif

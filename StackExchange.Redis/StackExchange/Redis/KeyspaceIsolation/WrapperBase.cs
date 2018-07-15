@@ -14,7 +14,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
             Prefix = keyPrefix;
         }
 
-        public ConnectionMultiplexer Multiplexer => Inner.Multiplexer;
+        public IConnectionMultiplexer Multiplexer => Inner.Multiplexer;
 
         internal TInner Inner { get; }
 
@@ -28,10 +28,10 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<bool> GeoAddAsync(RedisKey key, double longitude, double latitude, RedisValue member, CommandFlags flags = CommandFlags.None)
             => Inner.GeoAddAsync(ToInner(key), longitude, latitude, member, flags);
 
-        public Task<bool> GeoAddAsync(RedisKey key, StackExchange.Redis.GeoEntry value, CommandFlags flags = CommandFlags.None)
+        public Task<bool> GeoAddAsync(RedisKey key, GeoEntry value, CommandFlags flags = CommandFlags.None)
             => Inner.GeoAddAsync(ToInner(key), value, flags);
 
-        public Task<long> GeoAddAsync(RedisKey key, StackExchange.Redis.GeoEntry[] values, CommandFlags flags = CommandFlags.None)
+        public Task<long> GeoAddAsync(RedisKey key, GeoEntry[] values, CommandFlags flags = CommandFlags.None)
             => Inner.GeoAddAsync(ToInner(key), values, flags);
 
         public Task<bool> GeoRemoveAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
@@ -193,6 +193,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.KeyExistsAsync(ToInner(key), flags);
         }
 
+        public Task<long> KeyExistsAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.KeyExistsAsync(ToInner(keys), flags);
+        }
+
         public Task<bool> KeyExpireAsync(RedisKey key, DateTime? expiry, CommandFlags flags = CommandFlags.None)
         {
             return Inner.KeyExpireAsync(ToInner(key), expiry, flags);
@@ -201,6 +206,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<bool> KeyExpireAsync(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None)
         {
             return Inner.KeyExpireAsync(ToInner(key), expiry, flags);
+        }
+
+        public Task<TimeSpan?> KeyIdleTimeAsync(RedisKey key,CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.KeyIdleTimeAsync(ToInner(key), flags);
         }
 
         public Task KeyMigrateAsync(RedisKey key, EndPoint toServer, int toDatabase = 0, int timeoutMilliseconds = 0, MigrateOptions migrateOptions = MigrateOptions.None, CommandFlags flags = CommandFlags.None)
@@ -426,6 +436,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.SetPopAsync(ToInner(key), flags);
         }
 
+        public Task<RedisValue[]> SetPopAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.SetPopAsync(ToInner(key), count, flags);
+        }
+
         public Task<RedisValue> SetRandomMemberAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             return Inner.SetRandomMemberAsync(ToInner(key), flags);
@@ -526,9 +541,14 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.SortedSetRangeByScoreWithScoresAsync(ToInner(key), start, stop, exclude, order, skip, take, flags);
         }
 
-        public Task<RedisValue[]> SortedSetRangeByValueAsync(RedisKey key, RedisValue min = default(RedisValue), RedisValue max = default(RedisValue), Exclude exclude = Exclude.None, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
+        public Task<RedisValue[]> SortedSetRangeByValueAsync(RedisKey key, RedisValue min, RedisValue max, Exclude exclude, long skip, long take, CommandFlags flags)
         {
-            return Inner.SortedSetRangeByValueAsync(ToInner(key), min, max, exclude, skip, take, flags);
+            return Inner.SortedSetRangeByValueAsync(ToInner(key), min, max, exclude, Order.Ascending, skip, take, flags);
+        }
+
+        public Task<RedisValue[]> SortedSetRangeByValueAsync(RedisKey key, RedisValue min = default(RedisValue), RedisValue max = default(RedisValue), Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.SortedSetRangeByValueAsync(ToInner(key), min, max, exclude, order, skip, take, flags);
         }
 
         public Task<long?> SortedSetRankAsync(RedisKey key, RedisValue member, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
@@ -636,9 +656,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StreamPendingMessagesAsync(ToInner(key), groupName, count, consumerName, minId, maxId, flags);
         }
 
-        public Task<RedisStreamEntry[]> StreamRangeAsync(RedisKey key, RedisValue? minId = null, RedisValue? maxId = null, int? count = null, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        public Task<RedisStreamEntry[]> StreamRangeAsync(RedisKey key, RedisValue? minId = null, RedisValue? maxId = null, int? count = null, Order messageOrder = Order.Ascending, CommandFlags flags = CommandFlags.None)
         {
-            return Inner.StreamRangeAsync(ToInner(key), minId, maxId, count, order, flags);
+            return Inner.StreamRangeAsync(ToInner(key), minId, maxId, count, messageOrder, flags);
         }
 
         public Task<RedisStreamEntry[]> StreamReadAsync(RedisKey key, RedisValue afterId, int? count = null, CommandFlags flags = CommandFlags.None)
@@ -785,14 +805,6 @@ namespace StackExchange.Redis.KeyspaceIsolation
         {
             Inner.WaitAll(tasks);
         }
-
-#if DEBUG
-        public Task<string> ClientGetNameAsync(CommandFlags flags = CommandFlags.None)
-        {
-            return Inner.ClientGetNameAsync(flags);
-        }
-#endif
-
         protected internal RedisKey ToInner(RedisKey outer)
         {
             return RedisKey.WithPrefix(Prefix, outer);
@@ -819,13 +831,13 @@ namespace StackExchange.Redis.KeyspaceIsolation
                 foreach(var oldArg in args)
                 {
                     object newArg;
-                    if (oldArg is RedisKey)
+                    if (oldArg is RedisKey key)
                     {
-                        newArg    = ToInner((RedisKey)oldArg);
+                        newArg    = ToInner(key);
                     }
-                    else if (oldArg is RedisChannel)
+                    else if (oldArg is RedisChannel channel)
                     {
-                        newArg = ToInner((RedisChannel)oldArg);
+                        newArg = ToInner(channel);
                     }
                     else
                     {

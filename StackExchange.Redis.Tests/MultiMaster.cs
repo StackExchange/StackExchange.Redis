@@ -34,7 +34,7 @@ namespace StackExchange.Redis.Tests
             using (var log = new StringWriter())
             using (var conn = Create(log: log, tieBreaker: ""))
             {
-                Output.WriteLine(log.ToString());
+                Log(log.ToString());
                 Assert.Contains("Choosing master arbitrarily", log.ToString());
             }
         }
@@ -72,7 +72,7 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create(log: log, tieBreaker: TieBreak))
             {
                 string text = log.ToString();
-                Output.WriteLine(text);
+                Log(text);
                 Assert.False(text.Contains("failed to nominate"), "failed to nominate");
                 if (elected != null)
                 {
