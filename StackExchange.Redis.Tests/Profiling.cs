@@ -93,7 +93,7 @@ namespace StackExchange.Redis.Tests
                 conn.BeginProfiling(profiler.MyContext);
 
                 var threads = new List<Thread>();
-
+                const int CountPer = 100;
                 for (var i = 0; i < 16; i++)
                 {
                     var db = conn.GetDatabase(i);
@@ -102,7 +102,7 @@ namespace StackExchange.Redis.Tests
                     {
                         var threadTasks = new List<Task>();
 
-                        for (var j = 0; j < 1000; j++)
+                        for (var j = 0; j < CountPer; j++)
                         {
                             var task = db.StringSetAsync(prefix + j, "" + j);
                             threadTasks.Add(task);
@@ -124,18 +124,18 @@ namespace StackExchange.Redis.Tests
                 }
                 Assert.True(kinds.Count <= 2);
                 Assert.Contains("SET", kinds);
-                if (kinds.Count == 2 && !kinds.Contains("SELECT"))
+                if (kinds.Count == 2 && !kinds.Contains("SELECT") && !kinds.Contains("GET"))
                 {
-                    Assert.True(false, "Non-SET, Non-SELECT command seen");
+                    Assert.True(false, "Non-SET, Non-SELECT, Non-GET command seen");
                 }
 
-                Assert.Equal(16 * 1000, allVals.Count());
+                Assert.Equal(16 * CountPer, allVals.Count(cmd => cmd.Command == "SET"));
                 Assert.Equal(16, allVals.Select(cmd => cmd.Db).Distinct().Count());
 
                 for (var i = 0; i < 16; i++)
                 {
                     var setsInDb = allVals.Count(cmd => cmd.Db == i && cmd.Command == "SET");
-                    Assert.Equal(1000, setsInDb);
+                    Assert.Equal(CountPer, setsInDb);
                 }
             }
         }
