@@ -270,9 +270,6 @@ namespace StackExchange.Redis.Tests
         {
             const int loop = 10000;
 
-            GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced);
-            GC.WaitForPendingFinalizers();
-
             var tasks = new Task[loop];
 
             var withFAF = Stopwatch.StartNew();
@@ -281,9 +278,6 @@ namespace StackExchange.Redis.Tests
                 conn.Publish(channel, "bar", CommandFlags.FireAndForget);
             }
             withFAF.Stop();
-
-            GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced);
-            GC.WaitForPendingFinalizers();
 
             var withAsync = Stopwatch.StartNew();
             for (int i = 0; i < loop; i++)

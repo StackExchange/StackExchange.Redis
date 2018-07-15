@@ -298,7 +298,7 @@ namespace StackExchange.Redis.Tests
                 var anyContext = LeaksCollectedAndRePooled_Initialize(conn, ThreadCount);
 
                 // force collection of everything but `anyContext`
-                GC.Collect(3, GCCollectionMode.Forced, blocking: true);
+                GC.Collect(3, GCCollectionMode.Forced);
                 GC.WaitForPendingFinalizers();
 
                 await Task.Delay(TimeSpan.FromMinutes(1.01)).ForAwait();

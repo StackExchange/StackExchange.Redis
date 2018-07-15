@@ -464,7 +464,6 @@ return timeTaken
 
                 // run via script
                 db.KeyDelete(key, CommandFlags.FireAndForget);
-                CollectGarbage();
                 var watch = Stopwatch.StartNew();
                 for (int i = 1; i < LOOP; i++) // the i=1 is to do all-but-one
                 {
@@ -476,7 +475,6 @@ return timeTaken
 
                 // run via raw op
                 db.KeyDelete(key, CommandFlags.FireAndForget);
-                CollectGarbage();
                 watch = Stopwatch.StartNew();
                 for (int i = 1; i < LOOP; i++) // the i=1 is to do all-but-one
                 {
@@ -750,9 +748,7 @@ return timeTaken
             // This has to be a separate method to guarantee that the created LuaScript objects go out of scope,
             //   and are thus available to be GC'd
             _PurgeLuaScriptOnFinalize(Script);
-
-            GC.Collect(2, GCCollectionMode.Forced, blocking: true);
-            GC.WaitForPendingFinalizers();
+            CollectGarbage();
 
             Assert.Equal(0, LuaScript.GetCachedScriptCount());
 
