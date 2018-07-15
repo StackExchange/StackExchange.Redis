@@ -272,6 +272,7 @@ namespace StackExchange.Redis
 
         public void RecordConnectionFailed(ConnectionFailureType failureType, Exception innerException = null, [CallerMemberName] string origin = null)
         {
+            Exception outerException = innerException;
             IdentifyFailureType(innerException, ref failureType);
 
             if (failureType == ConnectionFailureType.InternalFailure) OnInternalError(innerException, origin);
@@ -330,16 +331,16 @@ namespace StackExchange.Redis
                     add("Last-Global-Heartbeat", "global", ConnectionMultiplexer.LastGlobalHeartbeatSecondsAgo + "s ago");
                 }
 
-                var ex = innerException == null
+                outerException = innerException == null
                     ? new RedisConnectionException(failureType, exMessage.ToString())
                     : new RedisConnectionException(failureType, exMessage.ToString(), innerException);
 
                 foreach (var kv in data)
                 {
-                    ex.Data["Redis-" + kv.Item1] = kv.Item2;
+                    outerException.Data["Redis-" + kv.Item1] = kv.Item2;
                 }
 
-                Bridge.OnConnectionFailed(this, failureType, ex);
+                Bridge.OnConnectionFailed(this, failureType, outerException);
             }
 
             // cleanup
@@ -350,7 +351,7 @@ namespace StackExchange.Redis
                 {
                     var next = _writtenAwaitingResponse.Dequeue();
                     Bridge.Trace("Failing: " + next);
-                    next.SetException(innerException);
+                    next.SetException(innerException is RedisException ? innerException : outerException);
                     Bridge.CompleteSyncOrAsync(next);
                 }
             }
