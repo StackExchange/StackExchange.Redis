@@ -274,15 +274,15 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void TestDelMulti() // https://redis.io/commands/hdel
+        public async Task TestDelMulti() // https://redis.io/commands/hdel
         {
             using (var muxer = Create())
             {
                 var conn = muxer.GetDatabase();
                 var hashkey = Me();
-                conn.HashSetAsync(hashkey, "key1", "val1");
-                conn.HashSetAsync(hashkey, "key2", "val2");
-                conn.HashSetAsync(hashkey, "key3", "val3");
+                conn.HashSet(hashkey, "key1", "val1", flags: CommandFlags.FireAndForget);
+                conn.HashSet(hashkey, "key2", "val2", flags: CommandFlags.FireAndForget);
+                conn.HashSet(hashkey, "key3", "val3", flags: CommandFlags.FireAndForget);
 
                 var s1 = conn.HashExistsAsync(hashkey, "key1");
                 var s2 = conn.HashExistsAsync(hashkey, "key2");
@@ -294,34 +294,34 @@ namespace StackExchange.Redis.Tests
                 var d2 = conn.HashExistsAsync(hashkey, "key2");
                 var d3 = conn.HashExistsAsync(hashkey, "key3");
 
-                Assert.True(conn.Wait(s1));
-                Assert.True(conn.Wait(s2));
-                Assert.True(conn.Wait(s3));
+                Assert.True(await s1);
+                Assert.True(await s2);
+                Assert.True(await s3);
 
-                Assert.Equal(2, conn.Wait(removed));
+                Assert.Equal(2, await removed);
 
-                Assert.False(conn.Wait(d1));
-                Assert.True(conn.Wait(d2));
-                Assert.False(conn.Wait(d3));
+                Assert.False(await d1);
+                Assert.True(await d2);
+                Assert.False(await d3);
 
                 var removeFinal = conn.HashDeleteAsync(hashkey, new RedisValue[] { "key2" });
 
-                Assert.Equal(0, conn.Wait(conn.HashLengthAsync(hashkey)));
-                Assert.Equal(1, conn.Wait(removeFinal));
+                Assert.Equal(0, await conn.HashLengthAsync(hashkey).ForAwait());
+                Assert.Equal(1, await removeFinal);
             }
         }
 
         [Fact]
-        public void TestDelMultiInsideTransaction() // https://redis.io/commands/hdel
+        public async Task TestDelMultiInsideTransaction() // https://redis.io/commands/hdel
         {
             using (var outer = Create())
             {
                 var conn = outer.GetDatabase().CreateTransaction();
                 {
                     var hashkey = Me();
-                    conn.HashSetAsync(hashkey, "key1", "val1");
-                    conn.HashSetAsync(hashkey, "key2", "val2");
-                    conn.HashSetAsync(hashkey, "key3", "val3");
+                    var t = conn.HashSetAsync(hashkey, "key1", "val1");
+                    var t2 = conn.HashSetAsync(hashkey, "key2", "val2");
+                    var t3 = conn.HashSetAsync(hashkey, "key3", "val3");
 
                     var s1 = conn.HashExistsAsync(hashkey, "key1");
                     var s2 = conn.HashExistsAsync(hashkey, "key2");
@@ -335,15 +335,15 @@ namespace StackExchange.Redis.Tests
 
                     conn.Execute();
 
-                    Assert.True(conn.Wait(s1));
-                    Assert.True(conn.Wait(s2));
-                    Assert.True(conn.Wait(s3));
+                    Assert.True(await s1);
+                    Assert.True(await s2);
+                    Assert.True(await s3);
 
-                    Assert.Equal(2, conn.Wait(removed));
+                    Assert.Equal(2, await removed);
 
-                    Assert.False(conn.Wait(d1));
-                    Assert.True(conn.Wait(d2));
-                    Assert.False(conn.Wait(d3));
+                    Assert.False(await d1);
+                    Assert.True(await d2);
+                    Assert.False(await d3);
                 }
             }
         }
@@ -418,23 +418,23 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void TestHashLength() // https://redis.io/commands/hlen
+        public async Task TestHashLength() // https://redis.io/commands/hlen
         {
             using (var muxer = Create())
             {
                 var conn = muxer.GetDatabase();
                 var hashkey = Me();
-                conn.KeyDeleteAsync(hashkey);
+                conn.KeyDelete(hashkey, CommandFlags.FireAndForget);
 
                 var len0 = conn.HashLengthAsync(hashkey);
 
-                conn.HashSetAsync(hashkey, "foo", "abc");
-                conn.HashSetAsync(hashkey, "bar", "def");
+                conn.HashSet(hashkey, "foo", "abc", flags: CommandFlags.FireAndForget);
+                conn.HashSet(hashkey, "bar", "def", flags: CommandFlags.FireAndForget);
 
                 var len1 = conn.HashLengthAsync(hashkey);
 
-                Assert.Equal(0, muxer.Wait(len0));
-                Assert.Equal(2, muxer.Wait(len1));
+                Assert.Equal(0, await len0);
+                Assert.Equal(2, await len1);
             }
         }
 
@@ -445,13 +445,13 @@ namespace StackExchange.Redis.Tests
             {
                 var conn = muxer.GetDatabase();
                 var hashkey = Me();
-                await conn.KeyDeleteAsync(hashkey).ForAwait();
+                conn.KeyDelete(hashkey, CommandFlags.FireAndForget);
 
                 RedisValue[] fields = { "foo", "bar", "blop" };
                 var arr0 = await conn.HashGetAsync(hashkey, fields).ForAwait();
 
-                await conn.HashSetAsync(hashkey, "foo", "abc").ForAwait();
-                await conn.HashSetAsync(hashkey, "bar", "def").ForAwait();
+                conn.HashSet(hashkey, "foo", "abc", flags: CommandFlags.FireAndForget);
+                conn.HashSet(hashkey, "bar", "def", flags: CommandFlags.FireAndForget);
 
                 var arr1 = await conn.HashGetAsync(hashkey, fields).ForAwait();
                 var arr2 = await conn.HashGetAsync(hashkey, fields).ForAwait();
