@@ -42,8 +42,6 @@ namespace StackExchange.Redis.Tests
 
             int after = ConnectionMultiplexer.CollectedWithoutDispose;
 
-
-            Thread.Sleep(TimeSpan.FromSeconds(60));
             Assert.Null(wr.Target);
             Assert.Equal(before + 1, after);
         }

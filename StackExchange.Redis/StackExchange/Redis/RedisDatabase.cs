@@ -3303,11 +3303,13 @@ namespace StackExchange.Redis
 
             public IEnumerable<Message> GetMessages(PhysicalConnection connection)
             {
-                if (script != null && connection.Multiplexer.CommandMap.IsAvailable(RedisCommand.SCRIPT)
+                PhysicalBridge bridge;
+                if (script != null && (bridge = connection.BridgeCouldBeNull) != null
+                    && bridge.Multiplexer.CommandMap.IsAvailable(RedisCommand.SCRIPT)
                     && (Flags & CommandFlags.NoScriptCache) == 0)
                 {
                     // a script was provided (rather than a hash); check it is known and supported
-                    asciiHash = connection.Bridge.ServerEndPoint.GetScriptHash(script, command);
+                    asciiHash = bridge.ServerEndPoint.GetScriptHash(script, command);
 
                     if (asciiHash == null)
                     {

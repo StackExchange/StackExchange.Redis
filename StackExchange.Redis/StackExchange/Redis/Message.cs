@@ -35,7 +35,8 @@ namespace StackExchange.Redis
         {
             try
             {
-                physical.Multiplexer.LogLocked(log, "Writing to {0}: {1}", physical.Bridge, tail.CommandAndKey);
+                var bridge = physical.BridgeCouldBeNull;
+                bridge?.Multiplexer?.LogLocked(log, "Writing to {0}: {1}", bridge, tail.CommandAndKey);
             }
             catch { }
             tail.WriteTo(physical);

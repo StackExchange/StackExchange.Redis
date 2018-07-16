@@ -98,8 +98,19 @@ namespace StackExchange.Redis
             {
                 physical = null;
             }
+            GC.SuppressFinalize(this);
         }
-
+        ~PhysicalBridge()
+        {
+            // shouldn't *really* touch managed objects
+            // in a finalizer, but we need to kill that socket,
+            // and this is the first place that isn't going to
+            // be rooted by the socket async bits
+            try {
+                var tmp = physical;
+                tmp?.Shutdown();
+            } catch { }
+        }
         public void ReportNextFailure()
         {
             reportNextFailure = true;
@@ -399,7 +410,7 @@ namespace StackExchange.Redis
                             if (state == (int)State.ConnectedEstablished)
                             {
                                 Interlocked.Exchange(ref connectTimeoutRetryCount, 0);
-                                tmp.Bridge.ServerEndPoint.ClearUnselectable(UnselectableFlags.DidNotRespond);
+                                tmp.BridgeCouldBeNull?.ServerEndPoint?.ClearUnselectable(UnselectableFlags.DidNotRespond);
                             }
                             tmp.OnBridgeHeartbeat();
                             int writeEverySeconds = ServerEndPoint.WriteEverySeconds,

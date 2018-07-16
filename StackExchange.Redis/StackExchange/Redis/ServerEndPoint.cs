@@ -480,12 +480,15 @@ namespace StackExchange.Redis
             try
             {
                 if (connection == null) return;
-                var bridge = connection.Bridge;
-                if (bridge == subscription)
+                var bridge = connection.BridgeCouldBeNull;
+                if (bridge != null)
                 {
-                    Multiplexer.ResendSubscriptions(this);
+                    if (bridge == subscription)
+                    {
+                        Multiplexer.ResendSubscriptions(this);
+                    }
+                    Multiplexer.OnConnectionRestored(EndPoint, bridge.ConnectionType);
                 }
-                Multiplexer.OnConnectionRestored(EndPoint, bridge.ConnectionType);
             }
             catch (Exception ex)
             {
@@ -630,7 +633,16 @@ namespace StackExchange.Redis
                 else
                 {
                     Multiplexer.Trace("Writing direct: " + message);
-                    connection.Bridge.WriteMessageTakingWriteLock(connection, message);
+                    var bridge = connection.BridgeCouldBeNull;
+                    if (bridge == null)
+                    {
+                        throw new ObjectDisposedException(connection.ToString());
+                    }
+                    else
+                    {
+                        bridge.WriteMessageTakingWriteLock(connection, message);
+                    }
+                    
                 }
             }
         }
@@ -676,14 +688,19 @@ namespace StackExchange.Redis
                 }
             }
 
-            var connType = connection.Bridge.ConnectionType;
+            var bridge = connection.BridgeCouldBeNull;
+            if (bridge == null)
+            {
+                return Task.CompletedTask;
+            }
+            var connType = bridge.ConnectionType;
 
             if (connType == ConnectionType.Interactive)
             {
                 Multiplexer.LogLocked(log, "Auto-configure...");
                 AutoConfigure(connection);
             }
-            Multiplexer.LogLocked(log, "Sending critical tracer: {0}", connection.Bridge);
+            Multiplexer.LogLocked(log, "Sending critical tracer: {0}", bridge);
             var tracer = GetTracerMessage(true);
             tracer = LoggingMessage.Create(log, tracer);
             WriteDirectOrQueueFireAndForget(connection, tracer, ResultProcessor.EstablishConnection);

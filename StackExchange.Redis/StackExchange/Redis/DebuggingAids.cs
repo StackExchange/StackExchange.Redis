@@ -77,13 +77,14 @@ namespace StackExchange.Redis
 
         partial void OnDebugAbort()
         {
-            if (!Multiplexer.AllowConnect)
+            var bridge = BridgeCouldBeNull;
+            if (bridge == null || !bridge.Multiplexer.AllowConnect)
             {
                 throw new RedisConnectionException(ConnectionFailureType.InternalFailure, "debugging");
             }
         }
 
-        public bool IgnoreConnect => Multiplexer.IgnoreConnect;
+        public bool IgnoreConnect => BridgeCouldBeNull?.Multiplexer?.IgnoreConnect ?? false;
 
         private static volatile bool emulateStaleConnection;
         public static bool EmulateStaleConnection

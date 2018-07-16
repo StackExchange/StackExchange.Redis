@@ -166,18 +166,19 @@ namespace StackExchange.Redis
         // true if ready to be completed (i.e. false if re-issued to another server)
         public virtual bool SetResult(PhysicalConnection connection, Message message, RawResult result)
         {
+            var bridge = connection.BridgeCouldBeNull;
             if (message is LoggingMessage logging)
             {
                 try
                 {
-                    connection.Multiplexer.LogLocked(logging.Log, "Response from {0} / {1}: {2}", connection.Bridge, message.CommandAndKey, result);
+                    bridge?.Multiplexer?.LogLocked(logging.Log, "Response from {0} / {1}: {2}", bridge, message.CommandAndKey, result);
                 }
                 catch { }
             }
             if (result.IsError)
             {
-                if (result.AssertStarts(NOAUTH)) connection?.Multiplexer?.SetAuthSuspect();
-                var bridge = connection.Bridge;
+                if (result.AssertStarts(NOAUTH)) bridge?.Multiplexer?.SetAuthSuspect();
+                
                 var server = bridge.ServerEndPoint;
                 bool log = !message.IsInternalCall;
                 bool isMoved = result.AssertStarts(MOVED);
@@ -196,9 +197,11 @@ namespace StackExchange.Redis
                         // no point sending back to same server, and no point sending to a dead server
                         if (!Equals(server.EndPoint, endpoint))
                         {
-                            if (bridge.Multiplexer.TryResend(hashSlot, message, endpoint, isMoved))
+                            if (bridge == null)
+                            { } // already toast
+                            else if (bridge.Multiplexer.TryResend(hashSlot, message, endpoint, isMoved))
                             {
-                                connection.Multiplexer.Trace(message.Command + " re-issued to " + endpoint, isMoved ? "MOVED" : "ASK");
+                                bridge.Multiplexer.Trace(message.Command + " re-issued to " + endpoint, isMoved ? "MOVED" : "ASK");
                                 return false;
                             }
                             else
@@ -227,7 +230,7 @@ namespace StackExchange.Redis
                 {
                     bridge.Multiplexer.OnErrorMessage(server.EndPoint, err);
                 }
-                connection.Multiplexer.Trace("Completed with error: " + err + " (" + GetType().Name + ")", ToString());
+                bridge?.Multiplexer?.Trace("Completed with error: " + err + " (" + GetType().Name + ")", ToString());
                 if (unableToConnectError)
                 {
                     ConnectionFail(message, ConnectionFailureType.UnableToConnect, err);
@@ -242,7 +245,7 @@ namespace StackExchange.Redis
                 bool coreResult = SetResultCore(connection, message, result);
                 if (coreResult)
                 {
-                    connection.Multiplexer.Trace("Completed with success: " + result.ToString() + " (" + GetType().Name + ")", ToString());
+                    bridge?.Multiplexer?.Trace("Completed with success: " + result.ToString() + " (" + GetType().Name + ")", ToString());
                 }
                 else
                 {
@@ -481,7 +484,7 @@ namespace StackExchange.Redis
                         var sl = message as RedisDatabase.ScriptLoadMessage;
                         if (sl != null)
                         {
-                            connection.Bridge.ServerEndPoint.AddScript(sl.Script, asciiHash);
+                            connection.BridgeCouldBeNull?.ServerEndPoint?.AddScript(sl.Script, asciiHash);
                         }
                         SetResult(message, hash);
                         return true;
@@ -561,16 +564,21 @@ namespace StackExchange.Redis
             {
                 if (result.IsError && result.AssertStarts(READONLY))
                 {
-                    var server = connection.Bridge.ServerEndPoint;
-                    server.Multiplexer.Trace("Auto-configured role: slave");
-                    server.IsSlave = true;
+                    var bridge = connection.BridgeCouldBeNull;
+                    if(bridge != null)
+                    {
+                        var server = bridge.ServerEndPoint;
+                        server.Multiplexer.Trace("Auto-configured role: slave");
+                        server.IsSlave = true;
+                    }                    
                 }
                 return base.SetResult(connection, message, result);
             }
 
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
-                var server = connection.Bridge.ServerEndPoint;
+                var server = connection.BridgeCouldBeNull?.ServerEndPoint;
+                if (server == null) return false;
                 switch (result.Type)
                 {
                     case ResultType.BulkString:
@@ -777,8 +785,10 @@ namespace StackExchange.Redis
         {
             internal static ClusterConfiguration Parse(PhysicalConnection connection, string nodes)
             {
-                var server = connection.Bridge.ServerEndPoint;
-                var config = new ClusterConfiguration(connection.Multiplexer.ServerSelectionStrategy, nodes, server.EndPoint);
+                var bridge = connection.BridgeCouldBeNull;
+                if (bridge == null) throw new ObjectDisposedException(connection.ToString());
+                var server = bridge.ServerEndPoint;
+                var config = new ClusterConfiguration(bridge.Multiplexer.ServerSelectionStrategy, nodes, server.EndPoint);
                 server.SetClusterConfiguration(config);
                 return config;
             }
@@ -789,7 +799,8 @@ namespace StackExchange.Redis
                 {
                     case ResultType.BulkString:
                         string nodes = result.GetString();
-                        connection.Bridge.ServerEndPoint.ServerType = ServerType.Cluster;
+                        var bridge = connection.BridgeCouldBeNull;
+                        if (bridge != null) bridge.ServerEndPoint.ServerType = ServerType.Cluster;
                         var config = Parse(connection, nodes);
                         SetResult(message, config);
                         return true;
@@ -823,7 +834,7 @@ namespace StackExchange.Redis
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
-                SetResult(message, connection.Bridge.ServerEndPoint.EndPoint);
+                SetResult(message, connection.BridgeCouldBeNull?.ServerEndPoint?.EndPoint);
                 return true;
             }
         }
@@ -918,7 +929,7 @@ namespace StackExchange.Redis
                     SetResult(message, true);
                     return true;
                 }
-                if(message.Command == RedisCommand.AUTH) connection?.Multiplexer?.SetAuthSuspect();
+                if(message.Command == RedisCommand.AUTH) connection?.BridgeCouldBeNull?.Multiplexer?.SetAuthSuspect();
                 return false;
             }
         }
@@ -1312,7 +1323,7 @@ The coordinates as a two items x,y array (longitude,latitude).
             {
                 if (result.Type == ResultType.Error && result.AssertStarts(NOSCRIPT))
                 { // scripts are not flushed individually, so assume the entire script cache is toast ("SCRIPT FLUSH")
-                    connection.Bridge.ServerEndPoint.FlushScriptCache();
+                    connection.BridgeCouldBeNull?.ServerEndPoint?.FlushScriptCache();
                     message.SetScriptUnavailable();
                 }
                 // and apply usual processing for the rest
@@ -1837,7 +1848,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 switch (message.Command)
                 {
                     case RedisCommand.ECHO:
-                        happy = result.Type == ResultType.BulkString && (!establishConnection || result.IsEqual(connection.Multiplexer.UniqueId));
+                        happy = result.Type == ResultType.BulkString && (!establishConnection || result.IsEqual(connection.BridgeCouldBeNull?.Multiplexer?.UniqueId));
                         break;
                     case RedisCommand.PING:
                         happy = result.Type == ResultType.SimpleString && result.IsEqual(RedisLiterals.BytesPONG);
@@ -1854,7 +1865,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 }
                 if (happy)
                 {
-                    if (establishConnection) connection.Bridge.OnFullyEstablished(connection);
+                    if (establishConnection) connection.BridgeCouldBeNull?.OnFullyEstablished(connection);
                     SetResult(message, happy);
                     return true;
                 }

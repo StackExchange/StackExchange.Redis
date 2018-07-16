@@ -223,8 +223,11 @@ namespace StackExchange.Redis
                     // up-version servers, pre-condition failures exit with UNWATCH; and on down-version servers pre-condition
                     // failures exit with DISCARD - but that's ok : both work fine
 
-                    bool explicitCheckForQueued = !connection.Bridge.ServerEndPoint.GetFeatures().ExecAbort;
-                    var multiplexer = connection.Multiplexer;
+                    var bridge = connection.BridgeCouldBeNull;
+                    if (bridge == null) throw new ObjectDisposedException(connection.ToString());
+
+                    bool explicitCheckForQueued = !bridge.ServerEndPoint.GetFeatures().ExecAbort;
+                    var multiplexer = bridge.Multiplexer;
 
                     // PART 1: issue the pre-conditions
                     if (!IsAborted && conditions.Length != 0)
@@ -332,15 +335,15 @@ namespace StackExchange.Redis
                 }
                 if (IsAborted)
                 {
-                    connection.Multiplexer.Trace("Aborting: canceling wrapped messages");
-                    var bridge = connection.Bridge;
+                    connection.Trace("Aborting: canceling wrapped messages");
+                    var bridge = connection.BridgeCouldBeNull;
                     foreach (var op in InnerOperations)
                     {
                         op.Wrapped.Cancel();
-                        bridge.CompleteSyncOrAsync(op.Wrapped);
+                        bridge?.CompleteSyncOrAsync(op.Wrapped);
                     }
                 }
-                connection.Multiplexer.Trace("End ot transaction: " + Command);
+                connection.Trace("End of transaction: " + Command);
                 yield return this; // acts as either an EXEC or an UNWATCH, depending on "aborted"
             }
 
@@ -378,11 +381,11 @@ namespace StackExchange.Redis
                 if (result.IsError && message is TransactionMessage tran)
                 {
                     string error = result.GetString();
-                    var bridge = connection.Bridge;
+                    var bridge = connection.BridgeCouldBeNull;
                     foreach (var op in tran.InnerOperations)
                     {
                         ServerFail(op.Wrapped, error);
-                        bridge.CompleteSyncOrAsync(op.Wrapped);
+                        bridge?.CompleteSyncOrAsync(op.Wrapped);
                     }
                 }
                 return base.SetResult(connection, message, result);
@@ -392,26 +395,26 @@ namespace StackExchange.Redis
             {
                 if (message is TransactionMessage tran)
                 {
-                    var bridge = connection.Bridge;
+                    var bridge = connection.BridgeCouldBeNull;
                     var wrapped = tran.InnerOperations;
                     switch (result.Type)
                     {
                         case ResultType.SimpleString:
                             if (tran.IsAborted && result.IsEqual(RedisLiterals.BytesOK))
                             {
-                                connection.Multiplexer.Trace("Acknowledging UNWATCH (aborted electively)");
+                                connection.Trace("Acknowledging UNWATCH (aborted electively)");
                                 SetResult(message, false);
                                 return true;
                             }
                             //EXEC returned with a NULL
                             if (!tran.IsAborted && result.IsNull)
                             {
-                                connection.Multiplexer.Trace("Server aborted due to failed EXEC");
+                                connection.Trace("Server aborted due to failed EXEC");
                                 //cancel the commands in the transaction and mark them as complete with the completion manager
                                 foreach (var op in wrapped)
                                 {
                                     op.Wrapped.Cancel();
-                                    bridge.CompleteSyncOrAsync(op.Wrapped);
+                                    bridge?.CompleteSyncOrAsync(op.Wrapped);
                                 }
                                 SetResult(message, false);
                                 return true;
@@ -423,23 +426,23 @@ namespace StackExchange.Redis
                                 var arr = result.GetItems();
                                 if (result.IsNull)
                                 {
-                                    connection.Multiplexer.Trace("Server aborted due to failed WATCH");
+                                    connection.Trace("Server aborted due to failed WATCH");
                                     foreach (var op in wrapped)
                                     {
                                         op.Wrapped.Cancel();
-                                        bridge.CompleteSyncOrAsync(op.Wrapped);
+                                        bridge?.CompleteSyncOrAsync(op.Wrapped);
                                     }
                                     SetResult(message, false);
                                     return true;
                                 }
                                 else if (wrapped.Length == arr.Length)
                                 {
-                                    connection.Multiplexer.Trace("Server committed; processing nested replies");
+                                    connection.Trace("Server committed; processing nested replies");
                                     for (int i = 0; i < arr.Length; i++)
                                     {
                                         if (wrapped[i].Wrapped.ComputeResult(connection, arr[i]))
                                         {
-                                            bridge.CompleteSyncOrAsync(wrapped[i].Wrapped);
+                                            bridge?.CompleteSyncOrAsync(wrapped[i].Wrapped);
                                         }
                                     }
                                     SetResult(message, true);
