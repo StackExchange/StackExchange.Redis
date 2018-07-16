@@ -15,7 +15,7 @@ namespace StackExchange.Redis.Tests.Issues
         [FactLongRunning]
         public async Task SetMembers()
         {
-            using (var conn = Create())
+            using (var conn = Create(syncTimeout: 20000))
             {
                 conn.ConnectionFailed += (s, a) =>
                 {
