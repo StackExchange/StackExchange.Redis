@@ -12,39 +12,39 @@ namespace StackExchange.Redis.Tests
 
         private static void ForceGC()
         {
-            for(int i = 0; i < 3; i++)
+            for (int i = 0; i < 3; i++)
             {
                 GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced);
                 GC.WaitForPendingFinalizers();
             }
         }
 
-#if DEBUG
         [Fact]
         public void MuxerIsCollected()
         {
-            // first check WeakReference works like we expect
-            var obj = new object();
-            var wr = new WeakReference(obj);
-            obj = null;
-            ForceGC();
-            Assert.Null(wr.Target);
+            // this is more nuanced than it looks; multiple sockets with
+            // async callbacks, plus a heartbeat on a timer
 
-            var muxer = Create(); // deliberately not "using"
-            muxer.GetDatabase().Ping();
+            // deliberately not "using" - we *want* to leak this
+            var muxer = Create();
+            muxer.GetDatabase().Ping(); // smoke-test
 
             ForceGC();
+
+#if DEBUG // this counter only exists in debug
             int before = ConnectionMultiplexer.CollectedWithoutDispose;
-
-            wr = new WeakReference(muxer);
+#endif
+            var wr = new WeakReference(muxer);
             muxer = null;
             ForceGC();
 
-            int after = ConnectionMultiplexer.CollectedWithoutDispose;
-
+            // should be collectable
             Assert.Null(wr.Target);
+
+#if DEBUG // this counter only exists in debug
+            int after = ConnectionMultiplexer.CollectedWithoutDispose;
             Assert.Equal(before + 1, after);
-        }
 #endif
+        }
     }
 }
