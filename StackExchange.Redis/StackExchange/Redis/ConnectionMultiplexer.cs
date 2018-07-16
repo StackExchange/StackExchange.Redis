@@ -23,6 +23,18 @@ namespace StackExchange.Redis
 
         private static TaskFactory _factory = null;
 
+#if DEBUG
+        private static int _collectedWithoutDispose;
+        internal static int CollectedWithoutDispose => Thread.VolatileRead(ref _collectedWithoutDispose);
+        /// <summary>
+        /// Invoked by the garbage collector
+        /// </summary>
+        ~ConnectionMultiplexer()
+        {
+            Interlocked.Increment(ref _collectedWithoutDispose);
+        }
+#endif
+
         /// <summary>
         /// Provides a way of overriding the default Task Factory. If not set, it will use the default Task.Factory.
         /// Useful when top level code sets it's own factory which may interfere with Redis queries.
@@ -911,7 +923,7 @@ namespace StackExchange.Redis
                 if (_count == 0) return Array.Empty<EndPoint>();
 
                 var arr = new EndPoint[_count];
-                for(int i = 0; i < _count; i++)
+                for (int i = 0; i < _count; i++)
                 {
                     arr[i] = _arr[i].EndPoint;
                 }
@@ -978,9 +990,46 @@ namespace StackExchange.Redis
 
         partial void OnCreateReaderWriter(ConfigurationOptions configuration);
 
-        internal const int MillisecondsPerHeartbeat = 1000;
 
-        private static readonly TimerCallback heartbeat = state => ((ConnectionMultiplexer)state).OnHeartbeat();
+        internal const int MillisecondsPerHeartbeat = 1000;
+        private sealed class TimerToken
+        {
+            public TimerToken(ConnectionMultiplexer muxer)
+            {
+                _ref = new WeakReference(muxer);
+            }
+            private Timer _timer;
+            public void SetTimer(Timer timer) => _timer = timer;
+            private readonly WeakReference _ref;
+
+            private static readonly TimerCallback Heartbeat = state =>
+            {
+                var token = (TimerToken)state;
+                var muxer = (ConnectionMultiplexer)(token._ref?.Target);
+                if (muxer != null)
+                {
+                    muxer.OnHeartbeat();
+                }
+                else
+                {
+                    // the muxer got disposed from out of us; kill the timer
+                    var tmp = token._timer;
+                    token._timer = null;
+                    if (tmp != null) try { tmp.Dispose(); } catch { }
+                }
+            };
+
+            
+            internal static IDisposable Create(ConnectionMultiplexer connection)
+            {
+                var token = new TimerToken(connection);
+                var timer = new Timer(Heartbeat, token, MillisecondsPerHeartbeat, MillisecondsPerHeartbeat);
+                token.SetTimer(timer);
+                return timer;
+            }
+        }
+
+
 
         private int _activeHeartbeatErrors;
         private void OnHeartbeat()
@@ -1556,7 +1605,7 @@ namespace StackExchange.Redis
                 if (first)
                 {
                     LogLocked(log, "Starting heartbeat...");
-                    pulse = new Timer(heartbeat, this, MillisecondsPerHeartbeat, MillisecondsPerHeartbeat);
+                    pulse = TimerToken.Create(this);
                 }
                 if (publishReconfigure)
                 {
@@ -1773,7 +1822,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private Timer pulse;
+        private IDisposable pulse;
 
         internal ServerEndPoint SelectServer(Message message)
         {
@@ -1976,6 +2025,7 @@ namespace StackExchange.Redis
         /// </summary>
         public void Dispose()
         {
+            GC.SuppressFinalize(this);
             Close(!isDisposed);
         }
 
@@ -2015,7 +2065,7 @@ namespace StackExchange.Redis
                     return ExceptionFactory.NoConnectionAvailable(IncludeDetailInExceptions, IncludePerformanceCountersInExceptions, message.Command, message, server, GetServerSnapshot());
                 case WriteResult.TimeoutBeforeWrite:
                     return ExceptionFactory.Timeout(IncludeDetailInExceptions, "The timeout was reached before the message could be written to the output buffer, and it was not sent ("
-                        + Format.ToString(TimeoutMilliseconds)+ "ms)", message, server);
+                        + Format.ToString(TimeoutMilliseconds) + "ms)", message, server);
                 case WriteResult.WriteFailure:
                 default:
                     return ExceptionFactory.ConnectionFailure(IncludeDetailInExceptions, ConnectionFailureType.ProtocolFailure, "An unknown error occurred when writing the message", server);
