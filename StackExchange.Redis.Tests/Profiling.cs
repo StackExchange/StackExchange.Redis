@@ -131,7 +131,7 @@ namespace StackExchange.Redis.Tests
                 }
 
                 Assert.Equal(16 * CountPer, relevant.Count);
-                Assert.Equal(16, allVals.Select(cmd => cmd.Db).Distinct().Count());
+                Assert.Equal(16, relevant.Select(cmd => cmd.Db).Distinct().Count());
 
                 for (var i = 1; i <= 16; i++)
                 {
