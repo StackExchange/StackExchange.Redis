@@ -22,6 +22,9 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void MuxerIsCollected()
         {
+#if DEBUG
+            Skip.Inconclusive("Only predictable in builds");
+#endif
             // this is more nuanced than it looks; multiple sockets with
             // async callbacks, plus a heartbeat on a timer
 
