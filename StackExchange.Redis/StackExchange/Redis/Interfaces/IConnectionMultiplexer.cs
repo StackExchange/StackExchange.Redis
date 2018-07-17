@@ -2,6 +2,7 @@
 using System.IO;
 using System.Net;
 using System.Threading.Tasks;
+using StackExchange.Redis.Profiling;
 
 namespace StackExchange.Redis
 {
@@ -69,36 +70,11 @@ namespace StackExchange.Redis
         int StormLogThreshold { get; set; }
 
         /// <summary>
-        /// Sets an IProfiler instance for this ConnectionMultiplexer.
-        /// 
-        /// An IProfiler instances is used to determine which context to associate an
-        /// IProfiledCommand with.  See BeginProfiling(object) and FinishProfiling(object)
-        /// for more details.
+        /// Register a callback to provide an on-demand ambient session provider based on the
+        /// calling context; the implementing code is responsible for reliably resolving the same provider
+        /// based on ambient context, or returning null to not profile
         /// </summary>
-        /// <param name="profiler">The profiler to register.</param>
-        void RegisterProfiler(IProfiler profiler);
-
-        /// <summary>
-        /// Begins profiling for the given context.
-        /// 
-        /// If the same context object is returned by the registered IProfiler, the IProfiledCommands
-        /// will be associated with each other.
-        /// 
-        /// Call FinishProfiling with the same context to get the assocated commands.
-        /// 
-        /// Note that forContext cannot be a WeakReference or a WeakReference&lt;T&gt;
-        /// </summary>
-        /// <param name="forContext">The context to begin profiling for.</param>
-        void BeginProfiling(object forContext);
-
-        /// <summary>
-        /// Stops profiling for the given context, returns all IProfiledCommands associated.
-        /// 
-        /// By default this may do a sweep for dead profiling contexts, you can disable this by passing "allowCleanupSweep: false".
-        /// </summary>
-        /// <param name="forContext">The context to finish profiling for.</param>
-        /// <param name="allowCleanupSweep">Whether to allow a cleanup sweep of dead profiling contexts.</param>
-        ProfiledCommandEnumerable FinishProfiling(object forContext, bool allowCleanupSweep = true);
+        void RegisterProfiler(Func<ProfilingSession> profilingSessionProvider);
 
         /// <summary>
         /// Get summary statistics associates with this server

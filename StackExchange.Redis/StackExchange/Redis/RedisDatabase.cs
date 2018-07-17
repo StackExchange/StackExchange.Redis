@@ -3212,6 +3212,8 @@ namespace StackExchange.Redis
         {
             private readonly string _command;
             private readonly ICollection<object> args;
+
+            public new string Command => _command;
             public ExecuteMessage(int db, CommandFlags flags, string command, ICollection<object> args) : base(db, flags, RedisCommand.UNKNOWN)
             {
                 _command = command;

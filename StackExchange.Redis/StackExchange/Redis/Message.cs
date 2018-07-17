@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using StackExchange.Redis.Profiling;
 
 namespace StackExchange.Redis
 {
@@ -81,7 +82,7 @@ namespace StackExchange.Redis
         private ResultProcessor resultProcessor;
 
         // All for profiling purposes
-        private ProfileStorage performance;
+        private ProfiledCommand performance;
         internal DateTime createdDateTime;
         internal long createdTimestamp;
 
@@ -135,7 +136,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal void SetProfileStorage(ProfileStorage storage)
+        internal void SetProfileStorage(ProfiledCommand storage)
         {
             performance = storage;
             performance.SetMessage(this);
@@ -152,7 +153,7 @@ namespace StackExchange.Redis
 
             createdDateTime = DateTime.UtcNow;
             createdTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
-            performance = ProfileStorage.NewAttachedToSameContext(oldPerformance, resendTo, isMoved);
+            performance = ProfiledCommand.NewAttachedToSameContext(oldPerformance, resendTo, isMoved);
             performance.SetMessage(this);
             Status = CommandStatus.WaitingToBeSent;
         }
