@@ -12,7 +12,7 @@ namespace TestConsole
                 using (var obj = new BasicTest.RedisBenchmarks())
                 {
                     var watch = Stopwatch.StartNew();
-                    obj.Execute();
+                    obj.ExecuteIncrBy();
                     watch.Stop();
                     Console.WriteLine($"{watch.ElapsedMilliseconds}ms");
                 }

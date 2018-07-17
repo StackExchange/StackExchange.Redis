@@ -3,9 +3,9 @@
   <PropertyGroup>
     <Description>StackExchange.Redis.BasicTest .NET Core</Description>
     <TargetFrameworks>netcoreapp2.0;netcoreapp2.1;net47</TargetFrameworks>
-    <AssemblyName>BasicTest</AssemblyName>
+    <AssemblyName>BasicTestBaseline</AssemblyName>
     <OutputType>Exe</OutputType>
-    <PackageId>BasicTest</PackageId>
+    <PackageId>BasicTestBaseline</PackageId>
     <RuntimeIdentifiers>win7-x64</RuntimeIdentifiers>
     <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
     <LangVersion>latest</LangVersion>
