@@ -5,6 +5,7 @@ using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
+using StackExchange.Redis.Profiling;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -580,34 +581,31 @@ namespace StackExchange.Redis.Tests
 
         private static string Describe(EndPoint endpoint) => endpoint?.ToString() ?? "(unknown)";
 
-        private class TestProfiler : IProfiler
-        {
-            public object MyContext = new object();
-            public object GetContext() => MyContext;
-        }
-
         [Fact]
         public void SimpleProfiling()
         {
             using (var conn = Create())
             {
-                var profiler = new TestProfiler();
+                var profiler = new ProfilingSession();
                 var key = Me();
                 var db = conn.GetDatabase();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
 
-                conn.RegisterProfiler(profiler);
-                conn.BeginProfiling(profiler.MyContext);
+                conn.RegisterProfiler(() => profiler);
                 db.StringSet(key, "world");
                 var val = db.StringGet(key);
                 Assert.Equal("world", val);
 
-                var msgs = conn.FinishProfiling(profiler.MyContext);
+                var msgs = profiler.GetCommands();
                 Log("Checking GET...");
                 Assert.Contains(msgs, m => m.Command == "GET");
                 Log("Checking SET...");
                 Assert.Contains(msgs, m => m.Command == "SET");
                 Assert.Equal(2, msgs.Count());
+
+                var arr = msgs.ToArray();
+                Assert.Equal("SET", arr[0].Command);
+                Assert.Equal("GET", arr[1].Command);
             }
         }
 

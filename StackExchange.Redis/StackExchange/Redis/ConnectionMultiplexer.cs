@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using System.Reflection;
 using System.IO.Compression;
 using System.Runtime.CompilerServices;
+using StackExchange.Redis.Profiling;
 
 namespace StackExchange.Redis
 {
@@ -1868,10 +1869,10 @@ namespace StackExchange.Redis
 
             if (server != null)
             {
-                var profCtx = profiler?.GetContext();
-                if (profCtx != null && profiledCommands.TryGetValue(profCtx, out ConcurrentProfileStorageCollection inFlightForCtx))
+                var profilingSession = _profilingSessionProvider?.Invoke();
+                if (profilingSession != null)
                 {
-                    message.SetProfileStorage(ProfileStorage.NewWithContext(inFlightForCtx, server));
+                    message.SetProfileStorage(ProfiledCommand.NewWithContext(profilingSession, server));
                 }
 
                 if (message.Db >= 0)
@@ -1952,6 +1953,7 @@ namespace StackExchange.Redis
         public void Close(bool allowCommandsToComplete = true)
         {
             isDisposed = true;
+            _profilingSessionProvider = null;
             using (var tmp = pulse)
             {
                 pulse = null;

@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using StackExchange.Redis.Profiling;
 
 namespace StackExchange.Redis
 {
@@ -81,7 +82,7 @@ namespace StackExchange.Redis
         private ResultProcessor resultProcessor;
 
         // All for profiling purposes
-        private ProfileStorage performance;
+        private ProfiledCommand performance;
         internal DateTime createdDateTime;
         internal long createdTimestamp;
 
@@ -135,7 +136,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal void SetProfileStorage(ProfileStorage storage)
+        internal void SetProfileStorage(ProfiledCommand storage)
         {
             performance = storage;
             performance.SetMessage(this);
@@ -152,7 +153,7 @@ namespace StackExchange.Redis
 
             createdDateTime = DateTime.UtcNow;
             createdTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
-            performance = ProfileStorage.NewAttachedToSameContext(oldPerformance, resendTo, isMoved);
+            performance = ProfiledCommand.NewAttachedToSameContext(oldPerformance, resendTo, isMoved);
             performance.SetMessage(this);
             Status = CommandStatus.WaitingToBeSent;
         }
@@ -437,33 +438,32 @@ namespace StackExchange.Redis
             return $"[{Db}]:{CommandAndKey} ({resultProcessor?.GetType().Name ?? "(n/a)"})";
         }
 
-        public void SetResponseReceived()
-        {
-            performance?.SetResponseReceived();
-        }
+        public void SetResponseReceived() => performance?.SetResponseReceived();
 
         public bool TryComplete(bool isAsync)
         {
             //Ensure we can never call TryComplete on the same resultBox from two threads by grabbing it now
             var currBox = Interlocked.Exchange(ref resultBox, null);
+
+            if (!isAsync)
+            {   // set the performance completion the first chance we get (sync comes first)
+                performance?.SetCompleted();
+            }
             if (currBox != null)
             {
                 var ret = currBox.TryComplete(isAsync);
 
                 //in async mode TryComplete will have unwrapped and recycled resultBox
-                if (!(ret && isAsync))
+                if (!(ret || isAsync))
                 {
                     //put result box back if it was not already recycled
                     Interlocked.Exchange(ref resultBox, currBox);
                 }
-
-                performance?.SetCompleted();
                 return ret;
             }
             else
             {
                 ConnectionMultiplexer.TraceWithoutContext("No result-box to complete for " + Command, "Message");
-                performance?.SetCompleted();
                 return true;
             }
         }
@@ -612,10 +612,7 @@ namespace StackExchange.Redis
             resultBox?.SetException(exception);
         }
 
-        internal void SetEnqueued()
-        {
-            performance?.SetEnqueued();
-        }
+        internal void SetEnqueued()=> performance?.SetEnqueued();
 
 
 

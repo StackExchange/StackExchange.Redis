@@ -1,76 +1,17 @@
 ﻿using System;
+using StackExchange.Redis.Profiling;
 
 namespace StackExchange.Redis
 {
     public partial class ConnectionMultiplexer
     {
-        private IProfiler profiler;
-
-        // internal for test purposes
-        internal ProfileContextTracker profiledCommands;
+        Func<ProfilingSession> _profilingSessionProvider;
 
         /// <summary>
-        /// <para>Sets an IProfiler instance for this ConnectionMultiplexer.</para>
-        /// <para>
-        /// An IProfiler instances is used to determine which context to associate an
-        /// IProfiledCommand with.  See BeginProfiling(object) and FinishProfiling(object)
-        /// for more details.
-        /// </para>
+        /// Register a callback to provide an on-demand ambient session provider based on the
+        /// calling context; the implementing code is responsible for reliably resolving the same provider
+        /// based on ambient context, or returning null to not profile
         /// </summary>
-        /// <param name="profiler">The profiler to register.</param>
-        public void RegisterProfiler(IProfiler profiler)
-        {
-            if (this.profiler != null) throw new InvalidOperationException("IProfiler already registered for this ConnectionMultiplexer");
-
-            this.profiler = profiler ?? throw new ArgumentNullException(nameof(profiler));
-            profiledCommands = new ProfileContextTracker();
-        }
-
-        /// <summary>
-        /// <para>Begins profiling for the given context.</para>
-        /// <para>
-        /// If the same context object is returned by the registered IProfiler, the IProfiledCommands
-        /// will be associated with each other.
-        /// </para>
-        /// <para>Call FinishProfiling with the same context to get the assocated commands.</para>
-        /// <para>Note that forContext cannot be a WeakReference or a WeakReference&lt;T</para>&gt;
-        /// </summary>
-        /// <param name="forContext">The context to begin profiling.</param>
-        public void BeginProfiling(object forContext)
-        {
-            if (profiler == null) throw new InvalidOperationException("Cannot begin profiling if no IProfiler has been registered with RegisterProfiler");
-            if (forContext == null) throw new ArgumentNullException(nameof(forContext));
-            if (forContext is WeakReference) throw new ArgumentException("Context object cannot be a WeakReference", nameof(forContext));
-
-            if (!profiledCommands.TryCreate(forContext))
-            {
-                throw ExceptionFactory.BeganProfilingWithDuplicateContext(forContext);
-            }
-        }
-
-        /// <summary>
-        /// <para>Stops profiling for the given context, returns all IProfiledCommands associated.</para>
-        /// <para>By default this may do a sweep for dead profiling contexts, you can disable this by passing "allowCleanupSweep: false".</para>
-        /// </summary>
-        /// <param name="forContext">The context to begin profiling.</param>
-        /// <param name="allowCleanupSweep">Whether to allow cleanup of old profiling sessions.</param>
-        public ProfiledCommandEnumerable FinishProfiling(object forContext, bool allowCleanupSweep = true)
-        {
-            if (profiler == null) throw new InvalidOperationException("Cannot begin profiling if no IProfiler has been registered with RegisterProfiler");
-            if (forContext == null) throw new ArgumentNullException(nameof(forContext));
-
-            if (!profiledCommands.TryRemove(forContext, out ProfiledCommandEnumerable ret))
-            {
-                throw ExceptionFactory.FinishedProfilingWithInvalidContext(forContext);
-            }
-
-            // conditional, because it could hurt and that may sometimes be unacceptable
-            if (allowCleanupSweep)
-            {
-                profiledCommands.TryCleanup();
-            }
-
-            return ret;
-        }
+        public void RegisterProfiler(Func<ProfilingSession> profilingSessionProvider) => _profilingSessionProvider = profilingSessionProvider;
     }
 }

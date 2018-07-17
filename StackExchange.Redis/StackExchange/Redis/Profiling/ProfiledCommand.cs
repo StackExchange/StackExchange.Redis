@@ -1,18 +1,19 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Net;
+using System.Runtime.CompilerServices;
 using System.Threading;
 
-namespace StackExchange.Redis
+namespace StackExchange.Redis.Profiling
 {
-    internal class ProfileStorage : IProfiledCommand
+    internal sealed class ProfiledCommand : IProfiledCommand
     {
         #region IProfiledCommand Impl
         public EndPoint EndPoint => Server.EndPoint;
 
         public int Db => Message.Db;
 
-        public string Command => Message.Command.ToString();
+        public string Command => Message is RedisDatabase.ExecuteMessage em ? em.Command : Message.Command.ToString();
 
         public CommandFlags Flags => Message.Flags;
 
@@ -34,11 +35,11 @@ namespace StackExchange.Redis
 
         #endregion
 
-        public ProfileStorage NextElement { get; set; }
+        public ProfiledCommand NextElement { get; set; }
 
         private Message Message;
         private readonly ServerEndPoint Server;
-        private readonly ProfileStorage OriginalProfiling;
+        private readonly ProfiledCommand OriginalProfiling;
 
         private DateTime MessageCreatedDateTime;
         private long MessageCreatedTimeStamp;
@@ -47,9 +48,9 @@ namespace StackExchange.Redis
         private long ResponseReceivedTimeStamp;
         private long CompletedTimeStamp;
 
-        private readonly ConcurrentProfileStorageCollection PushToWhenFinished;
+        private readonly ProfilingSession PushToWhenFinished;
 
-        private ProfileStorage(ConcurrentProfileStorageCollection pushTo, ServerEndPoint server, ProfileStorage resentFor, RetransmissionReasonType? reason)
+        private ProfiledCommand(ProfilingSession pushTo, ServerEndPoint server, ProfiledCommand resentFor, RetransmissionReasonType? reason)
         {
             PushToWhenFinished = pushTo;
             OriginalProfiling = resentFor;
@@ -57,14 +58,14 @@ namespace StackExchange.Redis
             RetransmissionReason = reason;
         }
 
-        public static ProfileStorage NewWithContext(ConcurrentProfileStorageCollection pushTo, ServerEndPoint server)
+        public static ProfiledCommand NewWithContext(ProfilingSession pushTo, ServerEndPoint server)
         {
-            return new ProfileStorage(pushTo, server, null, null);
+            return new ProfiledCommand(pushTo, server, null, null);
         }
 
-        public static ProfileStorage NewAttachedToSameContext(ProfileStorage resentFor, ServerEndPoint server, bool isMoved)
+        public static ProfiledCommand NewAttachedToSameContext(ProfiledCommand resentFor, ServerEndPoint server, bool isMoved)
         {
-            return new ProfileStorage(resentFor.PushToWhenFinished, server, resentFor, isMoved ? RetransmissionReasonType.Moved : RetransmissionReasonType.Ask);
+            return new ProfiledCommand(resentFor.PushToWhenFinished, server, resentFor, isMoved ? RetransmissionReasonType.Moved : RetransmissionReasonType.Ask);
         }
 
         public void SetMessage(Message msg)
@@ -77,27 +78,17 @@ namespace StackExchange.Redis
             MessageCreatedTimeStamp = msg.createdTimestamp;
         }
 
-        public void SetEnqueued()
+        public void SetEnqueued() => SetTimestamp(ref EnqueuedTimeStamp);
+
+        public void SetRequestSent() => SetTimestamp(ref RequestSentTimeStamp);
+
+        public void SetResponseReceived() => SetTimestamp(ref ResponseReceivedTimeStamp);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void SetTimestamp(ref long field)
         {
-            // This method should never be called twice
-            if (EnqueuedTimeStamp > 0) throw new InvalidOperationException($"{nameof(SetEnqueued)} called more than once");
-
-            EnqueuedTimeStamp = Stopwatch.GetTimestamp();
-        }
-
-        public void SetRequestSent()
-        {
-            // This method should never be called twice
-            if (RequestSentTimeStamp > 0) throw new InvalidOperationException($"{nameof(SetRequestSent)} called more than once");
-
-            RequestSentTimeStamp = Stopwatch.GetTimestamp();
-        }
-
-        public void SetResponseReceived()
-        {
-            if (ResponseReceivedTimeStamp > 0) throw new InvalidOperationException($"{nameof(SetResponseReceived)} called more than once");
-
-            ResponseReceivedTimeStamp = Stopwatch.GetTimestamp();
+            var now = Stopwatch.GetTimestamp();
+            Interlocked.CompareExchange(ref field, now, 0);
         }
 
         public void SetCompleted()
@@ -108,11 +99,13 @@ namespace StackExchange.Redis
             var now = Stopwatch.GetTimestamp();
             var oldVal = Interlocked.CompareExchange(ref CompletedTimeStamp, now, 0);
 
-            // second call
-            if (oldVal != 0) return;
-
             // only push on the first call, no dupes!
-            PushToWhenFinished.Add(this);
+            if (oldVal == 0)
+            {
+                // fake a response if we completed prematurely (timeout, broken connection, etc)
+                Interlocked.CompareExchange(ref ResponseReceivedTimeStamp, now, 0);
+                PushToWhenFinished?.Add(this);
+            }
         }
 
         public override string ToString()

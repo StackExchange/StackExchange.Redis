@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Net;
 
-namespace StackExchange.Redis
+namespace StackExchange.Redis.Profiling
 {
     /// <summary>
     /// <para>A profiled command against a redis instance.</para>
@@ -88,22 +88,5 @@ namespace StackExchange.Redis
         /// This can be useful for determining the root cause of extra commands.
         /// </summary>
         RetransmissionReasonType? RetransmissionReason { get; }
-    }
-
-    /// <summary>
-    /// Interface for profiling individual commands against an Redis ConnectionMulitplexer.
-    /// </summary>
-    public interface IProfiler
-    {
-        /// <summary>
-        /// Called to provide a context object.
-        /// 
-        /// This method is called before the method which triggers work against redis (such as StringSet(Async)) returns,
-        /// and will always be called on the same thread as that method.
-        /// 
-        /// Note that GetContext() may be called even if ConnectionMultiplexer.BeginProfiling() has not been called.
-        /// You may return `null` to prevent any tracking of commands.
-        /// </summary>
-        object GetContext();
     }
 }
