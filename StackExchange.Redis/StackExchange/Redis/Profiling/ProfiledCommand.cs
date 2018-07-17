@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Net;
+using System.Runtime.CompilerServices;
 using System.Threading;
 
 namespace StackExchange.Redis.Profiling
@@ -77,27 +78,17 @@ namespace StackExchange.Redis.Profiling
             MessageCreatedTimeStamp = msg.createdTimestamp;
         }
 
-        public void SetEnqueued()
+        public void SetEnqueued() => SetTimestamp(ref EnqueuedTimeStamp);
+
+        public void SetRequestSent() => SetTimestamp(ref RequestSentTimeStamp);
+
+        public void SetResponseReceived() => SetTimestamp(ref ResponseReceivedTimeStamp);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void SetTimestamp(ref long field)
         {
-            // This method should never be called twice
-            if (EnqueuedTimeStamp > 0) throw new InvalidOperationException($"{nameof(SetEnqueued)} called more than once");
-
-            EnqueuedTimeStamp = Stopwatch.GetTimestamp();
-        }
-
-        public void SetRequestSent()
-        {
-            // This method should never be called twice
-            if (RequestSentTimeStamp > 0) throw new InvalidOperationException($"{nameof(SetRequestSent)} called more than once");
-
-            RequestSentTimeStamp = Stopwatch.GetTimestamp();
-        }
-
-        public void SetResponseReceived()
-        {
-            if (ResponseReceivedTimeStamp > 0) throw new InvalidOperationException($"{nameof(SetResponseReceived)} called more than once");
-
-            ResponseReceivedTimeStamp = Stopwatch.GetTimestamp();
+            var now = Stopwatch.GetTimestamp();
+            Interlocked.CompareExchange(ref field, now, 0);
         }
 
         public void SetCompleted()
@@ -108,11 +99,13 @@ namespace StackExchange.Redis.Profiling
             var now = Stopwatch.GetTimestamp();
             var oldVal = Interlocked.CompareExchange(ref CompletedTimeStamp, now, 0);
 
-            // second call
-            if (oldVal != 0) return;
-
             // only push on the first call, no dupes!
-            PushToWhenFinished?.Add(this);
+            if (oldVal == 0)
+            {
+                // fake a response if we completed prematurely (timeout, broken connection, etc)
+                Interlocked.CompareExchange(ref ResponseReceivedTimeStamp, now, 0);
+                PushToWhenFinished?.Add(this);
+            }
         }
 
         public override string ToString()

@@ -81,7 +81,7 @@ namespace StackExchange.Redis.Tests
             Assert.True(command.CreationToEnqueued > TimeSpan.Zero, nameof(command.CreationToEnqueued));
             Assert.True(command.EnqueuedToSending > TimeSpan.Zero, nameof(command.EnqueuedToSending));
             Assert.True(command.SentToResponse > TimeSpan.Zero, nameof(command.SentToResponse));
-            Assert.True(command.ResponseToCompletion > TimeSpan.Zero, nameof(command.ResponseToCompletion));
+            Assert.True(command.ResponseToCompletion >= TimeSpan.Zero, nameof(command.ResponseToCompletion));
             Assert.True(command.ElapsedTime > TimeSpan.Zero, nameof(command.ElapsedTime));
             Assert.True(command.ElapsedTime > command.CreationToEnqueued && command.ElapsedTime > command.EnqueuedToSending && command.ElapsedTime > command.SentToResponse, "Comparisons");
             Assert.True(command.RetransmissionOf == null, nameof(command.RetransmissionOf));
@@ -207,6 +207,20 @@ namespace StackExchange.Redis.Tests
             ThreadLocal<ProfilingSession> perThreadSession = new ThreadLocal<ProfilingSession>(() => new ProfilingSession());
 
             public ProfilingSession GetSession() => perThreadSession.Value;
+        }
+        private class AsyncLocalProfiler
+        {
+            AsyncLocal<ProfilingSession> perThreadSession = new AsyncLocal<ProfilingSession>();
+
+            public ProfilingSession GetSession()
+            {
+                var val = perThreadSession.Value;
+                if(val == null)
+                {
+                    perThreadSession.Value = val = new ProfilingSession();
+                }
+                return val;
+            }
         }
 
         [Fact]
@@ -346,6 +360,52 @@ namespace StackExchange.Redis.Tests
 
                 Assert.Equal(16, perThreadTimings.Count);
                 Assert.True(perThreadTimings.All(kv => kv.Value.Count == 1000));
+            }
+        }
+        [FactLongRunning]
+        public async Task ProfilingMD_Ex2_Async()
+        {
+            using (var c = Create())
+            {
+                ConnectionMultiplexer conn = c;
+                var profiler = new AsyncLocalProfiler();
+                var prefix = Me();
+
+                conn.RegisterProfiler(profiler.GetSession);
+
+                var tasks = new List<Task>();
+
+                var perThreadTimings = new ConcurrentBag<List<IProfiledCommand>>();
+
+                for (var i = 0; i < 16; i++)
+                {
+                    var db = conn.GetDatabase(i);
+
+                    var task = Task.Run(async () =>
+                    {
+                        for (var j = 0; j < 100; j++)
+                        {
+                            await db.StringSetAsync(prefix + j, "" + j);
+                        }
+
+                        perThreadTimings.Add(profiler.GetSession().GetCommands().ToList());
+                    });
+
+                    tasks.Add(task);
+                }
+
+                var timeout = Task.Delay(10000);
+                var complete = Task.WhenAll(tasks);
+                if (timeout == await Task.WhenAny(timeout, complete))
+                {
+                    throw new TimeoutException();
+                }
+                
+                Assert.Equal(16, perThreadTimings.Count);
+                foreach(var item in perThreadTimings)
+                {
+                    Assert.Equal(100, item.Count);
+                }
             }
         }
     }
