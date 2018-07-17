@@ -247,7 +247,7 @@ namespace StackExchange.Redis
             var ioPipe = _ioPipe;
             var socket = _socket;
             _ioPipe = null;
-            socket = null;
+            _socket = null;
 
 
             if (ioPipe != null)
