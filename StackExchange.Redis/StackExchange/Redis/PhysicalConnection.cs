@@ -73,7 +73,6 @@ namespace StackExchange.Redis
         private IDuplexPipe _ioPipe;
 
         private Socket _socket;
-        private SocketAsyncEventArgs _socketArgs;
 
         public PhysicalConnection(PhysicalBridge bridge)
         {
@@ -105,25 +104,28 @@ namespace StackExchange.Redis
 
             bridge.Multiplexer.LogLocked(log, "BeginConnect: {0}", Format.ToString(endpoint));
 
-            var awaitable = new SocketAwaitable();
-            _socketArgs = new SocketAsyncEventArgs
-            {
-                UserToken = awaitable,
-                RemoteEndPoint = endpoint,
-            };
-            _socketArgs.Completed += SocketAwaitable.Callback;
             CancellationTokenSource timeoutSource = null;
             try
             {
-                if (_socket.ConnectAsync(_socketArgs))
-                {   // asynchronous operation is pending
-                    timeoutSource = ConfigureTimeout(_socketArgs, bridge.Multiplexer.RawConfig.ConnectTimeout);
+                var awaitable = new SocketAwaitable();
+                
+                using (var _socketArgs = new SocketAsyncEventArgs
+                {
+                    UserToken = awaitable,
+                    RemoteEndPoint = endpoint,
+                })
+                {
+                    _socketArgs.Completed += SocketAwaitable.Callback;
+                    
+                    if (_socket.ConnectAsync(_socketArgs))
+                    {   // asynchronous operation is pending
+                        timeoutSource = ConfigureTimeout(_socketArgs, bridge.Multiplexer.RawConfig.ConnectTimeout);
+                    }
+                    else
+                    {   // completed synchronously
+                        SocketAwaitable.OnCompleted(_socketArgs);
+                    }
                 }
-                else
-                {   // completed synchronously
-                    SocketAwaitable.OnCompleted(_socketArgs);
-                }
-
                 // Complete connection
                 try
                 {
@@ -132,8 +134,11 @@ namespace StackExchange.Redis
                     if (ignoreConnect) return;
 
                     await awaitable; // wait for the connect to complete or fail (will throw)
-                    timeoutSource?.Cancel();
-
+                    if (timeoutSource != null)
+                    {
+                        timeoutSource.Cancel();
+                        timeoutSource.Dispose();
+                    }
                     if (await ConnectedAsync(_socket, log, bridge.Multiplexer.SocketManager).ForAwait())
                     {
                         bridge.Multiplexer.LogLocked(log, "Starting read");
@@ -180,6 +185,10 @@ namespace StackExchange.Redis
                     throw new InvalidOperationException("BeginConnect failed with NotImplementedException; consider using IP endpoints, or enable ResolveDns in the configuration", ex);
                 }
                 throw;
+            }
+            finally
+            {
+                if (timeoutSource != null) try { timeoutSource.Dispose(); } catch { }
             }
         }
 
@@ -233,23 +242,14 @@ namespace StackExchange.Redis
         partial void ShouldIgnoreConnect(ref bool ignore);
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")]
-        internal  void Shutdown()
-        {
-            var socket = _socket;
-            socket = null;
-            if (socket != null)
-            {
-                try { socket.Shutdown(SocketShutdown.Both); } catch { }
-                try { socket.Close(); } catch { }
-                try { socket.Dispose(); } catch { }
-            }
-            try { using (_socketArgs) { } } catch { }
-        }
-
-        public void Dispose()
+        internal void Shutdown()
         {
             var ioPipe = _ioPipe;
+            var socket = _socket;
             _ioPipe = null;
+            socket = null;
+
+
             if (ioPipe != null)
             {
                 Trace("Disconnecting...");
@@ -257,18 +257,28 @@ namespace StackExchange.Redis
                 try { ioPipe.Input?.Complete(); } catch { }
                 try { ioPipe.Output?.CancelPendingFlush(); } catch { }
                 try { ioPipe.Output?.Complete(); } catch { }
-                ioPipe.Output?.Complete();
-            }
-            try { using (ioPipe as IDisposable) { } } catch { }
 
-            if (_socket != null)
+                try { using (ioPipe as IDisposable) { } } catch { }
+            }            
+            
+            if (socket != null)
             {
-                Shutdown();
+                try { socket.Shutdown(SocketShutdown.Both); } catch { }
+                try { socket.Close(); } catch { }
+                try { socket.Dispose(); } catch { }
+            }
+        }
+
+        public void Dispose()
+        {
+            bool markDisposed = _socket != null;
+            Shutdown();
+            if (markDisposed)
+            {
                 Trace("Disconnected");
                 RecordConnectionFailed(ConnectionFailureType.ConnectionDisposed);
             }
             OnCloseEcho();
-
             GC.SuppressFinalize(this);
         }
 
