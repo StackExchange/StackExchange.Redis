@@ -1,4 +1,7 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
 
 namespace StackExchange.Redis.Profiling
 {
@@ -23,8 +26,7 @@ namespace StackExchange.Redis.Profiling
         /// </summary>
         public struct Enumerator : IEnumerator<IProfiledCommand>
         {
-            private ProfiledCommand Head;
-            private ProfiledCommand CurrentBacker;
+            private ProfiledCommand Head, CurrentBacker;
 
             private bool IsEmpty => Head == null;
             private bool IsUnstartedOrFinished => CurrentBacker == null;
@@ -65,26 +67,59 @@ namespace StackExchange.Redis.Profiling
             /// <summary>
             /// Resets the enumeration.
             /// </summary>
-            public void Reset()
-            {
-                CurrentBacker = null;
-            }
+            public void Reset() => CurrentBacker = null;
 
             /// <summary>
             /// Disposes the enumeration.
             /// subsequent attempts to enumerate results in undefined behavior.
             /// </summary>
-            public void Dispose()
-            {
-                CurrentBacker = Head = null;
-            }
+            public void Dispose() => CurrentBacker = Head = null;
         }
 
-        private readonly ProfiledCommand Head;
+        private readonly ProfiledCommand _head;
+        private readonly int _count;
+        /// <summary>
+        /// Returns the number of commands captured in this snapshot
+        /// </summary>
+        public int Count() => _count;
 
-        internal ProfiledCommandEnumerable(ProfiledCommand head)
+        /// <summary>
+        /// Returns the captured commands as an array
+        /// </summary>
+        public IProfiledCommand[] ToArray()
+        {   // exploit the fact that we know the length
+            if (_count == 0) return Array.Empty<IProfiledCommand>();
+
+            var arr = new IProfiledCommand[_count];
+            var cur = _head;
+            for(int i = 0; i < _count; i++)
+            {
+                arr[i] = cur;
+                cur = cur.NextElement;
+            }
+            return arr;
+        }
+
+        /// <summary>
+        /// Returns the captured commands as a list
+        /// </summary>
+        public List<IProfiledCommand> ToList()
+        {   // exploit the fact that we know the length
+            var list = new List<IProfiledCommand>(_count);
+            var cur = _head;
+            while (cur != null)
+            {
+                list.Add(cur);
+                cur = cur.NextElement;
+            }
+            return list;
+        }
+        internal ProfiledCommandEnumerable(int count, ProfiledCommand head)
         {
-            Head = head;
+            _count = count;
+            _head = head;
+
+            Debug.Assert(_count == Enumerable.Count(this));
         }
 
         /// <summary>
@@ -94,7 +129,7 @@ namespace StackExchange.Redis.Profiling
         /// </para>
         /// <para>`foreach` will automatically use this method.</para>
         /// </summary>
-        public Enumerator GetEnumerator() => new Enumerator(Head);
+        public Enumerator GetEnumerator() => new Enumerator(_head);
 
         IEnumerator<IProfiledCommand> IEnumerable<IProfiledCommand>.GetEnumerator() => GetEnumerator();
 

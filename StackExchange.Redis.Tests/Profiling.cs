@@ -35,7 +35,7 @@ namespace StackExchange.Redis.Tests
                 var s = (string)db.Execute("ECHO", "fii");
                 Assert.Equal("fii", s);
 
-                var cmds = session.GetCommands();
+                var cmds = session.FinishProfiling();
                 var i = 0;
                 foreach (var cmd in cmds)
                 {
@@ -121,7 +121,7 @@ namespace StackExchange.Redis.Tests
                 threads.ForEach(thread => thread.Start());
                 threads.ForEach(thread => thread.Join());
 
-                var allVals = session.GetCommands();
+                var allVals = session.FinishProfiling();
                 var relevant = allVals.Where(cmd => cmd.Db > 0).ToList();
 
                 var kinds = relevant.Select(cmd => cmd.Command).Distinct().ToList();
@@ -178,7 +178,7 @@ namespace StackExchange.Redis.Tests
 
                         Task.WaitAll(allTasks.ToArray());
 
-                        results[ix] = profiler.GetSession().GetCommands();
+                        results[ix] = profiler.GetSession().FinishProfiling();
                     });
 
                     threads.Add(thread);
@@ -252,7 +252,7 @@ namespace StackExchange.Redis.Tests
 
                 conn.WaitAll(allTasks.ToArray());
 
-                var res = session.GetCommands();
+                var res = session.FinishProfiling();
                 Assert.True(res.GetType().IsValueType);
 
                 using (var e = res.GetEnumerator())
@@ -312,7 +312,7 @@ namespace StackExchange.Redis.Tests
                 threads.ForEach(thread => thread.Start());
                 threads.ForEach(thread => thread.Join());
 
-                IEnumerable<IProfiledCommand> timings = session.GetCommands();
+                IEnumerable<IProfiledCommand> timings = session.FinishProfiling();
 
                 Assert.Equal(16000, timings.Count());
             }
@@ -349,7 +349,7 @@ namespace StackExchange.Redis.Tests
 
                         Task.WaitAll(threadTasks.ToArray());
 
-                        perThreadTimings[Thread.CurrentThread] = profiler.GetSession().GetCommands().ToList();
+                        perThreadTimings[Thread.CurrentThread] = profiler.GetSession().FinishProfiling().ToList();
                     });
 
                     threads.Add(thread);
@@ -388,7 +388,7 @@ namespace StackExchange.Redis.Tests
                             await db.StringSetAsync(prefix + j, "" + j);
                         }
 
-                        perThreadTimings.Add(profiler.GetSession().GetCommands().ToList());
+                        perThreadTimings.Add(profiler.GetSession().FinishProfiling().ToList());
                     });
 
                     tasks.Add(task);

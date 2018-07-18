@@ -596,7 +596,7 @@ namespace StackExchange.Redis.Tests
                 var val = db.StringGet(key);
                 Assert.Equal("world", val);
 
-                var msgs = profiler.GetCommands();
+                var msgs = profiler.FinishProfiling();
                 Log("Checking GET...");
                 Assert.Contains(msgs, m => m.Command == "GET");
                 Log("Checking SET...");

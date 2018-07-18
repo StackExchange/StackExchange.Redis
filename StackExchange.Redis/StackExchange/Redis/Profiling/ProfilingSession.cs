@@ -33,13 +33,15 @@ namespace StackExchange.Redis.Profiling
         }
 
         /// <summary>
-        /// Yield the commands that were captured as part of this session, resetting the session
+        /// Reset the session and yield the commands that were captured for enumeration; if additional commands
+        /// are added, they can be retrieved via additional calls to FinishProfiling
         /// </summary>
-        public ProfiledCommandEnumerable GetCommands()
+        public ProfiledCommandEnumerable FinishProfiling()
         {
             var head = (ProfiledCommand)Interlocked.Exchange(ref _untypedHead, null);
 
             // reverse the list so everything is ordered the way the consumer expected them
+            int count = 0;
             ProfiledCommand previous = null, current = head, next;
             while(current != null)
             {
@@ -47,9 +49,10 @@ namespace StackExchange.Redis.Profiling
                 current.NextElement = previous;
                 previous = current;
                 current = next;
+                count++;
             }
 
-            return new ProfiledCommandEnumerable(previous);
+            return new ProfiledCommandEnumerable(count, previous);
         }
     }
 }
