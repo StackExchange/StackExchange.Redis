@@ -1,27 +1,25 @@
 ﻿using System;
-using System.Diagnostics;
+using System.Net;
+using StackExchange.Redis;
+using StackExchange.Redis.Tests;
 
 namespace TestConsole
 {
     internal static class Program
     {
-        private static int Main()
+        private static void Main()
         {
-            try
+            var ep = new IPEndPoint(IPAddress.Loopback, 6378);
+            using (var server = new FakeRedisServer(Console.Out))
             {
-                using (var obj = new BasicTest.RedisBenchmarks())
+                server.Start(ep);
+
+                var cfg = new ConfigurationOptions { EndPoints = { ep } };
+                using (var client = ConnectionMultiplexer.Connect(cfg))
                 {
-                    var watch = Stopwatch.StartNew();
-                    obj.ExecuteIncrBy();
-                    watch.Stop();
-                    Console.WriteLine($"{watch.ElapsedMilliseconds}ms");
+
+                    Console.ReadLine();
                 }
-                return 0;
-            }
-            catch (Exception ex)
-            {
-                Console.Error.WriteLine(ex.Message);
-                return -1;
             }
         }
     }
