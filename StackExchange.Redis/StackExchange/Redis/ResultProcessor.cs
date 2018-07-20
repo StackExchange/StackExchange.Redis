@@ -137,12 +137,14 @@ namespace StackExchange.Redis
             ASK = Encoding.UTF8.GetBytes("ASK "),
             NOAUTH = Encoding.UTF8.GetBytes("NOAUTH ");
 
-        public void ConnectionFail(Message message, ConnectionFailureType fail, Exception innerException)
+        public void ConnectionFail(Message message, ConnectionFailureType fail, Exception innerException, string annotation)
         {
             PhysicalConnection.IdentifyFailureType(innerException, ref fail);
 
             string exMessage = fail.ToString() + (message == null ? "" : (" on " + (
                 fail == ConnectionFailureType.ProtocolFailure ? message.ToString() : message.CommandAndKey)));
+            if (!string.IsNullOrWhiteSpace(annotation)) exMessage += ", " + annotation;
+
             var ex = innerException == null ? new RedisConnectionException(fail, exMessage)
                 : new RedisConnectionException(fail, exMessage, innerException);
             SetException(message, ex);
@@ -1919,8 +1921,7 @@ The coordinates as a two items x,y array (longitude,latitude).
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
-                var innerProcessor = StringPairInterleaved as StringPairInterleavedProcessor;
-                if (innerProcessor == null)
+                if (!(StringPairInterleaved is StringPairInterleavedProcessor innerProcessor))
                 {
                     return false;
                 }

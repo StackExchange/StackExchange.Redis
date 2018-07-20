@@ -601,8 +601,10 @@ namespace NRediSearch
         /// <param name="query">The query to watch</param>
         public AggregationResult Aggregate(AggregationRequest query)
         {
-            var args = new List<object>();
-            args.Add(_boxedIndexName);
+            var args = new List<object>
+            {
+                _boxedIndexName
+            };
             query.SerializeRedisArgs(args);
 
             var resp = DbSync.Execute("FT.AGGREGATE", args);
@@ -615,8 +617,10 @@ namespace NRediSearch
         /// <param name="query">The query to watch</param>
         public async Task<AggregationResult> AggregateAsync(AggregationRequest query)
         {
-            var args = new List<object>();
-            args.Add(_boxedIndexName);
+            var args = new List<object>
+            {
+                _boxedIndexName
+            };
             query.SerializeRedisArgs(args);
 
             var resp = await _db.ExecuteAsync("FT.AGGREGATE", args).ConfigureAwait(false);

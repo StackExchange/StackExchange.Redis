@@ -455,7 +455,7 @@ namespace StackExchange.Redis
                     // the pending tasks
                     foreach (var op in wrapped)
                     {
-                        op.Wrapped.Fail(ConnectionFailureType.ProtocolFailure, null);
+                        op.Wrapped.Fail(ConnectionFailureType.ProtocolFailure, null, "transaction failure");
                         bridge.CompleteSyncOrAsync(op.Wrapped);
                     }
                 }

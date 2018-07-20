@@ -601,10 +601,10 @@ namespace StackExchange.Redis
             }
         }
 
-        internal void Fail(ConnectionFailureType failure, Exception innerException)
+        internal void Fail(ConnectionFailureType failure, Exception innerException, string annotation)
         {
             PhysicalConnection.IdentifyFailureType(innerException, ref failure);
-            resultProcessor?.ConnectionFail(this, failure, innerException);
+            resultProcessor?.ConnectionFail(this, failure, innerException, annotation);
         }
 
         internal void SetException(Exception exception)
@@ -697,7 +697,7 @@ namespace StackExchange.Redis
             catch (Exception ex)
             {
                 physical?.OnInternalError(ex);
-                Fail(ConnectionFailureType.InternalFailure, ex);
+                Fail(ConnectionFailureType.InternalFailure, ex, null);
             }
         }
 

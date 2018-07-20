@@ -302,7 +302,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void KeyRestore()
         {
-            Byte[] value = new Byte[0];
+            byte[] value = new byte[0];
             TimeSpan expiry = TimeSpan.FromSeconds(123);
             wrapper.KeyRestore("key", value, expiry, CommandFlags.HighPriority);
             mock.Verify(_ => _.KeyRestore("prefix:key", value, expiry, CommandFlags.HighPriority));

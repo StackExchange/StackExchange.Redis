@@ -21,7 +21,7 @@ namespace NRediSearch
 
         public class Field
         {
-            public String Name { get; }
+            public string Name { get; }
             public FieldType Type { get; }
             public bool Sortable { get; }
             public bool NoIndex { get; }

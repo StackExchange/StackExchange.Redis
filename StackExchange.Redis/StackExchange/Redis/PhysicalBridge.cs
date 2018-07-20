@@ -194,7 +194,8 @@ namespace StackExchange.Redis
             var tmp = physical;
             if (tmp == null)
             {
-                qs = @in = 0;
+                qs = 0;
+                @in = -1;
             }
             else
             {
@@ -539,7 +540,7 @@ namespace StackExchange.Redis
                             // we screwed up; abort; note that WriteMessageToServer already
                             // killed the underlying connection
                             Trace("Unable to write to server");
-                            next.Fail(ConnectionFailureType.ProtocolFailure, null);
+                            next.Fail(ConnectionFailureType.ProtocolFailure, null, "failure before write: " + result.ToString());
                             CompleteSyncOrAsync(next);
                             return result;
                         }
@@ -739,7 +740,7 @@ namespace StackExchange.Redis
             catch (RedisCommandException ex)
             {
                 Trace("Write failed: " + ex.Message);
-                message.Fail(ConnectionFailureType.InternalFailure, ex);
+                message.Fail(ConnectionFailureType.InternalFailure, ex, null);
                 CompleteSyncOrAsync(message);
                 // this failed without actually writing; we're OK with that... unless there's a transaction
 
@@ -754,7 +755,7 @@ namespace StackExchange.Redis
             catch (Exception ex)
             {
                 Trace("Write failed: " + ex.Message);
-                message.Fail(ConnectionFailureType.InternalFailure, ex);
+                message.Fail(ConnectionFailureType.InternalFailure, ex, null);
                 CompleteSyncOrAsync(message);
 
                 // we're not sure *what* happened here; probably an IOException; kill the connection

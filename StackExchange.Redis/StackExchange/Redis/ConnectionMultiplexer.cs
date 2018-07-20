@@ -2066,8 +2066,20 @@ namespace StackExchange.Redis
                 case WriteResult.NoConnectionAvailable:
                     return ExceptionFactory.NoConnectionAvailable(IncludeDetailInExceptions, IncludePerformanceCountersInExceptions, message.Command, message, server, GetServerSnapshot());
                 case WriteResult.TimeoutBeforeWrite:
+                    string counters = null;
+                    try
+                    {
+                        var bridge = server.GetBridge(message.Command, false);
+                        if (bridge != null)
+                        {
+                            bridge.GetOutstandingCount(out var inst, out var qs, out var @in);
+                            counters = $", inst={inst}, qs={qs}, in={@in}";
+                        }
+                    }
+                    catch { }
+
                     return ExceptionFactory.Timeout(IncludeDetailInExceptions, "The timeout was reached before the message could be written to the output buffer, and it was not sent ("
-                        + Format.ToString(TimeoutMilliseconds) + "ms)", message, server);
+                        + Format.ToString(TimeoutMilliseconds) + "ms" + counters + ")", message, server);
                 case WriteResult.WriteFailure:
                 default:
                     return ExceptionFactory.ConnectionFailure(IncludeDetailInExceptions, ConnectionFailureType.ProtocolFailure, "An unknown error occurred when writing the message", server);

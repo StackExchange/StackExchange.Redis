@@ -1030,7 +1030,7 @@ namespace StackExchange.Redis
             writer.Advance(bytes);
         }
 
-        internal int GetAvailableInboundBytes() => _socket?.Available ?? 0;
+        internal int GetAvailableInboundBytes() => _socket?.Available ?? -1;
 
         private RemoteCertificateValidationCallback GetAmbientIssuerCertificateCallback()
         {
