@@ -90,7 +90,8 @@ namespace StackExchange.Redis.Server
                 Log("Listener faulted: " + ex.Message);
             }
         }
-        public void Dispose()
+        public void Dispose() => Dispose(true);
+        protected virtual void Dispose(bool disposing)
         {
             var socket = _listener;
             if (socket != null)
@@ -251,9 +252,9 @@ namespace StackExchange.Redis.Server
                     }
                     return result;
                 }
-                catch (NotImplementedException ex)
+                catch (NotImplementedException)
                 {
-                    Log(ex.Message);
+                    Log(request.Command);
                     return CommandNotFound(request.Command);
                 }
                 catch (Exception ex)

@@ -4,7 +4,7 @@ using System.IO;
 using System.Net;
 using StackExchange.Redis;
 using StackExchange.Redis.Server;
-using StackExchange.Redis.Tests;
+using System.Runtime.Caching;
 
 namespace TestConsole
 {
@@ -12,8 +12,33 @@ namespace TestConsole
     {
         class FakeRedisServer : BasicRedisServer
         {
-            public FakeRedisServer(TextWriter output = null) : base(output) { }
+            public FakeRedisServer(TextWriter output = null, MemoryCache cache = null) : base(output)
+                => _cache = cache ?? MemoryCache.Default;
             public override int Databases => 1;
+
+            private readonly MemoryCache _cache;
+
+            protected override void Dispose(bool disposing)
+            {
+                if (disposing)
+                {
+                    _cache.Dispose();
+                }
+                base.Dispose(disposing);
+            }
+
+            protected override long Dbsize(int database) => _cache.GetCount();
+            protected override RedisValue Get(int database, RedisKey key)
+            {
+                var val = _cache[key];
+                if (val == null) return RedisValue.Null;
+                return (RedisValue)val;
+            }
+            protected override void Set(int database, RedisKey key, RedisValue value)
+                => _cache[key] = value;
+            protected override bool Del(int database, RedisKey key)
+                => _cache.Remove(key) != null;
+
         }
         private static void Main()
         {
@@ -29,7 +54,7 @@ namespace TestConsole
                     var db = client.GetDatabase();
                     var watch = Stopwatch.StartNew();
                     const int LOOP = 1000;
-                    for(int i = 0; i < LOOP; i++)
+                    for (int i = 0; i < LOOP; i++)
                     {
                         db.Ping();
                     }

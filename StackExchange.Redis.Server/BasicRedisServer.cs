@@ -143,7 +143,7 @@ namespace StackExchange.Redis.Server
                 ?? RedisResult.Create(Get(client.Database, request.GetKey(1)));
         }
 
-        protected RedisValue Get(int database, RedisKey key) => throw new NotImplementedException();
+        protected virtual RedisValue Get(int database, RedisKey key) => throw new NotImplementedException();
 
         protected virtual RedisResult Set(RedisClient client, RedisRequest request)
         {
@@ -171,7 +171,7 @@ namespace StackExchange.Redis.Server
             return request.AssertCount(1, false) ??
                 RedisResult.Create(Dbsize(client.Database), ResultType.Integer);
         }
-        protected long Dbsize(int database) => throw new NotImplementedException();
+        protected virtual long Dbsize(int database) => throw new NotImplementedException();
 
         protected virtual RedisResult Flushall(RedisClient client, RedisRequest request)
         {
