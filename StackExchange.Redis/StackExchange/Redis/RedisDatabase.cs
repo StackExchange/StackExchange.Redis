@@ -698,13 +698,13 @@ namespace StackExchange.Redis
                 bool isCopy = (migrateOptions & MigrateOptions.Copy) != 0;
                 bool isReplace = (migrateOptions & MigrateOptions.Replace) != 0;
                 physical.WriteHeader(Command, 5 + (isCopy ? 1 : 0) + (isReplace ? 1 : 0));
-                physical.Write(toHost);
-                physical.Write(toPort);
+                physical.WriteBulkString(toHost);
+                physical.WriteBulkString(toPort);
                 physical.Write(Key);
-                physical.Write(toDatabase);
-                physical.Write(timeoutMilliseconds);
-                if (isCopy) physical.Write(RedisLiterals.COPY);
-                if (isReplace) physical.Write(RedisLiterals.REPLACE);
+                physical.WriteBulkString(toDatabase);
+                physical.WriteBulkString(timeoutMilliseconds);
+                if (isCopy) physical.WriteBulkString(RedisLiterals.COPY);
+                if (isReplace) physical.WriteBulkString(RedisLiterals.REPLACE);
             }
         }
 
@@ -3169,8 +3169,8 @@ namespace StackExchange.Redis
             protected override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 2);
-                physical.Write(RedisLiterals.LOAD);
-                physical.Write((RedisValue)Script);
+                physical.WriteBulkString(RedisLiterals.LOAD);
+                physical.WriteBulkString((RedisValue)Script);
             }
         }
 
@@ -3237,7 +3237,7 @@ namespace StackExchange.Redis
                     {   // recognises well-known types
                         var val = RedisValue.TryParse(arg);
                         if (val.IsNull && arg != null) throw new InvalidCastException($"Unable to parse value: '{arg}'");
-                        physical.Write(val);
+                        physical.WriteBulkString(val);
                     }
                 }
             }
@@ -3334,18 +3334,18 @@ namespace StackExchange.Redis
                 else if (asciiHash != null)
                 {
                     physical.WriteHeader(RedisCommand.EVALSHA, 2 + keys.Length + values.Length);
-                    physical.Write((RedisValue)asciiHash);
+                    physical.WriteBulkString((RedisValue)asciiHash);
                 }
                 else
                 {
                     physical.WriteHeader(RedisCommand.EVAL, 2 + keys.Length + values.Length);
-                    physical.Write((RedisValue)script);
+                    physical.WriteBulkString((RedisValue)script);
                 }
-                physical.Write(keys.Length);
+                physical.WriteBulkString(keys.Length);
                 for (int i = 0; i < keys.Length; i++)
                     physical.Write(keys[i]);
                 for (int i = 0; i < values.Length; i++)
-                    physical.Write(values[i]);
+                    physical.WriteBulkString(values[i]);
             }
         }
 
@@ -3386,11 +3386,11 @@ namespace StackExchange.Redis
             {
                 physical.WriteHeader(Command, 2 + keys.Length + values.Length);
                 physical.Write(Key);
-                physical.Write(keys.Length);
+                physical.WriteBulkString(keys.Length);
                 for (int i = 0; i < keys.Length; i++)
                     physical.Write(keys[i]);
                 for (int i = 0; i < values.Length; i++)
-                    physical.Write(values[i]);
+                    physical.WriteBulkString(values[i]);
             }
         }
 

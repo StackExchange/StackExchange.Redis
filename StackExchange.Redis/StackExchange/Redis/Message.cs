@@ -756,7 +756,7 @@ namespace StackExchange.Redis
             {
                 physical.WriteHeader(Command, 2);
                 physical.Write(Channel);
-                physical.Write(value);
+                physical.WriteBulkString(value);
             }
         }
 
@@ -857,7 +857,7 @@ namespace StackExchange.Redis
                 physical.WriteHeader(Command, 3);
                 physical.Write(Key);
                 physical.Write(key1);
-                physical.Write(value);
+                physical.WriteBulkString(value);
             }
         }
 
@@ -889,7 +889,7 @@ namespace StackExchange.Redis
                 physical.WriteHeader(command, values.Length);
                 for (int i = 0; i < values.Length; i++)
                 {
-                    physical.Write(values[i]);
+                    physical.WriteBulkString(values[i]);
                 }
             }
         }
@@ -939,7 +939,7 @@ namespace StackExchange.Redis
             {
                 physical.WriteHeader(Command, 2);
                 physical.Write(Key);
-                physical.Write(value);
+                physical.WriteBulkString(value);
             }
         }
 
@@ -968,7 +968,7 @@ namespace StackExchange.Redis
             {
                 physical.WriteHeader(Command, values.Length + 2);
                 physical.Write(Key);
-                for (int i = 0; i < values.Length; i++) physical.Write(values[i]);
+                for (int i = 0; i < values.Length; i++) physical.WriteBulkString(values[i]);
                 physical.Write(key1);
             }
         }
@@ -989,7 +989,7 @@ namespace StackExchange.Redis
             {
                 physical.WriteHeader(Command, values.Length + 1);
                 physical.Write(Key);
-                for (int i = 0; i < values.Length; i++) physical.Write(values[i]);
+                for (int i = 0; i < values.Length; i++) physical.WriteBulkString(values[i]);
             }
         }
 
@@ -1008,8 +1008,8 @@ namespace StackExchange.Redis
             {
                 physical.WriteHeader(Command, 3);
                 physical.Write(Key);
-                physical.Write(value0);
-                physical.Write(value1);
+                physical.WriteBulkString(value0);
+                physical.WriteBulkString(value1);
             }
         }
 
@@ -1030,9 +1030,9 @@ namespace StackExchange.Redis
             {
                 physical.WriteHeader(Command, 4);
                 physical.Write(Key);
-                physical.Write(value0);
-                physical.Write(value1);
-                physical.Write(value2);
+                physical.WriteBulkString(value0);
+                physical.WriteBulkString(value1);
+                physical.WriteBulkString(value2);
             }
         }
 
@@ -1055,10 +1055,10 @@ namespace StackExchange.Redis
             {
                 physical.WriteHeader(Command, 5);
                 physical.Write(Key);
-                physical.Write(value0);
-                physical.Write(value1);
-                physical.Write(value2);
-                physical.Write(value3);
+                physical.WriteBulkString(value0);
+                physical.WriteBulkString(value1);
+                physical.WriteBulkString(value2);
+                physical.WriteBulkString(value3);
             }
         }
 
@@ -1097,7 +1097,7 @@ namespace StackExchange.Redis
                 physical.WriteHeader(command, values.Length);
                 for (int i = 0; i < values.Length; i++)
                 {
-                    physical.Write(values[i]);
+                    physical.WriteBulkString(values[i]);
                 }
             }
         }
@@ -1114,7 +1114,7 @@ namespace StackExchange.Redis
             protected override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 2);
-                physical.Write(value);
+                physical.WriteBulkString(value);
                 physical.Write(Channel);
             }
         }
@@ -1138,7 +1138,7 @@ namespace StackExchange.Redis
             protected override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 2);
-                physical.Write(value);
+                physical.WriteBulkString(value);
                 physical.Write(Key);
             }
         }
@@ -1155,7 +1155,7 @@ namespace StackExchange.Redis
             protected override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 1);
-                physical.Write(value);
+                physical.WriteBulkString(value);
             }
         }
 
@@ -1173,8 +1173,8 @@ namespace StackExchange.Redis
             protected override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 2);
-                physical.Write(value0);
-                physical.Write(value1);
+                physical.WriteBulkString(value0);
+                physical.WriteBulkString(value1);
             }
         }
 
@@ -1194,9 +1194,9 @@ namespace StackExchange.Redis
             protected override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 3);
-                physical.Write(value0);
-                physical.Write(value1);
-                physical.Write(value2);
+                physical.WriteBulkString(value0);
+                physical.WriteBulkString(value1);
+                physical.WriteBulkString(value2);
             }
         }
 
@@ -1220,11 +1220,11 @@ namespace StackExchange.Redis
             protected override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 5);
-                physical.Write(value0);
-                physical.Write(value1);
-                physical.Write(value2);
-                physical.Write(value3);
-                physical.Write(value4);
+                physical.WriteBulkString(value0);
+                physical.WriteBulkString(value1);
+                physical.WriteBulkString(value2);
+                physical.WriteBulkString(value3);
+                physical.WriteBulkString(value4);
             }
         }
 
@@ -1237,7 +1237,7 @@ namespace StackExchange.Redis
             protected override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 1);
-                physical.Write(Db);
+                physical.WriteBulkString(Db);
             }
         }
     }

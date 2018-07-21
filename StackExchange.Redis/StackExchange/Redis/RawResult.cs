@@ -7,6 +7,15 @@ namespace StackExchange.Redis
 {
     internal readonly struct RawResult
     {
+        internal RawResult this[int index]
+        {
+            get
+            {
+                if (index >= _itemsCount) throw new IndexOutOfRangeException();
+                return _itemsOversized[index];
+            }
+        }
+        internal int ItemsCount => _itemsCount;
         internal static readonly RawResult NullMultiBulk = new RawResult(null, 0);
         internal static readonly RawResult EmptyMultiBulk = new RawResult(Array.Empty<RawResult>(), 0);
         internal static readonly RawResult Nil = default;
@@ -200,6 +209,12 @@ namespace StackExchange.Redis
         {
             if (Type == ResultType.MultiBulk)
                 return new ReadOnlySpan<RawResult>(_itemsOversized, 0, _itemsCount);
+            throw new InvalidOperationException();
+        }
+        internal ReadOnlyMemory<RawResult> GetItemsMemory()
+        {
+            if (Type == ResultType.MultiBulk)
+                return new ReadOnlyMemory<RawResult>(_itemsOversized, 0, _itemsCount);
             throw new InvalidOperationException();
         }
 

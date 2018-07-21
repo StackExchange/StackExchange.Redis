@@ -11,8 +11,10 @@ namespace StackExchange.Redis
         /// Create a new RedisResult representing a single value.
         /// </summary>
         /// <param name="value">The <see cref="RedisValue"/> to create a result from.</param>
+        /// <param name="resultType">The type of result being represented</param>
         /// <returns> new <see cref="RedisResult"/>.</returns>
-        public static RedisResult Create(RedisValue value) => new SingleRedisResult(value, null);
+        public static RedisResult Create(RedisValue value, ResultType? resultType = null) => new SingleRedisResult(value, resultType);
+
 
         /// <summary>
         /// Create a new RedisResult representing an array of values.
@@ -66,6 +68,10 @@ namespace StackExchange.Redis
         /// Indicates whether this result was a null result
         /// </summary>
         public abstract bool IsNull { get; }
+        /// <summary>
+        /// A successful result
+        /// </summary>
+        public static RedisResult OK { get; } = Create("OK", ResultType.SimpleString);
 
         /// <summary>
         /// Interprets the result as a <see cref="string"/>.

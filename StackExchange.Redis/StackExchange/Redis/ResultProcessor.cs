@@ -364,7 +364,7 @@ namespace StackExchange.Redis
                     else
                     {
                         physical.WriteHeader(command, 1);
-                        physical.Write(value);
+                        physical.WriteBulkString(value);
                     }
                 }
             }

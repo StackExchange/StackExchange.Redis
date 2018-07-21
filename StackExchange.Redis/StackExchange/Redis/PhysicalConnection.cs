@@ -581,7 +581,7 @@ namespace StackExchange.Redis
             var val = key.KeyValue;
             if (val is string)
             {
-                WriteUnified(_ioPipe.Output, key.KeyPrefix, (string)val);
+                WriteUnified(_ioPipe.Output, key.KeyPrefix, (string)val, outEncoder);
             }
             else
             {
@@ -590,26 +590,27 @@ namespace StackExchange.Redis
         }
 
         internal void Write(RedisChannel channel)
-        {
-            WriteUnified(_ioPipe.Output, ChannelPrefix, channel.Value);
-        }
+            => WriteUnified(_ioPipe.Output, ChannelPrefix, channel.Value);
 
-        internal void Write(RedisValue value)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal void WriteBulkString(RedisValue value)
+            => WriteBulkString(value, _ioPipe.Output, outEncoder);
+        internal static void WriteBulkString(RedisValue value, PipeWriter output, Encoder outEncoder)
         {
             switch (value.Type)
             {
                 case RedisValue.StorageType.Null:
-                    WriteUnified(_ioPipe.Output, (byte[])null);
+                    WriteUnified(output, (byte[])null);
                     break;
                 case RedisValue.StorageType.Int64:
-                    WriteUnified(_ioPipe.Output, (long)value);
+                    WriteUnified(output, (long)value);
                     break;
                 case RedisValue.StorageType.Double: // use string
                 case RedisValue.StorageType.String:
-                    WriteUnified(_ioPipe.Output, null, (string)value);
+                    WriteUnified(output, null, (string)value, outEncoder);
                     break;
                 case RedisValue.StorageType.Raw:
-                    WriteUnified(_ioPipe.Output, ((ReadOnlyMemory<byte>)value).Span);
+                    WriteUnified(output, ((ReadOnlyMemory<byte>)value).Span);
                     break;
                 default:
                     throw new InvalidOperationException($"Unexpected {value.Type} value: '{value}'");
@@ -660,13 +661,21 @@ namespace StackExchange.Redis
 
             _ioPipe.Output.Advance(offset);
         }
+        internal static void WriteMultiBulkHeader(PipeWriter output, long count)
+        {
+            // *{count}\r\n         = 3 + MaxInt32TextLen
+            var span = output.GetSpan(3 + MaxInt32TextLen);
+            span[0] = (byte)'*';
+            int offset = WriteRaw(span, count + 1, offset: 1);
+            output.Advance(offset);
+        }
 
         internal const int
             MaxInt32TextLen = 11, // -2,147,483,648 (not including the commas)
             MaxInt64TextLen = 20; // -9,223,372,036,854,775,808 (not including the commas)
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static int WriteCrlf(Span<byte> span, int offset)
+        internal static int WriteCrlf(Span<byte> span, int offset)
         {
             span[offset++] = (byte)'\r';
             span[offset++] = (byte)'\n';
@@ -674,7 +683,7 @@ namespace StackExchange.Redis
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void WriteCrlf(PipeWriter writer)
+        internal static void WriteCrlf(PipeWriter writer)
         {
             var span = writer.GetSpan(2);
             span[0] = (byte)'\r';
@@ -902,7 +911,7 @@ namespace StackExchange.Redis
             return value < 10 ? (byte)('0' + value) : (byte)('a' - 10 + value);
         }
 
-        private void WriteUnified(PipeWriter writer, byte[] prefix, string value)
+        internal static void WriteUnified(PipeWriter writer, byte[] prefix, string value, Encoder outEncoder)
         {
             if (value == null)
             {
@@ -930,13 +939,13 @@ namespace StackExchange.Redis
                     writer.Advance(bytes);
 
                     if (prefixLength != 0) writer.Write(prefix);
-                    if (encodedLength != 0) WriteRaw(writer, value, encodedLength);
+                    if (encodedLength != 0) WriteRaw(writer, value, encodedLength, outEncoder);
                     WriteCrlf(writer);
                 }
             }
         }
 
-        private unsafe void WriteRaw(PipeWriter writer, string value, int expectedLength)
+        unsafe static internal void WriteRaw(PipeWriter writer, string value, int expectedLength, Encoder outEncoder)
         {
             const int MaxQuickEncodeSize = 512;
 
@@ -1027,6 +1036,17 @@ namespace StackExchange.Redis
 
             span[0] = (byte)'$';
             var bytes = WriteRaw(span, value, withLengthPrefix: true, offset: 1);
+            writer.Advance(bytes);
+        }
+        internal static void WriteInteger(PipeWriter writer, long value)
+        {
+            //note: client should never write integer; only server does this
+
+            // :{asc}\r\n                = MaxInt64TextLen + 3
+            var span = writer.GetSpan(3 + MaxInt64TextLen);
+
+            span[0] = (byte)':';
+            var bytes = WriteRaw(span, value, withLengthPrefix: false, offset: 1);
             writer.Advance(bytes);
         }
 

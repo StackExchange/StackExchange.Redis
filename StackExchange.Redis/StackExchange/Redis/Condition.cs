@@ -308,7 +308,7 @@ namespace StackExchange.Redis
                     {
                         physical.WriteHeader(command, 2);
                         physical.Write(Key);
-                        physical.Write(value);
+                        physical.WriteBulkString(value);
                     }
                 }
             }
