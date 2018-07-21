@@ -74,20 +74,20 @@ namespace NRediSearch.QueryBuilder
             }
         }
 
-        public virtual string ToString(ParenMode parenMode)
+        public virtual string ToString(ParenMode mode)
         {
             StringBuilder sb = new StringBuilder();
-            
-            if (ShouldUseParens(parenMode))
+
+            if (ShouldUseParens(mode))
             {
                 sb.Append("(");
             }
             var sj = new StringJoiner(sb, GetJoinString());
             foreach (var n in children)
             {
-                sj.Add(n.ToString(parenMode));
+                sj.Add(n.ToString(mode));
             }
-            if (ShouldUseParens(parenMode))
+            if (ShouldUseParens(mode))
             {
                 sb.Append(")");
             }

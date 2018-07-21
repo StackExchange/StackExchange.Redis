@@ -9,7 +9,7 @@ namespace NRediSearch.Aggregation.Reducers
     public abstract class Reducer
     {
         public override string ToString() => Name;
-        private string _field;
+        private readonly string _field;
 
         internal Reducer(string field) => _field = field;
 

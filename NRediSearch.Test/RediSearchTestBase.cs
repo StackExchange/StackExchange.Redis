@@ -10,7 +10,7 @@ namespace NRediSearch.Test
     public abstract class RediSearchTestBase : IDisposable
     {
         protected readonly ITestOutputHelper Output;
-        public RediSearchTestBase(ITestOutputHelper output)
+        protected RediSearchTestBase(ITestOutputHelper output)
         {
             muxer = GetWithFT(output);
             Output = output;
@@ -82,7 +82,7 @@ namespace NRediSearch.Test
             return conn;
         }
 
-        static Dictionary<string, RedisValue> Parse(RedisResult module)
+        private static Dictionary<string, RedisValue> Parse(RedisResult module)
         {
             var data = new Dictionary<string, RedisValue>();
             var lines = (RedisResult[])module;
