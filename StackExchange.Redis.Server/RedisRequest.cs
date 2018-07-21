@@ -20,8 +20,9 @@ namespace StackExchange.Redis.Server
         }
 
         public RedisResult AssertCount(int count, bool asSubCommand) => Count == count ? null :
-            asSubCommand ? UnknownSubcommandOrArgumentCount()
-            : RedisResult.Create($"ERR wrong number of arguments for '{Command}' command", ResultType.Error);
+            asSubCommand ? UnknownSubcommandOrArgumentCount() : WrongArgCount();
+        public RedisResult WrongArgCount() => RedisResult.Create($"ERR wrong number of arguments for '{Command}' command", ResultType.Error);
+
         public RedisResult UnknownSubcommandOrArgumentCount() => RedisResult.Create($"ERR Unknown subcommand or wrong number of arguments for '{Command}'.", ResultType.Error);
 
         public string GetString(int index)

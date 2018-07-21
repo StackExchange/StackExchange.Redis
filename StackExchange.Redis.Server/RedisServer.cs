@@ -216,7 +216,7 @@ namespace StackExchange.Redis.Server
         public static bool TryParseRequest(ref ReadOnlySequence<byte> buffer, out RedisRequest request)
         {
             var reader = new BufferReader(buffer);
-            var raw = PhysicalConnection.TryParseResult(in buffer, ref reader, false, null);
+            var raw = PhysicalConnection.TryParseResult(in buffer, ref reader, false, null, true);
             if (raw.HasValue)
             {
                 buffer = reader.SliceFromCurrent();
@@ -231,10 +231,15 @@ namespace StackExchange.Redis.Server
         {
             if (!buffer.IsEmpty && TryParseRequest(ref buffer, out var request))
             {
+                if (string.IsNullOrWhiteSpace(request.Command))
+                {
+                    request.Recycle();
+                    return true;
+                }
+                
                 RedisResult response;
                 try { response = Execute(client, request); }
                 finally { request.Recycle(); }
-
                 WriteResponse(output, response, _serverEncoder);
                 return true;
             }
@@ -242,24 +247,25 @@ namespace StackExchange.Redis.Server
         }
 
         private object ServerSyncLock => this;
-
+        public long CommandsProcesed { get; private set; }
         public RedisResult Execute(RedisClient client, RedisRequest request)
         {
             lock (ServerSyncLock)
             {
                 try
                 {
+                    CommandsProcesed++;
                     var result = OnExecute(client, request);
                     if (result == null)
                     {
-                        Log(request.Command);
+                        Log($"missing command: '{request.Command}'");
                         result = CommandNotFound(request.Command);
                     }
                     return result;
                 }
                 catch (NotImplementedException)
                 {
-                    Log(request.Command);
+                    Log($"missing command: '{request.Command}'");
                     return CommandNotFound(request.Command);
                 }
                 catch (Exception ex)

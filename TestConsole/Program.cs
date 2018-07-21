@@ -5,6 +5,7 @@ using System.Net;
 using StackExchange.Redis;
 using StackExchange.Redis.Server;
 using System.Runtime.Caching;
+using System.Threading;
 
 namespace TestConsole
 {
@@ -42,8 +43,21 @@ namespace TestConsole
         }
         private static void Main()
         {
+            long oldOps = 0;
             var ep = new IPEndPoint(IPAddress.Loopback, 6378);
             using (var server = new FakeRedisServer(Console.Out))
+            using (var timer = new Timer(_ =>
+            {
+                var ops = server.CommandsProcesed;
+                if(oldOps != ops)
+                {
+                    lock(Console.Out)
+                    {
+                        Console.WriteLine($"Commands processed: " + ops);
+                    }
+                    oldOps = ops;
+                }
+            }, null, 1000, 1000))
             {
                 server.Listen(ep);
                 Console.WriteLine($"Server running on {ep}; press return to connect as client");

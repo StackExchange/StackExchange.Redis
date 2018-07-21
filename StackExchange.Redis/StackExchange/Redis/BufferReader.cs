@@ -189,6 +189,7 @@ namespace StackExchange.Redis
             Consume(1);
             return value;
         }
+        public int PeekByte() => IsEmpty ? -1 : _current[OffsetThisSpan];
 
         public ReadOnlySequence<byte> SliceFromCurrent()
         {

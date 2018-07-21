@@ -30,6 +30,8 @@ namespace StackExchange.Redis.Server
                 case "flushdb": return Flushdb(client, request);
                 case "get": return Get(client, request);
                 case "info": return Info(client, request);
+                case "mget": return Mget(client, request);
+                case "mset": return Mset(client, request);
                 case "ping": return Ping(client, request);
                 case "quit": return Quit(client, request);
                 case "select": return Select(client, request);
@@ -201,6 +203,31 @@ namespace StackExchange.Redis.Server
         {
             if (request.Count > 2) return RedisResult.Create("ERR syntax error", ResultType.Error);
             return RedisResult.Create("", ResultType.BulkString);
+        }
+        protected virtual RedisResult Mget(RedisClient client, RedisRequest request)
+        {
+            int argCount = request.Count;
+            if (argCount < 2) return request.WrongArgCount();
+
+            var arr = new RedisValue[argCount - 1];
+            var db = client.Database;
+            for (int i = 1; i < argCount;i++)
+            {
+                arr[i - 1] = Get(db, request.GetKey(i));
+            }
+            return RedisResult.Create(arr);
+        }
+        protected virtual RedisResult Mset(RedisClient client, RedisRequest request)
+        {
+            int argCount = request.Count;
+            if (argCount < 3 || (argCount & 1) == 0) return request.WrongArgCount();
+
+            var db = client.Database;
+            for (int i = 1; i < argCount; )
+            {
+                Set(db, request.GetKey(i++), request[i++]);
+            }
+            return RedisResult.OK;
         }
         protected virtual RedisResult Ping(RedisClient client, RedisRequest request)
         {

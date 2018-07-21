@@ -1431,23 +1431,38 @@ namespace StackExchange.Redis
 
         internal void StartReading() => ReadFromPipe();
 
-        internal static RawResult TryParseResult(in ReadOnlySequence<byte> buffer, ref BufferReader reader, bool includeDetilInExceptions, ServerEndPoint server)
+        internal static RawResult TryParseResult(in ReadOnlySequence<byte> buffer, ref BufferReader reader, bool includeDetilInExceptions, ServerEndPoint server, bool allowInline = false)
         {
-            var prefix = reader.ConsumeByte();
+            var prefix = reader.PeekByte();
             if (prefix < 0) return RawResult.Nil; // EOF
             switch (prefix)
             {
                 case '+': // simple string
+                    reader.Consume(1);
                     return ReadLineTerminatedString(ResultType.SimpleString, in buffer, ref reader);
                 case '-': // error
+                    reader.Consume(1);
                     return ReadLineTerminatedString(ResultType.Error, in buffer, ref reader);
                 case ':': // integer
+                    reader.Consume(1);
                     return ReadLineTerminatedString(ResultType.Integer, in buffer, ref reader);
                 case '$': // bulk string
+                    reader.Consume(1);
                     return ReadBulkString(in buffer, ref reader, includeDetilInExceptions, server);
                 case '*': // array
+                    reader.Consume(1);
                     return ReadArray(in buffer, ref reader, includeDetilInExceptions, server);
                 default:
+                    if(allowInline)
+                    {
+                        // spoof it as an array of the space-delimited pieces;
+                        // however, that's a lot of work, and I just need PING,
+                        // so... fake it for now, sorry
+                        var line = ReadLineTerminatedString(ResultType.SimpleString, in buffer, ref reader);
+                        var oversized = ArrayPool<RawResult>.Shared.Rent(1);
+                        oversized[0] = line;
+                        return new RawResult(oversized, 1);
+                    }
                     throw new InvalidOperationException("Unexpected response prefix: " + (char)prefix);
             }
         }        
