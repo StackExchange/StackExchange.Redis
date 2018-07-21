@@ -111,6 +111,8 @@ namespace StackExchange.Redis.Server
             var output = client?.LinkedPipe?.Output;
             if (input == null || output == null) return; // nope
 
+
+            Exception fault = null;
             try
             {
                 while (!client.Closed)
@@ -132,16 +134,19 @@ namespace StackExchange.Redis.Server
                         break;
                     }
                 }
-                input.Complete();
-                output.Complete();
-                Log($"Connection closed");
-                
             }
-            catch (Exception ex)
+            catch (ConnectionResetException) { }
+            catch (ObjectDisposedException) { }
+            catch (Exception ex) { fault = ex; }
+            finally
             {
-                try { input.Complete(ex); } catch { }
-                try { output.Complete(ex); } catch { }
-                Log("Connection faulted: " + ex.Message);
+                try { input.Complete(fault); } catch { }
+                try { output.Complete(fault); } catch { }
+
+                if (fault != null)
+                {
+                    Log("Connection faulted (" + fault.GetType().Name + "): " + fault.Message);
+                }
             }
         }
         private void Log(string message)
