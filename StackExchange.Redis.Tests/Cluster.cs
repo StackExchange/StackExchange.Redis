@@ -664,30 +664,28 @@ namespace StackExchange.Redis.Tests
                 var all = grouped.SelectMany(grp => {
                     var grpKeys = grp.ToArray();
                     var values = db.StringGet(grpKeys);
-                    return Enumerable.Zip(grpKeys, values, (key, val) => new { key, val });
+                    return grpKeys.Zip(values, (key, val) => new { key, val });
                 }).ToDictionary(x => x.key, x => x.val);
 
                 Assert.Equal(keys.Length, all.Count);
             }
         }
 
-#if DEBUG
         [Fact]
         public void MovedProfiling()
         {
-            const string Key = "redirected-key";
+            var Key = Me();
             const string Value = "redirected-value";
 
-            var profiler = new TestProfiler();
+            var profiler = new ProfilingSession();
 
             using (var conn = Create())
             {
-                conn.RegisterProfiler(profiler);
+                conn.RegisterProfiler(() => profiler);
 
                 var endpoints = conn.GetEndPoints();
                 var servers = endpoints.Select(e => conn.GetServer(e));
 
-                conn.BeginProfiling(profiler.MyContext);
                 var db = conn.GetDatabase();
                 db.KeyDelete(Key);
                 db.StringSet(Key, Value);
@@ -707,7 +705,7 @@ namespace StackExchange.Redis.Tests
                 string b = (string)conn.GetServer(wrongMasterNode.EndPoint).Execute("GET", Key);
                 Assert.Equal(Value, b); // wrong master, allow redirect
 
-                var msgs = conn.FinishProfiling(profiler.MyContext).ToList();
+                var msgs = profiler.FinishProfiling().ToList();
 
                 // verify that things actually got recorded properly, and the retransmission profilings are connected as expected
                 {
@@ -754,6 +752,5 @@ namespace StackExchange.Redis.Tests
                 }
             }
         }
-#endif
     }
 }
