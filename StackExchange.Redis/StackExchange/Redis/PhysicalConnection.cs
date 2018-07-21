@@ -666,7 +666,7 @@ namespace StackExchange.Redis
             // *{count}\r\n         = 3 + MaxInt32TextLen
             var span = output.GetSpan(3 + MaxInt32TextLen);
             span[0] = (byte)'*';
-            int offset = WriteRaw(span, count + 1, offset: 1);
+            int offset = WriteRaw(span, count, offset: 1);
             output.Advance(offset);
         }
 

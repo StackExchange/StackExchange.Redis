@@ -2,6 +2,7 @@
 using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Pipelines;
 using System.Net;
@@ -50,6 +51,23 @@ namespace StackExchange.Redis.Server
         // for extensibility, so that a subclass can get their own client type
         // to be used via ListenForConnections
         protected virtual RedisClient CreateClient() => new RedisClient();
+
+        public void AddClient(RedisClient client)
+        {
+            if (client == null) throw new ArgumentNullException(nameof(client));
+            lock (_clients)
+            {
+                _clients.Add(client);
+            }
+        }
+        public bool RemoveClient(RedisClient client)
+        {
+            if (client == null) throw new ArgumentNullException(nameof(client));
+            lock (_clients)
+            {
+                return _clients.Remove(client);
+            }
+        }
         private async void ListenForConnections(PipeOptions sendOptions, PipeOptions receiveOptions)
         {
             try
@@ -61,10 +79,7 @@ namespace StackExchange.Redis.Server
                     var pipe = SocketConnection.Create(client, sendOptions, receiveOptions);
                     var c = CreateClient();
                     c.LinkedPipe = pipe;
-                    lock (_clients)
-                    {
-                        _clients.Add(c);
-                    }
+                    AddClient(c);
                     StartOnScheduler(receiveOptions.ReaderScheduler, RunClientCallback, c);
                 }
             }
@@ -91,30 +106,40 @@ namespace StackExchange.Redis.Server
 
         async void RunClient(RedisClient client)
         {
-            var pipe = client?.LinkedPipe;
-            var input = pipe?.Input;
-
-            if (input == null) return; // nope
+            var input = client?.LinkedPipe?.Input;
+            var output = client?.LinkedPipe?.Output;
+            if (input == null || output == null) return; // nope
 
             try
             {
-                while (true)
+                while (!client.Closed)
                 {
                     var readResult = await input.ReadAsync();
                     var buffer = readResult.Buffer;
-                    int requestsHandled = TryProcessRequests(ref buffer, client);
-                    Log($"Processed {requestsHandled} requests");
+                    int requestsHandled = 0;
 
+                    while (!client.Closed && TryProcessRequest(ref buffer, client, output))
+                    {
+                        requestsHandled++;
+                        await output.FlushAsync();
+                    }
+                    Debug.WriteLine($"Processed {requestsHandled} requests");
                     input.AdvanceTo(buffer.Start, buffer.End);
+
                     if (requestsHandled == 0 && readResult.IsCompleted)
                     {
                         break;
                     }
                 }
+                input.Complete();
+                output.Complete();
                 Log($"Connection closed");
+                
             }
             catch (Exception ex)
             {
+                try { input.Complete(ex); } catch { }
+                try { output.Complete(ex); } catch { }
                 Log("Connection faulted: " + ex.Message);
             }
         }
@@ -186,7 +211,7 @@ namespace StackExchange.Redis.Server
         {
             var reader = new BufferReader(buffer);
             var raw = PhysicalConnection.TryParseResult(in buffer, ref reader, false, null);
-            if(raw.HasValue)
+            if (raw.HasValue)
             {
                 buffer = reader.SliceFromCurrent();
                 request = new RedisRequest(raw);
@@ -196,57 +221,46 @@ namespace StackExchange.Redis.Server
 
             return false;
         }
-        int TryProcessRequests(ref ReadOnlySequence<byte> buffer, RedisClient client)
+        bool TryProcessRequest(ref ReadOnlySequence<byte> buffer, RedisClient client, PipeWriter output)
         {
-            int messageCount = 0;
-
-            while (!buffer.IsEmpty)
+            if (!buffer.IsEmpty && TryParseRequest(ref buffer, out var request))
             {
-                RedisRequest request = default;
-                try
-                {
-                    if (TryParseRequest(ref buffer, out request))
-                    {
-                        messageCount++;
-                        var response = Execute(client, request);
-                        WriteResponse(client.LinkedPipe.Output, response, _serverEncoder);
-                    }
-                    else
-                    {
-                        break; // remaining buffer isn't enough; give up
-                    }
-                }
-                finally
-                {
-                    request.Recycle();
-                }
+                RedisResult response;
+                try { response = Execute(client, request); }
+                finally { request.Recycle(); }
+
+                WriteResponse(output, response, _serverEncoder);
+                return true;
             }
-            return messageCount;
+            return false;
         }
 
         private object ServerSyncLock => this;
 
         public RedisResult Execute(RedisClient client, RedisRequest request)
         {
-            try
+            lock (ServerSyncLock)
             {
-                var result = OnExecute(client, request);
-                if(result == null)
+                try
                 {
-                    Log(request.Command);
-                    result = CommandNotFound(request.Command);
+                    var result = OnExecute(client, request);
+                    if (result == null)
+                    {
+                        Log(request.Command);
+                        result = CommandNotFound(request.Command);
+                    }
+                    return result;
                 }
-                return result;                
-            }
-            catch (NotImplementedException ex)
-            {
-                Log(ex.Message);
-                return CommandNotFound(request.Command);
-            }
-            catch (Exception ex)
-            {
-                Log(ex.Message);
-                return RedisResult.Create("ERR " + ex.Message, ResultType.Error);
+                catch (NotImplementedException ex)
+                {
+                    Log(ex.Message);
+                    return CommandNotFound(request.Command);
+                }
+                catch (Exception ex)
+                {
+                    Log(ex.Message);
+                    return RedisResult.Create("ERR " + ex.Message, ResultType.Error);
+                }
             }
         }
         public abstract RedisResult OnExecute(RedisClient client, RedisRequest request);

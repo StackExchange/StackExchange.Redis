@@ -31,6 +31,7 @@ namespace StackExchange.Redis.Server
                 case "get": return Get(client, request);
                 case "info": return Info(client, request);
                 case "ping": return Ping(client, request);
+                case "quit": return Quit(client, request);
                 case "select": return Select(client, request);
                 case "set": return Set(client, request);
                 case "subscribe": return Subscribe(client, request);
@@ -206,6 +207,15 @@ namespace StackExchange.Redis.Server
             if (request.Count == 1) return RedisResult.Create("PONG", ResultType.SimpleString);
 
             return request.AssertCount(2, false) ?? RedisResult.Create(request.GetString(1), ResultType.SimpleString);
+        }
+        protected virtual RedisResult Quit(RedisClient client, RedisRequest request)
+        {
+            var chk = request.AssertCount(1, false);
+            if (chk != null) return chk;
+
+            client.Closed = true;
+            RemoveClient(client);
+            return RedisResult.OK;
         }
         protected virtual RedisResult Select(RedisClient client, RedisRequest request)
         {

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.IO;
 using System.Net;
 using StackExchange.Redis;
@@ -20,13 +21,23 @@ namespace TestConsole
             using (var server = new FakeRedisServer(Console.Out))
             {
                 server.Listen(ep);
-                Console.WriteLine("Server running; press return to connect as client");
+                Console.WriteLine($"Server running on {ep}; press return to connect as client");
                 Console.ReadLine();
                 var cfg = new ConfigurationOptions { EndPoints = { ep } };
                 using (var client = ConnectionMultiplexer.Connect(cfg, Console.Out))
                 {
-                    Console.ReadLine();
+                    var db = client.GetDatabase();
+                    var watch = Stopwatch.StartNew();
+                    const int LOOP = 1000;
+                    for(int i = 0; i < LOOP; i++)
+                    {
+                        db.Ping();
+                    }
+                    watch.Stop();
+
+                    Console.WriteLine($"ping {LOOP} times: {watch.ElapsedMilliseconds}ms");
                 }
+                Console.ReadLine();
             }
         }
     }

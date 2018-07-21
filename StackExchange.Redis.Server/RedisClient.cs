@@ -24,6 +24,7 @@ namespace StackExchange.Redis.Server
         public int Database { get; set; }
         public string Name { get; set; }
         internal IDuplexPipe LinkedPipe { get; set; }
+        public bool Closed { get; internal set; }
 
         public void Dispose()
         {
