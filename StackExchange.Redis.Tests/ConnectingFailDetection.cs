@@ -9,6 +9,8 @@ namespace StackExchange.Redis.Tests
     {
         public ConnectingFailDetection(ITestOutputHelper output) : base (output) { }
 
+        protected override string GetConfiguration() => TestConfig.Current.MasterServerAndPort + "," + TestConfig.Current.SlaveServerAndPort;
+
 #if DEBUG
         [Fact]
         public async Task FastNoticesFailOnConnectingSyncComlpetion()
