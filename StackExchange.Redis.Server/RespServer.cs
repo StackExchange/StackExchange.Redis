@@ -309,6 +309,10 @@ namespace StackExchange.Redis.Server
                 Log($"missing command: '{request.Command}'");
                 return CommandNotFound(request.Command);
             }
+            catch (InvalidCastException)
+            {
+                return RedisResult.Create("WRONGTYPE Operation against a key holding the wrong kind of value", ResultType.Error);
+            }
             catch (Exception ex)
             {
                 if(!_isShutdown) Log(ex.Message);

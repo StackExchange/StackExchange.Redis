@@ -77,6 +77,7 @@ namespace StackExchange.Redis.Server
                 case "select": return Select(client, request);
                 case "set": return Set(client, request);
                 case "shutdown": return Shutdown(client, request);
+                case "strlen": return Strlen(client, request);
                 case "subscribe": return Subscribe(client, request);
                 case "time": return Time(client, request);
                 case "unlink": return Unlink(client, request);
@@ -241,6 +242,7 @@ namespace StackExchange.Redis.Server
             Set(client.Database, request.GetKey(1), request[2]);
             return RedisResult.OK;
         }
+        protected virtual void Set(int database, RedisKey key, RedisValue value) => throw new NotSupportedException();
         protected new virtual RedisResult Shutdown(RedisClient client, RedisRequest request)
         {
             var chk = request.AssertCount(1, false);
@@ -249,7 +251,11 @@ namespace StackExchange.Redis.Server
             DoShutdown();
             return RedisResult.OK;
         }
-        protected virtual void Set(int database, RedisKey key, RedisValue value) => throw new NotSupportedException();
+        protected virtual RedisResult Strlen(RedisClient client, RedisRequest request)
+            => request.AssertCount(2, false) ??
+            RedisResult.Create(Strlen(client.Database, request.GetKey(1)), ResultType.Integer);
+
+        protected virtual long Strlen(int database, RedisKey key) => Get(database, key).Length();
 
         protected virtual RedisResult Del(RedisClient client, RedisRequest request)
         {

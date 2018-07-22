@@ -330,6 +330,20 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// Get the size of this value in bytes
+        /// </summary>
+        public long Length()
+        {
+            switch(Type)
+            {
+                case StorageType.Null: return 0;
+                case StorageType.Raw: return _memory.Length;
+                case StorageType.String: return Encoding.UTF8.GetByteCount((string)_objectOrSentinel);
+                default: throw new InvalidOperationException("Unable to compute length of type: " + Type);
+            }
+        }
+
+        /// <summary>
         /// Compare against a RedisValue for relative order
         /// </summary>
         /// <param name="other">The other <see cref="RedisValue"/> to compare.</param>
