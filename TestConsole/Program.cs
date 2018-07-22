@@ -6,6 +6,7 @@ using StackExchange.Redis;
 using StackExchange.Redis.Server;
 using System.Runtime.Caching;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace TestConsole
 {
@@ -13,9 +14,8 @@ namespace TestConsole
     {
         class FakeRedisServer : BasicRedisServer
         {
-            public FakeRedisServer(TextWriter output = null, MemoryCache cache = null) : base(output)
+            public FakeRedisServer(TextWriter output = null, MemoryCache cache = null) : base(1, output)
                 => _cache = cache ?? MemoryCache.Default;
-            public override int Databases => 1;
 
             private readonly MemoryCache _cache;
 
@@ -41,7 +41,7 @@ namespace TestConsole
                 => _cache.Remove(key) != null;
 
         }
-        private static void Main()
+        private static async Task Main()
         {
             long oldOps = 0;
             var ep = new IPEndPoint(IPAddress.Loopback, 6378);
@@ -60,23 +60,27 @@ namespace TestConsole
             }, null, 1000, 1000))
             {
                 server.Listen(ep);
-                Console.WriteLine($"Server running on {ep}; press return to connect as client");
-                Console.ReadLine();
-                var cfg = new ConfigurationOptions { EndPoints = { ep } };
-                using (var client = ConnectionMultiplexer.Connect(cfg, Console.Out))
-                {
-                    var db = client.GetDatabase();
-                    var watch = Stopwatch.StartNew();
-                    const int LOOP = 1000;
-                    for (int i = 0; i < LOOP; i++)
-                    {
-                        db.Ping();
-                    }
-                    watch.Stop();
+                TimeClient(ep);
+                await server.Shutdown;
+            }
+        }
 
-                    Console.WriteLine($"ping {LOOP} times: {watch.ElapsedMilliseconds}ms");
+        static void TimeClient(EndPoint ep)
+        {
+            Console.WriteLine("testing server...");
+            var cfg = new ConfigurationOptions { EndPoints = { ep } };
+            using (var client = ConnectionMultiplexer.Connect(cfg))
+            {
+                var db = client.GetDatabase();
+                var watch = Stopwatch.StartNew();
+                const int LOOP = 1000;
+                for (int i = 0; i < LOOP; i++)
+                {
+                    db.Ping();
                 }
-                Console.ReadLine();
+                watch.Stop();
+
+                Console.WriteLine($"ping {LOOP} times: {watch.ElapsedMilliseconds}ms");
             }
         }
     }

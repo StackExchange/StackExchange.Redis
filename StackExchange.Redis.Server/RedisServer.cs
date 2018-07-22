@@ -9,6 +9,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using Pipelines.Sockets.Unofficial;
 
 namespace StackExchange.Redis.Server
@@ -41,6 +42,8 @@ namespace StackExchange.Redis.Server
             _listener = listener;
             StartOnScheduler(receiveOptions?.ReaderScheduler, _ => ListenForConnections(
                 sendOptions ?? PipeOptions.Default, receiveOptions ?? PipeOptions.Default), null);
+
+            Log("Server is listening on " + Format.ToString(endpoint));
         }
 
         private static void StartOnScheduler(PipeScheduler scheduler, Action<object> callback, object state)
@@ -57,6 +60,7 @@ namespace StackExchange.Redis.Server
             if (client == null) throw new ArgumentNullException(nameof(client));
             lock (_clients)
             {
+                ThrowIfShutdown();
                 _clients.Add(client);
             }
         }
@@ -65,6 +69,7 @@ namespace StackExchange.Redis.Server
             if (client == null) throw new ArgumentNullException(nameof(client));
             lock (_clients)
             {
+                client.Closed = true;
                 return _clients.Remove(client);
             }
         }
@@ -87,26 +92,45 @@ namespace StackExchange.Redis.Server
             catch (ObjectDisposedException) { }
             catch (Exception ex)
             {
-                Log("Listener faulted: " + ex.Message);
+                if(!_isShutdown) Log("Listener faulted: " + ex.Message);
             }
         }
-        public void Dispose() => Dispose(true);
-        protected virtual void Dispose(bool disposing)
+
+        private readonly TaskCompletionSource<int> _shutdown = new TaskCompletionSource<int>();
+        private bool _isShutdown;
+        protected void ThrowIfShutdown()
         {
-            var socket = _listener;
-            if (socket != null)
-            {
-                try { socket.Dispose(); } catch { }
-            }
+            if (_isShutdown) throw new InvalidOperationException("The server is shutting down");
+        }
+        protected void DoShutdown(PipeScheduler scheduler = null)
+        {
+            if (_isShutdown) return;
+            Log("Server shutting down...");
+            _isShutdown = true;
             lock (_clients)
             {
                 foreach (var client in _clients) client.Dispose();
                 _clients.Clear();
             }
+            StartOnScheduler(scheduler,
+                state => ((TaskCompletionSource<int>)state).TrySetResult(0), _shutdown);
+        }
+        public Task Shutdown => _shutdown.Task;
+        public void Dispose() => Dispose(true);
+        protected virtual void Dispose(bool disposing)
+        {
+            DoShutdown();
+            var socket = _listener;
+            if (socket != null)
+            {
+                try { socket.Dispose(); } catch { }
+            }
         }
 
         async void RunClient(RedisClient client)
         {
+            ThrowIfShutdown();
+
             var input = client?.LinkedPipe?.Input;
             var output = client?.LinkedPipe?.Output;
             if (input == null || output == null) return; // nope
@@ -119,17 +143,16 @@ namespace StackExchange.Redis.Server
                 {
                     var readResult = await input.ReadAsync();
                     var buffer = readResult.Buffer;
-                    int requestsHandled = 0;
 
+                    bool makingProgress = false;
                     while (!client.Closed && TryProcessRequest(ref buffer, client, output))
                     {
-                        requestsHandled++;
+                        makingProgress = true;
                         await output.FlushAsync();
                     }
-                    Debug.WriteLine($"Processed {requestsHandled} requests");
                     input.AdvanceTo(buffer.Start, buffer.End);
 
-                    if (requestsHandled == 0 && readResult.IsCompleted)
+                    if (!makingProgress && readResult.IsCompleted)
                     {
                         break;
                     }
@@ -143,7 +166,7 @@ namespace StackExchange.Redis.Server
                 try { input.Complete(fault); } catch { }
                 try { output.Complete(fault); } catch { }
 
-                if (fault != null)
+                if (fault != null && !_isShutdown)
                 {
                     Log("Connection faulted (" + fault.GetType().Name + "): " + fault.Message);
                 }
@@ -247,35 +270,40 @@ namespace StackExchange.Redis.Server
         }
 
         private object ServerSyncLock => this;
-        public long CommandsProcesed { get; private set; }
+
+        private long _commandsProcesed;
+        public long CommandsProcesed => _commandsProcesed;
+
         public RedisResult Execute(RedisClient client, RedisRequest request)
         {
-            lock (ServerSyncLock)
+            Interlocked.Increment(ref _commandsProcesed);
+            try
             {
-                try
-                {
-                    CommandsProcesed++;
-                    var result = OnExecute(client, request);
-                    if (result == null)
-                    {
-                        Log($"missing command: '{request.Command}'");
-                        result = CommandNotFound(request.Command);
-                    }
-                    return result;
-                }
-                catch (NotImplementedException)
-                {
-                    Log($"missing command: '{request.Command}'");
-                    return CommandNotFound(request.Command);
-                }
-                catch (Exception ex)
-                {
-                    Log(ex.Message);
-                    return RedisResult.Create("ERR " + ex.Message, ResultType.Error);
+                // try to executte without needing a server lock
+                var result = ConnectionExecute(client, request);
+                if (result != null) return result;
+
+                // but no problem taking the lock when needed (most of the time)
+                lock (ServerSyncLock)
+                {        
+                    result = ServerExecute(client, request);
+                    if (result == null) Log($"missing command: '{request.Command}'");
+                    return result ?? CommandNotFound(request.Command);
                 }
             }
+            catch (NotImplementedException)
+            {
+                Log($"missing command: '{request.Command}'");
+                return CommandNotFound(request.Command);
+            }
+            catch (Exception ex)
+            {
+                if(!_isShutdown) Log(ex.Message);
+                return RedisResult.Create("ERR " + ex.Message, ResultType.Error);
+            }
         }
-        public abstract RedisResult OnExecute(RedisClient client, RedisRequest request);
+        public virtual RedisResult ConnectionExecute(RedisClient client, RedisRequest request) => null;
+        public abstract RedisResult ServerExecute(RedisClient client, RedisRequest request);
 
         internal static string ToLower(RawResult value)
         {

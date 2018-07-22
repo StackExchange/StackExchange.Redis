@@ -8,15 +8,29 @@ namespace StackExchange.Redis.Server
 {
     public abstract class BasicRedisServer : RedisServer
     {
-        protected BasicRedisServer(TextWriter output = null) : base(output)
+        protected BasicRedisServer(int databases = 16, TextWriter output = null) : base(output)
         {
+            if (databases < 1) throw new ArgumentOutOfRangeException(nameof(databases));
             var config = ServerConfiguration;
             config["timeout"] = "0";
             config["slave-read-only"] = "yes";
+            config["databases"] = databases.ToString();
         }
-        public abstract int Databases { get; }
+        public int Databases { get; }
 
-        public override RedisResult OnExecute(RedisClient client, RedisRequest request)
+        public override RedisResult ConnectionExecute(RedisClient client, RedisRequest request)
+        {
+            switch(request.Command)
+            {
+                case "client": return Client(client, request);
+                case "echo": return Echo(client, request);
+                case "ping": return Ping(client, request);
+                case "quit": return Quit(client, request);
+                case "select": return Select(client, request);
+                default: return null;
+            }
+        }
+        public override RedisResult ServerExecute(RedisClient client, RedisRequest request)
         {
             switch(request.Command)
             {
@@ -26,6 +40,7 @@ namespace StackExchange.Redis.Server
                 case "dbsize": return Dbsize(client, request);
                 case "del": return Del(client, request);
                 case "echo": return Echo(client, request);
+                case "exists": return Exists(client, request);
                 case "flushall": return Flushall(client, request);
                 case "flushdb": return Flushdb(client, request);
                 case "get": return Get(client, request);
@@ -36,6 +51,7 @@ namespace StackExchange.Redis.Server
                 case "quit": return Quit(client, request);
                 case "select": return Select(client, request);
                 case "set": return Set(client, request);
+                case "shutdown": return Shutdown(client, request);
                 case "subscribe": return Subscribe(client, request);
                 case "unsubscribe": return Unsubscribe(client, request);
                 default: return null;
@@ -63,11 +79,7 @@ namespace StackExchange.Redis.Server
         protected virtual RedisResult Cluster(RedisClient client, RedisRequest request)
             => CommandNotFound(request.Command);
 
-        protected virtual void OnUpdateServerConfiguration()
-        {
-            var config = ServerConfiguration;
-            config["databases"] = Databases.ToString();
-        }
+        protected virtual void OnUpdateServerConfiguration() { }
         protected RedisConfig ServerConfiguration { get; } = RedisConfig.Create();
         protected struct RedisConfig
         {
@@ -139,6 +151,23 @@ namespace StackExchange.Redis.Server
         protected virtual RedisResult Echo(RedisClient client, RedisRequest request)
             => request.AssertCount(2, false) ?? request.GetResult(1);
 
+        protected virtual RedisResult Exists(RedisClient client, RedisRequest request)
+        {
+            if (request.Count < 2) return request.WrongArgCount();
+
+            int count = 0;
+            var db = client.Database;
+            for(int i = 1; i < request.Count; i++)
+            {
+                if (Exists(db, request.GetKey(i)))
+                    count++;
+            }
+            return RedisResult.Create(count, ResultType.Integer);
+        }
+
+        protected virtual bool Exists(int database, RedisKey key)
+            => !Get(database, key).IsNull;
+
         protected virtual RedisResult Get(RedisClient client, RedisRequest request)
         {
             return request.AssertCount(2, false)
@@ -152,6 +181,14 @@ namespace StackExchange.Redis.Server
             var chk = request.AssertCount(3, false);
             if (chk != null) return chk;
             Set(client.Database, request.GetKey(1), request[2]);
+            return RedisResult.OK;
+        }
+        protected new virtual RedisResult Shutdown(RedisClient client, RedisRequest request)
+        {
+            var chk = request.AssertCount(1, false);
+            if (chk != null) return chk;
+
+            DoShutdown();
             return RedisResult.OK;
         }
         protected virtual void Set(int database, RedisKey key, RedisValue value) => throw new NotImplementedException();
@@ -240,7 +277,6 @@ namespace StackExchange.Redis.Server
             var chk = request.AssertCount(1, false);
             if (chk != null) return chk;
 
-            client.Closed = true;
             RemoveClient(client);
             return RedisResult.OK;
         }

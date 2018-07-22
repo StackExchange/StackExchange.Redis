@@ -9,7 +9,7 @@ namespace StackExchange.Redis.Server
         // them keep working
         private readonly RawResult _inner;
 
-        public int Count => _inner.ItemsCount;
+        public int Count { get; }
         public string Command { get; }
         public override string ToString() => Command;
         public override bool Equals(object obj) => throw new NotSupportedException();
@@ -49,6 +49,7 @@ namespace StackExchange.Redis.Server
         internal RedisRequest(RawResult result)
         {
             _inner = result;
+            Count = result.ItemsCount;
             Command = RedisServer.ToLower(result.GetItems()[0]);
         }
 

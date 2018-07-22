@@ -28,6 +28,7 @@ namespace StackExchange.Redis.Server
 
         public void Dispose()
         {
+            Closed = true;
             var pipe = LinkedPipe;
             LinkedPipe = null;
             if (pipe != null)
