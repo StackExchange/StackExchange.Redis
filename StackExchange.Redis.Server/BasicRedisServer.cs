@@ -2,7 +2,9 @@
 using System.Buffers;
 using System.Collections.Generic;
 using System.Collections.Specialized;
+using System.Diagnostics;
 using System.IO;
+using System.Text;
 
 namespace StackExchange.Redis.Server
 {
@@ -20,7 +22,7 @@ namespace StackExchange.Redis.Server
 
         public override RedisResult ConnectionExecute(RedisClient client, RedisRequest request)
         {
-            switch(request.Command)
+            switch (request.Command)
             {
                 case "client": return Client(client, request);
                 case "echo": return Echo(client, request);
@@ -32,7 +34,7 @@ namespace StackExchange.Redis.Server
         }
         public override RedisResult ServerExecute(RedisClient client, RedisRequest request)
         {
-            switch(request.Command)
+            switch (request.Command)
             {
                 case "client": return Client(client, request);
                 case "cluster": return Cluster(client, request);
@@ -63,7 +65,7 @@ namespace StackExchange.Redis.Server
         protected virtual RedisResult Client(RedisClient client, RedisRequest request)
         {
             var subcommand = request.GetStringLower(1);
-            switch(subcommand.ToLowerInvariant())
+            switch (subcommand.ToLowerInvariant())
             {
                 case "setname":
                     var chk = request.AssertCount(3, true);
@@ -85,7 +87,7 @@ namespace StackExchange.Redis.Server
         {
             internal static RedisConfig Create() => new RedisConfig(
                 new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
-            
+
             internal Dictionary<string, string> Wrapped { get; }
             public int Count => Wrapped.Count;
 
@@ -103,7 +105,7 @@ namespace StackExchange.Redis.Server
             internal int CountMatch(string pattern)
             {
                 int count = 0;
-                foreach(var pair in Wrapped)
+                foreach (var pair in Wrapped)
                 {
                     if (IsMatch(pattern, pair.Key)) count++;
                 }
@@ -119,7 +121,7 @@ namespace StackExchange.Redis.Server
         protected virtual RedisResult Config(RedisClient client, RedisRequest request)
         {
             var subcommand = request.GetStringLower(1);
-            switch(subcommand)
+            switch (subcommand)
             {
                 case "get":
                     var chk = request.AssertCount(3, true);
@@ -134,7 +136,7 @@ namespace StackExchange.Redis.Server
 
                     var arr = new RedisValue[2 * matches];
                     int index = 0;
-                    foreach(var pair in config.Wrapped)
+                    foreach (var pair in config.Wrapped)
                     {
                         if (RedisConfig.IsMatch(pattern, pair.Key))
                         {
@@ -157,7 +159,7 @@ namespace StackExchange.Redis.Server
 
             int count = 0;
             var db = client.Database;
-            for(int i = 1; i < request.Count; i++)
+            for (int i = 1; i < request.Count; i++)
             {
                 if (Exists(db, request.GetKey(i)))
                     count++;
@@ -196,7 +198,7 @@ namespace StackExchange.Redis.Server
         protected virtual RedisResult Del(RedisClient client, RedisRequest request)
         {
             int count = 0;
-            for(int i = 1; i < request.Count; i++)
+            for (int i = 1; i < request.Count; i++)
             {
                 if (Del(client.Database, request.GetKey(i)))
                     count++;
@@ -218,7 +220,7 @@ namespace StackExchange.Redis.Server
             if (chk != null) return chk;
 
             var count = Databases;
-            for(int i = 0; i < count; i++)
+            for (int i = 0; i < count; i++)
             {
                 Flushdb(i);
             }
@@ -239,7 +241,65 @@ namespace StackExchange.Redis.Server
         protected virtual RedisResult Info(RedisClient client, RedisRequest request)
         {
             if (request.Count > 2) return RedisResult.Create("ERR syntax error", ResultType.Error);
-            return RedisResult.Create("", ResultType.BulkString);
+
+            var info = Info(request.Count == 1 ? null : request.GetString(1));
+            return RedisResult.Create(info, ResultType.BulkString);
+        }
+        protected virtual string Info(string selected)
+        {
+            var sb = new StringBuilder();
+            bool IsMatch(string section) => string.IsNullOrWhiteSpace(selected)
+                || string.Equals(section, selected, StringComparison.OrdinalIgnoreCase);
+            if (IsMatch("Server")) Info(sb, "Server");
+            if (IsMatch("Clients")) Info(sb, "Clients");
+            if (IsMatch("Memory")) Info(sb, "Memory");
+            if (IsMatch("Persistence")) Info(sb, "Persistence");
+            if (IsMatch("Stats")) Info(sb, "Stats");
+            if (IsMatch("Replication")) Info(sb, "Replication");
+            if (IsMatch("Keyspace")) Info(sb, "Keyspace");
+            return sb.ToString();
+        }
+        protected virtual void Info(StringBuilder sb, string section)
+        {
+            StringBuilder AddHeader()
+            {
+                if (sb.Length != 0) sb.AppendLine();
+                return sb.Append("# ").AppendLine(section);
+            }
+
+            using (var process = Process.GetCurrentProcess())
+            {
+                switch (section)
+                {
+                    case "Server":
+                        AddHeader().AppendLine("redis_version:1.0")
+                            .AppendLine("redis_mode:standalone")
+                            .Append("os:").Append(Environment.OSVersion).AppendLine()
+                            .Append("arch_bits:x").Append(IntPtr.Size * 8).AppendLine()
+                            .Append("process:").Append(process.Id).AppendLine();
+
+                        var port = TcpPort();
+                        if (port >= 0) sb.Append("tcp_port:").Append(port).AppendLine();
+                        break;
+                    case "Clients":
+                        AddHeader().Append("connected_clients:").Append(ClientCount).AppendLine();
+                        break;
+                    case "Memory":
+                        break;
+                    case "Persistence":
+                        AddHeader().AppendLine("loading:0");
+                        break;
+                    case "Stats":
+                        AddHeader().Append("total_connections_received:").Append(TotalClientCount).AppendLine()
+                            .Append("total_commands_processed:").Append(CommandsProcesed).AppendLine();
+                        break;
+                    case "Replication":
+                        AddHeader().AppendLine("role:master");
+                        break;
+                    case "Keyspace":
+                        break;
+                }
+            }
         }
         protected virtual RedisResult Mget(RedisClient client, RedisRequest request)
         {
@@ -248,7 +308,7 @@ namespace StackExchange.Redis.Server
 
             var arr = new RedisValue[argCount - 1];
             var db = client.Database;
-            for (int i = 1; i < argCount;i++)
+            for (int i = 1; i < argCount; i++)
             {
                 arr[i - 1] = Get(db, request.GetKey(i));
             }
@@ -260,7 +320,7 @@ namespace StackExchange.Redis.Server
             if (argCount < 3 || (argCount & 1) == 0) return request.WrongArgCount();
 
             var db = client.Database;
-            for (int i = 1; i < argCount; )
+            for (int i = 1; i < argCount;)
             {
                 Set(db, request.GetKey(i++), request[i++]);
             }
@@ -307,7 +367,7 @@ namespace StackExchange.Redis.Server
             {
                 var channel = request.GetChannel(i, mode);
                 int count;
-                switch(request.Command)
+                switch (request.Command)
                 {
                     case "subscribe": count = client.Subscribe(channel); break;
                     case "unsubscribe": count = client.Unsubscribe(channel); break;

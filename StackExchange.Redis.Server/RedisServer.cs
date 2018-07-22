@@ -23,6 +23,13 @@ namespace StackExchange.Redis.Server
         {
             _output = output;
         }
+        protected int TcpPort()
+        {
+            var ep = _listener?.LocalEndPoint;
+            if (ep is IPEndPoint ip) return ip.Port;
+            if (ep is DnsEndPoint dns) return dns.Port;
+            return -1;
+        }
 
         private Action<object> _runClientCallback;
         private Action<object> RunClientCallback => _runClientCallback ??
@@ -55,6 +62,11 @@ namespace StackExchange.Redis.Server
         // to be used via ListenForConnections
         protected virtual RedisClient CreateClient() => new RedisClient();
 
+        public int ClientCount
+        {
+            get { lock (_clients) { return _clients.Count; } }
+        }
+        public int TotalClientCount { get; private set; }
         public void AddClient(RedisClient client)
         {
             if (client == null) throw new ArgumentNullException(nameof(client));
@@ -62,6 +74,7 @@ namespace StackExchange.Redis.Server
             {
                 ThrowIfShutdown();
                 _clients.Add(client);
+                TotalClientCount++;
             }
         }
         public bool RemoveClient(RedisClient client)
