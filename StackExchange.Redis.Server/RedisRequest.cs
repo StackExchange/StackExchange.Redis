@@ -14,69 +14,45 @@ namespace StackExchange.Redis.Server
         public override string ToString() => Command;
         public override bool Equals(object obj) => throw new NotSupportedException();
 
-        private void AssertCountMin(int count)
-        {
-            if (Count < count) throw new InvalidOperationException($"Unknown subcommand or wrong number of arguments for '{Command}'.");
-        }
-
-        public RedisResult AssertCount(int count, bool asSubCommand) => Count == count ? null :
-            asSubCommand ? UnknownSubcommandOrArgumentCount() : WrongArgCount();
         public RedisResult WrongArgCount() => RedisResult.Create($"ERR wrong number of arguments for '{Command}' command", ResultType.Error);
 
         public RedisResult UnknownSubcommandOrArgumentCount() => RedisResult.Create($"ERR Unknown subcommand or wrong number of arguments for '{Command}'.", ResultType.Error);
 
         public string GetString(int index)
-        {
-            AssertCountMin(index);
-            return _inner[index].GetString();
-        }
-        public string GetStringLower(int index) => GetString(index).ToLowerInvariant();
-
+            => _inner[index].GetString();
         
         internal RedisResult GetResult(int index)
-        {
-            AssertCountMin(index);
-            return RedisResult.Create(_inner[index].AsRedisValue());
-        }
+            => RedisResult.Create(_inner[index].AsRedisValue());
 
         public bool IsString(int index, string value) // TODO: optimize
-        {
-            AssertCountMin(index);
-            return string.Equals(value, _inner[index].GetString(), StringComparison.OrdinalIgnoreCase);
-        }
+            => string.Equals(value, _inner[index].GetString(), StringComparison.OrdinalIgnoreCase);
 
         public override int GetHashCode() => throw new NotSupportedException();
         internal RedisRequest(RawResult result)
+            : this(result, result.ItemsCount, result[0].GetString()) { }
+        private RedisRequest(RawResult inner, int count, string command)
         {
-            _inner = result;
-            Count = result.ItemsCount;
-            Command = RespServer.ToLower(result.GetItems()[0]);
+            _inner = inner;
+            Count = count;
+            Command = command;
         }
+        internal RedisRequest AsCommand(string command)
+            => new RedisRequest(_inner, Count, command);
 
-        public RedisValue this[int index] => _inner[index].AsRedisValue();
-
+        
         public void Recycle() => _inner.Recycle();
 
-        public int GetInt32(int index)
-        {
-            AssertCountMin(index);
-            return (int)_inner[index].AsRedisValue();
-        }
-        public long GetInt64(int index)
-        {
-            AssertCountMin(index);
-            return (long)_inner[index].AsRedisValue();
-        }
+        public RedisValue GetValue(int index)
+            => _inner[index].AsRedisValue();
 
-        public RedisKey GetKey(int index)
-        {
-            AssertCountMin(index);
-            return _inner[index].AsRedisKey();
-        }
+        public int GetInt32(int index)
+            => (int)_inner[index].AsRedisValue();
+
+        public long GetInt64(int index) => (long)_inner[index].AsRedisValue();
+    
+        public RedisKey GetKey(int index) => _inner[index].AsRedisKey();
+        
         public RedisChannel GetChannel(int index, RedisChannel.PatternMode mode)
-        {
-            AssertCountMin(index);
-            return _inner[index].AsRedisChannel(null, mode);
-        }
+            => _inner[index].AsRedisChannel(null, mode);
     }
 }
