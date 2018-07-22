@@ -50,7 +50,7 @@ namespace StackExchange.Redis.Server
         {
             _inner = result;
             Count = result.ItemsCount;
-            Command = RedisServer.ToLower(result.GetItems()[0]);
+            Command = RespServer.ToLower(result.GetItems()[0]);
         }
 
         public RedisValue this[int index] => _inner[index].AsRedisValue();

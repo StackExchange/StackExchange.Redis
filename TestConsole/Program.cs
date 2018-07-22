@@ -12,7 +12,7 @@ namespace TestConsole
 {
     internal static class Program
     {
-        class FakeRedisServer : BasicRedisServer
+        class FakeRedisServer : RedisServer
         {
             public FakeRedisServer(TextWriter output = null) : base(1, output)
                 =>  CreateNewCache();

@@ -24,6 +24,14 @@ namespace StackExchange.Redis
         public static RedisResult Create(RedisValue[] values) => new ArrayRedisResult(
             values == null ? null : Array.ConvertAll(values, value => new SingleRedisResult(value, null)));
 
+        /// <summary>
+        /// Create a new RedisResult representing an array of values.
+        /// </summary>
+        /// <param name="values">The <see cref="RedisResult"/>s to create a result from.</param>
+        /// <returns> new <see cref="RedisResult"/>.</returns>
+        public static RedisResult Create(RedisResult[] values)
+            => new ArrayRedisResult(values);
+
         // internally, this is very similar to RawResult, except it is designed to be usable
         // outside of the IO-processing pipeline: the buffers are standalone, etc
 
