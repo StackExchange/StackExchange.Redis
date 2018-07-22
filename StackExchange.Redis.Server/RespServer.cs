@@ -303,6 +303,11 @@ namespace StackExchange.Redis.Server
                     return result ?? CommandNotFound(request.Command);
                 }
             }
+            catch (NotSupportedException)
+            {
+                Log($"missing command: '{request.Command}'");
+                return CommandNotFound(request.Command);
+            }
             catch (NotImplementedException)
             {
                 Log($"missing command: '{request.Command}'");

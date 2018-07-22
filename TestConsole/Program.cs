@@ -7,6 +7,7 @@ using StackExchange.Redis.Server;
 using System.Runtime.Caching;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 
 namespace TestConsole
 {
@@ -41,6 +42,18 @@ namespace TestConsole
                 => _cache.Remove(key) != null;
             protected override void Flushdb(int database)
                 => CreateNewCache();
+
+            protected override bool Exists(int database, RedisKey key)
+                => _cache.Contains(key);
+
+            protected override IEnumerable<RedisKey> Keys(int database, RedisKey pattern)
+            {
+                string s = pattern;
+                foreach(var pair in _cache)
+                {
+                    if (IsMatch(pattern, pair.Key)) yield return pair.Key;
+                }
+            }
 
         }
         private static async Task Main()

@@ -8,6 +8,11 @@ namespace StackExchange.Redis.Server
 {
     public abstract class RedisServer : RespServer
     {
+        public static bool IsMatch(string pattern, string key)
+        {
+            // non-trivial wildcards not implemented yet!
+            return pattern == "*" || string.Equals(pattern, key, StringComparison.OrdinalIgnoreCase);
+        }
         protected RedisServer(int databases = 16, TextWriter output = null) : base(output)
         {
             if (databases < 1) throw new ArgumentOutOfRangeException(nameof(databases));
@@ -50,6 +55,7 @@ namespace StackExchange.Redis.Server
                 case "flushdb": return Flushdb(client, request);
                 case "get": return Get(client, request);
                 case "info": return Info(client, request);
+                case "keys": return Keys(client, request);
                 case "memory": return Memory(client, request);
                 case "mget": return Mget(client, request);
                 case "mset": return Mset(client, request);
@@ -118,12 +124,6 @@ namespace StackExchange.Redis.Server
                 }
                 return count;
             }
-
-            internal static bool IsMatch(string pattern, string key)
-            {
-                // non-trivial wildcards not implemented yet!
-                return pattern == "*" || string.Equals(pattern, key, StringComparison.OrdinalIgnoreCase);
-            }
         }
         protected virtual RedisResult Config(RedisClient client, RedisRequest request)
         {
@@ -145,7 +145,7 @@ namespace StackExchange.Redis.Server
                     int index = 0;
                     foreach (var pair in config.Wrapped)
                     {
-                        if (RedisConfig.IsMatch(pattern, pair.Key))
+                        if (IsMatch(pattern, pair.Key))
                         {
                             arr[index++] = RedisResult.Create(pair.Key, ResultType.BulkString);
                             arr[index++] = RedisResult.Create(pair.Value, ResultType.BulkString);
@@ -183,7 +183,7 @@ namespace StackExchange.Redis.Server
                 ?? RedisResult.Create(Get(client.Database, request.GetKey(1)), ResultType.BulkString);
         }
 
-        protected virtual RedisValue Get(int database, RedisKey key) => throw new NotImplementedException();
+        protected virtual RedisValue Get(int database, RedisKey key) => throw new NotSupportedException();
 
         protected virtual RedisResult Set(RedisClient client, RedisRequest request)
         {
@@ -200,7 +200,7 @@ namespace StackExchange.Redis.Server
             DoShutdown();
             return RedisResult.OK;
         }
-        protected virtual void Set(int database, RedisKey key, RedisValue value) => throw new NotImplementedException();
+        protected virtual void Set(int database, RedisKey key, RedisValue value) => throw new NotSupportedException();
 
         protected virtual RedisResult Del(RedisClient client, RedisRequest request)
         {
@@ -212,14 +212,14 @@ namespace StackExchange.Redis.Server
             }
             return RedisResult.Create(count, ResultType.Integer);
         }
-        protected virtual bool Del(int database, RedisKey key) => throw new NotImplementedException();
+        protected virtual bool Del(int database, RedisKey key) => throw new NotSupportedException();
 
         protected virtual RedisResult Dbsize(RedisClient client, RedisRequest request)
         {
             return request.AssertCount(1, false) ??
                 RedisResult.Create(Dbsize(client.Database), ResultType.Integer);
         }
-        protected virtual long Dbsize(int database) => throw new NotImplementedException();
+        protected virtual long Dbsize(int database) => throw new NotSupportedException();
 
         protected virtual RedisResult Flushall(RedisClient client, RedisRequest request)
         {
@@ -242,7 +242,7 @@ namespace StackExchange.Redis.Server
             Flushdb(client.Database);
             return RedisResult.OK;
         }
-        protected virtual void Flushdb(int database) => throw new NotImplementedException();
+        protected virtual void Flushdb(int database) => throw new NotSupportedException();
 
 
         protected virtual RedisResult Info(RedisClient client, RedisRequest request)
@@ -266,6 +266,23 @@ namespace StackExchange.Redis.Server
             if (IsMatch("Keyspace")) Info(sb, "Keyspace");
             return sb.ToString();
         }
+
+        protected virtual RedisResult Keys(RedisClient client, RedisRequest request)
+        {
+            var chk = request.AssertCount(2, false);
+            if (chk != null) return chk;
+
+            List<RedisResult> found = null;
+            foreach(var key in Keys(client.Database, request.GetKey(1)))
+            {
+                if (found == null) found = new List<RedisResult>();
+                found.Add(RedisResult.Create(key));
+            }
+            return RedisResult.Create(
+                found == null ? Array.Empty<RedisResult>() : found.ToArray());
+        }
+        protected virtual IEnumerable<RedisKey> Keys(int database, RedisKey pattern) => throw new NotSupportedException();
+
         protected virtual void Info(StringBuilder sb, string section)
         {
             StringBuilder AddHeader()
@@ -407,7 +424,7 @@ namespace StackExchange.Redis.Server
                     default: return null;
                 }
                 reply[index++] = RedisResult.Create(request.Command, ResultType.BulkString);
-                reply[index++] = RedisResult.Create((byte[])channel, ResultType.BulkString);
+                reply[index++] = RedisResult.Create(channel);
                 reply[index++] = RedisResult.Create(count, ResultType.Integer);
             }
             return RedisResult.Create(reply);

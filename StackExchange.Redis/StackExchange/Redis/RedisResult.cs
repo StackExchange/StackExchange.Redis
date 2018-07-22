@@ -312,6 +312,15 @@ namespace StackExchange.Redis
             internal override string[] AsStringArray() => Array.ConvertAll(value, x => x.AsString());
         }
 
+        /// <summary>
+        /// Create a RedisResult from a key
+        /// </summary>
+        public static RedisResult Create(RedisKey key) => Create(key.AsRedisValue(), ResultType.BulkString);
+        /// <summary>
+        /// Create a RedisResult from a channel
+        /// </summary>
+        public static RedisResult Create(RedisChannel channel) => Create((byte[])channel, ResultType.BulkString);
+
         private sealed class ErrorRedisResult : RedisResult
         {
             private readonly string value;
