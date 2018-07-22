@@ -17,6 +17,7 @@ namespace StackExchange.Redis.Server
             config["timeout"] = "0";
             config["slave-read-only"] = "yes";
             config["databases"] = databases.ToString();
+            config["slaveof"] = "";
         }
         public int Databases { get; }
 
