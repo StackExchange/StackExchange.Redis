@@ -267,38 +267,38 @@ namespace StackExchange.Redis.Server
                 return sb.Append("# ").AppendLine(section);
             }
 
-            using (var process = Process.GetCurrentProcess())
-            {
-                switch (section)
-                {
-                    case "Server":
-                        AddHeader().AppendLine("redis_version:1.0")
-                            .AppendLine("redis_mode:standalone")
-                            .Append("os:").Append(Environment.OSVersion).AppendLine()
-                            .Append("arch_bits:x").Append(IntPtr.Size * 8).AppendLine()
-                            .Append("process:").Append(process.Id).AppendLine();
 
-                        var port = TcpPort();
-                        if (port >= 0) sb.Append("tcp_port:").Append(port).AppendLine();
-                        break;
-                    case "Clients":
-                        AddHeader().Append("connected_clients:").Append(ClientCount).AppendLine();
-                        break;
-                    case "Memory":
-                        break;
-                    case "Persistence":
-                        AddHeader().AppendLine("loading:0");
-                        break;
-                    case "Stats":
-                        AddHeader().Append("total_connections_received:").Append(TotalClientCount).AppendLine()
-                            .Append("total_commands_processed:").Append(CommandsProcesed).AppendLine();
-                        break;
-                    case "Replication":
-                        AddHeader().AppendLine("role:master");
-                        break;
-                    case "Keyspace":
-                        break;
-                }
+            switch (section)
+            {
+                case "Server":
+                    AddHeader().AppendLine("redis_version:1.0")
+                        .AppendLine("redis_mode:standalone")
+                        .Append("os:").Append(Environment.OSVersion).AppendLine()
+                        .Append("arch_bits:x").Append(IntPtr.Size * 8).AppendLine();
+                    using (var process = Process.GetCurrentProcess())
+                    {
+                        sb.Append("process:").Append(process.Id).AppendLine();
+                    }
+                    var port = TcpPort();
+                    if (port >= 0) sb.Append("tcp_port:").Append(port).AppendLine();
+                    break;
+                case "Clients":
+                    AddHeader().Append("connected_clients:").Append(ClientCount).AppendLine();
+                    break;
+                case "Memory":
+                    break;
+                case "Persistence":
+                    AddHeader().AppendLine("loading:0");
+                    break;
+                case "Stats":
+                    AddHeader().Append("total_connections_received:").Append(TotalClientCount).AppendLine()
+                        .Append("total_commands_processed:").Append(CommandsProcesed).AppendLine();
+                    break;
+                case "Replication":
+                    AddHeader().AppendLine("role:master");
+                    break;
+                case "Keyspace":
+                    break;
             }
         }
         protected virtual RedisResult Mget(RedisClient client, RedisRequest request)
