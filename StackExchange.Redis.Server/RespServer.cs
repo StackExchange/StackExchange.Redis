@@ -206,6 +206,7 @@ namespace StackExchange.Redis.Server
         }
         internal static void WriteResponse(PipeWriter output, RedisResult response, Encoder encoder)
         {
+            if (response == null) return; // not actually a request (i.e. empty/whitespace request)
             char prefix;
             switch (response.Type)
             {
@@ -266,12 +267,6 @@ namespace StackExchange.Redis.Server
         {
             if (!buffer.IsEmpty && TryParseRequest(ref buffer, out var request))
             {
-                if (string.IsNullOrWhiteSpace(request.Command))
-                {
-                    request.Recycle();
-                    return true;
-                }
-                
                 RedisResult response;
                 try { response = Execute(client, request); }
                 finally { request.Recycle(); }
@@ -288,6 +283,7 @@ namespace StackExchange.Redis.Server
 
         public RedisResult Execute(RedisClient client, RedisRequest request)
         {
+            if (string.IsNullOrWhiteSpace(request.Command)) return null; // not a request
             Interlocked.Increment(ref _commandsProcesed);
             try
             {

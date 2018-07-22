@@ -67,6 +67,7 @@ namespace StackExchange.Redis.Server
                 case "shutdown": return Shutdown(client, request);
                 case "subscribe": return Subscribe(client, request);
                 case "time": return Time(client, request);
+                case "unlink": return Unlink(client, request);
                 case "unsubscribe": return Unsubscribe(client, request);
                 default: return null;
             }
@@ -445,5 +446,8 @@ namespace StackExchange.Redis.Server
             });
         }
         protected virtual DateTime Time() => DateTime.UtcNow;
+
+        protected virtual RedisResult Unlink(RedisClient client, RedisRequest request)
+            => Del(client, request);
     }
 }
