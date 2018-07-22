@@ -14,31 +14,33 @@ namespace TestConsole
     {
         class FakeRedisServer : BasicRedisServer
         {
-            public FakeRedisServer(TextWriter output = null, MemoryCache cache = null) : base(1, output)
-                => _cache = cache ?? MemoryCache.Default;
+            public FakeRedisServer(TextWriter output = null) : base(1, output)
+                =>  CreateNewCache();
 
-            private readonly MemoryCache _cache;
+            private MemoryCache _cache;
+
+            private void CreateNewCache()
+            {
+                var old = _cache;
+                _cache = new MemoryCache(GetType().Name);
+                if (old != null) old.Dispose();
+            }
 
             protected override void Dispose(bool disposing)
             {
-                if (disposing)
-                {
-                    _cache.Dispose();
-                }
+                if (disposing) _cache.Dispose();
                 base.Dispose(disposing);
             }
 
             protected override long Dbsize(int database) => _cache.GetCount();
             protected override RedisValue Get(int database, RedisKey key)
-            {
-                var val = _cache[key];
-                if (val == null) return RedisValue.Null;
-                return (RedisValue)val;
-            }
+                => RedisValue.Unbox(_cache[key]);            
             protected override void Set(int database, RedisKey key, RedisValue value)
-                => _cache[key] = value;
+                => _cache[key] = value.Box();
             protected override bool Del(int database, RedisKey key)
                 => _cache.Remove(key) != null;
+            protected override void Flushdb(int database)
+                => CreateNewCache();
 
         }
         private static async Task Main()
