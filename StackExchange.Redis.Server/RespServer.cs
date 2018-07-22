@@ -4,8 +4,10 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipelines;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Reflection;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -21,7 +23,133 @@ namespace StackExchange.Redis.Server
         public RespServer(TextWriter output = null)
         {
             _output = output;
+            _commands = BuildCommands(this);
         }
+
+        private static Dictionary<string, RespCommand> BuildCommands(RespServer server)
+        {
+            bool HasRightSignature(MethodInfo method)
+            {
+                if (method.ReturnType != typeof(RedisResult)) return false;
+                var p = method.GetParameters();
+                if (p.Length != 2 || p[0].ParameterType != typeof(RedisClient) || p[1].ParameterType != typeof(RedisRequest))
+                    return false;
+                return true;
+            }
+            var grouped = from method in server.GetType().GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                          where HasRightSignature(method)
+                          select new RespCommand(method, server) into cmd
+                          group cmd by cmd.Command;
+
+            var result = new Dictionary<string, RespCommand>(StringComparer.OrdinalIgnoreCase);
+            foreach (var grp in grouped)
+            {
+                RespCommand parent;
+                if (grp.Any(x => x.IsSubCommand))
+                {
+                    var subs = grp.Where(x => x.IsSubCommand).ToArray();
+                    parent = grp.SingleOrDefault(x => !x.IsSubCommand).WithSubCommands(subs);
+                }
+                else
+                {
+                    parent = grp.Single();
+                }
+                result.Add(grp.Key, parent);
+            }
+            return result;
+        }
+        [AttributeUsage(AttributeTargets.Method, AllowMultiple = false, Inherited = true)]
+        protected sealed class RedisCommandAttribute : Attribute
+        {
+            public RedisCommandAttribute(string command = null, string subcommand = null,
+                int minArgs = 0, int maxArgs = int.MaxValue, bool lockFree = false)
+            {
+                Command = command;
+                SubCommand = subcommand;
+                MinArgs = minArgs;
+                MaxArgs = maxArgs;
+                LockFree = lockFree;
+            }
+            public string Command { get; }
+            public string SubCommand { get; }
+            public int MinArgs { get; }
+            public int MaxArgs { get; }
+            public bool LockFree { get; }
+        }
+        private readonly Dictionary<string, RespCommand> _commands;
+
+        readonly struct RespCommand
+        {
+            public RespCommand(MethodInfo method, RespServer server)
+            {
+                var attrib = (RedisCommandAttribute)Attribute.GetCustomAttribute(method, typeof(RedisCommandAttribute));
+                _operation = (RespOperation)Delegate.CreateDelegate(typeof(RespOperation), server, method);
+                Command = (string.IsNullOrWhiteSpace(attrib?.Command) ? method.Name : attrib.Command).Trim().ToLowerInvariant();
+                SubCommand = attrib?.SubCommand?.Trim()?.ToLowerInvariant();
+                MinArgs = attrib?.MinArgs ?? 0;
+                MaxArgs = attrib?.MaxArgs ?? int.MaxValue;
+                LockFree = attrib?.LockFree ?? false;
+                _subcommands = null;
+            }
+            public string Command { get; }
+            public string SubCommand { get; }
+            public bool IsSubCommand => !string.IsNullOrEmpty(SubCommand);
+            public int MinArgs { get; }
+            public int MaxArgs { get; }
+            public bool LockFree { get; }
+            readonly RespOperation _operation;
+
+            private readonly RespCommand[] _subcommands;
+            public bool HasSubCommands => _subcommands != null;
+            internal RespCommand WithSubCommands(RespCommand[] subs)
+                => new RespCommand(this, subs);
+            private RespCommand(RespCommand parent, RespCommand[] subs)
+            {
+                if (parent.IsSubCommand) throw new InvalidOperationException("Cannot have nested sub-commands");
+                if (parent.HasSubCommands) throw new InvalidOperationException("Already has sub-commands");
+                if (subs == null || subs.Length == 0) throw new InvalidOperationException("Cannot add empty sub-commands");
+
+                Command = parent.Command ?? subs[0].Command;
+                SubCommand = parent.SubCommand;
+                MinArgs = parent.MinArgs;
+                MaxArgs = parent.MaxArgs;
+                LockFree = parent.LockFree;
+                _operation = parent._operation;
+                _subcommands = subs;
+            }
+            public bool IsUnknown => _operation == null;
+            public RespCommand Resolve(in RedisRequest request)
+            {
+                if (request.Count >= 2)
+                {
+                    var subs = _subcommands;
+                    if (subs != null)
+                    {
+                        var subcommand = request.GetString(1);
+                        for (int i = 0; i < subs.Length; i++)
+                        {
+                            if (string.Equals(subcommand, subs[i].SubCommand, StringComparison.OrdinalIgnoreCase))
+                            {
+                                return subs[i];
+                            }
+                        }
+                    }
+                }
+                return this;
+            }
+            public RedisResult Execute(RedisClient client, RedisRequest request)
+            {
+                var args = request.Count;
+                if (args < MinArgs || args > MaxArgs)
+                    return IsSubCommand
+                        ? request.UnknownSubcommandOrArgumentCount()
+                        : request.WrongArgCount();
+
+                return _operation(client, request);
+            }
+        }
+        delegate RedisResult RespOperation(RedisClient client, RedisRequest request);
+
         protected int TcpPort()
         {
             var ep = _listener?.LocalEndPoint;
@@ -287,17 +415,33 @@ namespace StackExchange.Redis.Server
             Interlocked.Increment(ref _commandsProcesed);
             try
             {
-                // try to executte without needing a server lock
-                var result = ConnectionExecute(client, request);
-                if (result != null) return result;
-
-                // but no problem taking the lock when needed (most of the time)
-                lock (ServerSyncLock)
-                {        
-                    result = ServerExecute(client, request);
-                    if (result == null) Log($"missing command: '{request.Command}'");
-                    return result ?? CommandNotFound(request.Command);
+                RedisResult result;
+                if(_commands.TryGetValue(request.Command, out var cmd))
+                {
+                    if (cmd.HasSubCommands)
+                    {
+                        cmd = cmd.Resolve(request);
+                        if (cmd.IsUnknown) return request.UnknownSubcommandOrArgumentCount();
+                    }
+                    if(cmd.LockFree)
+                    {
+                        result = cmd.Execute(client, request);
+                    }
+                    else
+                    {
+                        lock(ServerSyncLock)
+                        {
+                            result = cmd.Execute(client, request);
+                        }
+                    }
                 }
+                else
+                {
+                    result = null;
+                }
+                
+                if (result == null) Log($"missing command: '{request.Command}'");
+                return result ?? CommandNotFound(request.Command);
             }
             catch (NotSupportedException)
             {
@@ -319,9 +463,7 @@ namespace StackExchange.Redis.Server
                 return RedisResult.Create("ERR " + ex.Message, ResultType.Error);
             }
         }
-        public virtual RedisResult ConnectionExecute(RedisClient client, RedisRequest request) => null;
-        public abstract RedisResult ServerExecute(RedisClient client, RedisRequest request);
-
+        
         internal static string ToLower(RawResult value)
         {
             var val = value.GetString();

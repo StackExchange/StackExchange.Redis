@@ -22,69 +22,7 @@ namespace StackExchange.Redis.Server
             config["databases"] = databases.ToString();
             config["slaveof"] = "";
         }
-        public int Databases { get; }
-
-        public override RedisResult ConnectionExecute(RedisClient client, RedisRequest request)
-        {
-            switch (request.Command)
-            {
-                case "client": return Client(client, request);
-                case "config": return Config(client, request);
-                case "echo": return Echo(client, request);
-                case "info": return Info(client, request);
-                case "ping": return Ping(client, request);
-                case "quit": return Quit(client, request);
-                case "role": return Role(client, request);
-                case "select": return Select(client, request);
-                case "time": return Time(client, request);
-                default: return null;
-            }
-        }
-        public override RedisResult ServerExecute(RedisClient client, RedisRequest request)
-        {
-            switch (request.Command)
-            {
-                case "client": return Client(client, request);
-                case "cluster": return Cluster(client, request);
-                case "config": return Config(client, request);
-                case "dbsize": return Dbsize(client, request);
-                case "del": return Del(client, request);
-                case "echo": return Echo(client, request);
-                case "exists": return Exists(client, request);
-                case "flushall": return Flushall(client, request);
-                case "flushdb": return Flushdb(client, request);
-                case "get": return Get(client, request);
-                case "info": return Info(client, request);
-                case "keys": return Keys(client, request);
-                case "memory": return Memory(client, request);
-                case "mget": return Mget(client, request);
-                case "mset": return Mset(client, request);
-                case "ping": return Ping(client, request);
-                case "quit": return Quit(client, request);
-                case "role": return Role(client, request);
-
-                case "sadd": return Sadd(client, request);
-                case "scard": return Scard(client, request);
-                case "sismember": return Sismember(client, request);
-                case "srem": return Srem(client, request);
-
-                //case "smembers": return Smembers(client, request);
-                //case "smove": return Smove(client, request);
-                //case "spop": return Spop(client, request);
-                //case "srandmember": return Srandmember(client, request);
-
-
-                case "select": return Select(client, request);
-                case "set": return Set(client, request);
-                case "shutdown": return Shutdown(client, request);
-                case "strlen": return Strlen(client, request);
-                case "subscribe": return Subscribe(client, request);
-                case "time": return Time(client, request);
-                case "unlink": return Unlink(client, request);
-                case "unsubscribe": return Unsubscribe(client, request);
-                default: return null;
-            }
-        }
+        public int Databases { get; }        
 
         protected virtual RedisResult Sadd(RedisClient client, RedisRequest request)
         {
@@ -124,22 +62,16 @@ namespace StackExchange.Redis.Server
                 ?? RedisResult.Create(Sismember(client.Database, request.GetKey(1), request[2]) ? 1 : 0, ResultType.Integer);
         protected virtual bool Sismember(int database, RedisKey key, RedisValue value) => throw new NotSupportedException();
 
-        protected virtual RedisResult Client(RedisClient client, RedisRequest request)
+        [RedisCommand("client", "setname", lockFree: true, minArgs: 3, maxArgs: 3)]
+        protected virtual RedisResult ClientSetname(RedisClient client, RedisRequest request)
         {
-            var subcommand = request.GetStringLower(1);
-            switch (subcommand.ToLowerInvariant())
-            {
-                case "setname":
-                    var chk = request.AssertCount(3, true);
-                    if (chk != null) return chk;
-                    client.Name = request.GetString(2);
-                    return RedisResult.OK;
-                case "getname":
-                    return request.AssertCount(2, true)
-                        ?? RedisResult.Create(client.Name, ResultType.BulkString);
-            }
-            return request.UnknownSubcommandOrArgumentCount();
+            client.Name = request.GetString(2);
+            return RedisResult.OK;
         }
+
+        [RedisCommand("client", "getname", lockFree: true, minArgs: 2, maxArgs: 2)]
+        protected virtual RedisResult ClientGetname(RedisClient client, RedisRequest request)
+            => RedisResult.Create(client.Name, ResultType.BulkString);
 
         protected virtual RedisResult Cluster(RedisClient client, RedisRequest request)
             => CommandNotFound(request.Command);
@@ -175,38 +107,31 @@ namespace StackExchange.Redis.Server
                 return count;
             }
         }
+        [RedisCommand("config", "get", lockFree: true, minArgs: 3, maxArgs: 3)]
         protected virtual RedisResult Config(RedisClient client, RedisRequest request)
-        {
-            var subcommand = request.GetStringLower(1);
-            switch (subcommand)
+        {   
+            var pattern = request.GetString(2);
+
+            OnUpdateServerConfiguration();
+            var config = ServerConfiguration;
+            var matches = config.CountMatch(pattern);
+            if (matches == 0) return RedisResult.Create(Array.Empty<RedisResult>());
+
+            var arr = new RedisResult[2 * matches];
+            int index = 0;
+            foreach (var pair in config.Wrapped)
             {
-                case "get":
-                    var chk = request.AssertCount(3, true);
-                    if (chk != null) return chk;
-
-                    var pattern = request.GetString(2);
-
-                    OnUpdateServerConfiguration();
-                    var config = ServerConfiguration;
-                    var matches = config.CountMatch(pattern);
-                    if (matches == 0) return RedisResult.Create(Array.Empty<RedisResult>());
-
-                    var arr = new RedisResult[2 * matches];
-                    int index = 0;
-                    foreach (var pair in config.Wrapped)
-                    {
-                        if (IsMatch(pattern, pair.Key))
-                        {
-                            arr[index++] = RedisResult.Create(pair.Key, ResultType.BulkString);
-                            arr[index++] = RedisResult.Create(pair.Value, ResultType.BulkString);
-                        }
-                    }
-                    if (index != arr.Length) throw new InvalidOperationException("Configuration CountMatch fail");
-                    return RedisResult.Create(arr);
+                if (IsMatch(pattern, pair.Key))
+                {
+                    arr[index++] = RedisResult.Create(pair.Key, ResultType.BulkString);
+                    arr[index++] = RedisResult.Create(pair.Value, ResultType.BulkString);
+                }
             }
-            return request.UnknownSubcommandOrArgumentCount();
+            if (index != arr.Length) throw new InvalidOperationException("Configuration CountMatch fail");
+            return RedisResult.Create(arr);
         }
 
+        [RedisCommand(lockFree: true)]
         protected virtual RedisResult Echo(RedisClient client, RedisRequest request)
             => request.AssertCount(2, false) ?? request.GetResult(1);
 
@@ -299,7 +224,7 @@ namespace StackExchange.Redis.Server
         }
         protected virtual void Flushdb(int database) => throw new NotSupportedException();
 
-
+        [RedisCommand(lockFree: true)]
         protected virtual RedisResult Info(RedisClient client, RedisRequest request)
         {
             if (request.Count > 2) return RedisResult.Create("ERR syntax error", ResultType.Error);
@@ -380,19 +305,11 @@ namespace StackExchange.Redis.Server
                     break;
             }
         }
-        protected virtual RedisResult Memory(RedisClient client, RedisRequest request)
+        [RedisCommand("memory", "purge", minArgs: 2, maxArgs: 2)]
+        protected virtual RedisResult MemoryPurge(RedisClient client, RedisRequest request)
         {
-            if (request.Count < 2) return request.UnknownSubcommandOrArgumentCount();
-            var subcommand = request.GetStringLower(1);
-            switch (subcommand)
-            {
-                case "purge":
-                    var chk = request.AssertCount(2, true);
-                    if (chk != null) return chk;
-                    GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced);
-                    return RedisResult.OK;
-            }
-            return null;
+            GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced);
+            return RedisResult.OK;
         }
         protected virtual RedisResult Mget(RedisClient client, RedisRequest request)
         {
@@ -419,12 +336,14 @@ namespace StackExchange.Redis.Server
             }
             return RedisResult.OK;
         }
+        [RedisCommand(lockFree: true)]
         protected virtual RedisResult Ping(RedisClient client, RedisRequest request)
         {
             if (request.Count == 1) return RedisResult.Create("PONG", ResultType.SimpleString);
 
             return request.AssertCount(2, false) ?? RedisResult.Create(request.GetString(1), ResultType.SimpleString);
         }
+        [RedisCommand(lockFree: true)]
         protected virtual RedisResult Quit(RedisClient client, RedisRequest request)
         {
             var chk = request.AssertCount(1, false);
@@ -433,6 +352,8 @@ namespace StackExchange.Redis.Server
             RemoveClient(client);
             return RedisResult.OK;
         }
+
+        [RedisCommand(lockFree: true)]
         protected virtual RedisResult Role(RedisClient client, RedisRequest request)
         {
             var chk = request.AssertCount(1, false);
@@ -445,6 +366,8 @@ namespace StackExchange.Redis.Server
                 RedisResult.Create(Array.Empty<RedisResult>())
             });
         }
+
+        [RedisCommand(lockFree: true)]
         protected virtual RedisResult Select(RedisClient client, RedisRequest request)
         {
             var chk = request.AssertCount(2, false);
@@ -463,7 +386,7 @@ namespace StackExchange.Redis.Server
             => SubscribeImpl(client, request);
         private RedisResult SubscribeImpl(RedisClient client, RedisRequest request)
         {
-            if (request.Count < 2) return request.UnknownSubcommandOrArgumentCount();
+            if (request.Count < 2) return request.WrongArgCount();
 
             var reply = new RedisResult[3 * (request.Count - 1)];
             int index = 0;
@@ -485,6 +408,8 @@ namespace StackExchange.Redis.Server
             return RedisResult.Create(reply);
         }
         static readonly DateTime UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        [RedisCommand(lockFree: true)]
         protected virtual RedisResult Time(RedisClient client, RedisRequest request)
         {
             var chk = request.AssertCount(1, false);
