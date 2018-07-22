@@ -16,7 +16,7 @@ namespace TestConsole
         class FakeRedisServer : RedisServer
         {
             public FakeRedisServer(TextWriter output = null) : base(1, output)
-                =>  CreateNewCache();
+                => CreateNewCache();
 
             private MemoryCache _cache;
 
@@ -35,7 +35,7 @@ namespace TestConsole
 
             protected override long Dbsize(int database) => _cache.GetCount();
             protected override RedisValue Get(int database, RedisKey key)
-                => RedisValue.Unbox(_cache[key]);            
+                => RedisValue.Unbox(_cache[key]);
             protected override void Set(int database, RedisKey key, RedisValue value)
                 => _cache[key] = value.Box();
             protected override bool Del(int database, RedisKey key)
@@ -49,10 +49,39 @@ namespace TestConsole
             protected override IEnumerable<RedisKey> Keys(int database, RedisKey pattern)
             {
                 string s = pattern;
-                foreach(var pair in _cache)
+                foreach (var pair in _cache)
                 {
                     if (IsMatch(pattern, pair.Key)) yield return pair.Key;
                 }
+            }
+            protected override bool Sadd(int database, RedisKey key, RedisValue value)
+                => GetSet(key, true).Add(value);
+
+            protected override bool Sismember(int database, RedisKey key, RedisValue value)
+                => GetSet(key, false)?.Contains(value) ?? false;
+
+            protected override bool Srem(int database, RedisKey key, RedisValue value)
+            {
+                var set = GetSet(key, false);
+                if (set != null && set.Remove(value))
+                {
+                    if (set.Count == 0) _cache.Remove(key);
+                    return true;
+                }
+                return false;
+            }
+            protected override long Scard(int database, RedisKey key)
+                => GetSet(key, false)?.Count ?? 0;
+
+            HashSet<RedisValue> GetSet(RedisKey key, bool create)
+            {
+                var set = (HashSet<RedisValue>)_cache[key];
+                if (set == null && create)
+                {
+                    set = new HashSet<RedisValue>();
+                    _cache[key] = set;
+                }
+                return set;
             }
 
         }
@@ -64,9 +93,9 @@ namespace TestConsole
             using (var timer = new Timer(_ =>
             {
                 var ops = server.CommandsProcesed;
-                if(oldOps != ops)
+                if (oldOps != ops)
                 {
-                    lock(Console.Out)
+                    lock (Console.Out)
                     {
                         Console.WriteLine($"Commands processed: " + ops);
                     }

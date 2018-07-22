@@ -62,6 +62,18 @@ namespace StackExchange.Redis.Server
                 case "ping": return Ping(client, request);
                 case "quit": return Quit(client, request);
                 case "role": return Role(client, request);
+
+                case "sadd": return Sadd(client, request);
+                case "scard": return Scard(client, request);
+                case "sismember": return Sismember(client, request);
+                case "srem": return Srem(client, request);
+
+                //case "smembers": return Smembers(client, request);
+                //case "smove": return Smove(client, request);
+                //case "spop": return Spop(client, request);
+                //case "srandmember": return Srandmember(client, request);
+
+
                 case "select": return Select(client, request);
                 case "set": return Set(client, request);
                 case "shutdown": return Shutdown(client, request);
@@ -73,7 +85,43 @@ namespace StackExchange.Redis.Server
             }
         }
 
+        protected virtual RedisResult Sadd(RedisClient client, RedisRequest request)
+        {
+            if (request.Count < 3) return request.WrongArgCount();
+            int added = 0;
+            var key = request.GetKey(1);
+            for(int i = 2; i < request.Count;i++)
+            {
+                if (Sadd(client.Database, key, request[i]))
+                    added++;
+            }
+            return RedisResult.Create(added, ResultType.Integer);
+        }
+        protected virtual bool Sadd(int database, RedisKey key, RedisValue value) => throw new NotSupportedException();
 
+        protected virtual RedisResult Srem(RedisClient client, RedisRequest request)
+        {
+            if (request.Count < 3) return request.WrongArgCount();
+            int removed = 0;
+            var key = request.GetKey(1);
+            for (int i = 2; i < request.Count; i++)
+            {
+                if (Srem(client.Database, key, request[i]))
+                    removed++;
+            }
+            return RedisResult.Create(removed, ResultType.Integer);
+        }
+        protected virtual bool Srem(int database, RedisKey key, RedisValue value) => throw new NotSupportedException();
+        protected virtual RedisResult Scard(RedisClient client, RedisRequest request)
+            => request.AssertCount(2, false)
+                ?? RedisResult.Create(Scard(client.Database, request.GetKey(1)), ResultType.Integer);
+
+        protected virtual long Scard(int database, RedisKey key) => throw new NotSupportedException();
+
+        protected virtual RedisResult Sismember(RedisClient client, RedisRequest request)
+            => request.AssertCount(3, false)
+                ?? RedisResult.Create(Sismember(client.Database, request.GetKey(1), request[2]) ? 1 : 0, ResultType.Integer);
+        protected virtual bool Sismember(int database, RedisKey key, RedisValue value) => throw new NotSupportedException();
 
         protected virtual RedisResult Client(RedisClient client, RedisRequest request)
         {
