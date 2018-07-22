@@ -664,18 +664,17 @@ namespace StackExchange.Redis.Tests
                 var all = grouped.SelectMany(grp => {
                     var grpKeys = grp.ToArray();
                     var values = db.StringGet(grpKeys);
-                    return Enumerable.Zip(grpKeys, values, (key, val) => new { key, val });
+                    return grpKeys.Zip(values, (key, val) => new { key, val });
                 }).ToDictionary(x => x.key, x => x.val);
 
                 Assert.Equal(keys.Length, all.Count);
             }
         }
 
-#if DEBUG
         [Fact]
         public void MovedProfiling()
         {
-            const string Key = "redirected-key";
+            var Key = Me();
             const string Value = "redirected-value";
 
             var profiler = new Profiling.PerThreadProfiler();
@@ -753,6 +752,5 @@ namespace StackExchange.Redis.Tests
                 }
             }
         }
-#endif
     }
 }

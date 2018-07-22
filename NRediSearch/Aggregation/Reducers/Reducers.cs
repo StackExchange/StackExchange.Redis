@@ -6,23 +6,22 @@ namespace NRediSearch.Aggregation.Reducers
 {
     public static class Reducers
     {
-
         public static Reducer Count() => CountReducer.Instance;
-        sealed class CountReducer : Reducer
+        private sealed class CountReducer : Reducer
         {
             internal static readonly Reducer Instance = new CountReducer();
             private CountReducer() : base(null) { }
             public override string Name => "COUNT";
         }
 
-        sealed class SingleFieldReducer : Reducer
+        private sealed class SingleFieldReducer : Reducer
         {
-            private readonly string _name;
+            public override string Name { get; }
+
             internal SingleFieldReducer(string name, string field) : base(field)
             {
-                _name = name;
+                Name = name;
             }
-            public override string Name => _name;
         }
 
         public static Reducer CountDistinct(string field) => new SingleFieldReducer("COUNT_DISTINCT", field);
@@ -41,7 +40,7 @@ namespace NRediSearch.Aggregation.Reducers
 
         public static Reducer Quantile(string field, double percentile) => new QuantileReducer(field, percentile);
 
-        sealed class QuantileReducer : Reducer
+        private sealed class QuantileReducer : Reducer
         {
             private readonly double _percentile;
             public QuantileReducer(string field, double percentile) : base(field)
@@ -57,7 +56,7 @@ namespace NRediSearch.Aggregation.Reducers
             public override string Name => "QUANTILE";
         }
         public static Reducer FirstValue(string field, SortedField sortBy) => new FirstValueReducer(field, sortBy);
-        sealed class FirstValueReducer : Reducer
+        private sealed class FirstValueReducer : Reducer
         {
             private readonly SortedField? _sortBy;
             public FirstValueReducer(string field, SortedField? sortBy) : base(field)
@@ -85,7 +84,7 @@ namespace NRediSearch.Aggregation.Reducers
 
         public static Reducer RandomSample(string field, int size) => new RandomSampleReducer(field, size);
 
-        sealed class RandomSampleReducer : Reducer
+        private sealed class RandomSampleReducer : Reducer
         {
             private readonly int _size;
             public RandomSampleReducer(string field, int size) : base(field)
@@ -100,6 +99,5 @@ namespace NRediSearch.Aggregation.Reducers
                 args.Add(_size.Boxed());
             }
         }
-
     }
 }

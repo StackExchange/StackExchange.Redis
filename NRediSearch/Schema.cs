@@ -80,9 +80,10 @@ namespace NRediSearch
         public List<Field> Fields { get; } = new List<Field>();
 
         /// <summary>
-        /// Add a field to the schema
+        /// Add a field to the schema.
         /// </summary>
-        /// <returns>the schema object</returns>
+        /// <param name="field">The <see cref="Field"/> to add.</param>
+        /// <returns>The <see cref="Schema"/> object.</returns>
         public Schema AddField(Field field)
         {
             Fields.Add(field ?? throw new ArgumentNullException(nameof(field)));
@@ -90,11 +91,11 @@ namespace NRediSearch
         }
 
         /// <summary>
-        /// Add a text field to the schema with a given weight
+        /// Add a text field to the schema with a given weight.
         /// </summary>
-        /// <param name="name">the field's name</param>
-        /// <param name="weight">its weight, a positive floating point number</param>
-        /// <returns>the schema object</returns>
+        /// <param name="name">The field's name.</param>
+        /// <param name="weight">Its weight, a positive floating point number.</param>
+        /// <returns>The <see cref="Schema"/> object.</returns>
         public Schema AddTextField(string name, double weight = 1.0)
         {
             Fields.Add(new TextField(name, weight));
@@ -102,11 +103,11 @@ namespace NRediSearch
         }
 
         /// <summary>
-        /// Add a text field that can be sorted on
+        /// Add a text field that can be sorted on.
         /// </summary>
-        /// <param name="name">the field's name</param>
-        /// <param name="weight">its weight, a positive floating point number</param>
-        /// <returns>the schema object</returns>
+        /// <param name="name">The field's name.</param>
+        /// <param name="weight">Its weight, a positive floating point number.</param>
+        /// <returns>The <see cref="Schema"/> object.</returns>
         public Schema AddSortableTextField(string name, double weight = 1.0)
         {
             Fields.Add(new TextField(name, weight, true));
@@ -114,10 +115,10 @@ namespace NRediSearch
         }
 
         /// <summary>
-        /// Add a numeric field to the schema
+        /// Add a numeric field to the schema.
         /// </summary>
-        /// <param name="name">the field's name</param>
-        /// <returns>the schema object</returns>
+        /// <param name="name">The field's name.</param>
+        /// <returns>The <see cref="Schema"/> object.</returns>
         public Schema AddGeoField(string name)
         {
             Fields.Add(new Field(name, FieldType.Geo, false));
@@ -125,10 +126,10 @@ namespace NRediSearch
         }
 
         /// <summary>
-        /// Add a numeric field to the schema
+        /// Add a numeric field to the schema.
         /// </summary>
-        /// <param name="name">the field's name</param>
-        /// <returns>the schema object</returns>
+        /// <param name="name">The field's name.</param>
+        /// <returns>The <see cref="Schema"/> object.</returns>
         public Schema AddNumericField(string name)
         {
             Fields.Add(new Field(name, FieldType.Numeric, false));
@@ -136,10 +137,10 @@ namespace NRediSearch
         }
 
         /// <summary>
-        /// Add a numeric field that can be sorted on
+        /// Add a numeric field that can be sorted on.
         /// </summary>
-        /// <param name="name">the field's name</param>
-        /// <returns>the schema object</returns>
+        /// <param name="name">The field's name.</param>
+        /// <returns>The <see cref="Schema"/> object.</returns>
         public Schema AddSortableNumericField(string name)
         {
             Fields.Add(new Field(name, FieldType.Numeric, true));
@@ -166,11 +167,11 @@ namespace NRediSearch
         }
 
         /// <summary>
-        /// Add a TAG field
+        /// Add a TAG field.
         /// </summary>
-        /// <param name="name">the field's name</param>
-        /// <param name="separator">tag separator</param>
-        /// <returns>the schema object</returns>
+        /// <param name="name">The field's name.</param>
+        /// <param name="separator">The tag separator.</param>
+        /// <returns>The <see cref="Schema"/> object.</returns>
         public Schema AddTagField(string name, string separator = ",")
         {
             Fields.Add(new TagField(name, separator));

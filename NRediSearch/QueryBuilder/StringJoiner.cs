@@ -6,9 +6,9 @@ namespace NRediSearch.QueryBuilder
 {
     internal ref struct StringJoiner // this is to replace a Java feature cleanly
     {
-        readonly StringBuilder _sb;
-        readonly string _delimiter;
-        bool _isFirst;
+        private readonly StringBuilder _sb;
+        private readonly string _delimiter;
+        private bool _isFirst;
         public StringJoiner(StringBuilder sb, string delimiter)
         {
             _sb = sb;
