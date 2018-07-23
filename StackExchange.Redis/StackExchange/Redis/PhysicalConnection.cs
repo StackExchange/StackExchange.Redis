@@ -1459,6 +1459,9 @@ namespace StackExchange.Redis
                         // however, that's a lot of work, and I just need PING,
                         // so... fake it for now, sorry
                         var line = ReadLineTerminatedString(ResultType.SimpleString, in buffer, ref reader);
+                        if (!line.HasValue) return RawResult.Nil; // incomplete line
+
+                        // wrap as args
                         var oversized = ArrayPool<RawResult>.Shared.Rent(1);
                         oversized[0] = line;
                         return new RawResult(oversized, 1);
