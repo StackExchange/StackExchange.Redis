@@ -59,6 +59,21 @@ namespace StackExchange.Redis.Server
             }
             return result;
         }
+
+        public string GetStats()
+        {
+            var sb = new StringBuilder();
+            AppendStats(sb);
+            return sb.ToString();
+        }
+        protected virtual void AppendStats(StringBuilder sb)
+        {
+            sb.Append("Current clients:\t").Append(ClientCount).AppendLine()
+                .Append("Total clients:\t").Append(TotalClientCount).AppendLine()
+                .Append("Total operations:\t").Append(TotalCommandsProcesed).AppendLine()
+                .Append("Error replies:\t").Append(TotalErrorCount).AppendLine();
+        }
+
         [AttributeUsage(AttributeTargets.Method, AllowMultiple = false, Inherited = true)]
         protected sealed class RedisCommandAttribute : Attribute
         {
@@ -171,8 +186,9 @@ namespace StackExchange.Redis.Server
         }
 
         private Action<object> _runClientCallback;
+        // KeepAlive here just to make the compiler happy that we've done *something* with the task
         private Action<object> RunClientCallback => _runClientCallback ??
-            (_runClientCallback = state => RunClient((RedisClient)state));
+            (_runClientCallback = state => GC.KeepAlive(RunClient((IDuplexPipe)state)));
 
         public void Listen(
             EndPoint endpoint,
@@ -212,8 +228,8 @@ namespace StackExchange.Redis.Server
             var client = CreateClient();
             lock (_clients)
             {
-                client.Id = ++_nextId;
                 ThrowIfShutdown();
+                client.Id = ++_nextId;
                 _clients.Add(client);
                 TotalClientCount++;
             }
@@ -221,7 +237,7 @@ namespace StackExchange.Redis.Server
         }
         public bool RemoveClient(RedisClient client)
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            if (client == null) return false;
             lock (_clients)
             {
                 client.Closed = true;
@@ -237,16 +253,14 @@ namespace StackExchange.Redis.Server
                     var client = await _listener.AcceptAsync();
                     SocketConnection.SetRecommendedServerOptions(client);
                     var pipe = SocketConnection.Create(client, sendOptions, receiveOptions);
-                    var c = AddClient();
-                    c.LinkedPipe = pipe;
-                    StartOnScheduler(receiveOptions.ReaderScheduler, RunClientCallback, c);
+                    StartOnScheduler(receiveOptions.ReaderScheduler, RunClientCallback, pipe);
                 }
             }
             catch (NullReferenceException) { }
             catch (ObjectDisposedException) { }
             catch (Exception ex)
             {
-                if(!_isShutdown) Log("Listener faulted: " + ex.Message);
+                if (!_isShutdown) Log("Listener faulted: " + ex.Message);
             }
         }
 
@@ -281,33 +295,27 @@ namespace StackExchange.Redis.Server
             }
         }
 
-        async void RunClient(RedisClient client)
+        public async Task RunClient(IDuplexPipe pipe)
         {
-            ThrowIfShutdown();
-
-            var input = client?.LinkedPipe?.Input;
-            var output = client?.LinkedPipe?.Output;
-            if (input == null || output == null) return; // nope
-
-
             Exception fault = null;
+            RedisClient client = null;
             try
             {
+                client = AddClient();
                 while (!client.Closed)
                 {
-                    var readResult = await input.ReadAsync();
+                    var readResult = await pipe.Input.ReadAsync();
                     var buffer = readResult.Buffer;
 
                     bool makingProgress = false;
-                    while (!client.Closed && TryProcessRequest(ref buffer, client, output))
+                    while (!client.Closed && await TryProcessRequestAsync(ref buffer, client, pipe.Output))
                     {
                         makingProgress = true;
-                        await output.FlushAsync();
                     }
-                    input.AdvanceTo(buffer.Start, buffer.End);
+                    pipe.Input.AdvanceTo(buffer.Start, buffer.End);
 
                     if (!makingProgress && readResult.IsCompleted)
-                    {
+                    { // nothing to do, and nothing more will be arriving
                         break;
                     }
                 }
@@ -317,8 +325,9 @@ namespace StackExchange.Redis.Server
             catch (Exception ex) { fault = ex; }
             finally
             {
-                try { input.Complete(fault); } catch { }
-                try { output.Complete(fault); } catch { }
+                RemoveClient(client);
+                try { pipe.Input.Complete(fault); } catch { }
+                try { pipe.Output.Complete(fault); } catch { }
 
                 if (fault != null && !_isShutdown)
                 {
@@ -337,16 +346,31 @@ namespace StackExchange.Redis.Server
                 }
             }
         }
-        
+
         static Encoder s_sharedEncoder; // swapped in/out to avoid alloc on the public WriteResponse API
-        public static void WriteResponse(RedisClient client, PipeWriter output, RedisResult response)
+        public static ValueTask WriteResponseAsync(RedisClient client, PipeWriter output, RedisResult response)
         {
+            async ValueTask Awaited(ValueTask wwrite, Encoder eenc)
+            {
+                await wwrite;
+                Interlocked.Exchange(ref s_sharedEncoder, eenc);
+            }
             var enc = Interlocked.Exchange(ref s_sharedEncoder, null) ?? Encoding.UTF8.GetEncoder();
-            WriteResponse(client, output, response, enc);
+            var write = WriteResponseAsync(client, output, response, enc);
+            if (!write.IsCompletedSuccessfully) return Awaited(write, enc);
             Interlocked.Exchange(ref s_sharedEncoder, enc);
+            return default;
         }
-        internal static void WriteResponse(RedisClient client, PipeWriter output, RedisResult response, Encoder encoder)
+
+        internal static async ValueTask WriteResponseAsync(RedisClient client, PipeWriter output, RedisResult response, Encoder encoder)
         {
+            void WritePrefix(PipeWriter ooutput, char pprefix)
+            {
+                var span = ooutput.GetSpan(1);
+                span[0] = (byte)pprefix;
+                ooutput.Advance(1);
+            }
+
             if (response == null) return; // not actually a request (i.e. empty/whitespace request)
             if (client != null && client.ShouldSkipResponse()) return; // intentionally skipping the result
             char prefix;
@@ -361,9 +385,7 @@ namespace StackExchange.Redis.Server
                 case ResultType.SimpleString:
                     prefix = '+';
                     BasicMessage:
-                    var span = output.GetSpan(1);
-                    span[0] = (byte)prefix;
-                    output.Advance(1);
+                    WritePrefix(output, prefix);
 
                     var val = response.AsString();
 
@@ -388,7 +410,9 @@ namespace StackExchange.Redis.Server
                             var item = arr[i];
                             if (item == null)
                                 throw new InvalidOperationException("Array element cannot be null, index " + i);
-                            WriteResponse(null, output, item, encoder); // note: don't pass client down; this would impact SkipReplies
+
+                            // note: don't pass client down; this would impact SkipReplies
+                            await WriteResponseAsync(null, output, item, encoder);
                         }
                     }
                     break;
@@ -396,6 +420,7 @@ namespace StackExchange.Redis.Server
                     throw new InvalidOperationException(
                         "Unexpected result type: " + response.Type);
             }
+            await output.FlushAsync();
         }
         public static bool TryParseRequest(ref ReadOnlySequence<byte> buffer, out RedisRequest request)
         {
@@ -411,32 +436,39 @@ namespace StackExchange.Redis.Server
 
             return false;
         }
-        public bool TryProcessRequest(ref ReadOnlySequence<byte> buffer, RedisClient client, PipeWriter output)
+        public ValueTask<bool> TryProcessRequestAsync(ref ReadOnlySequence<byte> buffer, RedisClient client, PipeWriter output)
         {
+            async ValueTask<bool> Awaited(ValueTask wwrite)
+            {
+                await wwrite;
+                return true;
+            }
             if (!buffer.IsEmpty && TryParseRequest(ref buffer, out var request))
             {
                 RedisResult response;
                 try { response = Execute(client, request); }
                 finally { request.Recycle(); }
-                WriteResponse(client, output, response);
-                return true;
+                var write = WriteResponseAsync(client, output, response);
+                if (!write.IsCompletedSuccessfully) return Awaited(write);
+                return new ValueTask<bool>(true);
             }
-            return false;
+            return new ValueTask<bool>(false);
         }
 
-        private object ServerSyncLock => this;
+        protected object ServerSyncLock => this;
 
-        private long _commandsProcesed;
-        public long CommandsProcesed => _commandsProcesed;
+        private long _totalCommandsProcesed, _totalErrorCount;
+        public long TotalCommandsProcesed => _totalCommandsProcesed;
+        public long TotalErrorCount => _totalErrorCount;
 
         public RedisResult Execute(RedisClient client, RedisRequest request)
         {
             if (string.IsNullOrWhiteSpace(request.Command)) return null; // not a request
-            Interlocked.Increment(ref _commandsProcesed);
+            Interlocked.Increment(ref _totalCommandsProcesed);
             try
             {
                 RedisResult result;
-                if(_commands.TryGetValue(request.Command, out var cmd))
+                if (_commands.TryGetValue(request.Command, out var cmd))
                 {
                     request = request.AsCommand(cmd.Command); // fixup casing
                     if (cmd.HasSubCommands)
@@ -444,13 +476,13 @@ namespace StackExchange.Redis.Server
                         cmd = cmd.Resolve(request);
                         if (cmd.IsUnknown) return request.UnknownSubcommandOrArgumentCount();
                     }
-                    if(cmd.LockFree)
+                    if (cmd.LockFree)
                     {
                         result = cmd.Execute(client, request);
                     }
                     else
                     {
-                        lock(ServerSyncLock)
+                        lock (ServerSyncLock)
                         {
                             result = cmd.Execute(client, request);
                         }
@@ -460,8 +492,9 @@ namespace StackExchange.Redis.Server
                 {
                     result = null;
                 }
-                
+
                 if (result == null) Log($"missing command: '{request.Command}'");
+                else if (result.Type == ResultType.Error) Interlocked.Increment(ref _totalErrorCount);
                 return result ?? CommandNotFound(request.Command);
             }
             catch (NotSupportedException)
@@ -480,11 +513,11 @@ namespace StackExchange.Redis.Server
             }
             catch (Exception ex)
             {
-                if(!_isShutdown) Log(ex.Message);
+                if (!_isShutdown) Log(ex.Message);
                 return RedisResult.Create("ERR " + ex.Message, ResultType.Error);
             }
         }
-        
+
         internal static string ToLower(RawResult value)
         {
             var val = value.GetString();

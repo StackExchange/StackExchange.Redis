@@ -16,11 +16,28 @@ namespace StackExchange.Redis.Server
         protected RedisServer(int databases = 16, TextWriter output = null) : base(output)
         {
             if (databases < 1) throw new ArgumentOutOfRangeException(nameof(databases));
+            Databases = databases;
             var config = ServerConfiguration;
             config["timeout"] = "0";
             config["slave-read-only"] = "yes";
             config["databases"] = databases.ToString();
             config["slaveof"] = "";
+        }
+        protected override void AppendStats(StringBuilder sb)
+        {
+            base.AppendStats(sb);
+            sb.Append("Databases: ").Append(Databases).AppendLine();
+            lock (ServerSyncLock)
+            {
+                for (int i = 0; i < Databases; i++)
+                {
+                    try
+                    {
+                        sb.Append("Database ").Append(i).Append(": ").Append(Dbsize(i)).AppendLine(" keys");
+                    }
+                    catch { }
+                }
+            }
         }
         public int Databases { get; }
 
@@ -374,7 +391,7 @@ namespace StackExchange.Redis.Server
                     break;
                 case "Stats":
                     AddHeader().Append("total_connections_received:").Append(TotalClientCount).AppendLine()
-                        .Append("total_commands_processed:").Append(CommandsProcesed).AppendLine();
+                        .Append("total_commands_processed:").Append(TotalCommandsProcesed).AppendLine();
                     break;
                 case "Replication":
                     AddHeader().AppendLine("role:master");
