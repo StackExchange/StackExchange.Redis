@@ -206,11 +206,13 @@ namespace StackExchange.Redis.Server
             get { lock (_clients) { return _clients.Count; } }
         }
         public int TotalClientCount { get; private set; }
+        private int _nextId;
         public RedisClient AddClient()
         {
             var client = CreateClient();
             lock (_clients)
             {
+                client.Id = ++_nextId;
                 ThrowIfShutdown();
                 _clients.Add(client);
                 TotalClientCount++;

@@ -34,6 +34,7 @@ namespace StackExchange.Redis.Server
         public string Name { get; set; }
         internal IDuplexPipe LinkedPipe { get; set; }
         public bool Closed { get; internal set; }
+        public int Id { get; internal set; }
 
         public void Dispose()
         {

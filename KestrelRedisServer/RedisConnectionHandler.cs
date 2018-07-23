@@ -32,6 +32,7 @@ namespace KestrelRedisServer
                     if (!makingProgress && read.IsCompleted) break;
                 }
             }
+            catch (ConnectionResetException) { } // swallow
             finally
             {
                 _server.RemoveClient(client);
