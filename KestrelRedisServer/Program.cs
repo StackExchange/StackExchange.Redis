@@ -15,11 +15,15 @@ namespace KestrelRedisServer
             WebHost.CreateDefaultBuilder(args)
                 .UseKestrel(options =>
                 {
+
+                    // HTTP 5000
+                    options.ListenLocalhost(5000);
+
                     // TCP 6379
-                    options.ListenLocalhost(8007, builder =>
+                    options.ListenLocalhost(6379, builder =>
                     {
                         builder.UseConnectionHandler<RedisConnectionHandler>();
                     });
-                });
+                }).UseStartup<Startup>();
     }
 }
