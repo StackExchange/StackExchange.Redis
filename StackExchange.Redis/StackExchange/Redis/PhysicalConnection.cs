@@ -1462,12 +1462,17 @@ namespace StackExchange.Redis
         {
             if (!line.HasValue) return RawResult.Nil; // incomplete line
 
-            // spoof it as an array of the space-delimited pieces;
-            // however, that's a lot of work, and I just need PING,
-            // so... fake it for now, sorry
-            var oversized = ArrayPool<RawResult>.Shared.Rent(1);
-            oversized[0] = line;
-            return new RawResult(oversized, 1);
+            int count = 0;
+            foreach (var token in line.GetInlineTokenizer()) count++;
+            var oversized = ArrayPool<RawResult>.Shared.Rent(count);
+            count = 0;
+            foreach (var token in line.GetInlineTokenizer())
+            {
+                oversized[count++] = new RawResult(line.Type, token, false);
+            }
+            return new RawResult(oversized, count);
         }
+
+
     }
 }

@@ -81,6 +81,53 @@ namespace StackExchange.Redis
             }
         }
 
+        public Tokenizer GetInlineTokenizer() => new Tokenizer(_payload);
+
+        internal ref struct Tokenizer
+        {
+            // tokenizes things according to the inline protocol
+            // specifically; the line: abc    "def ghi" jkl
+            // is 3 tokens: "abc", "def ghi" and "jkl"
+            public Tokenizer GetEnumerator() => this;
+            BufferReader _value;
+            
+            public Tokenizer(ReadOnlySequence<byte> value)
+            {
+                _value = new BufferReader(value);
+                Current = default;
+            }
+
+            public bool MoveNext()
+            {
+                Current = default;
+                // take any white-space
+                while (_value.PeekByte() == (byte)' ') { _value.Consume(1); }
+
+                if (_value.IsEmpty) return false;
+
+                byte terminator = (byte)' ';
+                if (_value.PeekByte() == (byte)'"') // start of string
+                {
+                    terminator = (byte)'"';
+                    _value.Consume(1);
+                }
+                   
+                int end = BufferReader.FindNext(_value, terminator);
+                if (end < 0)
+                {
+                    Current = _value.ConsumeToEnd();
+                }
+                else
+                {
+                    Current = _value.ConsumeAsBuffer(end);
+                    _value.Consume(1); // drop the terminator itself;
+                }
+                return true;
+
+            }
+            public ReadOnlySequence<byte> Current { get; private set; }
+
+        }
         internal RedisChannel AsRedisChannel(byte[] channelPrefix, RedisChannel.PatternMode mode)
         {
             switch (Type)

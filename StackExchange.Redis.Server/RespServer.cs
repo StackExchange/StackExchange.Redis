@@ -338,15 +338,16 @@ namespace StackExchange.Redis.Server
         private Encoder _serverEncoder = Encoding.UTF8.GetEncoder();
 
         static Encoder s_sharedEncoder; // swapped in/out to avoid alloc on the public WriteResponse API
-        public static void WriteResponse(PipeWriter output, RedisResult response)
+        public static void WriteResponse(RedisClient client, PipeWriter output, RedisResult response)
         {
             var enc = Interlocked.Exchange(ref s_sharedEncoder, null) ?? Encoding.UTF8.GetEncoder();
-            WriteResponse(output, response, enc);
+            WriteResponse(client, output, response, enc);
             Interlocked.Exchange(ref s_sharedEncoder, enc);
         }
-        internal static void WriteResponse(PipeWriter output, RedisResult response, Encoder encoder)
+        internal static void WriteResponse(RedisClient client, PipeWriter output, RedisResult response, Encoder encoder)
         {
             if (response == null) return; // not actually a request (i.e. empty/whitespace request)
+            if (client != null && client.ShouldSkipResponse()) return; // intentionally skipping the result
             char prefix;
             switch (response.Type)
             {
@@ -386,7 +387,7 @@ namespace StackExchange.Redis.Server
                             var item = arr[i];
                             if (item == null)
                                 throw new InvalidOperationException("Array element cannot be null, index " + i);
-                            WriteResponse(output, item, encoder);
+                            WriteResponse(null, output, item, encoder); // note: don't pass client down; this would impact SkipReplies
                         }
                     }
                     break;
@@ -416,7 +417,7 @@ namespace StackExchange.Redis.Server
                 RedisResult response;
                 try { response = Execute(client, request); }
                 finally { request.Recycle(); }
-                WriteResponse(output, response, _serverEncoder);
+                WriteResponse(client, output, response, _serverEncoder);
                 return true;
             }
             return false;
@@ -493,7 +494,7 @@ namespace StackExchange.Redis.Server
         protected static RedisResult CommandNotFound(string command)
             => RedisResult.Create($"ERR unknown command '{command}'", ResultType.Error);
 
-        [RedisCommand(1)]
+        [RedisCommand(1, LockFree = true)]
         protected virtual RedisResult Command(RedisClient client, RedisRequest request)
         {
             var results = new RedisResult[_commands.Count];
@@ -503,7 +504,7 @@ namespace StackExchange.Redis.Server
             return RedisResult.Create(results);
         }
 
-        [RedisCommand(-2, "command", "info")]
+        [RedisCommand(-2, "command", "info", LockFree = true)]
         protected virtual RedisResult CommandInfo(RedisClient client, RedisRequest request)
         {
             var results = new RedisResult[request.Count - 2];

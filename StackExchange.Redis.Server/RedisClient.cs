@@ -1,12 +1,21 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO.Pipelines;
-using System.Text;
 
 namespace StackExchange.Redis.Server
 {
     public sealed class RedisClient : IDisposable
     {
+        internal int SkipReplies { get; set; }
+        internal bool ShouldSkipResponse()
+        {
+            if (SkipReplies > 0)
+            {
+                SkipReplies--;
+                return true;
+            }
+            return false;
+        }
         private HashSet<RedisChannel> _subscripions;
         public int SubscriptionCount => _subscripions?.Count ?? 0;
         internal int Subscribe(RedisChannel channel)
@@ -40,7 +49,5 @@ namespace StackExchange.Redis.Server
                 if (pipe is IDisposable d) try { d.Dispose(); } catch { }
             }
         }
-
-
     }
 }

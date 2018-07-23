@@ -75,6 +75,16 @@ namespace StackExchange.Redis.Server
         protected virtual RedisResult ClientGetname(RedisClient client, RedisRequest request)
             => RedisResult.Create(client.Name, ResultType.BulkString);
 
+        [RedisCommand(3, "client", "reply", LockFree = true)]
+        protected virtual RedisResult ClientReply(RedisClient client, RedisRequest request)
+        {
+            if (request.IsString(2, "on")) client.SkipReplies = -1; // reply to nothing
+            else if (request.IsString(2, "off")) client.SkipReplies = 0; // reply to everything
+            else if (request.IsString(2, "skip")) client.SkipReplies = 2; // this one, and the next one
+            else return RedisResult.Create("ERR syntax error", ResultType.Error);
+            return RedisResult.OK;
+        }
+
         [RedisCommand(-1)]
         protected virtual RedisResult Cluster(RedisClient client, RedisRequest request)
             => CommandNotFound(request.Command);
