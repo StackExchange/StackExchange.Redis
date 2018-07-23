@@ -85,13 +85,6 @@ namespace StackExchange.Redis
         }
 
         public bool IgnoreConnect => BridgeCouldBeNull?.Multiplexer?.IgnoreConnect ?? false;
-
-        private static volatile bool emulateStaleConnection;
-        public static bool EmulateStaleConnection
-        {
-            get => emulateStaleConnection;
-            set => emulateStaleConnection = value;
-        }
     }
 #endif
 
