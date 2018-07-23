@@ -57,8 +57,10 @@ namespace StackExchange.Redis
                     case ResultType.BulkString:
                         return new SingleRedisResult(result.AsRedisValue(), result.Type);
                     case ResultType.MultiBulk:
+                        if (result.IsNull) return NullArray;
                         var items = result.GetItems();
-                        var arr = result.IsNull ? null : new RedisResult[items.Length];
+                        if (items.Length == 0) return EmptyArray;
+                        var arr = new RedisResult[items.Length];
                         for (int i = 0; i < arr.Length; i++)
                         {
                             var next = TryCreate(connection, items[i]);
