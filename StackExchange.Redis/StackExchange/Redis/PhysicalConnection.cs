@@ -1431,7 +1431,8 @@ namespace StackExchange.Redis
 
         internal void StartReading() => ReadFromPipe();
 
-        internal static RawResult TryParseResult(in ReadOnlySequence<byte> buffer, ref BufferReader reader, bool includeDetilInExceptions, ServerEndPoint server, bool allowInline = false)
+        internal static RawResult TryParseResult(in ReadOnlySequence<byte> buffer, ref BufferReader reader,
+            bool includeDetilInExceptions, ServerEndPoint server, bool allowInlineProtocol = false)
         {
             var prefix = reader.PeekByte();
             if (prefix < 0) return RawResult.Nil; // EOF
@@ -1453,21 +1454,20 @@ namespace StackExchange.Redis
                     reader.Consume(1);
                     return ReadArray(in buffer, ref reader, includeDetilInExceptions, server);
                 default:
-                    if(allowInline)
-                    {
-                        // spoof it as an array of the space-delimited pieces;
-                        // however, that's a lot of work, and I just need PING,
-                        // so... fake it for now, sorry
-                        var line = ReadLineTerminatedString(ResultType.SimpleString, in buffer, ref reader);
-                        if (!line.HasValue) return RawResult.Nil; // incomplete line
-
-                        // wrap as args
-                        var oversized = ArrayPool<RawResult>.Shared.Rent(1);
-                        oversized[0] = line;
-                        return new RawResult(oversized, 1);
-                    }
+                    if (allowInlineProtocol) return ParseInlineProtocol(ReadLineTerminatedString(ResultType.SimpleString, in buffer, ref reader));
                     throw new InvalidOperationException("Unexpected response prefix: " + (char)prefix);
             }
-        }        
+        }
+        static RawResult ParseInlineProtocol(RawResult line)
+        {
+            if (!line.HasValue) return RawResult.Nil; // incomplete line
+
+            // spoof it as an array of the space-delimited pieces;
+            // however, that's a lot of work, and I just need PING,
+            // so... fake it for now, sorry
+            var oversized = ArrayPool<RawResult>.Shared.Rent(1);
+            oversized[0] = line;
+            return new RawResult(oversized, 1);
+        }
     }
 }
