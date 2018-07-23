@@ -103,13 +103,18 @@ namespace StackExchange.Redis
                 // take any white-space
                 while (_value.PeekByte() == (byte)' ') { _value.Consume(1); }
 
-                if (_value.IsEmpty) return false;
-
                 byte terminator = (byte)' ';
-                if (_value.PeekByte() == (byte)'"') // start of string
+                var first = _value.PeekByte();
+                if (first < 0) return false; // EOF
+
+                switch (_value.PeekByte())
                 {
-                    terminator = (byte)'"';
-                    _value.Consume(1);
+                    case (byte)'"':
+                    case (byte)'\'':
+                        // start of string
+                        terminator = (byte)first;
+                        _value.Consume(1);
+                        break;
                 }
                    
                 int end = BufferReader.FindNext(_value, terminator);
