@@ -110,34 +110,6 @@ namespace StackExchange.Redis.Tests
                 ClearAmbientFailures();
             }
         }
-
-        [Fact]
-        public async Task ReconnectsOnStaleConnection()
-        {
-            try
-            {
-                using (var muxer = Create(keepAlive: 1, connectTimeout: 3000))
-                {
-                    var conn = muxer.GetDatabase();
-                    conn.Ping();
-
-                    Assert.True(muxer.IsConnected);
-
-                    PhysicalConnection.EmulateStaleConnection = true;
-                    await Task.Delay(500).ForAwait();
-                    Assert.False(muxer.IsConnected);
-
-                    PhysicalConnection.EmulateStaleConnection = false;
-                    await Task.Delay(1000).ForAwait();
-                    Assert.True(muxer.IsConnected);
-                }
-            }
-            finally
-            {
-                PhysicalConnection.EmulateStaleConnection = false;
-                ClearAmbientFailures();
-            }
-        }
 #endif
     }
 }
