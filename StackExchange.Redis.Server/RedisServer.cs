@@ -53,6 +53,12 @@ namespace StackExchange.Redis.Server
         protected virtual bool Srem(int database, RedisKey key, RedisValue value) => throw new NotSupportedException();
 
         [RedisCommand(2)]
+        protected virtual RedisResult Spop(RedisClient client, RedisRequest request)
+            => RedisResult.Create(Spop(client.Database, request.GetKey(1)), ResultType.BulkString);
+
+        protected virtual RedisValue Spop(int database, RedisKey key) => throw new NotSupportedException();
+
+        [RedisCommand(2)]
         protected virtual RedisResult Scard(RedisClient client, RedisRequest request)
             => RedisResult.Create(Scard(client.Database, request.GetKey(1)), ResultType.Integer);
 
@@ -88,6 +94,74 @@ namespace StackExchange.Redis.Server
         [RedisCommand(-1)]
         protected virtual RedisResult Cluster(RedisClient client, RedisRequest request)
             => CommandNotFound(request.Command);
+
+        [RedisCommand(-3)]
+        protected virtual RedisResult Lpush(RedisClient client, RedisRequest request)
+        {
+            var key = request.GetKey(1);
+            long length = -1;
+            for (int i = 2; i < request.Count; i++)
+            {
+                length = Lpush(client.Database, key, request.GetValue(i));
+            }
+            return RedisResult.Create(length, ResultType.Integer);
+        }
+
+        [RedisCommand(-3)]
+        protected virtual RedisResult Rpush(RedisClient client, RedisRequest request)
+        {
+            var key = request.GetKey(1);
+            long length = -1;
+            for (int i = 2; i < request.Count; i++)
+            {
+                length = Rpush(client.Database, key, request.GetValue(i));
+            }
+            return RedisResult.Create(length, ResultType.Integer);
+        }
+
+        [RedisCommand(2)]
+        protected virtual RedisResult Lpop(RedisClient client, RedisRequest request)
+            => RedisResult.Create(Lpop(client.Database, request.GetKey(1)), ResultType.BulkString);
+
+        [RedisCommand(2)]
+        protected virtual RedisResult Rpop(RedisClient client, RedisRequest request)
+            => RedisResult.Create(Rpop(client.Database, request.GetKey(1)), ResultType.BulkString);
+
+        [RedisCommand(2)]
+        protected virtual RedisResult Llen(RedisClient client, RedisRequest request)
+            => RedisResult.Create(Llen(client.Database, request.GetKey(1)), ResultType.Integer);
+
+        protected virtual long Lpush(int database, RedisKey key, RedisValue value) => throw new NotSupportedException();
+        protected virtual long Rpush(int database, RedisKey key, RedisValue value) => throw new NotSupportedException();
+        protected virtual long Llen(int database, RedisKey key) => throw new NotSupportedException();
+        protected virtual RedisValue Rpop(int database, RedisKey key) => throw new NotSupportedException();
+        protected virtual RedisValue Lpop(int database, RedisKey key) => throw new NotSupportedException();
+
+        [RedisCommand(4)]
+        protected virtual RedisResult LRange(RedisClient client, RedisRequest request)
+        {
+            var key = request.GetKey(1);
+            long start = request.GetInt64(2), stop = request.GetInt64(3);
+
+            var len = Llen(client.Database, key);
+            if (len == 0) return RedisResult.EmptyArray;
+
+            if (start < 0) start = len + start;
+            if (stop < 0) stop = len + stop;
+
+            if (stop < 0 || start >= len || stop < start) return RedisResult.EmptyArray;
+
+            if (start < 0) start = 0;
+            else if (start >= len) start = len - 1;
+
+            if (stop < 0) stop = 0;
+            else if (stop >= len) stop = len - 1;
+
+            var arr = new RedisValue[(stop - start) + 1];
+            LRange(client.Database, key, start, arr);
+            return RedisResult.Create(arr);
+        }
+        protected virtual void LRange(int database, RedisKey key, long start, RedisValue[] arr) => throw new NotSupportedException();
 
         protected virtual void OnUpdateServerConfiguration() { }
         protected RedisConfig ServerConfiguration { get; } = RedisConfig.Create();
@@ -162,7 +236,13 @@ namespace StackExchange.Redis.Server
         }
 
         protected virtual bool Exists(int database, RedisKey key)
-            => !Get(database, key).IsNull;
+        {
+            try
+            {
+                return !Get(database, key).IsNull;
+            }
+            catch (InvalidCastException) { return true; } // to be an invalid cast, it must exist
+        }
 
         [RedisCommand(2)]
         protected virtual RedisResult Get(RedisClient client, RedisRequest request)
@@ -412,5 +492,24 @@ namespace StackExchange.Redis.Server
         [RedisCommand(-2)]
         protected virtual RedisResult Unlink(RedisClient client, RedisRequest request)
             => Del(client, request);
+
+        [RedisCommand(2)]
+        protected virtual RedisResult Incr(RedisClient client, RedisRequest request)
+            => RedisResult.Create(IncrBy(client.Database, request.GetKey(1), 1), ResultType.Integer);
+        [RedisCommand(2)]
+        protected virtual RedisResult Decr(RedisClient client, RedisRequest request)
+    => RedisResult.Create(IncrBy(client.Database, request.GetKey(1), -1), ResultType.Integer);
+
+        [RedisCommand(3)]
+        protected virtual RedisResult IncrBy(RedisClient client, RedisRequest request)
+            => RedisResult.Create(IncrBy(client.Database, request.GetKey(1), request.GetInt64(2)), ResultType.Integer);
+
+        protected virtual long IncrBy(int database, RedisKey key, long delta)
+        {
+            var value = ((long)Get(database, key)) + delta;
+            Set(database, key, value);
+            return value;
+        }
+
     }
 }

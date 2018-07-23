@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Runtime.Caching;
+using System.Runtime.CompilerServices;
 
 namespace StackExchange.Redis.Server
 {
@@ -75,6 +77,68 @@ namespace StackExchange.Redis.Server
             }
             return set;
         }
+
+        protected override RedisValue Spop(int database, RedisKey key)
+        {
+            var set = GetSet(key, false);
+            if (set == null) return RedisValue.Null;
+
+            var result = set.First();
+            set.Remove(result);
+            if (set.Count == 0) _cache.Remove(key);
+            return result;
+        }
+
+        protected override long Lpush(int database, RedisKey key, RedisValue value)
+        {
+            var stack = GetStack(key, true);
+            stack.Push(value);
+            return stack.Count;
+        }
+        protected override RedisValue Lpop(int database, RedisKey key)
+        {
+            var stack = GetStack(key, false);
+            if (stack == null) return RedisValue.Null;
+
+            var val = stack.Pop();
+            if(stack.Count == 0) _cache.Remove(key);
+            return val;
+        }
+
+        protected override long Llen(int database, RedisKey key)
+            => GetStack(key, false)?.Count ?? 0;
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        static void ThrowArgumentOutOfRangeException() => throw new ArgumentOutOfRangeException();
+        protected override void LRange(int database, RedisKey key, long start, RedisValue[] arr)
+        {
+            var stack = GetStack(key, false);
+
+            using (var iter = stack.GetEnumerator())
+            {
+                // skip
+                while (start-- > 0) if (!iter.MoveNext()) ThrowArgumentOutOfRangeException();
+
+                // take
+                for (int i = 0; i < arr.Length; i++)
+                {
+                    if (!iter.MoveNext()) ThrowArgumentOutOfRangeException();
+                    arr[i] = iter.Current;
+                }
+            }
+        }
+
+        Stack<RedisValue> GetStack(RedisKey key, bool create)
+        {
+            var stack = (Stack<RedisValue>)_cache[key];
+            if (stack == null && create)
+            {
+                stack = new Stack<RedisValue>();
+                _cache[key] = stack;
+            }
+            return stack;
+        }
+
 
     }
 }
