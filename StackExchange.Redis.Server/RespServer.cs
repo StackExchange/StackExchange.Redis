@@ -232,7 +232,7 @@ namespace StackExchange.Redis.Server
                 while (true)
                 {
                     var client = await _listener.AcceptAsync();
-
+                    SocketConnection.SetRecommendedServerOptions(client);
                     var pipe = SocketConnection.Create(client, sendOptions, receiveOptions);
                     var c = CreateClient();
                     c.LinkedPipe = pipe;
