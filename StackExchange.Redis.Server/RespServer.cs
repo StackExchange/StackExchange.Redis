@@ -199,22 +199,23 @@ namespace StackExchange.Redis.Server
         }
         // for extensibility, so that a subclass can get their own client type
         // to be used via ListenForConnections
-        protected virtual RedisClient CreateClient() => new RedisClient();
+        public virtual RedisClient CreateClient() => new RedisClient();
 
         public int ClientCount
         {
             get { lock (_clients) { return _clients.Count; } }
         }
         public int TotalClientCount { get; private set; }
-        public void AddClient(RedisClient client)
+        public RedisClient AddClient()
         {
-            if (client == null) throw new ArgumentNullException(nameof(client));
+            var client = CreateClient();
             lock (_clients)
             {
                 ThrowIfShutdown();
                 _clients.Add(client);
                 TotalClientCount++;
             }
+            return client;
         }
         public bool RemoveClient(RedisClient client)
         {
@@ -234,9 +235,8 @@ namespace StackExchange.Redis.Server
                     var client = await _listener.AcceptAsync();
                     SocketConnection.SetRecommendedServerOptions(client);
                     var pipe = SocketConnection.Create(client, sendOptions, receiveOptions);
-                    var c = CreateClient();
+                    var c = AddClient();
                     c.LinkedPipe = pipe;
-                    AddClient(c);
                     StartOnScheduler(receiveOptions.ReaderScheduler, RunClientCallback, c);
                 }
             }
@@ -410,7 +410,7 @@ namespace StackExchange.Redis.Server
 
             return false;
         }
-        bool TryProcessRequest(ref ReadOnlySequence<byte> buffer, RedisClient client, PipeWriter output)
+        public bool TryProcessRequest(ref ReadOnlySequence<byte> buffer, RedisClient client, PipeWriter output)
         {
             if (!buffer.IsEmpty && TryParseRequest(ref buffer, out var request))
             {
