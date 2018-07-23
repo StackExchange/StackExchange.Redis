@@ -6,6 +6,7 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
+    [Collection(NonParallelCollection.Name)]
     public class Performance : TestBase
     {
         public Performance(ITestOutputHelper output) : base(output) { }
