@@ -31,7 +31,7 @@ static class Program
 {
     static async Task Main()
     {
-        using (var server = new MemoryCacheServer(Console.Out))
+        using (var server = new MemoryCacheRedisServer(Console.Out))
         {
             server.Listen(new IPEndPoint(IPAddress.Loopback, 6379));
             await server.Shutdown;
