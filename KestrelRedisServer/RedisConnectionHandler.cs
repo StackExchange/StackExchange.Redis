@@ -9,6 +9,6 @@ namespace KestrelRedisServer
         private readonly RespServer _server;
         public RedisConnectionHandler(RespServer server) => _server = server;
         public override Task OnConnectedAsync(ConnectionContext connection)
-            => _server.RunClient(connection.Transport);
+            => _server.RunClientAsync(connection.Transport);
     }
 }

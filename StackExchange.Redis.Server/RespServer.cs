@@ -188,7 +188,7 @@ namespace StackExchange.Redis.Server
         private Action<object> _runClientCallback;
         // KeepAlive here just to make the compiler happy that we've done *something* with the task
         private Action<object> RunClientCallback => _runClientCallback ??
-            (_runClientCallback = state => GC.KeepAlive(RunClient((IDuplexPipe)state)));
+            (_runClientCallback = state => GC.KeepAlive(RunClientAsync((IDuplexPipe)state)));
 
         public void Listen(
             EndPoint endpoint,
@@ -295,7 +295,7 @@ namespace StackExchange.Redis.Server
             }
         }
 
-        public async Task RunClient(IDuplexPipe pipe)
+        public async Task RunClientAsync(IDuplexPipe pipe)
         {
             Exception fault = null;
             RedisClient client = null;
