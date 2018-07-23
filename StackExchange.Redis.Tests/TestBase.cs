@@ -325,5 +325,15 @@ namespace StackExchange.Redis.Tests
 
             return watch.Elapsed;
         }
+
+        protected async Task UntilCondition(int maxMilliseconds, Func<bool> predicate, int perLoop = 100)
+        {
+            var spent = 0;
+            while (spent < maxMilliseconds && !predicate())
+            {
+                await Task.Delay(perLoop).ForAwait();
+                spent += perLoop;
+            }
+        }
     }
 }

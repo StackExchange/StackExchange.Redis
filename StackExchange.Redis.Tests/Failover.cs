@@ -239,7 +239,7 @@ namespace StackExchange.Redis.Tests
                 Log("SubA ping: " + subA.Ping());
                 Log("SubB ping: " + subB.Ping());
                 // If redis is under load due to this suite, it may take a moment to send across.
-                await Task.Delay(250).ForAwait();
+                await UntilCondition(5000, () => Interlocked.Read(ref aCount) == 2 && Interlocked.Read(ref bCount) == 2).ForAwait();
 
                 Assert.Equal(2, Interlocked.Read(ref aCount));
                 Assert.Equal(2, Interlocked.Read(ref bCount));
@@ -256,7 +256,7 @@ namespace StackExchange.Redis.Tests
                         a.GetServer(TestConfig.Current.FailoverSlaveServerAndPort).MakeMaster(ReplicationChangeOptions.All, sw);
                         Log(sw.ToString());
                     }
-                    await Task.Delay(5000).ForAwait();
+                    await UntilCondition(3000, () => b.GetServer(TestConfig.Current.FailoverMasterServerAndPort).IsSlave).ForAwait();
                     subA.Ping();
                     subB.Ping();
                     Log("Pausing...");
@@ -275,7 +275,7 @@ namespace StackExchange.Redis.Tests
                     Log("B outstanding: " + b.GetCounters().TotalOutstanding);
                     subA.Ping();
                     subB.Ping();
-                    await Task.Delay(2000).ForAwait();
+                    await Task.Delay(1000).ForAwait();
                     epA = subA.SubscribedEndpoint(channel);
                     epB = subB.SubscribedEndpoint(channel);
                     Log("A: " + EndPointCollection.ToString(epA));
@@ -285,6 +285,7 @@ namespace StackExchange.Redis.Tests
                     subA.Ping();
                     subB.Ping();
                     Log("Checking...");
+                    await UntilCondition(5000, () => Interlocked.Read(ref aCount) == 2 && Interlocked.Read(ref bCount) == 2).ForAwait();
 
                     Assert.Equal(2, Interlocked.Read(ref aCount));
                     Assert.Equal(2, Interlocked.Read(ref bCount));
