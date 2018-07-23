@@ -335,8 +335,7 @@ namespace StackExchange.Redis.Server
                 }
             }
         }
-        private Encoder _serverEncoder = Encoding.UTF8.GetEncoder();
-
+        
         static Encoder s_sharedEncoder; // swapped in/out to avoid alloc on the public WriteResponse API
         public static void WriteResponse(RedisClient client, PipeWriter output, RedisResult response)
         {
@@ -417,7 +416,7 @@ namespace StackExchange.Redis.Server
                 RedisResult response;
                 try { response = Execute(client, request); }
                 finally { request.Recycle(); }
-                WriteResponse(client, output, response, _serverEncoder);
+                WriteResponse(client, output, response);
                 return true;
             }
             return false;
