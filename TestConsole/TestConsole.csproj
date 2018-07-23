@@ -15,7 +15,5 @@
     <ProjectReference Include="..\StackExchange.Redis.Server\StackExchange.Redis.Server.csproj" />
     <ProjectReference Include="..\StackExchange.Redis.Tests\StackExchange.Redis.Tests.csproj" />
     <ProjectReference Include="..\StackExchange.Redis\StackExchange.Redis.csproj" />
-
-    <PackageReference Include="System.Runtime.Caching" Version="4.5.0" />
   </ItemGroup>
 </Project>
