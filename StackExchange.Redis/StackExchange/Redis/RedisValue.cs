@@ -26,8 +26,32 @@ namespace StackExchange.Redis
         }
 
         private readonly static object Sentinel_Integer = new object();
+
+        
+
         private readonly static object Sentinel_Raw = new object();
         private readonly static object Sentinel_Double = new object();
+
+        /// <summary>
+        /// Obtain this value as an object - to be used alongside Unbox
+        /// </summary>
+        public object Box()
+        {
+            var obj = _objectOrSentinel;
+            if (obj is null || obj is string || obj is byte[]) return obj;
+            return this;
+        }
+        /// <summary>
+        /// Parse this object as a value - to be used alongside Box
+        /// </summary>
+        public static RedisValue Unbox(object value)
+        {
+            if (value == null) return RedisValue.Null;
+            if (value is string s) return s;
+            if (value is byte[] b) return b;
+            return (RedisValue)value;
+        }
+
         /// <summary>
         /// Represents the string <c>""</c>
         /// </summary>
@@ -302,6 +326,20 @@ namespace StackExchange.Redis
                 if (objectOrSentinel is string) return StorageType.String;
                 if (objectOrSentinel is byte[]) return StorageType.Raw; // doubled-up, but retaining the array
                 throw new InvalidOperationException("Unknown type");
+            }
+        }
+
+        /// <summary>
+        /// Get the size of this value in bytes
+        /// </summary>
+        public long Length()
+        {
+            switch(Type)
+            {
+                case StorageType.Null: return 0;
+                case StorageType.Raw: return _memory.Length;
+                case StorageType.String: return Encoding.UTF8.GetByteCount((string)_objectOrSentinel);
+                default: throw new InvalidOperationException("Unable to compute length of type: " + Type);
             }
         }
 

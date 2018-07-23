@@ -202,13 +202,13 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        private class PerThreadProfiler
+        internal class PerThreadProfiler
         {
             ThreadLocal<ProfilingSession> perThreadSession = new ThreadLocal<ProfilingSession>(() => new ProfilingSession());
 
             public ProfilingSession GetSession() => perThreadSession.Value;
         }
-        private class AsyncLocalProfiler
+        internal class AsyncLocalProfiler
         {
             AsyncLocal<ProfilingSession> perThreadSession = new AsyncLocal<ProfilingSession>();
 

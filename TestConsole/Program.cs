@@ -1,28 +1,16 @@
 ﻿using System;
-using System.Diagnostics;
+using System.Net;
+using System.Threading.Tasks;
+using StackExchange.Redis.Server;
 
-namespace TestConsole
+static class Program
 {
-    internal static class Program
+    static async Task Main()
     {
-        private static int Main()
+        using (var server = new MemoryCacheRedisServer(Console.Out))
         {
-            try
-            {
-                using (var obj = new BasicTest.RedisBenchmarks())
-                {
-                    var watch = Stopwatch.StartNew();
-                    obj.ExecuteIncrBy();
-                    watch.Stop();
-                    Console.WriteLine($"{watch.ElapsedMilliseconds}ms");
-                }
-                return 0;
-            }
-            catch (Exception ex)
-            {
-                Console.Error.WriteLine(ex.Message);
-                return -1;
-            }
+            server.Listen(new IPEndPoint(IPAddress.Loopback, 6378));
+            await server.Shutdown;
         }
     }
 }

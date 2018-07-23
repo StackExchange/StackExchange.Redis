@@ -7,6 +7,15 @@ namespace StackExchange.Redis
 {
     internal readonly struct RawResult
     {
+        internal RawResult this[int index]
+        {
+            get
+            {
+                if (index >= _itemsCount) throw new IndexOutOfRangeException();
+                return _itemsOversized[index];
+            }
+        }
+        internal int ItemsCount => _itemsCount;
         internal static readonly RawResult NullMultiBulk = new RawResult(null, 0);
         internal static readonly RawResult EmptyMultiBulk = new RawResult(Array.Empty<RawResult>(), 0);
         internal static readonly RawResult Nil = default;
@@ -72,6 +81,58 @@ namespace StackExchange.Redis
             }
         }
 
+        public Tokenizer GetInlineTokenizer() => new Tokenizer(_payload);
+
+        internal ref struct Tokenizer
+        {
+            // tokenizes things according to the inline protocol
+            // specifically; the line: abc    "def ghi" jkl
+            // is 3 tokens: "abc", "def ghi" and "jkl"
+            public Tokenizer GetEnumerator() => this;
+            BufferReader _value;
+            
+            public Tokenizer(ReadOnlySequence<byte> value)
+            {
+                _value = new BufferReader(value);
+                Current = default;
+            }
+
+            public bool MoveNext()
+            {
+                Current = default;
+                // take any white-space
+                while (_value.PeekByte() == (byte)' ') { _value.Consume(1); }
+
+                byte terminator = (byte)' ';
+                var first = _value.PeekByte();
+                if (first < 0) return false; // EOF
+
+                switch (_value.PeekByte())
+                {
+                    case (byte)'"':
+                    case (byte)'\'':
+                        // start of string
+                        terminator = (byte)first;
+                        _value.Consume(1);
+                        break;
+                }
+                   
+                int end = BufferReader.FindNext(_value, terminator);
+                if (end < 0)
+                {
+                    Current = _value.ConsumeToEnd();
+                }
+                else
+                {
+                    Current = _value.ConsumeAsBuffer(end);
+                    _value.Consume(1); // drop the terminator itself;
+                }
+                return true;
+
+            }
+            public ReadOnlySequence<byte> Current { get; private set; }
+
+        }
         internal RedisChannel AsRedisChannel(byte[] channelPrefix, RedisChannel.PatternMode mode)
         {
             switch (Type)
@@ -200,6 +261,12 @@ namespace StackExchange.Redis
         {
             if (Type == ResultType.MultiBulk)
                 return new ReadOnlySpan<RawResult>(_itemsOversized, 0, _itemsCount);
+            throw new InvalidOperationException();
+        }
+        internal ReadOnlyMemory<RawResult> GetItemsMemory()
+        {
+            if (Type == ResultType.MultiBulk)
+                return new ReadOnlyMemory<RawResult>(_itemsOversized, 0, _itemsCount);
             throw new InvalidOperationException();
         }
 

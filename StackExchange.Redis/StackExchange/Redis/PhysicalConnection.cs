@@ -581,7 +581,7 @@ namespace StackExchange.Redis
             var val = key.KeyValue;
             if (val is string)
             {
-                WriteUnified(_ioPipe.Output, key.KeyPrefix, (string)val);
+                WriteUnified(_ioPipe.Output, key.KeyPrefix, (string)val, outEncoder);
             }
             else
             {
@@ -590,26 +590,27 @@ namespace StackExchange.Redis
         }
 
         internal void Write(RedisChannel channel)
-        {
-            WriteUnified(_ioPipe.Output, ChannelPrefix, channel.Value);
-        }
+            => WriteUnified(_ioPipe.Output, ChannelPrefix, channel.Value);
 
-        internal void Write(RedisValue value)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal void WriteBulkString(RedisValue value)
+            => WriteBulkString(value, _ioPipe.Output, outEncoder);
+        internal static void WriteBulkString(RedisValue value, PipeWriter output, Encoder outEncoder)
         {
             switch (value.Type)
             {
                 case RedisValue.StorageType.Null:
-                    WriteUnified(_ioPipe.Output, (byte[])null);
+                    WriteUnified(output, (byte[])null);
                     break;
                 case RedisValue.StorageType.Int64:
-                    WriteUnified(_ioPipe.Output, (long)value);
+                    WriteUnified(output, (long)value);
                     break;
                 case RedisValue.StorageType.Double: // use string
                 case RedisValue.StorageType.String:
-                    WriteUnified(_ioPipe.Output, null, (string)value);
+                    WriteUnified(output, null, (string)value, outEncoder);
                     break;
                 case RedisValue.StorageType.Raw:
-                    WriteUnified(_ioPipe.Output, ((ReadOnlyMemory<byte>)value).Span);
+                    WriteUnified(output, ((ReadOnlyMemory<byte>)value).Span);
                     break;
                 default:
                     throw new InvalidOperationException($"Unexpected {value.Type} value: '{value}'");
@@ -660,13 +661,21 @@ namespace StackExchange.Redis
 
             _ioPipe.Output.Advance(offset);
         }
+        internal static void WriteMultiBulkHeader(PipeWriter output, long count)
+        {
+            // *{count}\r\n         = 3 + MaxInt32TextLen
+            var span = output.GetSpan(3 + MaxInt32TextLen);
+            span[0] = (byte)'*';
+            int offset = WriteRaw(span, count, offset: 1);
+            output.Advance(offset);
+        }
 
         internal const int
             MaxInt32TextLen = 11, // -2,147,483,648 (not including the commas)
             MaxInt64TextLen = 20; // -9,223,372,036,854,775,808 (not including the commas)
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static int WriteCrlf(Span<byte> span, int offset)
+        internal static int WriteCrlf(Span<byte> span, int offset)
         {
             span[offset++] = (byte)'\r';
             span[offset++] = (byte)'\n';
@@ -674,7 +683,7 @@ namespace StackExchange.Redis
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void WriteCrlf(PipeWriter writer)
+        internal static void WriteCrlf(PipeWriter writer)
         {
             var span = writer.GetSpan(2);
             span[0] = (byte)'\r';
@@ -902,7 +911,7 @@ namespace StackExchange.Redis
             return value < 10 ? (byte)('0' + value) : (byte)('a' - 10 + value);
         }
 
-        private void WriteUnified(PipeWriter writer, byte[] prefix, string value)
+        internal static void WriteUnified(PipeWriter writer, byte[] prefix, string value, Encoder outEncoder)
         {
             if (value == null)
             {
@@ -930,13 +939,13 @@ namespace StackExchange.Redis
                     writer.Advance(bytes);
 
                     if (prefixLength != 0) writer.Write(prefix);
-                    if (encodedLength != 0) WriteRaw(writer, value, encodedLength);
+                    if (encodedLength != 0) WriteRaw(writer, value, encodedLength, outEncoder);
                     WriteCrlf(writer);
                 }
             }
         }
 
-        private unsafe void WriteRaw(PipeWriter writer, string value, int expectedLength)
+        unsafe static internal void WriteRaw(PipeWriter writer, string value, int expectedLength, Encoder outEncoder)
         {
             const int MaxQuickEncodeSize = 512;
 
@@ -1027,6 +1036,17 @@ namespace StackExchange.Redis
 
             span[0] = (byte)'$';
             var bytes = WriteRaw(span, value, withLengthPrefix: true, offset: 1);
+            writer.Advance(bytes);
+        }
+        internal static void WriteInteger(PipeWriter writer, long value)
+        {
+            //note: client should never write integer; only server does this
+
+            // :{asc}\r\n                = MaxInt64TextLen + 3
+            var span = writer.GetSpan(3 + MaxInt64TextLen);
+
+            span[0] = (byte)':';
+            var bytes = WriteRaw(span, value, withLengthPrefix: false, offset: 1);
             writer.Advance(bytes);
         }
 
@@ -1288,7 +1308,7 @@ namespace StackExchange.Redis
             while (!buffer.IsEmpty)
             {
                 var reader = new BufferReader(buffer);
-                var result = TryParseResult(in buffer, ref reader);
+                var result = TryParseResult(in buffer, ref reader, IncludeDetailInExceptions, BridgeCouldBeNull?.ServerEndPoint);
                 try
                 {
                     if (result.HasValue)
@@ -1336,12 +1356,12 @@ namespace StackExchange.Redis
         //    }
         //}
 
-        private RawResult ReadArray(in ReadOnlySequence<byte> buffer, ref BufferReader reader)
+        private static RawResult ReadArray(in ReadOnlySequence<byte> buffer, ref BufferReader reader, bool includeDetailInExceptions, ServerEndPoint server)
         {
             var itemCount = ReadLineTerminatedString(ResultType.Integer, in buffer, ref reader);
             if (itemCount.HasValue)
             {
-                if (!itemCount.TryGetInt64(out long i64)) throw ExceptionFactory.ConnectionFailure(IncludeDetailInExceptions, ConnectionFailureType.ProtocolFailure, "Invalid array length", BridgeCouldBeNull?.ServerEndPoint);
+                if (!itemCount.TryGetInt64(out long i64)) throw ExceptionFactory.ConnectionFailure(includeDetailInExceptions, ConnectionFailureType.ProtocolFailure, "Invalid array length", server);
                 int itemCountActual = checked((int)i64);
 
                 if (itemCountActual < 0)
@@ -1359,7 +1379,7 @@ namespace StackExchange.Redis
                 var result = new RawResult(oversized, itemCountActual);
                 for (int i = 0; i < itemCountActual; i++)
                 {
-                    if (!(oversized[i] = TryParseResult(in buffer, ref reader)).HasValue)
+                    if (!(oversized[i] = TryParseResult(in buffer, ref reader, includeDetailInExceptions, server)).HasValue)
                     {
                         result.Recycle(i); // passing index here means we don't need to "Array.Clear" before-hand
                         return RawResult.Nil;
@@ -1370,12 +1390,12 @@ namespace StackExchange.Redis
             return RawResult.Nil;
         }
 
-        private RawResult ReadBulkString(in ReadOnlySequence<byte> buffer, ref BufferReader reader)
+        private static RawResult ReadBulkString(in ReadOnlySequence<byte> buffer, ref BufferReader reader, bool includeDetailInExceptions, ServerEndPoint server)
         {
             var prefix = ReadLineTerminatedString(ResultType.Integer, in buffer, ref reader);
             if (prefix.HasValue)
             {
-                if (!prefix.TryGetInt64(out long i64)) throw ExceptionFactory.ConnectionFailure(IncludeDetailInExceptions, ConnectionFailureType.ProtocolFailure, "Invalid bulk string length", BridgeCouldBeNull?.ServerEndPoint);
+                if (!prefix.TryGetInt64(out long i64)) throw ExceptionFactory.ConnectionFailure(includeDetailInExceptions, ConnectionFailureType.ProtocolFailure, "Invalid bulk string length", server);
                 int bodySize = checked((int)i64);
                 if (bodySize < 0)
                 {
@@ -1391,14 +1411,14 @@ namespace StackExchange.Redis
                         case ConsumeResult.Success:
                             return new RawResult(ResultType.BulkString, payload, false);
                         default:
-                            throw ExceptionFactory.ConnectionFailure(IncludeDetailInExceptions, ConnectionFailureType.ProtocolFailure, "Invalid bulk string terminator", BridgeCouldBeNull?.ServerEndPoint);
+                            throw ExceptionFactory.ConnectionFailure(includeDetailInExceptions, ConnectionFailureType.ProtocolFailure, "Invalid bulk string terminator", server);
                     }
                 }
             }
             return RawResult.Nil;
         }
 
-        private RawResult ReadLineTerminatedString(ResultType type, in ReadOnlySequence<byte> buffer, ref BufferReader reader)
+        private static RawResult ReadLineTerminatedString(ResultType type, in ReadOnlySequence<byte> buffer, ref BufferReader reader)
         {
             int crlfOffsetFromCurrent = BufferReader.FindNextCrLf(reader);
             if (crlfOffsetFromCurrent < 0) return RawResult.Nil;
@@ -1411,219 +1431,48 @@ namespace StackExchange.Redis
 
         internal void StartReading() => ReadFromPipe();
 
-        private RawResult TryParseResult(in ReadOnlySequence<byte> buffer, ref BufferReader reader)
+        internal static RawResult TryParseResult(in ReadOnlySequence<byte> buffer, ref BufferReader reader,
+            bool includeDetilInExceptions, ServerEndPoint server, bool allowInlineProtocol = false)
         {
-            var prefix = reader.ConsumeByte();
+            var prefix = reader.PeekByte();
             if (prefix < 0) return RawResult.Nil; // EOF
             switch (prefix)
             {
                 case '+': // simple string
+                    reader.Consume(1);
                     return ReadLineTerminatedString(ResultType.SimpleString, in buffer, ref reader);
                 case '-': // error
+                    reader.Consume(1);
                     return ReadLineTerminatedString(ResultType.Error, in buffer, ref reader);
                 case ':': // integer
+                    reader.Consume(1);
                     return ReadLineTerminatedString(ResultType.Integer, in buffer, ref reader);
                 case '$': // bulk string
-                    return ReadBulkString(in buffer, ref reader);
+                    reader.Consume(1);
+                    return ReadBulkString(in buffer, ref reader, includeDetilInExceptions, server);
                 case '*': // array
-                    return ReadArray(in buffer, ref reader);
+                    reader.Consume(1);
+                    return ReadArray(in buffer, ref reader, includeDetilInExceptions, server);
                 default:
+                    if (allowInlineProtocol) return ParseInlineProtocol(ReadLineTerminatedString(ResultType.SimpleString, in buffer, ref reader));
                     throw new InvalidOperationException("Unexpected response prefix: " + (char)prefix);
             }
         }
-
-        public enum ConsumeResult
+        static RawResult ParseInlineProtocol(RawResult line)
         {
-            Failure,
-            Success,
-            NeedMoreData,
+            if (!line.HasValue) return RawResult.Nil; // incomplete line
+
+            int count = 0;
+            foreach (var token in line.GetInlineTokenizer()) count++;
+            var oversized = ArrayPool<RawResult>.Shared.Rent(count);
+            count = 0;
+            foreach (var token in line.GetInlineTokenizer())
+            {
+                oversized[count++] = new RawResult(line.Type, token, false);
+            }
+            return new RawResult(oversized, count);
         }
 
-        private ref struct BufferReader
-        {
-            private ReadOnlySequence<byte>.Enumerator _iterator;
-            private ReadOnlySpan<byte> _current;
 
-            public ReadOnlySpan<byte> OversizedSpan => _current;
-
-            public ReadOnlySpan<byte> SlicedSpan => _current.Slice(OffsetThisSpan, RemainingThisSpan);
-            public int OffsetThisSpan { get; private set; }
-            private int TotalConsumed { get; set; } // hide this; callers should use the snapshot-aware methods instead
-            public int RemainingThisSpan { get; private set; }
-
-            public bool IsEmpty => RemainingThisSpan == 0;
-
-            private bool FetchNextSegment()
-            {
-                do
-                {
-                    if (!_iterator.MoveNext())
-                    {
-                        OffsetThisSpan = RemainingThisSpan = 0;
-                        return false;
-                    }
-
-                    _current = _iterator.Current.Span;
-                    OffsetThisSpan = 0;
-                    RemainingThisSpan = _current.Length;
-                } while (IsEmpty); // skip empty segments, they don't help us!
-
-                return true;
-            }
-
-            public BufferReader(ReadOnlySequence<byte> buffer)
-            {
-                _buffer = buffer;
-                _lastSnapshotPosition = buffer.Start;
-                _lastSnapshotBytes = 0;
-                _iterator = buffer.GetEnumerator();
-                _current = default;
-                OffsetThisSpan = RemainingThisSpan = TotalConsumed = 0;
-
-                FetchNextSegment();
-            }
-
-            private static readonly byte[] CRLF = { (byte)'\r', (byte)'\n' };
-
-            /// <summary>
-            /// Note that in results other than success, no guarantees are made about final state; if you care: snapshot
-            /// </summary>
-            public ConsumeResult TryConsumeCRLF()
-            {
-                switch (RemainingThisSpan)
-                {
-                    case 0:
-                        return ConsumeResult.NeedMoreData;
-                    case 1:
-                        if (_current[OffsetThisSpan] != (byte)'\r') return ConsumeResult.Failure;
-                        Consume(1);
-                        if (IsEmpty) return ConsumeResult.NeedMoreData;
-                        var next = _current[OffsetThisSpan];
-                        Consume(1);
-                        return next == '\n' ? ConsumeResult.Success : ConsumeResult.Failure;
-                    default:
-                        var offset = OffsetThisSpan;
-                        var result = _current[offset++] == (byte)'\r' && _current[offset] == (byte)'\n'
-                            ? ConsumeResult.Success : ConsumeResult.Failure;
-                        Consume(2);
-                        return result;
-                }
-            }
-            public bool TryConsume(int count)
-            {
-                if (count < 0) throw new ArgumentOutOfRangeException(nameof(count));
-                do
-                {
-                    var available = RemainingThisSpan;
-                    if (count <= available)
-                    {
-                        // consume part of this span
-                        TotalConsumed += count;
-                        RemainingThisSpan -= count;
-                        OffsetThisSpan += count;
-
-                        if (count == available) FetchNextSegment(); // burned all of it; fetch next
-                        return true;
-                    }
-
-                    // consume all of this span
-                    TotalConsumed += available;
-                    count -= available;
-                } while (FetchNextSegment());
-                return false;
-            }
-
-            private readonly ReadOnlySequence<byte> _buffer;
-            private SequencePosition _lastSnapshotPosition;
-            private long _lastSnapshotBytes;
-
-            // makes an internal note of where we are, as a SequencePosition; useful
-            // to avoid having to use buffer.Slice on huge ranges
-            private SequencePosition SnapshotPosition()
-            {
-                var consumed = TotalConsumed;
-                var delta = consumed - _lastSnapshotBytes;
-                if (delta == 0) return _lastSnapshotPosition;
-
-                var pos = _buffer.GetPosition(delta, _lastSnapshotPosition);
-                _lastSnapshotBytes = consumed;
-                return _lastSnapshotPosition = pos;
-            }
-            public ReadOnlySequence<byte> ConsumeAsBuffer(int count)
-            {
-                if (!TryConsumeAsBuffer(count, out var buffer)) throw new EndOfStreamException();
-                return buffer;
-            }
-
-            public bool TryConsumeAsBuffer(int count, out ReadOnlySequence<byte> buffer)
-            {
-                var from = SnapshotPosition();
-                if (!TryConsume(count))
-                {
-                    buffer = default;
-                    return false;
-                }
-                var to = SnapshotPosition();
-                buffer = _buffer.Slice(from, to);
-                return true;
-            }
-            public void Consume(int count)
-            {
-                if (!TryConsume(count)) throw new EndOfStreamException();
-            }
-
-            internal static int FindNextCrLf(BufferReader reader) // very deliberately not ref; want snapshot
-            {
-                // is it in the current span? (we need to handle the offsets differently if so)
-
-                int totalSkipped = 0;
-                bool haveTrailingCR = false;
-                do
-                {
-                    if (reader.RemainingThisSpan == 0) continue;
-
-                    var span = reader.SlicedSpan;
-                    if (haveTrailingCR)
-                    {
-                        if (span[0] == '\n') return totalSkipped - 1;
-                        haveTrailingCR = false;
-                    }
-
-                    int found = span.IndexOf(CRLF);
-                    if (found >= 0) return totalSkipped + found;
-
-                    haveTrailingCR = span[span.Length - 1] == '\r';
-                    totalSkipped += span.Length;
-                }
-                while (reader.FetchNextSegment());
-                return -1;
-            }
-
-            //internal static bool HasBytes(BufferReader reader, int count) // very deliberately not ref; want snapshot
-            //{
-            //    if (count < 0) throw new ArgumentOutOfRangeException(nameof(count));
-            //    do
-            //    {
-            //        var available = reader.RemainingThisSpan;
-            //        if (count <= available) return true;
-            //        count -= available;
-            //    } while (reader.FetchNextSegment());
-            //    return false;
-            //}
-
-            public int ConsumeByte()
-            {
-                if (IsEmpty) return -1;
-                var value = _current[OffsetThisSpan];
-                Consume(1);
-                return value;
-            }
-
-            public ReadOnlySequence<byte> SliceFromCurrent()
-            {
-                var from = SnapshotPosition();
-                return _buffer.Slice(from);
-            }
-        }
     }
 }

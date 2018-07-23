@@ -677,11 +677,11 @@ namespace StackExchange.Redis.Tests
             var Key = Me();
             const string Value = "redirected-value";
 
-            var profiler = new ProfilingSession();
+            var profiler = new Profiling.PerThreadProfiler();
 
             using (var conn = Create())
             {
-                conn.RegisterProfiler(() => profiler);
+                conn.RegisterProfiler(profiler.GetSession);
 
                 var endpoints = conn.GetEndPoints();
                 var servers = endpoints.Select(e => conn.GetServer(e));
@@ -705,7 +705,7 @@ namespace StackExchange.Redis.Tests
                 string b = (string)conn.GetServer(wrongMasterNode.EndPoint).Execute("GET", Key);
                 Assert.Equal(Value, b); // wrong master, allow redirect
 
-                var msgs = profiler.FinishProfiling().ToList();
+                var msgs = profiler.GetSession().FinishProfiling().ToList();
 
                 // verify that things actually got recorded properly, and the retransmission profilings are connected as expected
                 {

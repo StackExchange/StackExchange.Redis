@@ -79,6 +79,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Failover", "Failover", "{D0
 		RedisConfigs\Failover\slave-6383.conf = RedisConfigs\Failover\slave-6383.conf
 	EndProjectSection
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StackExchange.Redis.Server", "StackExchange.Redis.Server\StackExchange.Redis.Server.csproj", "{8375813E-FBAF-4DA3-A2C7-E4645B39B931}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -117,6 +119,10 @@ Global
 		{769640F3-889C-4E8A-A7DF-916AE9B432A6}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{769640F3-889C-4E8A-A7DF-916AE9B432A6}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{769640F3-889C-4E8A-A7DF-916AE9B432A6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8375813E-FBAF-4DA3-A2C7-E4645B39B931}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8375813E-FBAF-4DA3-A2C7-E4645B39B931}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8375813E-FBAF-4DA3-A2C7-E4645B39B931}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8375813E-FBAF-4DA3-A2C7-E4645B39B931}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
