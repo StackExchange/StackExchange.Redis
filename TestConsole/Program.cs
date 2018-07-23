@@ -3,9 +3,9 @@ using System.Net;
 using System.Threading.Tasks;
 using StackExchange.Redis.Server;
 
-internal static class Program
+static class Program
 {
-    private static async Task Main()
+    static async Task Main()
     {
         using (var server = new MemoryCacheServer(Console.Out))
         {
