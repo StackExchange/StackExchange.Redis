@@ -35,12 +35,12 @@ namespace StackExchange.Redis
         /// <summary>
         /// An empty array result
         /// </summary>
-        public static RedisResult EmptyArray { get; } = new ArrayRedisResult(Array.Empty<RedisResult>());
+        internal static RedisResult EmptyArray { get; } = new ArrayRedisResult(Array.Empty<RedisResult>());
 
         /// <summary>
         /// A null array result
         /// </summary>
-        public static RedisResult NullArray { get; } = new ArrayRedisResult(null);
+        internal static RedisResult NullArray { get; } = new ArrayRedisResult(null);
 
         // internally, this is very similar to RawResult, except it is designed to be usable
         // outside of the IO-processing pipeline: the buffers are standalone, etc
@@ -96,16 +96,16 @@ namespace StackExchange.Redis
         /// <summary>
         /// An integer-zero result
         /// </summary>
-        public static RedisResult Zero { get; } = Create(0, ResultType.Integer);
+        internal static RedisResult Zero { get; } = Create(0, ResultType.Integer);
         /// <summary>
         /// An integer-one result
         /// </summary>
-        public static RedisResult One { get; } = Create(1, ResultType.Integer);
+        internal static RedisResult One { get; } = Create(1, ResultType.Integer);
 
         /// <summary>
         /// A null bulk-string result
         /// </summary>
-        public static RedisResult Null { get; } = Create(RedisValue.Null, ResultType.BulkString);
+        internal static RedisResult Null { get; } = Create(RedisValue.Null, ResultType.BulkString);
 
         /// <summary>
         /// Interprets the result as a <see cref="string"/>.

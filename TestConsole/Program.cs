@@ -7,10 +7,11 @@ static class Program
 {
     static async Task Main()
     {
-        using (var server = new MemoryCacheRedisServer(Console.Out))
+        using (var resp = new MemoryCacheRedisServer(Console.Out))
+        using (var socket = new RespSocketServer(resp))
         {
-            server.Listen(new IPEndPoint(IPAddress.Loopback, 6378));
-            await server.Shutdown;
+            socket.Listen(new IPEndPoint(IPAddress.Loopback, 6378));
+            await resp.Shutdown;
         }
     }
 }

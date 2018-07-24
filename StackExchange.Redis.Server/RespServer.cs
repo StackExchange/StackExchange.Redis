@@ -5,8 +5,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipelines;
 using System.Linq;
-using System.Net;
-using System.Net.Sockets;
 using System.Reflection;
 using System.Text;
 using System.Threading;
@@ -17,9 +15,14 @@ namespace StackExchange.Redis.Server
 {
     public abstract partial class RespServer : IDisposable
     {
+        public enum ShutdownReason
+        {
+            ServerDisposed,
+            ClientInitiated,
+        }
         private readonly List<RedisClient> _clients = new List<RedisClient>();
         private readonly TextWriter _output;
-        private Socket _listener;
+        
         public RespServer(TextWriter output = null)
         {
             _output = output;
@@ -176,43 +179,7 @@ namespace StackExchange.Redis.Server
             }
         }
         delegate RedisResult RespOperation(RedisClient client, RedisRequest request);
-
-        protected int TcpPort()
-        {
-            var ep = _listener?.LocalEndPoint;
-            if (ep is IPEndPoint ip) return ip.Port;
-            if (ep is DnsEndPoint dns) return dns.Port;
-            return -1;
-        }
-
-        private Action<object> _runClientCallback;
-        // KeepAlive here just to make the compiler happy that we've done *something* with the task
-        private Action<object> RunClientCallback => _runClientCallback ??
-            (_runClientCallback = state => GC.KeepAlive(RunClientAsync((IDuplexPipe)state)));
-
-        public void Listen(
-            EndPoint endpoint,
-            AddressFamily addressFamily = AddressFamily.InterNetwork,
-            SocketType socketType = SocketType.Stream,
-            ProtocolType protocolType = ProtocolType.Tcp,
-            PipeOptions sendOptions = null, PipeOptions receiveOptions = null)
-        {
-            Socket listener = new Socket(addressFamily, socketType, protocolType);
-            listener.Bind(endpoint);
-            listener.Listen(20);
-
-            _listener = listener;
-            StartOnScheduler(receiveOptions?.ReaderScheduler, _ => ListenForConnections(
-                sendOptions ?? PipeOptions.Default, receiveOptions ?? PipeOptions.Default), null);
-
-            Log("Server is listening on " + Format.ToString(endpoint));
-        }
-
-        private static void StartOnScheduler(PipeScheduler scheduler, Action<object> callback, object state)
-        {
-            if (scheduler == PipeScheduler.Inline) scheduler = null;
-            (scheduler ?? PipeScheduler.ThreadPool).Schedule(callback, state);
-        }
+        
         // for extensibility, so that a subclass can get their own client type
         // to be used via ListenForConnections
         public virtual RedisClient CreateClient() => new RedisClient();
@@ -244,33 +211,14 @@ namespace StackExchange.Redis.Server
                 return _clients.Remove(client);
             }
         }
-        private async void ListenForConnections(PipeOptions sendOptions, PipeOptions receiveOptions)
-        {
-            try
-            {
-                while (true)
-                {
-                    var client = await _listener.AcceptAsync();
-                    SocketConnection.SetRecommendedServerOptions(client);
-                    var pipe = SocketConnection.Create(client, sendOptions, receiveOptions);
-                    StartOnScheduler(receiveOptions.ReaderScheduler, RunClientCallback, pipe);
-                }
-            }
-            catch (NullReferenceException) { }
-            catch (ObjectDisposedException) { }
-            catch (Exception ex)
-            {
-                if (!_isShutdown) Log("Listener faulted: " + ex.Message);
-            }
-        }
 
-        private readonly TaskCompletionSource<int> _shutdown = new TaskCompletionSource<int>();
+        private readonly TaskCompletionSource<ShutdownReason> _shutdown = new TaskCompletionSource<ShutdownReason>(TaskCreationOptions.RunContinuationsAsynchronously);
         private bool _isShutdown;
         protected void ThrowIfShutdown()
         {
             if (_isShutdown) throw new InvalidOperationException("The server is shutting down");
         }
-        protected void DoShutdown(PipeScheduler scheduler = null)
+        protected void DoShutdown(ShutdownReason reason, PipeScheduler scheduler = null)
         {
             if (_isShutdown) return;
             Log("Server shutting down...");
@@ -280,19 +228,13 @@ namespace StackExchange.Redis.Server
                 foreach (var client in _clients) client.Dispose();
                 _clients.Clear();
             }
-            StartOnScheduler(scheduler,
-                state => ((TaskCompletionSource<int>)state).TrySetResult(0), _shutdown);
+            _shutdown.TrySetResult(reason);
         }
-        public Task Shutdown => _shutdown.Task;
+        public Task<ShutdownReason> Shutdown => _shutdown.Task;
         public void Dispose() => Dispose(true);
         protected virtual void Dispose(bool disposing)
         {
-            DoShutdown();
-            var socket = _listener;
-            if (socket != null)
-            {
-                try { socket.Dispose(); } catch { }
-            }
+            DoShutdown(ShutdownReason.ServerDisposed);
         }
 
         public async Task RunClientAsync(IDuplexPipe pipe)
@@ -335,7 +277,7 @@ namespace StackExchange.Redis.Server
                 }
             }
         }
-        private void Log(string message)
+        public void Log(string message)
         {
             var output = _output;
             if (output != null)
