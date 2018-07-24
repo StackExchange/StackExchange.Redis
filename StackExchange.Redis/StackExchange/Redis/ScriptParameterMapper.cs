@@ -105,26 +105,25 @@ namespace StackExchange.Redis
 
             return ret.ToString();
         }
-        
-        private static Dictionary<Type, MethodInfo> _conversionOperators;
+
+        private static readonly Dictionary<Type, MethodInfo> _conversionOperators;
         static ScriptParameterMapper()
         {
             var tmp = new Dictionary<Type, MethodInfo>();
-            foreach(var method in typeof(RedisValue).GetMethods(BindingFlags.Public | BindingFlags.Static))
+            foreach (var method in typeof(RedisValue).GetMethods(BindingFlags.Public | BindingFlags.Static))
             {
-                if(method.ReturnType == typeof(RedisValue) &&
-                    (method.Name == "op_Implicit" || method.Name == "op_Explicit"))
+                if (method.ReturnType == typeof(RedisValue) && (method.Name == "op_Implicit" || method.Name == "op_Explicit"))
                 {
                     var p = method.GetParameters();
-                    if (p != null && p.Length == 1)
+                    if (p?.Length == 1)
                     {
                         tmp[p[0].ParameterType] = method;
                     }
                 }
             }
             _conversionOperators = tmp;
-        } 
-       
+        }
+
         /// <summary>
         /// Turns a script with @namedParameters into a LuaScript that can be executed
         /// against a given IDatabase(Async) object
@@ -176,7 +175,8 @@ namespace StackExchange.Redis
                 }
 
                 var memberType = member is FieldInfo ? ((FieldInfo)member).FieldType : ((PropertyInfo)member).PropertyType;
-                if(!ConvertableTypes.Contains(memberType)){
+                if (!ConvertableTypes.Contains(memberType))
+                {
                     missingMember = null;
                     badTypeMember = argName;
                     return false;
@@ -186,7 +186,7 @@ namespace StackExchange.Redis
             missingMember = badTypeMember = null;
             return true;
         }
-        
+
         /// <summary>
         /// <para>Creates a Func that extracts parameters from the given type for use by a LuaScript.</para>
         /// <para>
@@ -210,7 +210,7 @@ namespace StackExchange.Redis
 
             Expression GetMember(Expression root, MemberInfo member)
             {
-                switch(member.MemberType)
+                switch (member.MemberType)
                 {
                     case MemberTypes.Property:
                         return Expression.Property(root, (PropertyInfo)member);
@@ -222,7 +222,7 @@ namespace StackExchange.Redis
             }
             var keys = new List<MemberInfo>();
             var args = new List<MemberInfo>();
-            
+
             for (var i = 0; i < script.Arguments.Length; i++)
             {
                 var argName = script.Arguments[i];
@@ -244,7 +244,7 @@ namespace StackExchange.Redis
             var objUntyped = Expression.Parameter(typeof(object), "obj");
             var objTyped = Expression.Convert(objUntyped, t);
             var keyPrefix = Expression.Parameter(typeof(RedisKey?), "keyPrefix");
-            
+
             Expression keysResult, valuesResult;
             MethodInfo asRedisValue = null;
             Expression[] keysResultArr = null;
@@ -264,7 +264,7 @@ namespace StackExchange.Redis
                     BindingFlags.NonPublic | BindingFlags.Instance);
 
                 keysResultArr = new Expression[keys.Count];
-                for(int i = 0; i < keysResultArr.Length; i++)
+                for (int i = 0; i < keysResultArr.Length; i++)
                 {
                     var member = GetMember(objTyped, keys[i]);
                     keysResultArr[i] = Expression.Condition(needsKeyPrefix,
@@ -274,7 +274,6 @@ namespace StackExchange.Redis
                 keysResult = Expression.NewArrayInit(typeof(RedisKey), keysResultArr);
             }
 
-            
             if (args.Count == 0)
             {
                 // if there are no args, don't allocate

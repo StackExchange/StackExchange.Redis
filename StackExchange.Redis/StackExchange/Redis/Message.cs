@@ -614,8 +614,6 @@ namespace StackExchange.Redis
 
         internal void SetEnqueued()=> performance?.SetEnqueued();
 
-
-
         internal void SetRequestSent()
         {
             Status = CommandStatus.Sent;

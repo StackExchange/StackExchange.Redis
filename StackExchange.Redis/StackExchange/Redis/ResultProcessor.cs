@@ -180,7 +180,7 @@ namespace StackExchange.Redis
             if (result.IsError)
             {
                 if (result.AssertStarts(NOAUTH)) bridge?.Multiplexer?.SetAuthSuspect();
-                
+
                 var server = bridge.ServerEndPoint;
                 bool log = !message.IsInternalCall;
                 bool isMoved = result.AssertStarts(MOVED);
@@ -572,7 +572,7 @@ namespace StackExchange.Redis
                         var server = bridge.ServerEndPoint;
                         server.Multiplexer.Trace("Auto-configured role: slave");
                         server.IsSlave = true;
-                    }                    
+                    }
                 }
                 return base.SetResult(connection, message, result);
             }
@@ -1606,7 +1606,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 var entries = ParseRedisStreamEntries(tmp);
                 // note: don't .Recycle(), would be a stack overflow because
                 // it would bridge the fake and real result set
-                ArrayPool<RawResult>.Shared.Return(leased); 
+                ArrayPool<RawResult>.Shared.Return(leased);
 
                 var streamInfo = new StreamInfo(length: (int)arr[1].AsRedisValue(),
                     radixTreeKeys: (int)arr[3].AsRedisValue(),

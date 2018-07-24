@@ -43,7 +43,7 @@ namespace StackExchange.Redis
             subscription?.ResetNonConnected();
         }
 
-        public ServerEndPoint(ConnectionMultiplexer multiplexer, EndPoint endpoint, TextWriter log)
+        public ServerEndPoint(ConnectionMultiplexer multiplexer, EndPoint endpoint)
         {
             Multiplexer = multiplexer;
             EndPoint = endpoint;
@@ -642,7 +642,6 @@ namespace StackExchange.Redis
                     {
                         bridge.WriteMessageTakingWriteLock(connection, message);
                     }
-                    
                 }
             }
         }

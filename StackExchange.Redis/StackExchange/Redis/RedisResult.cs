@@ -15,7 +15,6 @@ namespace StackExchange.Redis
         /// <returns> new <see cref="RedisResult"/>.</returns>
         public static RedisResult Create(RedisValue value, ResultType? resultType = null) => new SingleRedisResult(value, resultType);
 
-
         /// <summary>
         /// Create a new RedisResult representing an array of values.
         /// </summary>
@@ -267,8 +266,8 @@ namespace StackExchange.Redis
                 : _value.Length == 0 ? Array.Empty<byte[]>()
                 : Array.ConvertAll(_value, x => x.AsByteArray());
 
-            private bool IsSingleton => _value != null && _value.Length == 1;
-            private bool IsEmpty => _value != null && _value.Length == 0;
+            private bool IsSingleton => _value?.Length == 1;
+            private bool IsEmpty => _value?.Length == 0;
             internal override double AsDouble()
             {
                 if (IsSingleton) return _value[0].AsDouble();
@@ -363,12 +362,15 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Create a RedisResult from a key
+        /// Create a <see cref="RedisResult"/> from a key.
         /// </summary>
+        /// <param name="key">The <see cref="RedisKey"/> to create a <see cref="RedisResult"/> from.</param>
         public static RedisResult Create(RedisKey key) => Create(key.AsRedisValue(), ResultType.BulkString);
+
         /// <summary>
-        /// Create a RedisResult from a channel
+        /// Create a <see cref="RedisResult"/> from a channel.
         /// </summary>
+        /// <param name="channel">The <see cref="RedisChannel"/> to create a <see cref="RedisResult"/> from.</param>
         public static RedisResult Create(RedisChannel channel) => Create((byte[])channel, ResultType.BulkString);
 
         private sealed class ErrorRedisResult : RedisResult

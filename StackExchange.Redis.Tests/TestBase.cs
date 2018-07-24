@@ -280,7 +280,7 @@ namespace StackExchange.Redis.Tests
             ManualResetEvent allDone = new ManualResetEvent(false);
             object token = new object();
             int active = 0;
-            ThreadStart callback = delegate
+            void callback()
             {
                 lock (token)
                 {
@@ -301,7 +301,7 @@ namespace StackExchange.Redis.Tests
                     watch.Stop();
                     allDone.Set();
                 }
-            };
+            }
 
             var threadArr = new Thread[threads];
             for (int i = 0; i < threads; i++)

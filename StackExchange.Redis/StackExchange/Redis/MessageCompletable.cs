@@ -38,7 +38,6 @@ namespace StackExchange.Redis
             }
             else
             {
-
                 if (syncHandler != null)
                 {
                     ConnectionMultiplexer.TraceWithoutContext("Invoking (sync)...: " + (string)channel, "Subscription");

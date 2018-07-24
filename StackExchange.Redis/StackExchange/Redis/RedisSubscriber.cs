@@ -89,7 +89,7 @@ namespace StackExchange.Redis
                     if(msg != null) UnprocessableCompletionManager?.CompleteSyncOrAsync(msg);
                     pair.Value.Remove(true, null);
                     pair.Value.Remove(false, null);
-                    
+
                     var task = pair.Value.UnsubscribeFromServer(pair.Key, flags, asyncState, false);
                     if (task != null) last = task;
                 }
@@ -325,7 +325,7 @@ namespace StackExchange.Redis
         public async Task<ChannelMessageQueue> SubscribeAsync(RedisChannel channel, CommandFlags flags = CommandFlags.None)
         {
             var c = new ChannelMessageQueue(channel, this);
-            await c.SubscribeAsync(flags);
+            await c.SubscribeAsync(flags).ForAwait();
             return c;
         }
 

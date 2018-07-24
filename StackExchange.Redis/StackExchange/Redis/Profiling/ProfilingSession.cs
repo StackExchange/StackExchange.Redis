@@ -3,26 +3,27 @@
 namespace StackExchange.Redis.Profiling
 {
     /// <summary>
-    /// Lightweight profiling session that can be optionally registered (via ConnectionMultiplexer.RegisterProfiler) to track messages
+    /// Lightweight profiling session that can be optionally registered (via ConnectionMultiplexer.RegisterProfiler) to track messages.
     /// </summary>
     public sealed class ProfilingSession
     {
         /// <summary>
-        /// Caller-defined state object
+        /// Caller-defined state object.
         /// </summary>
         public object UserToken { get; }
         /// <summary>
-        /// Create a new profiling session, optionally including a caller-defined state object
+        /// Create a new profiling session, optionally including a caller-defined state object.
         /// </summary>
+        /// <param name="userToken">The state object to use for this session.</param>
         public ProfilingSession(object userToken = null) => UserToken = userToken;
 
-        object _untypedHead;
+        private object _untypedHead;
 
         internal void Add(ProfiledCommand command)
         {
             if (command == null) return;
 
-            object cur = Thread.VolatileRead(ref _untypedHead); ;
+            object cur = Thread.VolatileRead(ref _untypedHead);
             while (true)
             {
                 command.NextElement = (ProfiledCommand)cur;
@@ -34,7 +35,7 @@ namespace StackExchange.Redis.Profiling
 
         /// <summary>
         /// Reset the session and yield the commands that were captured for enumeration; if additional commands
-        /// are added, they can be retrieved via additional calls to FinishProfiling
+        /// are added, they can be retrieved via additional calls to FinishProfiling.
         /// </summary>
         public ProfiledCommandEnumerable FinishProfiling()
         {

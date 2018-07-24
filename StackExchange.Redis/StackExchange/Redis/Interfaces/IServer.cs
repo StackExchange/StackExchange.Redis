@@ -591,12 +591,18 @@ namespace StackExchange.Redis
         /// <summary>
         /// Swaps two Redis databases, so that immediately all the clients connected to a given database will see the data of the other database, and the other way around
         /// </summary>
+        /// <param name="first">The ID of the first database.</param>
+        /// <param name="second">The ID of the second database.</param>
+        /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/swapdb</remarks>
         void SwapDatabases(int first, int second, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Swaps two Redis databases, so that immediately all the clients connected to a given database will see the data of the other database, and the other way around
         /// </summary>
+        /// <param name="first">The ID of the first database.</param>
+        /// <param name="second">The ID of the second database.</param>
+        /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/swapdb</remarks>
         Task SwapDatabasesAsync(int first, int second, CommandFlags flags = CommandFlags.None);
 

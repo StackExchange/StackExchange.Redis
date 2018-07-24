@@ -10,7 +10,7 @@ namespace NRediSearch.Test.ClientTests
         public AggregationTest(ITestOutputHelper output) : base(output) { }
 
         [Fact]
-        public void testAggregations()
+        public void TestAggregations()
         {
             /**
              127.0.0.1:6379> FT.CREATE test_index SCHEMA name TEXT SORTABLE count NUMERIC SORTABLE
@@ -34,7 +34,6 @@ namespace NRediSearch.Test.ClientTests
             AggregationRequest r = new AggregationRequest()
                     .GroupBy("@name", Reducers.Sum("@count").As("sum"))
                 .SortBy(SortedField.Descending("@sum"), 10);
-
 
             // actual search
             AggregationResult res = cl.Aggregate(r);

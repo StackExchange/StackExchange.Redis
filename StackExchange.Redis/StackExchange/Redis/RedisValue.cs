@@ -26,9 +26,6 @@ namespace StackExchange.Redis
         }
 
         private readonly static object Sentinel_Integer = new object();
-
-        
-
         private readonly static object Sentinel_Raw = new object();
         private readonly static object Sentinel_Double = new object();
 
@@ -41,9 +38,11 @@ namespace StackExchange.Redis
             if (obj is null || obj is string || obj is byte[]) return obj;
             return this;
         }
+
         /// <summary>
-        /// Parse this object as a value - to be used alongside Box
+        /// Parse this object as a value - to be used alongside Box.
         /// </summary>
+        /// <param name="value">The value to unbox.</param>
         public static RedisValue Unbox(object value)
         {
             if (value == null) return RedisValue.Null;

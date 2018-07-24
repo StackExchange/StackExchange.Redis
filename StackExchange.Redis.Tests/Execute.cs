@@ -21,7 +21,7 @@ namespace StackExchange.Redis.Tests
                 var actual = (string)db.Execute("GET", key);
                 Assert.Equal("some value", actual);
 
-                actual = (string)await db.ExecuteAsync("GET", key);
+                actual = (string)await db.ExecuteAsync("GET", key).ForAwait();
                 Assert.Equal("some value", actual);
             }
         }
@@ -35,7 +35,7 @@ namespace StackExchange.Redis.Tests
                 var actual = (string)server.Execute("echo", "some value");
                 Assert.Equal("some value", actual);
 
-                actual = (string)await server.ExecuteAsync("echo", "some value");
+                actual = (string)await server.ExecuteAsync("echo", "some value").ForAwait();
                 Assert.Equal("some value", actual);
             }
         }

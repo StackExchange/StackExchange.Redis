@@ -26,8 +26,8 @@ namespace StackExchange.Redis.Tests
                 for (int i = 0; i < 10; i++)
                 {
                     conn.KeyDelete(key, CommandFlags.FireAndForget);
-                    Assert.Equal(1, await ManualIncrAsync(conn, key));
-                    Assert.Equal(2, await ManualIncrAsync(conn, key));
+                    Assert.Equal(1, await ManualIncrAsync(conn, key).ForAwait());
+                    Assert.Equal(2, await ManualIncrAsync(conn, key).ForAwait());
                     Assert.Equal(2, (long)conn.StringGet(key));
                 }
             }

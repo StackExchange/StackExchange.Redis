@@ -69,8 +69,6 @@ namespace StackExchange.Redis.Tests
                 AssertProfiledCommandValues(eval, conn, dbId);
 
                 AssertProfiledCommandValues(echo, conn, dbId);
-
-                
             }
         }
 
@@ -156,7 +154,6 @@ namespace StackExchange.Redis.Tests
                 var prefix = Me();
                 conn.RegisterProfiler(profiler.GetSession);
 
-                
                 var threads = new List<Thread>();
 
                 var results = new IEnumerable<IProfiledCommand>[16];
@@ -204,13 +201,13 @@ namespace StackExchange.Redis.Tests
 
         internal class PerThreadProfiler
         {
-            ThreadLocal<ProfilingSession> perThreadSession = new ThreadLocal<ProfilingSession>(() => new ProfilingSession());
+            private readonly ThreadLocal<ProfilingSession> perThreadSession = new ThreadLocal<ProfilingSession>(() => new ProfilingSession());
 
             public ProfilingSession GetSession() => perThreadSession.Value;
         }
         internal class AsyncLocalProfiler
         {
-            AsyncLocal<ProfilingSession> perThreadSession = new AsyncLocal<ProfilingSession>();
+            private readonly AsyncLocal<ProfilingSession> perThreadSession = new AsyncLocal<ProfilingSession>();
 
             public ProfilingSession GetSession()
             {
@@ -274,7 +271,6 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(OuterLoop * 2, res.Count(r => r.Db > 0));
             }
         }
-
 
         [FactLongRunning]
         public void ProfilingMD_Ex1()
@@ -340,7 +336,7 @@ namespace StackExchange.Redis.Tests
                     var thread = new Thread(() =>
                     {
                         var threadTasks = new List<Task>();
-                        
+
                         for (var j = 0; j < 1000; j++)
                         {
                             var task = db.StringSetAsync(prefix + j, "" + j);
@@ -385,7 +381,7 @@ namespace StackExchange.Redis.Tests
                     {
                         for (var j = 0; j < 100; j++)
                         {
-                            await db.StringSetAsync(prefix + j, "" + j);
+                            await db.StringSetAsync(prefix + j, "" + j).ForAwait();
                         }
 
                         perThreadTimings.Add(profiler.GetSession().FinishProfiling().ToList());
@@ -396,11 +392,11 @@ namespace StackExchange.Redis.Tests
 
                 var timeout = Task.Delay(10000);
                 var complete = Task.WhenAll(tasks);
-                if (timeout == await Task.WhenAny(timeout, complete))
+                if (timeout == await Task.WhenAny(timeout, complete).ForAwait())
                 {
                     throw new TimeoutException();
                 }
-                
+
                 Assert.Equal(16, perThreadTimings.Count);
                 foreach(var item in perThreadTimings)
                 {

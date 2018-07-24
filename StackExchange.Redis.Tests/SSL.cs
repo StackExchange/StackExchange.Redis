@@ -147,25 +147,25 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        private void TestConcurrent(IDatabase db, RedisKey key, int SyncLoop, int Threads)
-        {
-            long value;
-            db.KeyDelete(key, CommandFlags.FireAndForget);
-            var time = RunConcurrent(delegate
-            {
-                for (int i = 0; i < SyncLoop; i++)
-                {
-                    db.StringIncrement(key);
-                }
-            }, Threads, timeout: 45000);
-            value = (long)db.StringGet(key);
-            Assert.Equal(SyncLoop * Threads, value);
-            Log("Sync: {0} INCR using {1} threads, {2:###,##0}ms, {3} ops/s; final value: {4}",
-                SyncLoop * Threads, Threads,
-                (long)time.TotalMilliseconds,
-                (long)((SyncLoop * Threads) / time.TotalSeconds),
-                value);
-        }
+        //private void TestConcurrent(IDatabase db, RedisKey key, int SyncLoop, int Threads)
+        //{
+        //    long value;
+        //    db.KeyDelete(key, CommandFlags.FireAndForget);
+        //    var time = RunConcurrent(delegate
+        //    {
+        //        for (int i = 0; i < SyncLoop; i++)
+        //        {
+        //            db.StringIncrement(key);
+        //        }
+        //    }, Threads, timeout: 45000);
+        //    value = (long)db.StringGet(key);
+        //    Assert.Equal(SyncLoop * Threads, value);
+        //    Log("Sync: {0} INCR using {1} threads, {2:###,##0}ms, {3} ops/s; final value: {4}",
+        //        SyncLoop * Threads, Threads,
+        //        (long)time.TotalMilliseconds,
+        //        (long)((SyncLoop * Threads) / time.TotalSeconds),
+        //        value);
+        //}
 
         [Fact]
         public void RedisLabsSSL()
