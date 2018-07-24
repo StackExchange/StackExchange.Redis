@@ -14,16 +14,13 @@ namespace StackExchange.Redis.Server
         public override string ToString() => Command;
         public override bool Equals(object obj) => throw new NotSupportedException();
 
-        public RedisResult WrongArgCount() => RedisResult.Create($"ERR wrong number of arguments for '{Command}' command", ResultType.Error);
+        public TypedRedisValue WrongArgCount() => TypedRedisValue.Error($"ERR wrong number of arguments for '{Command}' command");
 
-        public RedisResult UnknownSubcommandOrArgumentCount() => RedisResult.Create($"ERR Unknown subcommand or wrong number of arguments for '{Command}'.", ResultType.Error);
+        public TypedRedisValue UnknownSubcommandOrArgumentCount() => TypedRedisValue.Error($"ERR Unknown subcommand or wrong number of arguments for '{Command}'.");
 
         public string GetString(int index)
             => _inner[index].GetString();
         
-        internal RedisResult GetResult(int index)
-            => RedisResult.Create(_inner[index].AsRedisValue());
-
         public bool IsString(int index, string value) // TODO: optimize
             => string.Equals(value, _inner[index].GetString(), StringComparison.OrdinalIgnoreCase);
 

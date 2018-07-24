@@ -30,7 +30,7 @@ namespace StackExchange.Redis.Server
         {
             RedisCommandAttribute CheckSignatureAndGetAttribute(MethodInfo method)
             {
-                if (method.ReturnType != typeof(RedisResult)) return null;
+                if (method.ReturnType != typeof(TypedRedisValue)) return null;
                 var p = method.GetParameters();
                 if (p.Length != 2 || p[0].ParameterType != typeof(RedisClient) || p[1].ParameterType != typeof(RedisRequest))
                     return null;
@@ -149,7 +149,7 @@ namespace StackExchange.Redis.Server
                 }
                 return this;
             }
-            public RedisResult Execute(RedisClient client, RedisRequest request)
+            public TypedRedisValue Execute(RedisClient client, RedisRequest request)
             {
                 var args = request.Count;
                 if (!CheckArity(request.Count)) return IsSubCommand
@@ -175,7 +175,7 @@ namespace StackExchange.Redis.Server
                 return varadic ? -minMagnitude : minMagnitude;
             }
         }
-        delegate RedisResult RespOperation(RedisClient client, RedisRequest request);
+        delegate TypedRedisValue RespOperation(RedisClient client, RedisRequest request);
 
         protected int TcpPort()
         {
@@ -348,7 +348,7 @@ namespace StackExchange.Redis.Server
         }
 
         static Encoder s_sharedEncoder; // swapped in/out to avoid alloc on the public WriteResponse API
-        public static ValueTask WriteResponseAsync(RedisClient client, PipeWriter output, RedisResult response)
+        public static ValueTask WriteResponseAsync(RedisClient client, PipeWriter output, TypedRedisValue value)
         {
             async ValueTask Awaited(ValueTask wwrite, Encoder eenc)
             {
@@ -356,13 +356,13 @@ namespace StackExchange.Redis.Server
                 Interlocked.Exchange(ref s_sharedEncoder, eenc);
             }
             var enc = Interlocked.Exchange(ref s_sharedEncoder, null) ?? Encoding.UTF8.GetEncoder();
-            var write = WriteResponseAsync(client, output, response, enc);
+            var write = WriteResponseAsync(client, output, value, enc);
             if (!write.IsCompletedSuccessfully) return Awaited(write, enc);
             Interlocked.Exchange(ref s_sharedEncoder, enc);
             return default;
         }
 
-        internal static async ValueTask WriteResponseAsync(RedisClient client, PipeWriter output, RedisResult response, Encoder encoder)
+        internal static async ValueTask WriteResponseAsync(RedisClient client, PipeWriter output, TypedRedisValue value, Encoder encoder)
         {
             void WritePrefix(PipeWriter ooutput, char pprefix)
             {
@@ -371,13 +371,13 @@ namespace StackExchange.Redis.Server
                 ooutput.Advance(1);
             }
 
-            if (response == null) return; // not actually a request (i.e. empty/whitespace request)
+            if (value.IsNil) return; // not actually a request (i.e. empty/whitespace request)
             if (client != null && client.ShouldSkipResponse()) return; // intentionally skipping the result
             char prefix;
-            switch (response.Type)
+            switch (value.Type)
             {
                 case ResultType.Integer:
-                    PhysicalConnection.WriteInteger(output, (long)response);
+                    PhysicalConnection.WriteInteger(output, (long)value.AsRedisValue());
                     break;
                 case ResultType.Error:
                     prefix = '-';
@@ -386,30 +386,28 @@ namespace StackExchange.Redis.Server
                     prefix = '+';
                     BasicMessage:
                     WritePrefix(output, prefix);
-
-                    var val = response.AsString();
-
+                    var val = (string)value.AsRedisValue();
                     var expectedLength = Encoding.UTF8.GetByteCount(val);
                     PhysicalConnection.WriteRaw(output, val, expectedLength, encoder);
                     PhysicalConnection.WriteCrlf(output);
                     break;
                 case ResultType.BulkString:
-                    PhysicalConnection.WriteBulkString(response.AsRedisValue(), output, encoder);
+                    PhysicalConnection.WriteBulkString(value.AsRedisValue(), output, encoder);
                     break;
                 case ResultType.MultiBulk:
-                    if (response.IsNull)
+                    if (value.IsNullArray)
                     {
                         PhysicalConnection.WriteMultiBulkHeader(output, -1);
                     }
                     else
                     {
-                        var arr = (RedisResult[])response;
-                        PhysicalConnection.WriteMultiBulkHeader(output, arr.Length);
-                        for (int i = 0; i < arr.Length; i++)
+                        var count = value.Length;
+                        PhysicalConnection.WriteMultiBulkHeader(output, count);
+                        for (int i = 0; i < count ; i++)
                         {
-                            var item = arr[i];
-                            if (item == null)
-                                throw new InvalidOperationException("Array element cannot be null, index " + i);
+                            var item = value[i];
+                            if (item.IsNil)
+                                throw new InvalidOperationException("Array element cannot be nil, index " + i);
 
                             // note: don't pass client down; this would impact SkipReplies
                             await WriteResponseAsync(null, output, item, encoder);
@@ -418,7 +416,7 @@ namespace StackExchange.Redis.Server
                     break;
                 default:
                     throw new InvalidOperationException(
-                        "Unexpected result type: " + response.Type);
+                        "Unexpected result type: " + value.Type);
             }
             await output.FlushAsync();
         }
@@ -438,18 +436,21 @@ namespace StackExchange.Redis.Server
         }
         public ValueTask<bool> TryProcessRequestAsync(ref ReadOnlySequence<byte> buffer, RedisClient client, PipeWriter output)
         {
-            async ValueTask<bool> Awaited(ValueTask wwrite)
+            async ValueTask<bool> Awaited(ValueTask wwrite, TypedRedisValue rresponse)
             {
                 await wwrite;
+                rresponse.Recycle();
                 return true;
             }
             if (!buffer.IsEmpty && TryParseRequest(ref buffer, out var request))
             {
-                RedisResult response;
+                TypedRedisValue response;
                 try { response = Execute(client, request); }
                 finally { request.Recycle(); }
+
                 var write = WriteResponseAsync(client, output, response);
-                if (!write.IsCompletedSuccessfully) return Awaited(write);
+                if (!write.IsCompletedSuccessfully) return Awaited(write, response);
+                response.Recycle();
                 return new ValueTask<bool>(true);
             }
             return new ValueTask<bool>(false);
@@ -461,13 +462,13 @@ namespace StackExchange.Redis.Server
         public long TotalCommandsProcesed => _totalCommandsProcesed;
         public long TotalErrorCount => _totalErrorCount;
 
-        public RedisResult Execute(RedisClient client, RedisRequest request)
+        public TypedRedisValue Execute(RedisClient client, RedisRequest request)
         {
-            if (string.IsNullOrWhiteSpace(request.Command)) return null; // not a request
+            if (string.IsNullOrWhiteSpace(request.Command)) return default; // not a request
             Interlocked.Increment(ref _totalCommandsProcesed);
             try
             {
-                RedisResult result;
+                TypedRedisValue result;
                 if (_commands.TryGetValue(request.Command, out var cmd))
                 {
                     request = request.AsCommand(cmd.Command); // fixup casing
@@ -490,12 +491,16 @@ namespace StackExchange.Redis.Server
                 }
                 else
                 {
-                    result = null;
+                    result = TypedRedisValue.Nil;
                 }
 
-                if (result == null) Log($"missing command: '{request.Command}'");
-                else if (result.Type == ResultType.Error) Interlocked.Increment(ref _totalErrorCount);
-                return result ?? CommandNotFound(request.Command);
+                if (result.IsNil)
+                {
+                    Log($"missing command: '{request.Command}'");
+                    return CommandNotFound(request.Command);
+                }
+                if (result.Type == ResultType.Error) Interlocked.Increment(ref _totalErrorCount);
+                return result;
             }
             catch (NotSupportedException)
             {
@@ -509,12 +514,12 @@ namespace StackExchange.Redis.Server
             }
             catch (InvalidCastException)
             {
-                return RedisResult.Create("WRONGTYPE Operation against a key holding the wrong kind of value", ResultType.Error);
+                return TypedRedisValue.Error("WRONGTYPE Operation against a key holding the wrong kind of value");
             }
             catch (Exception ex)
             {
                 if (!_isShutdown) Log(ex.Message);
-                return RedisResult.Create("ERR " + ex.Message, ResultType.Error);
+                return TypedRedisValue.Error("ERR " + ex.Message);
             }
         }
 
@@ -525,39 +530,40 @@ namespace StackExchange.Redis.Server
             return val.ToLowerInvariant();
         }
 
-        protected static RedisResult CommandNotFound(string command)
-            => RedisResult.Create($"ERR unknown command '{command}'", ResultType.Error);
+        protected static TypedRedisValue CommandNotFound(string command)
+            => TypedRedisValue.Error($"ERR unknown command '{command}'");
 
         [RedisCommand(1, LockFree = true)]
-        protected virtual RedisResult Command(RedisClient client, RedisRequest request)
+        protected virtual TypedRedisValue Command(RedisClient client, RedisRequest request)
         {
-            var results = new RedisResult[_commands.Count];
+            var results = TypedRedisValue.Rent(_commands.Count);
             int index = 0;
             foreach (var pair in _commands)
                 results[index++] = CommandInfo(pair.Value);
-            return RedisResult.Create(results);
+            return results;
         }
 
         [RedisCommand(-2, "command", "info", LockFree = true)]
-        protected virtual RedisResult CommandInfo(RedisClient client, RedisRequest request)
+        protected virtual TypedRedisValue CommandInfo(RedisClient client, RedisRequest request)
         {
-            var results = new RedisResult[request.Count - 2];
+            var results = TypedRedisValue.Rent(request.Count - 2);
             for (int i = 2; i < request.Count; i++)
             {
                 results[i - 2] = _commands.TryGetValue(request.GetString(i), out var cmd)
-                    ? CommandInfo(cmd) : null;
+                    ? CommandInfo(cmd) : TypedRedisValue.NullArray;
             }
-            return RedisResult.Create(results);
+            return results;
         }
-        private RedisResult CommandInfo(RespCommand command)
-            => RedisResult.Create(new[]
-            {
-                RedisResult.Create(command.Command, ResultType.BulkString),
-                RedisResult.Create(command.NetArity(), ResultType.Integer),
-                RedisResult.EmptyArray,
-                RedisResult.Zero,
-                RedisResult.Zero,
-                RedisResult.Zero,
-            });
+        private TypedRedisValue CommandInfo(RespCommand command)
+        {
+            var arr = TypedRedisValue.Rent(6);
+            arr[0] = TypedRedisValue.BulkString(command.Command);
+            arr[1] = TypedRedisValue.Integer(command.NetArity());
+            arr[2] = TypedRedisValue.EmptyArray;
+            arr[3] = TypedRedisValue.Zero;
+            arr[4] = TypedRedisValue.Zero;
+            arr[5] = TypedRedisValue.Zero;
+            return arr;
+        }
     }
 }

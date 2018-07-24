@@ -110,7 +110,8 @@ namespace StackExchange.Redis.Server
 
         [MethodImpl(MethodImplOptions.NoInlining)]
         static void ThrowArgumentOutOfRangeException() => throw new ArgumentOutOfRangeException();
-        protected override void LRange(int database, RedisKey key, long start, RedisValue[] arr)
+        
+        protected override void LRange(int database, RedisKey key, long start, Span<TypedRedisValue> arr)
         {
             var stack = GetStack(key, false);
 
@@ -123,7 +124,7 @@ namespace StackExchange.Redis.Server
                 for (int i = 0; i < arr.Length; i++)
                 {
                     if (!iter.MoveNext()) ThrowArgumentOutOfRangeException();
-                    arr[i] = iter.Current;
+                    arr[i] = TypedRedisValue.BulkString(iter.Current);
                 }
             }
         }

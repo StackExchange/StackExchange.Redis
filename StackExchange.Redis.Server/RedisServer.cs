@@ -42,7 +42,7 @@ namespace StackExchange.Redis.Server
         public int Databases { get; }
 
         [RedisCommand(-3)]
-        protected virtual RedisResult Sadd(RedisClient client, RedisRequest request)
+        protected virtual TypedRedisValue Sadd(RedisClient client, RedisRequest request)
         {
             int added = 0;
             var key = request.GetKey(1);
@@ -51,12 +51,12 @@ namespace StackExchange.Redis.Server
                 if (Sadd(client.Database, key, request.GetValue(i)))
                     added++;
             }
-            return RedisResult.Create(added, ResultType.Integer);
+            return TypedRedisValue.Integer(added);
         }
         protected virtual bool Sadd(int database, RedisKey key, RedisValue value) => throw new NotSupportedException();
 
         [RedisCommand(-3)]
-        protected virtual RedisResult Srem(RedisClient client, RedisRequest request)
+        protected virtual TypedRedisValue Srem(RedisClient client, RedisRequest request)
         {
             int removed = 0;
             var key = request.GetKey(1);
@@ -65,55 +65,55 @@ namespace StackExchange.Redis.Server
                 if (Srem(client.Database, key, request.GetValue(i)))
                     removed++;
             }
-            return RedisResult.Create(removed, ResultType.Integer);
+            return TypedRedisValue.Integer(removed);
         }
         protected virtual bool Srem(int database, RedisKey key, RedisValue value) => throw new NotSupportedException();
 
         [RedisCommand(2)]
-        protected virtual RedisResult Spop(RedisClient client, RedisRequest request)
-            => RedisResult.Create(Spop(client.Database, request.GetKey(1)), ResultType.BulkString);
+        protected virtual TypedRedisValue Spop(RedisClient client, RedisRequest request)
+            => TypedRedisValue.BulkString(Spop(client.Database, request.GetKey(1)));
 
         protected virtual RedisValue Spop(int database, RedisKey key) => throw new NotSupportedException();
 
         [RedisCommand(2)]
-        protected virtual RedisResult Scard(RedisClient client, RedisRequest request)
-            => RedisResult.Create(Scard(client.Database, request.GetKey(1)), ResultType.Integer);
+        protected virtual TypedRedisValue Scard(RedisClient client, RedisRequest request)
+            => TypedRedisValue.Integer(Scard(client.Database, request.GetKey(1)));
 
         protected virtual long Scard(int database, RedisKey key) => throw new NotSupportedException();
 
         [RedisCommand(3)]
-        protected virtual RedisResult Sismember(RedisClient client, RedisRequest request)
-            => Sismember(client.Database, request.GetKey(1), request.GetValue(2)) ? RedisResult.One : RedisResult.Zero;
+        protected virtual TypedRedisValue Sismember(RedisClient client, RedisRequest request)
+            => Sismember(client.Database, request.GetKey(1), request.GetValue(2)) ? TypedRedisValue.One : TypedRedisValue.Zero;
 
         protected virtual bool Sismember(int database, RedisKey key, RedisValue value) => throw new NotSupportedException();
 
         [RedisCommand(3, "client", "setname", LockFree = true)]
-        protected virtual RedisResult ClientSetname(RedisClient client, RedisRequest request)
+        protected virtual TypedRedisValue ClientSetname(RedisClient client, RedisRequest request)
         {
             client.Name = request.GetString(2);
-            return RedisResult.OK;
+            return TypedRedisValue.OK;
         }
 
         [RedisCommand(2, "client", "getname", LockFree = true)]
-        protected virtual RedisResult ClientGetname(RedisClient client, RedisRequest request)
-            => RedisResult.Create(client.Name, ResultType.BulkString);
+        protected virtual TypedRedisValue ClientGetname(RedisClient client, RedisRequest request)
+            => TypedRedisValue.BulkString(client.Name);
 
         [RedisCommand(3, "client", "reply", LockFree = true)]
-        protected virtual RedisResult ClientReply(RedisClient client, RedisRequest request)
+        protected virtual TypedRedisValue ClientReply(RedisClient client, RedisRequest request)
         {
             if (request.IsString(2, "on")) client.SkipReplies = -1; // reply to nothing
             else if (request.IsString(2, "off")) client.SkipReplies = 0; // reply to everything
             else if (request.IsString(2, "skip")) client.SkipReplies = 2; // this one, and the next one
-            else return RedisResult.Create("ERR syntax error", ResultType.Error);
-            return RedisResult.OK;
+            else return TypedRedisValue.Error("ERR syntax error");
+            return TypedRedisValue.OK;
         }
 
         [RedisCommand(-1)]
-        protected virtual RedisResult Cluster(RedisClient client, RedisRequest request)
+        protected virtual TypedRedisValue Cluster(RedisClient client, RedisRequest request)
             => CommandNotFound(request.Command);
 
         [RedisCommand(-3)]
-        protected virtual RedisResult Lpush(RedisClient client, RedisRequest request)
+        protected virtual TypedRedisValue Lpush(RedisClient client, RedisRequest request)
         {
             var key = request.GetKey(1);
             long length = -1;
@@ -121,11 +121,11 @@ namespace StackExchange.Redis.Server
             {
                 length = Lpush(client.Database, key, request.GetValue(i));
             }
-            return RedisResult.Create(length, ResultType.Integer);
+            return TypedRedisValue.Integer(length);
         }
 
         [RedisCommand(-3)]
-        protected virtual RedisResult Rpush(RedisClient client, RedisRequest request)
+        protected virtual TypedRedisValue Rpush(RedisClient client, RedisRequest request)
         {
             var key = request.GetKey(1);
             long length = -1;
@@ -133,20 +133,20 @@ namespace StackExchange.Redis.Server
             {
                 length = Rpush(client.Database, key, request.GetValue(i));
             }
-            return RedisResult.Create(length, ResultType.Integer);
+            return TypedRedisValue.Integer(length);
         }
 
         [RedisCommand(2)]
-        protected virtual RedisResult Lpop(RedisClient client, RedisRequest request)
-            => RedisResult.Create(Lpop(client.Database, request.GetKey(1)), ResultType.BulkString);
+        protected virtual TypedRedisValue Lpop(RedisClient client, RedisRequest request)
+            => TypedRedisValue.BulkString(Lpop(client.Database, request.GetKey(1)));
 
         [RedisCommand(2)]
-        protected virtual RedisResult Rpop(RedisClient client, RedisRequest request)
-            => RedisResult.Create(Rpop(client.Database, request.GetKey(1)), ResultType.BulkString);
+        protected virtual TypedRedisValue Rpop(RedisClient client, RedisRequest request)
+            => TypedRedisValue.BulkString(Rpop(client.Database, request.GetKey(1)));
 
         [RedisCommand(2)]
-        protected virtual RedisResult Llen(RedisClient client, RedisRequest request)
-            => RedisResult.Create(Llen(client.Database, request.GetKey(1)), ResultType.Integer);
+        protected virtual TypedRedisValue Llen(RedisClient client, RedisRequest request)
+            => TypedRedisValue.Integer(Llen(client.Database, request.GetKey(1)));
 
         protected virtual long Lpush(int database, RedisKey key, RedisValue value) => throw new NotSupportedException();
         protected virtual long Rpush(int database, RedisKey key, RedisValue value) => throw new NotSupportedException();
@@ -155,18 +155,18 @@ namespace StackExchange.Redis.Server
         protected virtual RedisValue Lpop(int database, RedisKey key) => throw new NotSupportedException();
 
         [RedisCommand(4)]
-        protected virtual RedisResult LRange(RedisClient client, RedisRequest request)
+        protected virtual TypedRedisValue LRange(RedisClient client, RedisRequest request)
         {
             var key = request.GetKey(1);
             long start = request.GetInt64(2), stop = request.GetInt64(3);
 
             var len = Llen(client.Database, key);
-            if (len == 0) return RedisResult.EmptyArray;
+            if (len == 0) return TypedRedisValue.EmptyArray;
 
             if (start < 0) start = len + start;
             if (stop < 0) stop = len + stop;
 
-            if (stop < 0 || start >= len || stop < start) return RedisResult.EmptyArray;
+            if (stop < 0 || start >= len || stop < start) return TypedRedisValue.EmptyArray;
 
             if (start < 0) start = 0;
             else if (start >= len) start = len - 1;
@@ -174,11 +174,11 @@ namespace StackExchange.Redis.Server
             if (stop < 0) stop = 0;
             else if (stop >= len) stop = len - 1;
 
-            var arr = new RedisValue[(stop - start) + 1];
-            LRange(client.Database, key, start, arr);
-            return RedisResult.Create(arr);
+            var arr = TypedRedisValue.Rent(checked((int)((stop - start) + 1)));
+            LRange(client.Database, key, start, arr.MutableSpan);
+            return arr;
         }
-        protected virtual void LRange(int database, RedisKey key, long start, RedisValue[] arr) => throw new NotSupportedException();
+        protected virtual void LRange(int database, RedisKey key, long start, Span<TypedRedisValue> arr) => throw new NotSupportedException();
 
         protected virtual void OnUpdateServerConfiguration() { }
         protected RedisConfig ServerConfiguration { get; } = RedisConfig.Create();
@@ -212,35 +212,35 @@ namespace StackExchange.Redis.Server
             }
         }
         [RedisCommand(3, "config", "get", LockFree = true)]
-        protected virtual RedisResult Config(RedisClient client, RedisRequest request)
+        protected virtual TypedRedisValue Config(RedisClient client, RedisRequest request)
         {
             var pattern = request.GetString(2);
 
             OnUpdateServerConfiguration();
             var config = ServerConfiguration;
             var matches = config.CountMatch(pattern);
-            if (matches == 0) return RedisResult.Create(Array.Empty<RedisResult>());
+            if (matches == 0) return TypedRedisValue.EmptyArray;
 
-            var arr = new RedisResult[2 * matches];
+            var arr = TypedRedisValue.Rent(2 * matches);
             int index = 0;
             foreach (var pair in config.Wrapped)
             {
                 if (IsMatch(pattern, pair.Key))
                 {
-                    arr[index++] = RedisResult.Create(pair.Key, ResultType.BulkString);
-                    arr[index++] = RedisResult.Create(pair.Value, ResultType.BulkString);
+                    arr[index++] = TypedRedisValue.BulkString(pair.Key);
+                    arr[index++] = TypedRedisValue.BulkString(pair.Value);
                 }
             }
             if (index != arr.Length) throw new InvalidOperationException("Configuration CountMatch fail");
-            return RedisResult.Create(arr);
+            return arr;
         }
 
         [RedisCommand(2, LockFree = true)]
-        protected virtual RedisResult Echo(RedisClient client, RedisRequest request)
-            => request.GetResult(1);
+        protected virtual TypedRedisValue Echo(RedisClient client, RedisRequest request)
+            => TypedRedisValue.BulkString(request.GetValue(1));
 
         [RedisCommand(2)]
-        protected virtual RedisResult Exists(RedisClient client, RedisRequest request)
+        protected virtual TypedRedisValue Exists(RedisClient client, RedisRequest request)
         {
             int count = 0;
             var db = client.Database;
@@ -249,7 +249,7 @@ namespace StackExchange.Redis.Server
                 if (Exists(db, request.GetKey(i)))
                     count++;
             }
-            return RedisResult.Create(count, ResultType.Integer);
+            return TypedRedisValue.Integer(count);
         }
 
         protected virtual bool Exists(int database, RedisKey key)
@@ -262,32 +262,32 @@ namespace StackExchange.Redis.Server
         }
 
         [RedisCommand(2)]
-        protected virtual RedisResult Get(RedisClient client, RedisRequest request)
-            => RedisResult.Create(Get(client.Database, request.GetKey(1)), ResultType.BulkString);
+        protected virtual TypedRedisValue Get(RedisClient client, RedisRequest request)
+            => TypedRedisValue.BulkString(Get(client.Database, request.GetKey(1)));
 
         protected virtual RedisValue Get(int database, RedisKey key) => throw new NotSupportedException();
 
         [RedisCommand(3)]
-        protected virtual RedisResult Set(RedisClient client, RedisRequest request)
+        protected virtual TypedRedisValue Set(RedisClient client, RedisRequest request)
         {
             Set(client.Database, request.GetKey(1), request.GetValue(2));
-            return RedisResult.OK;
+            return TypedRedisValue.OK;
         }
         protected virtual void Set(int database, RedisKey key, RedisValue value) => throw new NotSupportedException();
         [RedisCommand(1)]
-        protected new virtual RedisResult Shutdown(RedisClient client, RedisRequest request)
+        protected new virtual TypedRedisValue Shutdown(RedisClient client, RedisRequest request)
         {
             DoShutdown();
-            return RedisResult.OK;
+            return TypedRedisValue.OK;
         }
         [RedisCommand(2)]
-        protected virtual RedisResult Strlen(RedisClient client, RedisRequest request)
-            => RedisResult.Create(Strlen(client.Database, request.GetKey(1)), ResultType.Integer);
+        protected virtual TypedRedisValue Strlen(RedisClient client, RedisRequest request)
+            => TypedRedisValue.Integer(Strlen(client.Database, request.GetKey(1)));
 
         protected virtual long Strlen(int database, RedisKey key) => Get(database, key).Length();
 
         [RedisCommand(-2)]
-        protected virtual RedisResult Del(RedisClient client, RedisRequest request)
+        protected virtual TypedRedisValue Del(RedisClient client, RedisRequest request)
         {
             int count = 0;
             for (int i = 1; i < request.Count; i++)
@@ -295,40 +295,40 @@ namespace StackExchange.Redis.Server
                 if (Del(client.Database, request.GetKey(i)))
                     count++;
             }
-            return RedisResult.Create(count, ResultType.Integer);
+            return TypedRedisValue.Integer(count);
         }
         protected virtual bool Del(int database, RedisKey key) => throw new NotSupportedException();
 
         [RedisCommand(1)]
-        protected virtual RedisResult Dbsize(RedisClient client, RedisRequest request)
-            => RedisResult.Create(Dbsize(client.Database), ResultType.Integer);
+        protected virtual TypedRedisValue Dbsize(RedisClient client, RedisRequest request)
+            => TypedRedisValue.Integer(Dbsize(client.Database));
 
         protected virtual long Dbsize(int database) => throw new NotSupportedException();
 
         [RedisCommand(1)]
-        protected virtual RedisResult Flushall(RedisClient client, RedisRequest request)
+        protected virtual TypedRedisValue Flushall(RedisClient client, RedisRequest request)
         {
             var count = Databases;
             for (int i = 0; i < count; i++)
             {
                 Flushdb(i);
             }
-            return RedisResult.OK;
+            return TypedRedisValue.OK;
         }
 
         [RedisCommand(1)]
-        protected virtual RedisResult Flushdb(RedisClient client, RedisRequest request)
+        protected virtual TypedRedisValue Flushdb(RedisClient client, RedisRequest request)
         {
             Flushdb(client.Database);
-            return RedisResult.OK;
+            return TypedRedisValue.OK;
         }
         protected virtual void Flushdb(int database) => throw new NotSupportedException();
 
         [RedisCommand(-1, LockFree = true, MaxArgs = 2)]
-        protected virtual RedisResult Info(RedisClient client, RedisRequest request)
+        protected virtual TypedRedisValue Info(RedisClient client, RedisRequest request)
         {
             var info = Info(request.Count == 1 ? null : request.GetString(1));
-            return RedisResult.Create(info, ResultType.BulkString);
+            return TypedRedisValue.BulkString(info);
         }
         protected virtual string Info(string selected)
         {
@@ -346,16 +346,16 @@ namespace StackExchange.Redis.Server
         }
 
         [RedisCommand(2)]
-        protected virtual RedisResult Keys(RedisClient client, RedisRequest request)
+        protected virtual TypedRedisValue Keys(RedisClient client, RedisRequest request)
         {
-            List<RedisResult> found = null;
+            List<TypedRedisValue> found = null;
             foreach (var key in Keys(client.Database, request.GetKey(1)))
             {
-                if (found == null) found = new List<RedisResult>();
-                found.Add(RedisResult.Create(key));
+                if (found == null) found = new List<TypedRedisValue>();
+                found.Add(TypedRedisValue.BulkString(key.AsRedisValue()));
             }
-            return RedisResult.Create(
-                found == null ? Array.Empty<RedisResult>() : found.ToArray());
+            if (found == null) return TypedRedisValue.EmptyArray;
+            return TypedRedisValue.MultiBulk(found.ToArray());
         }
         protected virtual IEnumerable<RedisKey> Keys(int database, RedisKey pattern) => throw new NotSupportedException();
 
@@ -401,25 +401,25 @@ namespace StackExchange.Redis.Server
             }
         }
         [RedisCommand(2, "memory", "purge")]
-        protected virtual RedisResult MemoryPurge(RedisClient client, RedisRequest request)
+        protected virtual TypedRedisValue MemoryPurge(RedisClient client, RedisRequest request)
         {
             GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced);
-            return RedisResult.OK;
+            return TypedRedisValue.OK;
         }
         [RedisCommand(-2)]
-        protected virtual RedisResult Mget(RedisClient client, RedisRequest request)
+        protected virtual TypedRedisValue Mget(RedisClient client, RedisRequest request)
         {
             int argCount = request.Count;
-            var arr = new RedisResult[argCount - 1];
+            var arr = TypedRedisValue.Rent(argCount - 1);
             var db = client.Database;
             for (int i = 1; i < argCount; i++)
             {
-                arr[i - 1] = RedisResult.Create(Get(db, request.GetKey(i)), ResultType.BulkString);
+                arr[i - 1] = TypedRedisValue.BulkString(Get(db, request.GetKey(i)));
             }
-            return RedisResult.Create(arr);
+            return arr;
         }
         [RedisCommand(-3)]
-        protected virtual RedisResult Mset(RedisClient client, RedisRequest request)
+        protected virtual TypedRedisValue Mset(RedisClient client, RedisRequest request)
         {
             int argCount = request.Count;
             var db = client.Database;
@@ -427,51 +427,50 @@ namespace StackExchange.Redis.Server
             {
                 Set(db, request.GetKey(i++), request.GetValue(i++));
             }
-            return RedisResult.OK;
+            return TypedRedisValue.OK;
         }
         [RedisCommand(-1, LockFree = true, MaxArgs = 2)]
-        protected virtual RedisResult Ping(RedisClient client, RedisRequest request)
-            => RedisResult.Create(request.Count == 1 ? "PONG" : request.GetString(1), ResultType.SimpleString);
+        protected virtual TypedRedisValue Ping(RedisClient client, RedisRequest request)
+            => TypedRedisValue.SimpleString(request.Count == 1 ? "PONG" : request.GetString(1));
 
         [RedisCommand(1, LockFree = true)]
-        protected virtual RedisResult Quit(RedisClient client, RedisRequest request)
+        protected virtual TypedRedisValue Quit(RedisClient client, RedisRequest request)
         {
             RemoveClient(client);
-            return RedisResult.OK;
+            return TypedRedisValue.OK;
         }
 
         [RedisCommand(1, LockFree = true)]
-        protected virtual RedisResult Role(RedisClient client, RedisRequest request)
+        protected virtual TypedRedisValue Role(RedisClient client, RedisRequest request)
         {
-            return RedisResult.Create(new[]
-            {
-                RedisResult.Create("master", ResultType.BulkString),
-                RedisResult.Create(0, ResultType.Integer),
-                RedisResult.Create(Array.Empty<RedisResult>())
-            });
+            var arr = TypedRedisValue.Rent(3);
+            arr[0] = TypedRedisValue.BulkString("master");
+            arr[1] = TypedRedisValue.Integer(0);
+            arr[2] = TypedRedisValue.EmptyArray;
+            return arr;
         }
 
         [RedisCommand(2, LockFree = true)]
-        protected virtual RedisResult Select(RedisClient client, RedisRequest request)
+        protected virtual TypedRedisValue Select(RedisClient client, RedisRequest request)
         {
             var raw = request.GetValue(1);
-            if (!raw.IsInteger) return RedisResult.Create("ERR invalid DB index", ResultType.Error);
+            if (!raw.IsInteger) return TypedRedisValue.Error("ERR invalid DB index");
             int db = (int)raw;
-            if (db < 0 || db >= Databases) return RedisResult.Create("ERR DB index is out of range", ResultType.Error);
+            if (db < 0 || db >= Databases) return TypedRedisValue.Error("ERR DB index is out of range");
             client.Database = db;
-            return RedisResult.OK;
+            return TypedRedisValue.OK;
         }
 
         [RedisCommand(-2)]
-        protected virtual RedisResult Subscribe(RedisClient client, RedisRequest request)
+        protected virtual TypedRedisValue Subscribe(RedisClient client, RedisRequest request)
             => SubscribeImpl(client, request);
         [RedisCommand(-2)]
-        protected virtual RedisResult Unsubscribe(RedisClient client, RedisRequest request)
+        protected virtual TypedRedisValue Unsubscribe(RedisClient client, RedisRequest request)
             => SubscribeImpl(client, request);
 
-        private RedisResult SubscribeImpl(RedisClient client, RedisRequest request)
+        private TypedRedisValue SubscribeImpl(RedisClient client, RedisRequest request)
         {
-            var reply = new RedisResult[3 * (request.Count - 1)];
+            var reply = TypedRedisValue.Rent(3 * (request.Count - 1));
             int index = 0;
             var mode = request.Command[0] == 'p' ? RedisChannel.PatternMode.Pattern : RedisChannel.PatternMode.Literal;
             for (int i = 1; i < request.Count; i++)
@@ -482,44 +481,46 @@ namespace StackExchange.Redis.Server
                 {
                     case "subscribe": count = client.Subscribe(channel); break;
                     case "unsubscribe": count = client.Unsubscribe(channel); break;
-                    default: return null;
+                    default:
+                        reply.Recycle(index);
+                        return TypedRedisValue.Nil;
                 }
-                reply[index++] = RedisResult.Create(request.Command, ResultType.BulkString);
-                reply[index++] = RedisResult.Create(channel);
-                reply[index++] = RedisResult.Create(count, ResultType.Integer);
+                reply[index++] = TypedRedisValue.BulkString(request.Command);
+                reply[index++] = TypedRedisValue.BulkString((byte[])channel);
+                reply[index++] = TypedRedisValue.Integer(count);
             }
-            return RedisResult.Create(reply);
+            return reply;
         }
         static readonly DateTime UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         [RedisCommand(1, LockFree = true)]
-        protected virtual RedisResult Time(RedisClient client, RedisRequest request)
+        protected virtual TypedRedisValue Time(RedisClient client, RedisRequest request)
         {
             var delta = Time() - UnixEpoch;
             var ticks = delta.Ticks;
             var seconds = ticks / TimeSpan.TicksPerSecond;
             var micros = (ticks % TimeSpan.TicksPerSecond) / (TimeSpan.TicksPerMillisecond / 1000);
-            return RedisResult.Create(new[] {
-                RedisResult.Create(seconds, ResultType.BulkString),
-                RedisResult.Create(micros, ResultType.BulkString),
-            });
+            var reply = TypedRedisValue.Rent(2);
+            reply[0] = TypedRedisValue.BulkString(seconds);
+            reply[1] = TypedRedisValue.BulkString(micros);
+            return reply;
         }
         protected virtual DateTime Time() => DateTime.UtcNow;
 
         [RedisCommand(-2)]
-        protected virtual RedisResult Unlink(RedisClient client, RedisRequest request)
+        protected virtual TypedRedisValue Unlink(RedisClient client, RedisRequest request)
             => Del(client, request);
 
         [RedisCommand(2)]
-        protected virtual RedisResult Incr(RedisClient client, RedisRequest request)
-            => RedisResult.Create(IncrBy(client.Database, request.GetKey(1), 1), ResultType.Integer);
+        protected virtual TypedRedisValue Incr(RedisClient client, RedisRequest request)
+            => TypedRedisValue.Integer(IncrBy(client.Database, request.GetKey(1), 1));
         [RedisCommand(2)]
-        protected virtual RedisResult Decr(RedisClient client, RedisRequest request)
-    => RedisResult.Create(IncrBy(client.Database, request.GetKey(1), -1), ResultType.Integer);
+        protected virtual TypedRedisValue Decr(RedisClient client, RedisRequest request)
+            => TypedRedisValue.Integer(IncrBy(client.Database, request.GetKey(1), -1));
 
         [RedisCommand(3)]
-        protected virtual RedisResult IncrBy(RedisClient client, RedisRequest request)
-            => RedisResult.Create(IncrBy(client.Database, request.GetKey(1), request.GetInt64(2)), ResultType.Integer);
+        protected virtual TypedRedisValue IncrBy(RedisClient client, RedisRequest request)
+            => TypedRedisValue.Integer(IncrBy(client.Database, request.GetKey(1), request.GetInt64(2)));
 
         protected virtual long IncrBy(int database, RedisKey key, long delta)
         {
