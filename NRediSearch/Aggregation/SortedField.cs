@@ -11,7 +11,7 @@ namespace NRediSearch.Aggregation
             Field = field;
             Order = order;
         }
-        
+
         public string Field { get; }
         public Order Order { get; }
 

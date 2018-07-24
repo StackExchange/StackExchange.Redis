@@ -15,7 +15,6 @@ namespace StackExchange.Redis
         /// <returns> new <see cref="RedisResult"/>.</returns>
         public static RedisResult Create(RedisValue value, ResultType? resultType = null) => new SingleRedisResult(value, resultType);
 
-
         /// <summary>
         /// Create a new RedisResult representing an array of values.
         /// </summary>
@@ -36,12 +35,12 @@ namespace StackExchange.Redis
         /// <summary>
         /// An empty array result
         /// </summary>
-        public static RedisResult EmptyArray { get; } = new ArrayRedisResult(Array.Empty<RedisResult>());
+        internal static RedisResult EmptyArray { get; } = new ArrayRedisResult(Array.Empty<RedisResult>());
 
         /// <summary>
         /// A null array result
         /// </summary>
-        public static RedisResult NullArray { get; } = new ArrayRedisResult(null);
+        internal static RedisResult NullArray { get; } = new ArrayRedisResult(null);
 
         // internally, this is very similar to RawResult, except it is designed to be usable
         // outside of the IO-processing pipeline: the buffers are standalone, etc
@@ -90,24 +89,7 @@ namespace StackExchange.Redis
         /// Indicates whether this result was a null result
         /// </summary>
         public abstract bool IsNull { get; }
-        /// <summary>
-        /// A successful result
-        /// </summary>
-        public static RedisResult OK { get; } = Create("OK", ResultType.SimpleString);
-        /// <summary>
-        /// An integer-zero result
-        /// </summary>
-        public static RedisResult Zero { get; } = Create(0, ResultType.Integer);
-        /// <summary>
-        /// An integer-one result
-        /// </summary>
-        public static RedisResult One { get; } = Create(1, ResultType.Integer);
-
-        /// <summary>
-        /// A null bulk-string result
-        /// </summary>
-        public static RedisResult Null { get; } = Create(RedisValue.Null, ResultType.BulkString);
-
+        
         /// <summary>
         /// Interprets the result as a <see cref="string"/>.
         /// </summary>
@@ -267,8 +249,8 @@ namespace StackExchange.Redis
                 : _value.Length == 0 ? Array.Empty<byte[]>()
                 : Array.ConvertAll(_value, x => x.AsByteArray());
 
-            private bool IsSingleton => _value != null && _value.Length == 1;
-            private bool IsEmpty => _value != null && _value.Length == 0;
+            private bool IsSingleton => _value?.Length == 1;
+            private bool IsEmpty => _value?.Length == 0;
             internal override double AsDouble()
             {
                 if (IsSingleton) return _value[0].AsDouble();
@@ -363,12 +345,15 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Create a RedisResult from a key
+        /// Create a <see cref="RedisResult"/> from a key.
         /// </summary>
+        /// <param name="key">The <see cref="RedisKey"/> to create a <see cref="RedisResult"/> from.</param>
         public static RedisResult Create(RedisKey key) => Create(key.AsRedisValue(), ResultType.BulkString);
+
         /// <summary>
-        /// Create a RedisResult from a channel
+        /// Create a <see cref="RedisResult"/> from a channel.
         /// </summary>
+        /// <param name="channel">The <see cref="RedisChannel"/> to create a <see cref="RedisResult"/> from.</param>
         public static RedisResult Create(RedisChannel channel) => Create((byte[])channel, ResultType.BulkString);
 
         private sealed class ErrorRedisResult : RedisResult

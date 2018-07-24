@@ -36,6 +36,5 @@ namespace StackExchange.Redis
         /// An array of consumers within the consumer group that have pending messages.
         /// </summary>
         public StreamConsumer[] Consumers { get; }
-
     }
 }

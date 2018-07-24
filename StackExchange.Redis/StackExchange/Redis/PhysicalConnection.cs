@@ -84,7 +84,7 @@ namespace StackExchange.Redis
             if (ChannelPrefix?.Length == 0) ChannelPrefix = null; // null tests are easier than null+empty
             var endpoint = bridge.ServerEndPoint.EndPoint;
             physicalName = connectionType + "#" + Interlocked.Increment(ref totalCount) + "@" + Format.ToString(endpoint);
-            
+
             OnCreateEcho();
         }
 
@@ -96,7 +96,6 @@ namespace StackExchange.Redis
             if(endpoint == null)
             {
                 log?.WriteLine("No endpoint");
-
             }
 
             Trace("Connecting...");
@@ -108,7 +107,7 @@ namespace StackExchange.Redis
             try
             {
                 var awaitable = new SocketAwaitable();
-                
+
                 using (var _socketArgs = new SocketAsyncEventArgs
                 {
                     UserToken = awaitable,
@@ -116,7 +115,7 @@ namespace StackExchange.Redis
                 })
                 {
                     _socketArgs.Completed += SocketAwaitable.Callback;
-                    
+
                     if (_socket.ConnectAsync(_socketArgs))
                     {   // asynchronous operation is pending
                         timeoutSource = ConfigureTimeout(_socketArgs, bridge.Multiplexer.RawConfig.ConnectTimeout);
@@ -223,14 +222,7 @@ namespace StackExchange.Redis
 
         public long LastWriteSecondsAgo => unchecked(Environment.TickCount - Thread.VolatileRead(ref lastWriteTickCount)) / 1000;
 
-        private bool IncludeDetailInExceptions
-        {
-            get
-            {
-                var bridge = BridgeCouldBeNull;
-                return bridge == null ? false : bridge.Multiplexer.IncludeDetailInExceptions;
-            }
-        }
+        private bool IncludeDetailInExceptions => BridgeCouldBeNull?.Multiplexer.IncludeDetailInExceptions ?? false;
 
         [Conditional("VERBOSE")]
         internal void Trace(string message) => BridgeCouldBeNull?.Multiplexer?.Trace(message, physicalName);
@@ -249,7 +241,6 @@ namespace StackExchange.Redis
             _ioPipe = null;
             _socket = null;
 
-
             if (ioPipe != null)
             {
                 Trace("Disconnecting...");
@@ -259,8 +250,8 @@ namespace StackExchange.Redis
                 try { ioPipe.Output?.Complete(); } catch { }
 
                 try { using (ioPipe as IDisposable) { } } catch { }
-            }            
-            
+            }
+
             if (socket != null)
             {
                 try { socket.Shutdown(SocketShutdown.Both); } catch { }
@@ -336,7 +327,7 @@ namespace StackExchange.Redis
                     var bridge = BridgeCouldBeNull;
                     if (bridge != null)
                     {
-                        exMessage.Append(" on " + Format.ToString(bridge.ServerEndPoint?.EndPoint) + "/" + connectionType);
+                        exMessage.Append(" on ").Append(Format.ToString(bridge.ServerEndPoint?.EndPoint)).Append("/").Append(connectionType);
 
                         data.Add(Tuple.Create("FailureType", failureType.ToString()));
                         data.Add(Tuple.Create("EndPoint", Format.ToString(bridge.ServerEndPoint?.EndPoint)));
@@ -533,12 +524,11 @@ namespace StackExchange.Redis
         {
             var now = Environment.TickCount;
             Interlocked.Exchange(ref lastBeatTickCount, now);
-            
+
             lock (_writtenAwaitingResponse)
             {
                 if (_writtenAwaitingResponse.Count != 0)
                 {
-                    
                     var bridge = BridgeCouldBeNull;
                     if (bridge == null) return;
 
@@ -579,9 +569,9 @@ namespace StackExchange.Redis
         internal void Write(RedisKey key)
         {
             var val = key.KeyValue;
-            if (val is string)
+            if (val is string s)
             {
-                WriteUnified(_ioPipe.Output, key.KeyPrefix, (string)val, outEncoder);
+                WriteUnified(_ioPipe.Output, key.KeyPrefix, s, outEncoder);
             }
             else
             {
@@ -923,7 +913,7 @@ namespace StackExchange.Redis
                 // ${total-len}\r\n         3 + MaxInt32TextLen
                 // {prefix}{value}\r\n
                 int encodedLength = Encoding.UTF8.GetByteCount(value),
-                    prefixLength = prefix == null ? 0 : prefix.Length,
+                    prefixLength = prefix?.Length ?? 0,
                     totalLength = prefixLength + encodedLength;
 
                 if (totalLength == 0)
@@ -1178,7 +1168,7 @@ namespace StackExchange.Redis
                 if (items.Length >= 3 && items[0].IsEqual(message))
                 {
                     // special-case the configuration change broadcasts (we don't keep that in the usual pub/sub registry)
-                    
+
                     var configChanged = muxer.ConfigurationChangedChannel;
                     if (configChanged != null && items[1].IsEqual(configChanged))
                     {
@@ -1271,7 +1261,7 @@ namespace StackExchange.Redis
                     // - so: only use that if we're making progress
                     if (!(allowSyncRead && input.TryRead(out var readResult)))
                     {
-                        readResult = await input.ReadAsync();
+                        readResult = await input.ReadAsync().ForAwait();
                     }
 
                     var buffer = readResult.Buffer;
@@ -1458,7 +1448,7 @@ namespace StackExchange.Redis
                     throw new InvalidOperationException("Unexpected response prefix: " + (char)prefix);
             }
         }
-        static RawResult ParseInlineProtocol(RawResult line)
+        private static RawResult ParseInlineProtocol(RawResult line)
         {
             if (!line.HasValue) return RawResult.Nil; // incomplete line
 
@@ -1472,7 +1462,5 @@ namespace StackExchange.Redis
             }
             return new RawResult(oversized, count);
         }
-
-
     }
 }

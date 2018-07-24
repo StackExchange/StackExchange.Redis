@@ -12,6 +12,24 @@ namespace StackExchange.Redis.Tests
     {
         public MassiveOps(ITestOutputHelper output) : base(output) { }
 
+        [Fact]
+        public async Task LongRunning()
+        {
+            var key = Me();
+            using (var conn = Create())
+            {
+                var db = conn.GetDatabase();
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.StringSet(key, "test value", flags: CommandFlags.FireAndForget);
+                for (var i = 0; i < 200; i++)
+                {
+                    var val = await db.StringGetAsync(key).ForAwait();
+                    Assert.Equal("test value", (string)val);
+                    await Task.Delay(50).ForAwait();
+                }
+            }
+        }
+
         [Theory]
         [InlineData(true)]
         [InlineData(false)]

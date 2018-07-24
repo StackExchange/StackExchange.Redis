@@ -945,7 +945,7 @@ namespace StackExchange.Redis
                     {
                         if (isDisposed) throw new ObjectDisposedException(ToString());
 
-                        server = new ServerEndPoint(this, endpoint, log);
+                        server = new ServerEndPoint(this, endpoint);
                         servers.Add(endpoint, server);
                         isNew = true;
                         _serverSnapshot = _serverSnapshot.Add(server);
@@ -991,7 +991,6 @@ namespace StackExchange.Redis
 
         partial void OnCreateReaderWriter(ConfigurationOptions configuration);
 
-
         internal const int MillisecondsPerHeartbeat = 1000;
         private sealed class TimerToken
         {
@@ -1020,7 +1019,6 @@ namespace StackExchange.Redis
                 }
             };
 
-            
             internal static IDisposable Create(ConnectionMultiplexer connection)
             {
                 var token = new TimerToken(connection);
@@ -1029,8 +1027,6 @@ namespace StackExchange.Redis
                 return timer;
             }
         }
-
-
 
         private int _activeHeartbeatErrors;
         private void OnHeartbeat()

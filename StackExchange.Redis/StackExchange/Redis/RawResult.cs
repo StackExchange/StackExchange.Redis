@@ -89,8 +89,8 @@ namespace StackExchange.Redis
             // specifically; the line: abc    "def ghi" jkl
             // is 3 tokens: "abc", "def ghi" and "jkl"
             public Tokenizer GetEnumerator() => this;
-            BufferReader _value;
-            
+            private BufferReader _value;
+
             public Tokenizer(ReadOnlySequence<byte> value)
             {
                 _value = new BufferReader(value);
@@ -116,7 +116,7 @@ namespace StackExchange.Redis
                         _value.Consume(1);
                         break;
                 }
-                   
+
                 int end = BufferReader.FindNext(_value, terminator);
                 if (end < 0)
                 {
@@ -128,10 +128,8 @@ namespace StackExchange.Redis
                     _value.Consume(1); // drop the terminator itself;
                 }
                 return true;
-
             }
             public ReadOnlySequence<byte> Current { get; private set; }
-
         }
         internal RedisChannel AsRedisChannel(byte[] channelPrefix, RedisChannel.PatternMode mode)
         {

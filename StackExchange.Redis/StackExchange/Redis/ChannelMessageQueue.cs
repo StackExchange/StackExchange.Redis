@@ -21,9 +21,11 @@ namespace StackExchange.Redis
         /// See Object.GetHashCode
         /// </summary>
         public override int GetHashCode() => Channel.GetHashCode() ^ Message.GetHashCode();
+
         /// <summary>
         /// See Object.Equals
         /// </summary>
+        /// <param name="obj">The <see cref="object"/> to compare.</param>
         public override bool Equals(object obj) => obj is ChannelMessage cm
             && cm.Channel == Channel && cm.Message == Message;
         internal ChannelMessage(ChannelMessageQueue queue, RedisChannel channel, RedisValue value)
@@ -47,7 +49,6 @@ namespace StackExchange.Redis
         /// </summary>
         public RedisValue Message { get; }
     }
-
 
     /// <summary>
     /// Represents a message queue of ordered pub/sub notifications
@@ -80,7 +81,7 @@ namespace StackExchange.Redis
             _queue.Reader.Completion.ContinueWith(
                 (t, state) => ((ChannelMessageQueue)state).IsCompleted = true, this, TaskContinuationOptions.ExecuteSynchronously);
         }
-        static readonly UnboundedChannelOptions s_ChannelOptions = new UnboundedChannelOptions
+        private static readonly UnboundedChannelOptions s_ChannelOptions = new UnboundedChannelOptions
         {
             SingleWriter = true,
             SingleReader = false,
@@ -102,21 +103,23 @@ namespace StackExchange.Redis
             }
         }
 
-
         /// <summary>
-        /// Consume a message from the channel
+        /// Consume a message from the channel.
         /// </summary>
+        /// <param name="cancellationToken">The <see cref="CancellationToken"/> to use.</param>
         public ValueTask<ChannelMessage> ReadAsync(CancellationToken cancellationToken = default)
             => _queue.Reader.ReadAsync(cancellationToken);
 
         /// <summary>
-        /// Attempt to synchronously consume a message from the channel
+        /// Attempt to synchronously consume a message from the channel.
         /// </summary>
+        /// <param name="item">The <see cref="ChannelMessage"/> read from the Channel.</param>
         public bool TryRead(out ChannelMessage item) => _queue.Reader.TryRead(out item);
 
         /// <summary>
-        /// Attempt to query the backlog length of the queue
+        /// Attempt to query the backlog length of the queue.
         /// </summary>
+        /// <param name="count">The (approximate) count of items in the Channel.</param>
         public bool TryGetCount(out int count)
         {
             // get this using the reflection
@@ -141,9 +144,11 @@ namespace StackExchange.Redis
             if (Interlocked.CompareExchange(ref _onMessageHandler, handler, null) != null)
                 throw new InvalidOperationException("Only a single " + nameof(OnMessage) + " is allowed");
         }
+
         /// <summary>
-        /// Create a message loop that processes messages sequentially
+        /// Create a message loop that processes messages sequentially.
         /// </summary>
+        /// <param name="handler">The handler to run when receiving a message.</param>
         public void OnMessage(Action<ChannelMessage> handler)
         {
             AssertOnMessage(handler);
@@ -170,8 +175,9 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Create a message loop that processes messages sequentially
+        /// Create a message loop that processes messages sequentially.
         /// </summary>
+        /// <param name="handler">The handler to execute when receiving a message.</param>
         public void OnMessage(Func<ChannelMessage, Task> handler)
         {
             AssertOnMessage(handler);
@@ -226,7 +232,7 @@ namespace StackExchange.Redis
         {
             try
             {
-                return handler != null && handler.Target is ChannelMessageQueue
+                return handler?.Target is ChannelMessageQueue
                     && handler.Method.Name == nameof(HandleMessage);
             }
             catch
@@ -236,12 +242,15 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Stop receiving messages on this channel
+        /// Stop receiving messages on this channel.
         /// </summary>
+        /// <param name="flags">The flags to use when unsubscribing.</param>
         public void Unsubscribe(CommandFlags flags = CommandFlags.None) => UnsubscribeImpl(null, flags);
+
         /// <summary>
-        /// Stop receiving messages on this channel
+        /// Stop receiving messages on this channel.
         /// </summary>
+        /// <param name="flags">The flags to use when unsubscribing.</param>
         public Task UnsubscribeAsync(CommandFlags flags = CommandFlags.None) => UnsubscribeAsyncImpl(null, flags);
     }
 }

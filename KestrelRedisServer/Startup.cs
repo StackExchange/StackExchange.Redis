@@ -19,8 +19,20 @@ namespace KestrelRedisServer
         public void Dispose() => _server.Dispose();
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IHostingEnvironment env)
+        public void Configure(IApplicationBuilder app, IHostingEnvironment env, IApplicationLifetime lifetime)
         {
+            _server.Shutdown.ContinueWith((t, s) =>
+            {
+                try
+                {   // if the resp server is shutdown by a client: stop the kestrel server too
+                    if (t.Result == RespServer.ShutdownReason.ClientInitiated)
+                    {
+                        ((IApplicationLifetime)s).StopApplication();
+                    }
+                }
+                catch { }
+            }, lifetime);
+
             if (env.IsDevelopment()) app.UseDeveloperExceptionPage();
             app.Run(context => context.Response.WriteAsync(_server.GetStats()));
         }

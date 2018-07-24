@@ -74,6 +74,7 @@ namespace StackExchange.Redis
         /// calling context; the implementing code is responsible for reliably resolving the same provider
         /// based on ambient context, or returning null to not profile
         /// </summary>
+        /// <param name="profilingSessionProvider">The profiling session provider.</param>
         void RegisterProfiler(Func<ProfilingSession> profilingSessionProvider);
 
         /// <summary>
@@ -259,10 +260,10 @@ namespace StackExchange.Redis
         /// <returns>The number of instances known to have received the message (however, the actual number can be higher)</returns>
         Task<long> PublishReconfigureAsync(CommandFlags flags = CommandFlags.None);
 
-
         /// <summary>
         /// Get the hash-slot associated with a given key, if applicable; this can be useful for grouping operations
         /// </summary>
+        /// <param name="key">The key to get a the slot for.</param>
         int GetHashSlot(RedisKey key);
     }
 }
