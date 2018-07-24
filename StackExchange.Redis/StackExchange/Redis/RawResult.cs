@@ -180,7 +180,7 @@ namespace StackExchange.Redis
             throw new InvalidCastException("Cannot convert to RedisValue: " + Type);
         }
 
-        public void Recycle(int limit = -1)
+        internal void Recycle(int limit = -1)
         {
             var arr = _itemsOversized;
             if (arr != null)

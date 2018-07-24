@@ -37,7 +37,7 @@ namespace StackExchange.Redis.Server
             => new RedisRequest(_inner, Count, command);
 
         
-        public void Recycle() => _inner.Recycle();
+        internal void Recycle() => _inner.Recycle();
 
         public RedisValue GetValue(int index)
             => _inner[index].AsRedisValue();
