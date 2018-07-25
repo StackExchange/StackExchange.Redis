@@ -290,22 +290,7 @@ namespace StackExchange.Redis.Server
             }
         }
 
-        static Encoder s_sharedEncoder; // swapped in/out to avoid alloc on the public WriteResponse API
-        public static ValueTask WriteResponseAsync(RedisClient client, PipeWriter output, TypedRedisValue value)
-        {
-            async ValueTask Awaited(ValueTask wwrite, Encoder eenc)
-            {
-                await wwrite;
-                Interlocked.Exchange(ref s_sharedEncoder, eenc);
-            }
-            var enc = Interlocked.Exchange(ref s_sharedEncoder, null) ?? Encoding.UTF8.GetEncoder();
-            var write = WriteResponseAsync(client, output, value, enc);
-            if (!write.IsCompletedSuccessfully) return Awaited(write, enc);
-            Interlocked.Exchange(ref s_sharedEncoder, enc);
-            return default;
-        }
-
-        internal static async ValueTask WriteResponseAsync(RedisClient client, PipeWriter output, TypedRedisValue value, Encoder encoder)
+        public static async ValueTask WriteResponseAsync(RedisClient client, PipeWriter output, TypedRedisValue value)
         {
             void WritePrefix(PipeWriter ooutput, char pprefix)
             {
@@ -331,11 +316,11 @@ namespace StackExchange.Redis.Server
                     WritePrefix(output, prefix);
                     var val = (string)value.AsRedisValue();
                     var expectedLength = Encoding.UTF8.GetByteCount(val);
-                    PhysicalConnection.WriteRaw(output, val, expectedLength, encoder);
+                    PhysicalConnection.WriteRaw(output, val, expectedLength);
                     PhysicalConnection.WriteCrlf(output);
                     break;
                 case ResultType.BulkString:
-                    PhysicalConnection.WriteBulkString(value.AsRedisValue(), output, encoder);
+                    PhysicalConnection.WriteBulkString(value.AsRedisValue(), output);
                     break;
                 case ResultType.MultiBulk:
                     if (value.IsNullArray)
@@ -355,7 +340,7 @@ namespace StackExchange.Redis.Server
                                 throw new InvalidOperationException("Array element cannot be nil, index " + i);
 
                             // note: don't pass client down; this would impact SkipReplies
-                            await WriteResponseAsync(null, output, item, encoder);
+                            await WriteResponseAsync(null, output, item);
                         }
                     }
                     break;

@@ -571,7 +571,7 @@ namespace StackExchange.Redis
             var val = key.KeyValue;
             if (val is string s)
             {
-                WriteUnifiedPrefixedString(_ioPipe.Output, key.KeyPrefix, s, outEncoder);
+                WriteUnifiedPrefixedString(_ioPipe.Output, key.KeyPrefix, s);
             }
             else
             {
@@ -584,8 +584,8 @@ namespace StackExchange.Redis
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal void WriteBulkString(RedisValue value)
-            => WriteBulkString(value, _ioPipe.Output, outEncoder);
-        internal static void WriteBulkString(RedisValue value, PipeWriter output, Encoder outEncoder)
+            => WriteBulkString(value, _ioPipe.Output);
+        internal static void WriteBulkString(RedisValue value, PipeWriter output)
         {
             switch (value.Type)
             {
@@ -597,7 +597,7 @@ namespace StackExchange.Redis
                     break;
                 case RedisValue.StorageType.Double: // use string
                 case RedisValue.StorageType.String:
-                    WriteUnifiedPrefixedString(output, null, (string)value, outEncoder);
+                    WriteUnifiedPrefixedString(output, null, (string)value);
                     break;
                 case RedisValue.StorageType.Raw:
                     WriteUnifiedSpan(output, ((ReadOnlyMemory<byte>)value).Span);
@@ -901,7 +901,7 @@ namespace StackExchange.Redis
             return value < 10 ? (byte)('0' + value) : (byte)('a' - 10 + value);
         }
 
-        internal static void WriteUnifiedPrefixedString(PipeWriter writer, byte[] prefix, string value, Encoder outEncoder)
+        internal static void WriteUnifiedPrefixedString(PipeWriter writer, byte[] prefix, string value)
         {
             if (value == null)
             {
@@ -929,13 +929,29 @@ namespace StackExchange.Redis
                     writer.Advance(bytes);
 
                     if (prefixLength != 0) writer.Write(prefix);
-                    if (encodedLength != 0) WriteRaw(writer, value, encodedLength, outEncoder);
+                    if (encodedLength != 0) WriteRaw(writer, value, encodedLength);
                     WriteCrlf(writer);
                 }
             }
         }
 
-        unsafe static internal void WriteRaw(PipeWriter writer, string value, int expectedLength, Encoder outEncoder)
+        [ThreadStatic]
+        static Encoder s_PerThreadEncoder;
+        static Encoder GetPerThreadEncoder()
+        {
+            var encoder = s_PerThreadEncoder;
+            if(encoder == null)
+            {
+                s_PerThreadEncoder = encoder = Encoding.UTF8.GetEncoder();
+            }
+            else
+            {
+                encoder.Reset();
+            }
+            return encoder;
+        }
+
+        unsafe static internal void WriteRaw(PipeWriter writer, string value, int expectedLength)
         {
             const int MaxQuickEncodeSize = 512;
 
@@ -955,7 +971,7 @@ namespace StackExchange.Redis
                 else
                 {
                     // use an encoder in a loop
-                    outEncoder.Reset();
+                    var encoder = GetPerThreadEncoder();
                     int charsRemaining = value.Length, charOffset = 0;
                     totalBytes = 0;
 
@@ -968,7 +984,7 @@ namespace StackExchange.Redis
                         bool completed;
                         fixed (byte* bPtr = &MemoryMarshal.GetReference(span))
                         {
-                            outEncoder.Convert(cPtr + charOffset, charsRemaining, bPtr, span.Length, final, out charsUsed, out bytesUsed, out completed);
+                            encoder.Convert(cPtr + charOffset, charsRemaining, bPtr, span.Length, final, out charsUsed, out bytesUsed, out completed);
                         }
                         writer.Advance(bytesUsed);
                         totalBytes += bytesUsed;
@@ -987,9 +1003,7 @@ namespace StackExchange.Redis
                 if (totalBytes != expectedLength) throw new InvalidOperationException("String encode length check failure");
             }
         }
-
-        private readonly Encoder outEncoder = Encoding.UTF8.GetEncoder();
-
+        
         private static void WriteUnifiedPrefixedBlob(PipeWriter writer, byte[] prefix, byte[] value)
         {
             // ${total-len}\r\n 
