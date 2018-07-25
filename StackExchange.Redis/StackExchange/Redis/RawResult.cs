@@ -108,7 +108,7 @@ namespace StackExchange.Redis
                 var first = _value.PeekByte();
                 if (first < 0) return false; // EOF
 
-                switch (_value.PeekByte())
+                switch (first)
                 {
                     case (byte)'"':
                     case (byte)'\'':
