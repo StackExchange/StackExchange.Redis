@@ -132,8 +132,7 @@ namespace StackExchange.Redis
         }
         internal void Recycle(int limit = -1)
         {
-            var arr = _value.DirectObject as TypedRedisValue[];
-            if (arr != null)
+            if (_value.DirectObject is TypedRedisValue[] arr)
             {
                 if (limit < 0) limit = (int)_value.DirectInt64;
                 for (int i = 0; i < limit; i++)

@@ -110,7 +110,7 @@ namespace StackExchange.Redis.Server
 
         [RedisCommand(-1)]
         protected virtual TypedRedisValue Cluster(RedisClient client, RedisRequest request)
-            => CommandNotFound(request.Command);
+            => request.CommandNotFound();
 
         [RedisCommand(-3)]
         protected virtual TypedRedisValue Lpush(RedisClient client, RedisRequest request)
@@ -476,25 +476,35 @@ namespace StackExchange.Redis.Server
         {
             var reply = TypedRedisValue.Rent(3 * (request.Count - 1), out var span);
             int index = 0;
-            var mode = request.Command[0] == 'p' ? RedisChannel.PatternMode.Pattern : RedisChannel.PatternMode.Literal;
+            request.TryGetCommandBytes(0, out var cmd);
+            var cmdString = TypedRedisValue.BulkString(cmd.ToArray());
+            var mode = cmd[0] == (byte)'p' ? RedisChannel.PatternMode.Pattern : RedisChannel.PatternMode.Literal;
             for (int i = 1; i < request.Count; i++)
             {
                 var channel = request.GetChannel(i, mode);
                 int count;
-                switch (request.Command)
+                if (s_Subscribe.Equals(cmd))
                 {
-                    case "subscribe": count = client.Subscribe(channel); break;
-                    case "unsubscribe": count = client.Unsubscribe(channel); break;
-                    default:
-                        reply.Recycle(index);
-                        return TypedRedisValue.Nil;
+                    count = client.Subscribe(channel);
                 }
-                span[index++] = TypedRedisValue.BulkString(request.Command);
+                else if (s_Unsubscribe.Equals(cmd))
+                {
+                    count = client.Unsubscribe(channel);
+                }
+                else
+                {
+                    reply.Recycle(index);
+                    return TypedRedisValue.Nil;
+                }
+                span[index++] = cmdString;
                 span[index++] = TypedRedisValue.BulkString((byte[])channel);
                 span[index++] = TypedRedisValue.Integer(count);
             }
             return reply;
         }
+        static readonly CommandBytes
+            s_Subscribe = new CommandBytes("subscribe"),
+            s_Unsubscribe = new CommandBytes("unsubscribe");
         static readonly DateTime UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         [RedisCommand(1, LockFree = true)]

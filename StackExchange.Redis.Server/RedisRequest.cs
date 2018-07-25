@@ -10,33 +10,31 @@ namespace StackExchange.Redis.Server
         private readonly RawResult _inner;
 
         public int Count { get; }
-        public string Command { get; }
-        public override string ToString() => Command;
+
+        public override string ToString() => Count == 0 ? "(n/a)" : GetString(0).ToString();
         public override bool Equals(object obj) => throw new NotSupportedException();
 
-        public TypedRedisValue WrongArgCount() => TypedRedisValue.Error($"ERR wrong number of arguments for '{Command}' command");
+        public TypedRedisValue WrongArgCount() => TypedRedisValue.Error($"ERR wrong number of arguments for '{ToString()}' command");
 
-        public TypedRedisValue UnknownSubcommandOrArgumentCount() => TypedRedisValue.Error($"ERR Unknown subcommand or wrong number of arguments for '{Command}'.");
+        public TypedRedisValue CommandNotFound()
+            => TypedRedisValue.Error($"ERR unknown command '{ToString()}'");
+
+
+        public TypedRedisValue UnknownSubcommandOrArgumentCount() => TypedRedisValue.Error($"ERR Unknown subcommand or wrong number of arguments for '{ToString()}'.");
 
         public string GetString(int index)
             => _inner[index].GetString();
-        
+
         public bool IsString(int index, string value) // TODO: optimize
             => string.Equals(value, _inner[index].GetString(), StringComparison.OrdinalIgnoreCase);
 
         public override int GetHashCode() => throw new NotSupportedException();
         internal RedisRequest(RawResult result)
-            : this(result, result.ItemsCount, result[0].GetString()) { }
-        private RedisRequest(RawResult inner, int count, string command)
         {
-            _inner = inner;
-            Count = count;
-            Command = command;
+            _inner = result;
+            Count = result.ItemsCount;
         }
-        internal RedisRequest AsCommand(string command)
-            => new RedisRequest(_inner, Count, command);
 
-        
         internal void Recycle() => _inner.Recycle();
 
         public RedisValue GetValue(int index)
@@ -46,10 +44,41 @@ namespace StackExchange.Redis.Server
             => (int)_inner[index].AsRedisValue();
 
         public long GetInt64(int index) => (long)_inner[index].AsRedisValue();
-    
+
         public RedisKey GetKey(int index) => _inner[index].AsRedisKey();
-        
+
         public RedisChannel GetChannel(int index, RedisChannel.PatternMode mode)
             => _inner[index].AsRedisChannel(null, mode);
+
+        internal bool TryGetCommandBytes(int i, out CommandBytes command)
+        {
+            var payload = _inner[i].DirecyPayload;
+            if (payload.Length > CommandBytes.MaxLength)
+            {
+                command = default;
+                return false;
+            }
+
+            if (payload.Length == 0)
+            {
+                command = default;
+            }
+            else if (payload.IsSingleSegment)
+            {
+                command = new CommandBytes(payload.First.Span);
+            }
+            else
+            {
+                Span<byte> span = stackalloc byte[CommandBytes.MaxLength];
+                var sliced = span;
+                foreach (var segment in payload)
+                {
+                    segment.Span.CopyTo(sliced);
+                    sliced = sliced.Slice(segment.Length);
+                }
+                command = new CommandBytes(span.Slice(0, (int)payload.Length));
+            }
+            return true;
+        }
     }
 }

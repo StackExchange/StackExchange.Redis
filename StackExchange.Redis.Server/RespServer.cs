@@ -22,14 +22,14 @@ namespace StackExchange.Redis.Server
         }
         private readonly List<RedisClient> _clients = new List<RedisClient>();
         private readonly TextWriter _output;
-        
+
         public RespServer(TextWriter output = null)
         {
             _output = output;
             _commands = BuildCommands(this);
         }
 
-        private static Dictionary<string, RespCommand> BuildCommands(RespServer server)
+        private static Dictionary<CommandBytes, RespCommand> BuildCommands(RespServer server)
         {
             RedisCommandAttribute CheckSignatureAndGetAttribute(MethodInfo method)
             {
@@ -45,7 +45,7 @@ namespace StackExchange.Redis.Server
                           select new RespCommand(attrib, method, server) into cmd
                           group cmd by cmd.Command;
 
-            var result = new Dictionary<string, RespCommand>(StringComparer.OrdinalIgnoreCase);
+            var result = new Dictionary<CommandBytes, RespCommand>();
             foreach (var grp in grouped)
             {
                 RespCommand parent;
@@ -58,7 +58,7 @@ namespace StackExchange.Redis.Server
                 {
                     parent = grp.Single();
                 }
-                result.Add(grp.Key, parent);
+                result.Add(new CommandBytes(grp.Key), parent);
             }
             return result;
         }
@@ -94,7 +94,7 @@ namespace StackExchange.Redis.Server
             public int Arity { get; }
             public bool LockFree { get; set; }
         }
-        private readonly Dictionary<string, RespCommand> _commands;
+        private readonly Dictionary<CommandBytes, RespCommand> _commands;
 
         readonly struct RespCommand
         {
@@ -102,12 +102,14 @@ namespace StackExchange.Redis.Server
             {
                 _operation = (RespOperation)Delegate.CreateDelegate(typeof(RespOperation), server, method);
                 Command = (string.IsNullOrWhiteSpace(attrib.Command) ? method.Name : attrib.Command).Trim().ToLowerInvariant();
+                CommandBytes = new CommandBytes(Command);
                 SubCommand = attrib.SubCommand?.Trim()?.ToLowerInvariant();
                 Arity = attrib.Arity;
                 MaxArgs = attrib.MaxArgs;
                 LockFree = attrib.LockFree;
                 _subcommands = null;
             }
+            CommandBytes CommandBytes { get; }
             public string Command { get; }
             public string SubCommand { get; }
             public bool IsSubCommand => !string.IsNullOrEmpty(SubCommand);
@@ -126,7 +128,8 @@ namespace StackExchange.Redis.Server
                 if (parent.HasSubCommands) throw new InvalidOperationException("Already has sub-commands");
                 if (subs == null || subs.Length == 0) throw new InvalidOperationException("Cannot add empty sub-commands");
 
-                Command = parent.Command ?? subs[0].Command;
+                Command = parent.Command;
+                CommandBytes = parent.CommandBytes;
                 SubCommand = parent.SubCommand;
                 Arity = parent.Arity;
                 MaxArgs = parent.MaxArgs;
@@ -180,7 +183,7 @@ namespace StackExchange.Redis.Server
         }
 
         delegate TypedRedisValue RespOperation(RedisClient client, RedisRequest request);
-        
+
         // for extensibility, so that a subclass can get their own client type
         // to be used via ListenForConnections
         public virtual RedisClient CreateClient() => new RedisClient();
@@ -394,14 +397,16 @@ namespace StackExchange.Redis.Server
 
         public TypedRedisValue Execute(RedisClient client, RedisRequest request)
         {
-            if (string.IsNullOrWhiteSpace(request.Command)) return default; // not a request
+            if (request.Count == 0) return default;// not a request
+
+            if (!request.TryGetCommandBytes(0, out var cmdBytes)) return request.CommandNotFound();
+            if (cmdBytes.Length == 0) return default; // not a request
             Interlocked.Increment(ref _totalCommandsProcesed);
             try
             {
                 TypedRedisValue result;
-                if (_commands.TryGetValue(request.Command, out var cmd))
+                if (_commands.TryGetValue(cmdBytes, out var cmd))
                 {
-                    request = request.AsCommand(cmd.Command); // fixup casing
                     if (cmd.HasSubCommands)
                     {
                         cmd = cmd.Resolve(request);
@@ -426,21 +431,21 @@ namespace StackExchange.Redis.Server
 
                 if (result.IsNil)
                 {
-                    Log($"missing command: '{request.Command}'");
-                    return CommandNotFound(request.Command);
+                    Log($"missing command: '{request.GetString(0)}'");
+                    return request.CommandNotFound();
                 }
                 if (result.Type == ResultType.Error) Interlocked.Increment(ref _totalErrorCount);
                 return result;
             }
             catch (NotSupportedException)
             {
-                Log($"missing command: '{request.Command}'");
-                return CommandNotFound(request.Command);
+                Log($"missing command: '{request.GetString(0)}'");
+                return request.CommandNotFound();
             }
             catch (NotImplementedException)
             {
-                Log($"missing command: '{request.Command}'");
-                return CommandNotFound(request.Command);
+                Log($"missing command: '{request.GetString(0)}'");
+                return request.CommandNotFound();
             }
             catch (InvalidCastException)
             {
@@ -460,9 +465,6 @@ namespace StackExchange.Redis.Server
             return val.ToLowerInvariant();
         }
 
-        protected static TypedRedisValue CommandNotFound(string command)
-            => TypedRedisValue.Error($"ERR unknown command '{command}'");
-
         [RedisCommand(1, LockFree = true)]
         protected virtual TypedRedisValue Command(RedisClient client, RedisRequest request)
         {
@@ -479,8 +481,9 @@ namespace StackExchange.Redis.Server
             var results = TypedRedisValue.Rent(request.Count - 2, out var span);
             for (int i = 2; i < request.Count; i++)
             {
-                span[i - 2] = _commands.TryGetValue(request.GetString(i), out var cmd)
-                    ? CommandInfo(cmd) : TypedRedisValue.NullArray;
+                span[i - 2] = request.TryGetCommandBytes(i, out var cmdBytes)
+                    &&_commands.TryGetValue(cmdBytes, out var cmdInfo)
+                    ? CommandInfo(cmdInfo) : TypedRedisValue.NullArray;
             }
             return results;
         }

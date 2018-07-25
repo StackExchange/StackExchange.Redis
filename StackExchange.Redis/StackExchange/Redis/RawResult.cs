@@ -21,6 +21,7 @@ namespace StackExchange.Redis
         internal static readonly RawResult Nil = default;
 
         private readonly ReadOnlySequence<byte> _payload;
+        internal ReadOnlySequence<byte> DirecyPayload => _payload;
         // note: can't use Memory<RawResult> here - struct recursion breaks runtimr
         private readonly RawResult[] _itemsOversized;
         private readonly int _itemsCount;

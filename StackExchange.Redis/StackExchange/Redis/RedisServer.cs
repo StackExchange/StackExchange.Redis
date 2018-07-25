@@ -598,7 +598,7 @@ namespace StackExchange.Redis
             // prepare the actual slaveof message (not sent yet)
             var slaveofMsg = CreateSlaveOfMessage(master, flags);
 
-            var configuration = this.multiplexer.RawConfig;
+            var configuration = multiplexer.RawConfig;
 
             // attempt to cease having an opinion on the master; will resume that when replication completes
             // (note that this may fail; we aren't depending on it)
