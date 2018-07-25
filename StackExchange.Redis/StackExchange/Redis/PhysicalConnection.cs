@@ -571,16 +571,16 @@ namespace StackExchange.Redis
             var val = key.KeyValue;
             if (val is string s)
             {
-                WriteUnified(_ioPipe.Output, key.KeyPrefix, s, outEncoder);
+                WriteUnifiedPrefixedString(_ioPipe.Output, key.KeyPrefix, s, outEncoder);
             }
             else
             {
-                WriteUnified(_ioPipe.Output, key.KeyPrefix, (byte[])val);
+                WriteUnifiedPrefixedBlob(_ioPipe.Output, key.KeyPrefix, (byte[])val);
             }
         }
 
         internal void Write(RedisChannel channel)
-            => WriteUnified(_ioPipe.Output, ChannelPrefix, channel.Value);
+            => WriteUnifiedPrefixedBlob(_ioPipe.Output, ChannelPrefix, channel.Value);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal void WriteBulkString(RedisValue value)
@@ -590,17 +590,17 @@ namespace StackExchange.Redis
             switch (value.Type)
             {
                 case RedisValue.StorageType.Null:
-                    WriteUnified(output, (byte[])null);
+                    WriteUnifiedBlob(output, (byte[])null);
                     break;
                 case RedisValue.StorageType.Int64:
-                    WriteUnified(output, (long)value);
+                    WriteUnifiedInt64(output, (long)value);
                     break;
                 case RedisValue.StorageType.Double: // use string
                 case RedisValue.StorageType.String:
-                    WriteUnified(output, null, (string)value, outEncoder);
+                    WriteUnifiedPrefixedString(output, null, (string)value, outEncoder);
                     break;
                 case RedisValue.StorageType.Raw:
-                    WriteUnified(output, ((ReadOnlyMemory<byte>)value).Span);
+                    WriteUnifiedSpan(output, ((ReadOnlyMemory<byte>)value).Span);
                     break;
                 default:
                     throw new InvalidOperationException($"Unexpected {value.Type} value: '{value}'");
@@ -647,7 +647,7 @@ namespace StackExchange.Redis
 
             int offset = WriteRaw(span, arguments + 1, offset: 1);
 
-            offset = WriteUnified(span, commandBytes, offset: offset);
+            offset = AppendToSpanBlob(span, commandBytes, offset: offset);
 
             _ioPipe.Output.Advance(offset);
         }
@@ -791,7 +791,7 @@ namespace StackExchange.Redis
 
         private static readonly byte[] NullBulkString = Encoding.ASCII.GetBytes("$-1\r\n"), EmptyBulkString = Encoding.ASCII.GetBytes("$0\r\n\r\n");
 
-        private static void WriteUnified(PipeWriter writer, byte[] value)
+        private static void WriteUnifiedBlob(PipeWriter writer, byte[] value)
         {
             if (value == null)
             {
@@ -800,11 +800,11 @@ namespace StackExchange.Redis
             }
             else
             {
-                WriteUnified(writer, new ReadOnlySpan<byte>(value));
+                WriteUnifiedSpan(writer, new ReadOnlySpan<byte>(value));
             }
         }
 
-        private static void WriteUnified(PipeWriter writer, ReadOnlySpan<byte> value)
+        private static void WriteUnifiedSpan(PipeWriter writer, ReadOnlySpan<byte> value)
         {
             // ${len}\r\n           = 3 + MaxInt32TextLen
             // {value}\r\n          = 2 + value.Length
@@ -819,7 +819,7 @@ namespace StackExchange.Redis
             {
                 var span = writer.GetSpan(5 + MaxInt32TextLen + value.Length);
                 span[0] = (byte)'$';
-                int bytes = WriteUnified(span, value, 1);
+                int bytes = AppendToSpanSpan(span, value, 1);
                 writer.Advance(bytes);
             }
             else
@@ -836,7 +836,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private static int WriteUnified(Span<byte> span, byte[] value, int offset = 0)
+        private static int AppendToSpanBlob(Span<byte> span, byte[] value, int offset = 0)
         {
             span[offset++] = (byte)'$';
             if (value == null)
@@ -845,12 +845,12 @@ namespace StackExchange.Redis
             }
             else
             {
-                offset = WriteUnified(span, new ReadOnlySpan<byte>(value), offset);
+                offset = AppendToSpanSpan(span, new ReadOnlySpan<byte>(value), offset);
             }
             return offset;
         }
 
-        private static int WriteUnified(Span<byte> span, ReadOnlySpan<byte> value, int offset = 0)
+        private static int AppendToSpanSpan(Span<byte> span, ReadOnlySpan<byte> value, int offset = 0)
         {
             offset = WriteRaw(span, value.Length, offset: offset);
             value.CopyTo(span.Slice(offset, value.Length));
@@ -901,7 +901,7 @@ namespace StackExchange.Redis
             return value < 10 ? (byte)('0' + value) : (byte)('a' - 10 + value);
         }
 
-        internal static void WriteUnified(PipeWriter writer, byte[] prefix, string value, Encoder outEncoder)
+        internal static void WriteUnifiedPrefixedString(PipeWriter writer, byte[] prefix, string value, Encoder outEncoder)
         {
             if (value == null)
             {
@@ -990,14 +990,14 @@ namespace StackExchange.Redis
 
         private readonly Encoder outEncoder = Encoding.UTF8.GetEncoder();
 
-        private static void WriteUnified(PipeWriter writer, byte[] prefix, byte[] value)
+        private static void WriteUnifiedPrefixedBlob(PipeWriter writer, byte[] prefix, byte[] value)
         {
             // ${total-len}\r\n 
             // {prefix}{value}\r\n
             if (prefix == null || prefix.Length == 0 || value == null)
             {   // if no prefix, just use the non-prefixed version;
                 // even if prefixed, a null value writes as null, so can use the non-prefixed version
-                WriteUnified(writer, value);
+                WriteUnifiedBlob(writer, value);
             }
             else
             {
@@ -1015,7 +1015,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private static void WriteUnified(PipeWriter writer, long value)
+        private static void WriteUnifiedInt64(PipeWriter writer, long value)
         {
             // note from specification: A client sends to the Redis server a RESP Array consisting of just Bulk Strings.
             // (i.e. we can't just send ":123\r\n", we need to send "$3\r\n123\r\n"
