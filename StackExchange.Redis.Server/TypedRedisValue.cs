@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Buffers;
+using System.Collections.Generic;
 
 namespace StackExchange.Redis
 {
@@ -8,8 +9,15 @@ namespace StackExchange.Redis
     /// </summary>
     public readonly struct TypedRedisValue
     {
+        // note: if this ever becomes exposed on the public API, it should be made so that it clears;
+        // can't trust external callers to clear the space, and using recycle without that is dangerous
         internal static TypedRedisValue Rent(int count, out Span<TypedRedisValue> span)
         {
+            if (count == 0)
+            {
+                span = default;
+                return EmptyArray;
+            }
             var arr = ArrayPool<TypedRedisValue>.Shared.Rent(count);
             span = new Span<TypedRedisValue>(arr, 0, count);
             return new TypedRedisValue(arr, count);
@@ -63,8 +71,8 @@ namespace StackExchange.Redis
         public static TypedRedisValue OK { get; } = SimpleString("OK");
         internal static TypedRedisValue Zero { get; } = Integer(0);
         internal static TypedRedisValue One { get; } = Integer(1);
-        internal static TypedRedisValue NullArray { get; } = MultiBulk(null);
-        internal static TypedRedisValue EmptyArray { get; } = MultiBulk(Array.Empty<TypedRedisValue>());
+        internal static TypedRedisValue NullArray { get; } = new TypedRedisValue((TypedRedisValue[])null, 0);
+        internal static TypedRedisValue EmptyArray { get; } = new TypedRedisValue(Array.Empty<TypedRedisValue>(), 0);
 
         /// <summary>
         /// Gets the array elements as a span
@@ -99,16 +107,27 @@ namespace StackExchange.Redis
             => new TypedRedisValue(value, ResultType.Integer);
 
         /// <summary>
-        /// Initialize a TypedRedisValue from an array
+        /// Initialize a TypedRedisValue from a span
         /// </summary>
-        public static TypedRedisValue MultiBulk(TypedRedisValue[] items)
-            => new TypedRedisValue(items, items == null ? 0 : items.Length);
-
+        public static TypedRedisValue MultiBulk(ReadOnlySpan<TypedRedisValue> items)
+        {
+            if (items.IsEmpty) return EmptyArray;
+            var result = Rent(items.Length, out var span);
+            items.CopyTo(span);
+            return result;
+        }
         /// <summary>
-        /// Initialize a TypedRedisValue from an oversized array
+        /// Initialize a TypedRedisValue from a collection
         /// </summary>
-        public static TypedRedisValue MultiBulk(TypedRedisValue[] oversizedItems, int count)
-            => new TypedRedisValue(oversizedItems, count);
+        public static TypedRedisValue MultiBulk(ICollection<TypedRedisValue> items)
+        {
+            if (items == null) return NullArray;
+            int count = items.Count;
+            if (count == 0) return EmptyArray;
+            var arr = ArrayPool<TypedRedisValue>.Shared.Rent(count);
+            items.CopyTo(arr, 0);
+            return new TypedRedisValue(arr, count);
+        }
 
         /// <summary>
         /// Initialize a TypedRedisValue that represents a bulk string

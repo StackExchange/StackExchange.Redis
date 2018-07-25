@@ -359,7 +359,7 @@ namespace StackExchange.Redis.Server
                 found.Add(TypedRedisValue.BulkString(key.AsRedisValue()));
             }
             if (found == null) return TypedRedisValue.EmptyArray;
-            return TypedRedisValue.MultiBulk(found.ToArray());
+            return TypedRedisValue.MultiBulk(found);
         }
         protected virtual IEnumerable<RedisKey> Keys(int database, RedisKey pattern) => throw new NotSupportedException();
 
