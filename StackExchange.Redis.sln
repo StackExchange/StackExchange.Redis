@@ -81,7 +81,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Failover", "Failover", "{D0
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "StackExchange.Redis.Server", "StackExchange.Redis.Server\StackExchange.Redis.Server.csproj", "{8375813E-FBAF-4DA3-A2C7-E4645B39B931}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KestrelRedisServer", "KestrelRedisServer\KestrelRedisServer.csproj", "{3DA1EEED-E9FE-43D9-B293-E000CFCCD91A}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "KestrelRedisServer", "KestrelRedisServer\KestrelRedisServer.csproj", "{3DA1EEED-E9FE-43D9-B293-E000CFCCD91A}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

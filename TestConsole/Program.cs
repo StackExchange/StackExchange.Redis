@@ -1,5 +1,4 @@
 ﻿using System;
-using System.IO.Pipelines;
 using System.Net;
 using System.Threading.Tasks;
 using StackExchange.Redis.Server;
