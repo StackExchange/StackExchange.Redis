@@ -268,7 +268,14 @@ namespace StackExchange.Redis.Server
             }
             catch (ConnectionResetException) { }
             catch (ObjectDisposedException) { }
-            catch (Exception ex) { fault = ex; }
+            catch (Exception ex)
+            {
+                if (ex.GetType().Name != nameof(ConnectionResetException))
+                {
+                    // aspnet core has one too; swallow it by pattern
+                    fault = ex; throw;
+                }
+            }
             finally
             {
                 RemoveClient(client);
