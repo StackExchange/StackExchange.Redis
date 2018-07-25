@@ -25,10 +25,20 @@ namespace StackExchange.Redis
             _objectOrSentinel = objectOrSentinel;
         }
 
+        internal RedisValue(object obj, long val)
+        {   // this creates a bodged RedisValue which should **never**
+            // be seen directly; the contents are ... unexpected
+            _overlappedValue64 = val;
+            _objectOrSentinel = obj;
+            _memory = default;
+        }
+        internal object DirectObject => _objectOrSentinel;
+        internal long DirectInt64 => _overlappedValue64;
+
         private readonly static object Sentinel_Integer = new object();
         private readonly static object Sentinel_Raw = new object();
         private readonly static object Sentinel_Double = new object();
-
+        
         /// <summary>
         /// Obtain this value as an object - to be used alongside Unbox
         /// </summary>

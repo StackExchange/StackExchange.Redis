@@ -8,8 +8,12 @@ namespace StackExchange.Redis
     /// </summary>
     public readonly struct TypedRedisValue
     {
-        internal static TypedRedisValue Rent(int count)
-            => new TypedRedisValue(ArrayPool<TypedRedisValue>.Shared.Rent(count), count);
+        internal static TypedRedisValue Rent(int count, out Span<TypedRedisValue> span)
+        {
+            var arr = ArrayPool<TypedRedisValue>.Shared.Rent(count);
+            span = new Span<TypedRedisValue>(arr, 0, count);
+            return new TypedRedisValue(arr, count);
+        }
 
         /// <summary>
         /// An invalid empty value that has no type
@@ -23,29 +27,15 @@ namespace StackExchange.Redis
         /// <summary>
         /// Returns whether this value represents a null array
         /// </summary>
-        public bool IsNullArray => Type == ResultType.MultiBulk && _oversizedItems == null;
+        public bool IsNullArray => Type == ResultType.MultiBulk && _value.DirectObject == null;
+
+        private readonly RedisValue _value;
 
         /// <summary>
         /// The type of value being represented
         /// </summary>
         public ResultType Type { get; }
-
-        private readonly RedisValue _value;
-        private readonly TypedRedisValue[] _oversizedItems;
-
-        /// <summary>
-        /// Gets items from an array by index
-        /// </summary>
-        public TypedRedisValue this[int index]
-        {
-            get => _oversizedItems[index];
-            internal set => _oversizedItems[index] = value;
-        }
-        /// <summary>
-        /// Gets the length of the value as an array
-        /// </summary>
-        public int Length { get; }
-
+        
         /// <summary>
         /// Initialize a TypedRedisValue from a value and optionally a type
         /// </summary>
@@ -53,8 +43,6 @@ namespace StackExchange.Redis
         {
             Type = type ?? (value.IsInteger ? ResultType.Integer : ResultType.BulkString);
             _value = value;
-            Length = default;
-            _oversizedItems = default;
         }
 
         /// <summary>
@@ -81,8 +69,28 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets the array elements as a span
         /// </summary>
-        public ReadOnlySpan<TypedRedisValue> Span => new ReadOnlySpan<TypedRedisValue>(_oversizedItems, 0, Length);
-        internal Span<TypedRedisValue> MutableSpan => new Span<TypedRedisValue>(_oversizedItems, 0, Length);
+        public ReadOnlySpan<TypedRedisValue> Span
+        {
+            get
+            {
+                if (Type != ResultType.MultiBulk) return default;
+                var arr = (TypedRedisValue[])_value.DirectObject;
+                if (arr == null) return default;
+                var length = (int)_value.DirectInt64;
+                return new ReadOnlySpan<TypedRedisValue>(arr, 0, length);
+            }
+        }
+        public ArraySegment<TypedRedisValue> Segment
+        {
+            get
+            {
+                if (Type != ResultType.MultiBulk) return default;
+                var arr = (TypedRedisValue[])_value.DirectObject;
+                if (arr == null) return default;
+                var length = (int)_value.DirectInt64;
+                return new ArraySegment<TypedRedisValue>(arr, 0, length);
+            }
+        }
 
         /// <summary>
         /// Initialize a TypedRedisValue that represents an integer
@@ -119,17 +127,15 @@ namespace StackExchange.Redis
                 if (count < 0 || count > oversizedItems.Length) throw new ArgumentOutOfRangeException(nameof(count));
                 if (count == 0) oversizedItems = Array.Empty<TypedRedisValue>();
             }
-            _value = default;
+            _value = new RedisValue(oversizedItems, count);
             Type = ResultType.MultiBulk;
-            Length = count;
-            _oversizedItems = oversizedItems;
         }
         internal void Recycle(int limit = -1)
         {
-            var arr = _oversizedItems;
+            var arr = _value.DirectObject as TypedRedisValue[];
             if (arr != null)
             {
-                if (limit < 0) limit = Length;
+                if (limit < 0) limit = (int)_value.DirectInt64;
                 for (int i = 0; i < limit; i++)
                 {
                     arr[i].Recycle();
@@ -141,7 +147,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Get the underlying value assuming that it is a valid type with a meaningful value
         /// </summary>
-        internal RedisValue AsRedisValue() => _value;
+        internal RedisValue AsRedisValue() => Type == ResultType.MultiBulk ? default :_value;
 
         /// <summary>
         /// Obtain the value as a string
@@ -156,7 +162,7 @@ namespace StackExchange.Redis
                 case ResultType.Error:
                     return $"{Type}:{_value}";
                 case ResultType.MultiBulk:
-                    return $"{Type}:[{Length}]";
+                    return $"{Type}:[{Span.Length}]";
                 default:
                     return Type.ToString();
             }

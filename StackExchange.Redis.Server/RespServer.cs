@@ -344,11 +344,13 @@ namespace StackExchange.Redis.Server
                     }
                     else
                     {
-                        var count = value.Length;
-                        PhysicalConnection.WriteMultiBulkHeader(output, count);
-                        for (int i = 0; i < count ; i++)
+                        var segment = value.Segment;
+                        PhysicalConnection.WriteMultiBulkHeader(output, segment.Count);
+                        var arr = segment.Array;
+                        int offset = segment.Offset;
+                        for (int i = 0; i < segment.Count; i++)
                         {
-                            var item = value[i];
+                            var item = arr[offset++];
                             if (item.IsNil)
                                 throw new InvalidOperationException("Array element cannot be nil, index " + i);
 
@@ -479,33 +481,33 @@ namespace StackExchange.Redis.Server
         [RedisCommand(1, LockFree = true)]
         protected virtual TypedRedisValue Command(RedisClient client, RedisRequest request)
         {
-            var results = TypedRedisValue.Rent(_commands.Count);
+            var results = TypedRedisValue.Rent(_commands.Count, out var span);
             int index = 0;
             foreach (var pair in _commands)
-                results[index++] = CommandInfo(pair.Value);
+                span[index++] = CommandInfo(pair.Value);
             return results;
         }
 
         [RedisCommand(-2, "command", "info", LockFree = true)]
         protected virtual TypedRedisValue CommandInfo(RedisClient client, RedisRequest request)
         {
-            var results = TypedRedisValue.Rent(request.Count - 2);
+            var results = TypedRedisValue.Rent(request.Count - 2, out var span);
             for (int i = 2; i < request.Count; i++)
             {
-                results[i - 2] = _commands.TryGetValue(request.GetString(i), out var cmd)
+                span[i - 2] = _commands.TryGetValue(request.GetString(i), out var cmd)
                     ? CommandInfo(cmd) : TypedRedisValue.NullArray;
             }
             return results;
         }
         private TypedRedisValue CommandInfo(RespCommand command)
         {
-            var arr = TypedRedisValue.Rent(6);
-            arr[0] = TypedRedisValue.BulkString(command.Command);
-            arr[1] = TypedRedisValue.Integer(command.NetArity());
-            arr[2] = TypedRedisValue.EmptyArray;
-            arr[3] = TypedRedisValue.Zero;
-            arr[4] = TypedRedisValue.Zero;
-            arr[5] = TypedRedisValue.Zero;
+            var arr = TypedRedisValue.Rent(6, out var span);
+            span[0] = TypedRedisValue.BulkString(command.Command);
+            span[1] = TypedRedisValue.Integer(command.NetArity());
+            span[2] = TypedRedisValue.EmptyArray;
+            span[3] = TypedRedisValue.Zero;
+            span[4] = TypedRedisValue.Zero;
+            span[5] = TypedRedisValue.Zero;
             return arr;
         }
     }

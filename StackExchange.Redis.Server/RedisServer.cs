@@ -174,8 +174,8 @@ namespace StackExchange.Redis.Server
             if (stop < 0) stop = 0;
             else if (stop >= len) stop = len - 1;
 
-            var arr = TypedRedisValue.Rent(checked((int)((stop - start) + 1)));
-            LRange(client.Database, key, start, arr.MutableSpan);
+            var arr = TypedRedisValue.Rent(checked((int)((stop - start) + 1)), out var span);
+            LRange(client.Database, key, start, span);
             return arr;
         }
         protected virtual void LRange(int database, RedisKey key, long start, Span<TypedRedisValue> arr) => throw new NotSupportedException();
@@ -221,17 +221,21 @@ namespace StackExchange.Redis.Server
             var matches = config.CountMatch(pattern);
             if (matches == 0) return TypedRedisValue.EmptyArray;
 
-            var arr = TypedRedisValue.Rent(2 * matches);
+            var arr = TypedRedisValue.Rent(2 * matches, out var span);
             int index = 0;
             foreach (var pair in config.Wrapped)
             {
                 if (IsMatch(pattern, pair.Key))
                 {
-                    arr[index++] = TypedRedisValue.BulkString(pair.Key);
-                    arr[index++] = TypedRedisValue.BulkString(pair.Value);
+                    span[index++] = TypedRedisValue.BulkString(pair.Key);
+                    span[index++] = TypedRedisValue.BulkString(pair.Value);
                 }
             }
-            if (index != arr.Length) throw new InvalidOperationException("Configuration CountMatch fail");
+            if (index != span.Length)
+            {
+                arr.Recycle(index);
+                throw new InvalidOperationException("Configuration CountMatch fail");
+            }
             return arr;
         }
 
@@ -410,11 +414,11 @@ namespace StackExchange.Redis.Server
         protected virtual TypedRedisValue Mget(RedisClient client, RedisRequest request)
         {
             int argCount = request.Count;
-            var arr = TypedRedisValue.Rent(argCount - 1);
+            var arr = TypedRedisValue.Rent(argCount - 1, out var span);
             var db = client.Database;
             for (int i = 1; i < argCount; i++)
             {
-                arr[i - 1] = TypedRedisValue.BulkString(Get(db, request.GetKey(i)));
+                span[i - 1] = TypedRedisValue.BulkString(Get(db, request.GetKey(i)));
             }
             return arr;
         }
@@ -443,10 +447,10 @@ namespace StackExchange.Redis.Server
         [RedisCommand(1, LockFree = true)]
         protected virtual TypedRedisValue Role(RedisClient client, RedisRequest request)
         {
-            var arr = TypedRedisValue.Rent(3);
-            arr[0] = TypedRedisValue.BulkString("master");
-            arr[1] = TypedRedisValue.Integer(0);
-            arr[2] = TypedRedisValue.EmptyArray;
+            var arr = TypedRedisValue.Rent(3, out var span);
+            span[0] = TypedRedisValue.BulkString("master");
+            span[1] = TypedRedisValue.Integer(0);
+            span[2] = TypedRedisValue.EmptyArray;
             return arr;
         }
 
@@ -470,7 +474,7 @@ namespace StackExchange.Redis.Server
 
         private TypedRedisValue SubscribeImpl(RedisClient client, RedisRequest request)
         {
-            var reply = TypedRedisValue.Rent(3 * (request.Count - 1));
+            var reply = TypedRedisValue.Rent(3 * (request.Count - 1), out var span);
             int index = 0;
             var mode = request.Command[0] == 'p' ? RedisChannel.PatternMode.Pattern : RedisChannel.PatternMode.Literal;
             for (int i = 1; i < request.Count; i++)
@@ -485,9 +489,9 @@ namespace StackExchange.Redis.Server
                         reply.Recycle(index);
                         return TypedRedisValue.Nil;
                 }
-                reply[index++] = TypedRedisValue.BulkString(request.Command);
-                reply[index++] = TypedRedisValue.BulkString((byte[])channel);
-                reply[index++] = TypedRedisValue.Integer(count);
+                span[index++] = TypedRedisValue.BulkString(request.Command);
+                span[index++] = TypedRedisValue.BulkString((byte[])channel);
+                span[index++] = TypedRedisValue.Integer(count);
             }
             return reply;
         }
@@ -500,9 +504,9 @@ namespace StackExchange.Redis.Server
             var ticks = delta.Ticks;
             var seconds = ticks / TimeSpan.TicksPerSecond;
             var micros = (ticks % TimeSpan.TicksPerSecond) / (TimeSpan.TicksPerMillisecond / 1000);
-            var reply = TypedRedisValue.Rent(2);
-            reply[0] = TypedRedisValue.BulkString(seconds);
-            reply[1] = TypedRedisValue.BulkString(micros);
+            var reply = TypedRedisValue.Rent(2, out var span);
+            span[0] = TypedRedisValue.BulkString(seconds);
+            span[1] = TypedRedisValue.BulkString(micros);
             return reply;
         }
         protected virtual DateTime Time() => DateTime.UtcNow;
