@@ -3227,13 +3227,13 @@ namespace StackExchange.Redis
             public new CommandBytes Command => _command;
             public ExecuteMessage(CommandMap map, int db, CommandFlags flags, string command, ICollection<object> args) : base(db, flags, RedisCommand.UNKNOWN)
             {
-                _args = args ?? Array.Empty<object>();
-                if (args.Count >= PhysicalConnection.REDIS_MAX_ARGS) // using >= here because we will be adding 1 for the command itself (which is an arg for the purposes of the multi-bulk protocol)
+                if (args != null && args.Count >= PhysicalConnection.REDIS_MAX_ARGS) // using >= here because we will be adding 1 for the command itself (which is an arg for the purposes of the multi-bulk protocol)
                 {
                     throw ExceptionFactory.TooManyArgs(command, args.Count);
                 }
                 _command = map?.GetBytes(command) ?? default;
                 if (_command.IsEmpty) throw ExceptionFactory.CommandDisabled(command);
+                _args = args ?? Array.Empty<object>();
             }
 
             protected override void WriteImpl(PhysicalConnection physical)
