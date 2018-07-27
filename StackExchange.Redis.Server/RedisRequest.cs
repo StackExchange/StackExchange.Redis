@@ -59,25 +59,7 @@ namespace StackExchange.Redis.Server
                 return false;
             }
 
-            if (payload.Length == 0)
-            {
-                command = default;
-            }
-            else if (payload.IsSingleSegment)
-            {
-                command = new CommandBytes(payload.First.Span);
-            }
-            else
-            {
-                Span<byte> span = stackalloc byte[CommandBytes.MaxLength];
-                var sliced = span;
-                foreach (var segment in payload)
-                {
-                    segment.Span.CopyTo(sliced);
-                    sliced = sliced.Slice(segment.Length);
-                }
-                command = new CommandBytes(span.Slice(0, (int)payload.Length));
-            }
+            command = payload.IsEmpty ? default : new CommandBytes(payload);
             return true;
         }
     }
