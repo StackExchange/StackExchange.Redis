@@ -1,4 +1,7 @@
-﻿using System.Net.Sockets;
+﻿using System.Collections.Generic;
+using System.Linq;
+using System.Net;
+using System.Net.Sockets;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -55,6 +58,47 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(AddressFamily.InterNetworkV6, server.EndPoint.AddressFamily);
                 server.Ping();
             }
+        }
+
+        [Theory]
+        [MemberData(nameof(ConnectByVariousEndpointsData))]
+        public void ConnectByVariousEndpoints(EndPoint ep, AddressFamily expectedFamily)
+        {
+            Assert.Equal(expectedFamily, ep.AddressFamily);
+            var config = new ConfigurationOptions
+            {
+                EndPoints = { ep }
+            };
+            if (ep.AddressFamily != AddressFamily.InterNetworkV6) // I don't have IPv6 servers
+            {
+                using (var conn = ConnectionMultiplexer.Connect(config))
+                {
+                    var actual = conn.GetEndPoints().Single();
+                    var server = conn.GetServer(actual);
+                    server.Ping();
+                }
+            }
+        }
+
+        public static IEnumerable<object[]> ConnectByVariousEndpointsData()
+        {
+            yield return new object[] { new IPEndPoint(IPAddress.Loopback, 6379), AddressFamily.InterNetwork };
+
+            yield return new object[] { new IPEndPoint(IPAddress.IPv6Loopback, 6379), AddressFamily.InterNetworkV6 };
+
+            yield return new object[] { new DnsEndPoint("localhost", 6379), AddressFamily.Unspecified };
+
+            yield return new object[] { new DnsEndPoint("localhost", 6379, AddressFamily.InterNetwork), AddressFamily.InterNetwork };
+
+            yield return new object[] { new DnsEndPoint("localhost", 6379, AddressFamily.InterNetworkV6), AddressFamily.InterNetworkV6 };
+
+            yield return new object[] { ConfigurationOptions.Parse("127.0.0.1:6379").EndPoints.Single(), AddressFamily.InterNetwork };
+
+            yield return new object[] { ConfigurationOptions.Parse("127.0.0.1").EndPoints.Single(), AddressFamily.InterNetwork };
+
+            yield return new object[] { ConfigurationOptions.Parse("[::1]").EndPoints.Single(), AddressFamily.InterNetworkV6 };
+
+            yield return new object[] { ConfigurationOptions.Parse("[::1]:6379").EndPoints.Single(), AddressFamily.InterNetworkV6 };
         }
     }
 }
