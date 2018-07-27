@@ -92,9 +92,9 @@ namespace StackExchange.Redis.Tests
 
             yield return new object[] { new DnsEndPoint("localhost", 6379, AddressFamily.InterNetworkV6), AddressFamily.InterNetworkV6 };
 
-            yield return new object[] { ConfigurationOptions.Parse("localhost:6379").EndPoints.Single(), AddressFamily.InterNetwork };
+            yield return new object[] { ConfigurationOptions.Parse("localhost:6379").EndPoints.Single(), AddressFamily.Unspecified };
 
-            yield return new object[] { ConfigurationOptions.Parse("localhost").EndPoints.Single(), AddressFamily.InterNetwork };
+            yield return new object[] { ConfigurationOptions.Parse("localhost").EndPoints.Single(), AddressFamily.Unspecified };
 
             yield return new object[] { ConfigurationOptions.Parse("127.0.0.1:6379").EndPoints.Single(), AddressFamily.InterNetwork };
 
