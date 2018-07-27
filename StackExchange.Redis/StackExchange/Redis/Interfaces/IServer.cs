@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -323,6 +323,22 @@ namespace StackExchange.Redis
         IEnumerable<RedisKey> Keys(int database = 0, RedisValue pattern = default(RedisValue), int pageSize = RedisBase.CursorUtils.DefaultPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// /*add by lqy*/
+        /// return all keys matching pattern and updated cursor; note:SCAN is a cursor based iterator. This method only call one time of the command scan, the server returns an updated cursor named refCursor that the user needs to use as the cursor argument in the next call.
+        /// </summary>
+        /// <param name="refCursor">updated cursor that the user needs to use as the cursor argument in the next call. note:when the refCursor returned by the server is 0,that means one iteration is over.</param>
+        /// <param name="database">The database ID.</param>
+        /// <param name="pattern">The pattern to use.</param>
+        /// <param name="pageSize">The page size to iterate by.</param>
+        /// <param name="cursor">The cursor position to resume at.</param>
+        /// <param name="pageOffset">The page offset to start at.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks>Warning: consider KEYS as a command that should only be used in production environments with extreme care.</remarks>
+        /// <remarks>https://redis.io/commands/keys</remarks>
+        /// <remarks>https://redis.io/commands/scan</remarks>
+        RedisKey[] Keys(ref long refCursor, int database = 0, RedisValue pattern = default(RedisValue), int pageSize = RedisBase.CursorUtils.DefaultPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Return the time of the last DB save executed with success. A client may check if a BGSAVE command succeeded reading the LASTSAVE value, then issuing a BGSAVE command and checking at regular intervals every N seconds if LASTSAVE changed.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
@@ -627,6 +643,24 @@ namespace StackExchange.Redis
         /// <returns>an array of slave state KeyValuePair arrays</returns>
         /// <remarks>https://redis.io/topics/sentinel</remarks>
         Task<KeyValuePair<string, string>[][]> SentinelSlavesAsync(string serviceName, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// show a list of sentinels info about a redis master
+        /// </summary>
+        /// <param name="serviceName">The sentinel service name.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>an array of sentinel info KeyValuePair arrays</returns>
+        /// <remarks>https://redis.io/topics/sentinel</remarks>
+        KeyValuePair<string, string>[][] SentinelSentinels(string serviceName, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// show a list of sentinels info about a redis master
+        /// </summary>
+        /// <param name="serviceName">The sentinel service name.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>an array of sentinel info KeyValuePair arrays</returns>
+        /// <remarks>https://redis.io/topics/sentinel</remarks>
+        Task<KeyValuePair<string, string>[][]> SentinelSentinelsAsync(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Force a failover as if the master was not reachable, and without asking for agreement to other Sentinels 

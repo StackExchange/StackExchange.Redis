@@ -301,6 +301,15 @@ namespace StackExchange.Redis
             Message msg = Message.Create(database, flags, RedisCommand.KEYS, pattern);
             return ExecuteSync(msg, ResultProcessor.RedisKeyArray);
         }
+        
+        public RedisKey[] Keys(ref long refCursor, int database = 0, RedisValue pattern = default(RedisValue), int pageSize = CursorUtils.DefaultPageSize, long cursor = CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
+        {
+            if (pageSize <= 0) throw new ArgumentOutOfRangeException(nameof(pageSize));
+            if (CursorUtils.IsNil(pattern)) pattern = RedisLiterals.Wildcard;
+            KeysScanIteration KeysScanIteration = new KeysScanIteration(this, database, pattern, pageSize, cursor, pageOffset, flags);
+            RedisKey[] result = KeysScanIteration.GetPageSync(cursor, ref refCursor);
+            return result;
+        }
 
         public DateTime LastSave(CommandFlags flags = CommandFlags.None)
         {
@@ -749,7 +758,105 @@ namespace StackExchange.Redis
                 }
             }
         }
+        /// <summary>
+        /// lqy
+        /// </summary>
+        private sealed class KeysScanIteration
+        {
+            private readonly RedisValue pattern;
+            private readonly RedisBase redis;
+            private readonly ServerEndPoint server;
+            private readonly int db;
+            private readonly CommandFlags flags;
+            private readonly int pageSize, initialOffset;
+            private readonly long initialCursor;
+            //private volatile IScanningCursor activeCursor;
+            public KeysScanIteration(RedisServer server, int db, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
+            {
+                this.pattern = pattern;
+                if (pageOffset < 0) throw new ArgumentOutOfRangeException(nameof(pageOffset));
+                this.redis = server;
+                this.server = server.server;
+                this.flags = flags;
+                this.db = db;
+                this.pageSize = pageSize;
+                initialCursor = cursor;
+                initialOffset = pageOffset;
+            }
+            private Message CreateMessage(long cursor)
+            {
+                if (CursorUtils.IsNil(pattern))
+                {
+                    if (pageSize == CursorUtils.DefaultPageSize)
+                    {
+                        return Message.Create(db, flags, RedisCommand.SCAN, cursor);
+                    }
+                    else
+                    {
+                        return Message.Create(db, flags, RedisCommand.SCAN, cursor, RedisLiterals.COUNT, pageSize);
+                    }
+                }
+                else
+                {
+                    if (pageSize == CursorUtils.DefaultPageSize)
+                    {
+                        return Message.Create(db, flags, RedisCommand.SCAN, cursor, RedisLiterals.MATCH, pattern);
+                    }
+                    else
+                    {
+                        return Message.Create(db, flags, RedisCommand.SCAN, cursor, RedisLiterals.MATCH, pattern, RedisLiterals.COUNT, pageSize);
+                    }
+                }
+            }
 
+            private static readonly ResultProcessor<ScanResult> processor = new KeysResultProcessor();
+            private ResultProcessor<ScanResult> Processor => processor;
+            private ScanResult GetNextPageSync(long cursor)
+            {
+                return redis.ExecuteSync(CreateMessage(cursor), Processor, server);
+            }
+
+            public RedisKey[] GetPageSync(long cursor, ref long refCursor)
+            {
+                var scanResult = GetNextPageSync(cursor);
+                refCursor = scanResult.Cursor;
+                return scanResult.Values;
+            }
+
+            internal struct ScanResult
+            {
+                public readonly long Cursor;
+                public readonly RedisKey[] Values;
+                public ScanResult(long cursor, RedisKey[] values)
+                {
+                    Cursor = cursor;
+                    Values = values;
+                }
+            }
+
+            private class KeysResultProcessor : ResultProcessor<ScanResult>
+            {
+                protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+                {
+                    switch (result.Type)
+                    {
+                        case ResultType.MultiBulk:
+                            var arr = result.GetItems();
+                            long i64;
+                            if (arr.Length == 2 && arr[1].Type == ResultType.MultiBulk && arr[0].TryGetInt64(out i64))
+                            {
+                                var keysResult = new ScanResult(i64, arr[1].GetItemsAsKeys());
+                                SetResult(message, keysResult);
+                                return true;
+                            }
+                            break;
+                    }
+                    return false;
+                }
+            }
+
+
+        }
         #region Sentinel
 
         public EndPoint SentinelGetMasterAddressByName(string serviceName, CommandFlags flags = CommandFlags.None)
@@ -811,7 +918,18 @@ namespace StackExchange.Redis
             var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.SLAVES, (RedisValue)serviceName);
             return ExecuteAsync(msg, ResultProcessor.SentinelArrayOfArrays);
         }
-
+        
+        public KeyValuePair<string, string>[][] SentinelSentinels(string serviceName, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.Sentinels, (RedisValue)serviceName);
+            return ExecuteSync(msg, ResultProcessor.SentinelArrayOfArrays);
+        }
+        
+        public Task<KeyValuePair<string, string>[][]> SentinelSentinelsAsync(string serviceName, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.Sentinels, (RedisValue)serviceName);
+            return ExecuteAsync(msg, ResultProcessor.SentinelArrayOfArrays);
+        }
         #endregion
     }
 }

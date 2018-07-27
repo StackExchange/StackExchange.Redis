@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Text;
 
 namespace StackExchange.Redis
@@ -66,6 +66,7 @@ namespace StackExchange.Redis
             GETMASTERADDRBYNAME = "GET-MASTER-ADDR-BY-NAME",
 //            RESET = "RESET",
             FAILOVER = "FAILOVER",
+            Sentinels = "Sentinels",
 
             // Sentinel Literals as of 2.8.4
             MONITOR = "MONITOR",
