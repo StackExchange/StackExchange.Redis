@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Diagnostics;
 using System.Reflection;
 using System.Threading.Tasks;
 using BenchmarkDotNet.Attributes;
@@ -29,8 +28,9 @@ namespace BasicTest
             Add(new MemoryDiagnoser());
             Add(StatisticColumn.OperationsPerSecond);
             Add(JitOptimizationsValidator.FailOnError);
+
             Add(Configure(Job.Clr));
-            //Add(Get(Job.Core));
+            Add(Configure(Job.Core));
         }
     }
     internal class SlowConfig : CustomConfig
@@ -178,7 +178,7 @@ namespace BasicTest
         public void Dispose() => mux?.Dispose();
         public Issue898()
         {
-            mux = ConnectionMultiplexer.Connect("localhost:6379");
+            mux = ConnectionMultiplexer.Connect("127.0.0.1:6379");
             db = mux.GetDatabase();
         }
 
