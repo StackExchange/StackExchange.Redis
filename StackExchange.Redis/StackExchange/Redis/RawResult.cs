@@ -228,7 +228,7 @@ namespace StackExchange.Redis
             if (len > _payload.Length) return false;
 
             var rangeToCheck = _payload.Slice(0, len);
-            return rangeToCheck.Equals(expected);
+            return new CommandBytes(rangeToCheck).Equals(expected);
         }
         internal bool StartsWith(byte[] expected)
         {
