@@ -48,7 +48,8 @@ namespace NRediSearch.Test
             var options = new ConfigurationOptions
             {
                 EndPoints = { ep },
-                AllowAdmin = true
+                AllowAdmin = true,
+                SyncTimeout = 15000,
             };
             var conn = ConnectionMultiplexer.Connect(options);
 

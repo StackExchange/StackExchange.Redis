@@ -2,8 +2,10 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Net.Security;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading.Tasks;
+using StackExchange.Redis.Tests.Helpers;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -23,6 +25,7 @@ namespace StackExchange.Redis.Tests
             Skip.IfNoConfig(nameof(TestConfig.Config.AzureCachePassword), TestConfig.Current.AzureCachePassword);
 
             var options = new ConfigurationOptions();
+            options.CertificateValidation += ShowCertFailures(Writer);
             if (port == null)
             {
                 options.EndPoints.Add(TestConfig.Current.AzureCacheServer);
@@ -330,11 +333,57 @@ namespace StackExchange.Redis.Tests
                 EndPoints = { { TestConfig.Current.AzureCacheServer, 6380 } },
                 Password = TestConfig.Current.AzureCachePassword
             };
+            options.CertificateValidation += ShowCertFailures(Writer);
             using (var conn = ConnectionMultiplexer.Connect(options))
             {
                 conn.GetDatabase().Ping();
             }
         }
+
+        public static RemoteCertificateValidationCallback ShowCertFailures(TextWriterOutputHelper output) {
+
+            if (output == null) return null;
+
+            return (object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors) =>
+            {
+                void WriteStatus(X509ChainStatus[] status)
+                {
+                    if (status != null)
+                    {
+                        for (int i = 0; i < status.Length; i++)
+                        {
+                            var item = status[i];
+                            output.WriteLine($"\tstatus {i}: {item.Status}, {item.StatusInformation}");
+                        }
+                    }
+                }
+                lock (output)
+                {
+                    if (certificate != null)
+                    {
+                        output.WriteLine($"Subject: {certificate.Subject}");
+                    }
+                    output.WriteLine($"Policy errors: {sslPolicyErrors}");
+                    if (chain != null)
+                    {
+                        WriteStatus(chain.ChainStatus);
+
+                        var elements = chain.ChainElements;
+                        if (elements != null)
+                        {
+                            int index = 0;
+                            foreach (var item in elements)
+                            {
+                                output.WriteLine($"{index++}: {item.Certificate.Subject}; {item.Information}");
+                                WriteStatus(item.ChainElementStatus);
+                            }
+                        }
+                    }
+                }
+                return sslPolicyErrors == SslPolicyErrors.None;
+            };
+        }
+        
 
         [Fact]
         public void SSLParseViaConfig_Issue883_ConfigString()
@@ -344,6 +393,7 @@ namespace StackExchange.Redis.Tests
 
             var configString = $"{TestConfig.Current.AzureCacheServer}:6380,password={TestConfig.Current.AzureCachePassword},connectRetry=3,connectTimeout=5000,syncTimeout=5000,defaultDatabase=0,ssl=true,abortConnect=false";
             var options = ConfigurationOptions.Parse(configString);
+            options.CertificateValidation += ShowCertFailures(Writer);
             using (var conn = ConnectionMultiplexer.Connect(options))
             {
                 conn.GetDatabase().Ping();
