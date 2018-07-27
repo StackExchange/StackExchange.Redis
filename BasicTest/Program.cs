@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Reflection;
 using System.Threading.Tasks;
 using BenchmarkDotNet.Attributes;
@@ -22,8 +23,9 @@ namespace BasicTest
         public CustomConfig()
         {
             Job Get(Job j) => j
-                .With(new GcMode { Force = true });
-                //.With(InProcessToolchain.Instance);
+                .With(new GcMode { Force = true })
+                .With(InProcessToolchain.Instance)
+                ;
 
             Add(new MemoryDiagnoser());
             Add(StatisticColumn.OperationsPerSecond);
@@ -155,6 +157,72 @@ namespace BasicTest
                 total += results.Length;
             }
             return total;
+        }
+    }
+#pragma warning disable CS1591
+    [Config(typeof(CustomConfig))]
+    public class Issue898 : IDisposable
+    {
+        private readonly ConnectionMultiplexer mux;
+        private readonly IDatabase db;
+
+        public void Dispose() => mux?.Dispose();
+        public Issue898()
+        {
+            mux = ConnectionMultiplexer.Connect("localhost:6379");
+            db = mux.GetDatabase();
+        }
+
+
+        const int max = 100000;
+        [Benchmark(OperationsPerInvoke = max)]
+        public void Load()
+        {
+            for (int i = 0; i < max; ++i)
+            {
+                db.StringSet(i.ToString(), i);
+            }
+        }
+        [Benchmark(OperationsPerInvoke = max)]
+        public async Task LoadAsync()
+        {
+            for (int i = 0; i < max; ++i)
+            {
+                await db.StringSetAsync(i.ToString(), i);
+            }
+        }
+        [Benchmark(OperationsPerInvoke = max)]
+        public void Sample()
+        {            
+            var rnd = new Random();
+
+            for (int i = 0; i < max; ++i)
+            {
+                var r = rnd.Next(0, max - 1);
+
+                var rv = db.StringGet(r.ToString());
+                if (rv != r)
+                {
+                    throw new Exception($"Unexpected {rv}, expected {r}");
+                }
+            }
+        }
+
+        [Benchmark(OperationsPerInvoke = max)]
+        public async Task SampleAsync()
+        {
+            var rnd = new Random();
+
+            for (int i = 0; i < max; ++i)
+            {
+                var r = rnd.Next(0, max - 1);
+
+                var rv = await db.StringGetAsync(r.ToString());
+                if (rv != r)
+                {
+                    throw new Exception($"Unexpected {rv}, expected {r}");
+                }
+            }
         }
     }
 }
