@@ -142,7 +142,7 @@ namespace StackExchange.Redis
                     {
                         return new RedisChannel(GetBlob(), mode);
                     }
-                    if (AssertStarts(channelPrefix))
+                    if (StartsWith(channelPrefix))
                     {
                         byte[] copy = _payload.Slice(channelPrefix.Length).ToArray();
                         return new RedisChannel(copy, mode);
@@ -195,6 +195,12 @@ namespace StackExchange.Redis
             }
         }
 
+        internal bool IsEqual(CommandBytes expected)
+        {
+            if (expected.Length != _payload.Length) return false;
+            return new CommandBytes(_payload).Equals(expected);
+        }
+        
         internal unsafe bool IsEqual(byte[] expected)
         {
             if (expected == null) throw new ArgumentNullException(nameof(expected));
@@ -216,7 +222,15 @@ namespace StackExchange.Redis
             return true;
         }
 
-        internal bool AssertStarts(byte[] expected)
+        internal bool StartsWith(CommandBytes expected)
+        {
+            var len = expected.Length;
+            if (len > _payload.Length) return false;
+
+            var rangeToCheck = _payload.Slice(0, len);
+            return rangeToCheck.Equals(expected);
+        }
+        internal bool StartsWith(byte[] expected)
         {
             if (expected == null) throw new ArgumentNullException(nameof(expected));
             if (expected.Length > _payload.Length) return false;

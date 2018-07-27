@@ -463,7 +463,10 @@ namespace StackExchange.Redis
         {
             if (!configuration.AllowAdmin && message.IsAdmin)
                 throw ExceptionFactory.AdminModeNotEnabled(IncludeDetailInExceptions, message.Command, message, null);
-            CommandMap.AssertAvailable(message.Command);
+            if (message.Command != RedisCommand.UNKNOWN) CommandMap.AssertAvailable(message.Command);
+
+            // using >= here because we will be adding 1 for the command itself (which is an arg for the purposes of the multi-bulk protocol)
+            if (message.ArgCount >= PhysicalConnection.REDIS_MAX_ARGS) throw ExceptionFactory.TooManyArgs(message.CommandAndKey, message.ArgCount);
         }
         private const string NoContent = "(no content)";
         private static void WriteNormalizingLineEndings(string source, StreamWriter writer)

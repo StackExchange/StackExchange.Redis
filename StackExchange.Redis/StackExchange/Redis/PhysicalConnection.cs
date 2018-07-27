@@ -26,7 +26,6 @@ namespace StackExchange.Redis
 
         private const int DefaultRedisDatabaseCount = 16;
 
-        private static readonly byte[] Crlf = Encoding.ASCII.GetBytes("\r\n");
 
         //private static readonly AsyncCallback endRead = result =>
         //{
@@ -43,7 +42,7 @@ namespace StackExchange.Redis
         //    }
         //};
 
-        private static readonly byte[] message = Encoding.UTF8.GetBytes("message"), pmessage = Encoding.UTF8.GetBytes("pmessage");
+        private static readonly CommandBytes message = "message", pmessage = "pmessage";
 
         private static readonly Message[] ReusableChangeDatabaseCommands = Enumerable.Range(0, DefaultRedisDatabaseCount).Select(
             i => Message.Create(i, CommandFlags.FireAndForget, RedisCommand.SELECT)).ToArray();
@@ -607,35 +606,32 @@ namespace StackExchange.Redis
             }
         }
 
-        internal void WriteHeader(RedisCommand command, int arguments)
-        {
-            var bridge = BridgeCouldBeNull;
-            if (bridge == null) throw new ObjectDisposedException(physicalName);
-
-            var commandBytes = bridge.Multiplexer.CommandMap.GetBytes(command);
-            if (commandBytes == null)
-            {
-                throw ExceptionFactory.CommandDisabled(IncludeDetailInExceptions, command, null, bridge.ServerEndPoint);
-            }
-            WriteHeader(commandBytes, arguments);
-        }
-
         internal const int REDIS_MAX_ARGS = 1024 * 1024; // there is a <= 1024*1024 max constraint inside redis itself: https://github.com/antirez/redis/blob/6c60526db91e23fb2d666fc52facc9a11780a2a3/src/networking.c#L1024
 
-        internal void WriteHeader(string command, int arguments)
+
+        internal void WriteHeader(RedisCommand command, int arguments, CommandBytes commandBytes = default)
         {
             var bridge = BridgeCouldBeNull;
             if (bridge == null) throw new ObjectDisposedException(physicalName);
-            if (arguments >= REDIS_MAX_ARGS) // using >= here because we will be adding 1 for the command itself (which is an arg for the purposes of the multi-bulk protocol)
+            
+            if (command == RedisCommand.UNKNOWN)
             {
-                throw ExceptionFactory.TooManyArgs(bridge.Multiplexer.IncludeDetailInExceptions, command, null, bridge.ServerEndPoint, arguments + 1);
+                // using >= here because we will be adding 1 for the command itself (which is an arg for the purposes of the multi-bulk protocol)
+                if (arguments >= REDIS_MAX_ARGS) throw ExceptionFactory.TooManyArgs(commandBytes.ToString(), arguments);
             }
-            var commandBytes = bridge.Multiplexer.CommandMap.GetBytes(command);
-            WriteHeader(commandBytes, arguments);
-        }
+            else
+            {
+                // using >= here because we will be adding 1 for the command itself (which is an arg for the purposes of the multi-bulk protocol)
+                if (arguments >= REDIS_MAX_ARGS) throw ExceptionFactory.TooManyArgs(command.ToString(), arguments);
 
-        private void WriteHeader(byte[] commandBytes, int arguments)
-        {
+                // for everything that isn't custom commands: ask the muxer for the actual bytes
+                commandBytes = bridge.Multiplexer.CommandMap.GetBytes(command);
+            }
+
+            // in theory we should never see this; CheckMessage dealt with "regular" messages, and
+            // ExecuteMessage should have dealt with everything else
+            if (commandBytes.IsEmpty) throw ExceptionFactory.CommandDisabled(command);
+
             // remember the time of the first write that still not followed by read
             Interlocked.CompareExchange(ref firstUnansweredWriteTickCount, Environment.TickCount, 0);
 
@@ -647,7 +643,7 @@ namespace StackExchange.Redis
 
             int offset = WriteRaw(span, arguments + 1, offset: 1);
 
-            offset = AppendToSpanBlob(span, commandBytes, offset: offset);
+            offset = AppendToSpanCommand(span, commandBytes, offset: offset);
 
             _ioPipe.Output.Advance(offset);
         }
@@ -789,14 +785,14 @@ namespace StackExchange.Redis
             }
         }
 
-        private static readonly byte[] NullBulkString = Encoding.ASCII.GetBytes("$-1\r\n"), EmptyBulkString = Encoding.ASCII.GetBytes("$0\r\n\r\n");
+        private static readonly ReadOnlyMemory<byte> NullBulkString = Encoding.ASCII.GetBytes("$-1\r\n"), EmptyBulkString = Encoding.ASCII.GetBytes("$0\r\n\r\n");
 
         private static void WriteUnifiedBlob(PipeWriter writer, byte[] value)
         {
             if (value == null)
             {
                 // special case:
-                writer.Write(NullBulkString);
+                writer.Write(NullBulkString.Span);
             }
             else
             {
@@ -813,7 +809,7 @@ namespace StackExchange.Redis
             if (value.Length == 0)
             {
                 // special case:
-                writer.Write(EmptyBulkString);
+                writer.Write(EmptyBulkString.Span);
             }
             else if (value.Length <= MaxQuickSpanSize)
             {
@@ -836,17 +832,14 @@ namespace StackExchange.Redis
             }
         }
 
-        private static int AppendToSpanBlob(Span<byte> span, byte[] value, int offset = 0)
+        private static int AppendToSpanCommand(Span<byte> span, CommandBytes value, int offset = 0)
         {
             span[offset++] = (byte)'$';
-            if (value == null)
-            {
-                offset = WriteRaw(span, -1, offset: offset); // note that not many things like this...
-            }
-            else
-            {
-                offset = AppendToSpanSpan(span, new ReadOnlySpan<byte>(value), offset);
-            }
+            int len = value.Length;
+            offset = WriteRaw(span, len, offset: offset);
+            value.CopyTo(span.Slice(offset, len));
+            offset += value.Length;
+            offset = WriteCrlf(span, offset);
             return offset;
         }
 
@@ -864,7 +857,7 @@ namespace StackExchange.Redis
             var writer = _ioPipe.Output;
             if (value == null)
             {
-                writer.Write(NullBulkString);
+                writer.Write(NullBulkString.Span);
             }
             else if (value.Length == ResultProcessor.ScriptLoadProcessor.Sha1HashLength)
             {
@@ -906,7 +899,7 @@ namespace StackExchange.Redis
             if (value == null)
             {
                 // special case
-                writer.Write(NullBulkString);
+                writer.Write(NullBulkString.Span);
             }
             else
             {
@@ -919,7 +912,7 @@ namespace StackExchange.Redis
                 if (totalLength == 0)
                 {
                     // special-case
-                    writer.Write(EmptyBulkString);
+                    writer.Write(EmptyBulkString.Span);
                 }
                 else
                 {
@@ -937,7 +930,7 @@ namespace StackExchange.Redis
 
         [ThreadStatic]
         static Encoder s_PerThreadEncoder;
-        static Encoder GetPerThreadEncoder()
+        internal static Encoder GetPerThreadEncoder()
         {
             var encoder = s_PerThreadEncoder;
             if(encoder == null)
@@ -1189,7 +1182,7 @@ namespace StackExchange.Redis
                         EndPoint blame = null;
                         try
                         {
-                            if (!items[2].IsEqual(RedisLiterals.ByteWildcard))
+                            if (!items[2].IsEqual(CommonReplies.wildcard))
                             {
                                 blame = Format.TryParseEndPoint(items[2].GetString());
                             }

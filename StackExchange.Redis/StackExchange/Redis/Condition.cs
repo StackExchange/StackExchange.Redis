@@ -311,6 +311,7 @@ namespace StackExchange.Redis
                         physical.WriteBulkString(value);
                     }
                 }
+                public override int ArgCount => value.IsNull ? 1 : 2;
             }
         }
 

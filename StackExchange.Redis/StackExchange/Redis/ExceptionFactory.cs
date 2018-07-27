@@ -19,29 +19,13 @@ namespace StackExchange.Redis
             return ex;
         }
 
-        internal static Exception CommandDisabled(bool includeDetail, RedisCommand command, Message message, ServerEndPoint server)
-        {
-            string s = GetLabel(includeDetail, command, message);
-            var ex = new RedisCommandException("This operation has been disabled in the command-map and cannot be used: " + s);
-            if (includeDetail) AddDetail(ex, message, server, s);
-            return ex;
-        }
+        internal static Exception CommandDisabled(RedisCommand command) => CommandDisabled(command.ToString());
 
-        internal static Exception TooManyArgs(bool includeDetail, string command, Message message, ServerEndPoint server, int required)
-        {
-            string s = GetLabel(includeDetail, command, message);
-            var ex = new RedisCommandException($"This operation would involve too many arguments ({required} vs the redis limit of {PhysicalConnection.REDIS_MAX_ARGS}): {s}");
-            if (includeDetail) AddDetail(ex, message, server, s);
-            return ex;
-        }
+        internal static Exception CommandDisabled(string command)
+            => new RedisCommandException("This operation has been disabled in the command-map and cannot be used: " + command);
 
-        internal static Exception CommandDisabled(bool includeDetail, string command, Message message, ServerEndPoint server)
-        {
-            string s = GetLabel(includeDetail, command, message);
-            var ex = new RedisCommandException("This operation has been disabled in the command-map and cannot be used: " + s);
-            if (includeDetail) AddDetail(ex, message, server, s);
-            return ex;
-        }
+        internal static Exception TooManyArgs(string command, int argCount)
+            => new RedisCommandException($"This operation would involve too many arguments ({(argCount + 1)} vs the redis limit of {PhysicalConnection.REDIS_MAX_ARGS}): {command}");
 
         internal static Exception ConnectionFailure(bool includeDetail, ConnectionFailureType failureType, string message, ServerEndPoint server)
         {

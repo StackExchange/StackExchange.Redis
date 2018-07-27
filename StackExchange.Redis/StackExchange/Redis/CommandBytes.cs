@@ -4,9 +4,26 @@ using System.Text;
 
 namespace StackExchange.Redis
 {
-    public readonly struct CommandBytes : IEquatable<CommandBytes>
+    internal readonly struct CommandBytes : IEquatable<CommandBytes>
     {
         private static Encoding Encoding => Encoding.UTF8;
+
+        internal unsafe static CommandBytes TrimToFit(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return default;
+            value = value.Trim();
+            var len = Encoding.GetByteCount(value);
+            if (len <= MaxLength) return new CommandBytes(value); // all fits
+
+            fixed (char* c = value)
+            {
+                byte* b = stackalloc byte[ChunkLength * sizeof(ulong)];
+                var encoder = PhysicalConnection.GetPerThreadEncoder();
+                encoder.Convert(c, value.Length, b, MaxLength, true, out var maxLen, out _, out var isComplete);
+                if (!isComplete) maxLen--;
+                return new CommandBytes(value.Substring(0, maxLen));
+            }
+        }
 
         // Uses [n=4] x UInt64 values to store a command payload,
         // allowing allocation free storage and efficient
@@ -32,8 +49,9 @@ namespace StackExchange.Redis
 
         public bool Equals(CommandBytes value) => _0 == value._0 && _1 == value._1 && _2 == value._2;
 
-        public static bool operator == (CommandBytes x, CommandBytes y) => x.Equals(y);
-        public static bool operator !=(CommandBytes x, CommandBytes y) => !x.Equals(y);
+        // note: don't add == operators; with the implicit op above, that invalidates "==null" compiler checks (which should report a failure!)
+
+        public static implicit operator CommandBytes(string value) => new CommandBytes(value);
 
         public override unsafe string ToString()
         {
@@ -54,6 +72,17 @@ namespace StackExchange.Redis
                 }
             }
         }
+
+        public bool IsEmpty => _0 == 0L; // cheap way of checking zero length
+
+        public unsafe void CopyTo(Span<byte> target)
+        {
+            fixed (ulong* uPtr = &_0)
+            {
+                byte* bPtr = (byte*)uPtr;
+                new Span<byte>(bPtr + 1, *bPtr).CopyTo(target);
+            }
+        }
         public unsafe byte this[int index]
         {
             get
@@ -70,9 +99,11 @@ namespace StackExchange.Redis
 
         public unsafe CommandBytes(string value)
         {
-            var len = Encoding.GetByteCount(value);
-            if (len > MaxLength) throw new ArgumentOutOfRangeException("Maximum command length exceeed");
             _0 = _1 = _2 = 0L;
+            if (string.IsNullOrEmpty(value)) return;
+
+            var len = Encoding.GetByteCount(value);
+            if (len > MaxLength) throw new ArgumentOutOfRangeException($"Command '{value}' exceeds library limit of {MaxLength} bytes");
             fixed (ulong* uPtr = &_0)
             {
                 byte* bPtr = (byte*)uPtr;
@@ -86,7 +117,7 @@ namespace StackExchange.Redis
 
         public unsafe CommandBytes(ReadOnlySpan<byte> value)
         {
-            if (value.Length > MaxLength) throw new ArgumentOutOfRangeException("Maximum command length exceeed");
+            if (value.Length > MaxLength) throw new ArgumentOutOfRangeException("Maximum command length exceeed: " + value.Length + " bytes");
             _0 = _1 = _2 = 0L;
             fixed (ulong* uPtr = &_0)
             {

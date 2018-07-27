@@ -14,14 +14,14 @@ namespace StackExchange.Redis
     {
         public static readonly ResultProcessor<bool>
             Boolean = new BooleanProcessor(),
-            DemandOK = new ExpectBasicStringProcessor(RedisLiterals.BytesOK),
-            DemandPONG = new ExpectBasicStringProcessor(RedisLiterals.BytesPONG),
+            DemandOK = new ExpectBasicStringProcessor(CommonReplies.OK),
+            DemandPONG = new ExpectBasicStringProcessor(CommonReplies.PONG),
             DemandZeroOrOne = new DemandZeroOrOneProcessor(),
             AutoConfigure = new AutoConfigureProcessor(),
             TrackSubscriptions = new TrackSubscriptionsProcessor(),
             Tracer = new TracerProcessor(false),
             EstablishConnection = new TracerProcessor(true),
-            BackgroundSaveStarted = new ExpectBasicStringProcessor(RedisLiterals.BytesBackgroundSavingStarted);
+            BackgroundSaveStarted = new ExpectBasicStringProcessor(CommonReplies.backgroundSavingStarted_trimmed, startsWith: true);
 
         public static readonly ResultProcessor<byte[]>
             ByteArray = new ByteArrayProcessor(),
@@ -132,10 +132,6 @@ namespace StackExchange.Redis
             TimeSpanFromSeconds = new TimeSpanProcessor(false);
         public static readonly HashEntryArrayProcessor
             HashEntryArray = new HashEntryArrayProcessor();
-        private static readonly byte[]
-            MOVED = Encoding.UTF8.GetBytes("MOVED "),
-            ASK = Encoding.UTF8.GetBytes("ASK "),
-            NOAUTH = Encoding.UTF8.GetBytes("NOAUTH ");
 
         public void ConnectionFail(Message message, ConnectionFailureType fail, Exception innerException, string annotation)
         {
@@ -179,14 +175,14 @@ namespace StackExchange.Redis
             }
             if (result.IsError)
             {
-                if (result.AssertStarts(NOAUTH)) bridge?.Multiplexer?.SetAuthSuspect();
+                if (result.StartsWith(CommonReplies.NOAUTH)) bridge?.Multiplexer?.SetAuthSuspect();
 
                 var server = bridge.ServerEndPoint;
                 bool log = !message.IsInternalCall;
-                bool isMoved = result.AssertStarts(MOVED);
+                bool isMoved = result.StartsWith(CommonReplies.MOVED);
                 string err = string.Empty;
                 bool unableToConnectError = false;
-                if (isMoved || result.AssertStarts(ASK))
+                if (isMoved || result.StartsWith(CommonReplies.ASK))
                 {
                     message.SetResponseReceived();
 
@@ -367,6 +363,7 @@ namespace StackExchange.Redis
                         physical.WriteBulkString(value);
                     }
                 }
+                public override int ArgCount => value.IsNull ? 0 : 1;
             }
         }
 
@@ -389,8 +386,6 @@ namespace StackExchange.Redis
 
         internal sealed class DemandZeroOrOneProcessor : ResultProcessor<bool>
         {
-            private static readonly byte[] zero = { (byte)'0' }, one = { (byte)'1' };
-
             public static bool TryGet(RawResult result, out bool value)
             {
                 switch (result.Type)
@@ -398,8 +393,8 @@ namespace StackExchange.Redis
                     case ResultType.Integer:
                     case ResultType.SimpleString:
                     case ResultType.BulkString:
-                        if (result.IsEqual(one)) { value = true; return true; }
-                        else if (result.IsEqual(zero)) { value = false; return true; }
+                        if (result.IsEqual(CommonReplies.one)) { value = true; return true; }
+                        else if (result.IsEqual(CommonReplies.zero)) { value = false; return true; }
                         break;
                 }
                 value = false;
@@ -561,10 +556,9 @@ namespace StackExchange.Redis
 
         private sealed class AutoConfigureProcessor : ResultProcessor<bool>
         {
-            private static readonly byte[] READONLY = Encoding.UTF8.GetBytes("READONLY ");
             public override bool SetResult(PhysicalConnection connection, Message message, RawResult result)
             {
-                if (result.IsError && result.AssertStarts(READONLY))
+                if (result.IsError && result.StartsWith(CommonReplies.READONLY))
                 {
                     var bridge = connection.BridgeCouldBeNull;
                     if(bridge != null)
@@ -669,16 +663,10 @@ namespace StackExchange.Redis
                             var arr = result.GetItems();
                             int count = arr.Length / 2;
 
-                            byte[] timeout = (byte[])RedisLiterals.timeout,
-                                databases = (byte[])RedisLiterals.databases,
-                                slave_read_only = (byte[])RedisLiterals.slave_read_only,
-                                yes = (byte[])RedisLiterals.yes,
-                                no = (byte[])RedisLiterals.no;
-
                             for (int i = 0; i < count; i++)
                             {
                                 var key = arr[i * 2];
-                                if (key.IsEqual(timeout) && arr[(i * 2) + 1].TryGetInt64(out long i64))
+                                if (key.IsEqual(CommonReplies.timeout) && arr[(i * 2) + 1].TryGetInt64(out long i64))
                                 {
                                     // note the configuration is in seconds
                                     int timeoutSeconds = checked((int)i64), targetSeconds;
@@ -696,21 +684,21 @@ namespace StackExchange.Redis
                                         server.WriteEverySeconds = targetSeconds;
                                     }
                                 }
-                                else if (key.IsEqual(databases) && arr[(i * 2) + 1].TryGetInt64(out i64))
+                                else if (key.IsEqual(CommonReplies.databases) && arr[(i * 2) + 1].TryGetInt64(out i64))
                                 {
                                     int dbCount = checked((int)i64);
                                     server.Multiplexer.Trace("Auto-configured databases: " + dbCount);
                                     server.Databases = dbCount;
                                 }
-                                else if (key.IsEqual(slave_read_only))
+                                else if (key.IsEqual(CommonReplies.slave_read_only))
                                 {
                                     var val = arr[(i * 2) + 1];
-                                    if (val.IsEqual(yes))
+                                    if (val.IsEqual(CommonReplies.yes))
                                     {
                                         server.SlaveReadOnly = true;
                                         server.Multiplexer.Trace("Auto-configured slave-read-only: true");
                                     }
-                                    else if (val.IsEqual(no))
+                                    else if (val.IsEqual(CommonReplies.no))
                                     {
                                         server.SlaveReadOnly = false;
                                         server.Multiplexer.Trace("Auto-configured slave-read-only: false");
@@ -743,7 +731,7 @@ namespace StackExchange.Redis
                 switch (result.Type)
                 {
                     case ResultType.SimpleString:
-                        if (result.IsEqual(RedisLiterals.BytesOK))
+                        if (result.IsEqual(CommonReplies.OK))
                         {
                             SetResult(message, true);
                         }
@@ -913,20 +901,17 @@ namespace StackExchange.Redis
 
         private sealed class ExpectBasicStringProcessor : ResultProcessor<bool>
         {
-            private readonly byte[] expected;
-            public ExpectBasicStringProcessor(string value)
+            private readonly CommandBytes _expected;
+            private readonly bool _startsWith;
+            public ExpectBasicStringProcessor(CommandBytes expected, bool startsWith = false)
             {
-                expected = Encoding.UTF8.GetBytes(value);
-            }
-
-            public ExpectBasicStringProcessor(byte[] value)
-            {
-                expected = value;
+                _expected = expected;
+                _startsWith = startsWith;
             }
 
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
-                if (result.IsEqual(expected))
+                if (_startsWith ? result.StartsWith(_expected) : result.IsEqual(_expected))
                 {
                     SetResult(message, true);
                     return true;
@@ -1320,10 +1305,9 @@ The coordinates as a two items x,y array (longitude,latitude).
 
         private class ScriptResultProcessor : ResultProcessor<RedisResult>
         {
-            private static readonly byte[] NOSCRIPT = Encoding.UTF8.GetBytes("NOSCRIPT ");
             public override bool SetResult(PhysicalConnection connection, Message message, RawResult result)
             {
-                if (result.Type == ResultType.Error && result.AssertStarts(NOSCRIPT))
+                if (result.Type == ResultType.Error && result.StartsWith(CommonReplies.NOSCRIPT))
                 { // scripts are not flushed individually, so assume the entire script cache is toast ("SCRIPT FLUSH")
                     connection.BridgeCouldBeNull?.ServerEndPoint?.FlushScriptCache();
                     message.SetScriptUnavailable();
@@ -1811,11 +1795,6 @@ The coordinates as a two items x,y array (longitude,latitude).
 
         private class TracerProcessor : ResultProcessor<bool>
         {
-            private static readonly byte[]
-                authRequired = Encoding.UTF8.GetBytes("NOAUTH Authentication required."),
-                authFail = Encoding.UTF8.GetBytes("ERR operation not permitted"),
-                loading = Encoding.UTF8.GetBytes("LOADING ");
-
             private readonly bool establishConnection;
 
             public TracerProcessor(bool establishConnection)
@@ -1828,17 +1807,17 @@ The coordinates as a two items x,y array (longitude,latitude).
                 var final = base.SetResult(connection, message, result);
                 if (result.IsError)
                 {
-                    if (result.IsEqual(authFail) || result.IsEqual(authRequired))
+                    if (result.StartsWith(CommonReplies.authFail_trimmed) || result.StartsWith(CommonReplies.NOAUTH))
                     {
                         connection.RecordConnectionFailed(ConnectionFailureType.AuthenticationFailure, new Exception(result.ToString() + " Verify if the Redis password provided is correct."));
                     }
-                    else if (result.AssertStarts(loading))
+                    else if (result.StartsWith(CommonReplies.loading))
                     {
                         connection.RecordConnectionFailed(ConnectionFailureType.Loading);
                     }
                     else
                     {
-                        connection.RecordConnectionFailed(ConnectionFailureType.ProtocolFailure);
+                        connection.RecordConnectionFailed(ConnectionFailureType.ProtocolFailure, new RedisServerException(result.ToString()));
                     }
                 }
                 return final;
@@ -1853,7 +1832,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                         happy = result.Type == ResultType.BulkString && (!establishConnection || result.IsEqual(connection.BridgeCouldBeNull?.Multiplexer?.UniqueId));
                         break;
                     case RedisCommand.PING:
-                        happy = result.Type == ResultType.SimpleString && result.IsEqual(RedisLiterals.BytesPONG);
+                        happy = result.Type == ResultType.SimpleString && result.IsEqual(CommonReplies.PONG);
                         break;
                     case RedisCommand.TIME:
                         happy = result.Type == ResultType.MultiBulk && result.GetItems().Length == 2;

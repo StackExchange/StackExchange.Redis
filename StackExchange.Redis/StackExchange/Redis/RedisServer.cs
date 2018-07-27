@@ -70,7 +70,7 @@ namespace StackExchange.Redis
             {
                 RedisLiterals.KILL
             };
-            if(id != null)
+            if (id != null)
             {
                 parts.Add(RedisLiterals.ID);
                 parts.Add(id.Value);
@@ -78,7 +78,7 @@ namespace StackExchange.Redis
             if (clientType != null)
             {
                 parts.Add(RedisLiterals.TYPE);
-                switch(clientType.Value)
+                switch (clientType.Value)
                 {
                     case ClientType.Normal:
                         parts.Add(RedisLiterals.normal);
@@ -99,7 +99,7 @@ namespace StackExchange.Redis
                 parts.Add(RedisLiterals.ADDR);
                 parts.Add((RedisValue)Format.ToString(endpoint));
             }
-            if(!skipMe)
+            if (!skipMe)
             {
                 parts.Add(RedisLiterals.SKIPME);
                 parts.Add(RedisLiterals.no);
@@ -649,14 +649,14 @@ namespace StackExchange.Redis
 
         private Message GetSaveMessage(SaveType type, CommandFlags flags = CommandFlags.None)
         {
-            switch(type)
+            switch (type)
             {
                 case SaveType.BackgroundRewriteAppendOnlyFile: return Message.Create(-1, flags, RedisCommand.BGREWRITEAOF);
                 case SaveType.BackgroundSave: return Message.Create(-1, flags, RedisCommand.BGSAVE);
 #pragma warning disable 0618
                 case SaveType.ForegroundSave: return Message.Create(-1, flags, RedisCommand.SAVE);
 #pragma warning restore 0618
-                default:  throw new ArgumentOutOfRangeException(nameof(type));
+                default: throw new ArgumentOutOfRangeException(nameof(type));
             }
         }
 
@@ -675,19 +675,17 @@ namespace StackExchange.Redis
 
         private static class ScriptHash
         {
-            private static readonly byte[] hex = {
-                (byte)'0', (byte)'1', (byte)'2', (byte)'3', (byte)'4', (byte)'5', (byte)'6', (byte)'7',
-                (byte)'8', (byte)'9', (byte)'a', (byte)'b', (byte)'c', (byte)'d', (byte)'e', (byte)'f' };
             public static RedisValue Encode(byte[] value)
             {
+                const string hex = "0123456789abcdef";
                 if (value == null) return default(RedisValue);
                 var result = new byte[value.Length * 2];
                 int offset = 0;
                 for (int i = 0; i < value.Length; i++)
                 {
                     int val = value[i];
-                    result[offset++] = hex[val / 16];
-                    result[offset++] = hex[val % 16];
+                    result[offset++] = (byte)hex[val >> 4];
+                    result[offset++] = (byte)hex[val & 15];
                 }
                 return result;
             }
@@ -830,7 +828,7 @@ namespace StackExchange.Redis
 
         public RedisResult Execute(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
         {
-            var msg = new RedisDatabase.ExecuteMessage(-1, flags, command, args);
+            var msg = new RedisDatabase.ExecuteMessage(multiplexer?.CommandMap, -1, flags, command, args);
             return ExecuteSync(msg, ResultProcessor.ScriptResult);
         }
 
@@ -838,7 +836,7 @@ namespace StackExchange.Redis
 
         public Task<RedisResult> ExecuteAsync(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
         {
-            var msg = new RedisDatabase.ExecuteMessage(-1, flags, command, args);
+            var msg = new RedisDatabase.ExecuteMessage(multiplexer?.CommandMap, -1, flags, command, args);
             return ExecuteAsync(msg, ResultProcessor.ScriptResult);
         }
 

@@ -54,8 +54,6 @@ namespace StackExchange.Redis
             FetchNextSegment();
         }
 
-        private static readonly byte[] CRLF = { (byte)'\r', (byte)'\n' };
-
         /// <summary>
         /// Note that in results other than success, no guarantees are made about final state; if you care: snapshot
         /// </summary>
@@ -170,6 +168,7 @@ namespace StackExchange.Redis
 
             int totalSkipped = 0;
             bool haveTrailingCR = false;
+            ReadOnlySpan<byte> CRLF = stackalloc byte[2] { (byte)'\r', (byte)'\n' };
             do
             {
                 if (reader.RemainingThisSpan == 0) continue;

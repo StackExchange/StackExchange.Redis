@@ -151,15 +151,16 @@ namespace StackExchange.Redis
                 Wrapped.WriteTo(physical);
                 Wrapped.SetRequestSent();
             }
+            public override int ArgCount => Wrapped.ArgCount;
         }
 
         private class QueuedProcessor : ResultProcessor<bool>
         {
             public static readonly ResultProcessor<bool> Default = new QueuedProcessor();
-            private static readonly byte[] QUEUED = Encoding.UTF8.GetBytes("QUEUED");
+
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
-                if (result.Type == ResultType.SimpleString && result.IsEqual(QUEUED))
+                if (result.Type == ResultType.SimpleString && result.IsEqual(CommonReplies.QUEUED))
                 {
                     if (message is QueuedMessage q)
                     {
@@ -351,6 +352,7 @@ namespace StackExchange.Redis
             {
                 physical.WriteHeader(Command, 0);
             }
+            public override int ArgCount => 0;
 
             private bool AreAllConditionsSatisfied(ConnectionMultiplexer multiplexer)
             {
@@ -400,7 +402,7 @@ namespace StackExchange.Redis
                     switch (result.Type)
                     {
                         case ResultType.SimpleString:
-                            if (tran.IsAborted && result.IsEqual(RedisLiterals.BytesOK))
+                            if (tran.IsAborted && result.IsEqual(CommonReplies.OK))
                             {
                                 connection.Trace("Acknowledging UNWATCH (aborted electively)");
                                 SetResult(message, false);

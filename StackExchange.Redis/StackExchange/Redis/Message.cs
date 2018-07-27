@@ -42,6 +42,7 @@ namespace StackExchange.Redis
             catch { }
             tail.WriteTo(physical);
         }
+        public override int ArgCount => tail.ArgCount;
 
         public TextWriter Log => log;
     }
@@ -212,6 +213,9 @@ namespace StackExchange.Redis
         public bool IsInternalCall => (flags & InternalCallFlag) != 0;
 
         public ResultBox ResultBox => resultBox;
+
+        public abstract int ArgCount { get; } // note: over-estimate if necessary
+
         public static Message Create(int db, CommandFlags flags, RedisCommand command)
         {
             if (command == RedisCommand.SELECT)
@@ -739,6 +743,7 @@ namespace StackExchange.Redis
                 physical.WriteHeader(Command, 1);
                 physical.Write(Channel);
             }
+            public override int ArgCount => 1;
         }
 
         private sealed class CommandChannelValueMessage : CommandChannelBase
@@ -756,6 +761,7 @@ namespace StackExchange.Redis
                 physical.Write(Channel);
                 physical.WriteBulkString(value);
             }
+            public override int ArgCount => 2;
         }
 
         private sealed class CommandKeyKeyKeyMessage : CommandKeyBase
@@ -783,6 +789,7 @@ namespace StackExchange.Redis
                 physical.Write(key1);
                 physical.Write(key2);
             }
+            public override int ArgCount => 3;
         }
 
         private class CommandKeyKeyMessage : CommandKeyBase
@@ -806,6 +813,7 @@ namespace StackExchange.Redis
                 physical.Write(Key);
                 physical.Write(key1);
             }
+            public override int ArgCount => 2;
         }
 
         private sealed class CommandKeyKeysMessage : CommandKeyBase
@@ -839,6 +847,7 @@ namespace StackExchange.Redis
                     physical.Write(keys[i]);
                 }
             }
+            public override int ArgCount => keys.Length + 1;
         }
 
         private sealed class CommandKeyKeyValueMessage : CommandKeyKeyMessage
@@ -857,6 +866,8 @@ namespace StackExchange.Redis
                 physical.Write(key1);
                 physical.WriteBulkString(value);
             }
+
+            public override int ArgCount => 3;
         }
 
         private sealed class CommandKeyMessage : CommandKeyBase
@@ -868,6 +879,7 @@ namespace StackExchange.Redis
                 physical.WriteHeader(Command, 1);
                 physical.Write(Key);
             }
+            public override int ArgCount => 1;
         }
 
         private sealed class CommandValuesMessage : Message
@@ -890,6 +902,7 @@ namespace StackExchange.Redis
                     physical.WriteBulkString(values[i]);
                 }
             }
+            public override int ArgCount => values.Length;
         }
 
         private sealed class CommandKeysMessage : Message
@@ -922,6 +935,7 @@ namespace StackExchange.Redis
                     physical.Write(keys[i]);
                 }
             }
+            public override int ArgCount => keys.Length;
         }
 
         private sealed class CommandKeyValueMessage : CommandKeyBase
@@ -939,6 +953,7 @@ namespace StackExchange.Redis
                 physical.Write(Key);
                 physical.WriteBulkString(value);
             }
+            public override int ArgCount => 2;
         }
 
         private sealed class CommandKeyValuesKeyMessage : CommandKeyBase
@@ -969,6 +984,7 @@ namespace StackExchange.Redis
                 for (int i = 0; i < values.Length; i++) physical.WriteBulkString(values[i]);
                 physical.Write(key1);
             }
+            public override int ArgCount => values.Length + 2;
         }
 
         private sealed class CommandKeyValuesMessage : CommandKeyBase
@@ -989,6 +1005,7 @@ namespace StackExchange.Redis
                 physical.Write(Key);
                 for (int i = 0; i < values.Length; i++) physical.WriteBulkString(values[i]);
             }
+            public override int ArgCount => values.Length + 1;
         }
 
         private sealed class CommandKeyValueValueMessage : CommandKeyBase
@@ -1009,6 +1026,7 @@ namespace StackExchange.Redis
                 physical.WriteBulkString(value0);
                 physical.WriteBulkString(value1);
             }
+            public override int ArgCount => 3;
         }
 
         private sealed class CommandKeyValueValueValueMessage : CommandKeyBase
@@ -1032,6 +1050,7 @@ namespace StackExchange.Redis
                 physical.WriteBulkString(value1);
                 physical.WriteBulkString(value2);
             }
+            public override int ArgCount => 4;
         }
 
         private sealed class CommandKeyValueValueValueValueMessage : CommandKeyBase
@@ -1058,6 +1077,7 @@ namespace StackExchange.Redis
                 physical.WriteBulkString(value2);
                 physical.WriteBulkString(value3);
             }
+            public override int ArgCount => 5;
         }
 
         private sealed class CommandMessage : Message
@@ -1067,6 +1087,7 @@ namespace StackExchange.Redis
             {
                 physical.WriteHeader(Command, 0);
             }
+            public override int ArgCount => 0;
         }
 
         private class CommandSlotValuesMessage : Message
@@ -1098,6 +1119,7 @@ namespace StackExchange.Redis
                     physical.WriteBulkString(values[i]);
                 }
             }
+            public override int ArgCount => values.Length;
         }
 
         private sealed class CommandValueChannelMessage : CommandChannelBase
@@ -1115,6 +1137,7 @@ namespace StackExchange.Redis
                 physical.WriteBulkString(value);
                 physical.Write(Channel);
             }
+            public override int ArgCount => 2;
         }
 
         private sealed class CommandValueKeyMessage : CommandKeyBase
@@ -1139,6 +1162,7 @@ namespace StackExchange.Redis
                 physical.WriteBulkString(value);
                 physical.Write(Key);
             }
+            public override int ArgCount => 2;
         }
 
         private sealed class CommandValueMessage : Message
@@ -1155,6 +1179,7 @@ namespace StackExchange.Redis
                 physical.WriteHeader(Command, 1);
                 physical.WriteBulkString(value);
             }
+            public override int ArgCount => 1;
         }
 
         private sealed class CommandValueValueMessage : Message
@@ -1174,6 +1199,7 @@ namespace StackExchange.Redis
                 physical.WriteBulkString(value0);
                 physical.WriteBulkString(value1);
             }
+            public override int ArgCount => 2;
         }
 
         private sealed class CommandValueValueValueMessage : Message
@@ -1196,6 +1222,7 @@ namespace StackExchange.Redis
                 physical.WriteBulkString(value1);
                 physical.WriteBulkString(value2);
             }
+            public override int ArgCount => 3;
         }
 
         private sealed class CommandValueValueValueValueValueMessage : Message
@@ -1224,6 +1251,7 @@ namespace StackExchange.Redis
                 physical.WriteBulkString(value3);
                 physical.WriteBulkString(value4);
             }
+            public override int ArgCount => 5;
         }
 
         private sealed class SelectMessage : Message
@@ -1237,6 +1265,7 @@ namespace StackExchange.Redis
                 physical.WriteHeader(Command, 1);
                 physical.WriteBulkString(Db);
             }
+            public override int ArgCount => 1;
         }
     }
 }

@@ -3,6 +3,29 @@ using System.Text;
 
 namespace StackExchange.Redis
 {
+    internal static class CommonReplies
+    {
+        public static readonly CommandBytes
+            ASK = "ASK ",
+            authFail_trimmed = CommandBytes.TrimToFit("ERR operation not permitted"),
+            backgroundSavingStarted_trimmed = CommandBytes.TrimToFit("Background saving started"),
+            databases = "databases",
+            loading = "LOADING ",
+            MOVED = "MOVED ",
+            NOAUTH = "NOAUTH ",
+            NOSCRIPT = "NOSCRIPT ",
+            no = "no",
+            OK = "OK",
+            one = "1",
+            PONG = "PONG",
+            QUEUED = "QUEUED",
+            READONLY = "READONLY ",
+            slave_read_only = "slave-read-only",
+            timeout = "timeout",
+            wildcard = "*",
+            yes = "yes",
+            zero = "0";
+    }
     internal static class RedisLiterals
     {
         // unlike primary commands, these do not get altered by the command-map; we may as
@@ -65,15 +88,20 @@ namespace StackExchange.Redis
             MASTER = "MASTER",
             SLAVES = "SLAVES",
             GETMASTERADDRBYNAME = "GET-MASTER-ADDR-BY-NAME",
-//            RESET = "RESET",
+            //            RESET = "RESET",
             FAILOVER = "FAILOVER",
 
             // Sentinel Literals as of 2.8.4
             MONITOR = "MONITOR",
             REMOVE = "REMOVE",
-//            SET = "SET",
+            //            SET = "SET",
 
-            // DO NOT CHANGE CASE: these are configuration settings and MUST be as-is
+
+            MinusSymbol = "-",
+            PlusSumbol = "+",
+            Wildcard = "*",
+
+            // misc (config, etc)
             databases = "databases",
             no = "no",
             normal = "normal",
@@ -83,19 +111,11 @@ namespace StackExchange.Redis
             slave = "slave",
             slave_read_only = "slave-read-only",
             timeout = "timeout",
-            yes = "yes",
+            yes = "yes";
 
-            MinusSymbol = "-",
-            PlusSumbol = "+",
-            Wildcard = "*";
-
-        public static readonly byte[] BytesOK = Encoding.UTF8.GetBytes("OK");
-        public static readonly byte[] BytesPONG = Encoding.UTF8.GetBytes("PONG");
-        public static readonly byte[] BytesBackgroundSavingStarted = Encoding.UTF8.GetBytes("Background saving started");
-        public static readonly byte[] ByteWildcard = { (byte)'*' };
         internal static RedisValue Get(Bitwise operation)
         {
-            switch(operation)
+            switch (operation)
             {
                 case Bitwise.And: return AND;
                 case Bitwise.Or: return OR;

@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Text;
 
@@ -10,9 +9,9 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed class CommandMap
     {
-        private readonly byte[][] map;
+        private readonly CommandBytes[] map;
 
-        internal CommandMap(byte[][] map)
+        internal CommandMap(CommandBytes[] map)
         {
             this.map = map;
         }
@@ -154,55 +153,41 @@ namespace StackExchange.Redis
         {
             for (int i = 0; i < map.Length; i++)
             {
-                var key = ((RedisCommand)i).ToString();
-                var value = map[i] == null ? "" : Encoding.UTF8.GetString(map[i]);
-                if (key != value)
+                var keyString = ((RedisCommand)i).ToString();
+                var keyBytes = new CommandBytes(keyString);
+                var value = map[i];
+                if (!keyBytes.Equals(value))
                 {
                     if (sb.Length != 0) sb.Append(',');
-                    sb.Append('$').Append(key).Append('=').Append(value);
+                    sb.Append('$').Append(keyString).Append('=').Append(value);
                 }
             }
         }
 
         internal void AssertAvailable(RedisCommand command)
         {
-            if (map[(int)command] == null) throw ExceptionFactory.CommandDisabled(false, command, null, null);
+            if (map[(int)command].IsEmpty) throw ExceptionFactory.CommandDisabled(command);
         }
 
-        internal byte[] GetBytes(RedisCommand command) => map[(int)command];
+        internal CommandBytes GetBytes(RedisCommand command) => map[(int)command];
 
-        internal byte[] GetBytes(string command)
+        internal CommandBytes GetBytes(string command)
         {
-            if (command == null) return null;
+            if (command == null) return default;
             if(Enum.TryParse(command, true, out RedisCommand cmd))
             {   // we know that one!
                 return map[(int)cmd];
             }
-            var bytes = (byte[])_unknownCommands[command];
-            if(bytes == null)
-            {
-                lock(_unknownCommands)
-                {   // double-checked
-                    bytes = (byte[])_unknownCommands[command];
-                    if(bytes == null)
-                    {
-                        bytes = Encoding.ASCII.GetBytes(command);
-                        _unknownCommands[command] = bytes;
-                    }
-                }
-            }
-            return bytes;
+            return new CommandBytes(command);
         }
 
-        private static readonly Hashtable _unknownCommands = new Hashtable();
-
-        internal bool IsAvailable(RedisCommand command) => map[(int)command] != null;
+        internal bool IsAvailable(RedisCommand command) => !map[(int)command].IsEmpty;
 
         private static CommandMap CreateImpl(Dictionary<string, string> caseInsensitiveOverrides, HashSet<RedisCommand> exclusions)
         {
             var commands = (RedisCommand[])Enum.GetValues(typeof(RedisCommand));
 
-            var map = new byte[commands.Length][];
+            var map = new CommandBytes[commands.Length];
             bool haveDelta = false;
             for (int i = 0; i < commands.Length; i++)
             {
@@ -211,7 +196,7 @@ namespace StackExchange.Redis
 
                 if (exclusions?.Contains(commands[i]) == true)
                 {
-                    map[idx] = null;
+                    map[idx] = default;
                 }
                 else
                 {
@@ -222,8 +207,7 @@ namespace StackExchange.Redis
                     if (value != name) haveDelta = true;
                     // TODO: bug?
                     haveDelta = true;
-                    byte[] val = string.IsNullOrWhiteSpace(value) ? null : Encoding.UTF8.GetBytes(value);
-                    map[idx] = val;
+                    map[idx] = new CommandBytes(value);
                 }
             }
             if (!haveDelta && Default != null) return Default;

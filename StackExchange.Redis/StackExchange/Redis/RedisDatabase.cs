@@ -706,6 +706,16 @@ namespace StackExchange.Redis
                 if (isCopy) physical.WriteBulkString(RedisLiterals.COPY);
                 if (isReplace) physical.WriteBulkString(RedisLiterals.REPLACE);
             }
+
+            public override int ArgCount
+            {
+                get
+                {
+                    bool isCopy = (migrateOptions & MigrateOptions.Copy) != 0;
+                    bool isReplace = (migrateOptions & MigrateOptions.Replace) != 0;
+                    return 5 + (isCopy ? 1 : 0) + (isReplace ? 1 : 0);
+                }
+            }
         }
 
         public bool KeyMove(RedisKey key, int database, CommandFlags flags = CommandFlags.None)
@@ -1092,7 +1102,7 @@ namespace StackExchange.Redis
             => Execute(command, args, CommandFlags.None);
         public RedisResult Execute(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
         {
-            var msg = new ExecuteMessage(Database, flags, command, args);
+            var msg = new ExecuteMessage(multiplexer?.CommandMap, Database, flags, command, args);
             return ExecuteSync(msg, ResultProcessor.ScriptResult);
         }
 
@@ -1100,7 +1110,7 @@ namespace StackExchange.Redis
             => ExecuteAsync(command, args, CommandFlags.None);
         public Task<RedisResult> ExecuteAsync(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
         {
-            var msg = new ExecuteMessage(Database, flags, command, args);
+            var msg = new ExecuteMessage(multiplexer?.CommandMap, Database, flags, command, args);
             return ExecuteAsync(msg, ResultProcessor.ScriptResult);
         }
 
@@ -3172,6 +3182,7 @@ namespace StackExchange.Redis
                 physical.WriteBulkString(RedisLiterals.LOAD);
                 physical.WriteBulkString((RedisValue)Script);
             }
+            public override int ArgCount => 2;
         }
 
         private sealed class HashScanResultProcessor : ScanResultProcessor<HashEntry>
@@ -3210,20 +3221,25 @@ namespace StackExchange.Redis
 
         internal sealed class ExecuteMessage : Message
         {
-            private readonly string _command;
-            private readonly ICollection<object> args;
+            private readonly CommandBytes _command;
+            private readonly ICollection<object> _args;
 
-            public new string Command => _command;
-            public ExecuteMessage(int db, CommandFlags flags, string command, ICollection<object> args) : base(db, flags, RedisCommand.UNKNOWN)
+            public new CommandBytes Command => _command;
+            public ExecuteMessage(CommandMap map, int db, CommandFlags flags, string command, ICollection<object> args) : base(db, flags, RedisCommand.UNKNOWN)
             {
-                _command = command;
-                this.args = args ?? Array.Empty<object>();
+                _args = args ?? Array.Empty<object>();
+                if (args.Count >= PhysicalConnection.REDIS_MAX_ARGS) // using >= here because we will be adding 1 for the command itself (which is an arg for the purposes of the multi-bulk protocol)
+                {
+                    throw ExceptionFactory.TooManyArgs(command, args.Count);
+                }
+                _command = map?.GetBytes(command) ?? default;
+                if (_command.IsEmpty) throw ExceptionFactory.CommandDisabled(command);
             }
 
             protected override void WriteImpl(PhysicalConnection physical)
             {
-                physical.WriteHeader(_command, args.Count);
-                foreach (object arg in args)
+                physical.WriteHeader(RedisCommand.UNKNOWN, _args.Count, _command);
+                foreach (object arg in _args)
                 {
                     if (arg is RedisKey key)
                     {
@@ -3242,12 +3258,12 @@ namespace StackExchange.Redis
                 }
             }
 
-            public override string CommandAndKey => _command;
+            public override string CommandAndKey => _command.ToString();
 
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
             {
                 int slot = ServerSelectionStrategy.NoSlot;
-                foreach (object arg in args)
+                foreach (object arg in _args)
                 {
                     if (arg is RedisKey key)
                     {
@@ -3256,6 +3272,7 @@ namespace StackExchange.Redis
                 }
                 return slot;
             }
+            public override int ArgCount => _args.Count;
         }
 
         private sealed class ScriptEvalMessage : Message, IMultiMessage
@@ -3347,6 +3364,7 @@ namespace StackExchange.Redis
                 for (int i = 0; i < values.Length; i++)
                     physical.WriteBulkString(values[i]);
             }
+            public override int ArgCount => 2 + keys.Length + values.Length;
         }
 
         private sealed class SetScanResultProcessor : ScanResultProcessor<RedisValue>
@@ -3392,6 +3410,7 @@ namespace StackExchange.Redis
                 for (int i = 0; i < values.Length; i++)
                     physical.WriteBulkString(values[i]);
             }
+            public override int ArgCount => 2 + keys.Length + values.Length;
         }
 
         private sealed class SortedSetScanResultProcessor : ScanResultProcessor<SortedSetEntry>
@@ -3446,6 +3465,7 @@ namespace StackExchange.Redis
                 physical.WriteHeader(command, 1);
                 physical.Write(Key);
             }
+            public override int ArgCount => 1;
         }
 
         private class StringGetWithExpiryProcessor : ResultProcessor<RedisValueWithExpiry>

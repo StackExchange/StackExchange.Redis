@@ -13,7 +13,7 @@ namespace StackExchange.Redis.Profiling
 
         public int Db => Message.Db;
 
-        public string Command => Message is RedisDatabase.ExecuteMessage em ? em.Command : Message.Command.ToString();
+        public string Command => Message is RedisDatabase.ExecuteMessage em ? em.Command.ToString() : Message.Command.ToString();
 
         public CommandFlags Flags => Message.Flags;
 
