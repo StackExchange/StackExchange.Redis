@@ -20,19 +20,26 @@ namespace BasicTest
     }
     internal class CustomConfig : ManualConfig
     {
+        protected virtual Job Configure(Job j)
+            => j.With(new GcMode { Force = true })
+                .With(InProcessToolchain.Instance);
+
         public CustomConfig()
         {
-            Job Get(Job j) => j
-                .With(new GcMode { Force = true })
-                .With(InProcessToolchain.Instance)
-                ;
-
             Add(new MemoryDiagnoser());
             Add(StatisticColumn.OperationsPerSecond);
             Add(JitOptimizationsValidator.FailOnError);
-            Add(Get(Job.Clr));
+            Add(Configure(Job.Clr));
             //Add(Get(Job.Core));
         }
+    }
+    internal class SlowConfig : CustomConfig
+    {
+        protected override Job Configure(Job j)
+            => j.WithLaunchCount(1)
+                .WithWarmupCount(1)
+                .WithIterationCount(5);
+        public SlowConfig() { }
     }
     /// <summary>
     /// The tests
@@ -160,7 +167,9 @@ namespace BasicTest
         }
     }
 #pragma warning disable CS1591
-    [Config(typeof(CustomConfig))]
+
+
+    [Config(typeof(SlowConfig))]
     public class Issue898 : IDisposable
     {
         private readonly ConnectionMultiplexer mux;
