@@ -6,7 +6,14 @@ using StackExchange.Redis;
 
 static class Program
 {
-    static async Task Main()
+    static void Main()
+    {
+        using (var muxer = ConnectionMultiplexer.Connect("localhost:6379", Console.Out))
+        {
+            muxer.GetDatabase().Ping();
+        }
+    }
+    static async Task Main2()
     {
         const int ClientCount = 150, ConnectionCount = 10;
         CancellationTokenSource cancel = new CancellationTokenSource();

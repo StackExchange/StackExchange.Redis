@@ -125,7 +125,12 @@ namespace StackExchange.Redis
         internal static Socket CreateSocket(EndPoint endpoint)
         {
             var protocolType = endpoint.AddressFamily == AddressFamily.Unix ? ProtocolType.Unspecified : ProtocolType.Tcp;
-            var socket = new Socket(endpoint.AddressFamily, SocketType.Stream, protocolType);
+            var addressFamily = endpoint.AddressFamily;
+            if (addressFamily == AddressFamily.Unspecified && endpoint is DnsEndPoint)
+            {   // default DNS to ipv4 if not specified explicitly
+                addressFamily = AddressFamily.InterNetwork;
+            }
+            var socket = new Socket(addressFamily, SocketType.Stream, protocolType);
             SocketConnection.SetRecommendedClientOptions(socket);
             return socket;
         }
