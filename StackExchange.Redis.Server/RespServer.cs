@@ -23,7 +23,7 @@ namespace StackExchange.Redis.Server
         private readonly List<RedisClient> _clients = new List<RedisClient>();
         private readonly TextWriter _output;
 
-        public RespServer(TextWriter output = null)
+        protected RespServer(TextWriter output = null)
         {
             _output = output;
             _commands = BuildCommands(this);
@@ -96,7 +96,7 @@ namespace StackExchange.Redis.Server
         }
         private readonly Dictionary<CommandBytes, RespCommand> _commands;
 
-        readonly struct RespCommand
+        private readonly struct RespCommand
         {
             public RespCommand(RedisCommandAttribute attrib, MethodInfo method, RespServer server)
             {
@@ -109,14 +109,14 @@ namespace StackExchange.Redis.Server
                 LockFree = attrib.LockFree;
                 _subcommands = null;
             }
-            CommandBytes CommandBytes { get; }
+            private CommandBytes CommandBytes { get; }
             public string Command { get; }
             public string SubCommand { get; }
             public bool IsSubCommand => !string.IsNullOrEmpty(SubCommand);
             public int Arity { get; }
             public int MaxArgs { get; }
             public bool LockFree { get; }
-            readonly RespOperation _operation;
+            private readonly RespOperation _operation;
 
             private readonly RespCommand[] _subcommands;
             public bool HasSubCommands => _subcommands != null;
@@ -182,7 +182,7 @@ namespace StackExchange.Redis.Server
             }
         }
 
-        delegate TypedRedisValue RespOperation(RedisClient client, RedisRequest request);
+        private delegate TypedRedisValue RespOperation(RedisClient client, RedisRequest request);
 
         // for extensibility, so that a subclass can get their own client type
         // to be used via ListenForConnections

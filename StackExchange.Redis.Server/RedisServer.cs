@@ -502,10 +502,10 @@ namespace StackExchange.Redis.Server
             }
             return reply;
         }
-        static readonly CommandBytes
+        private static readonly CommandBytes
             s_Subscribe = new CommandBytes("subscribe"),
             s_Unsubscribe = new CommandBytes("unsubscribe");
-        static readonly DateTime UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        private static readonly DateTime UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         [RedisCommand(1, LockFree = true)]
         protected virtual TypedRedisValue Time(RedisClient client, RedisRequest request)
@@ -542,6 +542,5 @@ namespace StackExchange.Redis.Server
             Set(database, key, value);
             return value;
         }
-
     }
 }

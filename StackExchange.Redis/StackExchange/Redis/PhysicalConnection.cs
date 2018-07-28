@@ -26,7 +26,6 @@ namespace StackExchange.Redis
 
         private const int DefaultRedisDatabaseCount = 16;
 
-
         //private static readonly AsyncCallback endRead = result =>
         //{
         //    PhysicalConnection physical;
@@ -608,12 +607,11 @@ namespace StackExchange.Redis
 
         internal const int REDIS_MAX_ARGS = 1024 * 1024; // there is a <= 1024*1024 max constraint inside redis itself: https://github.com/antirez/redis/blob/6c60526db91e23fb2d666fc52facc9a11780a2a3/src/networking.c#L1024
 
-
         internal void WriteHeader(RedisCommand command, int arguments, CommandBytes commandBytes = default)
         {
             var bridge = BridgeCouldBeNull;
             if (bridge == null) throw new ObjectDisposedException(physicalName);
-            
+
             if (command == RedisCommand.UNKNOWN)
             {
                 // using >= here because we will be adding 1 for the command itself (which is an arg for the purposes of the multi-bulk protocol)
@@ -929,7 +927,7 @@ namespace StackExchange.Redis
         }
 
         [ThreadStatic]
-        static Encoder s_PerThreadEncoder;
+        private static Encoder s_PerThreadEncoder;
         internal static Encoder GetPerThreadEncoder()
         {
             var encoder = s_PerThreadEncoder;
@@ -996,7 +994,7 @@ namespace StackExchange.Redis
                 if (totalBytes != expectedLength) throw new InvalidOperationException("String encode length check failure");
             }
         }
-        
+
         private static void WriteUnifiedPrefixedBlob(PipeWriter writer, byte[] prefix, byte[] value)
         {
             // ${total-len}\r\n 

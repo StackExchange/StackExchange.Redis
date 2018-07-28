@@ -79,7 +79,7 @@ namespace StackExchange.Redis
             _parent = parent;
             _queue = System.Threading.Channels.Channel.CreateUnbounded<ChannelMessage>(s_ChannelOptions);
             _queue.Reader.Completion.ContinueWith(
-                (t, state) => ((ChannelMessageQueue)state).IsCompleted = true, this, TaskContinuationOptions.ExecuteSynchronously);
+                (_, state) => ((ChannelMessageQueue)state).IsCompleted = true, this, TaskContinuationOptions.ExecuteSynchronously);
         }
         private static readonly UnboundedChannelOptions s_ChannelOptions = new UnboundedChannelOptions
         {

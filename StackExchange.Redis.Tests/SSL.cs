@@ -341,7 +341,6 @@ namespace StackExchange.Redis.Tests
         }
 
         public static RemoteCertificateValidationCallback ShowCertFailures(TextWriterOutputHelper output) {
-
             if (output == null) return null;
 
             return (object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors) =>
@@ -383,7 +382,6 @@ namespace StackExchange.Redis.Tests
                 return sslPolicyErrors == SslPolicyErrors.None;
             };
         }
-        
 
         [Fact]
         public void SSLParseViaConfig_Issue883_ConfigString()

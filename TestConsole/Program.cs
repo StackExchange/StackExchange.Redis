@@ -4,16 +4,16 @@ using System.Threading;
 using System.Threading.Tasks;
 using StackExchange.Redis;
 
-static class Program
+internal static class Program
 {
-    static void Main()
+    private static void Main()
     {
         using (var muxer = ConnectionMultiplexer.Connect("localhost:6379", Console.Out))
         {
             muxer.GetDatabase().Ping();
         }
     }
-    static async Task Main2()
+    private static async Task Main2()
     {
         const int ClientCount = 150, ConnectionCount = 10;
         CancellationTokenSource cancel = new CancellationTokenSource();
@@ -53,9 +53,9 @@ static class Program
         }
     }
 
-    static int clients;
-    static long totalPings, pings, lastTicks;
-    static async Task ShowState(CancellationToken cancellation)
+    private static int clients;
+    private static long totalPings, pings, lastTicks;
+    private static async Task ShowState(CancellationToken cancellation)
     {
         while (!cancellation.IsCancellationRequested)
         {
@@ -80,7 +80,7 @@ static class Program
         return (pingsInInterval / seconds).ToString("0.0");
     }
 
-    static async Task RunClient(RedisKey key, int seed, IDatabase db, CancellationToken cancellation)
+    private static async Task RunClient(RedisKey key, int seed, IDatabase db, CancellationToken cancellation)
     {
         Interlocked.Increment(ref clients);
         try

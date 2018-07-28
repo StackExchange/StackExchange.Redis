@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Server.Kestrel.Transport.Abstractions.Internal;
 
 namespace KestrelRedisServer
 {
-    public class Program
+    public static class Program
     {
         public static void Main(string[] args)
         {

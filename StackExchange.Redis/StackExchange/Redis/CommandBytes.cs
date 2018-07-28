@@ -40,14 +40,14 @@ namespace StackExchange.Redis
         public override int GetHashCode()
         {
             var hashCode = -1923861349;
-            hashCode = hashCode * -1521134295 + _0.GetHashCode();
-            hashCode = hashCode * -1521134295 + _1.GetHashCode();
-            hashCode = hashCode * -1521134295 + _2.GetHashCode();
+            hashCode = (hashCode * -1521134295) + _0.GetHashCode();
+            hashCode = (hashCode * -1521134295) + _1.GetHashCode();
+            hashCode = (hashCode * -1521134295) + _2.GetHashCode();
             return hashCode;
         }
         public override bool Equals(object obj) => obj is CommandBytes cb && Equals(cb);
 
-        public bool Equals(CommandBytes value) => _0 == value._0 && _1 == value._1 && _2 == value._2;
+        public bool Equals(CommandBytes other) => _0 == other._0 && _1 == other._1 && _2 == other._2;
 
         // note: don't add == operators; with the implicit op above, that invalidates "==null" compiler checks (which should report a failure!)
 
@@ -182,7 +182,7 @@ namespace StackExchange.Redis
             return newLen;
         }
 
-        static byte ToLowerInvariantAscii(byte b) => b >= 'A' && b <= 'Z' ? (byte)(b | 32) : b;
+        private static byte ToLowerInvariantAscii(byte b) => b >= 'A' && b <= 'Z' ? (byte)(b | 32) : b;
 
         internal unsafe byte[] ToArray()
         {

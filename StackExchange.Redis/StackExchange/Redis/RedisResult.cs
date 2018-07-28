@@ -89,7 +89,7 @@ namespace StackExchange.Redis
         /// Indicates whether this result was a null result
         /// </summary>
         public abstract bool IsNull { get; }
-        
+
         /// <summary>
         /// Interprets the result as a <see cref="string"/>.
         /// </summary>

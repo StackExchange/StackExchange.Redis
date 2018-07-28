@@ -200,7 +200,7 @@ namespace StackExchange.Redis
             if (expected.Length != _payload.Length) return false;
             return new CommandBytes(_payload).Equals(expected);
         }
-        
+
         internal unsafe bool IsEqual(byte[] expected)
         {
             if (expected == null) throw new ArgumentNullException(nameof(expected));

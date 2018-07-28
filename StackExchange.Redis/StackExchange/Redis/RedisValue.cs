@@ -38,7 +38,7 @@ namespace StackExchange.Redis
         private readonly static object Sentinel_Integer = new object();
         private readonly static object Sentinel_Raw = new object();
         private readonly static object Sentinel_Double = new object();
-        
+
         /// <summary>
         /// Obtain this value as an object - to be used alongside Unbox
         /// </summary>

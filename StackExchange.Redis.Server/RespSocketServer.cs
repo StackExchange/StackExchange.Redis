@@ -11,7 +11,7 @@ namespace StackExchange.Redis.Server
         public RespSocketServer(RespServer server)
         {
             _server = server ?? throw new ArgumentNullException(nameof(server));
-            server.Shutdown.ContinueWith((t, o) => ((SocketServer)o).Dispose(), this);
+            server.Shutdown.ContinueWith((_, o) => ((SocketServer)o).Dispose(), this);
         }
         protected override void OnStarted(EndPoint endPoint)
             => _server.Log("Server is listening on " + endPoint);

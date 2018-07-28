@@ -96,7 +96,6 @@ namespace StackExchange.Redis
             REMOVE = "REMOVE",
             //            SET = "SET",
 
-
             MinusSymbol = "-",
             PlusSumbol = "+",
             Wildcard = "*",

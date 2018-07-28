@@ -67,7 +67,7 @@ namespace StackExchange.Redis.Server
         protected override long Scard(int database, RedisKey key)
             => GetSet(key, false)?.Count ?? 0;
 
-        HashSet<RedisValue> GetSet(RedisKey key, bool create)
+        private HashSet<RedisValue> GetSet(RedisKey key, bool create)
         {
             var set = (HashSet<RedisValue>)_cache[key];
             if (set == null && create)
@@ -109,8 +109,8 @@ namespace StackExchange.Redis.Server
             => GetStack(key, false)?.Count ?? 0;
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        static void ThrowArgumentOutOfRangeException() => throw new ArgumentOutOfRangeException();
-        
+        private static void ThrowArgumentOutOfRangeException() => throw new ArgumentOutOfRangeException();
+
         protected override void LRange(int database, RedisKey key, long start, Span<TypedRedisValue> arr)
         {
             var stack = GetStack(key, false);
@@ -129,7 +129,7 @@ namespace StackExchange.Redis.Server
             }
         }
 
-        Stack<RedisValue> GetStack(RedisKey key, bool create)
+        private Stack<RedisValue> GetStack(RedisKey key, bool create)
         {
             var stack = (Stack<RedisValue>)_cache[key];
             if (stack == null && create)
@@ -139,7 +139,5 @@ namespace StackExchange.Redis.Server
             }
             return stack;
         }
-
-
     }
 }

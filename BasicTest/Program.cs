@@ -47,9 +47,9 @@ namespace BasicTest
     [Config(typeof(CustomConfig))]
     public class RedisBenchmarks : IDisposable
     {
-        SocketManager mgr;
-        ConnectionMultiplexer connection;
-        IDatabase db;
+        private SocketManager mgr;
+        private ConnectionMultiplexer connection;
+        private IDatabase db;
 
         /// <summary>
         /// Create
@@ -64,7 +64,7 @@ namespace BasicTest
             db.GeoAdd(GeoKey, 13.361389, 38.115556, "Palermo ");
             db.GeoAdd(GeoKey, 15.087269, 37.502669, "Catania");
         }
-        static readonly RedisKey GeoKey = "GeoTest", IncrByKey = "counter";
+        private static readonly RedisKey GeoKey = "GeoTest", IncrByKey = "counter";
         void IDisposable.Dispose()
         {
             mgr?.Dispose();
@@ -87,7 +87,7 @@ namespace BasicTest
         public int ExecuteIncrBy()
         {
             var rand = new Random(12345);
-            
+
             db.KeyDelete(IncrByKey, CommandFlags.FireAndForget);
             int expected = 0;
             for (int i = 0; i < COUNT; i++)
@@ -168,7 +168,6 @@ namespace BasicTest
     }
 #pragma warning disable CS1591
 
-
     [Config(typeof(SlowConfig))]
     public class Issue898 : IDisposable
     {
@@ -182,8 +181,7 @@ namespace BasicTest
             db = mux.GetDatabase();
         }
 
-
-        const int max = 100000;
+        private const int max = 100000;
         [Benchmark(OperationsPerInvoke = max)]
         public void Load()
         {
@@ -202,7 +200,7 @@ namespace BasicTest
         }
         [Benchmark(OperationsPerInvoke = max)]
         public void Sample()
-        {            
+        {
             var rnd = new Random();
 
             for (int i = 0; i < max; ++i)

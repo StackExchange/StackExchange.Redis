@@ -11,14 +11,13 @@ namespace StackExchange.Redis.Server
 
         public int Count { get; }
 
-        public override string ToString() => Count == 0 ? "(n/a)" : GetString(0).ToString();
+        public override string ToString() => Count == 0 ? "(n/a)" : GetString(0);
         public override bool Equals(object obj) => throw new NotSupportedException();
 
         public TypedRedisValue WrongArgCount() => TypedRedisValue.Error($"ERR wrong number of arguments for '{ToString()}' command");
 
         public TypedRedisValue CommandNotFound()
             => TypedRedisValue.Error($"ERR unknown command '{ToString()}'");
-
 
         public TypedRedisValue UnknownSubcommandOrArgumentCount() => TypedRedisValue.Error($"ERR Unknown subcommand or wrong number of arguments for '{ToString()}'.");
 
