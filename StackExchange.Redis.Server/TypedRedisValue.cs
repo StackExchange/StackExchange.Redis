@@ -5,7 +5,7 @@ using System.Collections.Generic;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// A RedisValue with an eplicit encoding type, which could represent an array of items
+    /// A <see cref="RedisValue"/> with an eplicit encoding type, which could represent an array of items.
     /// </summary>
     public readonly struct TypedRedisValue
     {
@@ -24,29 +24,31 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// An invalid empty value that has no type
+        /// An invalid empty value that has no type.
         /// </summary>
         public static TypedRedisValue Nil => default;
         /// <summary>
-        /// Returns whether this value is an invalid empty value
+        /// Returns whether this value is an invalid empty value.
         /// </summary>
         public bool IsNil => Type == ResultType.None;
 
         /// <summary>
-        /// Returns whether this value represents a null array
+        /// Returns whether this value represents a null array.
         /// </summary>
         public bool IsNullArray => Type == ResultType.MultiBulk && _value.DirectObject == null;
 
         private readonly RedisValue _value;
 
         /// <summary>
-        /// The type of value being represented
+        /// The type of value being represented.
         /// </summary>
         public ResultType Type { get; }
-        
+
         /// <summary>
-        /// Initialize a TypedRedisValue from a value and optionally a type
+        /// Initialize a TypedRedisValue from a value and optionally a type.
         /// </summary>
+        /// <param name="value">The value to initialize.</param>
+        /// <param name="type">The type of <paramref name="value"/>.</param>
         private TypedRedisValue(RedisValue value, ResultType? type = null)
         {
             Type = type ?? (value.IsInteger ? ResultType.Integer : ResultType.BulkString);
@@ -54,14 +56,16 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Initialize a TypedRedisValue that represents an error
+        /// Initialize a TypedRedisValue that represents an error.
         /// </summary>
+        /// <param name="value">The error message.</param>
         public static TypedRedisValue Error(string value)
             => new TypedRedisValue(value, ResultType.Error);
 
         /// <summary>
-        /// Initialize a TypedRedisValue that represents a simple string
+        /// Initialize a TypedRedisValue that represents a simple string.
         /// </summary>
+        /// <param name="value">The string value.</param>
         public static TypedRedisValue SimpleString(string value)
             => new TypedRedisValue(value, ResultType.SimpleString);
 
@@ -101,14 +105,16 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Initialize a TypedRedisValue that represents an integer
+        /// Initialize a <see cref="TypedRedisValue"/> that represents an integer.
         /// </summary>
+        /// <param name="value">The value to initialize from.</param>
         public static TypedRedisValue Integer(long value)
             => new TypedRedisValue(value, ResultType.Integer);
 
         /// <summary>
-        /// Initialize a TypedRedisValue from a span
+        /// Initialize a <see cref="TypedRedisValue"/> from a <see cref="ReadOnlySpan{TypedRedisValue}"/>.
         /// </summary>
+        /// <param name="items">The items to intialize a value from.</param>
         public static TypedRedisValue MultiBulk(ReadOnlySpan<TypedRedisValue> items)
         {
             if (items.IsEmpty) return EmptyArray;
@@ -116,9 +122,11 @@ namespace StackExchange.Redis
             items.CopyTo(span);
             return result;
         }
+
         /// <summary>
-        /// Initialize a TypedRedisValue from a collection
+        /// Initialize a <see cref="TypedRedisValue"/> from a collection.
         /// </summary>
+        /// <param name="items">The items to intialize a value from.</param>
         public static TypedRedisValue MultiBulk(ICollection<TypedRedisValue> items)
         {
             if (items == null) return NullArray;
@@ -130,8 +138,9 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Initialize a TypedRedisValue that represents a bulk string
+        /// Initialize a <see cref="TypedRedisValue"/> that represents a bulk string.
         /// </summary>
+        /// <param name="value">The value to initialize from.</param>
         public static TypedRedisValue BulkString(RedisValue value)
             => new TypedRedisValue(value, ResultType.BulkString);
 
@@ -149,6 +158,7 @@ namespace StackExchange.Redis
             _value = new RedisValue(oversizedItems, count);
             Type = ResultType.MultiBulk;
         }
+
         internal void Recycle(int limit = -1)
         {
             if (_value.DirectObject is TypedRedisValue[] arr)
@@ -163,12 +173,12 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Get the underlying value assuming that it is a valid type with a meaningful value
+        /// Get the underlying <see cref="RedisValue"/> assuming that it is a valid type with a meaningful value.
         /// </summary>
         internal RedisValue AsRedisValue() => Type == ResultType.MultiBulk ? default :_value;
 
         /// <summary>
-        /// Obtain the value as a string
+        /// Obtain the value as a string.
         /// </summary>
         public override string ToString()
         {
@@ -187,13 +197,14 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Not supported
+        /// Not supported.
         /// </summary>
         public override int GetHashCode() => throw new NotSupportedException();
-        /// <summary>
-        /// Not supported
-        /// </summary>
-        public override bool Equals(object obj) => throw new NotSupportedException();
 
+        /// <summary>
+        /// Not supported.
+        /// </summary>
+        /// <param name="obj">The object to compare to.</param>
+        public override bool Equals(object obj) => throw new NotSupportedException();
     }
 }
