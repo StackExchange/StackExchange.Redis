@@ -111,7 +111,7 @@ namespace StackExchange.Redis
                 {
                     len = Encoding.GetBytes(cPtr, value.Length, bPtr + 1, MaxLength);
                 }
-                *bPtr = (byte)LowerCasify(len, bPtr + 1);
+                *bPtr = (byte)UpperCasify(len, bPtr + 1);
             }
         }
 
@@ -123,7 +123,7 @@ namespace StackExchange.Redis
             {
                 byte* bPtr = (byte*)uPtr;
                 value.CopyTo(new Span<byte>(bPtr + 1, value.Length));
-                *bPtr = (byte)LowerCasify(value.Length, bPtr + 1);
+                *bPtr = (byte)UpperCasify(value.Length, bPtr + 1);
             }
         }
         public unsafe CommandBytes(ReadOnlySequence<byte> value)
@@ -148,10 +148,10 @@ namespace StackExchange.Redis
                         target = target.Slice(segment.Length);
                     }
                 }
-                *bPtr = (byte)LowerCasify(len, bPtr + 1);
+                *bPtr = (byte)UpperCasify(len, bPtr + 1);
             }
         }
-        private unsafe int LowerCasify(int len, byte* bPtr)
+        private unsafe int UpperCasify(int len, byte* bPtr)
         {
             const ulong HighBits = 0x8080808080808080;
             if (((_0 | _1 | _2) & HighBits) == 0)
@@ -159,30 +159,30 @@ namespace StackExchange.Redis
                 // no unicode; use ASCII bit bricks
                 for (int i = 0; i < len; i++)
                 {
-                    *bPtr = ToLowerInvariantAscii(*bPtr++);
+                    *bPtr = ToUpperInvariantAscii(*bPtr++);
                 }
                 return len;
             }
             else
             {
-                return LowerCasifyUnicode(len, bPtr);
+                return UpperCasifyUnicode(len, bPtr);
             }
         }
 
-        private static unsafe int LowerCasifyUnicode(int oldLen, byte* bPtr)
+        private static unsafe int UpperCasifyUnicode(int oldLen, byte* bPtr)
         {
             const int MaxChars = ChunkLength * sizeof(ulong); // leave rounded up; helps stackalloc
             char* workspace = stackalloc char[MaxChars];
             int charCount = Encoding.GetChars(bPtr, oldLen, workspace, MaxChars);
             char* c = workspace;
-            for (int i = 0; i < charCount; i++) *c = char.ToLowerInvariant((*c++));
+            for (int i = 0; i < charCount; i++) *c = char.ToUpperInvariant(*c++);
             int newLen = Encoding.GetBytes(workspace, charCount, bPtr, MaxLength);
             // don't forget to zero any shrink
             for (int i = newLen; i < oldLen; i++) bPtr[i] = 0;
             return newLen;
         }
 
-        private static byte ToLowerInvariantAscii(byte b) => b >= 'A' && b <= 'Z' ? (byte)(b | 32) : b;
+        private static byte ToUpperInvariantAscii(byte b) => b >= 'a' && b <= 'z' ? (byte)(b - 32) : b;
 
         internal unsafe byte[] ToArray()
         {

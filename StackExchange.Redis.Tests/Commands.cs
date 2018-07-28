@@ -13,8 +13,8 @@ namespace StackExchange.Redis.Tests
             config.SetDefaultPorts();
             Assert.Contains(new DnsEndPoint(".", 6379), config.EndPoints);
             var map = config.CommandMap;
-            Assert.Equal("$PING=p", map.ToString());
-            Assert.Equal(".:6379,$PING=p", config.ToString());
+            Assert.Equal("$PING=P", map.ToString());
+            Assert.Equal(".:6379,$PING=P", config.ToString());
         }
     }
 }
