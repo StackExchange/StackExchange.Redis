@@ -216,11 +216,21 @@ namespace StackExchange.Redis
 
         public GeoRadiusResult[] GeoRadius(RedisKey key, RedisValue member, double radius, GeoUnit unit, int count, Order? order, GeoRadiusOptions options, CommandFlags flags)
         {
+            // This gets confused with the double overload below sometimes...throwing when this occurs.
+            if (member.Type == RedisValue.StorageType.Double)
+            {
+                throw new ArgumentException("Member should not be a double, you likely want the GeoRadius(RedisKey, double, double, ...) overload.", nameof(member));
+            }
             return ExecuteSync(GetGeoRadiusMessage(key, member, double.NaN, double.NaN, radius, unit, count, order, options, flags), ResultProcessor.GeoRadiusArray(options));
         }
 
         public Task<GeoRadiusResult[]> GeoRadiusAsync(RedisKey key, RedisValue member, double radius, GeoUnit unit, int count, Order? order, GeoRadiusOptions options, CommandFlags flags)
         {
+            // This gets confused with the double overload below sometimes...throwing when this occurs.
+            if (member.Type == RedisValue.StorageType.Double)
+            {
+                throw new ArgumentException("Member should not be a double, you likely want the GeoRadius(RedisKey, double, double, ...) overload.", nameof(member));
+            }
             return ExecuteAsync(GetGeoRadiusMessage(key, member, double.NaN, double.NaN, radius, unit, count, order, options, flags), ResultProcessor.GeoRadiusArray(options));
         }
 

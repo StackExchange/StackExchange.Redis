@@ -1,6 +1,7 @@
 ﻿using Xunit;
 using System;
 using Xunit.Abstractions;
+using System.Threading.Tasks;
 
 namespace StackExchange.Redis.Tests
 {
@@ -173,7 +174,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void GeoRadiusOverloads()
+        public async Task GeoRadiusOverloads()
         {
             using (var conn = Create())
             {
@@ -185,12 +186,18 @@ namespace StackExchange.Redis.Tests
                 Assert.True(db.GeoAdd(key, -1.759925, 52.19493, "steve"));
                 Assert.True(db.GeoAdd(key, -3.360655, 54.66395, "dave"));
 
-                // Invalid overload, but due to implcit double => RedisValue conversion it happily calls
-                var ex = Assert.Throws<RedisServerException>(() => db.GeoRadius(key, -1.759925, 52.19493, GeoUnit.Miles, 500, Order.Ascending, GeoRadiusOptions.WithDistance));
-                Assert.Equal("ERR could not decode requested zset member", ex.Message);
+                // Invalid overload
+                // Since this would throw ERR could not decode requested zset member, we catch and return something more useful to the user earlier.
+                var ex = Assert.Throws<ArgumentException>(() => db.GeoRadius(key, -1.759925, 52.19493, GeoUnit.Miles, 500, Order.Ascending, GeoRadiusOptions.WithDistance));
+                Assert.Equal("Member should not be a double, you likely want the GeoRadius(RedisKey, double, double, ...) overload.\r\nParameter name: member", ex.Message);
+                ex = await Assert.ThrowsAsync<ArgumentException>(() => db.GeoRadiusAsync(key, -1.759925, 52.19493, GeoUnit.Miles, 500, Order.Ascending, GeoRadiusOptions.WithDistance)).ForAwait();
+                Assert.Equal("Member should not be a double, you likely want the GeoRadius(RedisKey, double, double, ...) overload.\r\nParameter name: member", ex.Message);
 
                 // The good stuff
                 GeoRadiusResult[] result = db.GeoRadius(key, -1.759925, 52.19493, 500, unit: GeoUnit.Miles, order: Order.Ascending, options: GeoRadiusOptions.WithDistance);
+                Assert.NotNull(result);
+
+                result = await db.GeoRadiusAsync(key, -1.759925, 52.19493, 500, unit: GeoUnit.Miles, order: Order.Ascending, options: GeoRadiusOptions.WithDistance).ForAwait();
                 Assert.NotNull(result);
             }
         }
