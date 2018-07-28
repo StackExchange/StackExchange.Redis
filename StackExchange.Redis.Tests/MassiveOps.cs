@@ -12,7 +12,7 @@ namespace StackExchange.Redis.Tests
     {
         public MassiveOps(ITestOutputHelper output) : base(output) { }
 
-        [Fact]
+        [FactLongRunning]
         public async Task LongRunning()
         {
             var key = Me();
