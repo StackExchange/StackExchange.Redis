@@ -57,6 +57,7 @@ namespace StackExchange.Redis.Tests
             options.Ssl = true;
             options.Password = "";
             options.AbortOnConnectFail = false;
+            options.CertificateValidation += SSL.ShowCertFailures(Writer);
             using (var muxer = ConnectionMultiplexer.Connect(options))
             {
                 muxer.ConnectionFailed += (object sender, ConnectionFailedEventArgs e) =>
