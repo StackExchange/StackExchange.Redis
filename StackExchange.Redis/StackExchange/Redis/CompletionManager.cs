@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 using System.Threading;
 
 namespace StackExchange.Redis
@@ -18,6 +16,14 @@ namespace StackExchange.Redis
             this.name = name;
         }
 
+        internal static void SharedCompleteSyncOrAsync(ICompletable operation)
+        {
+            if (operation == null) return;
+            if (!operation.TryComplete(false))
+            {
+                SocketManager.Shared.ScheduleTask(s_AnyOrderCompletionHandler, operation);
+            }
+        }
         public void CompleteSyncOrAsync(ICompletable operation)
         {
             if (operation == null) return;

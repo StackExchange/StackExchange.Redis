@@ -341,7 +341,7 @@ namespace StackExchange.Redis
                     foreach (var op in InnerOperations)
                     {
                         op.Wrapped.Cancel();
-                        bridge?.CompleteSyncOrAsync(op.Wrapped);
+                        bridge.CompleteSyncOrAsync(op.Wrapped);
                     }
                 }
                 connection.Trace("End of transaction: " + Command);
@@ -387,7 +387,7 @@ namespace StackExchange.Redis
                     foreach (var op in tran.InnerOperations)
                     {
                         ServerFail(op.Wrapped, error);
-                        bridge?.CompleteSyncOrAsync(op.Wrapped);
+                        bridge.CompleteSyncOrAsync(op.Wrapped);
                     }
                 }
                 return base.SetResult(connection, message, result);
@@ -416,7 +416,7 @@ namespace StackExchange.Redis
                                 foreach (var op in wrapped)
                                 {
                                     op.Wrapped.Cancel();
-                                    bridge?.CompleteSyncOrAsync(op.Wrapped);
+                                    bridge.CompleteSyncOrAsync(op.Wrapped);
                                 }
                                 SetResult(message, false);
                                 return true;
@@ -432,7 +432,7 @@ namespace StackExchange.Redis
                                     foreach (var op in wrapped)
                                     {
                                         op.Wrapped.Cancel();
-                                        bridge?.CompleteSyncOrAsync(op.Wrapped);
+                                        bridge.CompleteSyncOrAsync(op.Wrapped);
                                     }
                                     SetResult(message, false);
                                     return true;
@@ -444,7 +444,7 @@ namespace StackExchange.Redis
                                     {
                                         if (wrapped[i].Wrapped.ComputeResult(connection, arr[i]))
                                         {
-                                            bridge?.CompleteSyncOrAsync(wrapped[i].Wrapped);
+                                            bridge.CompleteSyncOrAsync(wrapped[i].Wrapped);
                                         }
                                     }
                                     SetResult(message, true);

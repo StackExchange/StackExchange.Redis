@@ -86,7 +86,7 @@ namespace StackExchange.Redis
                 foreach (var pair in subscriptions)
                 {
                     var msg = pair.Value.ForSyncShutdown();
-                    if(msg != null) UnprocessableCompletionManager?.CompleteSyncOrAsync(msg);
+                    if(msg != null) UnprocessableCompletionManager.CompleteSyncOrAsync(msg);
                     pair.Value.Remove(true, null);
                     pair.Value.Remove(false, null);
 

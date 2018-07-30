@@ -377,7 +377,7 @@ namespace StackExchange.Redis
                     var next = _writtenAwaitingResponse.Dequeue();
                     BridgeCouldBeNull?.Trace("Failing: " + next);
                     next.SetException(innerException is RedisException ? innerException : outerException);
-                    BridgeCouldBeNull?.CompleteSyncOrAsync(next);
+                    BridgeCouldBeNull.CompleteSyncOrAsync(next);
                 }
             }
 
@@ -1229,7 +1229,7 @@ namespace StackExchange.Redis
             Trace("Response to: " + msg);
             if (msg.ComputeResult(this, result))
             {
-                BridgeCouldBeNull?.CompleteSyncOrAsync(msg);
+                BridgeCouldBeNull.CompleteSyncOrAsync(msg);
             }
         }
 

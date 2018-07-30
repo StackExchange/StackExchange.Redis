@@ -9,6 +9,11 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
+    internal static class PhysicalBridgeHelpers
+    {
+        public static void CompleteSyncOrAsync(this PhysicalBridge bridge, ICompletable operation)
+            => PhysicalBridge.CompleteSyncOrAsyncImpl(bridge, operation);
+    }
     internal sealed partial class PhysicalBridge : IDisposable
     {
         internal readonly string Name;
@@ -86,9 +91,11 @@ namespace StackExchange.Redis
 
         internal long OperationCount => Interlocked.Read(ref operationCount);
 
-        public void CompleteSyncOrAsync(ICompletable operation)
+        internal static void CompleteSyncOrAsyncImpl(PhysicalBridge bridge, ICompletable operation)
         {
-            completionManager.CompleteSyncOrAsync(operation);
+            var manager = bridge?.completionManager;
+            if (manager != null) manager.CompleteSyncOrAsync(operation);
+            else CompletionManager.SharedCompleteSyncOrAsync(operation);
         }
 
         public void Dispose()
@@ -347,7 +354,7 @@ namespace StackExchange.Redis
                 if(next != null)
                 {
                     next.SetException(ex);
-                    CompleteSyncOrAsync(next);
+                    this.CompleteSyncOrAsync(next);
                 }
             } while (next != null);
         }
@@ -541,7 +548,7 @@ namespace StackExchange.Redis
                             // killed the underlying connection
                             Trace("Unable to write to server");
                             next.Fail(ConnectionFailureType.ProtocolFailure, null, "failure before write: " + result.ToString());
-                            CompleteSyncOrAsync(next);
+                            this.CompleteSyncOrAsync(next);
                             return result;
                         }
                         //The parent message (next) may be returned from GetMessages
@@ -741,7 +748,7 @@ namespace StackExchange.Redis
             {
                 Trace("Write failed: " + ex.Message);
                 message.Fail(ConnectionFailureType.InternalFailure, ex, null);
-                CompleteSyncOrAsync(message);
+                this.CompleteSyncOrAsync(message);
                 // this failed without actually writing; we're OK with that... unless there's a transaction
 
                 if (connection?.TransactionActive == true)
@@ -756,7 +763,7 @@ namespace StackExchange.Redis
             {
                 Trace("Write failed: " + ex.Message);
                 message.Fail(ConnectionFailureType.InternalFailure, ex, null);
-                CompleteSyncOrAsync(message);
+                this.CompleteSyncOrAsync(message);
 
                 // we're not sure *what* happened here; probably an IOException; kill the connection
                 connection?.RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
