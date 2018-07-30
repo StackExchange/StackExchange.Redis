@@ -11,7 +11,7 @@ namespace StackExchange.Redis
         public abstract bool IsAsync { get; }
         public bool IsFaulted => _exception != null;
 
-        public void SetException(Exception exception) => _exception = exception;
+        public void SetException(Exception exception) => _exception = exception ?? s_cancelled;
 
         public abstract bool TryComplete(bool isAsync);
 
@@ -22,6 +22,14 @@ namespace StackExchange.Redis
         }
 
         static partial void OnAllocated();
+
+        public void Cancel() => _exception = s_cancelled;
+
+        // in theory nobody should directly observe this; the only things
+        // that call Cancel are transactions etc - TCS-based, and we detect
+        // that and use TrySetCanceled instead
+        // about any confusion in stack-trace
+        static readonly Exception s_cancelled = new TaskCanceledException();
     }
 
     internal sealed class ResultBox<T> : ResultBox
@@ -34,11 +42,6 @@ namespace StackExchange.Redis
         {
             this.stateOrCompletionSource = stateOrCompletionSource;
         }
-
-        public object AsyncState =>
-            stateOrCompletionSource is TaskCompletionSource<T>
-                ? ((TaskCompletionSource<T>) stateOrCompletionSource).Task.AsyncState
-                : stateOrCompletionSource;
 
         public static ResultBox<T> Get(object stateOrCompletionSource)
         {

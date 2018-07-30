@@ -584,10 +584,7 @@ namespace StackExchange.Redis
                             | masterSlave;
         }
 
-        internal void Cancel(Exception ex = null)
-        {
-            resultProcessor?.SetException(this, ex ?? new TaskCanceledException());
-        }
+        internal void Cancel() => resultBox?.Cancel();
 
         // true if ready to be completed (i.e. false if re-issued to another server)
         internal bool ComputeResult(PhysicalConnection connection, RawResult result)

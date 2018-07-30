@@ -346,7 +346,7 @@ namespace StackExchange.Redis
                 next = DequeueNextPendingBacklog();
                 if(next != null)
                 {
-                    next.Cancel(ex);
+                    next.SetException(ex);
                     CompleteSyncOrAsync(next);
                 }
             } while (next != null);

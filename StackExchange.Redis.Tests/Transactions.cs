@@ -74,7 +74,7 @@ namespace StackExchange.Redis.Tests
                 {
                     Assert.False(await exec, "neq: exec");
                     Assert.False(cond.WasSatisfied, "neq: was satisfied");
-                    Assert.Equal(TaskStatus.Canceled, incr.Status); // neq: incr                    
+                    Assert.Equal(TaskStatus.Canceled, SafeStatus(incr)); // neq: incr
                     Assert.Equal(0, (long)get); // neq: get
                 }
             }
@@ -123,7 +123,7 @@ namespace StackExchange.Redis.Tests
                 {
                     Assert.False(await exec, "neq: exec");
                     Assert.False(cond.WasSatisfied, "neq: was satisfied");
-                    Assert.Equal(TaskStatus.Canceled, incr.Status); // neq: incr
+                    Assert.Equal(TaskStatus.Canceled, SafeStatus(incr)); // neq: incr
                     Assert.Equal(0, (long)get); // neq: get
                 }
             }
@@ -165,7 +165,7 @@ namespace StackExchange.Redis.Tests
                 {
                     Assert.False(await exec, "neq: exec");
                     Assert.False(cond.WasSatisfied, "neq: was satisfied");
-                    Assert.Equal(TaskStatus.Canceled, incr.Status); // neq: incr
+                    Assert.Equal(TaskStatus.Canceled, SafeStatus(incr)); // neq: incr
                     Assert.Equal(0, (long)get); // neq: get
                 }
             }
@@ -215,10 +215,26 @@ namespace StackExchange.Redis.Tests
                 {
                     Assert.False(await exec, "neq: exec");
                     Assert.False(cond.WasSatisfied, "neq: was satisfied");
-                    Assert.Equal(TaskStatus.Canceled, incr.Status); // neq: incr
+                    Assert.Equal(TaskStatus.Canceled, SafeStatus(incr)); // neq: incr
                     Assert.Equal(0, (long)get); // neq: get
                 }
             }
+        }
+
+        static TaskStatus SafeStatus(Task task)
+        {
+            if(task.Status == TaskStatus.WaitingForActivation)
+            {
+                try
+                {
+                    if (!task.Wait(1000)) throw new TimeoutException("timeout waiting for task to complete");
+                }
+                catch (TaskCanceledException)
+                {
+                    return TaskStatus.Canceled;
+                }
+            }
+            return task.Status;
         }
 
         [Theory]
@@ -256,7 +272,7 @@ namespace StackExchange.Redis.Tests
                 {
                     Assert.False(await exec, "neq: exec");
                     Assert.False(cond.WasSatisfied, "neq: was satisfied");
-                    Assert.Equal(TaskStatus.Canceled, push.Status); // neq: push
+                    Assert.Equal(TaskStatus.Canceled, SafeStatus(push)); // neq: push
                     Assert.Null((string)get); // neq: get
                 }
             }
@@ -305,7 +321,7 @@ namespace StackExchange.Redis.Tests
                 {
                     Assert.False(await exec, "neq: exec");
                     Assert.False(cond.WasSatisfied, "neq: was satisfied");
-                    Assert.Equal(TaskStatus.Canceled, push.Status); // neq: push
+                    Assert.Equal(TaskStatus.Canceled, SafeStatus(push)); // neq: push
                     Assert.Null((string)get); // neq: get
                 }
             }
@@ -396,7 +412,7 @@ namespace StackExchange.Redis.Tests
                 {
                     Assert.False(await exec, "neq: exec");
                     Assert.False(cond.WasSatisfied, "neq: was satisfied");
-                    Assert.Equal(TaskStatus.Canceled, push.Status); // neq: push
+                    Assert.Equal(TaskStatus.Canceled, SafeStatus(push)); // neq: push
                     Assert.Equal(0, get); // neq: get
                 }
             }
@@ -474,7 +490,7 @@ namespace StackExchange.Redis.Tests
                 {
                     Assert.False(await exec, "neq: exec");
                     Assert.False(cond.WasSatisfied, "neq: was satisfied");
-                    Assert.Equal(TaskStatus.Canceled, push.Status); // neq: push
+                    Assert.Equal(TaskStatus.Canceled, SafeStatus(push)); // neq: push
                     Assert.Equal(0, get); // neq: get
                 }
             }
@@ -552,7 +568,7 @@ namespace StackExchange.Redis.Tests
                 {
                     Assert.False(await exec, "neq: exec");
                     Assert.False(cond.WasSatisfied, "neq: was satisfied");
-                    Assert.Equal(TaskStatus.Canceled, push.Status); // neq: push
+                    Assert.Equal(TaskStatus.Canceled, SafeStatus(push)); // neq: push
                     Assert.Equal(0, get); // neq: get
                 }
             }
@@ -594,7 +610,7 @@ namespace StackExchange.Redis.Tests
                 {
                     Assert.False(await exec, "neq: exec");
                     Assert.False(cond.WasSatisfied, "neq: was satisfied");
-                    Assert.Equal(TaskStatus.Canceled, incr.Status); // neq: incr
+                    Assert.Equal(TaskStatus.Canceled, SafeStatus(incr)); // neq: incr
                     Assert.Equal(0, (long)get); // neq: get
                 }
             }
@@ -672,7 +688,7 @@ namespace StackExchange.Redis.Tests
                 {
                     Assert.False(await exec, "neq: exec");
                     Assert.False(cond.WasSatisfied, "neq: was satisfied");
-                    Assert.Equal(TaskStatus.Canceled, push.Status); // neq: push
+                    Assert.Equal(TaskStatus.Canceled, SafeStatus(push)); // neq: push
                     Assert.Equal(0, get); // neq: get
                 }
             }
@@ -714,7 +730,7 @@ namespace StackExchange.Redis.Tests
                 {
                     Assert.False(await exec, "neq: exec");
                     Assert.False(cond.WasSatisfied, "neq: was satisfied");
-                    Assert.Equal(TaskStatus.Canceled, incr.Status); // neq: incr
+                    Assert.Equal(TaskStatus.Canceled, SafeStatus(incr)); // neq: incr
                     Assert.Equal(0, (long)get); // neq: get
                 }
             }
@@ -792,7 +808,7 @@ namespace StackExchange.Redis.Tests
                 {
                     Assert.False(await exec, "neq: exec");
                     Assert.False(cond.WasSatisfied, "neq: was satisfied");
-                    Assert.Equal(TaskStatus.Canceled, push.Status); // neq: push
+                    Assert.Equal(TaskStatus.Canceled, SafeStatus(push)); // neq: push
                     Assert.Equal(0, get); // neq: get
                 }
             }
