@@ -159,7 +159,7 @@ namespace StackExchange.Redis
                 catch (ObjectDisposedException)
                 {
                     bridge.Multiplexer.LogLocked(log, "(socket shutdown)");
-                    try { Error(); }
+                    try { RecordConnectionFailed(ConnectionFailureType.UnableToConnect, isInitialConnect: true); }
                     catch (Exception inner)
                     {
                         ConnectionMultiplexer.TraceWithoutContext(inner.Message);
@@ -168,7 +168,7 @@ namespace StackExchange.Redis
                 catch (Exception outer)
                 {
                     ConnectionMultiplexer.TraceWithoutContext(outer.Message);
-                    try { Error(); }
+                    try { RecordConnectionFailed(ConnectionFailureType.UnableToConnect, isInitialConnect: true); }
                     catch (Exception inner)
                     {
                         ConnectionMultiplexer.TraceWithoutContext(inner.Message);
@@ -290,13 +290,13 @@ namespace StackExchange.Redis
             return Task.CompletedTask;
         }
 
-        public void RecordConnectionFailed(ConnectionFailureType failureType, Exception innerException = null, [CallerMemberName] string origin = null)
+        public void RecordConnectionFailed(ConnectionFailureType failureType, Exception innerException = null, [CallerMemberName] string origin = null, bool isInitialConnect = false)
         {
 
             Exception outerException = innerException;
             IdentifyFailureType(innerException, ref failureType);
 
-            if (_ioPipe != null) // if *we* didn't burn the pipe: flag it
+            if (_ioPipe != null || isInitialConnect) // if *we* didn't burn the pipe: flag it
             {
                 if (failureType == ConnectionFailureType.InternalFailure) OnInternalError(innerException, origin);
 
@@ -1133,7 +1133,7 @@ namespace StackExchange.Redis
                     }
                     catch (AuthenticationException authexception)
                     {
-                        RecordConnectionFailed(ConnectionFailureType.AuthenticationFailure, authexception);
+                        RecordConnectionFailed(ConnectionFailureType.AuthenticationFailure, authexception, isInitialConnect: true);
                         bridge.Multiplexer.Trace("Encryption failure");
                         return false;
                     }
@@ -1154,15 +1154,10 @@ namespace StackExchange.Redis
             }
             catch (Exception ex)
             {
-                RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex); // includes a bridge.OnDisconnected
+                RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex, isInitialConnect: true); // includes a bridge.OnDisconnected
                 bridge.Multiplexer.Trace("Could not connect: " + ex.Message, physicalName);
                 return false;
             }
-        }
-
-        internal void Error()
-        {
-            RecordConnectionFailed(ConnectionFailureType.SocketFailure);
         }
 
         private void MatchResult(RawResult result)

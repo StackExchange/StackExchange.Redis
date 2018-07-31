@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Security.Authentication;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
@@ -32,10 +33,16 @@ namespace StackExchange.Redis.Tests
                 if (!isCertValidationSucceeded)
                 {
                     //validate that in this case it throws an certificatevalidation exception
-                    var ex = Assert.Throws<RedisConnectionException>(() => connection.GetDatabase().Ping());
-                    var rde = (RedisConnectionException)ex.InnerException;
-                    Assert.Equal(ConnectionFailureType.AuthenticationFailure, rde.FailureType);
-                    Assert.Equal("The remote certificate is invalid according to the validation procedure.", rde.InnerException.Message);
+                    var outer = Assert.Throws<RedisConnectionException>(() => connection.GetDatabase().Ping());
+                    Assert.Equal(ConnectionFailureType.UnableToResolvePhysicalConnection, outer.FailureType);
+
+                    Assert.NotNull(outer.InnerException);
+                    var inner = Assert.IsType<RedisConnectionException>(outer.InnerException);
+                    Assert.Equal(ConnectionFailureType.AuthenticationFailure, inner.FailureType);
+
+                    Assert.NotNull(inner.InnerException);
+                    var innerMost = Assert.IsType<AuthenticationException>(inner.InnerException);
+                    Assert.Equal("The remote certificate is invalid according to the validation procedure.", innerMost.Message);
                 }
                 else
                 {
@@ -80,15 +87,20 @@ namespace StackExchange.Redis.Tests
             options.Ssl = true;
             options.Password = "";
             options.AbortOnConnectFail = false;
-            var ex = Assert.Throws<RedisConnectionException>(() =>
+            options.ConnectTimeout = 1000;
+            var outer = Assert.Throws<RedisConnectionException>(() =>
             {
                 using (var muxer = ConnectionMultiplexer.Connect(options))
                 {
                     muxer.GetDatabase().Ping();
                 }
             });
-            var rde = (RedisConnectionException)ex.InnerException;
-            Assert.Equal(ConnectionFailureType.SocketFailure, rde.FailureType);
+            Assert.Equal(ConnectionFailureType.UnableToResolvePhysicalConnection, outer.FailureType);
+
+            Assert.NotNull(outer.InnerException);
+            var inner = Assert.IsType<RedisConnectionException>(outer.InnerException);
+            Assert.Equal(ConnectionFailureType.UnableToConnect, inner.FailureType);
+
         }
 #if DEBUG // needs AllowConnect, which is DEBUG only
         [Fact]
