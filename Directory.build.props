@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
-    <VersionPrefix>1.2.6</VersionPrefix>
+    <VersionPrefix>1.2.7</VersionPrefix>
 
     <Copyright>2017 Stack Exchange, Inc.</Copyright>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
@@ -22,23 +22,8 @@
     <DefaultLanguage>en-US</DefaultLanguage>
     <IncludeSymbols>false</IncludeSymbols>
 
-    <LibraryTargetFrameworks>net45;net46;netstandard1.5</LibraryTargetFrameworks><!--net40;-->
+    <LibraryTargetFrameworks>net45;net46;netstandard2.0</LibraryTargetFrameworks>
     <CoreFxVersion>4.3.0</CoreFxVersion>
+    <xUnitVersion>2.4.0-beta.2.build3981</xUnitVersion>
   </PropertyGroup>
-  
-   <!-- Workarounds for https://github.com/NuGet/Home/issues/4853 -->
-   <PropertyGroup Condition="'$(TargetFramework)' == 'net40' OR  '$(TargetFramework)' == 'net45' OR '$(TargetFramework)' == 'net46'">
-     <DisableImplicitFrameworkReferences>true</DisableImplicitFrameworkReferences>
-     <AddAdditionalExplicitAssemblyReferences>false</AddAdditionalExplicitAssemblyReferences>
-   </PropertyGroup>
-   <ItemGroup Condition="'$(TargetFramework)' == 'net40' OR  '$(TargetFramework)' == 'net45' OR '$(TargetFramework)' == 'net46'">
-     <Reference Include="System.Core" Pack="false" />
-   </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="SourceLink.Create.GitHub" Version="2.0.2" PrivateAssets="All" />
-    <PackageReference Include="NuGet.Build.Tasks.Pack" Version="4.3.0-preview1-4045" PrivateAssets="All" />
-    <DotNetCliToolReference Include="dotnet-sourcelink" Version="2.0.2" />
-    <DotNetCliToolReference Include="dotnet-sourcelink-git" Version="2.0.2" />
-  </ItemGroup>
 </Project>

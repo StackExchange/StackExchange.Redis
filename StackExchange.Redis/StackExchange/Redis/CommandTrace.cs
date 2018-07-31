@@ -23,23 +23,23 @@ namespace StackExchange.Redis
         /// <summary>
         /// The array composing the arguments of the command.
         /// </summary>
-        public RedisValue[] Arguments { get; private set; }
+        public RedisValue[] Arguments { get; }
 
         /// <summary>
         /// The amount of time needed for its execution
         /// </summary>
-        public TimeSpan Duration { get; private set; }
+        public TimeSpan Duration { get; }
 
         /// <summary>
         /// The time at which the logged command was processed.
         /// </summary>
-        public DateTime Time { get; private set; }
+        public DateTime Time { get; }
 
         /// <summary>
         /// A unique progressive identifier for every slow log entry.
         /// </summary>
         /// <remarks>The entry's unique ID can be used in order to avoid processing slow log entries multiple times (for instance you may have a script sending you an email alert for every new slow log entry). The ID is never reset in the course of the Redis server execution, only a server restart will reset it.</remarks>
-        public long UniqueId { get; private set; }
+        public long UniqueId { get; }
 
         /// <summary>
         /// Deduces a link to the redis documentation about the specified command
@@ -48,13 +48,12 @@ namespace StackExchange.Redis
         {
             if (Arguments == null || Arguments.Length == 0) return null;
 
-            const string BaseUrl = "http://redis.io/commands/";
+            const string BaseUrl = "https://redis.io/commands/";
 
             string encoded0 = Uri.EscapeUriString(((string)Arguments[0]).ToLowerInvariant());
 
             if (Arguments.Length > 1)
             {
-
                 switch (encoded0)
                 {
                     case "script":
@@ -81,10 +80,8 @@ namespace StackExchange.Redis
                         CommandTrace[] arr = new CommandTrace[parts.Length];
                         for (int i = 0; i < parts.Length; i++)
                         {
-                            
                             var subParts = parts[i].GetItems();
-                            long uniqueid, time, duration;
-                            if (!subParts[0].TryGetInt64(out uniqueid) || !subParts[1].TryGetInt64(out time) || !subParts[2].TryGetInt64(out duration))
+                            if (!subParts[0].TryGetInt64(out long uniqueid) || !subParts[1].TryGetInt64(out long time) || !subParts[2].TryGetInt64(out long duration))
                                 return false;
                             arr[i] = new CommandTrace(uniqueid, time, duration, subParts[3].GetItemsAsValues());
                         }

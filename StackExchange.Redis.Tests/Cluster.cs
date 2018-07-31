@@ -5,82 +5,111 @@ using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
-using NUnit.Framework;
+using Xunit;
+using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    [TestFixture]
     public class Cluster : TestBase
     {
-        //private const string ClusterIp = "192.168.0.15";  // marc
-        //private const string ClusterIp = "10.110.11.102";   // kmontrose
-        private const string ClusterIp = "127.0.0.1";
-        private const int ServerCount = 6, FirstPort = 7000;
+        public Cluster(ITestOutputHelper output) : base (output) { }
 
         protected override string GetConfiguration()
         {
-            var server = ClusterIp;
-            if (string.Equals(Environment.MachineName, "MARC-LAPTOP", StringComparison.OrdinalIgnoreCase))
-            {
-                server = "192.168.56.101";
-            }
+            var server = TestConfig.Current.ClusterServer;
             return string.Join(",",
-            from port in Enumerable.Range(FirstPort, ServerCount)
-            select server + ":" + port) + ",connectTimeout=10000";
+                Enumerable.Range(TestConfig.Current.ClusterStartPort, TestConfig.Current.ClusterServerCount).Select(port => server + ":" + port)
+            ) + ",connectTimeout=10000";
         }
 
-        [Test]
+        [Fact]
         public void ExportConfiguration()
         {
             if (File.Exists("cluster.zip")) File.Delete("cluster.zip");
-            Assert.IsFalse(File.Exists("cluster.zip"));
+            Assert.False(File.Exists("cluster.zip"));
             using (var muxer = Create(allowAdmin: true))
-            using(var file = File.Create("cluster.zip"))
+            using (var file = File.Create("cluster.zip"))
             {
                 muxer.ExportConfiguration(file);
             }
-            Assert.IsTrue(File.Exists("cluster.zip"));
+            Assert.True(File.Exists("cluster.zip"));
         }
 
-        [Test]
-        public void ConnectUsesSingleSocket()
+        [Fact]
+        public async Task ConnectUsesSingleSocket()
         {
-            for(int i = 0; i<10;i++)
+            using (var sw = new StringWriter())
             {
-                using (var muxer = Create(failMessage: i + ": "))
+                try
                 {
-                    var eps = muxer.GetEndPoints();
-                    foreach (var ep in eps)
+                    for (int i = 0; i < 5; i++)
                     {
-                        var srv = muxer.GetServer(ep);
-                        var counters = srv.GetCounters();
-                        Assert.AreEqual(1, counters.Interactive.SocketCount, i + "; interactive, " + ep.ToString());
-                        Assert.AreEqual(1, counters.Subscription.SocketCount, i + "; subscription, " + ep.ToString());
+                        using (var muxer = Create(failMessage: i + ": ", log: sw))
+                        {
+                            await Task.Delay(500);
+                            foreach (var ep in muxer.GetEndPoints())
+                            {
+                                var srv = muxer.GetServer(ep);
+                                var counters = srv.GetCounters();
+                                Output.WriteLine($"{i}; interactive, {ep}, count: {counters.Interactive.SocketCount}");
+                                Output.WriteLine($"{i}; subscription, {ep}, count: {counters.Subscription.SocketCount}");
+                            }
+                            foreach (var ep in muxer.GetEndPoints())
+                            {
+                                var srv = muxer.GetServer(ep);
+                                var counters = srv.GetCounters();
+                                Assert.Equal(1, counters.Interactive.SocketCount);
+                                Assert.Equal(1, counters.Subscription.SocketCount);
+                            }
+                        }
                     }
+                }
+                finally
+                {
+                    // Connection info goes at the end...
+                    Output.WriteLine(sw.ToString());
                 }
             }
         }
 
-
-        [Test]
+        [Fact]
         public void CanGetTotalStats()
-        {
-            using(var muxer = Create())
-            {
-                var counters = muxer.GetCounters();
-                Console.WriteLine(counters);
-            }
-        }
-
-        [Test]
-        public void Connect()
         {
             using (var muxer = Create())
             {
-                var endpoints = muxer.GetEndPoints();
+                var counters = muxer.GetCounters();
+                Output.WriteLine(counters.ToString());
+            }
+        }
 
-                Assert.AreEqual(ServerCount, endpoints.Length);
-                var expectedPorts = new HashSet<int>(Enumerable.Range(FirstPort, ServerCount));
+        private void PrintEndpoints(EndPoint[] endpoints)
+        {
+            Output.WriteLine($"Endpoints Expected: {TestConfig.Current.ClusterStartPort}+{TestConfig.Current.ClusterServerCount}");
+            Output.WriteLine("Endpoints Found:");
+            foreach (var endpoint in endpoints)
+            {
+                Output.WriteLine("  Endpoint: " + endpoint);
+            }
+        }
+
+        [Fact]
+        public void Connect()
+        {
+            var expectedPorts = new HashSet<int>(Enumerable.Range(TestConfig.Current.ClusterStartPort, TestConfig.Current.ClusterServerCount));
+            using (var sw = new StringWriter())
+            using (var muxer = Create(log: sw))
+            {
+                var endpoints = muxer.GetEndPoints();
+                if (TestConfig.Current.ClusterServerCount != endpoints.Length)
+                {
+                    PrintEndpoints(endpoints);
+                }
+                else
+                {
+                    Output.WriteLine(sw.ToString());
+                }
+
+                Assert.Equal(TestConfig.Current.ClusterServerCount, endpoints.Length);
                 int masters = 0, slaves = 0;
                 var failed = new List<EndPoint>();
                 foreach (var endpoint in endpoints)
@@ -90,41 +119,48 @@ namespace StackExchange.Redis.Tests
                     {
                         failed.Add(endpoint);
                     }
-                    Assert.AreEqual(endpoint, server.EndPoint, "endpoint:" + endpoint);
-                    Assert.IsInstanceOf<IPEndPoint>(endpoint, "endpoint-type:" + endpoint);
-                    Assert.IsTrue(expectedPorts.Remove(((IPEndPoint)endpoint).Port), "port:" + endpoint);
-                    Assert.AreEqual(ServerType.Cluster, server.ServerType, "server-type:" + endpoint);
+                    Output.WriteLine("endpoint:" + endpoint);
+                    Assert.Equal(endpoint, server.EndPoint);
+
+                    Output.WriteLine("endpoint-type:" + endpoint);
+                    Assert.IsType<IPEndPoint>(endpoint);
+
+                    Output.WriteLine("port:" + endpoint);
+                    Assert.True(expectedPorts.Remove(((IPEndPoint)endpoint).Port));
+
+                    Output.WriteLine("server-type:" + endpoint);
+                    Assert.Equal(ServerType.Cluster, server.ServerType);
+
                     if (server.IsSlave) slaves++;
                     else masters++;
                 }
                 if (failed.Count != 0)
                 {
-                    Console.WriteLine("{0} failues", failed.Count);
+                    Output.WriteLine("{0} failues", failed.Count);
                     foreach (var fail in failed)
                     {
-                        Console.WriteLine(fail);
+                        Output.WriteLine(fail.ToString());
                     }
-                    Assert.Fail("not all servers connected");
+                    Assert.True(false, "not all servers connected");
                 }
 
-                Assert.AreEqual(ServerCount / 2, slaves, "slaves");
-                Assert.AreEqual(ServerCount / 2, masters, "masters");
-
+                Assert.Equal(TestConfig.Current.ClusterServerCount / 2, slaves);
+                Assert.Equal(TestConfig.Current.ClusterServerCount / 2, masters);
             }
         }
 
-        [Test]
+        [Fact]
         public void TestIdentity()
         {
-            using(var conn = Create())
+            using (var conn = Create())
             {
                 RedisKey key = Guid.NewGuid().ToByteArray();
                 var ep = conn.GetDatabase().IdentifyEndpoint(key);
-                Assert.AreEqual(ep, conn.GetServer(ep).ClusterConfiguration.GetBySlot(key).EndPoint);
+                Assert.Equal(ep, conn.GetServer(ep).ClusterConfiguration.GetBySlot(key).EndPoint);
             }
         }
 
-        [Test]
+        [Fact]
         public void IntentionalWrongServer()
         {
             using (var conn = Create())
@@ -139,68 +175,55 @@ namespace StackExchange.Redis.Tests
                 db.StringSet(key, value);
                 servers.First().Ping();
                 var config = servers.First().ClusterConfiguration;
-                Assert.IsNotNull(config);
+                Assert.NotNull(config);
                 int slot = conn.HashSlot(key);
                 var rightMasterNode = config.GetBySlot(key);
-                Assert.IsNotNull(rightMasterNode);
-
-                
+                Assert.NotNull(rightMasterNode);
+                Output.WriteLine("Right Master: {0} {1}", rightMasterNode.EndPoint, rightMasterNode.NodeId);
 
 #if DEBUG
                 string a = conn.GetServer(rightMasterNode.EndPoint).StringGet(db.Database, key);
-                Assert.AreEqual(value, a, "right master");
+                Assert.Equal(value, a); // right master
 
                 var node = config.Nodes.FirstOrDefault(x => !x.IsSlave && x.NodeId != rightMasterNode.NodeId);
-                Assert.IsNotNull(node);
+                Assert.NotNull(node);
+                Output.WriteLine("Using Master: {0}", node.EndPoint, node.NodeId);
                 if (node != null)
                 {
                     string b = conn.GetServer(node.EndPoint).StringGet(db.Database, key);
-                    Assert.AreEqual(value, b, "wrong master, allow redirect");
+                    Assert.Equal(value, b); // wrong master, allow redirect
 
-                    try
-                    {
-                        string c = conn.GetServer(node.EndPoint).StringGet(db.Database, key, CommandFlags.NoRedirect);
-                        Assert.Fail("wrong master, no redirect");
-                    } catch (RedisServerException ex)
-                    {
-                        Assert.AreEqual("MOVED " + slot + " " + rightMasterNode.EndPoint.ToString(), ex.Message, "wrong master, no redirect");
-                    }
+                    var ex = Assert.Throws<RedisServerException>(() => conn.GetServer(node.EndPoint).StringGet(db.Database, key, CommandFlags.NoRedirect));
+                    Assert.StartsWith($"Key has MOVED from Endpoint {rightMasterNode.EndPoint} and hashslot {slot}", ex.Message);
                 }
 
                 node = config.Nodes.FirstOrDefault(x => x.IsSlave && x.ParentNodeId == rightMasterNode.NodeId);
-                Assert.IsNotNull(node);
+                Assert.NotNull(node);
                 if (node != null)
                 {
                     string d = conn.GetServer(node.EndPoint).StringGet(db.Database, key);
-                    Assert.AreEqual(value, d, "right slave");
+                    Assert.Equal(value, d); // right slave
                 }
 
                 node = config.Nodes.FirstOrDefault(x => x.IsSlave && x.ParentNodeId != rightMasterNode.NodeId);
-                Assert.IsNotNull(node);
+                Assert.NotNull(node);
                 if (node != null)
                 {
                     string e = conn.GetServer(node.EndPoint).StringGet(db.Database, key);
-                    Assert.AreEqual(value, e, "wrong slave, allow redirect");
+                    Assert.Equal(value, e); // wrong slave, allow redirect
 
-                    try
-                    {
-                        string f = conn.GetServer(node.EndPoint).StringGet(db.Database, key, CommandFlags.NoRedirect);
-                        Assert.Fail("wrong slave, no redirect");
-                    }
-                    catch (RedisServerException ex)
-                    {
-                        Assert.AreEqual("MOVED " + slot + " " + rightMasterNode.EndPoint.ToString(), ex.Message, "wrong slave, no redirect");
-                    }
+                    var ex = Assert.Throws<RedisServerException>(() => conn.GetServer(node.EndPoint).StringGet(db.Database, key, CommandFlags.NoRedirect));
+                    Assert.StartsWith($"Key has MOVED from Endpoint {rightMasterNode.EndPoint} and hashslot {slot}", ex.Message);
                 }
 #endif
 
             }
         }
 
-        [Test]
+        [Fact]
         public void TransactionWithMultiServerKeys()
         {
-            Assert.Throws<RedisCommandException>(() =>
+            var ex = Assert.Throws<RedisCommandException>(() =>
             {
                 using (var muxer = Create())
                 {
@@ -208,9 +231,9 @@ namespace StackExchange.Redis.Tests
                     var cluster = muxer.GetDatabase();
                     var anyServer = muxer.GetServer(muxer.GetEndPoints()[0]);
                     anyServer.Ping();
-                    Assert.AreEqual(ServerType.Cluster, anyServer.ServerType);
+                    Assert.Equal(ServerType.Cluster, anyServer.ServerType);
                     var config = anyServer.ClusterConfiguration;
-                    Assert.IsNotNull(config);
+                    Assert.NotNull(config);
 
                     // invent 2 keys that we believe are served by different nodes
                     string x = Guid.NewGuid().ToString(), y;
@@ -220,11 +243,11 @@ namespace StackExchange.Redis.Tests
                     {
                         y = Guid.NewGuid().ToString();
                     } while (--abort > 0 && config.GetBySlot(y) == xNode);
-                    if (abort == 0) Assert.Inconclusive("failed to find a different node to use");
+                    if (abort == 0) Skip.Inconclusive("failed to find a different node to use");
                     var yNode = config.GetBySlot(y);
-                    Console.WriteLine("x={0}, served by {1}", x, xNode.NodeId);
-                    Console.WriteLine("y={0}, served by {1}", y, yNode.NodeId);
-                    Assert.AreNotEqual(xNode.NodeId, yNode.NodeId, "same node");
+                    Output.WriteLine("x={0}, served by {1}", x, xNode.NodeId);
+                    Output.WriteLine("y={0}, served by {1}", y, yNode.NodeId);
+                    Assert.NotEqual(xNode.NodeId, yNode.NodeId);
 
                     // wipe those keys
                     cluster.KeyDelete(x, CommandFlags.FireAndForget);
@@ -238,26 +261,26 @@ namespace StackExchange.Redis.Tests
                     var setY = tran.StringSetAsync(y, "y-val");
                     bool success = tran.Execute();
 
-                    Assert.Fail("Expected single-slot rules to apply");
+                    Assert.True(false, "Expected single-slot rules to apply");
                     // the rest no longer applies while we are following single-slot rules
 
                     //// check that everything was aborted
-                    //Assert.IsFalse(success, "tran aborted");
-                    //Assert.IsTrue(setX.IsCanceled, "set x cancelled");
-                    //Assert.IsTrue(setY.IsCanceled, "set y cancelled");
+                    //Assert.False(success, "tran aborted");
+                    //Assert.True(setX.IsCanceled, "set x cancelled");
+                    //Assert.True(setY.IsCanceled, "set y cancelled");
                     //var existsX = cluster.KeyExistsAsync(x);
                     //var existsY = cluster.KeyExistsAsync(y);
-                    //Assert.IsFalse(cluster.Wait(existsX), "x exists");
-                    //Assert.IsFalse(cluster.Wait(existsY), "y exists");
+                    //Assert.False(cluster.Wait(existsX), "x exists");
+                    //Assert.False(cluster.Wait(existsY), "y exists");
                 }
-            },
-            "Multi-key operations must involve a single slot; keys can use 'hash tags' to help this, i.e. '{/users/12345}/account' and '{/users/12345}/contacts' will always be in the same slot");
+            });
+            Assert.Equal("Multi-key operations must involve a single slot; keys can use 'hash tags' to help this, i.e. '{/users/12345}/account' and '{/users/12345}/contacts' will always be in the same slot", ex.Message);
         }
 
-        [Test]
+        [Fact]
         public void TransactionWithSameServerKeys()
         {
-            Assert.Throws<RedisCommandException>(() =>
+            var ex = Assert.Throws<RedisCommandException>(() =>
             {
                 using (var muxer = Create())
                 {
@@ -266,7 +289,7 @@ namespace StackExchange.Redis.Tests
                     var anyServer = muxer.GetServer(muxer.GetEndPoints()[0]);
                     anyServer.Ping();
                     var config = anyServer.ClusterConfiguration;
-                    Assert.IsNotNull(config);
+                    Assert.NotNull(config);
 
                     // invent 2 keys that we believe are served by different nodes
                     string x = Guid.NewGuid().ToString(), y;
@@ -276,11 +299,11 @@ namespace StackExchange.Redis.Tests
                     {
                         y = Guid.NewGuid().ToString();
                     } while (--abort > 0 && config.GetBySlot(y) != xNode);
-                    if (abort == 0) Assert.Inconclusive("failed to find a key with the same node to use");
+                    if (abort == 0) Skip.Inconclusive("failed to find a key with the same node to use");
                     var yNode = config.GetBySlot(y);
-                    Console.WriteLine("x={0}, served by {1}", x, xNode.NodeId);
-                    Console.WriteLine("y={0}, served by {1}", y, yNode.NodeId);
-                    Assert.AreEqual(xNode.NodeId, yNode.NodeId, "same node");
+                    Output.WriteLine("x={0}, served by {1}", x, xNode.NodeId);
+                    Output.WriteLine("y={0}, served by {1}", y, yNode.NodeId);
+                    Assert.Equal(xNode.NodeId, yNode.NodeId);
 
                     // wipe those keys
                     cluster.KeyDelete(x, CommandFlags.FireAndForget);
@@ -294,23 +317,23 @@ namespace StackExchange.Redis.Tests
                     var setY = tran.StringSetAsync(y, "y-val");
                     bool success = tran.Execute();
 
-                    Assert.Fail("Expected single-slot rules to apply");
+                    Assert.True(false, "Expected single-slot rules to apply");
                     // the rest no longer applies while we are following single-slot rules
 
                     //// check that everything was aborted
-                    //Assert.IsTrue(success, "tran aborted");
-                    //Assert.IsFalse(setX.IsCanceled, "set x cancelled");
-                    //Assert.IsFalse(setY.IsCanceled, "set y cancelled");
+                    //Assert.True(success, "tran aborted");
+                    //Assert.False(setX.IsCanceled, "set x cancelled");
+                    //Assert.False(setY.IsCanceled, "set y cancelled");
                     //var existsX = cluster.KeyExistsAsync(x);
                     //var existsY = cluster.KeyExistsAsync(y);
-                    //Assert.IsTrue(cluster.Wait(existsX), "x exists");
-                    //Assert.IsTrue(cluster.Wait(existsY), "y exists");
+                    //Assert.True(cluster.Wait(existsX), "x exists");
+                    //Assert.True(cluster.Wait(existsY), "y exists");
                 }
-            },
-            "Multi-key operations must involve a single slot; keys can use 'hash tags' to help this, i.e. '{/users/12345}/account' and '{/users/12345}/contacts' will always be in the same slot");
+            });
+            Assert.Equal("Multi-key operations must involve a single slot; keys can use 'hash tags' to help this, i.e. '{/users/12345}/account' and '{/users/12345}/contacts' will always be in the same slot", ex.Message);
         }
 
-        [Test]
+        [Fact]
         public void TransactionWithSameSlotKeys()
         {
             using (var muxer = Create())
@@ -320,18 +343,18 @@ namespace StackExchange.Redis.Tests
                 var anyServer = muxer.GetServer(muxer.GetEndPoints()[0]);
                 anyServer.Ping();
                 var config = anyServer.ClusterConfiguration;
-                Assert.IsNotNull(config);
+                Assert.NotNull(config);
 
                 // invent 2 keys that we believe are in the same slot
                 var guid = Guid.NewGuid().ToString();
                 string x = "/{" + guid + "}/foo", y = "/{" + guid + "}/bar";
 
-                Assert.AreEqual(muxer.HashSlot(x), muxer.HashSlot(y));
+                Assert.Equal(muxer.HashSlot(x), muxer.HashSlot(y));
                 var xNode = config.GetBySlot(x);
                 var yNode = config.GetBySlot(y);
-                Console.WriteLine("x={0}, served by {1}", x, xNode.NodeId);
-                Console.WriteLine("y={0}, served by {1}", y, yNode.NodeId);
-                Assert.AreEqual(xNode.NodeId, yNode.NodeId, "same node");
+                Output.WriteLine("x={0}, served by {1}", x, xNode.NodeId);
+                Output.WriteLine("y={0}, served by {1}", y, yNode.NodeId);
+                Assert.Equal(xNode.NodeId, yNode.NodeId);
 
                 // wipe those keys
                 cluster.KeyDelete(x, CommandFlags.FireAndForget);
@@ -346,21 +369,21 @@ namespace StackExchange.Redis.Tests
                 bool success = tran.Execute();
 
                 // check that everything was aborted
-                Assert.IsTrue(success, "tran aborted");
-                Assert.IsFalse(setX.IsCanceled, "set x cancelled");
-                Assert.IsFalse(setY.IsCanceled, "set y cancelled");
+                Assert.True(success, "tran aborted");
+                Assert.False(setX.IsCanceled, "set x cancelled");
+                Assert.False(setY.IsCanceled, "set y cancelled");
                 var existsX = cluster.KeyExistsAsync(x);
                 var existsY = cluster.KeyExistsAsync(y);
-                Assert.IsTrue(cluster.Wait(existsX), "x exists");
-                Assert.IsTrue(cluster.Wait(existsY), "y exists");
+                Assert.True(cluster.Wait(existsX), "x exists");
+                Assert.True(cluster.Wait(existsY), "y exists");
             }
         }
 
-        [Test]
-        [TestCase(null, 10)]
-        [TestCase(null, 100)]
-        [TestCase("abc", 10)]
-        [TestCase("abc", 100)]
+        [Theory]
+        [InlineData(null, 10)]
+        [InlineData(null, 100)]
+        [InlineData("abc", 10)]
+        [InlineData("abc", 100)]
 
         public void Keys(string pattern, int pageSize)
         {
@@ -371,51 +394,51 @@ namespace StackExchange.Redis.Tests
                 server.FlushAllDatabases();
                 try
                 {
-                    Assert.IsFalse(server.Keys(pattern: pattern, pageSize: pageSize).Any());
-                    Console.WriteLine("Complete: '{0}' / {1}", pattern, pageSize);
-                } catch
+                    Assert.False(server.Keys(pattern: pattern, pageSize: pageSize).Any());
+                    Output.WriteLine("Complete: '{0}' / {1}", pattern, pageSize);
+                }
+                catch
                 {
-                    Console.WriteLine("Failed: '{0}' / {1}", pattern, pageSize);
+                    Output.WriteLine("Failed: '{0}' / {1}", pattern, pageSize);
                     throw;
                 }
             }
         }
 
-        [Test]
-        [TestCase("", 0)]
-        [TestCase("abc", 7638)]
-        [TestCase("{abc}", 7638)]
-        [TestCase("abcdef", 15101)]
-        [TestCase("abc{abc}def", 7638)]
-        [TestCase("c", 7365)]
-        [TestCase("g", 7233)]
-        [TestCase("d", 11298)]
+        [Theory]
+        [InlineData("", 0)]
+        [InlineData("abc", 7638)]
+        [InlineData("{abc}", 7638)]
+        [InlineData("abcdef", 15101)]
+        [InlineData("abc{abc}def", 7638)]
+        [InlineData("c", 7365)]
+        [InlineData("g", 7233)]
+        [InlineData("d", 11298)]
 
-        [TestCase("user1000", 3443)]
-        [TestCase("{user1000}", 3443)]
-        [TestCase("abc{user1000}", 3443)]
-        [TestCase("abc{user1000}def", 3443)]
-        [TestCase("{user1000}.following", 3443)]
-        [TestCase("{user1000}.followers", 3443)]
+        [InlineData("user1000", 3443)]
+        [InlineData("{user1000}", 3443)]
+        [InlineData("abc{user1000}", 3443)]
+        [InlineData("abc{user1000}def", 3443)]
+        [InlineData("{user1000}.following", 3443)]
+        [InlineData("{user1000}.followers", 3443)]
 
-        [TestCase("foo{}{bar}", 8363)]
+        [InlineData("foo{}{bar}", 8363)]
 
-        [TestCase("foo{{bar}}zap", 4015)]
-        [TestCase("{bar", 4015)]
+        [InlineData("foo{{bar}}zap", 4015)]
+        [InlineData("{bar", 4015)]
 
-        [TestCase("foo{bar}{zap}", 5061)]
-        [TestCase("bar", 5061)]
+        [InlineData("foo{bar}{zap}", 5061)]
+        [InlineData("bar", 5061)]
 
         public void HashSlots(string key, int slot)
         {
-            using(var muxer = Create(connectTimeout: 500, pause: false))
+            using (var muxer = Create(connectTimeout: 500, pause: false))
             {
-                Assert.AreEqual(slot, muxer.HashSlot(key));
+                Assert.Equal(slot, muxer.HashSlot(key));
             }
         }
 
-
-        [Test]
+        [Fact]
         public void SScan()
         {
             using (var conn = Create())
@@ -433,39 +456,48 @@ namespace StackExchange.Redis.Tests
                 }
                 var unfilteredActual = db.SetScan(key).Select(x => (int)x).Sum();
                 var filteredActual = db.SetScan(key, "*3*").Select(x => (int)x).Sum();
-                Assert.AreEqual(totalUnfiltered, unfilteredActual);
-                Assert.AreEqual(totalFiltered, filteredActual);
+                Assert.Equal(totalUnfiltered, unfilteredActual);
+                Assert.Equal(totalFiltered, filteredActual);
             }
         }
 
-        [Test]
+        [Fact]
         public void GetConfig()
         {
-            using(var muxer = Create(allowAdmin: true))
+            using (var sw = new StringWriter())
+            using (var muxer = Create(allowAdmin: true, log: sw))
             {
                 var endpoints = muxer.GetEndPoints();
-                var server = muxer.GetServer(endpoints.First());
+                var server = muxer.GetServer(endpoints[0]);
                 var nodes = server.ClusterNodes();
 
-                Assert.AreEqual(endpoints.Length, nodes.Nodes.Count);
-                foreach(var node in nodes.Nodes.OrderBy(x => x))
+                Output.WriteLine("Endpoints:");
+                foreach (var endpoint in endpoints)
                 {
-                    Console.WriteLine(node);
+                    Output.WriteLine(endpoint.ToString());
                 }
+                Output.WriteLine("Nodes:");
+                foreach (var node in nodes.Nodes.OrderBy(x => x))
+                {
+                    Output.WriteLine(node.ToString());
+                }
+                Output.WriteLine(sw.ToString());
+
+                Assert.Equal(TestConfig.Current.ClusterServerCount, endpoints.Length);
+                Assert.Equal(TestConfig.Current.ClusterServerCount, nodes.Nodes.Count);
             }
         }
 
-        [Test]
+        [Fact]
         public void AccessRandomKeys()
         {
-            using(var conn = Create(allowAdmin: true))
+            using (var conn = Create(allowAdmin: true))
             {
-                
                 var cluster = conn.GetDatabase();
                 int slotMovedCount = 0;
                 conn.HashSlotMoved += (s, a) =>
                 {
-                    Console.WriteLine("{0} moved from {1} to {2}", a.HashSlot, Describe(a.OldEndPoint), Describe(a.NewEndPoint));
+                    Output.WriteLine("{0} moved from {1} to {2}", a.HashSlot, Describe(a.OldEndPoint), Describe(a.NewEndPoint));
                     Interlocked.Increment(ref slotMovedCount);
                 };
                 var pairs = new Dictionary<string, string>();
@@ -483,7 +515,7 @@ namespace StackExchange.Redis.Tests
                     }
                 }
 
-                for(int i = 0; i < COUNT; i++)
+                for (int i = 0; i < COUNT; i++)
                 {
                     var key = Guid.NewGuid().ToString();
                     var value = Guid.NewGuid().ToString();
@@ -502,9 +534,9 @@ namespace StackExchange.Redis.Tests
                     index++;
                 }
                 cluster.WaitAll(actual);
-                for(int i = 0; i < COUNT; i++)
+                for (int i = 0; i < COUNT; i++)
                 {
-                    Assert.AreEqual(expected[i], (string)actual[i].Result);
+                    Assert.Equal(expected[i], (string)actual[i].Result);
                 }
 
                 int total = 0;
@@ -513,7 +545,7 @@ namespace StackExchange.Redis.Tests
                     if (!server.IsSlave)
                     {
                         int count = server.Keys(pageSize: 100).Count();
-                        Console.WriteLine("{0} has {1} keys", server.EndPoint, count);
+                        Output.WriteLine("{0} has {1} keys", server.EndPoint, count);
                         Interlocked.Add(ref total, count);
                     }
                 });
@@ -521,50 +553,44 @@ namespace StackExchange.Redis.Tests
                 foreach (var server in servers)
                 {
                     var counters = server.GetCounters();
-                    Console.WriteLine(counters);
+                    Output.WriteLine(counters.ToString());
                 }
                 int final = Interlocked.CompareExchange(ref total, 0, 0);
-                Assert.AreEqual(COUNT, final);
-                Assert.AreEqual(0, Interlocked.CompareExchange(ref slotMovedCount, 0, 0), "slot moved count");
+                Assert.Equal(COUNT, final);
+                Assert.Equal(0, Interlocked.CompareExchange(ref slotMovedCount, 0, 0));
             }
         }
 
-        [Test]
-        [TestCase(CommandFlags.DemandMaster, false)]
-        [TestCase(CommandFlags.DemandSlave, true)]
-        [TestCase(CommandFlags.PreferMaster, false)]
-        [TestCase(CommandFlags.PreferSlave, true)]
+        [Theory]
+        [InlineData(CommandFlags.DemandMaster, false)]
+        [InlineData(CommandFlags.DemandSlave, true)]
+        [InlineData(CommandFlags.PreferMaster, false)]
+        [InlineData(CommandFlags.PreferSlave, true)]
         public void GetFromRightNodeBasedOnFlags(CommandFlags flags, bool isSlave)
         {
-            using(var muxer = Create(allowAdmin: true))
+            using (var muxer = Create(allowAdmin: true))
             {
                 var db = muxer.GetDatabase();
-                for(int i = 0; i < 1000; i++)
+                for (int i = 0; i < 1000; i++)
                 {
                     var key = Guid.NewGuid().ToString();
                     var endpoint = db.IdentifyEndpoint(key, flags);
                     var server = muxer.GetServer(endpoint);
-                    Assert.AreEqual(isSlave, server.IsSlave, key);
+                    Output.WriteLine("Comparing: key");
+                    Assert.Equal(isSlave, server.IsSlave);
                 }
             }
         }
 
-        private static string Describe(EndPoint endpoint)
-        {
-            return endpoint?.ToString() ?? "(unknown)";
-        }
+        private static string Describe(EndPoint endpoint) => endpoint?.ToString() ?? "(unknown)";
 
-        class TestProfiler : IProfiler
+        private class TestProfiler : IProfiler
         {
             public object MyContext = new object();
-
-            public object GetContext()
-            {
-                return MyContext;
-            }
+            public object GetContext() => MyContext;
         }
 
-        [Test]
+        [Fact]
         public void SimpleProfiling()
         {
             using (var conn = Create())
@@ -576,17 +602,17 @@ namespace StackExchange.Redis.Tests
                 var db = conn.GetDatabase();
                 db.StringSet("hello", "world");
                 var val = db.StringGet("hello");
-                Assert.AreEqual("world", (string)val);
+                Assert.Equal("world", val);
 
                 var msgs = conn.FinishProfiling(profiler.MyContext);
-                Assert.AreEqual(2, msgs.Count());
-                Assert.IsTrue(msgs.Any(m => m.Command == "GET"));
-                Assert.IsTrue(msgs.Any(m => m.Command == "SET"));
+                Assert.Equal(2, msgs.Count());
+                Assert.Contains(msgs, m => m.Command == "GET");
+                Assert.Contains(msgs, m => m.Command == "SET");
             }
         }
 
 #if DEBUG
-        [Test]
+        [Fact]
         public void MovedProfiling()
         {
             const string Key = "redirected-key";
@@ -606,64 +632,64 @@ namespace StackExchange.Redis.Tests
                 db.KeyDelete(Key);
                 db.StringSet(Key, Value);
                 var config = servers.First().ClusterConfiguration;
-                Assert.IsNotNull(config);
+                Assert.NotNull(config);
 
                 int slot = conn.HashSlot(Key);
                 var rightMasterNode = config.GetBySlot(Key);
-                Assert.IsNotNull(rightMasterNode);
+                Assert.NotNull(rightMasterNode);
 
                 string a = conn.GetServer(rightMasterNode.EndPoint).StringGet(db.Database, Key);
-                Assert.AreEqual(Value, a, "right master");
+                Assert.Equal(Value, a); // right master
 
                 var wrongMasterNode = config.Nodes.FirstOrDefault(x => !x.IsSlave && x.NodeId != rightMasterNode.NodeId);
-                Assert.IsNotNull(wrongMasterNode);
+                Assert.NotNull(wrongMasterNode);
 
                 string b = conn.GetServer(wrongMasterNode.EndPoint).StringGet(db.Database, Key);
-                Assert.AreEqual(Value, b, "wrong master, allow redirect");
+                Assert.Equal(Value, b); // wrong master, allow redirect
 
                 var msgs = conn.FinishProfiling(profiler.MyContext).ToList();
-                
+
                 // verify that things actually got recorded properly, and the retransmission profilings are connected as expected
                 {
                     // expect 1 DEL, 1 SET, 1 GET (to right master), 1 GET (to wrong master) that was responded to by an ASK, and 1 GET (to right master or a slave of it)
-                    Assert.AreEqual(5, msgs.Count);
-                    Assert.AreEqual(1, msgs.Count(c => c.Command == "DEL"));
-                    Assert.AreEqual(1, msgs.Count(c => c.Command == "SET"));
-                    Assert.AreEqual(3, msgs.Count(c => c.Command == "GET"));
+                    Assert.Equal(5, msgs.Count);
+                    Assert.Equal(1, msgs.Count(c => c.Command == "DEL"));
+                    Assert.Equal(1, msgs.Count(c => c.Command == "SET"));
+                    Assert.Equal(3, msgs.Count(c => c.Command == "GET"));
 
                     var toRightMasterNotRetransmission = msgs.Where(m => m.Command == "GET" && m.EndPoint.Equals(rightMasterNode.EndPoint) && m.RetransmissionOf == null);
-                    Assert.AreEqual(1, toRightMasterNotRetransmission.Count());
+                    Assert.Single(toRightMasterNotRetransmission);
 
                     var toWrongMasterWithoutRetransmission = msgs.Where(m => m.Command == "GET" && m.EndPoint.Equals(wrongMasterNode.EndPoint) && m.RetransmissionOf == null);
-                    Assert.AreEqual(1, toWrongMasterWithoutRetransmission.Count());
+                    Assert.Single(toWrongMasterWithoutRetransmission);
 
                     var toRightMasterOrSlaveAsRetransmission = msgs.Where(m => m.Command == "GET" && (m.EndPoint.Equals(rightMasterNode.EndPoint) || rightMasterNode.Children.Any(c => m.EndPoint.Equals(c.EndPoint))) && m.RetransmissionOf != null);
-                    Assert.AreEqual(1, toRightMasterOrSlaveAsRetransmission.Count());
+                    Assert.Single(toRightMasterOrSlaveAsRetransmission);
 
                     var originalWrongMaster = toWrongMasterWithoutRetransmission.Single();
                     var retransmissionToRight = toRightMasterOrSlaveAsRetransmission.Single();
 
-                    Assert.IsTrue(object.ReferenceEquals(originalWrongMaster, retransmissionToRight.RetransmissionOf));
+                    Assert.True(object.ReferenceEquals(originalWrongMaster, retransmissionToRight.RetransmissionOf));
                 }
 
-                foreach(var msg in msgs)
+                foreach (var msg in msgs)
                 {
-                    Assert.IsTrue(msg.CommandCreated != default(DateTime));
-                    Assert.IsTrue(msg.CreationToEnqueued > TimeSpan.Zero);
-                    Assert.IsTrue(msg.EnqueuedToSending > TimeSpan.Zero);
-                    Assert.IsTrue(msg.SentToResponse > TimeSpan.Zero);
-                    Assert.IsTrue(msg.ResponseToCompletion > TimeSpan.Zero);
-                    Assert.IsTrue(msg.ElapsedTime > TimeSpan.Zero);
+                    Assert.True(msg.CommandCreated != default(DateTime));
+                    Assert.True(msg.CreationToEnqueued > TimeSpan.Zero);
+                    Assert.True(msg.EnqueuedToSending > TimeSpan.Zero);
+                    Assert.True(msg.SentToResponse > TimeSpan.Zero);
+                    Assert.True(msg.ResponseToCompletion > TimeSpan.Zero);
+                    Assert.True(msg.ElapsedTime > TimeSpan.Zero);
 
                     if (msg.RetransmissionOf != null)
                     {
                         // imprecision of DateTime.UtcNow makes this pretty approximate
-                        Assert.IsTrue(msg.RetransmissionOf.CommandCreated <= msg.CommandCreated);
-                        Assert.AreEqual(RetransmissionReasonType.Moved, msg.RetransmissionReason.Value);
+                        Assert.True(msg.RetransmissionOf.CommandCreated <= msg.CommandCreated);
+                        Assert.Equal(RetransmissionReasonType.Moved, msg.RetransmissionReason.Value);
                     }
                     else
                     {
-                        Assert.IsFalse(msg.RetransmissionReason.HasValue);
+                        Assert.False(msg.RetransmissionReason.HasValue);
                     }
                 }
             }

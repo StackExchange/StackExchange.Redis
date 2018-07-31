@@ -1,38 +1,38 @@
 ﻿using System.Threading;
-using NUnit.Framework;
+using System.Threading.Tasks;
+using Xunit;
+using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    [TestFixture]
     public class ConnectFailTimeout : TestBase
     {
+        public ConnectFailTimeout(ITestOutputHelper output) : base (output) { }
+
 #if DEBUG
-        [TestCase]
-        public void NoticesConnectFail()
+        [Fact]
+        public async Task NoticesConnectFail()
         {
             SetExpectedAmbientFailureCount(-1);
             using (var conn = Create(allowAdmin: true))
             {
                 var server = conn.GetServer(conn.GetEndPoints()[0]);
-                conn.IgnoreConnect = true;
-                conn.ConnectionFailed += (s,a) => {
-                    System.Console.WriteLine("Disconnected: " + EndPointCollection.ToString(a.EndPoint));
-                };
-                conn.ConnectionRestored += (s,a) => {
-                    System.Console.WriteLine("Reconnected: " + EndPointCollection.ToString(a.EndPoint));
-                };
-                server.SimulateConnectionFailure();
-                Thread.Sleep(2000);
-                try
-                {
-                    server.Ping();
-                    Assert.Fail("Did not expect PING to succeed");
-                } catch(RedisConnectionException) { /* expected */ }
+                conn.ConnectionFailed += (s, a) =>
+                    Output.WriteLine("Disconnected: " + EndPointCollection.ToString(a.EndPoint));
+                conn.ConnectionRestored += (s, a) =>
+                    Output.WriteLine("Reconnected: " + EndPointCollection.ToString(a.EndPoint));
 
+                // No need to delay, we're going to try a disconnected connection immediately so it'll fail...
+                conn.IgnoreConnect = true;
+                server.SimulateConnectionFailure();
                 conn.IgnoreConnect = false;
-                Thread.Sleep(2000);
+                Assert.Throws<RedisConnectionException>(() => server.Ping());
+
+                // Heartbeat should reconnect by now
+                await Task.Delay(5000).ConfigureAwait(false);
+
                 var time = server.Ping();
-                System.Console.WriteLine(time);
+                Output.WriteLine(time.ToString());
             }
         }
 #endif

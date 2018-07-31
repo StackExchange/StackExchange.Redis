@@ -8,7 +8,7 @@ using System.Threading;
 
 namespace StackExchange.Redis
 {
-    enum WriteResult
+    internal enum WriteResult
     {
         QueueEmptyAfterWrite,
         NothingToDo,
@@ -16,36 +16,35 @@ namespace StackExchange.Redis
         CompetingWriter,
         NoConnection,
     }
-    
-    sealed partial class PhysicalBridge : IDisposable
+
+    internal sealed partial class PhysicalBridge : IDisposable
     {
         internal readonly string Name;
 
         internal int inWriteQueue = 0;
 
-        const int ProfileLogSamples = 10;
+        private const int ProfileLogSamples = 10;
 
-        const double ProfileLogSeconds = (ConnectionMultiplexer.MillisecondsPerHeartbeat * ProfileLogSamples) / 1000.0;
+        private const double ProfileLogSeconds = (ConnectionMultiplexer.MillisecondsPerHeartbeat * ProfileLogSamples) / 1000.0;
 
         private static readonly Message ReusableAskingCommand = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.ASKING);
 
         private readonly CompletionManager completionManager;
-        readonly long[] profileLog = new long[ProfileLogSamples];
+        private readonly long[] profileLog = new long[ProfileLogSamples];
         private readonly MessageQueue queue = new MessageQueue();
-        int activeWriters = 0;
+        private int activeWriters = 0;
         private int beating;
-        int failConnectCount = 0;
-        volatile bool isDisposed;
-        long nonPreferredEndpointCount;
+        private int failConnectCount = 0;
+        private volatile bool isDisposed;
+        private long nonPreferredEndpointCount;
 
         //private volatile int missedHeartbeats;
         private long operationCount, socketCount;
         private volatile PhysicalConnection physical;
 
-
-        long profileLastLog;
-        int profileLogIndex;
-        volatile bool reportNextFailure = true, reconfigureNextFailure = false;
+        private long profileLastLog;
+        private int profileLogIndex;
+        private volatile bool reportNextFailure = true, reconfigureNextFailure = false;
         private volatile int state = (int)State.Disconnected;
 
         public PhysicalBridge(ServerEndPoint serverEndPoint, ConnectionType type)
@@ -70,6 +69,8 @@ namespace StackExchange.Redis
         public ConnectionType ConnectionType { get; }
 
         public bool IsConnected => state == (int)State.ConnectedEstablished;
+
+        public bool IsConnecting => state == (int)State.ConnectedEstablishing || state == (int)State.Connecting;
 
         public ConnectionMultiplexer Multiplexer { get; }
 
@@ -108,15 +109,9 @@ namespace StackExchange.Redis
             reportNextFailure = true;
         }
 
-        public override string ToString()
-        {
-            return ConnectionType + "/" + Format.ToString(ServerEndPoint.EndPoint);
-        }
+        public override string ToString() => ConnectionType + "/" + Format.ToString(ServerEndPoint.EndPoint);
 
-        public void TryConnect(TextWriter log)
-        {
-            GetConnection(log);
-        }
+        public void TryConnect(TextWriter log) => GetConnection(log);
 
         public bool TryEnqueue(Message message, bool isSlave)
         {
@@ -149,9 +144,10 @@ namespace StackExchange.Redis
             }
             return true;
         }
+
         internal void AppendProfile(StringBuilder sb)
         {
-            long[] clone = new long[ProfileLogSamples + 1];
+            var clone = new long[ProfileLogSamples + 1];
             for (int i = 0; i < ProfileLogSamples; i++)
             {
                 clone[i] = Interlocked.Read(ref profileLog[i]);
@@ -289,7 +285,6 @@ namespace StackExchange.Redis
             }
         }
 
-
         internal void ResetNonConnected()
         {
             var tmp = physical;
@@ -316,8 +311,7 @@ namespace StackExchange.Redis
             Trace("OnDisconnected");
 
             // if the next thing in the pipe is a PING, we can tell it that we failed (this really helps spot doomed connects)
-            int count;
-            var ping = queue.DequeueUnsentPing(out count);
+            var ping = queue.DequeueUnsentPing(out int count);
             if (ping != null)
             {
                 Trace("Marking PING as failed (queue length: " + count + ")");
@@ -366,7 +360,7 @@ namespace StackExchange.Redis
 
         private int connectStartTicks;
         private long connectTimeoutRetryCount = 0;
-        
+
         internal void OnHeartbeat(bool ifConnectedOnly)
         {
             bool runThisTime = false;
@@ -383,7 +377,7 @@ namespace StackExchange.Redis
                 switch (state)
                 {
                     case (int)State.Connecting:
-                        int connectTimeMilliseconds = unchecked(Environment.TickCount - VolatileWrapper.Read(ref connectStartTicks));
+                        int connectTimeMilliseconds = unchecked(Environment.TickCount - Thread.VolatileRead(ref connectStartTicks));
                         bool shouldRetry = Multiplexer.RawConfig.ReconnectRetryPolicy.ShouldRetry(Interlocked.Read(ref connectTimeoutRetryCount), connectTimeMilliseconds);
                         if (shouldRetry)
                         {
@@ -392,9 +386,7 @@ namespace StackExchange.Redis
                             Trace("Aborting connect");
                             // abort and reconnect
                             var snapshot = physical;
-                            bool isCurrent;
-                            State oldState;
-                            OnDisconnected(ConnectionFailureType.UnableToConnect, snapshot, out isCurrent, out oldState);
+                            OnDisconnected(ConnectionFailureType.UnableToConnect, snapshot, out bool isCurrent, out State oldState);
                             using (snapshot) { } // dispose etc
                             TryConnect(null);
                         }
@@ -432,9 +424,7 @@ namespace StackExchange.Redis
                                 }
                                 else
                                 {
-                                    bool ignore;
-                                    State oldState;
-                                    OnDisconnected(ConnectionFailureType.SocketFailure, tmp, out ignore, out oldState);
+                                    OnDisconnected(ConnectionFailureType.SocketFailure, tmp, out bool ignore, out State oldState);
                                 }
                             }
                             else if (!queue.Any() && tmp.GetSentAwaitingResponseCount() != 0)
@@ -451,7 +441,7 @@ namespace StackExchange.Redis
                         if (!ifConnectedOnly)
                         {
                             AbortUnsent();
-                            Multiplexer.Trace("Resurrecting " + this.ToString());
+                            Multiplexer.Trace("Resurrecting " + ToString());
                             GetConnection(null);
                         }
                         break;
@@ -530,6 +520,7 @@ namespace StackExchange.Redis
         internal bool WriteMessageDirect(PhysicalConnection tmp, Message next)
         {
             Trace("Writing: " + next);
+            var messageIsSent = false;
             if (next is IMultiMessage)
             {
                 SelectDatabase(tmp, next); // need to switch database *before* the transaction
@@ -544,9 +535,14 @@ namespace StackExchange.Redis
                         CompleteSyncOrAsync(next);
                         return false;
                     }
+                    //The parent message (next) may be returned from GetMessages
+                    //and should not be marked as sent again below
+                    messageIsSent = messageIsSent || subCommand == next;
                 }
-
-                next.SetRequestSent();
+                if (!messageIsSent)
+                {
+                    next.SetRequestSent();
+                }
 
                 return true;
             }
@@ -729,10 +725,12 @@ namespace StackExchange.Redis
                 }
             }
         }
+
         private void OnInternalError(Exception exception, [CallerMemberName] string origin = null)
         {
             Multiplexer.OnInternalError(exception, ServerEndPoint.EndPoint, ConnectionType, origin);
         }
+
         private void SelectDatabase(PhysicalConnection connection, Message message)
         {
             int db = message.Db;
@@ -748,6 +746,7 @@ namespace StackExchange.Redis
                 }
             }
         }
+
         private bool WriteMessageToServer(PhysicalConnection connection, Message message)
         {
             if (message == null) return true;
@@ -827,7 +826,7 @@ namespace StackExchange.Redis
                 CompleteSyncOrAsync(message);
                 // this failed without actually writing; we're OK with that... unless there's a transaction
 
-                if (connection != null && connection.TransactionActive)
+                if (connection?.TransactionActive == true)
                 {
                     // we left it in a broken state; need to kill the connection
                     connection.RecordConnectionFailed(ConnectionFailureType.ProtocolFailure, ex);

@@ -1,26 +1,26 @@
 ﻿using System;
 using System.Linq;
-using NUnit.Framework;
+using Xunit;
+using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests.Issues
 {
-    [TestFixture]
     public class Issue182 : TestBase
     {
-        protected override string GetConfiguration()
-        {
-            return "127.0.0.1:6379,responseTimeout=10000";
-        }
-        [Test]
+        protected override string GetConfiguration() => $"{TestConfig.Current.MasterServerAndPort},responseTimeout=10000";
+
+        public Issue182(ITestOutputHelper output) : base (output) { }
+
+        [FactLongRunning]
         public void SetMembers()
         {
             using (var conn = Create())
             {
                 conn.ConnectionFailed += (s, a) =>
                 {
-                    Console.WriteLine(a.FailureType);
-                    Console.WriteLine(a.Exception.Message);
-                    Console.WriteLine(a.Exception.StackTrace);
+                    Output.WriteLine(a.FailureType.ToString());
+                    Output.WriteLine(a.Exception.Message);
+                    Output.WriteLine(a.Exception.StackTrace);
                 };
                 var db = conn.GetDatabase();
 
@@ -31,15 +31,15 @@ namespace StackExchange.Redis.Tests.Issues
                 foreach (var _ in Enumerable.Range(0, count))
                     db.SetAdd(key, Guid.NewGuid().ToByteArray(), CommandFlags.FireAndForget);
 
-                Assert.AreEqual(count, db.SetLengthAsync(key).Result, "SCARD for set");
+                Assert.Equal(count, db.SetLengthAsync(key).Result); // SCARD for set
 
                 var task = db.SetMembersAsync(key);
                 task.Wait();
-                Assert.AreEqual(count, task.Result.Length, "SMEMBERS result length");
+                Assert.Equal(count, task.Result.Length); // SMEMBERS result length
             }
         }
 
-        [Test]
+        [FactLongRunning]
         public void SetUnion()
         {
             using (var conn = Create())
@@ -60,12 +60,12 @@ namespace StackExchange.Redis.Tests.Issues
                     db.SetAdd(key1, Guid.NewGuid().ToByteArray(), CommandFlags.FireAndForget);
                     db.SetAdd(key2, Guid.NewGuid().ToByteArray(), CommandFlags.FireAndForget);
                 }
-                Assert.AreEqual(count, db.SetLengthAsync(key1).Result, "SCARD for set 1");
-                Assert.AreEqual(count, db.SetLengthAsync(key2).Result, "SCARD for set 2");
+                Assert.Equal(count, db.SetLengthAsync(key1).Result); // SCARD for set 1
+                Assert.Equal(count, db.SetLengthAsync(key2).Result); // SCARD for set 2
 
                 db.SetCombineAndStoreAsync(SetOperation.Union, dstkey, key1, key2).Wait();
                 var dstLen = db.SetLength(dstkey);
-                Assert.AreEqual(count * 2, dstLen, "SCARD for destination set");
+                Assert.Equal(count * 2, dstLen); // SCARD for destination set
             }
         }
     }

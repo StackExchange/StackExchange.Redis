@@ -64,20 +64,21 @@ namespace StackExchange.Redis
             "get", "set", "del", "incr", "incrby", "mget", "mset", "keys", "getset", "setnx",
             "hget", "hset", "hdel", "hincrby", "hkeys", "hvals", "hmget", "hmset", "hlen",
             "zscore", "zadd", "zrem", "zrange", "zrangebyscore", "zincrby", "zdecrby", "zcard",
-            "llen", "lpush", "rpush", "lpop", "rpop", "lrange", "lindex" 
+            "llen", "lpush", "rpush", "lpop", "rpop", "lrange", "lindex"
         }, true);
 
         /// <summary>
-        /// The commands available to <a href="Sentinel">http://redis.io/topics/sentinel</a>
+        /// The commands available to <a href="Sentinel">https://redis.io/topics/sentinel</a>
         /// </summary>
-        /// <remarks>http://redis.io/topics/sentinel</remarks>
+        /// <remarks>https://redis.io/topics/sentinel</remarks>
         public static CommandMap Sentinel { get; } = Create(new HashSet<string> {
-            // see http://redis.io/topics/sentinel
+            // see https://redis.io/topics/sentinel
             "ping", "info", "sentinel", "subscribe", "psubscribe", "unsubscribe", "punsubscribe" }, true);
 
         /// <summary>
         /// Create a new CommandMap, customizing some commands
         /// </summary>
+        /// <param name="overrides">The commands to override.</param>
         public static CommandMap Create(Dictionary<string, string> overrides)
         {
             if (overrides == null || overrides.Count == 0) return Default;
@@ -98,9 +99,10 @@ namespace StackExchange.Redis
         /// <summary>
         /// Creates a CommandMap by specifying which commands are available or unavailable
         /// </summary>
+        /// <param name="commands">The commands to specify.</param>
+        /// <param name="available">Whether the commands are available or excluded.</param>
         public static CommandMap Create(HashSet<string> commands, bool available = true)
         {
-            
             if (available)
             {
                 var dictionary = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -127,8 +129,7 @@ namespace StackExchange.Redis
                     // nix the things that are specified
                     foreach (var command in commands)
                     {
-                        RedisCommand parsed;
-                        if (Enum.TryParse(command, true, out parsed))
+                        if (Enum.TryParse(command, true, out RedisCommand parsed))
                         {
                             (exclusions ?? (exclusions = new HashSet<RedisCommand>())).Add(parsed);
                         }
@@ -137,7 +138,6 @@ namespace StackExchange.Redis
                 if (exclusions == null || exclusions.Count == 0) return Default;
                 return CreateImpl(null, exclusions);
             }
-            
         }
 
         /// <summary>
@@ -169,10 +169,8 @@ namespace StackExchange.Redis
             if (map[(int)command] == null) throw ExceptionFactory.CommandDisabled(false, command, null, null);
         }
 
-        internal byte[] GetBytes(RedisCommand command)
-        {
-            return map[(int)command];
-        }
+        internal byte[] GetBytes(RedisCommand command) => map[(int)command];
+
         internal byte[] GetBytes(string command)
         {
             if (command == null) return null;
@@ -195,37 +193,31 @@ namespace StackExchange.Redis
             }
             return bytes;
         }
-        static readonly Hashtable _unknownCommands = new Hashtable();
 
-        internal bool IsAvailable(RedisCommand command)
-        {
-            return map[(int)command] != null;
-        }
+        private static readonly Hashtable _unknownCommands = new Hashtable();
+
+        internal bool IsAvailable(RedisCommand command) => map[(int)command] != null;
 
         private static CommandMap CreateImpl(Dictionary<string, string> caseInsensitiveOverrides, HashSet<RedisCommand> exclusions)
         {
             var commands = (RedisCommand[])Enum.GetValues(typeof(RedisCommand));
 
-            byte[][] map = new byte[commands.Length][];
+            var map = new byte[commands.Length][];
             bool haveDelta = false;
             for (int i = 0; i < commands.Length; i++)
             {
                 int idx = (int)commands[i];
                 string name = commands[i].ToString(), value = name;
 
-                if (exclusions != null && exclusions.Contains(commands[i]))
+                if (exclusions?.Contains(commands[i]) == true)
                 {
                     map[idx] = null;
                 }
                 else
                 {
-                    if (caseInsensitiveOverrides != null)
+                    if (caseInsensitiveOverrides != null && caseInsensitiveOverrides.TryGetValue(name, out string tmp))
                     {
-                        string tmp;
-                        if (caseInsensitiveOverrides.TryGetValue(name, out tmp))
-                        {
-                            value = tmp;
-                        }
+                        value = tmp;
                     }
                     if (value != name) haveDelta = true;
                     // TODO: bug?

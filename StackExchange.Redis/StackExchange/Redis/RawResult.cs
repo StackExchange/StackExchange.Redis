@@ -3,15 +3,16 @@ using System.Text;
 
 namespace StackExchange.Redis
 {
-
-
     internal struct RawResult
     {
         public static readonly RawResult EmptyArray = new RawResult(new RawResult[0]);
         public static readonly RawResult Nil = new RawResult();
+
+        public static RawResult CreateMultiBulk(params RawResult[] results) => new RawResult(results);
+
         private static readonly byte[] emptyBlob = new byte[0];
         private readonly int offset, count;
-        private Array arr;
+        private readonly Array arr;
         public RawResult(ResultType resultType, byte[] buffer, int offset, int count)
         {
             switch (resultType)
@@ -67,6 +68,7 @@ namespace StackExchange.Redis
                     return "(unknown)";
             }
         }
+
         internal RedisChannel AsRedisChannel(byte[] channelPrefix, RedisChannel.PatternMode mode)
         {
             switch (Type)
@@ -102,6 +104,7 @@ namespace StackExchange.Redis
                     throw new InvalidCastException("Cannot convert to RedisKey: " + Type);
             }
         }
+
         internal RedisValue AsRedisValue()
         {
             switch (Type)
@@ -157,6 +160,7 @@ namespace StackExchange.Redis
             }
             return true;
         }
+
         internal byte[] GetBlob()
         {
             var src = (byte[])arr;
@@ -230,7 +234,8 @@ namespace StackExchange.Redis
                 return arr;
             }
         }
-        static readonly string[] NilStrings = new string[0];
+
+        private static readonly string[] NilStrings = new string[0];
         internal string[] GetItemsAsStrings()
         {
             RawResult[] items = GetItems();
@@ -252,6 +257,7 @@ namespace StackExchange.Redis
                 return arr;
             }
         }
+
         internal GeoPosition? GetItemsAsGeoPosition()
         {
             RawResult[] items = GetItems();
@@ -259,14 +265,15 @@ namespace StackExchange.Redis
             {
                 return null;
             }
-           
+
             var coords = items[0].GetArrayOfRawResults();
             if (coords == null)
             {
                 return null;
-            }            
-            return new GeoPosition((double)coords[0].AsRedisValue(), (double)coords[1].AsRedisValue());
+            }
+            return new GeoPosition((double)coords[1].AsRedisValue(), (double)coords[0].AsRedisValue());
         }
+
         internal GeoPosition?[] GetItemsAsGeoPositionArray()
         {
             RawResult[] items = GetItems();
@@ -290,7 +297,7 @@ namespace StackExchange.Redis
                     }
                     else
                     {
-                        arr[i] = new GeoPosition((double)item[0].AsRedisValue(), (double)item[1].AsRedisValue());
+                        arr[i] = new GeoPosition((double)item[1].AsRedisValue(), (double)item[0].AsRedisValue());
                     }
                 }
                 return arr;
@@ -301,7 +308,6 @@ namespace StackExchange.Redis
         {
             return GetItems();
         }
-
 
         // returns an array of RawResults
         internal RawResult[] GetArrayOfRawResults()
@@ -341,8 +347,7 @@ namespace StackExchange.Redis
                 val = 0;
                 return false;
             }
-            long i64;
-            if (TryGetInt64(out i64))
+            if (TryGetInt64(out long i64))
             {
                 val = i64;
                 return true;

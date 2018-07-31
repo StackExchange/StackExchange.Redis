@@ -3,7 +3,7 @@ using System.Text;
 
 namespace StackExchange.Redis
 {
-    sealed partial class MessageQueue
+    internal sealed partial class MessageQueue
     {
         private readonly Queue<Message>
             regular = new Queue<Message>(),
@@ -30,6 +30,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Checks both high-pri and regular queues to see if the next item is a PING, and if so: dequeues it and returns it
         /// </summary>
+        /// <param name="queueLength">The current queue count.</param>
         public Message DequeueUnsentPing(out int queueLength)
         {
             lock (regular)
@@ -92,6 +93,7 @@ namespace StackExchange.Redis
                 return arr;
             }
         }
+
         internal void GetStormLog(StringBuilder sb)
         {
             lock(regular)

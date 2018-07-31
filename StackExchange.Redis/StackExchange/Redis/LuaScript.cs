@@ -11,7 +11,7 @@ namespace StackExchange.Redis
     /// Unlike normal Redis Lua scripts, LuaScript can have named parameters (prefixed by a @).
     /// Public fields and properties of the passed in object are treated as parameters.
     /// 
-    /// Parameters of type RedisKey are sent to Redis as KEY (http://redis.io/commands/eval) in addition to arguments, 
+    /// Parameters of type RedisKey are sent to Redis as KEY (https://redis.io/commands/eval) in addition to arguments, 
     /// so as to play nicely with Redis Cluster.
     /// 
     /// All members of this class are thread safe.
@@ -20,26 +20,26 @@ namespace StackExchange.Redis
     {
         // Since the mapping of "script text" -> LuaScript doesn't depend on any particular details of
         //    the redis connection itself, this cache is global.
-        static readonly ConcurrentDictionary<string, WeakReference> Cache = new ConcurrentDictionary<string, WeakReference>();
+        private static readonly ConcurrentDictionary<string, WeakReference> Cache = new ConcurrentDictionary<string, WeakReference>();
 
         /// <summary>
         /// The original Lua script that was used to create this.
         /// </summary>
-        public string OriginalScript { get; private set; }
+        public string OriginalScript { get; }
 
         /// <summary>
         /// The Lua script that will actually be sent to Redis for execution.
         /// 
         /// All @-prefixed parameter names have been replaced at this point.
         /// </summary>
-        public string ExecutableScript { get; private set; }
+        public string ExecutableScript { get; }
 
         // Arguments are in the order they have to passed to the script in
-        internal string[] Arguments { get; private set; }
+        internal string[] Arguments { get; }
 
-        bool HasArguments => Arguments != null && Arguments.Length > 0;
+        private bool HasArguments => Arguments?.Length > 0;
 
-        Hashtable ParameterMappers;
+        private readonly Hashtable ParameterMappers;
 
         internal LuaScript(string originalScript, string executableScript, string[] arguments)
         {
@@ -61,8 +61,7 @@ namespace StackExchange.Redis
         {
             try
             {
-                WeakReference ignored;
-                Cache.TryRemove(OriginalScript, out ignored);
+                Cache.TryRemove(OriginalScript, out _);
             }
             catch { }
         }
@@ -72,28 +71,22 @@ namespace StackExchange.Redis
         /// Existing LuaScripts will continue to work, but future calls to LuaScript.Prepare
         /// return a new LuaScript instance.
         /// </summary>
-        public static void PurgeCache()
-        {
-            Cache.Clear();
-        }
+        public static void PurgeCache() => Cache.Clear();
 
         /// <summary>
         /// Returns the number of cached LuaScripts.
         /// </summary>
-        public static int GetCachedScriptCount()
-        {
-            return Cache.Count;
-        }
+        public static int GetCachedScriptCount() => Cache.Count;
 
         /// <summary>
         /// Prepares a Lua script with named parameters to be run against any Redis instance.
         /// </summary>
+        /// <param name="script">The script to prepare.</param>
         public static LuaScript Prepare(string script)
         {
             LuaScript ret;
 
-            WeakReference weakRef;
-            if (!Cache.TryGetValue(script, out weakRef) || (ret = (LuaScript)weakRef.Target) == null)
+            if (!Cache.TryGetValue(script, out WeakReference weakRef) || (ret = (LuaScript)weakRef.Target) == null)
             {
                 ret = ScriptParameterMapper.PrepareScript(script);
                 Cache[script] = new WeakReference(ret);
@@ -117,9 +110,7 @@ namespace StackExchange.Redis
                         mapper = (Func<object, RedisKey?, ScriptParameterMapper.ScriptParameters>)ParameterMappers[psType];
                         if (mapper == null)
                         {
-                            string missingMember;
-                            string badMemberType;
-                            if (!ScriptParameterMapper.IsValidParameterHash(psType, this, out missingMember, out badMemberType))
+                            if (!ScriptParameterMapper.IsValidParameterHash(psType, this, out string missingMember, out string badMemberType))
                             {
                                 if (missingMember != null)
                                 {
@@ -148,24 +139,26 @@ namespace StackExchange.Redis
         /// <summary>
         /// Evaluates this LuaScript against the given database, extracting parameters from the passed in object if any.
         /// </summary>
+        /// <param name="db">The redis databse to evaluate against.</param>
+        /// <param name="ps">The parameter object to use.</param>
+        /// <param name="withKeyPrefix">The key prefix to use, if any.</param>
+        /// <param name="flags">The command flags to use.</param>
         public RedisResult Evaluate(IDatabase db, object ps = null, RedisKey? withKeyPrefix = null, CommandFlags flags = CommandFlags.None)
         {
-            RedisKey[] keys;
-            RedisValue[] args;
-            ExtractParameters(ps, withKeyPrefix, out keys, out args);
-
+            ExtractParameters(ps, withKeyPrefix, out RedisKey[] keys, out RedisValue[] args);
             return db.ScriptEvaluate(ExecutableScript, keys, args, flags);
         }
 
         /// <summary>
         /// Evaluates this LuaScript against the given database, extracting parameters from the passed in object if any.
         /// </summary>
+        /// <param name="db">The redis databse to evaluate against.</param>
+        /// <param name="ps">The parameter object to use.</param>
+        /// <param name="withKeyPrefix">The key prefix to use, if any.</param>
+        /// <param name="flags">The command flags to use.</param>
         public Task<RedisResult> EvaluateAsync(IDatabaseAsync db, object ps = null, RedisKey? withKeyPrefix = null, CommandFlags flags = CommandFlags.None)
         {
-            RedisKey[] keys;
-            RedisValue[] args;
-            ExtractParameters(ps, withKeyPrefix, out keys, out args);
-
+            ExtractParameters(ps, withKeyPrefix, out RedisKey[] keys, out RedisValue[] args);
             return db.ScriptEvaluateAsync(ExecutableScript, keys, args, flags);
         }
 
@@ -175,15 +168,16 @@ namespace StackExchange.Redis
         /// 
         /// Note: the FireAndForget command flag cannot be set
         /// </summary>
+        /// <param name="server">The server to load the script on.</param>
+        /// <param name="flags">The command flags to use.</param>
         public LoadedLuaScript Load(IServer server, CommandFlags flags = CommandFlags.None)
         {
-            if (flags.HasFlag(CommandFlags.FireAndForget))
+            if ((flags & CommandFlags.FireAndForget) != 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(flags), "Loading a script cannot be FireAndForget");
             }
 
             var hash = server.ScriptLoad(ExecutableScript, flags);
-
             return new LoadedLuaScript(this, hash);
         }
 
@@ -193,15 +187,16 @@ namespace StackExchange.Redis
         /// 
         /// Note: the FireAndForget command flag cannot be set
         /// </summary>
+        /// <param name="server">The server to load the script on.</param>
+        /// <param name="flags">The command flags to use.</param>
         public async Task<LoadedLuaScript> LoadAsync(IServer server, CommandFlags flags = CommandFlags.None)
         {
-            if (flags.HasFlag(CommandFlags.FireAndForget))
+            if ((flags & CommandFlags.FireAndForget) != 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(flags), "Loading a script cannot be FireAndForget");
             }
 
             var hash = await server.ScriptLoadAsync(ExecutableScript, flags).ForAwait();
-
             return new LoadedLuaScript(this, hash);
         }
     }
@@ -218,7 +213,7 @@ namespace StackExchange.Redis
     /// Unlike normal Redis Lua scripts, LoadedLuaScript can have named parameters (prefixed by a @).
     /// Public fields and properties of the passed in object are treated as parameters.
     /// 
-    /// Parameters of type RedisKey are sent to Redis as KEY (http://redis.io/commands/eval) in addition to arguments, 
+    /// Parameters of type RedisKey are sent to Redis as KEY (https://redis.io/commands/eval) in addition to arguments, 
     /// so as to play nicely with Redis Cluster.
     /// 
     /// All members of this class are thread safe.
@@ -240,7 +235,7 @@ namespace StackExchange.Redis
         /// 
         /// This is sent to Redis instead of ExecutableScript during Evaluate and EvaluateAsync calls.
         /// </summary>
-        public byte[] Hash { get; private set; }
+        public byte[] Hash { get; }
 
         // internal for testing purposes only
         internal LuaScript Original;
@@ -257,12 +252,13 @@ namespace StackExchange.Redis
         /// This method sends the SHA1 hash of the ExecutableScript instead of the script itself.  If the script has not
         /// been loaded into the passed Redis instance it will fail.
         /// </summary>
+        /// <param name="db">The redis databse to evaluate against.</param>
+        /// <param name="ps">The parameter object to use.</param>
+        /// <param name="withKeyPrefix">The key prefix to use, if any.</param>
+        /// <param name="flags">The command flags to use.</param>
         public RedisResult Evaluate(IDatabase db, object ps = null, RedisKey? withKeyPrefix = null, CommandFlags flags = CommandFlags.None)
         {
-            RedisKey[] keys;
-            RedisValue[] args;
-            Original.ExtractParameters(ps, withKeyPrefix, out keys, out args);
-
+            Original.ExtractParameters(ps, withKeyPrefix, out RedisKey[] keys, out RedisValue[] args);
             return db.ScriptEvaluate(Hash, keys, args, flags);
         }
 
@@ -272,12 +268,13 @@ namespace StackExchange.Redis
         /// This method sends the SHA1 hash of the ExecutableScript instead of the script itself.  If the script has not
         /// been loaded into the passed Redis instance it will fail.
         /// </summary>
+        /// <param name="db">The redis databse to evaluate against.</param>
+        /// <param name="ps">The parameter object to use.</param>
+        /// <param name="withKeyPrefix">The key prefix to use, if any.</param>
+        /// <param name="flags">The command flags to use.</param>
         public Task<RedisResult> EvaluateAsync(IDatabaseAsync db, object ps = null, RedisKey? withKeyPrefix = null, CommandFlags flags = CommandFlags.None)
         {
-            RedisKey[] keys;
-            RedisValue[] args;
-            Original.ExtractParameters(ps, withKeyPrefix, out keys, out args);
-
+            Original.ExtractParameters(ps, withKeyPrefix, out RedisKey[] keys, out RedisValue[] args);
             return db.ScriptEvaluateAsync(Hash, keys, args, flags);
         }
     }

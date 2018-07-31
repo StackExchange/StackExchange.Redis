@@ -8,7 +8,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// Big ol' wrapper around most of the profiling storage logic, 'cause it got too big to just live in ConnectionMultiplexer.
     /// </summary>
-    sealed class ProfileContextTracker
+    internal sealed class ProfileContextTracker
     {
         /// <summary>
         /// Necessary, because WeakReference can't be readily comparable (since the reference is... weak).
@@ -20,24 +20,17 @@ namespace StackExchange.Redis
         /// 
         /// * Somebody starts profiling, but for whatever reason never *stops* with a context object
         /// </summary>
-        struct ProfileContextCell : IEquatable<ProfileContextCell>
+        private struct ProfileContextCell : IEquatable<ProfileContextCell>
         {
             // This is a union of (object|WeakReference); if it's a WeakReference
             //   then we're actually interested in it's Target, otherwise
             //   we're concerned about the actual value of Reference
-            object Reference;
-            
-            // It is absolutely crucial that this value **never change** once instantiated
-            readonly int HashCode;
+            private readonly object Reference;
 
-            public bool IsContextLeaked
-            {
-                get
-                {
-                    object ignored;
-                    return !TryGetTarget(out ignored);
-                }
-            }
+            // It is absolutely crucial that this value **never change** once instantiated
+            private readonly int HashCode;
+
+            public bool IsContextLeaked => !TryGetTarget(out _);
 
             private ProfileContextCell(object forObj, bool isEphemeral)
             {
@@ -59,10 +52,8 @@ namespace StackExchange.Redis
             /// This instance **WILL NOT** keep forObj alive, so it can
             /// be copied out of the calling method's scope.
             /// </summary>
-            public static ProfileContextCell ToStoreUnder(object forObj)
-            {
-                return new ProfileContextCell(forObj, isEphemeral: false);
-            }
+            /// <param name="forObj">The object to get a context for.</param>
+            public static ProfileContextCell ToStoreUnder(object forObj) => new ProfileContextCell(forObj, isEphemeral: false);
 
             /// <summary>
             /// Only suitable for looking up.
@@ -71,12 +62,10 @@ namespace StackExchange.Redis
             /// had better not be copied into anything outside the scope of the
             /// calling method.
             /// </summary>
-            public static ProfileContextCell ToLookupBy(object forObj)
-            {
-                return new ProfileContextCell(forObj, isEphemeral: true);
-            }
+            /// <param name="forObj">The object to lookup a context by.</param>
+            public static ProfileContextCell ToLookupBy(object forObj) => new ProfileContextCell(forObj, isEphemeral: true);
 
-            bool TryGetTarget(out object target)
+            private bool TryGetTarget(out object target)
             {
                 var asWeakRef = Reference as WeakReference;
 
@@ -98,16 +87,11 @@ namespace StackExchange.Redis
                 return Equals((ProfileContextCell)obj);
             }
 
-            public override int GetHashCode()
-            {
-                return HashCode;
-            }
+            public override int GetHashCode() => HashCode;
 
             public bool Equals(ProfileContextCell other)
             {
-                object thisObj, otherObj;
-
-                if (other.TryGetTarget(out otherObj) != TryGetTarget(out thisObj)) return false;
+                if (other.TryGetTarget(out object otherObj) != TryGetTarget(out object thisObj)) return false;
 
                 // dead references are equal
                 if (thisObj == null) return true;
@@ -117,7 +101,7 @@ namespace StackExchange.Redis
         }
 
         // provided so default behavior doesn't do any boxing, for sure
-        sealed class ProfileContextCellComparer : IEqualityComparer<ProfileContextCell>
+        private sealed class ProfileContextCellComparer : IEqualityComparer<ProfileContextCell>
         {
             public static readonly ProfileContextCellComparer Singleton = new ProfileContextCellComparer();
 
@@ -135,7 +119,7 @@ namespace StackExchange.Redis
         }
 
         private long lastCleanupSweep;
-        private ConcurrentDictionary<ProfileContextCell, ConcurrentProfileStorageCollection> profiledCommands;
+        private readonly ConcurrentDictionary<ProfileContextCell, ConcurrentProfileStorageCollection> profiledCommands;
 
         public int ContextCount => profiledCommands.Count;
 
@@ -150,6 +134,7 @@ namespace StackExchange.Redis
         /// 
         /// Returns false if the passed context object is already registered.
         /// </summary>
+        /// <param name="ctx">The context to use.</param>
         public bool TryCreate(object ctx)
         {
             var cell = ProfileContextCell.ToStoreUnder(ctx);
@@ -166,6 +151,8 @@ namespace StackExchange.Redis
         /// 
         /// Otherwise returns false and sets val to null.
         /// </summary>
+        /// <param name="ctx">The context to get a value for.</param>
+        /// <param name="val">The collection (if present) for <paramref name="ctx"/>.</param>
         public bool TryGetValue(object ctx, out ConcurrentProfileStorageCollection val)
         {
             var cell = ProfileContextCell.ToLookupBy(ctx);
@@ -181,11 +168,12 @@ namespace StackExchange.Redis
         /// Subsequent calls to TryRemove with the same context will return false unless it is
         /// re-registered with TryCreate.
         /// </summary>
+        /// <param name="ctx">The context to remove for.</param>
+        /// <param name="commands">The commands to remove.</param>
         public bool TryRemove(object ctx, out ProfiledCommandEnumerable commands)
         {
             var cell = ProfileContextCell.ToLookupBy(ctx);
-            ConcurrentProfileStorageCollection storage;
-            if (!profiledCommands.TryRemove(cell, out storage))
+            if (!profiledCommands.TryRemove(cell, out ConcurrentProfileStorageCollection storage))
             {
                 commands = default(ProfiledCommandEnumerable);
                 return false;
@@ -215,19 +203,15 @@ namespace StackExchange.Redis
 
             if (profiledCommands.Count == 0) return false;
 
-            using(var e = profiledCommands.GetEnumerator())
+            using (var e = profiledCommands.GetEnumerator())
             {
-                while(e.MoveNext())
+                while (e.MoveNext())
                 {
                     var pair = e.Current;
-                    if(pair.Key.IsContextLeaked)
+                    if (pair.Key.IsContextLeaked && profiledCommands.TryRemove(pair.Key, out ConcurrentProfileStorageCollection abandoned))
                     {
-                        ConcurrentProfileStorageCollection abandoned;
-                        if(profiledCommands.TryRemove(pair.Key, out abandoned))
-                        {
-                            // shove it back in the pool, but don't bother enumerating
-                            abandoned.ReturnForReuse();
-                        }
+                        // shove it back in the pool, but don't bother enumerating
+                        abandoned.ReturnForReuse();
                     }
                 }
             }

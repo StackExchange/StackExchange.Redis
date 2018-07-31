@@ -2,9 +2,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using StackExchange.Redis;
 
 namespace NRediSearch
@@ -14,18 +11,25 @@ namespace NRediSearch
     /// </summary>
     public class Document
     {
-
         public string Id { get; }
         public double Score { get; }
         public byte[] Payload { get; }
-        private Dictionary<String, RedisValue> properties = new Dictionary<string, RedisValue>();
+        internal readonly Dictionary<string, RedisValue> _properties;
+        public Document(string id, double score, byte[] payload) : this(id, null, score, payload) { }
+        public Document(string id) : this(id, null, 1.0, null) { }
 
-        public Document(string id, double score, byte[] payload)
+        public Document(string id, Dictionary<string, RedisValue> fields, double score) : this(id, fields, score, null) { }
+
+        public Document(string id, Dictionary<string, RedisValue> fields, double score, byte[] payload)
         {
             Id = id;
+            _properties = fields ?? new Dictionary<string, RedisValue>();
             Score = score;
             Payload = payload;
         }
+
+        public IEnumerable<KeyValuePair<string, RedisValue>> GetProperties() => _properties;
+
 
         public static Document Load(string id, double score, byte[] payload, RedisValue[] fields)
         {
@@ -42,10 +46,29 @@ namespace NRediSearch
 
         public RedisValue this[string key]
         {
-            get { return properties.TryGetValue(key, out var val) ? val : default(RedisValue); }
-            internal set { properties[key] = value; }
+            get { return _properties.TryGetValue(key, out var val) ? val : default(RedisValue); }
+            internal set { _properties[key] = value; }
         }
 
-        public bool HasProperty(string key) => properties.ContainsKey(key);
+        public bool HasProperty(string key) => _properties.ContainsKey(key);
+
+        internal static Document Parse(string docId, RedisResult result)
+        {
+            if (result == null || result.IsNull) return null;
+            var arr = (RedisResult[])result;
+            var doc = new Document(docId);
+            
+            for(int i = 0; i < arr.Length; )
+            {
+                doc[(string)arr[i++]] = (RedisValue)arr[i++];
+            }
+            return doc;
+        }
+
+        public Document Set(string field, RedisValue value)
+        {
+            this[field] = value;
+            return this;
+        }
     }
 }

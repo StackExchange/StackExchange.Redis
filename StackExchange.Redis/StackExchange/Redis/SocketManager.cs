@@ -4,10 +4,6 @@ using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
-#if CORE_CLR
-using System.Runtime.InteropServices;
-using System.Threading.Tasks;
-#endif
 
 namespace StackExchange.Redis
 {
@@ -17,6 +13,7 @@ namespace StackExchange.Redis
         Poll,
         Async
     }
+
     /// <summary>
     /// Allows callbacks from SocketManager as work is discovered
     /// </summary>
@@ -25,7 +22,10 @@ namespace StackExchange.Redis
         /// <summary>
         /// Indicates that a socket has connected
         /// </summary>
+        /// <param name="stream">The network stream for this socket.</param>
+        /// <param name="log">A text logger to write to.</param>
         SocketMode Connected(Stream stream, TextWriter log);
+
         /// <summary>
         /// Indicates that the socket has signalled an error condition
         /// </summary>
@@ -37,6 +37,7 @@ namespace StackExchange.Redis
         /// Indicates that data is available on the socket, and that the consumer should read synchronously from the socket while there is data
         /// </summary>
         void Read();
+
         /// <summary>
         /// Indicates that we cannot know whether data is available, and that the consume should commence reading asynchronously
         /// </summary>
@@ -55,6 +56,7 @@ namespace StackExchange.Redis
         {
             Socket = socket;
         }
+
         public int Available => Socket?.Available ?? 0;
 
         public bool HasValue => Socket != null;
@@ -63,7 +65,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// A SocketManager monitors multiple sockets for availability of data; this is done using
     /// the Socket.Select API and a dedicated reader-thread, which allows for fast responses
-    /// even when the system is under ambient load. 
+    /// even when the system is under ambient load.
     /// </summary>
     public sealed partial class SocketManager : IDisposable
     {
@@ -100,8 +102,8 @@ namespace StackExchange.Redis
             ProcessQueues,
             ProcessReadQueue,
             ProcessErrorQueue,
-
         }
+
         private static readonly ParameterizedThreadStart writeAllQueues = context =>
         {
             try { ((SocketManager)context).WriteAllQueues(); } catch { }
@@ -109,39 +111,39 @@ namespace StackExchange.Redis
 
         private static readonly WaitCallback writeOneQueue = context =>
         {
-
             try { ((SocketManager)context).WriteOneQueue(); } catch { }
         };
 
-        private readonly string name;
-
         private readonly Queue<PhysicalBridge> writeQueue = new Queue<PhysicalBridge>();
-
-        bool isDisposed;
-        private bool useHighPrioritySocketThreads = true;
+        private bool isDisposed;
+        private readonly bool useHighPrioritySocketThreads = true;
 
         /// <summary>
-        /// Creates a new (optionally named) SocketManager instance
+        /// Gets the name of this SocketManager instance
         /// </summary>
+        public string Name { get; }
+
+        /// <summary>
+        /// Creates a new (optionally named) <see cref="SocketManager"/> instance
+        /// </summary>
+        /// <param name="name">The name for this <see cref="SocketManager"/>.</param>
         public SocketManager(string name = null) : this(name, true) { }
 
         /// <summary>
-        /// Creates a new SocketManager instance
+        /// Creates a new <see cref="SocketManager"/> instance
         /// </summary>
+        /// <param name="name">The name for this <see cref="SocketManager"/>.</param>
+        /// <param name="useHighPrioritySocketThreads">Whether this <see cref="SocketManager"/> should use high priority sockets.</param>
         public SocketManager(string name, bool useHighPrioritySocketThreads)
         {
             if (string.IsNullOrWhiteSpace(name)) name = GetType().Name;
-            this.name = name;
+            Name = name;
             this.useHighPrioritySocketThreads = useHighPrioritySocketThreads;
 
             // we need a dedicated writer, because when under heavy ambient load
             // (a busy asp.net site, for example), workers are not reliable enough
-#if !CORE_CLR
-            Thread dedicatedWriter = new Thread(writeAllQueues, 32 * 1024); // don't need a huge stack;
+            var dedicatedWriter = new Thread(writeAllQueues, 32 * 1024); // don't need a huge stack;
             dedicatedWriter.Priority = useHighPrioritySocketThreads ? ThreadPriority.AboveNormal : ThreadPriority.Normal;
-#else
-            Thread dedicatedWriter = new Thread(writeAllQueues);
-#endif
             dedicatedWriter.Name = name + ":Write";
             dedicatedWriter.IsBackground = true; // should not keep process alive
             dedicatedWriter.Start(this); // will self-exit when disposed
@@ -152,11 +154,6 @@ namespace StackExchange.Redis
             Read,
             Error
         }
-
-        /// <summary>
-        /// Gets the name of this SocketManager instance
-        /// </summary>
-        public string Name => name;
 
         /// <summary>
         /// Releases all resources associated with this instance
@@ -174,67 +171,59 @@ namespace StackExchange.Redis
 
         internal SocketToken BeginConnect(EndPoint endpoint, ISocketCallback callback, ConnectionMultiplexer multiplexer, TextWriter log)
         {
-            var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            void RunWithCompletionType(Func<AsyncCallback, IAsyncResult> beginAsync, AsyncCallback asyncCallback)
+            {
+                void proxyCallback(IAsyncResult ar)
+                {
+                    if (!ar.CompletedSynchronously)
+                    {
+                        asyncCallback(ar);
+                    }
+                }
+
+                var result = beginAsync(proxyCallback);
+                if (result.CompletedSynchronously)
+                {
+                    result.AsyncWaitHandle.WaitOne();
+                    asyncCallback(result);
+                }
+            }
+
+            var addressFamily = endpoint.AddressFamily == AddressFamily.Unspecified ? AddressFamily.InterNetwork : endpoint.AddressFamily;
+            var protocolType = addressFamily == AddressFamily.Unix ? ProtocolType.Unspecified : ProtocolType.Tcp;
+            var socket = new Socket(addressFamily, SocketType.Stream, protocolType);
             SetFastLoopbackOption(socket);
-            socket.NoDelay = true;
+            if (addressFamily != AddressFamily.Unix)
+            {
+                socket.NoDelay = true;
+            }
             try
             {
-                CompletionType connectCompletionType = CompletionType.Any;
-                this.ShouldForceConnectCompletionType(ref connectCompletionType);
-
                 var formattedEndpoint = Format.ToString(endpoint);
                 var tuple = Tuple.Create(socket, callback);
-                if (endpoint is DnsEndPoint)
+                multiplexer.LogLocked(log, "BeginConnect: {0}", formattedEndpoint);
+                // A work-around for a Mono bug in BeginConnect(EndPoint endpoint, AsyncCallback callback, object state)
+                if (endpoint is DnsEndPoint dnsEndpoint)
                 {
-                    // A work-around for a Mono bug in BeginConnect(EndPoint endpoint, AsyncCallback callback, object state)
-                    DnsEndPoint dnsEndpoint = (DnsEndPoint)endpoint;
-
-#if CORE_CLR
-                    multiplexer.LogLocked(log, "BeginConnect: {0}", formattedEndpoint);
-                    socket.ConnectAsync(dnsEndpoint.Host, dnsEndpoint.Port).ContinueWith(t =>
-                    {
-                        multiplexer.LogLocked(log, "EndConnect: {0}", formattedEndpoint);
-                        EndConnectImpl(t, multiplexer, log, tuple);
-                        multiplexer.LogLocked(log, "Connect complete: {0}", formattedEndpoint);
-                    });
-#else
-                    CompletionTypeHelper.RunWithCompletionType(
-                        cb => {
-                            multiplexer.LogLocked(log, "BeginConnect: {0}", formattedEndpoint);
-                            return socket.BeginConnect(dnsEndpoint.Host, dnsEndpoint.Port, cb, tuple);
-                        },
-                        ar => {
-                            multiplexer.LogLocked(log, "EndConnect: {0}", formattedEndpoint);                            
-                            EndConnectImpl(ar, multiplexer, log, tuple);
-                            multiplexer.LogLocked(log, "Connect complete: {0}", formattedEndpoint);
-                        },
-                        connectCompletionType);
-#endif
-                }
-                else
-                {
-#if CORE_CLR
-                    multiplexer.LogLocked(log, "BeginConnect: {0}", formattedEndpoint);
-                    socket.ConnectAsync(endpoint).ContinueWith(t =>
-                    {
-                        multiplexer.LogLocked(log, "EndConnect: {0}", formattedEndpoint);
-                        EndConnectImpl(t, multiplexer, log, tuple);
-                    });
-#else
-                    CompletionTypeHelper.RunWithCompletionType(
-                        cb => {
-                            multiplexer.LogLocked(log, "BeginConnect: {0}", formattedEndpoint);
-                            return socket.BeginConnect(endpoint, cb, tuple);
-                        },
+                    RunWithCompletionType(
+                        cb => socket.BeginConnect(dnsEndpoint.Host, dnsEndpoint.Port, cb, tuple),
                         ar => {
                             multiplexer.LogLocked(log, "EndConnect: {0}", formattedEndpoint);
                             EndConnectImpl(ar, multiplexer, log, tuple);
                             multiplexer.LogLocked(log, "Connect complete: {0}", formattedEndpoint);
-                        },
-                        connectCompletionType);
-#endif
+                        });
                 }
-            } 
+                else
+                {
+                    RunWithCompletionType(
+                        cb => socket.BeginConnect(endpoint, cb, tuple),
+                        ar => {
+                            multiplexer.LogLocked(log, "EndConnect: {0}", formattedEndpoint);
+                            EndConnectImpl(ar, multiplexer, log, tuple);
+                            multiplexer.LogLocked(log, "Connect complete: {0}", formattedEndpoint);
+                        });
+                }
+            }
             catch (NotImplementedException ex)
             {
                 if (!(endpoint is IPEndPoint))
@@ -246,46 +235,25 @@ namespace StackExchange.Redis
             var token = new SocketToken(socket);
             return token;
         }
+
         internal void SetFastLoopbackOption(Socket socket)
         {
-            // SIO_LOOPBACK_FAST_PATH (http://msdn.microsoft.com/en-us/library/windows/desktop/jj841212%28v=vs.85%29.aspx)
-            // Speeds up localhost operations significantly. OK to apply to a socket that will not be hooked up to localhost, 
+            // SIO_LOOPBACK_FAST_PATH (https://msdn.microsoft.com/en-us/library/windows/desktop/jj841212%28v=vs.85%29.aspx)
+            // Speeds up localhost operations significantly. OK to apply to a socket that will not be hooked up to localhost,
             // or will be subject to WFP filtering.
             const int SIO_LOOPBACK_FAST_PATH = -1744830448;
 
-#if !CORE_CLR
             // windows only
             if (Environment.OSVersion.Platform == PlatformID.Win32NT)
             {
                 // Win8/Server2012+ only
                 var osVersion = Environment.OSVersion.Version;
-                if (osVersion.Major > 6 || osVersion.Major == 6 && osVersion.Minor >= 2)
+                if (osVersion.Major > 6 || (osVersion.Major == 6 && osVersion.Minor >= 2))
                 {
                     byte[] optionInValue = BitConverter.GetBytes(1);
                     socket.IOControl(SIO_LOOPBACK_FAST_PATH, optionInValue, null);
                 }
             }
-#else
-            try
-            {
-                // Ioctl is not supported on other platforms at the moment
-                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                {
-                    byte[] optionInValue = BitConverter.GetBytes(1);
-                    socket.IOControl(SIO_LOOPBACK_FAST_PATH, optionInValue, null);
-                }
-            }
-            catch (SocketException)
-            {
-            }
-            catch (PlatformNotSupportedException)
-            {
-                // Fix for https://github.com/StackExchange/StackExchange.Redis/issues/582 
-                // Checking the platform can fail on some platforms. However, we don't 
-                //   care if the platform check fails because this is for a Windows 
-                //   optimization, and checking the platform will not fail on Windows.
-            }
-#endif
         }
 
         internal void RequestWrite(PhysicalBridge bridge, bool forced)
@@ -321,11 +289,7 @@ namespace StackExchange.Redis
                 if (ignoreConnect) return;
                 var socket = tuple.Item1;
                 var callback = tuple.Item2;
-#if CORE_CLR
-                multiplexer.Wait((Task)ar); // make it explode if invalid (note: already complete at this point)
-#else
                 socket.EndConnect(ar);
-#endif
                 var netStream = new NetworkStream(socket, false);
                 var socketMode = callback?.Connected(netStream, log) ?? SocketMode.Abort;
                 switch (socketMode)
@@ -382,8 +346,6 @@ namespace StackExchange.Redis
         partial void OnShutdown(Socket socket);
 
         partial void ShouldIgnoreConnect(ISocketCallback callback, ref bool ignore);
-        
-        partial void ShouldForceConnectCompletionType(ref CompletionType completionType);
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")]
         private void Shutdown(Socket socket)
@@ -392,9 +354,7 @@ namespace StackExchange.Redis
             {
                 OnShutdown(socket);
                 try { socket.Shutdown(SocketShutdown.Both); } catch { }
-#if !CORE_CLR
                 try { socket.Close(); } catch { }
-#endif
                 try { socket.Dispose(); } catch { }
             }
         }

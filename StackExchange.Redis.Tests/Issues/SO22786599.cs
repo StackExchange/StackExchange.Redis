@@ -1,13 +1,15 @@
 ﻿using System.Diagnostics;
 using System.Linq;
-using NUnit.Framework;
+using Xunit;
+using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests.Issues
 {
-    [TestFixture]
     public class SO22786599 : TestBase
     {
-        [Test]
+        public SO22786599(ITestOutputHelper output) : base(output) { }
+
+        [Fact]
         public void Execute()
         {
             string CurrentIdsSetDbKey = Me() + ".x";
@@ -27,8 +29,8 @@ namespace StackExchange.Redis.Tests.Issues
                 var watch = Stopwatch.StartNew();
                 var isOperationSuccessful = tran.Execute();
                 watch.Stop();
-                System.Console.WriteLine("{0}ms", watch.ElapsedMilliseconds);
-                Assert.IsTrue(isOperationSuccessful);                
+                Output.WriteLine("{0}ms", watch.ElapsedMilliseconds);
+                Assert.True(isOperationSuccessful);
             }
         }
     }

@@ -54,10 +54,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
                 return database; // fine - you can keep using the original, then
             }
 
-            if(database is DatabaseWrapper)
+            if (database is DatabaseWrapper wrapper)
             {
                 // combine the key in advance to minimize indirection
-                var wrapper = (DatabaseWrapper)database;
                 keyPrefix = wrapper.ToInner(keyPrefix);
                 database = wrapper.Inner;
             }

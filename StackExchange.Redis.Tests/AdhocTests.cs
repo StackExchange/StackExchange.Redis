@@ -1,14 +1,13 @@
-﻿using NUnit.Framework;
-using System;
-using System.Collections.Generic;
-using System.Text;
+﻿using Xunit;
+using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    [TestFixture]
     public class AdhocTests : TestBase
     {
-        [Test]
+        public AdhocTests(ITestOutputHelper output) : base (output) { }
+
+        [Fact]
         public void TestAdhocCommandsAPI()
         {
             using (var conn = Create())
@@ -25,10 +24,9 @@ namespace StackExchange.Redis.Tests
                 db.Execute("del", key);
                 db.Execute("set", key, "12");
                 db.Execute("incrby", key, 4);
-                int i = (int) db.Execute("get", key);
+                int i = (int)db.Execute("get", key);
 
-                Assert.AreEqual(16, i);
-
+                Assert.Equal(16, i);
             }
         }
     }

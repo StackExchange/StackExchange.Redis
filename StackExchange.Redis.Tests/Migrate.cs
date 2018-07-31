@@ -1,14 +1,17 @@
 ﻿using System.Linq;
-using NUnit.Framework;
+using Xunit;
+using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
     public class Migrate : TestBase
     {
+        public Migrate(ITestOutputHelper output) : base (output) { }
+
         public void Basic()
         {
-            var fromConfig = new ConfigurationOptions { EndPoints = { { PrimaryServer, SecurePort } }, Password = SecurePassword };
-            var toConfig = new ConfigurationOptions { EndPoints = { { PrimaryServer, PrimaryPort } } };
+            var fromConfig = new ConfigurationOptions { EndPoints = { { TestConfig.Current.MasterServer, TestConfig.Current.SecurePort } }, Password = TestConfig.Current.SecurePassword };
+            var toConfig = new ConfigurationOptions { EndPoints = { { TestConfig.Current.MasterServer, TestConfig.Current.MasterPort } } };
             using (var from = ConnectionMultiplexer.Connect(fromConfig))
             using (var to = ConnectionMultiplexer.Connect(toConfig))
             {
@@ -20,10 +23,10 @@ namespace StackExchange.Redis.Tests
                 fromDb.StringSet(key, "foo");
                 var dest = to.GetEndPoints(true).Single();
                 fromDb.KeyMigrate(key, dest);
-                Assert.IsFalse(fromDb.KeyExists(key));
-                Assert.IsTrue(toDb.KeyExists(key));
+                Assert.False(fromDb.KeyExists(key));
+                Assert.True(toDb.KeyExists(key));
                 string s = toDb.StringGet(key);
-                Assert.AreEqual("foo", s);
+                Assert.Equal("foo", s);
             }
         }
     }

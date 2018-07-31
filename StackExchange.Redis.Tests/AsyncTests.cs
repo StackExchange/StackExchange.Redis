@@ -1,25 +1,24 @@
 ﻿using System.Linq;
-using NUnit.Framework;
+using Xunit;
+using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    [TestFixture]
     public class AsyncTests : TestBase
     {
-        protected override string GetConfiguration()
-        {
-            return PrimaryServer + ":" + PrimaryPortString;
-        }
+        public AsyncTests(ITestOutputHelper output) : base (output) { }
+
+        protected override string GetConfiguration() => TestConfig.Current.MasterServerAndPort;
 
 #if DEBUG // IRedisServerDebug and AllowConnect are only available if DEBUG is defined
-        [Test]
+        [Fact]
         public void AsyncTasksReportFailureIfServerUnavailable()
         {
             SetExpectedAmbientFailureCount(-1); // this will get messy
 
-            using(var conn = Create(allowAdmin: true))
+            using (var conn = Create(allowAdmin: true))
             {
-                var server = conn.GetServer(PrimaryServer, PrimaryPort);
+                var server = conn.GetServer(TestConfig.Current.MasterServer, TestConfig.Current.MasterPort);
 
                 RedisKey key = Me();
                 var db = conn.GetDatabase();
@@ -27,17 +26,17 @@ namespace StackExchange.Redis.Tests
                 var a = db.SetAddAsync(key, "a");
                 var b = db.SetAddAsync(key, "b");
 
-                Assert.AreEqual(true, conn.Wait(a));
-                Assert.AreEqual(true, conn.Wait(b));
+                Assert.True(conn.Wait(a));
+                Assert.True(conn.Wait(b));
 
                 conn.AllowConnect = false;
                 server.SimulateConnectionFailure();
                 var c = db.SetAddAsync(key, "c");
 
-                Assert.IsTrue(c.IsFaulted, "faulted");
+                Assert.True(c.IsFaulted, "faulted");
                 var ex = c.Exception.InnerExceptions.Single();
-                Assert.IsInstanceOf<RedisConnectionException>(ex);
-                Assert.AreEqual("No connection is available to service this operation: SADD AsyncTasksReportFailureIfServerUnavailable", ex.Message);
+                Assert.IsType<RedisConnectionException>(ex);
+                Assert.StartsWith("No connection is available to service this operation: SADD AsyncTasksReportFailureIfServerUnavailable", ex.Message);
             }
         }
 #endif

@@ -1,13 +1,14 @@
 ﻿using System;
-using NUnit.Framework;
+using Xunit;
+using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    [TestFixture]
     public class TransientErrorTests : TestBase
     {
+        public TransientErrorTests(ITestOutputHelper output) : base (output) { }
 
-        [TestCase]
+        [Fact]
         public void TestExponentialRetry()
         {
             IReconnectRetryPolicy exponentialRetry = new ExponentialRetry(5000);
@@ -17,14 +18,14 @@ namespace StackExchange.Redis.Tests
             Assert.False(exponentialRetry.ShouldRetry(2, 4050));
         }
 
-        [TestCase]
+        [Fact]
         public void TestExponentialMaxRetry()
         {
             IReconnectRetryPolicy exponentialRetry = new ExponentialRetry(5000);
             Assert.True(exponentialRetry.ShouldRetry(long.MaxValue, (int)TimeSpan.FromSeconds(30).TotalMilliseconds));
         }
 
-        [TestCase]
+        [Fact]
         public void TestLinearRetry()
         {
             IReconnectRetryPolicy linearRetry = new LinearRetry(5000);

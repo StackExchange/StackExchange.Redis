@@ -32,13 +32,14 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.GeoAdd(ToInner(key), longitude, latitude, member, flags);
         }
 
-        public long GeoAdd(RedisKey key, GeoEntry[] geoEntries, CommandFlags flags = CommandFlags.None)
+        public long GeoAdd(RedisKey key, GeoEntry[] values, CommandFlags flags = CommandFlags.None)
         {
-            return Inner.GeoAdd(ToInner(key), geoEntries, flags);
+            return Inner.GeoAdd(ToInner(key), values, flags);
         }
-        public bool GeoAdd(RedisKey key, GeoEntry geoEntry, CommandFlags flags = CommandFlags.None)
+
+        public bool GeoAdd(RedisKey key, GeoEntry value, CommandFlags flags = CommandFlags.None)
         {
-            return Inner.GeoAdd(ToInner(key), geoEntry, flags);
+            return Inner.GeoAdd(ToInner(key), value, flags);
         }
 
         public bool GeoRemove(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
@@ -46,9 +47,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.GeoRemove(ToInner(key), member, flags);
         }
 
-        public double? GeoDistance(RedisKey key, RedisValue value0, RedisValue value1, GeoUnit unit = GeoUnit.Meters,CommandFlags flags = CommandFlags.None)
+        public double? GeoDistance(RedisKey key, RedisValue member1, RedisValue member2, GeoUnit unit = GeoUnit.Meters,CommandFlags flags = CommandFlags.None)
         {
-            return Inner.GeoDistance(ToInner(key), value0, value1, unit, flags);
+            return Inner.GeoDistance(ToInner(key), member1, member2, unit, flags);
         }
 
         public string[] GeoHash(RedisKey key, RedisValue[] members, CommandFlags flags = CommandFlags.None)
@@ -75,6 +76,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
         {
             return Inner.GeoRadius(ToInner(key), member, radius, unit, count, order, options, flags);
         }
+
         public GeoRadiusResult[] GeoRadius(RedisKey key, double longitude, double latitude, double radius, GeoUnit unit = GeoUnit.Meters, int count = -1, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None)
         {
             return Inner.GeoRadius(ToInner(key), longitude, latitude, radius, unit, count, order, options, flags);
@@ -365,7 +367,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public RedisResult Execute(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
             => Inner.Execute(command, ToInner(args), flags);
-            
+
         public RedisResult ScriptEvaluate(byte[] hash, RedisKey[] keys = null, RedisValue[] values = null, CommandFlags flags = CommandFlags.None)
         {
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
@@ -474,10 +476,12 @@ namespace StackExchange.Redis.KeyspaceIsolation
         {
             return Inner.Sort(ToInner(key), skip, take, order, sortType, SortByToInner(by), SortGetToInner(get), flags);
         }
+
         public long SortedSetAdd(RedisKey key, SortedSetEntry[] values, CommandFlags flags)
         {
             return Inner.SortedSetAdd(ToInner(key), values, flags);
         }
+
         public long SortedSetAdd(RedisKey key, SortedSetEntry[] values, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
             return Inner.SortedSetAdd(ToInner(key), values, when, flags);
@@ -487,6 +491,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
         {
             return Inner.SortedSetAdd(ToInner(key), member, score, flags);
         }
+
         public bool SortedSetAdd(RedisKey key, RedisValue member, double score, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
             return Inner.SortedSetAdd(ToInner(key), member, score, when, flags);
@@ -580,6 +585,101 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public double? SortedSetScore(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None)
         {
             return Inner.SortedSetScore(ToInner(key), member, flags);
+        }
+
+        public long StreamAcknowledge(RedisKey key, RedisValue groupName, RedisValue messageId, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StreamAcknowledge(ToInner(key), groupName, messageId, flags);
+        }
+
+        public long StreamAcknowledge(RedisKey key, RedisValue groupName, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StreamAcknowledge(ToInner(key), groupName, messageIds, flags);
+        }
+
+        public RedisValue StreamAdd(RedisKey key, RedisValue streamField, RedisValue streamValue, RedisValue? messageId = null, int? maxLength = null, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StreamAdd(ToInner(key), streamField, streamValue, messageId, maxLength, useApproximateMaxLength, flags);
+        }
+
+        public RedisValue StreamAdd(RedisKey key, NameValueEntry[] streamPairs, RedisValue? messageId = null, int? maxLength = null, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StreamAdd(ToInner(key), streamPairs, messageId, maxLength, useApproximateMaxLength, flags);
+        }
+
+        public RedisStreamEntry[] StreamClaim(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StreamClaim(ToInner(key), consumerGroup, claimingConsumer, minIdleTimeInMs, messageIds, flags);
+        }
+
+        public RedisValue[] StreamClaimIdsOnly(RedisKey key, RedisValue consumerGroup, RedisValue claimingConsumer, long minIdleTimeInMs, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StreamClaimIdsOnly(ToInner(key), consumerGroup, claimingConsumer, minIdleTimeInMs, messageIds, flags);
+        }
+
+        public bool StreamCreateConsumerGroup(RedisKey key, RedisValue groupName, RedisValue? readFrom = null, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StreamCreateConsumerGroup(ToInner(key), groupName, readFrom, flags);
+        }
+
+        public StreamInfo StreamInfo(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StreamInfo(ToInner(key), flags);
+        }
+
+        public StreamGroupInfo[] StreamGroupInfo(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StreamGroupInfo(ToInner(key), flags);
+        }
+
+        public StreamConsumerInfo[] StreamConsumerInfo(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StreamConsumerInfo(ToInner(key), groupName, flags);
+        }
+
+        public long StreamLength(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StreamLength(ToInner(key), flags);
+        }
+
+        public long StreamDelete(RedisKey key, RedisValue[] messageIds, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StreamDelete(ToInner(key), messageIds, flags);
+        }
+
+        public StreamPendingInfo StreamPending(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StreamPending(ToInner(key), groupName, flags);
+        }
+
+        public StreamPendingMessageInfo[] StreamPendingMessages(RedisKey key, RedisValue groupName, int count, RedisValue consumerName, RedisValue? minId = null, RedisValue? maxId = null, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StreamPendingMessages(ToInner(key), groupName, count, consumerName, minId, maxId, flags);
+        }
+
+        public RedisStreamEntry[] StreamRange(RedisKey key, RedisValue? minId = null, RedisValue? maxId = null, int? count = null, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StreamRange(ToInner(key), minId, maxId, count, order, flags);
+        }
+
+        public RedisStreamEntry[] StreamRead(RedisKey key, RedisValue afterId, int? count = null, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StreamRead(ToInner(key), afterId, count, flags);
+        }
+
+        public RedisStream[] StreamRead(StreamIdPair[] streamIdPairs, int? countPerStream = null, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StreamRead(streamIdPairs, countPerStream, flags);
+        }
+
+        public RedisStreamEntry[] StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? readFromId = null, int? count = null, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StreamReadGroup(ToInner(key), groupName, consumerName, readFromId, count, flags);
+        }
+
+        public long StreamTrim(RedisKey key, int maxLength, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StreamTrim(ToInner(key), maxLength, useApproximateMaxLength, flags);
         }
 
         public long StringAppend(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
@@ -687,11 +787,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.Ping(flags);
         }
 
-
         IEnumerable<HashEntry> IDatabase.HashScan(RedisKey key, RedisValue pattern, int pageSize, CommandFlags flags)
         {
             return HashScan(key, pattern, pageSize, RedisBase.CursorUtils.Origin, 0, flags);
         }
+
         public IEnumerable<HashEntry> HashScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = RedisBase.CursorUtils.DefaultPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
         {
             return Inner.HashScan(ToInner(key), pattern, pageSize, cursor, pageOffset, flags);
@@ -701,6 +801,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
         {
             return SetScan(key, pattern, pageSize, RedisBase.CursorUtils.Origin, 0, flags);
         }
+
         public IEnumerable<RedisValue> SetScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = RedisBase.CursorUtils.DefaultPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
         {
             return Inner.SetScan(ToInner(key), pattern, pageSize, cursor, pageOffset, flags);
@@ -710,11 +811,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
         {
             return SortedSetScan(key, pattern, pageSize, RedisBase.CursorUtils.Origin, 0, flags);
         }
+
         public IEnumerable<SortedSetEntry> SortedSetScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = RedisBase.CursorUtils.DefaultPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
         {
             return Inner.SortedSetScan(ToInner(key), pattern, pageSize, cursor, pageOffset, flags);
         }
-
 
 #if DEBUG
         public string ClientGetName(CommandFlags flags = CommandFlags.None)

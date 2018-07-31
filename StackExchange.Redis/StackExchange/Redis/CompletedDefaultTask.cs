@@ -4,12 +4,10 @@ namespace StackExchange.Redis
 {
     internal static class CompletedTask<T>
     {
-        private static readonly Task<T> @default = FromResult(default(T), null);
+        private static readonly Task<T> defaultTask = FromResult(default(T), null);
 
-        public static Task<T> Default(object asyncState)
-        {
-            return asyncState == null ? @default : FromResult(default(T), asyncState);
-        }
+        public static Task<T> Default(object asyncState) => asyncState == null ? defaultTask : FromResult(default(T), asyncState);
+
         public static Task<T> FromResult(T value, object asyncState)
         {
             // note we do not need to deny exec-sync here; the value will be known

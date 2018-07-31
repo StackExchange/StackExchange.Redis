@@ -9,15 +9,13 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
-
     internal sealed partial class RedisServer : RedisBase, IServer
     {
         private readonly ServerEndPoint server;
 
         internal RedisServer(ConnectionMultiplexer multiplexer, ServerEndPoint server, object asyncState) : base(multiplexer, asyncState)
         {
-            if (server == null) throw new ArgumentNullException(nameof(server));
-            this.server = server;
+            this.server = server ?? throw new ArgumentNullException(nameof(server));
         }
 
         public ClusterConfiguration ClusterConfiguration => server.ClusterConfiguration;
@@ -32,8 +30,8 @@ namespace StackExchange.Redis
 
         public bool AllowSlaveWrites
         {
-            get { return server.AllowSlaveWrites; }
-            set { server.AllowSlaveWrites = value; }
+            get => server.AllowSlaveWrites;
+            set => server.AllowSlaveWrites = value;
         }
 
         public ServerType ServerType => server.ServerType;
@@ -63,9 +61,10 @@ namespace StackExchange.Redis
             var msg = GetClientKillMessage(endpoint, id, clientType, skipMe, flags);
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
-        Message GetClientKillMessage(EndPoint endpoint, long? id, ClientType? clientType, bool skipMe, CommandFlags flags)
+
+        private Message GetClientKillMessage(EndPoint endpoint, long? id, ClientType? clientType, bool skipMe, CommandFlags flags)
         {
-            List<RedisValue> parts = new List<RedisValue>(9)
+            var parts = new List<RedisValue>(9)
             {
                 RedisLiterals.KILL
             };
@@ -194,6 +193,7 @@ namespace StackExchange.Redis
             ExecuteSync(Message.Create(-1, flags | CommandFlags.FireAndForget, RedisCommand.CONFIG, RedisLiterals.GET, setting), ResultProcessor.AutoConfigure);
             return task;
         }
+
         public long DatabaseSize(int database = 0, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(database, flags, RedisCommand.DBSIZE);
@@ -211,6 +211,7 @@ namespace StackExchange.Redis
             var msg = Message.Create(-1, flags, RedisCommand.ECHO, message);
             return ExecuteSync(msg, ResultProcessor.RedisValue);
         }
+
         public Task<RedisValue> EchoAsync(RedisValue message, CommandFlags flags)
         {
             var msg = Message.Create(-1, flags, RedisCommand.ECHO, message);
@@ -222,6 +223,7 @@ namespace StackExchange.Redis
             var msg = Message.Create(-1, flags, RedisCommand.FLUSHALL);
             ExecuteSync(msg, ResultProcessor.DemandOK);
         }
+
         public Task FlushAllDatabasesAsync(CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(-1, flags, RedisCommand.FLUSHALL);
@@ -240,10 +242,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.DemandOK);
         }
 
-        public ServerCounters GetCounters()
-        {
-            return server.GetCounters();
-        }
+        public ServerCounters GetCounters() => server.GetCounters();
 
         public IGrouping<string, KeyValuePair<string, string>>[] Info(RedisValue section = default(RedisValue), CommandFlags flags = CommandFlags.None)
         {
@@ -319,6 +318,7 @@ namespace StackExchange.Redis
         {
             multiplexer.MakeMaster(server, options, log);
         }
+
         public void Save(SaveType type, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetSaveMessage(type, flags);
@@ -527,9 +527,7 @@ namespace StackExchange.Redis
             }
             else
             {
-                string hostRaw;
-                int portRaw;
-                if (Format.TryGetHostPort(endpoint, out hostRaw, out portRaw))
+                if (Format.TryGetHostPort(endpoint, out string hostRaw, out int portRaw))
                 {
                     host = hostRaw;
                     port = portRaw;
@@ -577,22 +575,21 @@ namespace StackExchange.Redis
             return new RedisFeatures(server.Version);
         }
 
-        public void SlaveOf(EndPoint endpoint, CommandFlags flags = CommandFlags.None)
+        public void SlaveOf(EndPoint master, CommandFlags flags = CommandFlags.None)
         {
-            if (endpoint == server.EndPoint)
+            if (master == server.EndPoint)
             {
                 throw new ArgumentException("Cannot slave to self");
             }
             // prepare the actual slaveof message (not sent yet)
-            var slaveofMsg = CreateSlaveOfMessage(endpoint, flags);
+            var slaveofMsg = CreateSlaveOfMessage(master, flags);
 
             var configuration = this.multiplexer.RawConfig;
-
 
             // attempt to cease having an opinion on the master; will resume that when replication completes
             // (note that this may fail; we aren't depending on it)
             if (!string.IsNullOrWhiteSpace(configuration.TieBreaker)
-                && this.multiplexer.CommandMap.IsAvailable(RedisCommand.DEL))
+                && multiplexer.CommandMap.IsAvailable(RedisCommand.DEL))
             {
                 var del = Message.Create(0, CommandFlags.FireAndForget | CommandFlags.NoRedirect, RedisCommand.DEL, (RedisKey)configuration.TieBreaker);
                 del.SetInternalCall();
@@ -601,8 +598,8 @@ namespace StackExchange.Redis
             ExecuteSync(slaveofMsg, ResultProcessor.DemandOK);
 
             // attempt to broadcast a reconfigure message to anybody listening to this server
-            var channel = this.multiplexer.ConfigurationChangedChannel;
-            if (channel != null && this.multiplexer.CommandMap.IsAvailable(RedisCommand.PUBLISH))
+            var channel = multiplexer.ConfigurationChangedChannel;
+            if (channel != null && multiplexer.CommandMap.IsAvailable(RedisCommand.PUBLISH))
             {
                 var pub = Message.Create(-1, CommandFlags.FireAndForget | CommandFlags.NoRedirect, RedisCommand.PUBLISH, (RedisValue)channel, RedisLiterals.Wildcard);
                 pub.SetInternalCall();
@@ -610,10 +607,10 @@ namespace StackExchange.Redis
             }
         }
 
-        public Task SlaveOfAsync(EndPoint endpoint, CommandFlags flags = CommandFlags.None)
+        public Task SlaveOfAsync(EndPoint master, CommandFlags flags = CommandFlags.None)
         {
-            var msg = CreateSlaveOfMessage(endpoint, flags);
-            if (endpoint == server.EndPoint)
+            var msg = CreateSlaveOfMessage(master, flags);
+            if (master == server.EndPoint)
             {
                 throw new ArgumentException("Cannot slave to self");
             }
@@ -636,7 +633,7 @@ namespace StackExchange.Redis
             }
         }
 
-        Message GetSaveMessage(SaveType type, CommandFlags flags = CommandFlags.None)
+        private Message GetSaveMessage(SaveType type, CommandFlags flags = CommandFlags.None)
         {
             switch(type)
             {
@@ -649,7 +646,7 @@ namespace StackExchange.Redis
             }
         }
 
-        ResultProcessor<bool> GetSaveResultProcessor(SaveType type)
+        private ResultProcessor<bool> GetSaveResultProcessor(SaveType type)
         {
             switch (type)
             {
@@ -662,15 +659,15 @@ namespace StackExchange.Redis
             }
         }
 
-        static class ScriptHash
+        private static class ScriptHash
         {
-            static readonly byte[] hex = {
+            private static readonly byte[] hex = {
                 (byte)'0', (byte)'1', (byte)'2', (byte)'3', (byte)'4', (byte)'5', (byte)'6', (byte)'7',
                 (byte)'8', (byte)'9', (byte)'a', (byte)'b', (byte)'c', (byte)'d', (byte)'e', (byte)'f' };
             public static RedisValue Encode(byte[] value)
             {
                 if (value == null) return default(RedisValue);
-                byte[] result = new byte[value.Length * 2];
+                var result = new byte[value.Length * 2];
                 int offset = 0;
                 for (int i = 0; i < value.Length; i++)
                 {
@@ -680,6 +677,7 @@ namespace StackExchange.Redis
                 }
                 return result;
             }
+
             public static RedisValue Hash(string value)
             {
                 if (value == null) return default(RedisValue);
@@ -691,7 +689,7 @@ namespace StackExchange.Redis
             }
         }
 
-        sealed class KeysScanEnumerable : CursorEnumerable<RedisKey>
+        private sealed class KeysScanEnumerable : CursorEnumerable<RedisKey>
         {
             private readonly RedisValue pattern;
 
@@ -726,6 +724,7 @@ namespace StackExchange.Redis
                     }
                 }
             }
+
             protected override ResultProcessor<ScanResult> Processor => processor;
 
             public static readonly ResultProcessor<ScanResult> processor = new KeysResultProcessor();

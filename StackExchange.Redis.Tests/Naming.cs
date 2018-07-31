@@ -3,38 +3,41 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
-using NUnit.Framework;
+using Xunit;
+using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    [TestFixture]
     public class Naming
     {
-        [Test]
-        [TestCase(typeof(IDatabase), false)]
-        [TestCase(typeof(IDatabaseAsync), true)]
-        [TestCase(typeof(Condition), false)]
+        public ITestOutputHelper Output;
+        public Naming(ITestOutputHelper output) => Output = output;
+
+        [Theory]
+        [InlineData(typeof(IDatabase), false)]
+        [InlineData(typeof(IDatabaseAsync), true)]
+        [InlineData(typeof(Condition), false)]
         public void CheckSignatures(Type type, bool isAsync)
         {
             // check that all methods and interfaces look appropriate for their sync/async nature
-            CheckName(type.GetTypeInfo(), isAsync);
+            CheckName(type, isAsync);
             var members = type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly);
-            foreach(var member in members)
+            foreach (var member in members)
             {
                 if (member.Name.StartsWith("get_") || member.Name.StartsWith("set_") || member.Name.StartsWith("add_") || member.Name.StartsWith("remove_")) continue;
                 CheckMethod(member, isAsync);
             }
         }
 
-        [Test]
+        [Fact]
         public void ShowReadOnlyOperations()
         {
-            var msg = typeof(ConnectionMultiplexer).GetTypeInfo().Assembly.GetType("StackExchange.Redis.Message");
-            Assert.IsNotNull(msg, "Message");
-            var cmd = typeof(ConnectionMultiplexer).GetTypeInfo().Assembly.GetType("StackExchange.Redis.RedisCommand");
-            Assert.IsNotNull(cmd, "RedisCommand");
-            var method = msg.GetMethod("IsMasterOnly", BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
-            Assert.IsNotNull(method, "IsMasterOnly");
+            var msg = typeof(ConnectionMultiplexer).Assembly.GetType("StackExchange.Redis.Message");
+            Assert.NotNull(msg);
+            var cmd = typeof(ConnectionMultiplexer).Assembly.GetType("StackExchange.Redis.RedisCommand");
+            Assert.NotNull(cmd);
+            var masterOnlyMethod = msg.GetMethod(nameof(Message.IsMasterOnly), BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
+            Assert.NotNull(masterOnlyMethod);
             object[] args = new object[1];
 
             List<object> masterSlave = new List<object>();
@@ -42,54 +45,67 @@ namespace StackExchange.Redis.Tests
             foreach (var val in Enum.GetValues(cmd))
             {
                 args[0] = val;
-                bool isMasterOnly = (bool)method.Invoke(null, args);
+                bool isMasterOnly = (bool)masterOnlyMethod.Invoke(null, args);
                 (isMasterOnly ? masterOnly : masterSlave).Add(val);
-                
-                if(!isMasterOnly)
+
+                if (!isMasterOnly)
                 {
-                    Console.WriteLine(val);
+                    Output.WriteLine(val?.ToString());
                 }
             }
-            Console.WriteLine("master-only: {0}, vs master/slave: {1}", masterOnly.Count, masterSlave.Count);
-            Console.WriteLine();
-            Console.WriteLine("master-only:");
-            foreach (var val in masterOnly) Console.WriteLine(val);
-            Console.WriteLine();
-            Console.WriteLine("master/slave:");
-            foreach (var val in masterSlave) Console.WriteLine(val);
+            Output.WriteLine("master-only: {0}, vs master/slave: {1}", masterOnly.Count, masterSlave.Count);
+            Output.WriteLine("");
+            Output.WriteLine("master-only:");
+            foreach (var val in masterOnly)
+            {
+                Output.WriteLine(val?.ToString());
+            }
+            Output.WriteLine("");
+            Output.WriteLine("master/slave:");
+            foreach (var val in masterSlave)
+            {
+                Output.WriteLine(val?.ToString());
+            }
         }
 
-        [Test]
-        [TestCase(typeof(IDatabase))]
-        [TestCase(typeof(IDatabaseAsync))]
+        [Theory]
+        [InlineData(typeof(IDatabase))]
+        [InlineData(typeof(IDatabaseAsync))]
         public void CheckDatabaseMethodsUseKeys(Type type)
         {
             foreach (var method in type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
             {
                 if (IgnoreMethodConventions(method)) continue;
 
-                switch(method.Name)
+                switch (method.Name)
                 {
-                    case "KeyRandom":
-                    case "KeyRandomAsync":
-                    case "Publish":
-                    case "PublishAsync":
+                    case nameof(IDatabase.KeyRandom):
+                    case nameof(IDatabaseAsync.KeyRandomAsync):
+                    case nameof(IDatabase.Publish):
+                    case nameof(IDatabaseAsync.PublishAsync):
+                    case nameof(IDatabase.Execute):
+                    case nameof(IDatabaseAsync.ExecuteAsync):
+                    case nameof(IDatabase.ScriptEvaluate):
+                    case nameof(IDatabaseAsync.ScriptEvaluateAsync):
+                    case nameof(IDatabase.StreamRead):
+                    case nameof(IDatabase.StreamReadAsync):
                         continue; // they're fine, but don't want to widen check to return type
                 }
 
                 bool usesKey = method.GetParameters().Any(p => UsesKey(p.ParameterType));
-                Assert.IsTrue(usesKey, type.Name + ":" + method.Name);
+                Assert.True(usesKey, type.Name + ":" + method.Name);
             }
         }
-        static bool UsesKey(Type type)
+
+        private static bool UsesKey(Type type)
         {
             if (type == typeof(RedisKey)) return true;
 
-            if(type.IsArray)
+            if (type.IsArray)
             {
                 if (UsesKey(type.GetElementType())) return true;
             }
-            if(type.GetTypeInfo().IsGenericType) // KVP, etc
+            if (type.IsGenericType) // KVP, etc
             {
                 var args = type.GetGenericArguments();
                 if (args.Any(UsesKey)) return true;
@@ -97,26 +113,29 @@ namespace StackExchange.Redis.Tests
             return false;
         }
 
-        static bool IgnoreMethodConventions(MethodInfo method)
+        private static bool IgnoreMethodConventions(MethodInfo method)
         {
             string name = method.Name;
             if (name.StartsWith("get_") || name.StartsWith("set_") || name.StartsWith("add_") || name.StartsWith("remove_")) return true;
-            switch(name)
+            switch (name)
             {
-                case "CreateBatch":
-                case "CreateTransaction":
-                case "IsConnected":
-                case "SetScan":
-                case "SortedSetScan":
-                case "HashScan":
-                case "SubscribedEndpoint":
+                case nameof(IDatabase.CreateBatch):
+                case nameof(IDatabase.CreateTransaction):
+                case nameof(IDatabase.Execute):
+                case nameof(IDatabaseAsync.ExecuteAsync):
+                case nameof(IDatabase.IsConnected):
+                case nameof(IDatabase.SetScan):
+                case nameof(IDatabase.SortedSetScan):
+                case nameof(IDatabase.HashScan):
+                case nameof(ISubscriber.SubscribedEndpoint):
                     return true;
             }
             return false;
         }
-        [Test]
-        [TestCase(typeof(IDatabase), typeof(IDatabaseAsync))]
-        [TestCase(typeof(IDatabaseAsync), typeof(IDatabase))]
+
+        [Theory]
+        [InlineData(typeof(IDatabase), typeof(IDatabaseAsync))]
+        [InlineData(typeof(IDatabaseAsync), typeof(IDatabase))]
         public void CheckSyncAsyncMethodsMatch(Type from, Type to)
         {
             const BindingFlags flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly;
@@ -139,7 +158,7 @@ namespace StackExchange.Redis.Tests
                 {
                     huntType = null;
                 }
-                else if (method.ReturnType.GetTypeInfo().IsSubclassOf(typeof(Task)))
+                else if (method.ReturnType.IsSubclassOf(typeof(Task)))
                 {
                     huntType = method.ReturnType.GetGenericArguments()[0];
                 }
@@ -149,45 +168,31 @@ namespace StackExchange.Redis.Tests
                 }
                 var pFrom = method.GetParameters();
                 Type[] args = pFrom.Select(x => x.ParameterType).ToArray();
-                Assert.AreEqual(typeof(CommandFlags), args.Last());
-#if !CORE_CLR
+                Output.WriteLine("Checking: {0}.{1}", from.Name, method.Name);
+                Assert.Equal(typeof(CommandFlags), args.Last());
                 var found = to.GetMethod(huntName, flags, null, method.CallingConvention, args, null);
-#else
-                var found = to.GetMethods(flags)
-                    .SingleOrDefault(m => m.Name == huntName && m.HasMatchingParameterTypes(args));
-#endif
-                Assert.IsNotNull(found, "Found " + name + ", no " + huntName);
+                Assert.NotNull(found); // "Found " + name + ", no " + huntName
                 var pTo = found.GetParameters();
 
-                for(int i = 0; i < pFrom.Length;i++)
+                for (int i = 0; i < pFrom.Length; i++)
                 {
-                    Assert.AreEqual(pFrom[i].Name, pTo[i].Name, method.Name + ":" + pFrom[i].Name);
-                    Assert.AreEqual(pFrom[i].ParameterType, pTo[i].ParameterType, method.Name + ":" + pFrom[i].Name);
+                    Assert.Equal(pFrom[i].Name, pTo[i].Name); // method.Name + ":" + pFrom[i].Name
+                    Assert.Equal(pFrom[i].ParameterType, pTo[i].ParameterType); // method.Name + ":" + pFrom[i].Name
                 }
 
-                
                 count++;
             }
-            Console.WriteLine("Validated: {0} ({1} methods)", from.Name, count);
+            Output.WriteLine("Validated: {0} ({1} methods)", from.Name, count);
         }
 
-        static readonly Type ignoreType = typeof(ConnectionMultiplexer).GetTypeInfo().Assembly.GetType("StackExchange.Redis.IgnoreNamePrefixAttribute");
-        void CheckMethod(MethodInfo method, bool isAsync)
+        private static readonly Type ignoreType = typeof(ConnectionMultiplexer).Assembly.GetType("StackExchange.Redis.IgnoreNamePrefixAttribute");
+        private void CheckMethod(MethodInfo method, bool isAsync)
         {
-
 #if DEBUG
-#if !CORE_CLR
             bool ignorePrefix = ignoreType != null && Attribute.IsDefined(method, ignoreType);
-#else
-            bool ignorePrefix = ignoreType != null && method.IsDefined(ignoreType);
-#endif
             if (ignorePrefix)
             {
-#if !CORE_CLR
                 Attribute attrib = Attribute.GetCustomAttribute(method, ignoreType);
-#else
-                Attribute attrib = method.GetCustomAttribute(ignoreType);
-#endif
                 if ((bool)attrib.GetType().GetProperty("IgnoreEntireMethod").GetValue(attrib))
                 {
                     return;
@@ -196,63 +201,43 @@ namespace StackExchange.Redis.Tests
             string shortName = method.Name, fullName = method.DeclaringType.Name + "." + shortName;
             CheckName(method, isAsync);
             if (!ignorePrefix)
-            {   
-                Assert.IsTrue(shortName.StartsWith("Hash") || shortName.StartsWith("Key")
-                    || shortName.StartsWith("String") || shortName.StartsWith("List")
-                    || shortName.StartsWith("SortedSet") || shortName.StartsWith("Set")
-                    || shortName.StartsWith("Debug") || shortName.StartsWith("Lock")
-                    || shortName.StartsWith("Script") || shortName.StartsWith("HyperLogLog")
+            {
+                Assert.True(
+                    shortName.StartsWith("Debug")
+                    || shortName.StartsWith("Execute")
+                    || shortName.StartsWith("Geo")
+                    || shortName.StartsWith("Hash")
+                    || shortName.StartsWith("HyperLogLog")
+                    || shortName.StartsWith("Key")
+                    || shortName.StartsWith("List")
+                    || shortName.StartsWith("Lock")
+                    || shortName.StartsWith("Publish")
+                    || shortName.StartsWith("Set")
+                    || shortName.StartsWith("Script")
+                    || shortName.StartsWith("SortedSet")
+                    || shortName.StartsWith("String")
+                    || shortName.StartsWith("Stream")
                     , fullName + ":Prefix");
             }
 
-            Assert.IsFalse(shortName.Contains("If"), fullName + ":If"); // should probably be a When option
+            Assert.False(shortName.Contains("If"), fullName + ":If"); // should probably be a When option
 
             var returnType = method.ReturnType ?? typeof(void);
             if (isAsync)
             {
-                Assert.IsTrue(typeof(Task).IsAssignableFrom(returnType), fullName + ":Task");
+                Assert.True(typeof(Task).IsAssignableFrom(returnType), fullName + ":Task");
             }
             else
             {
-                Assert.IsFalse(typeof(Task).IsAssignableFrom(returnType), fullName + ":Task");
+                Assert.False(typeof(Task).IsAssignableFrom(returnType), fullName + ":Task");
             }
 #endif
         }
 
-        void CheckName(MemberInfo member, bool isAsync)
+        private void CheckName(MemberInfo member, bool isAsync)
         {
-            if (isAsync) Assert.IsTrue(member.Name.EndsWith("Async"), member.Name + ":Name - end *Async");
-            else Assert.IsFalse(member.Name.EndsWith("Async"), member.Name + ":Name - don't end *Async");
+            if (isAsync) Assert.True(member.Name.EndsWith("Async"), member.Name + ":Name - end *Async");
+            else Assert.False(member.Name.EndsWith("Async"), member.Name + ":Name - don't end *Async");
         }
-    }
-
-    public static class ReflectionExtensions
-    {
-#if !CORE_CLR
-        public static Type GetTypeInfo(this Type type)
-        {
-            return type;
-        }
-
-#else
-        public static bool HasMatchingParameterTypes(this MethodInfo method, Type[] paramTypes)
-        {
-            var types = method.GetParameters().Select(pi => pi.ParameterType).ToArray();
-            if (types.Length != paramTypes.Length)
-            {
-                return false;
-            }
-
-            for (int i = 0; i < types.Length; i++)
-            {
-                if (types[i] != paramTypes[i])
-                {
-                    return false;
-                }
-            }
-
-            return true;
-        }
-#endif
     }
 }

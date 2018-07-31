@@ -42,30 +42,15 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.DemandOK);
         }
 
-        public override string ToString()
-        {
-            return multiplexer.ToString();
-        }
+        public override string ToString() => multiplexer.ToString();
 
-        public bool TryWait(Task task)
-        {
-            return task.Wait(multiplexer.TimeoutMilliseconds);
-        }
+        public bool TryWait(Task task) => task.Wait(multiplexer.TimeoutMilliseconds);
 
-        public void Wait(Task task)
-        {
-            multiplexer.Wait(task);
-        }
+        public void Wait(Task task) => multiplexer.Wait(task);
 
-        public T Wait<T>(Task<T> task)
-        {
-            return multiplexer.Wait(task);
-        }
+        public T Wait<T>(Task<T> task) => multiplexer.Wait(task);
 
-        public void WaitAll(params Task[] tasks)
-        {
-            multiplexer.WaitAll(tasks);
-        }
+        public void WaitAll(params Task[] tasks) => multiplexer.WaitAll(tasks);
 
         internal virtual Task<T> ExecuteAsync<T>(Message message, ResultProcessor<T> processor, ServerEndPoint server = null)
         {
@@ -140,7 +125,6 @@ namespace StackExchange.Redis
             return ResultProcessor.TimingProcessor.CreateMessage(0, flags, RedisCommand.EXISTS, (RedisValue)multiplexer.UniqueId);
         }
 
-
         internal static class CursorUtils
         {
             internal const int Origin = 0, DefaultPageSize = 10;
@@ -152,6 +136,7 @@ namespace StackExchange.Redis
                 return rawValue.Length == 1 && rawValue[0] == '*';
             }
         }
+
         internal abstract class CursorEnumerable<T> : IEnumerable<T>, IScanningCursor
         {
             private readonly RedisBase redis;
@@ -174,14 +159,10 @@ namespace StackExchange.Redis
                 initialOffset = pageOffset;
             }
 
-            public IEnumerator<T> GetEnumerator()
-            {
-                return new CursorEnumerator(this);
-            }
-            System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
-            {
-                return GetEnumerator();
-            }
+            public IEnumerator<T> GetEnumerator() => new CursorEnumerator(this);
+
+            System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+
             internal struct ScanResult
             {
                 public readonly long Cursor;
@@ -195,7 +176,6 @@ namespace StackExchange.Redis
 
             protected abstract Message CreateMessage(long cursor);
 
-
             protected abstract ResultProcessor<ScanResult> Processor { get; }
 
             protected ScanResult GetNextPageSync(IScanningCursor obj, long cursor)
@@ -203,25 +183,24 @@ namespace StackExchange.Redis
                 activeCursor = obj;
                 return redis.ExecuteSync(CreateMessage(cursor), Processor, server);
             }
+
             protected Task<ScanResult> GetNextPageAsync(IScanningCursor obj, long cursor)
             {
                 activeCursor = obj;
                 return redis.ExecuteAsync(CreateMessage(cursor), Processor, server);
             }
-            protected ScanResult Wait(Task<ScanResult> pending)
-            {
-                return redis.Wait(pending);
-            }
 
-            class CursorEnumerator : IEnumerator<T>, IScanningCursor
+            protected ScanResult Wait(Task<ScanResult> pending) => redis.Wait(pending);
+
+            private class CursorEnumerator : IEnumerator<T>, IScanningCursor
             {
                 private CursorEnumerable<T> parent;
                 public CursorEnumerator(CursorEnumerable<T> parent)
                 {
-                    if (parent == null) throw new ArgumentNullException(nameof(parent));
-                    this.parent = parent;
+                    this.parent = parent ?? throw new ArgumentNullException(nameof(parent));
                     Reset();
                 }
+
                 public T Current => page[pageIndex];
 
                 void IDisposable.Dispose() { parent = null; state = State.Disposed; }
@@ -245,9 +224,9 @@ namespace StackExchange.Redis
                     return false;
                 }
 
-                T[] page;
-                Task<ScanResult> pending;
-                int pageIndex;
+                private T[] page;
+                private Task<ScanResult> pending;
+                private int pageIndex;
                 private long currentCursor, nextCursor;
 
                 private State state;
@@ -259,13 +238,13 @@ namespace StackExchange.Redis
                     Disposed,
                 }
 
-                void ProcessReply(ScanResult result)
+                private void ProcessReply(ScanResult result)
                 {
                     currentCursor = nextCursor;
                     nextCursor = result.Cursor;
                     pageIndex = -1;
                     page = result.Values;
-                    pending = null;                                
+                    pending = null;
                 }
 
                 public bool MoveNext()
@@ -313,7 +292,7 @@ namespace StackExchange.Redis
                     nextCursor = currentCursor = parent.initialCursor;
                     pageIndex = parent.initialOffset; // don't -1 here; this makes it look "right" before incremented
                     state = State.Initial;
-                    page = null;                    
+                    page = null;
                     pending = null;
                 }
 

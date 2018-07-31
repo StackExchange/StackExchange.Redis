@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
-    abstract partial class ResultBox
+    internal abstract partial class ResultBox
     {
         protected Exception exception;
 
@@ -32,12 +32,11 @@ namespace StackExchange.Redis
 
         static partial void OnAllocated();
     }
-    sealed class ResultBox<T> : ResultBox
+
+    internal sealed class ResultBox<T> : ResultBox
     {
         private static readonly ResultBox<T>[] store = new ResultBox<T>[64];
-
         private object stateOrCompletionSource;
-
         private T value;
 
         public ResultBox(object stateOrCompletionSource)
@@ -62,7 +61,7 @@ namespace StackExchange.Redis
                 }
             }
             IncrementAllocationCount();
-            
+
             return new ResultBox<T>(stateOrCompletionSource);
         }
 
@@ -96,18 +95,16 @@ namespace StackExchange.Redis
 
         public override bool TryComplete(bool isAsync)
         {
-            if (stateOrCompletionSource is TaskCompletionSource<T>)
+            if (stateOrCompletionSource is TaskCompletionSource<T> tcs)
             {
-                var tcs = (TaskCompletionSource<T>)stateOrCompletionSource;
-#if !PLAT_SAFE_CONTINUATIONS // we don't need to check in this scenario
                 if (isAsync || TaskSource.IsSyncSafe(tcs.Task))
-#endif
                 {
-                    T val;
-                    Exception ex;
-                    UnwrapAndRecycle(this, true, out val, out ex);
+                    UnwrapAndRecycle(this, true, out T val, out Exception ex);
 
-                    if (ex == null) tcs.TrySetResult(val);
+                    if (ex == null)
+                    {
+                        tcs.TrySetResult(val);
+                    }
                     else
                     {
                         if (ex is TaskCanceledException) tcs.TrySetCanceled();
@@ -118,12 +115,10 @@ namespace StackExchange.Redis
                     }
                     return true;
                 }
-#if !PLAT_SAFE_CONTINUATIONS
                 else
                 { // looks like continuations; push to async to preserve the reader thread
                     return false;
                 }
-#endif
             }
             else
             {
@@ -144,5 +139,4 @@ namespace StackExchange.Redis
             this.stateOrCompletionSource = stateOrCompletionSource;
         }
     }
-
 }

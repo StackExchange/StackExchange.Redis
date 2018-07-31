@@ -1,25 +1,21 @@
 ﻿using System;
-using NUnit.Framework;
+using Xunit;
+using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    [TestFixture]
     public class Expiry : TestBase
     {
-        static string[] GetMap(bool disablePTimes)
-        {
-            if(disablePTimes)
-            {
-                return new[] { "pexpire", "pexpireat", "pttl" };
-            }
-            return null;
-        }
-        [Test]
-        [TestCase(true)]
-        [TestCase(false)]
+        public Expiry(ITestOutputHelper output) : base (output) { }
+
+        private static string[] GetMap(bool disablePTimes) => disablePTimes ? (new[] { "pexpire", "pexpireat", "pttl" }) : null;
+
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
         public void TestBasicExpiryTimeSpan(bool disablePTimes)
         {
-            using(var muxer = Create(disabledCommands: GetMap(disablePTimes)))
+            using (var muxer = Create(disabledCommands: GetMap(disablePTimes)))
             {
                 RedisKey key = Me();
                 var conn = muxer.GetDatabase();
@@ -36,23 +32,23 @@ namespace StackExchange.Redis.Tests
                 conn.KeyExpire(key, TimeSpan.MaxValue, CommandFlags.FireAndForget);
                 var e = conn.KeyTimeToLiveAsync(key);
 
-                Assert.IsNull(muxer.Wait(a));
+                Assert.Null(muxer.Wait(a));
                 var time = muxer.Wait(b);
-                Assert.IsNotNull(time);
-                Assert.IsTrue(time > TimeSpan.FromMinutes(59.9) && time <= TimeSpan.FromMinutes(60));
-                Assert.IsNull(muxer.Wait(c));
+                Assert.NotNull(time);
+                Assert.True(time > TimeSpan.FromMinutes(59.9) && time <= TimeSpan.FromMinutes(60));
+                Assert.Null(muxer.Wait(c));
                 time = muxer.Wait(d);
-                Assert.IsNotNull(time);
-                Assert.IsTrue(time > TimeSpan.FromMinutes(89.9) && time <= TimeSpan.FromMinutes(90));
-                Assert.IsNull(muxer.Wait(e));
+                Assert.NotNull(time);
+                Assert.True(time > TimeSpan.FromMinutes(89.9) && time <= TimeSpan.FromMinutes(90));
+                Assert.Null(muxer.Wait(e));
             }
         }
 
-        [Test]
-        [TestCase(true, true)]
-        [TestCase(false, true)]
-        [TestCase(true, false)]
-        [TestCase(false, false)]
+        [Theory]
+        [InlineData(true, true)]
+        [InlineData(false, true)]
+        [InlineData(true, false)]
+        [InlineData(false, false)]
         public void TestBasicExpiryDateTime(bool disablePTimes, bool utc)
         {
             using (var muxer = Create(disabledCommands: GetMap(disablePTimes)))
@@ -61,7 +57,8 @@ namespace StackExchange.Redis.Tests
                 var conn = muxer.GetDatabase();
                 conn.KeyDelete(key, CommandFlags.FireAndForget);
 
-                var now = utc ? DateTime.UtcNow : new DateTime(DateTime.UtcNow.Ticks + TimeZoneInfo.FindSystemTimeZoneById("Tokyo Standard Time").BaseUtcOffset.Ticks, DateTimeKind.Local);
+                var now = utc ? DateTime.UtcNow : DateTime.Now;
+                Output.WriteLine("Now: {0}", now);
                 conn.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
                 var a = conn.KeyTimeToLiveAsync(key);
                 conn.KeyExpire(key, now.AddHours(1), CommandFlags.FireAndForget);
@@ -73,16 +70,18 @@ namespace StackExchange.Redis.Tests
                 conn.KeyExpire(key, DateTime.MaxValue, CommandFlags.FireAndForget);
                 var e = conn.KeyTimeToLiveAsync(key);
 
-                Assert.IsNull(muxer.Wait(a));
+                Assert.Null(muxer.Wait(a));
                 var time = muxer.Wait(b);
-                Assert.IsNotNull(time);
-                Console.WriteLine(time);
-                Assert.IsTrue(time > TimeSpan.FromMinutes(59.9) && time <= TimeSpan.FromMinutes(60));
-                Assert.IsNull(muxer.Wait(c));
+                Assert.NotNull(time);
+                Output.WriteLine("Time: {0}, Expected: {1}-{2}", time, TimeSpan.FromMinutes(59), TimeSpan.FromMinutes(60));
+                Assert.True(time >= TimeSpan.FromMinutes(59));
+                Assert.True(time <= TimeSpan.FromMinutes(60));
+                Assert.Null(muxer.Wait(c));
                 time = muxer.Wait(d);
-                Assert.IsNotNull(time);
-                Assert.IsTrue(time > TimeSpan.FromMinutes(89.9) && time <= TimeSpan.FromMinutes(90));
-                Assert.IsNull(muxer.Wait(e));
+                Assert.NotNull(time);
+                Assert.True(time >= TimeSpan.FromMinutes(89));
+                Assert.True(time <= TimeSpan.FromMinutes(90));
+                Assert.Null(muxer.Wait(e));
             }
         }
     }

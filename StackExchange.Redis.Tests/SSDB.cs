@@ -1,16 +1,20 @@
-﻿using NUnit.Framework;
+﻿using Xunit;
+using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    [TestFixture]
     public class SSDB : TestBase
     {
-        [Test]
+        public SSDB(ITestOutputHelper output) : base (output) { }
+
+        [Fact]
         public void ConnectToSSDB()
         {
+            Skip.IfNoConfig(nameof(TestConfig.Config.SSDBServer), TestConfig.Current.SSDBServer);
+
             var config = new ConfigurationOptions
             {
-                EndPoints = { { "ubuntu", 8888 } },
+                EndPoints = { { TestConfig.Current.SSDBServer, TestConfig.Current.SSDBPort } },
                 CommandMap = CommandMap.SSDB
             };
             RedisKey key = Me();
@@ -18,9 +22,9 @@ namespace StackExchange.Redis.Tests
             {
                 var db = conn.GetDatabase(0);
                 db.KeyDelete(key);
-                Assert.IsTrue(db.StringGet(key).IsNull);
+                Assert.True(db.StringGet(key).IsNull);
                 db.StringSet(key, "abc");
-                Assert.AreEqual("abc", (string)db.StringGet(key));
+                Assert.Equal("abc", db.StringGet(key));
             }
         }
     }

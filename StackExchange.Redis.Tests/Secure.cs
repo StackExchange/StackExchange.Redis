@@ -1,20 +1,22 @@
 ﻿using System;
 using System.Diagnostics;
-using NUnit.Framework;
+using System.Threading.Tasks;
+using Xunit;
+using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    [TestFixture]
+    [Collection(NonParallelCollection.Name)]
     public class Secure : TestBase
     {
-        protected override string GetConfiguration()
-        {
-            return PrimaryServer + ":" + SecurePort + ",password=" + SecurePassword +",name=MyClient";
-        }
+        protected override string GetConfiguration() =>
+            TestConfig.Current.SecureServerAndPort + ",password=" + TestConfig.Current.SecurePassword + ",name=MyClient";
 
-        [Test]
-        [TestCase(true)]
-        [TestCase(false)]
+        public Secure(ITestOutputHelper output) : base (output) { }
+
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
         public void MassiveBulkOpsFireAndForgetSecure(bool preserveOrder)
         {
             using (var muxer = Create())
@@ -34,50 +36,59 @@ namespace StackExchange.Redis.Tests
                     conn.StringSet(key, i, flags: CommandFlags.FireAndForget);
                 }
                 int val = (int)conn.StringGet(key);
-                Assert.AreEqual(AsyncOpsQty, val);
+                Assert.Equal(AsyncOpsQty, val);
                 watch.Stop();
-                Console.WriteLine("{2}: Time for {0} ops: {1}ms ({3}); ops/s: {4}", AsyncOpsQty, watch.ElapsedMilliseconds, Me(),
+                Output.WriteLine("{2}: Time for {0} ops: {1}ms ({3}); ops/s: {4}", AsyncOpsQty, watch.ElapsedMilliseconds, Me(),
                     preserveOrder ? "preserve order" : "any order",
                     AsyncOpsQty / watch.Elapsed.TotalSeconds);
 #if DEBUG
                 long newAlloc = ConnectionMultiplexer.GetResultBoxAllocationCount();
-                Console.WriteLine("ResultBox allocations: {0}",
-                    newAlloc - oldAlloc);
-                Assert.IsTrue(newAlloc - oldAlloc <= 2);
+                Output.WriteLine("ResultBox allocations: {0}", newAlloc - oldAlloc);
+                Assert.True(newAlloc - oldAlloc <= 2, $"NewAllocs: {newAlloc}, OldAllocs: {oldAlloc}");
 #endif
             }
         }
 
-        [Test]
+        [Fact]
         public void CheckConfig()
         {
             var config = ConfigurationOptions.Parse(GetConfiguration());
-            foreach(var ep in config.EndPoints)
-                Console.WriteLine(ep);
-            Assert.AreEqual(1, config.EndPoints.Count);
-            Assert.AreEqual("changeme", config.Password);
+            foreach (var ep in config.EndPoints)
+            {
+                Output.WriteLine(ep.ToString());
+            }
+            Assert.Single(config.EndPoints);
+            Assert.Equal("changeme", config.Password);
         }
-        [Test]
+
+        [Fact]
         public void Connect()
         {
-            using(var server = Create())
+            using (var server = Create())
             {
                 server.GetDatabase().Ping();
             }
         }
-        [Test]
-        [TestCase("wrong")]
-        [TestCase("")]
-        public void ConnectWithWrongPassword(string password)
+
+        [Theory]
+        [InlineData("wrong")]
+        [InlineData("")]
+        public async Task ConnectWithWrongPassword(string password)
         {
-            Assert.Throws<RedisConnectionException>(() => {
+            var config = ConfigurationOptions.Parse(GetConfiguration());
+            config.Password = password;
+            config.ConnectRetry = 0; // we don't want to retry on closed sockets in this case.
+
+            var ex = await Assert.ThrowsAsync<RedisConnectionException>(async () =>
+            {
                 SetExpectedAmbientFailureCount(-1);
-                using (var server = Create(password: password, checkConnect: false))
+                using (var conn = await ConnectionMultiplexer.ConnectAsync(config, Writer).ConfigureAwait(false))
                 {
-                    server.GetDatabase().Ping();
+                    conn.GetDatabase().Ping();
                 }
-            },
-            "No connection is available to service this operation: PING");
+            }).ConfigureAwait(false);
+            Output.WriteLine("Exception: " + ex.Message);
+            Assert.Equal("It was not possible to connect to the redis server(s); to create a disconnected multiplexer, disable AbortOnConnectFail. AuthenticationFailure on PING", ex.Message);
         }
     }
 }

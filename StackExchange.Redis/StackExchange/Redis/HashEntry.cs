@@ -12,13 +12,16 @@ namespace StackExchange.Redis
         internal readonly RedisValue name, value;
 
         /// <summary>
-        /// Initializes a HashEntry value
+        /// Initializes a <see cref="HashEntry"/> value.
         /// </summary>
+        /// <param name="name">The name for this hash entry.</param>
+        /// <param name="value">The value for this hash entry.</param>
         public HashEntry(RedisValue name, RedisValue value)
         {
             this.name = name;
             this.value = value;
         }
+
         /// <summary>
         /// The name of the hash field
         /// </summary>
@@ -32,69 +35,58 @@ namespace StackExchange.Redis
         /// <summary>
         /// The name of the hash field
         /// </summary>
-#if !CORE_CLR
         [Browsable(false)]
-#endif
         [EditorBrowsable(EditorBrowsableState.Never), Obsolete("Please use Name", false)]
         public RedisValue Key { get { return name; } }
 
         /// <summary>
         /// Converts to a key/value pair
         /// </summary>
-        public static implicit operator KeyValuePair<RedisValue, RedisValue>(HashEntry value)
-        {
-            return new KeyValuePair<RedisValue, RedisValue>(value.name, value.value);
-        }
+        /// <param name="value">The <see cref="HashEntry"/> to create a <see cref="KeyValuePair{TKey, TValue}"/> from.</param>
+        public static implicit operator KeyValuePair<RedisValue, RedisValue>(HashEntry value) =>
+            new KeyValuePair<RedisValue, RedisValue>(value.name, value.value);
+
         /// <summary>
         /// Converts from a key/value pair
         /// </summary>
-        public static implicit operator HashEntry(KeyValuePair<RedisValue, RedisValue> value)
-        {
-            return new HashEntry(value.Key, value.Value);
-        }
+        /// <param name="value">The <see cref="KeyValuePair{TKey, TValue}"/> to get a <see cref="HashEntry"/> from.</param>
+        public static implicit operator HashEntry(KeyValuePair<RedisValue, RedisValue> value) =>
+            new HashEntry(value.Key, value.Value);
 
         /// <summary>
         /// See Object.ToString()
         /// </summary>
-        public override string ToString()
-        {
-            return name + ": " + value;
-        }
+        public override string ToString() => name + ": " + value;
+
         /// <summary>
         /// See Object.GetHashCode()
         /// </summary>
-        public override int GetHashCode()
-        {
-            return name.GetHashCode() ^ value.GetHashCode();
-        }
+        public override int GetHashCode() => name.GetHashCode() ^ value.GetHashCode();
+
         /// <summary>
-        /// Compares two values for equality
+        /// Compares two values for equality.
         /// </summary>
-        public override bool Equals(object obj)
-        {
-            return obj is HashEntry && Equals((HashEntry)obj);
-        }
+        /// <param name="obj">The <see cref="HashEntry"/> to compare to.</param>
+        public override bool Equals(object obj) => obj is HashEntry heObj && Equals(heObj);
+
+        /// <summary>
+        /// Compares two values for equality.
+        /// </summary>
+        /// <param name="other">The <see cref="HashEntry"/> to compare to.</param>
+        public bool Equals(HashEntry other) => name == other.name && value == other.value;
 
         /// <summary>
         /// Compares two values for equality
         /// </summary>
-        public bool Equals(HashEntry value)
-        {
-            return name == value.name && this.value == value.value;
-        }
-        /// <summary>
-        /// Compares two values for equality
-        /// </summary>
-        public static bool operator ==(HashEntry x, HashEntry y)
-        {
-            return x.name == y.name && x.value == y.value;
-        }
+        /// <param name="x">The first <see cref="HashEntry"/> to compare.</param>
+        /// <param name="y">The second <see cref="HashEntry"/> to compare.</param>
+        public static bool operator ==(HashEntry x, HashEntry y) => x.name == y.name && x.value == y.value;
+
         /// <summary>
         /// Compares two values for non-equality
         /// </summary>
-        public static bool operator !=(HashEntry x, HashEntry y)
-        {
-            return x.name != y.name || x.value != y.value;
-        }
+        /// <param name="x">The first <see cref="HashEntry"/> to compare.</param>
+        /// <param name="y">The second <see cref="HashEntry"/> to compare.</param>
+        public static bool operator !=(HashEntry x, HashEntry y) => x.name != y.name || x.value != y.value;
     }
 }

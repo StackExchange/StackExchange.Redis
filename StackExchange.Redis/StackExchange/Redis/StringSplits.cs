@@ -1,10 +1,9 @@
 ﻿namespace StackExchange.Redis
 {
-    class StringSplits
+    internal static class StringSplits
     {
         public static readonly char[]
             Space = { ' ' },
             Comma = { ',' };
-
     }
 }

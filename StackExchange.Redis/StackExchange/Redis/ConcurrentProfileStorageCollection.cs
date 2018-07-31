@@ -24,11 +24,11 @@ namespace StackExchange.Redis
         /// </summary>
         public struct Enumerator : IEnumerator<IProfiledCommand>
         {
-            ProfileStorage Head;
-            ProfileStorage CurrentBacker;
+            private ProfileStorage Head;
+            private ProfileStorage CurrentBacker;
 
-            bool IsEmpty => Head == null;
-            bool IsUnstartedOrFinished => CurrentBacker == null;
+            private bool IsEmpty => Head == null;
+            private bool IsUnstartedOrFinished => CurrentBacker == null;
 
             internal Enumerator(ProfileStorage head)
             {
@@ -81,7 +81,7 @@ namespace StackExchange.Redis
             }
         }
 
-        ProfileStorage Head;
+        private readonly ProfileStorage Head;
 
         internal ProfiledCommandEnumerable(ProfileStorage head)
         {
@@ -94,20 +94,11 @@ namespace StackExchange.Redis
         /// 
         /// `foreach` will automatically use this method.
         /// </summary>
-        public Enumerator GetEnumerator()
-        {
-            return new Enumerator(Head);
-        }
+        public Enumerator GetEnumerator() => new Enumerator(Head);
 
-        IEnumerator<IProfiledCommand> IEnumerable<IProfiledCommand>.GetEnumerator()
-        {
-            return GetEnumerator();
-        }
+        IEnumerator<IProfiledCommand> IEnumerable<IProfiledCommand>.GetEnumerator() => GetEnumerator();
 
-        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
-        {
-            return GetEnumerator();
-        }
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
     }
 
     /// <summary>
@@ -116,7 +107,7 @@ namespace StackExchange.Redis
     /// 
     /// Performs better than ConcurrentBag, which is important since profiling code shouldn't impact timings.
     /// </summary>
-    sealed class ConcurrentProfileStorageCollection
+    internal sealed class ConcurrentProfileStorageCollection
     {
         // internal for test purposes
         internal static int AllocationCount = 0;
@@ -124,10 +115,10 @@ namespace StackExchange.Redis
         // It is, by definition, impossible for an element to be in 2 intrusive collections
         //   and we force Enumeration to release any reference to the collection object
         //   so we can **always** pool these.
-        const int PoolSize = 64;
-        static ConcurrentProfileStorageCollection[] Pool = new ConcurrentProfileStorageCollection[PoolSize];
+        private const int PoolSize = 64;
+        private static readonly ConcurrentProfileStorageCollection[] Pool = new ConcurrentProfileStorageCollection[PoolSize];
 
-        volatile ProfileStorage Head;
+        private volatile ProfileStorage Head;
 
         private ConcurrentProfileStorageCollection() { }
 
@@ -154,9 +145,10 @@ namespace StackExchange.Redis
         /// 
         /// The element can only be a member of *one* bag.
         /// </summary>
+        /// <param name="command">The command to add.</param>
         public void Add(ProfileStorage command)
         {
-            do
+            while (true)
             {
                 var cur = Head;
                 command.NextElement = cur;
@@ -167,7 +159,7 @@ namespace StackExchange.Redis
 #pragma warning restore 420
 
                 if (object.ReferenceEquals(got, cur)) break;
-            } while (true);
+            }
         }
 
         /// <summary>
@@ -219,9 +211,7 @@ namespace StackExchange.Redis
             }
 
             Interlocked.Increment(ref AllocationCount);
-            found = new ConcurrentProfileStorageCollection();
-
-            return found;
+            return new ConcurrentProfileStorageCollection();
         }
     }
 }

@@ -4,10 +4,6 @@ using System.ComponentModel;
 
 namespace StackExchange.Redis
 {
-
-
-    
-
     /// <summary>
     /// Describes a sorted-set element with the corresponding value
     /// </summary>
@@ -17,13 +13,16 @@ namespace StackExchange.Redis
         internal readonly double score;
 
         /// <summary>
-        /// Initializes a SortedSetEntry value
+        /// Initializes a <see cref="SortedSetEntry"/> value.
         /// </summary>
+        /// <param name="element">The <see cref="RedisValue"/> to get an entry for.</param>
+        /// <param name="score">The redis score for <paramref name="element"/>.</param>
         public SortedSetEntry(RedisValue element, double score)
         {
             this.element = element;
             this.score = score;
         }
+
         /// <summary>
         /// The unique element stored in the sorted set
         /// </summary>
@@ -37,96 +36,75 @@ namespace StackExchange.Redis
         /// <summary>
         /// The score against the element
         /// </summary>
-#if !CORE_CLR
         [Browsable(false)]
-#endif
         [EditorBrowsable(EditorBrowsableState.Never), Obsolete("Please use Score", false)]
         public double Value { get { return score; } }
 
         /// <summary>
         /// The unique element stored in the sorted set
         /// </summary>
-#if !CORE_CLR
         [Browsable(false)]
-#endif
         [EditorBrowsable(EditorBrowsableState.Never), Obsolete("Please use Element", false)]
         public RedisValue Key { get { return element; } }
 
         /// <summary>
         /// Converts to a key/value pair
         /// </summary>
-        public static implicit operator KeyValuePair<RedisValue,double>(SortedSetEntry value)
-        {
-            return new KeyValuePair<RedisValue, double>(value.element, value.score);
-        }
+        /// <param name="value">The <see cref="SortedSetEntry"/> to get a <see cref="KeyValuePair{TKey, TValue}"/> for.</param>
+        public static implicit operator KeyValuePair<RedisValue, double>(SortedSetEntry value) => new KeyValuePair<RedisValue, double>(value.element, value.score);
+
         /// <summary>
         /// Converts from a key/value pair
         /// </summary>
-        public static implicit operator SortedSetEntry(KeyValuePair<RedisValue, double> value)
-        {
-            return new SortedSetEntry(value.Key, value.Value);
-        }
+        /// <param name="value">The  <see cref="KeyValuePair{TKey, TValue}"/> to get a <see cref="SortedSetEntry"/> for.</param>
+        public static implicit operator SortedSetEntry(KeyValuePair<RedisValue, double> value) => new SortedSetEntry(value.Key, value.Value);
 
         /// <summary>
         /// See Object.ToString()
         /// </summary>
-        public override string ToString()
-        {
-            return element + ": " + score;
-        }
+        public override string ToString() => element + ": " + score;
+
         /// <summary>
         /// See Object.GetHashCode()
         /// </summary>
-        public override int GetHashCode()
-        {
-            return element.GetHashCode() ^ score.GetHashCode();
-        }
-        /// <summary>
-        /// Compares two values for equality
-        /// </summary>
-        public override bool Equals(object obj)
-        {
-            return obj is SortedSetEntry && Equals((SortedSetEntry)obj);
-        }
+        public override int GetHashCode() => element.GetHashCode() ^ score.GetHashCode();
 
         /// <summary>
         /// Compares two values for equality
         /// </summary>
-        public bool Equals(SortedSetEntry value)
-        {
-            return score == value.score && element == value.element;
-        }
+        /// <param name="obj">The <see cref="SortedSetEntry"/> to compare to.</param>
+        public override bool Equals(object obj) => obj is SortedSetEntry ssObj && Equals(ssObj);
+
+        /// <summary>
+        /// Compares two values for equality
+        /// </summary>
+        /// <param name="other">The <see cref="SortedSetEntry"/> to compare to.</param>
+        public bool Equals(SortedSetEntry other) => score == other.score && element == other.element;
 
         /// <summary>
         /// Compares two values by score
         /// </summary>
-        public int CompareTo(SortedSetEntry value)
-        {
-            return score.CompareTo(value.score);
-        }
+        /// <param name="other">The <see cref="SortedSetEntry"/> to compare to.</param>
+        public int CompareTo(SortedSetEntry other) => score.CompareTo(other.score);
 
         /// <summary>
         /// Compares two values by score
         /// </summary>
-        public int CompareTo(object value)
-        {
-            return value is SortedSetEntry ? CompareTo((SortedSetEntry)value) : -1;
-        }
+        /// <param name="obj">The <see cref="SortedSetEntry"/> to compare to.</param>
+        public int CompareTo(object obj) => obj is SortedSetEntry ssObj ? CompareTo(ssObj) : -1;
 
         /// <summary>
         /// Compares two values for equality
         /// </summary>
-        public static bool operator ==(SortedSetEntry x, SortedSetEntry y)
-        {
-            return x.score == y.score && x.element == y.element;
-        }
+        /// <param name="x">The first <see cref="SortedSetEntry"/> to compare.</param>
+        /// <param name="y">The second <see cref="SortedSetEntry"/> to compare.</param>
+        public static bool operator ==(SortedSetEntry x, SortedSetEntry y) => x.score == y.score && x.element == y.element;
+
         /// <summary>
         /// Compares two values for non-equality
         /// </summary>
-        public static bool operator !=(SortedSetEntry x, SortedSetEntry y)
-        {
-            return x.score != y.score || x.element != y.element;
-        }
-
+        /// <param name="x">The first <see cref="SortedSetEntry"/> to compare.</param>
+        /// <param name="y">The second <see cref="SortedSetEntry"/> to compare.</param>
+        public static bool operator !=(SortedSetEntry x, SortedSetEntry y) => x.score != y.score || x.element != y.element;
     }
 }

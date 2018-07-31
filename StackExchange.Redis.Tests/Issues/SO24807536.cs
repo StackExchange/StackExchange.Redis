@@ -1,12 +1,15 @@
 ﻿using System;
 using System.Threading;
-using NUnit.Framework;
+using Xunit;
+using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests.Issues
 {
-    [TestFixture]
     public class SO24807536 : TestBase
     {
+        public SO24807536(ITestOutputHelper output) : base (output) { }
+
+        [Fact]
         public void Exec()
         {
             var key = Me();
@@ -20,23 +23,23 @@ namespace StackExchange.Redis.Tests.Issues
                 cache.KeyExpire(key, TimeSpan.FromSeconds(3));
 
                 // test while exists
-                var exists = cache.KeyExists(key);
+                var keyExists = cache.KeyExists(key);
                 var ttl = cache.KeyTimeToLive(key);
                 var fullWait = cache.HashGetAsync(key, "full", flags: CommandFlags.None);
-                Assert.IsTrue(exists, "key exists");
-                Assert.IsNotNull(ttl, "ttl");
-                Assert.AreEqual("some value", (string)fullWait.Result);
+                Assert.True(keyExists, "key exists");
+                Assert.NotNull(ttl);
+                Assert.Equal("some value", fullWait.Result);
 
                 // wait for expiry
                 Thread.Sleep(TimeSpan.FromSeconds(4));
 
                 // test once expired
-                exists = cache.KeyExists(key);
+                keyExists = cache.KeyExists(key);
                 ttl = cache.KeyTimeToLive(key);
-                fullWait = cache.HashGetAsync(key, "full", flags: CommandFlags.None);                
-                Assert.IsFalse(exists, "key exists");
-                Assert.IsNull(ttl, "ttl");
-                Assert.IsNull((string)fullWait.Result);
+                fullWait = cache.HashGetAsync(key, "full", flags: CommandFlags.None);
+                Assert.False(keyExists);
+                Assert.Null(ttl);
+                Assert.Null((string)fullWait.Result);
             }
         }
     }

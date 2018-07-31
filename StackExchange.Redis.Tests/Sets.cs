@@ -1,18 +1,19 @@
 ﻿using System.Linq;
-using NUnit.Framework;
+using Xunit;
+using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    [TestFixture]
     public class Sets : TestBase
     {
-        [Test]
+        public Sets(ITestOutputHelper output) : base (output) { }
+
+        [Fact]
         public void SScan()
         {
             using (var conn = Create())
             {
-                var server = GetServer(conn);
-                
+                var server = GetAnyMaster(conn);
 
                 RedisKey key = "a";
                 var db = conn.GetDatabase();
@@ -26,13 +27,12 @@ namespace StackExchange.Redis.Tests
                     if (i.ToString().Contains("3")) totalFiltered += i;
                 }
                 var unfilteredActual = db.SetScan(key).Select(x => (int)x).Sum();
-                Assert.AreEqual(totalUnfiltered, unfilteredActual);
+                Assert.Equal(totalUnfiltered, unfilteredActual);
                 if (server.Features.Scan)
                 {
                     var filteredActual = db.SetScan(key, "*3*").Select(x => (int)x).Sum();
-                    Assert.AreEqual(totalFiltered, filteredActual);
-                }               
-                
+                    Assert.Equal(totalFiltered, filteredActual);
+                }
             }
         }
     }

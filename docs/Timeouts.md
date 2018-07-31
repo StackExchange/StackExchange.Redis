@@ -40,13 +40,21 @@ In the above example, you can see that for IOCP thread there are 6 busy threads 
 
 Note that StackExchange.Redis can hit timeouts if growth of either IOCP or WORKER threads gets throttled.
 
+Also note that the IOCP and WORKER threads will not be shown on .NET Core if using `netstandard` < 2.0.
+
 Recommendation:
 Given the above information, it's recommend to set the minimum configuration value for IOCP and WORKER threads to something larger than the default value.  We can't give one-size-fits-all guidance on what this value should be because the right value for one application will be too high/low for another application.  This setting can also impact the performance of other parts of complicated applications, so you need to fine-tune this setting to your specific needs.  A good starting place is 200 or 300, then test and tweak as needed.
 
 How to configure this setting:
 
- - In ASP.NET, use the ["minIoThreads" configuration setting](https://msdn.microsoft.com/en-us/library/vstudio/7w2sway1(v=vs.100).aspx) under the `<processModel>` configuration element in `machine.config`. You could set your server's `machine.config` to allow this overridable per apppool via the method indicated [here](https://stackoverflow.com/questions/1939230/asp-net-processmodel-configuration-optimization#comment2882249_1939245) and set this per Web.Config. Alternativly you can be able to set this programmatically (see below) from your Application_Start method in `Global.asax.cs`.
+ - In ASP.NET, use the ["minIoThreads" configuration setting](https://msdn.microsoft.com/en-us/library/7w2sway1(v=vs.71).aspx) under the `<processModel>` configuration element in `machine.config`. According to Microsoft, you can't change this value per site by editing your web.config (even when you could do it in the past), so the value that you choose here is the value that all your .NET sites will use. Please note that you don't need to add every property if you put autoConfig in false, just putting autoConfig="false" and overriding the value is enough:
+
+```xml
+<processModel autoConfig="false" minIoThreads="250" />
+```
 
 > **Important Note:** the value specified in this configuration element is a *per-core* setting.  For example, if you have a 4 core machine and want your minIOThreads setting to be 200 at runtime, you would use `<processModel minIoThreads="50"/>`.
 
- - Outside of ASP.NET, use the [ThreadPool.SetMinThreads(…)](https://msdn.microsoft.com//en-us/library/system.threading.threadpool.setminthreads(v=vs.100).aspx) API.
+ - Outside of ASP.NET, use the [ThreadPool.SetMinThreads(…)](https://docs.microsoft.com/en-us/dotnet/api/system.threading.threadpool.setminthreads?view=netcore-2.0#System_Threading_ThreadPool_SetMinThreads_System_Int32_System_Int32_) API.
+
+- In .Net Core, add Environment Variable COMPlus_ThreadPool_ForceMinWorkerThreads to overwrite default MinThreads setting, according to [Environment/Registry Configuration Knobs](https://github.com/dotnet/coreclr/blob/master/Documentation/project-docs/clr-configuration-knobs.md) - You can also use the same ThreadPool.SetMinThreads() Method as described above.

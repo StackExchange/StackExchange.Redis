@@ -17,6 +17,8 @@ namespace StackExchange.Redis
         /// <summary>
         /// Create a new SlotRange value
         /// </summary>
+        /// <param name="from">The slot ID to start at.</param>
+        /// <param name="to">The slot ID to end at.</param>
         public SlotRange(int from, int to)
         {
             checked
@@ -44,22 +46,22 @@ namespace StackExchange.Redis
         /// <summary>
         /// Indicates whether two ranges are not equal
         /// </summary>
-        public static bool operator !=(SlotRange x, SlotRange y)
-        {
-            return x.from != y.from || x.to != y.to;
-        }
+        /// <param name="x">The first slot range.</param>
+        /// <param name="y">The second slot range.</param>
+        public static bool operator !=(SlotRange x, SlotRange y) => x.from != y.from || x.to != y.to;
 
         /// <summary>
-        /// Indicates whether two ranges are equal
+        /// Indicates whether two ranges are equal.
         /// </summary>
-        public static bool operator ==(SlotRange x, SlotRange y)
-        {
-            return x.from == y.from && x.to == y.to;
-        }
+        /// <param name="x">The first slot range.</param>
+        /// <param name="y">The second slot range.</param>
+        public static bool operator ==(SlotRange x, SlotRange y) => x.from == y.from && x.to == y.to;
 
         /// <summary>
-        /// Try to parse a string as a range
+        /// Try to parse a string as a range.
         /// </summary>
+        /// <param name="range">The range string to parse, e.g."1-12".</param>
+        /// <param name="value">The parsed <see cref="SlotRange"/>, if successful.</param>
         public static bool TryParse(string range, out SlotRange value)
         {
             if (string.IsNullOrWhiteSpace(range))
@@ -68,7 +70,7 @@ namespace StackExchange.Redis
                 return false;
             }
             int i = range.IndexOf('-');
-            short from, to;
+            short from;
             if (i < 0)
             {
                 if (TryParseInt16(range, 0, range.Length, out from))
@@ -79,7 +81,7 @@ namespace StackExchange.Redis
             }
             else
             {
-                if (TryParseInt16(range, 0, i++, out from) && TryParseInt16(range, i, range.Length - i, out to))
+                if (TryParseInt16(range, 0, i++, out from) && TryParseInt16(range, i, range.Length - i, out short to))
                 {
                     value = new SlotRange(from, to);
                     return true;
@@ -92,30 +94,24 @@ namespace StackExchange.Redis
         /// <summary>
         /// Compares the current instance with another object of the same type and returns an integer that indicates whether the current instance precedes, follows, or occurs in the same position in the sort order as the other object.
         /// </summary>
+        /// <param name="other">The other slot range to compare to.</param>
         public int CompareTo(SlotRange other)
         {
-            int delta = (int)this.from - (int)other.from;
-            return delta == 0 ? (int)this.to - (int)other.to : delta;
+            int delta = (int)from - (int)other.from;
+            return delta == 0 ? (int)to - (int)other.to : delta;
         }
 
         /// <summary>
         /// See Object.Equals
         /// </summary>
-        public override bool Equals(object obj)
-        {
-            if (obj is SlotRange)
-            {
-                return Equals((SlotRange)obj);
-            }
-            return false;
-        }
+        /// <param name="obj">The other slot range to compare to.</param>
+        public override bool Equals(object obj) => obj is SlotRange sRange && Equals(sRange);
+
         /// <summary>
         /// Indicates whether two ranges are equal
         /// </summary>
-        public bool Equals(SlotRange range)
-        {
-            return range.from == this.from && range.to == this.to;
-        }
+        /// <param name="other">The other slot range to compare to.</param>
+        public bool Equals(SlotRange other) => other.from == from && other.to == to;
 
         /// <summary>
         /// See Object.GetHashCode()
@@ -129,16 +125,11 @@ namespace StackExchange.Redis
         /// <summary>
         /// See Object.ToString()
         /// </summary>
-        public override string ToString()
-        {
-            return from == to ? from.ToString() : (from + "-" + to);
-        }
-        internal bool Includes(int hashSlot)
-        {
-            return hashSlot >= from && hashSlot <= to;
-        }
+        public override string ToString() => from == to ? from.ToString() : (from + "-" + to);
 
-        static bool TryParseInt16(string s, int offset, int count, out short value)
+        internal bool Includes(int hashSlot) => hashSlot >= from && hashSlot <= to;
+
+        private static bool TryParseInt16(string s, int offset, int count, out short value)
         {
             checked
             {
@@ -155,10 +146,7 @@ namespace StackExchange.Redis
             }
         }
 
-        int IComparable.CompareTo(object obj)
-        {
-            return obj is SlotRange ? CompareTo((SlotRange)obj) : -1;
-        }
+        int IComparable.CompareTo(object obj) => obj is SlotRange sRange ? CompareTo(sRange) : -1;
     }
 
     /// <summary>
@@ -173,7 +161,7 @@ namespace StackExchange.Redis
         {
             // Beware: Any exception thrown here will wreak silent havoc like inability to connect to cluster nodes or non returning calls
             this.serverSelectionStrategy = serverSelectionStrategy;
-            this.Origin = origin;
+            Origin = origin;
             using (var reader = new StringReader(nodes))
             {
                 string line;
@@ -181,7 +169,7 @@ namespace StackExchange.Redis
                 {
                     if (string.IsNullOrWhiteSpace(line)) continue;
                     var node = new ClusterNode(this, line, origin);
-                    
+
                     // Be resilient to ":0 {master,slave},fail,noaddr" nodes, and nodes where the endpoint doesn't parse
                     if (node.IsNoAddr || node.EndPoint == null)
                         continue;
@@ -190,7 +178,7 @@ namespace StackExchange.Redis
                     // make sure that things like clusterConfiguration[clusterConfiguration.Origin]
                     // will work as expected.
                     if (node.IsMyself)
-                        this.Origin = node.EndPoint;
+                        Origin = node.EndPoint;
 
                     if (nodeLookup.ContainsKey(node.EndPoint))
                     {
@@ -236,15 +224,10 @@ namespace StackExchange.Redis
         /// <summary>
         /// Obtain the node relating to a specified endpoint
         /// </summary>
-        public ClusterNode this[EndPoint endpoint]
-        {
-            get
-            {
-                ClusterNode result;
-                return endpoint == null ? null
-                    : nodeLookup.TryGetValue(endpoint, out result) ? result : null;
-            }
-        }
+        /// <param name="endpoint">The endpoint to get a cluster node from.</param>
+        public ClusterNode this[EndPoint endpoint] => endpoint == null
+            ? null
+            : nodeLookup.TryGetValue(endpoint, out ClusterNode result) ? result : null;
 
         internal ClusterNode this[string nodeId]
         {
@@ -260,8 +243,9 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Gets the node that serves the specified slot
+        /// Gets the node that serves the specified slot.
         /// </summary>
+        /// <param name="slot">The slot ID to get a node by.</param>
         public ClusterNode GetBySlot(int slot)
         {
             foreach(var node in Nodes)
@@ -270,18 +254,16 @@ namespace StackExchange.Redis
             }
             return null;
         }
+
         /// <summary>
-        /// Gets the node that serves the specified slot
+        /// Gets the node that serves the specified key's slot.
         /// </summary>
-        public ClusterNode GetBySlot(RedisKey key)
-        {
-            return GetBySlot(serverSelectionStrategy.HashSlot(key));
-        }
+        /// <param name="key">The key to identify a node by.</param>
+        public ClusterNode GetBySlot(RedisKey key) => GetBySlot(serverSelectionStrategy.HashSlot(key));
     }
 
-
     /// <summary>
-    /// Represents the configuration of a single node in a cluster configuration
+    /// Represents the configuration of a single node in a cluster configuration.
     /// </summary>
     public sealed class ClusterNode :  IEquatable<ClusterNode>, IComparable<ClusterNode>, IComparable
     {
@@ -302,9 +284,9 @@ namespace StackExchange.Redis
         internal ClusterNode() { }
         internal ClusterNode(ClusterConfiguration configuration, string raw, EndPoint origin)
         {
-            // http://redis.io/commands/cluster-nodes
+            // https://redis.io/commands/cluster-nodes
             this.configuration = configuration;
-            this.Raw = raw;
+            Raw = raw;
             var parts = raw.Split(StringSplits.Space);
 
             var flags = parts[2].Split(StringSplits.Comma);
@@ -335,15 +317,13 @@ namespace StackExchange.Redis
 
             for (int i = 8; i < parts.Length; i++)
             {
-                SlotRange range;
-                if (SlotRange.TryParse(parts[i], out range))
+                if (SlotRange.TryParse(parts[i], out SlotRange range))
                 {
-                    if(slots == null) slots = new List<SlotRange>(parts.Length - i);
-                    slots.Add(range);
+                    (slots ?? (slots = new List<SlotRange>(parts.Length - i))).Add(range);
                 }
             }
-            this.Slots = slots?.AsReadOnly() ?? NoSlots;
-            this.IsConnected = parts[7] == "connected"; // Can be "connected" or "disconnected"
+            Slots = slots?.AsReadOnly() ?? NoSlots;
+            IsConnected = parts[7] == "connected"; // Can be "connected" or "disconnected"
         }
         /// <summary>
         /// Gets all child nodes of the current node
@@ -357,10 +337,9 @@ namespace StackExchange.Redis
                 List<ClusterNode> nodes = null;
                 foreach (var node in configuration.Nodes)
                 {
-                    if (node.ParentNodeId == this.NodeId)
+                    if (node.ParentNodeId == NodeId)
                     {
-                        if (nodes == null) nodes = new List<ClusterNode>();
-                        nodes.Add(node);
+                        (nodes ?? (nodes = new List<ClusterNode>())).Add(node);
                     }
                 }
                 children = nodes?.AsReadOnly() ?? NoNodes;
@@ -430,46 +409,42 @@ namespace StackExchange.Redis
         /// <summary>
         /// Compares the current instance with another object of the same type and returns an integer that indicates whether the current instance precedes, follows, or occurs in the same position in the sort order as the other object.
         /// </summary>
+        /// <param name="other">The <see cref="ClusterNode"/> to compare to.</param>
         public int CompareTo(ClusterNode other)
         {
             if (other == null) return -1;
 
-            if (this.IsSlave != other.IsSlave) return IsSlave ? 1 : -1; // masters first
+            if (IsSlave != other.IsSlave) return IsSlave ? 1 : -1; // masters first
 
             if (IsSlave) // both slaves? compare by parent, so we get masters A, B, C and then slaves of A, B, C
             {
-                int i = string.CompareOrdinal(this.ParentNodeId, other.ParentNodeId);
+                int i = string.CompareOrdinal(ParentNodeId, other.ParentNodeId);
                 if (i != 0) return i;
             }
-            return string.CompareOrdinal(this.NodeId, other.NodeId);
-
+            return string.CompareOrdinal(NodeId, other.NodeId);
         }
 
         /// <summary>
         /// See Object.Equals
         /// </summary>
-        public override bool Equals(object obj)
-        {
-            return Equals(obj as ClusterNode);
-        }
+        /// <param name="obj">The <see cref="ClusterNode"/> to compare to.</param>
+        public override bool Equals(object obj) => Equals(obj as ClusterNode);
 
         /// <summary>
         /// Indicates whether two ClusterNode instances are equivalent
         /// </summary>
-        public bool Equals(ClusterNode node)
+        /// <param name="other">The <see cref="ClusterNode"/> to compare to.</param>
+        public bool Equals(ClusterNode other)
         {
-            if (node == null) return false;
+            if (other == null) return false;
 
-            return this.ToString() == node.ToString(); // lazy, but effective - plus only computes once
+            return ToString() == other.ToString(); // lazy, but effective - plus only computes once
         }
 
         /// <summary>
         /// See object.GetHashCode()
         /// </summary>
-        public override int GetHashCode()
-        {
-            return ToString().GetHashCode();
-        }
+        public override int GetHashCode() => ToString().GetHashCode();
 
         /// <summary>
         /// See Object.ToString()
@@ -498,10 +473,11 @@ namespace StackExchange.Redis
                 {
                     sb.Append(slot).Append(' ');
                 }
-                sb.Length -= 1; // remove tailing space
+                sb.Length--; // remove tailing space
             }
             return toString = sb.ToString();
         }
+
         internal bool ServesSlot(int hashSlot)
         {
             foreach (var slot in Slots)

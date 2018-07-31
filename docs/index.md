@@ -48,6 +48,7 @@ Documentation
 - [Where are `KEYS` / `SCAN` / `FLUSH*`?](KeysScan) - how to use server-based commands
 - [Profiling](Profiling) - profiling interfaces, as well as how to profile in an `async` world
 - [Scripting](Scripting) - running Lua scripts with convenient named parameter replacement 
+- [Testing](Testing) - running the `StackExchange.Redis.Tests` suite to validate changes
 
 Questions and Contributions
 ---
