@@ -9,11 +9,6 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
-    internal static class PhysicalBridgeHelpers
-    {
-        public static void CompleteSyncOrAsync(this PhysicalBridge bridge, ICompletable operation)
-            => PhysicalBridge.CompleteSyncOrAsyncImpl(bridge, operation);
-    }
     internal sealed partial class PhysicalBridge : IDisposable
     {
         internal readonly string Name;
@@ -24,7 +19,7 @@ namespace StackExchange.Redis
 
         private static readonly Message ReusableAskingCommand = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.ASKING);
 
-        private readonly CompletionManager completionManager;
+        internal readonly CompletionManager completionManager;
         private readonly long[] profileLog = new long[ProfileLogSamples];
 
         private readonly Queue<Message> _preconnectBacklog = new Queue<Message>();
@@ -90,13 +85,6 @@ namespace StackExchange.Redis
         internal bool IsBeating => Interlocked.CompareExchange(ref beating, 0, 0) == 1;
 
         internal long OperationCount => Interlocked.Read(ref operationCount);
-
-        internal static void CompleteSyncOrAsyncImpl(PhysicalBridge bridge, ICompletable operation)
-        {
-            var manager = bridge?.completionManager;
-            if (manager != null) manager.CompleteSyncOrAsync(operation);
-            else CompletionManager.SharedCompleteSyncOrAsync(operation);
-        }
 
         public void Dispose()
         {

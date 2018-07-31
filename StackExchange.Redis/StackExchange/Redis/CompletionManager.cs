@@ -3,8 +3,22 @@ using System.Threading;
 
 namespace StackExchange.Redis
 {
+    internal static class CompletionManagerHelpers
+    {
+        public static void CompleteSyncOrAsync(this PhysicalBridge bridge, ICompletable operation)
+            => CompletionManager.CompleteSyncOrAsyncImpl(bridge?.completionManager, operation);
+        public static void CompleteSyncOrAsync(this CompletionManager manager, ICompletable operation)
+            => CompletionManager.CompleteSyncOrAsyncImpl(manager, operation);
+    }
     internal sealed partial class CompletionManager
     {
+
+        internal static void CompleteSyncOrAsyncImpl(CompletionManager manager, ICompletable operation)
+        {
+            if (manager != null) manager.PerInstanceCompleteSyncOrAsync(operation);
+            else SharedCompleteSyncOrAsync(operation);
+        }
+
         private readonly ConnectionMultiplexer multiplexer;
 
         private readonly string name;
@@ -16,7 +30,7 @@ namespace StackExchange.Redis
             this.name = name;
         }
 
-        internal static void SharedCompleteSyncOrAsync(ICompletable operation)
+        private static void SharedCompleteSyncOrAsync(ICompletable operation)
         {
             if (operation == null) return;
             if (!operation.TryComplete(false))
@@ -24,7 +38,7 @@ namespace StackExchange.Redis
                 SocketManager.Shared.ScheduleTask(s_AnyOrderCompletionHandler, operation);
             }
         }
-        public void CompleteSyncOrAsync(ICompletable operation)
+        private void PerInstanceCompleteSyncOrAsync(ICompletable operation)
         {
             if (operation == null) return;
             if (operation.TryComplete(false))
