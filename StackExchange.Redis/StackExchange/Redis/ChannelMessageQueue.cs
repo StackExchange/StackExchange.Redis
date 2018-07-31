@@ -210,22 +210,23 @@ namespace StackExchange.Redis
         internal void UnsubscribeImpl(Exception error = null, CommandFlags flags = CommandFlags.None)
         {
             var parent = _parent;
+            _parent = null;
             if (parent != null)
             {
                 parent.UnsubscribeAsync(Channel, HandleMessage, flags);
-                _parent = null;
-                _queue.Writer.TryComplete(error);
             }
+            _queue.Writer.TryComplete(error);
+
         }
         internal async Task UnsubscribeAsyncImpl(Exception error = null, CommandFlags flags = CommandFlags.None)
         {
             var parent = _parent;
+            _parent = null;
             if (parent != null)
             {
-                await parent.UnsubscribeAsync(Channel, HandleMessage, flags).ConfigureAwait(false);
-                _parent = null;
-                _queue.Writer.TryComplete(error);
+                await parent.UnsubscribeAsync(Channel, HandleMessage, flags).ConfigureAwait(false);                
             }
+            _queue.Writer.TryComplete(error);
         }
 
         internal static bool IsOneOf(Action<RedisChannel, RedisValue> handler)

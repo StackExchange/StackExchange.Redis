@@ -229,6 +229,12 @@ namespace StackExchange.Redis.Tests
                 {
                     if (!task.Wait(1000)) throw new TimeoutException("timeout waiting for task to complete");
                 }
+                catch(AggregateException ex)
+                when (ex.InnerException is TaskCanceledException
+                    || (ex.InnerExceptions.Count == 1 && ex.InnerException is TaskCanceledException))
+                {
+                    return TaskStatus.Canceled;
+                }
                 catch (TaskCanceledException)
                 {
                     return TaskStatus.Canceled;
