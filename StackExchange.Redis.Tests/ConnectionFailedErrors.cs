@@ -70,7 +70,9 @@ namespace StackExchange.Redis.Tests
                 muxer.ConnectionFailed += (object sender, ConnectionFailedEventArgs e) =>
                     Assert.Equal(ConnectionFailureType.AuthenticationFailure, e.FailureType);
                 var ex = Assert.Throws<RedisConnectionException>(() => muxer.GetDatabase().Ping());
-                var rde = (RedisConnectionException)ex.InnerException;
+
+                Assert.NotNull(ex.InnerException);
+                var rde = Assert.IsType<RedisConnectionException>(ex.InnerException);
                 Assert.Equal(CommandStatus.WaitingToBeSent, ex.CommandStatus);
                 Assert.Equal(ConnectionFailureType.AuthenticationFailure, rde.FailureType);
                 Assert.Equal("Error: NOAUTH Authentication required. Verify if the Redis password provided is correct.", rde.InnerException.Message);

@@ -26,21 +26,6 @@ namespace StackExchange.Redis
 
         private const int DefaultRedisDatabaseCount = 16;
 
-        //private static readonly AsyncCallback endRead = result =>
-        //{
-        //    PhysicalConnection physical;
-        //    if (result.CompletedSynchronously || (physical = result.AsyncState as PhysicalConnection) == null) return;
-        //    try
-        //    {
-        //        physical.Multiplexer.Trace("Completed asynchronously: processing in callback", physical.physicalName);
-        //        if (physical.EndReading(result)) physical.BeginReading();
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        physical.RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
-        //    }
-        //};
-
         private static readonly CommandBytes message = "message", pmessage = "pmessage";
 
         private static readonly Message[] ReusableChangeDatabaseCommands = Enumerable.Range(0, DefaultRedisDatabaseCount).Select(
