@@ -100,8 +100,22 @@ namespace StackExchange.Redis.Tests
             Assert.Equal(ConnectionFailureType.UnableToResolvePhysicalConnection, outer.FailureType);
 
             Assert.NotNull(outer.InnerException);
-            var inner = Assert.IsType<RedisConnectionException>(outer.InnerException);
-            Assert.Equal(ConnectionFailureType.UnableToConnect, inner.FailureType);
+            if (outer.InnerException is RedisConnectionException rce)
+            {
+                Assert.Equal(ConnectionFailureType.UnableToConnect, rce.FailureType);
+            }
+            else
+            {
+                Writer.WriteLine(outer.InnerException.ToString());
+                if (outer.InnerException is AggregateException inner)
+                {
+                    foreach (var ex in inner.InnerExceptions)
+                    {
+                        Writer.WriteLine(ex.ToString());
+                    }
+                }
+                Assert.False(true); // force fail
+            }
 
         }
 #if DEBUG // needs AllowConnect, which is DEBUG only

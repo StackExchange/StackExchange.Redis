@@ -259,6 +259,7 @@ namespace StackExchange.Redis.Tests
             }
             muxer.InternalError += OnInternalError;
             muxer.ConnectionFailed += OnConnectionFailed;
+            muxer.MessageFaulted += (msg, ex, origin) => Writer?.WriteLine($"Faulted from '{origin}': '{msg}' - '{(ex == null ? "(null)" : ex.Message)}'");
             return muxer;
         }
 

@@ -343,7 +343,8 @@ namespace StackExchange.Redis
                 next = DequeueNextPendingBacklog();
                 if(next != null)
                 {
-                    next.SetException(ex);
+                    Multiplexer?.OnMessageFaulted(next, ex);
+                    next.SetException(ex);                    
                     this.CompleteSyncOrAsync(next);
                 }
             } while (next != null);

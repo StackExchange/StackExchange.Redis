@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Net;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -245,6 +247,23 @@ namespace StackExchange.Redis
                 }
                 return changed;
             }
+        }
+
+#if TEST
+        internal event Action<string, Exception, string> MessageFaulted;
+#else
+        internal event Action<string, Exception, string> MessageFaulted
+        {   // completely empty shell event, just to keep the test suite compiling
+            add { } remove { }
+        }
+#endif
+
+        [Conditional("TEST")]
+        internal void OnMessageFaulted(Message msg, Exception fault, [CallerMemberName] string origin = null)
+        {
+#if TEST
+            MessageFaulted?.Invoke(msg?.CommandAndKey, fault, origin);
+#endif
         }
     }
 

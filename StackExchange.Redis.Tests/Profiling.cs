@@ -150,18 +150,18 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                var profiler = new PerThreadProfiler();
+                var profiler = new AsyncLocalProfiler();
                 var prefix = Me();
                 conn.RegisterProfiler(profiler.GetSession);
 
-                var threads = new List<Thread>();
+                var tasks = new Task[16];
 
-                var results = new IEnumerable<IProfiledCommand>[16];
+                var results = new ProfiledCommandEnumerable[tasks.Length];
 
-                for (var i = 0; i < 16; i++)
+                for (var i = 0; i < tasks.Length; i++)
                 {
                     var ix = i;
-                    var thread = new Thread(() =>
+                    var task = Task.Run(async () => 
                     {
                         var db = conn.GetDatabase(ix);
 
@@ -169,25 +169,23 @@ namespace StackExchange.Redis.Tests
 
                         for (var j = 0; j < 1000; j++)
                         {
-                            allTasks.Add(db.StringGetAsync(prefix + ix));
-                            allTasks.Add(db.StringSetAsync(prefix + ix, "world" + ix));
+                            var g = db.StringGetAsync(prefix + ix);
+                            var s = db.StringSetAsync(prefix + ix, "world" + ix);
+                            // overlap the g+s, just for fun
+                            await g;
+                            await s;
                         }
-
-                        Task.WaitAll(allTasks.ToArray());
 
                         results[ix] = profiler.GetSession().FinishProfiling();
                     });
+                    tasks[ix] = task;
 
-                    threads.Add(thread);
                 }
-
-                threads.ForEach(t => t.Start());
-                threads.ForEach(t => t.Join());
+                Task.WhenAll(tasks).Wait();
 
                 for (var i = 0; i < results.Length; i++)
                 {
                     var res = results[i];
-                    Assert.NotNull(res);
 
                     var numGets = res.Count(r => r.Command == "GET");
                     var numSets = res.Count(r => r.Command == "SET");

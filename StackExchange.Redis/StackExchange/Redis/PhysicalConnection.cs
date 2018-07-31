@@ -280,17 +280,17 @@ namespace StackExchange.Redis
 
             Exception outerException = innerException;
             IdentifyFailureType(innerException, ref failureType);
-
+            var bridge = BridgeCouldBeNull;
             if (_ioPipe != null || isInitialConnect) // if *we* didn't burn the pipe: flag it
             {
                 if (failureType == ConnectionFailureType.InternalFailure) OnInternalError(innerException, origin);
 
                 // stop anything new coming in...
-                BridgeCouldBeNull?.Trace("Failed: " + failureType);
+                bridge?.Trace("Failed: " + failureType);
                 int @in = -1;
                 PhysicalBridge.State oldState = PhysicalBridge.State.Disconnected;
                 bool isCurrent = false;
-                BridgeCouldBeNull?.OnDisconnected(failureType, this, out isCurrent, out oldState);
+                bridge?.OnDisconnected(failureType, this, out isCurrent, out oldState);
                 if (oldState == PhysicalBridge.State.ConnectedEstablished)
                 {
                     try
@@ -311,7 +311,6 @@ namespace StackExchange.Redis
                     var data = new List<Tuple<string, string>>();
                     if (IncludeDetailInExceptions)
                     {
-                        var bridge = BridgeCouldBeNull;
                         if (bridge != null)
                         {
                             exMessage.Append(" on ").Append(Format.ToString(bridge.ServerEndPoint?.EndPoint)).Append("/").Append(connectionType);
@@ -354,19 +353,24 @@ namespace StackExchange.Redis
                         outerException.Data["Redis-" + kv.Item1] = kv.Item2;
                     }
 
-                    BridgeCouldBeNull?.OnConnectionFailed(this, failureType, outerException);
+                    bridge?.OnConnectionFailed(this, failureType, outerException);
                 }
             }
             // cleanup
             lock (_writtenAwaitingResponse)
             {
-                BridgeCouldBeNull?.Trace(_writtenAwaitingResponse.Count != 0, "Failing outstanding messages: " + _writtenAwaitingResponse.Count);
+                bridge?.Trace(_writtenAwaitingResponse.Count != 0, "Failing outstanding messages: " + _writtenAwaitingResponse.Count);
                 while (_writtenAwaitingResponse.Count != 0)
                 {
                     var next = _writtenAwaitingResponse.Dequeue();
-                    BridgeCouldBeNull?.Trace("Failing: " + next);
-                    next.SetException(innerException is RedisException ? innerException : outerException);
-                    BridgeCouldBeNull.CompleteSyncOrAsync(next);
+                    var ex = innerException is RedisException ? innerException : outerException;
+                    if (bridge != null)
+                    {
+                        bridge.Trace("Failing: " + next);
+                        bridge.Multiplexer?.OnMessageFaulted(next, ex, origin);
+                    }
+                    next.SetException(ex);
+                    bridge.CompleteSyncOrAsync(next);
                 }
             }
 
@@ -527,6 +531,7 @@ namespace StackExchange.Redis
                         if (msg.HasAsyncTimedOut(now, timeout, out var elapsed))
                         {
                             var timeoutEx = ExceptionFactory.Timeout(includeDetail, $"Timeout awaiting response ({elapsed}ms elapsed, timeout is {timeout}ms)", msg, server);
+                            bridge.Multiplexer?.OnMessageFaulted(msg, timeoutEx);
                             msg.SetException(timeoutEx); // tell the message that it is doomed
                             bridge.CompleteSyncOrAsync(msg); // prod it - kicks off async continuations etc
                             bridge.Multiplexer.OnAsyncTimeout();

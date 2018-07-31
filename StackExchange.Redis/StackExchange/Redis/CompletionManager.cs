@@ -27,7 +27,7 @@ namespace StackExchange.Redis
         private long completedSync, completedAsync, failedAsync;
         public CompletionManager(ConnectionMultiplexer multiplexer, string name)
         {
-            this.multiplexer = multiplexer;
+            this.multiplexer = multiplexer ?? throw new ArgumentNullException(nameof(multiplexer));
             this.name = name;
         }
 
@@ -48,7 +48,7 @@ namespace StackExchange.Redis
             else
             {
                 multiplexer.Trace("Using thread-pool for asynchronous completion", name);
-                multiplexer.SocketManager.ScheduleTask(s_AnyOrderCompletionHandler, operation);
+                (multiplexer.SocketManager ?? SocketManager.Shared).ScheduleTask(s_AnyOrderCompletionHandler, operation);
                 Interlocked.Increment(ref completedAsync); // k, *technically* we haven't actually completed this yet, but: close enough
             }
         }

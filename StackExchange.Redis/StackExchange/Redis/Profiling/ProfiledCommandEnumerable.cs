@@ -84,6 +84,24 @@ namespace StackExchange.Redis.Profiling
         public int Count() => _count;
 
         /// <summary>
+        /// Returns the number of commands captured in this snapshot that match a condition
+        /// </summary>
+        public int Count(Func<IProfiledCommand, bool> predicate)
+        {
+            if (predicate == null) throw new ArgumentNullException(nameof(predicate));
+            if (_count == 0) return 0;
+
+            int result = 0;
+            var cur = _head;
+            for (int i = 0; i < _count; i++)
+            {
+                if (predicate(cur)) result++;
+                cur = cur.NextElement;
+            }
+            return result;
+        }
+
+        /// <summary>
         /// Returns the captured commands as an array
         /// </summary>
         public IProfiledCommand[] ToArray()

@@ -103,7 +103,10 @@ namespace StackExchange.Redis.Tests
             using (var muxer = ConnectionMultiplexer.Connect(config, log))
             {
                 Log("Connect log:");
-                Log(log.ToString());
+                lock (log)
+                {
+                    Log(log.ToString());
+                }
                 Log("====");
                 muxer.ConnectionFailed += OnConnectionFailed;
                 muxer.InternalError += OnInternalError;
