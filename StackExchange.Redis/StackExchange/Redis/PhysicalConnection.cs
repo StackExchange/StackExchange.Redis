@@ -242,6 +242,7 @@ namespace StackExchange.Redis
             if (ioPipe != null)
             {
                 Trace("Disconnecting...");
+                try { BridgeCouldBeNull?.OnDisconnected(ConnectionFailureType.ConnectionDisposed, this, out _, out _); } catch { }
                 try { ioPipe.Input?.CancelPendingRead(); } catch { }
                 try { ioPipe.Input?.Complete(); } catch { }
                 try { ioPipe.Output?.CancelPendingFlush(); } catch { }
@@ -291,83 +292,86 @@ namespace StackExchange.Redis
 
         public void RecordConnectionFailed(ConnectionFailureType failureType, Exception innerException = null, [CallerMemberName] string origin = null)
         {
+
             Exception outerException = innerException;
             IdentifyFailureType(innerException, ref failureType);
 
-            if (failureType == ConnectionFailureType.InternalFailure) OnInternalError(innerException, origin);
-
-            // stop anything new coming in...
-            BridgeCouldBeNull?.Trace("Failed: " + failureType);
-            int @in = -1;
-            PhysicalBridge.State oldState = PhysicalBridge.State.Disconnected;
-            bool isCurrent = false;
-            BridgeCouldBeNull?.OnDisconnected(failureType, this, out isCurrent, out oldState);
-            if (oldState == PhysicalBridge.State.ConnectedEstablished)
+            if (_ioPipe != null) // if *we* didn't burn the pipe: flag it
             {
-                try
+                if (failureType == ConnectionFailureType.InternalFailure) OnInternalError(innerException, origin);
+
+                // stop anything new coming in...
+                BridgeCouldBeNull?.Trace("Failed: " + failureType);
+                int @in = -1;
+                PhysicalBridge.State oldState = PhysicalBridge.State.Disconnected;
+                bool isCurrent = false;
+                BridgeCouldBeNull?.OnDisconnected(failureType, this, out isCurrent, out oldState);
+                if (oldState == PhysicalBridge.State.ConnectedEstablished)
                 {
-                    @in = GetAvailableInboundBytes();
-                }
-                catch { /* best effort only */ }
-            }
-
-            if (isCurrent && Interlocked.CompareExchange(ref failureReported, 1, 0) == 0)
-            {
-                int now = Environment.TickCount, lastRead = Thread.VolatileRead(ref lastReadTickCount), lastWrite = Thread.VolatileRead(ref lastWriteTickCount),
-                    lastBeat = Thread.VolatileRead(ref lastBeatTickCount);
-                int unansweredRead = Thread.VolatileRead(ref firstUnansweredWriteTickCount);
-
-                var exMessage = new StringBuilder(failureType.ToString());
-
-                var data = new List<Tuple<string, string>>();
-                if (IncludeDetailInExceptions)
-                {
-                    var bridge = BridgeCouldBeNull;
-                    if (bridge != null)
+                    try
                     {
-                        exMessage.Append(" on ").Append(Format.ToString(bridge.ServerEndPoint?.EndPoint)).Append("/").Append(connectionType);
-
-                        data.Add(Tuple.Create("FailureType", failureType.ToString()));
-                        data.Add(Tuple.Create("EndPoint", Format.ToString(bridge.ServerEndPoint?.EndPoint)));
-
-                        void add(string lk, string sk, string v)
-                        {
-                            data.Add(Tuple.Create(lk, v));
-                            exMessage.Append(", ").Append(sk).Append(": ").Append(v);
-                        }
-
-                        add("Origin", "origin", origin);
-                        // add("Input-Buffer", "input-buffer", _ioPipe.Input);
-                        add("Outstanding-Responses", "outstanding", GetSentAwaitingResponseCount().ToString());
-                        add("Last-Read", "last-read", (unchecked(now - lastRead) / 1000) + "s ago");
-                        add("Last-Write", "last-write", (unchecked(now - lastWrite) / 1000) + "s ago");
-                        add("Unanswered-Write", "unanswered-write", (unchecked(now - unansweredRead) / 1000) + "s ago");
-                        add("Keep-Alive", "keep-alive", bridge.ServerEndPoint?.WriteEverySeconds + "s");
-                        add("Previous-Physical-State", "state", oldState.ToString());
-                        add("Manager", "mgr", bridge.Multiplexer.SocketManager?.GetState());
-                        if (@in >= 0)
-                        {
-                            add("Inbound-Bytes", "in", @in.ToString());
-                        }
-
-                        add("Last-Heartbeat", "last-heartbeat", (lastBeat == 0 ? "never" : ((unchecked(now - lastBeat) / 1000) + "s ago")) + (BridgeCouldBeNull.IsBeating ? " (mid-beat)" : ""));
-                        add("Last-Multiplexer-Heartbeat", "last-mbeat", bridge.Multiplexer.LastHeartbeatSecondsAgo + "s ago");
-                        add("Last-Global-Heartbeat", "global", ConnectionMultiplexer.LastGlobalHeartbeatSecondsAgo + "s ago");
+                        @in = GetAvailableInboundBytes();
                     }
+                    catch { /* best effort only */ }
                 }
 
-                outerException = innerException == null
-                    ? new RedisConnectionException(failureType, exMessage.ToString())
-                    : new RedisConnectionException(failureType, exMessage.ToString(), innerException);
-
-                foreach (var kv in data)
+                if (isCurrent && Interlocked.CompareExchange(ref failureReported, 1, 0) == 0)
                 {
-                    outerException.Data["Redis-" + kv.Item1] = kv.Item2;
+                    int now = Environment.TickCount, lastRead = Thread.VolatileRead(ref lastReadTickCount), lastWrite = Thread.VolatileRead(ref lastWriteTickCount),
+                        lastBeat = Thread.VolatileRead(ref lastBeatTickCount);
+                    int unansweredRead = Thread.VolatileRead(ref firstUnansweredWriteTickCount);
+
+                    var exMessage = new StringBuilder(failureType.ToString());
+
+                    var data = new List<Tuple<string, string>>();
+                    if (IncludeDetailInExceptions)
+                    {
+                        var bridge = BridgeCouldBeNull;
+                        if (bridge != null)
+                        {
+                            exMessage.Append(" on ").Append(Format.ToString(bridge.ServerEndPoint?.EndPoint)).Append("/").Append(connectionType);
+
+                            data.Add(Tuple.Create("FailureType", failureType.ToString()));
+                            data.Add(Tuple.Create("EndPoint", Format.ToString(bridge.ServerEndPoint?.EndPoint)));
+
+                            void add(string lk, string sk, string v)
+                            {
+                                data.Add(Tuple.Create(lk, v));
+                                exMessage.Append(", ").Append(sk).Append(": ").Append(v);
+                            }
+
+                            add("Origin", "origin", origin);
+                            // add("Input-Buffer", "input-buffer", _ioPipe.Input);
+                            add("Outstanding-Responses", "outstanding", GetSentAwaitingResponseCount().ToString());
+                            add("Last-Read", "last-read", (unchecked(now - lastRead) / 1000) + "s ago");
+                            add("Last-Write", "last-write", (unchecked(now - lastWrite) / 1000) + "s ago");
+                            add("Unanswered-Write", "unanswered-write", (unchecked(now - unansweredRead) / 1000) + "s ago");
+                            add("Keep-Alive", "keep-alive", bridge.ServerEndPoint?.WriteEverySeconds + "s");
+                            add("Previous-Physical-State", "state", oldState.ToString());
+                            add("Manager", "mgr", bridge.Multiplexer.SocketManager?.GetState());
+                            if (@in >= 0)
+                            {
+                                add("Inbound-Bytes", "in", @in.ToString());
+                            }
+
+                            add("Last-Heartbeat", "last-heartbeat", (lastBeat == 0 ? "never" : ((unchecked(now - lastBeat) / 1000) + "s ago")) + (BridgeCouldBeNull.IsBeating ? " (mid-beat)" : ""));
+                            add("Last-Multiplexer-Heartbeat", "last-mbeat", bridge.Multiplexer.LastHeartbeatSecondsAgo + "s ago");
+                            add("Last-Global-Heartbeat", "global", ConnectionMultiplexer.LastGlobalHeartbeatSecondsAgo + "s ago");
+                        }
+                    }
+
+                    outerException = innerException == null
+                        ? new RedisConnectionException(failureType, exMessage.ToString())
+                        : new RedisConnectionException(failureType, exMessage.ToString(), innerException);
+
+                    foreach (var kv in data)
+                    {
+                        outerException.Data["Redis-" + kv.Item1] = kv.Item2;
+                    }
+
+                    BridgeCouldBeNull?.OnConnectionFailed(this, failureType, outerException);
                 }
-
-                BridgeCouldBeNull?.OnConnectionFailed(this, failureType, outerException);
             }
-
             // cleanup
             lock (_writtenAwaitingResponse)
             {

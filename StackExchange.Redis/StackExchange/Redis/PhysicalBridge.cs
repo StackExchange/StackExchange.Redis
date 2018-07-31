@@ -97,6 +97,8 @@ namespace StackExchange.Redis
         }
         ~PhysicalBridge()
         {
+            isDisposed = true; // make damn sure we don't true to resurrect
+
             // shouldn't *really* touch managed objects
             // in a finalizer, but we need to kill that socket,
             // and this is the first place that isn't going to

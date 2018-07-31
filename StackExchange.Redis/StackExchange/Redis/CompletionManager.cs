@@ -15,6 +15,7 @@ namespace StackExchange.Redis
 
         internal static void CompleteSyncOrAsyncImpl(CompletionManager manager, ICompletable operation)
         {
+            if (operation == null) return;
             if (manager != null) manager.PerInstanceCompleteSyncOrAsync(operation);
             else SharedCompleteSyncOrAsync(operation);
         }
@@ -32,7 +33,6 @@ namespace StackExchange.Redis
 
         private static void SharedCompleteSyncOrAsync(ICompletable operation)
         {
-            if (operation == null) return;
             if (!operation.TryComplete(false))
             {
                 SocketManager.Shared.ScheduleTask(s_AnyOrderCompletionHandler, operation);
@@ -40,7 +40,6 @@ namespace StackExchange.Redis
         }
         private void PerInstanceCompleteSyncOrAsync(ICompletable operation)
         {
-            if (operation == null) return;
             if (operation.TryComplete(false))
             {
                 multiplexer.Trace("Completed synchronously: " + operation, name);

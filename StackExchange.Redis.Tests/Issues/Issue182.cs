@@ -45,7 +45,7 @@ namespace StackExchange.Redis.Tests.Issues
         [FactLongRunning]
         public async Task SetUnion()
         {
-            using (var conn = Create())
+            using (var conn = Create(syncTimeout: 10000))
             {
                 var db = conn.GetDatabase();
 
