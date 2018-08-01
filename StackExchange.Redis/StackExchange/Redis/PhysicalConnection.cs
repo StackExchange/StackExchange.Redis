@@ -275,7 +275,8 @@ namespace StackExchange.Redis
             return Task.CompletedTask;
         }
 
-        public void RecordConnectionFailed(ConnectionFailureType failureType, Exception innerException = null, [CallerMemberName] string origin = null, bool isInitialConnect = false)
+        public void RecordConnectionFailed(ConnectionFailureType failureType, Exception innerException = null, [CallerMemberName] string origin = null,
+            bool isInitialConnect = false, IDuplexPipe connectingPipe = null)
         {
             Exception outerException = innerException;
             IdentifyFailureType(innerException, ref failureType);
@@ -306,6 +307,16 @@ namespace StackExchange.Redis
                     int unansweredRead = Thread.VolatileRead(ref firstUnansweredWriteTickCount);
 
                     var exMessage = new StringBuilder(failureType.ToString());
+
+                    if ((connectingPipe ?? _ioPipe) is SocketConnection sc)
+                    {
+                        exMessage.Append(" (").Append(sc.ShutdownKind);
+                        if (sc.SocketError != SocketError.Success)
+                        {
+                            exMessage.Append("/").Append(sc.SocketError);
+                        }
+                        exMessage.Append(")");
+                    }
 
                     var data = new List<Tuple<string, string>>();
                     if (IncludeDetailInExceptions)
@@ -1082,6 +1093,7 @@ namespace StackExchange.Redis
             var bridge = BridgeCouldBeNull;
             if (bridge == null) return false;
 
+            IDuplexPipe pipe = null;
             try
             {
                 // disallow connection in some cases
@@ -1093,7 +1105,6 @@ namespace StackExchange.Redis
 
                 var config = bridge.Multiplexer.RawConfig;
 
-                IDuplexPipe pipe;
                 if (config.Ssl)
                 {
                     bridge.Multiplexer.LogLocked(log, "Configuring SSL");
@@ -1141,7 +1152,7 @@ namespace StackExchange.Redis
             }
             catch (Exception ex)
             {
-                RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex, isInitialConnect: true); // includes a bridge.OnDisconnected
+                RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex, isInitialConnect: true, connectingPipe: pipe); // includes a bridge.OnDisconnected
                 bridge.Multiplexer.Trace("Could not connect: " + ex.Message, physicalName);
                 return false;
             }

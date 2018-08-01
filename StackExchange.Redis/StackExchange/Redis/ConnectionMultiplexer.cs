@@ -65,7 +65,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets the client-name that will be used on all new connections
         /// </summary>
-        public string ClientName => configuration.ClientName ?? GetDefaultClientName();
+        public string ClientName => RawConfig.ClientName ?? GetDefaultClientName();
 
         private static string defaultClientName;
         private static string GetDefaultClientName()
@@ -124,7 +124,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets the configuration of the connection
         /// </summary>
-        public string Configuration => configuration.ToString();
+        public string Configuration => RawConfig.ToString();
 
         internal void OnConnectionFailed(EndPoint endpoint, ConnectionType connectionType, ConnectionFailureType failureType, Exception exception, bool reconfigure)
         {
@@ -317,7 +317,7 @@ namespace StackExchange.Redis
         internal void MakeMaster(ServerEndPoint server, ReplicationChangeOptions options, TextWriter log)
         {
             CommandMap.AssertAvailable(RedisCommand.SLAVEOF);
-            if (!configuration.AllowAdmin) throw ExceptionFactory.AdminModeNotEnabled(IncludeDetailInExceptions, RedisCommand.SLAVEOF, null, server);
+            if (!RawConfig.AllowAdmin) throw ExceptionFactory.AdminModeNotEnabled(IncludeDetailInExceptions, RedisCommand.SLAVEOF, null, server);
 
             if (server == null) throw new ArgumentNullException(nameof(server));
             var srv = new RedisServer(this, server, null);
@@ -346,10 +346,10 @@ namespace StackExchange.Redis
 
             RedisKey tieBreakerKey = default(RedisKey);
             // try and write this everywhere; don't worry if some folks reject our advances
-            if ((options & ReplicationChangeOptions.SetTiebreaker) != 0 && !string.IsNullOrWhiteSpace(configuration.TieBreaker)
+            if ((options & ReplicationChangeOptions.SetTiebreaker) != 0 && !string.IsNullOrWhiteSpace(RawConfig.TieBreaker)
                 && CommandMap.IsAvailable(RedisCommand.SET))
             {
-                tieBreakerKey = configuration.TieBreaker;
+                tieBreakerKey = RawConfig.TieBreaker;
 
                 foreach (var node in nodes)
                 {
@@ -461,7 +461,7 @@ namespace StackExchange.Redis
 
         internal void CheckMessage(Message message)
         {
-            if (!configuration.AllowAdmin && message.IsAdmin)
+            if (!RawConfig.AllowAdmin && message.IsAdmin)
                 throw ExceptionFactory.AdminModeNotEnabled(IncludeDetailInExceptions, message.Command, message, null);
             if (message.Command != RedisCommand.UNKNOWN) CommandMap.AssertAvailable(message.Command);
 
@@ -527,12 +527,10 @@ namespace StackExchange.Redis
         /// <param name="configuredOnly">Whether to get only the endpoints specified explicitly in the config.</param>
         public EndPoint[] GetEndPoints(bool configuredOnly = false)
         {
-            if (configuredOnly) return configuration.EndPoints.ToArray();
+            if (configuredOnly) return RawConfig.EndPoints.ToArray();
 
             return _serverSnapshot.GetEndPoints();
         }
-
-        private readonly ConfigurationOptions configuration;
 
         internal bool TryResend(int hashSlot, Message message, EndPoint endpoint, bool isMoved)
         {
@@ -966,7 +964,7 @@ namespace StackExchange.Redis
             IncludeDetailInExceptions = true;
             IncludePerformanceCountersInExceptions = false;
 
-            this.configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+            RawConfig = configuration ?? throw new ArgumentNullException(nameof(configuration));
 
             var map = CommandMap = configuration.CommandMap;
             if (!string.IsNullOrWhiteSpace(configuration.Password)) map.AssertAvailable(RedisCommand.AUTH);
@@ -1096,7 +1094,7 @@ namespace StackExchange.Redis
         public IDatabase GetDatabase(int db = -1, object asyncState = null)
         {
             if (db == -1)
-                db = configuration.DefaultDatabase ?? 0;
+                db = RawConfig.DefaultDatabase ?? 0;
 
             if (db < 0) throw new ArgumentOutOfRangeException(nameof(db));
             if (db != 0 && RawConfig.Proxy == Proxy.Twemproxy) throw new NotSupportedException("Twemproxy only supports database 0");
@@ -1245,7 +1243,7 @@ namespace StackExchange.Redis
             if (!task.Wait(SyncConnectTimeout(false)))
             {
                 task.ObserveErrors();
-                if (configuration.AbortOnConnectFail)
+                if (RawConfig.AbortOnConnectFail)
                 {
                     throw new TimeoutException();
                 }
@@ -1263,7 +1261,7 @@ namespace StackExchange.Redis
             int retryCount = forConnect ? RawConfig.ConnectRetry : 1;
             if (retryCount <= 0) retryCount = 1;
 
-            int timeout = configuration.ConnectTimeout;
+            int timeout = RawConfig.ConnectTimeout;
             if (timeout >= int.MaxValue / retryCount) return int.MaxValue;
 
             timeout *= retryCount;
@@ -1337,28 +1335,28 @@ namespace StackExchange.Redis
                 Trace("Starting reconfiguration...");
                 Trace(blame != null, "Blaming: " + Format.ToString(blame));
 
-                LogLocked(log, configuration.ToString(includePassword: false));
+                LogLocked(log, RawConfig.ToString(includePassword: false));
                 LogLocked(log, "");
 
                 if (first)
                 {
-                    if (configuration.ResolveDns && configuration.HasDnsEndPoints())
+                    if (RawConfig.ResolveDns && RawConfig.HasDnsEndPoints())
                     {
                         var cts = new CancellationTokenSource();
-                        var dns = configuration.ResolveEndPointsAsync(this, log).ObserveErrors();
+                        var dns = RawConfig.ResolveEndPointsAsync(this, log).ObserveErrors();
                         if ((await Task.WhenAny(dns, Task.Delay(TimeoutMilliseconds, cts.Token)).ForAwait()) != dns)
                         {
                             throw new TimeoutException("Timeout resolving endpoints");
                         }
                         cts.Cancel();
                     }
-                    foreach (var endpoint in configuration.EndPoints)
+                    foreach (var endpoint in RawConfig.EndPoints)
                     {
                         GetServerEndPoint(endpoint, log, false);
                     }
                     ActivateAllServers(log);
                 }
-                int attemptsLeft = first ? configuration.ConnectRetry : 1;
+                int attemptsLeft = first ? RawConfig.ConnectRetry : 1;
 
                 bool healthy = false;
                 do
@@ -1368,7 +1366,7 @@ namespace StackExchange.Redis
                         attemptsLeft--;
                     }
                     int standaloneCount = 0, clusterCount = 0, sentinelCount = 0;
-                    var endpoints = configuration.EndPoints;
+                    var endpoints = RawConfig.EndPoints;
                     LogLocked(log, "{0} unique nodes specified", endpoints.Count);
 
                     if (endpoints.Count == 0)
@@ -1379,7 +1377,7 @@ namespace StackExchange.Redis
                     const CommandFlags flags = CommandFlags.NoRedirect | CommandFlags.HighPriority;
 #pragma warning restore CS0618
                     List<ServerEndPoint> masters = new List<ServerEndPoint>(endpoints.Count);
-                    bool useTieBreakers = !string.IsNullOrWhiteSpace(configuration.TieBreaker);
+                    bool useTieBreakers = !string.IsNullOrWhiteSpace(RawConfig.TieBreaker);
 
                     ServerEndPoint[] servers = null;
                     Task<string>[] tieBreakers = null;
@@ -1401,7 +1399,7 @@ namespace StackExchange.Redis
                         tieBreakers = useTieBreakers ? new Task<string>[endpoints.Count] : null;
                         servers = new ServerEndPoint[available.Length];
 
-                        RedisKey tieBreakerKey = useTieBreakers ? (RedisKey)configuration.TieBreaker : default(RedisKey);
+                        RedisKey tieBreakerKey = useTieBreakers ? (RedisKey)RawConfig.TieBreaker : default(RedisKey);
 
                         for (int i = 0; i < available.Length; i++)
                         {
@@ -1419,7 +1417,7 @@ namespace StackExchange.Redis
                             available[i] = server.SendTracer(log);
                             if (useTieBreakers)
                             {
-                                LogLocked(log, "Requesting tie-break from {0} > {1}...", Format.ToString(server.EndPoint), configuration.TieBreaker);
+                                LogLocked(log, "Requesting tie-break from {0} > {1}...", Format.ToString(server.EndPoint), RawConfig.TieBreaker);
                                 Message msg = Message.Create(0, flags, RedisCommand.GET, tieBreakerKey);
                                 msg.SetInternalCall();
                                 msg = LoggingMessage.Create(log, msg);
@@ -1428,7 +1426,7 @@ namespace StackExchange.Redis
                         }
 
                         watch = watch ?? Stopwatch.StartNew();
-                        var remaining = configuration.ConnectTimeout - checked((int)watch.ElapsedMilliseconds);
+                        var remaining = RawConfig.ConnectTimeout - checked((int)watch.ElapsedMilliseconds);
                         LogLocked(log, "Allowing endpoints {0} to respond...", TimeSpan.FromMilliseconds(remaining));
                         Trace("Allowing endpoints " + TimeSpan.FromMilliseconds(remaining) + " to respond...");
                         await WaitAllIgnoreErrorsAsync(available, remaining, log).ForAwait();
@@ -1598,7 +1596,7 @@ namespace StackExchange.Redis
                     //WTF("?: " + attempts);
                 } while (first && !healthy && attemptsLeft > 0);
 
-                if (first && configuration.AbortOnConnectFail && !healthy)
+                if (first && RawConfig.AbortOnConnectFail && !healthy)
                 {
                     return false;
                 }
@@ -1941,7 +1939,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal ConfigurationOptions RawConfig => configuration;
+        internal ConfigurationOptions RawConfig { get; }
 
         internal ServerSelectionStrategy ServerSelectionStrategy { get; }
 
@@ -2015,7 +2013,7 @@ namespace StackExchange.Redis
             if (allowCommandsToComplete)
             {
                 var quits = QuitAllServers();
-                await WaitAllIgnoreErrorsAsync(quits, configuration.AsyncTimeout, null).ForAwait();
+                await WaitAllIgnoreErrorsAsync(quits, RawConfig.AsyncTimeout, null).ForAwait();
             }
 
             DisposeAndClearServers();

@@ -125,7 +125,7 @@ namespace StackExchange.Redis
         internal static Exception PopulateInnerExceptions(ReadOnlySpan<ServerEndPoint> serverSnapshot)
         {
             var innerExceptions = new List<Exception>();
-            
+
             if (serverSnapshot.Length > 0 && serverSnapshot[0].Multiplexer.LastException != null)
             {
                 innerExceptions.Add(serverSnapshot[0].Multiplexer.LastException);
@@ -195,10 +195,6 @@ namespace StackExchange.Redis
             return message == null ? command.ToString() : (includeDetail ? message.CommandAndKey : message.Command.ToString());
         }
 
-        private static string GetLabel(bool includeDetail, string command, Message message)
-        {
-            return message == null ? command : (includeDetail ? message.CommandAndKey : message.Command.ToString());
-        }
         internal static Exception UnableToConnect(ConnectionMultiplexer muxer, string failureMessage=null)
         {
             var sb = new StringBuilder("It was not possible to connect to the redis server(s).");

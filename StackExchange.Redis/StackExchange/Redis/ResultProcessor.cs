@@ -1737,7 +1737,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 }
 
                 var arr = result.GetItems();
-                
+
                 // Calculate how many name/value pairs are in the stream entry.
                 int count = arr.Length / 2;
 
