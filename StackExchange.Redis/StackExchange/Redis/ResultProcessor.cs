@@ -1731,18 +1731,13 @@ The coordinates as a two items x,y array (longitude,latitude).
                 //       3) "temperature"
                 //       4) "18.2"
 
-                if (result.Type != ResultType.MultiBulk)
+                if (result.Type != ResultType.MultiBulk || result.IsNull)
                 {
                     return null;
                 }
 
                 var arr = result.GetItems();
-
-                if (arr == null)
-                {
-                    return null;
-                }
-
+                
                 // Calculate how many name/value pairs are in the stream entry.
                 int count = arr.Length / 2;
 

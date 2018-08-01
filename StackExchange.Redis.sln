@@ -21,7 +21,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "RedisConfigs", "RedisConfig
 		RedisConfigs\cli-secure.cmd = RedisConfigs\cli-secure.cmd
 		RedisConfigs\cli-slave.cmd = RedisConfigs\cli-slave.cmd
 		RedisConfigs\start-all.cmd = RedisConfigs\start-all.cmd
+		RedisConfigs\start-all.sh = RedisConfigs\start-all.sh
 		RedisConfigs\start-basic.cmd = RedisConfigs\start-basic.cmd
+		RedisConfigs\start-basic.sh = RedisConfigs\start-basic.sh
 		RedisConfigs\start-cluster.cmd = RedisConfigs\start-cluster.cmd
 		RedisConfigs\start-sentinel.cmd = RedisConfigs\start-sentinel.cmd
 	EndProjectSection

@@ -277,7 +277,6 @@ namespace StackExchange.Redis
 
         public void RecordConnectionFailed(ConnectionFailureType failureType, Exception innerException = null, [CallerMemberName] string origin = null, bool isInitialConnect = false)
         {
-
             Exception outerException = innerException;
             IdentifyFailureType(innerException, ref failureType);
             var bridge = BridgeCouldBeNull;
@@ -831,8 +830,7 @@ namespace StackExchange.Redis
             offset = WriteRaw(span, len, offset: offset);
             value.CopyTo(span.Slice(offset, len));
             offset += value.Length;
-            offset = WriteCrlf(span, offset);
-            return offset;
+            return WriteCrlf(span, offset);
         }
 
         private static int AppendToSpanSpan(Span<byte> span, ReadOnlySpan<byte> value, int offset = 0)
@@ -840,8 +838,7 @@ namespace StackExchange.Redis
             offset = WriteRaw(span, value.Length, offset: offset);
             value.CopyTo(span.Slice(offset, value.Length));
             offset += value.Length;
-            offset = WriteCrlf(span, offset);
-            return offset;
+            return WriteCrlf(span, offset);
         }
 
         internal void WriteSha1AsHex(byte[] value)
@@ -1342,7 +1339,7 @@ namespace StackExchange.Redis
 
         private static RawResult ReadArray(in ReadOnlySequence<byte> buffer, ref BufferReader reader, bool includeDetailInExceptions, ServerEndPoint server)
         {
-            var itemCount = ReadLineTerminatedString(ResultType.Integer, in buffer, ref reader);
+            var itemCount = ReadLineTerminatedString(ResultType.Integer, ref reader);
             if (itemCount.HasValue)
             {
                 if (!itemCount.TryGetInt64(out long i64)) throw ExceptionFactory.ConnectionFailure(includeDetailInExceptions, ConnectionFailureType.ProtocolFailure, "Invalid array length", server);
@@ -1374,9 +1371,9 @@ namespace StackExchange.Redis
             return RawResult.Nil;
         }
 
-        private static RawResult ReadBulkString(in ReadOnlySequence<byte> buffer, ref BufferReader reader, bool includeDetailInExceptions, ServerEndPoint server)
+        private static RawResult ReadBulkString(ref BufferReader reader, bool includeDetailInExceptions, ServerEndPoint server)
         {
-            var prefix = ReadLineTerminatedString(ResultType.Integer, in buffer, ref reader);
+            var prefix = ReadLineTerminatedString(ResultType.Integer, ref reader);
             if (prefix.HasValue)
             {
                 if (!prefix.TryGetInt64(out long i64)) throw ExceptionFactory.ConnectionFailure(includeDetailInExceptions, ConnectionFailureType.ProtocolFailure, "Invalid bulk string length", server);
@@ -1402,7 +1399,7 @@ namespace StackExchange.Redis
             return RawResult.Nil;
         }
 
-        private static RawResult ReadLineTerminatedString(ResultType type, in ReadOnlySequence<byte> buffer, ref BufferReader reader)
+        private static RawResult ReadLineTerminatedString(ResultType type, ref BufferReader reader)
         {
             int crlfOffsetFromCurrent = BufferReader.FindNextCrLf(reader);
             if (crlfOffsetFromCurrent < 0) return RawResult.Nil;
@@ -1424,21 +1421,21 @@ namespace StackExchange.Redis
             {
                 case '+': // simple string
                     reader.Consume(1);
-                    return ReadLineTerminatedString(ResultType.SimpleString, in buffer, ref reader);
+                    return ReadLineTerminatedString(ResultType.SimpleString, ref reader);
                 case '-': // error
                     reader.Consume(1);
-                    return ReadLineTerminatedString(ResultType.Error, in buffer, ref reader);
+                    return ReadLineTerminatedString(ResultType.Error, ref reader);
                 case ':': // integer
                     reader.Consume(1);
-                    return ReadLineTerminatedString(ResultType.Integer, in buffer, ref reader);
+                    return ReadLineTerminatedString(ResultType.Integer, ref reader);
                 case '$': // bulk string
                     reader.Consume(1);
-                    return ReadBulkString(in buffer, ref reader, includeDetilInExceptions, server);
+                    return ReadBulkString(ref reader, includeDetilInExceptions, server);
                 case '*': // array
                     reader.Consume(1);
                     return ReadArray(in buffer, ref reader, includeDetilInExceptions, server);
                 default:
-                    if (allowInlineProtocol) return ParseInlineProtocol(ReadLineTerminatedString(ResultType.SimpleString, in buffer, ref reader));
+                    if (allowInlineProtocol) return ParseInlineProtocol(ReadLineTerminatedString(ResultType.SimpleString, ref reader));
                     throw new InvalidOperationException("Unexpected response prefix: " + (char)prefix);
             }
         }

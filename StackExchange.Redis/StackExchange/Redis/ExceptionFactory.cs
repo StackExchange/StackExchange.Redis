@@ -125,22 +125,21 @@ namespace StackExchange.Redis
         internal static Exception PopulateInnerExceptions(ReadOnlySpan<ServerEndPoint> serverSnapshot)
         {
             var innerExceptions = new List<Exception>();
-            if (serverSnapshot != null)
+            
+            if (serverSnapshot.Length > 0 && serverSnapshot[0].Multiplexer.LastException != null)
             {
-                if (serverSnapshot.Length > 0 && serverSnapshot[0].Multiplexer.LastException != null)
-                {
-                    innerExceptions.Add(serverSnapshot[0].Multiplexer.LastException);
-                }
+                innerExceptions.Add(serverSnapshot[0].Multiplexer.LastException);
+            }
 
-                for (int i = 0; i < serverSnapshot.Length; i++)
+            for (int i = 0; i < serverSnapshot.Length; i++)
+            {
+                if (serverSnapshot[i].LastException != null)
                 {
-                    if (serverSnapshot[i].LastException != null)
-                    {
-                        var lastException = serverSnapshot[i].LastException;
-                        innerExceptions.Add(lastException);
-                    }
+                    var lastException = serverSnapshot[i].LastException;
+                    innerExceptions.Add(lastException);
                 }
             }
+
             if (innerExceptions.Count == 1)
             {
                 return innerExceptions[0];

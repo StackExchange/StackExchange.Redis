@@ -280,6 +280,7 @@ namespace StackExchange.Redis
 
         internal void OnConnectionFailed(PhysicalConnection connection, ConnectionFailureType failureType, Exception innerException)
         {
+            Trace($"OnConnectionFailed: {connection}");
             AbandonPendingBacklog(innerException);
             if (reportNextFailure)
             {
@@ -292,7 +293,7 @@ namespace StackExchange.Redis
 
         internal void OnDisconnected(ConnectionFailureType failureType, PhysicalConnection connection, out bool isCurrent, out State oldState)
         {
-            Trace("OnDisconnected");
+            Trace($"OnDisconnected: {failureType}");
 
             oldState = default(State); // only defined when isCurrent = true
             if (isCurrent = (physical == connection))
@@ -344,7 +345,7 @@ namespace StackExchange.Redis
                 if(next != null)
                 {
                     Multiplexer?.OnMessageFaulted(next, ex);
-                    next.SetException(ex);                    
+                    next.SetException(ex);
                     this.CompleteSyncOrAsync(next);
                 }
             } while (next != null);
