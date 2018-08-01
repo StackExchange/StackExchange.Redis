@@ -651,6 +651,10 @@ namespace StackExchange.Redis
 
             _ioPipe.Output.Advance(offset);
         }
+
+        internal void RecordQuit() // don't blame redis if we fired the first shot
+            => (_ioPipe as SocketConnection)?.TrySetProtocolShutdown(PipeShutdownKind.ProtocolExitClient);
+
         internal static void WriteMultiBulkHeader(PipeWriter output, long count)
         {
             // *{count}\r\n         = 3 + MaxInt32TextLen

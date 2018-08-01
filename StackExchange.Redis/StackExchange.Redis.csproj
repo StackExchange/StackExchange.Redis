@@ -26,7 +26,7 @@
   </ItemGroup>
   
   <ItemGroup>
-    <PackageReference Include="Pipelines.Sockets.Unofficial" Version="0.2.1-alpha.76" />
+    <PackageReference Include="Pipelines.Sockets.Unofficial" Version="0.2.1-alpha.77" />
     <PackageReference Include="System.Threading.Channels" Version="4.5.0" />
   </ItemGroup>
 </Project>
