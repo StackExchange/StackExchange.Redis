@@ -116,7 +116,6 @@ namespace StackExchange.Redis.Tests
                 }
                 Assert.False(true); // force fail
             }
-
         }
 #if DEBUG // needs AllowConnect, which is DEBUG only
         [Fact]

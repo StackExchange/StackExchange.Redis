@@ -12,7 +12,6 @@ namespace StackExchange.Redis
     }
     internal sealed partial class CompletionManager
     {
-
         internal static void CompleteSyncOrAsyncImpl(CompletionManager manager, ICompletable operation)
         {
             if (operation == null) return;

@@ -119,9 +119,9 @@ namespace BasicTest
             {
                 int x = rand.Next(50);
                 expected += x;
-                await db.StringIncrementAsync(IncrByKey, x, CommandFlags.FireAndForget);
+                await db.StringIncrementAsync(IncrByKey, x, CommandFlags.FireAndForget).ConfigureAwait(false);
             }
-            int actual = (int)await db.StringGetAsync(IncrByKey);
+            int actual = (int)await db.StringGetAsync(IncrByKey).ConfigureAwait(false);
             if (actual != expected) throw new InvalidOperationException($"expected: {expected}, actual: {actual}");
             return actual;
         }
@@ -160,7 +160,7 @@ namespace BasicTest
             for (int i = 0; i < COUNT; i++)
             {
                 var results = await db.GeoRadiusAsync(GeoKey, 15, 37, 200, GeoUnit.Kilometers,
-                    options: GeoRadiusOptions.WithCoordinates | GeoRadiusOptions.WithDistance | GeoRadiusOptions.WithGeoHash);
+                    options: GeoRadiusOptions.WithCoordinates | GeoRadiusOptions.WithDistance | GeoRadiusOptions.WithGeoHash).ConfigureAwait(false);
                 total += results.Length;
             }
             return total;
@@ -195,7 +195,7 @@ namespace BasicTest
         {
             for (int i = 0; i < max; ++i)
             {
-                await db.StringSetAsync(i.ToString(), i);
+                await db.StringSetAsync(i.ToString(), i).ConfigureAwait(false);
             }
         }
         [Benchmark(OperationsPerInvoke = max)]
@@ -224,7 +224,7 @@ namespace BasicTest
             {
                 var r = rnd.Next(0, max - 1);
 
-                var rv = await db.StringGetAsync(r.ToString());
+                var rv = await db.StringGetAsync(r.ToString()).ConfigureAwait(false);
                 if (rv != r)
                 {
                     throw new Exception($"Unexpected {rv}, expected {r}");

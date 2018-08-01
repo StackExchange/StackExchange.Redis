@@ -14,7 +14,7 @@ namespace KestrelRedisServer
         {
             try
             {
-                await _server.RunClientAsync(connection.Transport);
+                await _server.RunClientAsync(connection.Transport).ConfigureAwait(false);
             }
             catch (IOException io) when (io.InnerException is UvException uv && uv.StatusCode == -4077)
             { } //swallow libuv disconnect

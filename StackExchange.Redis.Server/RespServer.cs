@@ -158,9 +158,12 @@ namespace StackExchange.Redis.Server
             public TypedRedisValue Execute(RedisClient client, RedisRequest request)
             {
                 var args = request.Count;
-                if (!CheckArity(request.Count)) return IsSubCommand
-                        ? request.UnknownSubcommandOrArgumentCount()
-                        : request.WrongArgCount();
+                if (!CheckArity(request.Count))
+                {
+                    return IsSubCommand
+                           ? request.UnknownSubcommandOrArgumentCount()
+                           : request.WrongArgCount();
+                }
 
                 return _operation(client, request);
             }
@@ -222,7 +225,7 @@ namespace StackExchange.Redis.Server
         {
             if (_isShutdown) throw new InvalidOperationException("The server is shutting down");
         }
-        protected void DoShutdown(ShutdownReason reason, PipeScheduler scheduler = null)
+        protected void DoShutdown(ShutdownReason reason)
         {
             if (_isShutdown) return;
             Log("Server shutting down...");
@@ -250,11 +253,11 @@ namespace StackExchange.Redis.Server
                 client = AddClient();
                 while (!client.Closed)
                 {
-                    var readResult = await pipe.Input.ReadAsync();
+                    var readResult = await pipe.Input.ReadAsync().ConfigureAwait(false);
                     var buffer = readResult.Buffer;
 
                     bool makingProgress = false;
-                    while (!client.Closed && await TryProcessRequestAsync(ref buffer, client, pipe.Output))
+                    while (!client.Closed && await TryProcessRequestAsync(ref buffer, client, pipe.Output).ConfigureAwait(false))
                     {
                         makingProgress = true;
                     }
@@ -358,7 +361,7 @@ namespace StackExchange.Redis.Server
                     throw new InvalidOperationException(
                         "Unexpected result type: " + value.Type);
             }
-            await output.FlushAsync();
+            await output.FlushAsync().ConfigureAwait(false);
         }
         public static bool TryParseRequest(ref ReadOnlySequence<byte> buffer, out RedisRequest request)
         {

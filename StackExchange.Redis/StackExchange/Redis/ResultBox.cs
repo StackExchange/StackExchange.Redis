@@ -29,7 +29,7 @@ namespace StackExchange.Redis
         // that call Cancel are transactions etc - TCS-based, and we detect
         // that and use TrySetCanceled instead
         // about any confusion in stack-trace
-        static readonly Exception s_cancelled = new TaskCanceledException();
+        private static readonly Exception s_cancelled = new TaskCanceledException();
     }
 
     internal sealed class ResultBox<T> : ResultBox

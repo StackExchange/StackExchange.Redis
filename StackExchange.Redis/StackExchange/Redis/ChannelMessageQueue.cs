@@ -155,6 +155,7 @@ namespace StackExchange.Redis
             ThreadPool.QueueUserWorkItem(
                 state => ((ChannelMessageQueue)state).OnMessageSyncImpl(), this);
         }
+
         private async void OnMessageSyncImpl()
         {
             var handler = (Action<ChannelMessage>)_onMessageHandler;
@@ -207,6 +208,7 @@ namespace StackExchange.Redis
                 catch { } // matches MessageCompletable
             }
         }
+
         internal void UnsubscribeImpl(Exception error = null, CommandFlags flags = CommandFlags.None)
         {
             var parent = _parent;
@@ -216,15 +218,15 @@ namespace StackExchange.Redis
                 parent.UnsubscribeAsync(Channel, HandleMessage, flags);
             }
             _queue.Writer.TryComplete(error);
-
         }
+
         internal async Task UnsubscribeAsyncImpl(Exception error = null, CommandFlags flags = CommandFlags.None)
         {
             var parent = _parent;
             _parent = null;
             if (parent != null)
             {
-                await parent.UnsubscribeAsync(Channel, HandleMessage, flags).ConfigureAwait(false);                
+                await parent.UnsubscribeAsync(Channel, HandleMessage, flags).ConfigureAwait(false);
             }
             _queue.Writer.TryComplete(error);
         }

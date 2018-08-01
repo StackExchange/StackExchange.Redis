@@ -23,10 +23,7 @@ namespace KestrelRedisServer
                     options.ListenLocalhost(5000);
 
                     // TCP 6379
-                    options.ListenLocalhost(6379, builder =>
-                    {
-                        builder.UseConnectionHandler<RedisConnectionHandler>();
-                    });
+                    options.ListenLocalhost(6379, builder => builder.UseConnectionHandler<RedisConnectionHandler>());
                 }).UseStartup<Startup>();
     }
 }

@@ -161,7 +161,7 @@ namespace StackExchange.Redis.Tests
                 for (var i = 0; i < tasks.Length; i++)
                 {
                     var ix = i;
-                    var task = Task.Run(async () => 
+                    tasks[ix] = Task.Run(async () =>
                     {
                         var db = conn.GetDatabase(ix);
 
@@ -178,8 +178,6 @@ namespace StackExchange.Redis.Tests
 
                         results[ix] = profiler.GetSession().FinishProfiling();
                     });
-                    tasks[ix] = task;
-
                 }
                 Task.WhenAll(tasks).Wait();
 

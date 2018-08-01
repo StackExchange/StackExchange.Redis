@@ -221,15 +221,15 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        static TaskStatus SafeStatus(Task task)
+        private static TaskStatus SafeStatus(Task task)
         {
-            if(task.Status == TaskStatus.WaitingForActivation)
+            if (task.Status == TaskStatus.WaitingForActivation)
             {
                 try
                 {
                     if (!task.Wait(1000)) throw new TimeoutException("timeout waiting for task to complete");
                 }
-                catch(AggregateException ex)
+                catch (AggregateException ex)
                 when (ex.InnerException is TaskCanceledException
                     || (ex.InnerExceptions.Count == 1 && ex.InnerException is TaskCanceledException))
                 {
