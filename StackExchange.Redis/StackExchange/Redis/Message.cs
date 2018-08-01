@@ -23,7 +23,7 @@ namespace StackExchange.Redis
         {
             this.log = log;
             this.tail = tail;
-            FlagsRaw = tail.FlagsRaw;
+            Flags = tail.Flags;
         }
 
         public override string CommandAndKey => tail.CommandAndKey;
@@ -75,9 +75,6 @@ namespace StackExchange.Redis
                                                        | CommandFlags.FireAndForget
                                                        | CommandFlags.NoRedirect
                                                        | CommandFlags.NoScriptCache;
-
-        private CommandFlags flags;
-        internal CommandFlags FlagsRaw { get { return flags; } set { flags = value; } }
         private ResultBox resultBox;
 
         private ResultProcessor resultProcessor;
@@ -112,7 +109,7 @@ namespace StackExchange.Redis
             bool masterOnly = IsMasterOnly(command);
             Db = db;
             this.command = command;
-            this.flags = flags & UserSelectableFlags;
+            Flags = flags & UserSelectableFlags;
             if (masterOnly) SetMasterOnly();
 
             createdDateTime = DateTime.UtcNow;
@@ -122,7 +119,7 @@ namespace StackExchange.Redis
 
         internal void SetMasterOnly()
         {
-            switch (GetMasterSlaveFlags(flags))
+            switch (GetMasterSlaveFlags(Flags))
             {
                 case CommandFlags.DemandSlave:
                     throw ExceptionFactory.MasterOnly(false, command, null, null);
@@ -132,7 +129,7 @@ namespace StackExchange.Redis
                 case CommandFlags.PreferMaster:
                 case CommandFlags.PreferSlave:
                 default: // we will run this on the master, then
-                    flags = SetMasterSlaveFlags(flags, CommandFlags.DemandMaster);
+                    Flags = SetMasterSlaveFlags(Flags, CommandFlags.DemandMaster);
                     break;
             }
         }
@@ -159,13 +156,10 @@ namespace StackExchange.Redis
             Status = CommandStatus.WaitingToBeSent;
         }
 
+        public CommandFlags Flags { get; internal set; }
         internal CommandStatus Status { get; private set; }
-
         public RedisCommand Command => command;
-
         public virtual string CommandAndKey => Command.ToString();
-
-        public CommandFlags Flags => flags;
 
         /// <summary>
         /// Things with the potential to cause harm, or to reveal configuration information
@@ -200,17 +194,17 @@ namespace StackExchange.Redis
             }
         }
 
-        public bool IsAsking => (flags & AskingFlag) != 0;
+        public bool IsAsking => (Flags & AskingFlag) != 0;
 
-        internal bool IsScriptUnavailable => (flags & ScriptUnavailableFlag) != 0;
+        internal bool IsScriptUnavailable => (Flags & ScriptUnavailableFlag) != 0;
 
         internal void SetScriptUnavailable()
         {
-            flags |= ScriptUnavailableFlag;
+            Flags |= ScriptUnavailableFlag;
         }
 
-        public bool IsFireAndForget => (flags & CommandFlags.FireAndForget) != 0;
-        public bool IsInternalCall => (flags & InternalCallFlag) != 0;
+        public bool IsFireAndForget => (Flags & CommandFlags.FireAndForget) != 0;
+        public bool IsInternalCall => (Flags & InternalCallFlag) != 0;
 
         public ResultBox ResultBox => resultBox;
 
@@ -420,7 +414,7 @@ namespace StackExchange.Redis
             // note that the constructor runs the switch statement above, so
             // this will alread be true for master-only commands, even if the
             // user specified PreferMaster etc
-            return GetMasterSlaveFlags(flags) == CommandFlags.DemandMaster;
+            return GetMasterSlaveFlags(Flags) == CommandFlags.DemandMaster;
         }
 
         /// <summary>
@@ -434,7 +428,7 @@ namespace StackExchange.Redis
         /// </summary>
         public void SetInternalCall()
         {
-            flags |= InternalCallFlag;
+            Flags |= InternalCallFlag;
         }
 
         public override string ToString()
@@ -619,7 +613,7 @@ namespace StackExchange.Redis
         internal void SetRequestSent()
         {
             Status = CommandStatus.Sent;
-            if ((flags & NeedsAsyncTimeoutCheckFlag) != 0)
+            if ((Flags & NeedsAsyncTimeoutCheckFlag) != 0)
             {
                 _writeTickCount = Environment.TickCount; // note this might be reset if we resend a message, cluster-moved etc; I'm OK with that
             }
@@ -628,15 +622,15 @@ namespace StackExchange.Redis
         // the time (ticks) at which this message was considered written
         private int _writeTickCount;
 
-        private void SetNeedsTimeoutCheck() => flags |= NeedsAsyncTimeoutCheckFlag;
+        private void SetNeedsTimeoutCheck() => Flags |= NeedsAsyncTimeoutCheckFlag;
         internal bool HasAsyncTimedOut(int now, int timeoutMilliseconds, out int millisecondsTaken)
         {
-            if ((flags & NeedsAsyncTimeoutCheckFlag) != 0)
+            if ((Flags & NeedsAsyncTimeoutCheckFlag) != 0)
             {
                 millisecondsTaken = unchecked(now - _writeTickCount); // note: we can't just check "if sent < cutoff" because of wrap-aro
                 if (millisecondsTaken >= timeoutMilliseconds)
                 {
-                    flags &= ~NeedsAsyncTimeoutCheckFlag; // note: we don't remove it from the queue - still might need to marry it up; but: it is toast
+                    Flags &= ~NeedsAsyncTimeoutCheckFlag; // note: we don't remove it from the queue - still might need to marry it up; but: it is toast
                     return true;
                 }
             }
@@ -649,23 +643,23 @@ namespace StackExchange.Redis
 
         internal void SetAsking(bool value)
         {
-            if (value) flags |= AskingFlag; // the bits giveth
-            else flags &= ~AskingFlag; // and the bits taketh away
+            if (value) Flags |= AskingFlag; // the bits giveth
+            else Flags &= ~AskingFlag; // and the bits taketh away
         }
 
         internal void SetNoRedirect()
         {
-            flags |= CommandFlags.NoRedirect;
+            Flags |= CommandFlags.NoRedirect;
         }
 
         internal void SetPreferMaster()
         {
-            flags = (flags & ~MaskMasterServerPreference) | CommandFlags.PreferMaster;
+            Flags = (Flags & ~MaskMasterServerPreference) | CommandFlags.PreferMaster;
         }
 
         internal void SetPreferSlave()
         {
-            flags = (flags & ~MaskMasterServerPreference) | CommandFlags.PreferSlave;
+            Flags = (Flags & ~MaskMasterServerPreference) | CommandFlags.PreferSlave;
         }
 
         internal void SetSource(ResultProcessor resultProcessor, ResultBox resultBox)
