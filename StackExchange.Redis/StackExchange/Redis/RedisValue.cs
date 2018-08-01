@@ -417,19 +417,21 @@ namespace StackExchange.Redis
 
         internal static RedisValue TryParse(object obj)
         {
-            if (obj == null) return RedisValue.Null;
-            if (obj is RedisValue) return (RedisValue)obj;
-            if (obj is string) return (RedisValue)(string)obj;
-            if (obj is int) return (RedisValue)(int)obj;
-            if (obj is double) return (RedisValue)(double)obj;
-            if (obj is byte[]) return (RedisValue)(byte[])obj;
-            if (obj is bool) return (RedisValue)(bool)obj;
-            if (obj is long) return (RedisValue)(long)obj;
-            if (obj is float) return (RedisValue)(float)obj;
-            if (obj is ReadOnlyMemory<byte>) return (RedisValue)(ReadOnlyMemory<byte>)obj;
-            if (obj is Memory<byte>) return (RedisValue)(Memory<byte>)obj;
-
-            return Null;
+            switch (obj)
+            {
+                case null: return Null;
+                case RedisValue v: return v;
+                case string v: return v;
+                case int v: return v;
+                case double v: return v;
+                case byte[] v: return v;
+                case bool v: return v;
+                case long v: return v;
+                case float v: return v;
+                case ReadOnlyMemory<byte> v: return v;
+                case Memory<byte> v: return v;
+                default: return Null;
+            }
         }
 
         /// <summary>
