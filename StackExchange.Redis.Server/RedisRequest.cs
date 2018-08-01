@@ -51,7 +51,7 @@ namespace StackExchange.Redis.Server
 
         internal bool TryGetCommandBytes(int i, out CommandBytes command)
         {
-            var payload = _inner[i].DirecyPayload;
+            var payload = _inner[i].Payload;
             if (payload.Length > CommandBytes.MaxLength)
             {
                 command = default;

@@ -11,20 +11,18 @@ namespace StackExchange.Redis
         {
             get
             {
-                if (index >= _itemsCount) throw new IndexOutOfRangeException();
+                if (index >= ItemsCount) throw new IndexOutOfRangeException();
                 return _itemsOversized[index];
             }
         }
-        internal int ItemsCount => _itemsCount;
+        internal int ItemsCount { get; }
+        internal ReadOnlySequence<byte> Payload { get; }
+
         internal static readonly RawResult NullMultiBulk = new RawResult(null, 0);
         internal static readonly RawResult EmptyMultiBulk = new RawResult(Array.Empty<RawResult>(), 0);
         internal static readonly RawResult Nil = default;
-
-        private readonly ReadOnlySequence<byte> _payload;
-        internal ReadOnlySequence<byte> DirecyPayload => _payload;
         // note: can't use Memory<RawResult> here - struct recursion breaks runtimr
         private readonly RawResult[] _itemsOversized;
-        private readonly int _itemsCount;
         private readonly ResultType _type;
 
         private const ResultType NonNullFlag = (ResultType)128;
@@ -43,18 +41,18 @@ namespace StackExchange.Redis
             }
             if (!isNull) resultType |= NonNullFlag;
             _type = resultType;
-            _payload = payload;
+            Payload = payload;
             _itemsOversized = default;
-            _itemsCount = default;
+            ItemsCount = default;
         }
 
         public RawResult(RawResult[] itemsOversized, int itemCount)
         {
             _type = ResultType.MultiBulk;
             if (itemsOversized != null) _type |= NonNullFlag;
-            _payload = default;
+            Payload = default;
             _itemsOversized = itemsOversized;
-            _itemsCount = itemCount;
+            ItemsCount = itemCount;
         }
 
         public bool IsError => Type == ResultType.Error;
@@ -74,15 +72,15 @@ namespace StackExchange.Redis
                 case ResultType.Error:
                     return $"{Type}: {GetString()}";
                 case ResultType.BulkString:
-                    return $"{Type}: {_payload.Length} bytes";
+                    return $"{Type}: {Payload.Length} bytes";
                 case ResultType.MultiBulk:
-                    return $"{Type}: {_itemsCount} items";
+                    return $"{Type}: {ItemsCount} items";
                 default:
                     return $"(unknown: {Type})";
             }
         }
 
-        public Tokenizer GetInlineTokenizer() => new Tokenizer(_payload);
+        public Tokenizer GetInlineTokenizer() => new Tokenizer(Payload);
 
         internal ref struct Tokenizer
         {
@@ -144,7 +142,7 @@ namespace StackExchange.Redis
                     }
                     if (StartsWith(channelPrefix))
                     {
-                        byte[] copy = _payload.Slice(channelPrefix.Length).ToArray();
+                        byte[] copy = Payload.Slice(channelPrefix.Length).ToArray();
                         return new RedisChannel(copy, mode);
                     }
                     return default(RedisChannel);
@@ -186,7 +184,7 @@ namespace StackExchange.Redis
             var arr = _itemsOversized;
             if (arr != null)
             {
-                if (limit < 0) limit = _itemsCount;
+                if (limit < 0) limit = ItemsCount;
                 for (int i = 0; i < limit; i++)
                 {
                     arr[i].Recycle();
@@ -197,15 +195,15 @@ namespace StackExchange.Redis
 
         internal bool IsEqual(CommandBytes expected)
         {
-            if (expected.Length != _payload.Length) return false;
-            return new CommandBytes(_payload).Equals(expected);
+            if (expected.Length != Payload.Length) return false;
+            return new CommandBytes(Payload).Equals(expected);
         }
 
         internal unsafe bool IsEqual(byte[] expected)
         {
             if (expected == null) throw new ArgumentNullException(nameof(expected));
 
-            var rangeToCheck = _payload;
+            var rangeToCheck = Payload;
 
             if (expected.Length != rangeToCheck.Length) return false;
             if (rangeToCheck.IsSingleSegment) return rangeToCheck.First.Span.SequenceEqual(expected);
@@ -225,17 +223,17 @@ namespace StackExchange.Redis
         internal bool StartsWith(CommandBytes expected)
         {
             var len = expected.Length;
-            if (len > _payload.Length) return false;
+            if (len > Payload.Length) return false;
 
-            var rangeToCheck = _payload.Slice(0, len);
+            var rangeToCheck = Payload.Slice(0, len);
             return new CommandBytes(rangeToCheck).Equals(expected);
         }
         internal bool StartsWith(byte[] expected)
         {
             if (expected == null) throw new ArgumentNullException(nameof(expected));
-            if (expected.Length > _payload.Length) return false;
+            if (expected.Length > Payload.Length) return false;
 
-            var rangeToCheck = _payload.Slice(0, expected.Length);
+            var rangeToCheck = Payload.Slice(0, expected.Length);
             if (rangeToCheck.IsSingleSegment) return rangeToCheck.First.Span.SequenceEqual(expected);
 
             int offset = 0;
@@ -254,15 +252,15 @@ namespace StackExchange.Redis
         {
             if (IsNull) return null;
 
-            if (_payload.IsEmpty) return Array.Empty<byte>();
+            if (Payload.IsEmpty) return Array.Empty<byte>();
 
-            return _payload.ToArray();
+            return Payload.ToArray();
         }
 
         internal bool GetBoolean()
         {
-            if (_payload.Length != 1) throw new InvalidCastException();
-            switch (_payload.First.Span[0])
+            if (Payload.Length != 1) throw new InvalidCastException();
+            switch (Payload.First.Span[0])
             {
                 case (byte)'1': return true;
                 case (byte)'0': return false;
@@ -273,13 +271,13 @@ namespace StackExchange.Redis
         internal ReadOnlySpan<RawResult> GetItems()
         {
             if (Type == ResultType.MultiBulk)
-                return new ReadOnlySpan<RawResult>(_itemsOversized, 0, _itemsCount);
+                return new ReadOnlySpan<RawResult>(_itemsOversized, 0, ItemsCount);
             throw new InvalidOperationException();
         }
         internal ReadOnlyMemory<RawResult> GetItemsMemory()
         {
             if (Type == ResultType.MultiBulk)
-                return new ReadOnlyMemory<RawResult>(_itemsOversized, 0, _itemsCount);
+                return new ReadOnlyMemory<RawResult>(_itemsOversized, 0, ItemsCount);
             throw new InvalidOperationException();
         }
 
@@ -396,11 +394,11 @@ namespace StackExchange.Redis
         internal unsafe string GetString()
         {
             if (IsNull) return null;
-            if (_payload.IsEmpty) return "";
+            if (Payload.IsEmpty) return "";
 
-            if (_payload.IsSingleSegment)
+            if (Payload.IsSingleSegment)
             {
-                var span = _payload.First.Span;
+                var span = Payload.First.Span;
                 fixed (byte* ptr = &MemoryMarshal.GetReference(span))
                 {
                     return Encoding.UTF8.GetString(ptr, span.Length);
@@ -408,7 +406,7 @@ namespace StackExchange.Redis
             }
             var decoder = Encoding.UTF8.GetDecoder();
             int charCount = 0;
-            foreach(var segment in _payload)
+            foreach(var segment in Payload)
             {
                 var span = segment.Span;
                 if (span.IsEmpty) continue;
@@ -425,7 +423,7 @@ namespace StackExchange.Redis
             fixed (char* sPtr = s)
             {
                 char* cPtr = sPtr;
-                foreach (var segment in _payload)
+                foreach (var segment in Payload)
                 {
                     var span = segment.Span;
                     if (span.IsEmpty) continue;
@@ -458,16 +456,16 @@ namespace StackExchange.Redis
 
         internal bool TryGetInt64(out long value)
         {
-            if(IsNull || _payload.IsEmpty || _payload.Length > PhysicalConnection.MaxInt64TextLen)
+            if(IsNull || Payload.IsEmpty || Payload.Length > PhysicalConnection.MaxInt64TextLen)
             {
                 value = 0;
                 return false;
             }
 
-            if (_payload.IsSingleSegment) return RedisValue.TryParseInt64(_payload.First.Span, out value);
+            if (Payload.IsSingleSegment) return RedisValue.TryParseInt64(Payload.First.Span, out value);
 
-            Span<byte> span = stackalloc byte[(int)_payload.Length]; // we already checked the length was <= MaxInt64TextLen
-            _payload.CopyTo(span);
+            Span<byte> span = stackalloc byte[(int)Payload.Length]; // we already checked the length was <= MaxInt64TextLen
+            Payload.CopyTo(span);
             return RedisValue.TryParseInt64(span, out value);
         }
     }

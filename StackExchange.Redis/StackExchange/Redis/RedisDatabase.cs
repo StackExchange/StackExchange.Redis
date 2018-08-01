@@ -3231,24 +3231,23 @@ namespace StackExchange.Redis
 
         internal sealed class ExecuteMessage : Message
         {
-            private readonly CommandBytes _command;
             private readonly ICollection<object> _args;
+            public new CommandBytes Command { get; }
 
-            public new CommandBytes Command => _command;
             public ExecuteMessage(CommandMap map, int db, CommandFlags flags, string command, ICollection<object> args) : base(db, flags, RedisCommand.UNKNOWN)
             {
                 if (args != null && args.Count >= PhysicalConnection.REDIS_MAX_ARGS) // using >= here because we will be adding 1 for the command itself (which is an arg for the purposes of the multi-bulk protocol)
                 {
                     throw ExceptionFactory.TooManyArgs(command, args.Count);
                 }
-                _command = map?.GetBytes(command) ?? default;
-                if (_command.IsEmpty) throw ExceptionFactory.CommandDisabled(command);
+                Command = map?.GetBytes(command) ?? default;
+                if (Command.IsEmpty) throw ExceptionFactory.CommandDisabled(command);
                 _args = args ?? Array.Empty<object>();
             }
 
             protected override void WriteImpl(PhysicalConnection physical)
             {
-                physical.WriteHeader(RedisCommand.UNKNOWN, _args.Count, _command);
+                physical.WriteHeader(RedisCommand.UNKNOWN, _args.Count, Command);
                 foreach (object arg in _args)
                 {
                     if (arg is RedisKey key)
@@ -3268,7 +3267,7 @@ namespace StackExchange.Redis
                 }
             }
 
-            public override string CommandAndKey => _command.ToString();
+            public override string CommandAndKey => Command.ToString();
 
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
             {

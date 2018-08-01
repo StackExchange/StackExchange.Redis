@@ -394,12 +394,12 @@ namespace StackExchange.Redis
         private sealed class SingleRedisResult : RedisResult
         {
             private readonly RedisValue _value;
-            private readonly ResultType _resultType;
-            public override ResultType Type => _resultType;
+            public override ResultType Type { get; }
+
             public SingleRedisResult(RedisValue value, ResultType? resultType)
             {
                 _value = value;
-                _resultType = resultType ?? (value.IsInteger ? ResultType.Integer : ResultType.BulkString);
+                Type = resultType ?? (value.IsInteger ? ResultType.Integer : ResultType.BulkString);
             }
 
             public override bool IsNull => _value.IsNull;
