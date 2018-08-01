@@ -315,6 +315,8 @@ namespace StackExchange.Redis
                         {
                             exMessage.Append("/").Append(sc.SocketError);
                         }
+                        if (sc.BytesRead == 0) exMessage.Append(", 0-read");
+                        if (sc.BytesSent == 0) exMessage.Append(", 0-sent");
                         exMessage.Append(")");
                     }
 
