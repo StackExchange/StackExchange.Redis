@@ -77,6 +77,7 @@ The `ConfigurationOptions` object has a wide range of properties, all of which a
 | password={string}      | `Password`             | `null`                       | Password for the redis server                                                                             |
 | proxy={proxy type}     | `Proxy`                | `Proxy.None`                 | Type of proxy in use (if any); for example "twemproxy"                                                    |
 | resolveDns={bool}      | `ResolveDns`           | `false`                      | Specifies that DNS resolution should be explicit and eager, rather than implicit                          |
+| responseTimeout={int}  | `ResponseTimeout`      | `SyncTimeout`                | Time (ms) to decide whether the socket is unhealthy                                                |
 | serviceName={string}   | `ServiceName`          | `null`                       | Not currently implemented (intended for use with sentinel)                                                |
 | ssl={bool}             | `Ssl`                  | `false`                      | Specifies that SSL encryption should be used                                                              |
 | sslHost={string}       | `SslHost`              | `null`                       | Enforces a particular SSL host identity on the server's certificate                                       |
