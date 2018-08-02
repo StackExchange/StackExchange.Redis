@@ -14,7 +14,7 @@ namespace StackExchange.Redis.Tests
             {
                 var db = conn.GetDatabase();
                 RedisKey key = Me();
-                db.KeyDelete(key);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
 
                 db.SortedSetAdd(key,
                     new SortedSetEntry[]
@@ -26,7 +26,7 @@ namespace StackExchange.Redis.Tests
                     new SortedSetEntry("e", 0),
                     new SortedSetEntry("f", 0),
                     new SortedSetEntry("g", 0),
-                });
+                }, CommandFlags.FireAndForget);
 
                 var set = db.SortedSetRangeByValue(key, default(RedisValue), "c");
                 var count = db.SortedSetLengthByValue(key, default(RedisValue), "c");
@@ -42,6 +42,12 @@ namespace StackExchange.Redis.Tests
 
                 set = db.SortedSetRangeByValue(key, "aaa", "g", Exclude.Stop, 1, 3);
                 Equate(set, set.Length, "c", "d", "e");
+
+                set = db.SortedSetRangeByValue(key, "aaa", "g", Exclude.Stop, Order.Descending, 1, 3);
+                Equate(set, set.Length, "e", "d", "c");
+
+                set = db.SortedSetRangeByValue(key, "g", "aaa", Exclude.Start, Order.Descending, 1, 3);
+                Equate(set, set.Length, "e", "d", "c");
             }
         }
 
@@ -52,7 +58,7 @@ namespace StackExchange.Redis.Tests
             {
                 var db = conn.GetDatabase();
                 RedisKey key = Me();
-                db.KeyDelete(key);
+                db.KeyDelete(key, CommandFlags.FireAndForget);
 
                 db.SortedSetAdd(key,
                     new SortedSetEntry[]
@@ -62,7 +68,7 @@ namespace StackExchange.Redis.Tests
                     new SortedSetEntry("c", 0),
                     new SortedSetEntry("d", 0),
                     new SortedSetEntry("e", 0),
-                });
+                }, CommandFlags.FireAndForget);
                 db.SortedSetAdd(key,
                     new SortedSetEntry[]
                 {
@@ -71,7 +77,7 @@ namespace StackExchange.Redis.Tests
                     new SortedSetEntry("zip", 0),
                     new SortedSetEntry("ALPHA", 0),
                     new SortedSetEntry("alpha", 0),
-                });
+                }, CommandFlags.FireAndForget);
 
                 var set = db.SortedSetRangeByRank(key);
                 Equate(set, set.Length, "ALPHA", "aaaa", "alpha", "b", "c", "d", "e", "foo", "zap", "zip");
@@ -86,7 +92,7 @@ namespace StackExchange.Redis.Tests
 
         private void Equate(RedisValue[] actual, long count, params string[] expected)
         {
-            Assert.Equal(count, expected.Length);
+            Assert.Equal(expected.Length, count);
             Assert.Equal(expected.Length, actual.Length);
             for (int i = 0; i < actual.Length; i++)
             {

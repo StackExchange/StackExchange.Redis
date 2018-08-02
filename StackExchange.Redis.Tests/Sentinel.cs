@@ -1,24 +1,23 @@
 ﻿using System.IO;
 using System.Net;
 using System.Threading;
+using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    public class Sentinel
+    public class Sentinel : TestBase
     {
         private string ServiceName => TestConfig.Current.SentinelSeviceName;
 
         private ConnectionMultiplexer Conn { get; }
         private IServer Server { get; }
-        protected StringWriter Log { get; }
+        protected StringWriter ConnectionLog { get; }
 
-        public ITestOutputHelper Output { get; }
-        public Sentinel(ITestOutputHelper output)
+        public Sentinel(ITestOutputHelper output) : base(output)
         {
-            Output = output;
-            Log = new StringWriter();
+            ConnectionLog = new StringWriter();
 
             Skip.IfNoConfig(nameof(TestConfig.Config.SentinelServer), TestConfig.Current.SentinelServer);
             Skip.IfNoConfig(nameof(TestConfig.Config.SentinelSeviceName), TestConfig.Current.SentinelSeviceName);
@@ -32,7 +31,7 @@ namespace StackExchange.Redis.Tests
                 ServiceName = TestConfig.Current.SentinelSeviceName,
                 SyncTimeout = 5000
             };
-            Conn = ConnectionMultiplexer.Connect(options, Log);
+            Conn = ConnectionMultiplexer.Connect(options, ConnectionLog);
             Thread.Sleep(3000);
             Assert.True(Conn.IsConnected);
             Server = Conn.GetServer(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPort);
@@ -42,7 +41,7 @@ namespace StackExchange.Redis.Tests
         public void PingTest()
         {
             var test = Server.Ping();
-            Output.WriteLine("ping took {0} ms", test.TotalMilliseconds);
+            Log("ping took {0} ms", test.TotalMilliseconds);
         }
 
         [Fact]
@@ -52,7 +51,7 @@ namespace StackExchange.Redis.Tests
             Assert.NotNull(endpoint);
             var ipEndPoint = endpoint as IPEndPoint;
             Assert.NotNull(ipEndPoint);
-            Output.WriteLine("{0}:{1}", ipEndPoint.Address, ipEndPoint.Port);
+            Log("{0}:{1}", ipEndPoint.Address, ipEndPoint.Port);
         }
 
         [Fact]
@@ -63,13 +62,20 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public async Task SentinelGetMasterAddressByNameAsyncNegativeTest()
+        {
+            var endpoint = await Server.SentinelGetMasterAddressByNameAsync("FakeServiceName").ForAwait();
+            Assert.Null(endpoint);
+        }
+
+        [Fact]
         public void SentinelMasterTest()
         {
             var dict = Server.SentinelMaster(ServiceName).ToDictionary();
             Assert.Equal(ServiceName, dict["name"]);
             foreach (var kvp in dict)
             {
-                Output.WriteLine("{0}:{1}", kvp.Key, kvp.Value);
+                Log("{0}:{1}", kvp.Key, kvp.Value);
             }
         }
 
@@ -82,7 +88,7 @@ namespace StackExchange.Redis.Tests
             {
                 foreach (var kvp in config)
                 {
-                    Output.WriteLine("{0}:{1}", kvp.Key, kvp.Value);
+                    Log("{0}:{1}", kvp.Key, kvp.Value);
                 }
             }
         }
@@ -98,7 +104,7 @@ namespace StackExchange.Redis.Tests
             foreach (var config in slaveConfigs)
             {
                 foreach (var kvp in config) {
-                    Output.WriteLine("{0}:{1}", kvp.Key, kvp.Value);
+                    Log("{0}:{1}", kvp.Key, kvp.Value);
                 }
             }
         }

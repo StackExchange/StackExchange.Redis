@@ -302,7 +302,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void KeyRestore()
         {
-            Byte[] value = new Byte[0];
+            byte[] value = new byte[0];
             TimeSpan expiry = TimeSpan.FromSeconds(123);
             wrapper.KeyRestore("key", value, expiry, CommandFlags.HighPriority);
             mock.Verify(_ => _.KeyRestore("prefix:key", value, expiry, CommandFlags.HighPriority));
@@ -567,6 +567,9 @@ namespace StackExchange.Redis.Tests
         {
             wrapper.SetPop("key", CommandFlags.HighPriority);
             mock.Verify(_ => _.SetPop("prefix:key", CommandFlags.HighPriority));
+
+            wrapper.SetPop("key", 5, CommandFlags.HighPriority);
+            mock.Verify(_ => _.SetPop("prefix:key", 5, CommandFlags.HighPriority));
         }
 
         [Fact]
@@ -722,7 +725,14 @@ namespace StackExchange.Redis.Tests
         public void SortedSetRangeByValue()
         {
             wrapper.SortedSetRangeByValue("key", "min", "max", Exclude.Start, 123, 456, CommandFlags.HighPriority);
-            mock.Verify(_ => _.SortedSetRangeByValue("prefix:key", "min", "max", Exclude.Start, 123, 456, CommandFlags.HighPriority));
+            mock.Verify(_ => _.SortedSetRangeByValue("prefix:key", "min", "max", Exclude.Start, Order.Ascending, 123, 456, CommandFlags.HighPriority));
+        }
+
+        [Fact]
+        public void SortedSetRangeByValueDesc()
+        {
+            wrapper.SortedSetRangeByValue("key", "min", "max", Exclude.Start, Order.Descending, 123, 456, CommandFlags.HighPriority);
+            mock.Verify(_ => _.SortedSetRangeByValue("prefix:key", "min", "max", Exclude.Start, Order.Descending, 123, 456, CommandFlags.HighPriority));
         }
 
         [Fact]

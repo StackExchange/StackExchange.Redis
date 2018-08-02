@@ -30,7 +30,6 @@ namespace NRediSearch
 
         public IEnumerable<KeyValuePair<string, RedisValue>> GetProperties() => _properties;
 
-
         public static Document Load(string id, double score, byte[] payload, RedisValue[] fields)
         {
             Document ret = new Document(id, score, payload);
@@ -57,7 +56,7 @@ namespace NRediSearch
             if (result == null || result.IsNull) return null;
             var arr = (RedisResult[])result;
             var doc = new Document(docId);
-            
+
             for(int i = 0; i < arr.Length; )
             {
                 doc[(string)arr[i++]] = (RedisValue)arr[i++];

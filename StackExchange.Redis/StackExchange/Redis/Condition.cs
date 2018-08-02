@@ -297,7 +297,7 @@ namespace StackExchange.Redis
                     this.value = value; // note no assert here
                 }
 
-                internal override void WriteImpl(PhysicalConnection physical)
+                protected override void WriteImpl(PhysicalConnection physical)
                 {
                     if (value.IsNull)
                     {
@@ -308,7 +308,7 @@ namespace StackExchange.Redis
                     {
                         physical.WriteHeader(command, 2);
                         physical.Write(Key);
-                        physical.Write(value);
+                        physical.WriteBulkString(value);
                     }
                 }
             }

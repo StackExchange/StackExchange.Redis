@@ -13,8 +13,9 @@ namespace StackExchange.Redis
         /// </summary>
         None = 0,
         /// <summary>
-        /// This command may jump regular-priority commands that have not yet been written to the redis stream.
+        /// From 2.0, this flag is not used
         /// </summary>
+        // [Obsolete("From 2.0, this flag is not used", false)]
         HighPriority = 1,
         /// <summary>
         /// The caller is not interested in the result; the caller will immediately receive a default-value
@@ -61,5 +62,7 @@ namespace StackExchange.Redis
         /// Indicates that script-related operations should use EVAL, not SCRIPT LOAD + EVALSHA
         /// </summary>
         NoScriptCache = 512,
+
+        // 1024: used for timed-out; never user-specified, so not visible on the public API
     }
 }

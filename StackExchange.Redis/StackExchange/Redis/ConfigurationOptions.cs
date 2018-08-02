@@ -6,6 +6,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Security;
 using System.Security.Authentication;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -64,6 +65,7 @@ namespace StackExchange.Redis
             internal const string
                 AbortOnConnectFail = "abortConnect",
                 AllowAdmin = "allowAdmin",
+                AsyncTimeout = "asyncTimeout",
                 ChannelPrefix = "channelPrefix",
                 ConfigChannel = "configChannel",
                 ConfigCheckSeconds = "configCheckSeconds",
@@ -91,6 +93,7 @@ namespace StackExchange.Redis
             {
                 AbortOnConnectFail,
                 AllowAdmin,
+                AsyncTimeout,
                 ChannelPrefix,
                 ClientName,
                 ConfigChannel,
@@ -124,7 +127,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private bool? allowAdmin, abortOnConnectFail, highPrioritySocketThreads, resolveDns, ssl, preserveAsyncOrder;
+        private bool? allowAdmin, abortOnConnectFail, highPrioritySocketThreads, resolveDns, ssl;
 
         private string tieBreaker, sslHost, configChannel;
 
@@ -132,7 +135,7 @@ namespace StackExchange.Redis
 
         private Version defaultVersion;
 
-        private int? keepAlive, syncTimeout, connectTimeout, responseTimeout, writeBuffer, connectRetry, configCheckSeconds;
+        private int? keepAlive, asyncTimeout, syncTimeout, connectTimeout, responseTimeout, writeBuffer, connectRetry, configCheckSeconds;
 
         private Proxy? proxy;
 
@@ -163,6 +166,11 @@ namespace StackExchange.Redis
         public bool AllowAdmin { get { return allowAdmin.GetValueOrDefault(); } set { allowAdmin = value; } }
 
         /// <summary>
+        /// Specifies the time in milliseconds that the system should allow for asynchronous operations (defaults to SyncTimeout)
+        /// </summary>
+        public int AsyncTimeout { get { return asyncTimeout ?? SyncTimeout; } set { asyncTimeout = value; } }
+
+        /// <summary>
         /// Indicates whether the connection should be encrypted
         /// </summary>
         [Obsolete("Please use .Ssl instead of .UseSsl"),
@@ -174,6 +182,43 @@ namespace StackExchange.Redis
         /// Automatically encodes and decodes channels
         /// </summary>
         public RedisChannel ChannelPrefix { get; set; }
+
+        /// <summary>
+        /// Create a certificate validation check that checks against the supplied issuer even if not known by the machine
+        /// </summary>
+        /// <param name="issuerCertificatePath">The file system path to find the certificate at.</param>
+        public void TrustIssuer(string issuerCertificatePath) => CertificateValidationCallback = TrustIssuerCallback(issuerCertificatePath);
+
+        /// <summary>
+        /// Create a certificate validation check that checks against the supplied issuer even if not known by the machine
+        /// </summary>
+        /// <param name="issuer">The issuer to trust.</param>
+        public void TrustIssuer(X509Certificate2 issuer) => CertificateValidationCallback = TrustIssuerCallback(issuer);
+
+        internal static RemoteCertificateValidationCallback TrustIssuerCallback(string issuerCertificatePath)
+            => TrustIssuerCallback(new X509Certificate2(issuerCertificatePath));
+        private static RemoteCertificateValidationCallback TrustIssuerCallback(X509Certificate2 issuer)
+        {
+            if (issuer == null) throw new ArgumentNullException(nameof(issuer));
+
+            return (object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyError)
+                => sslPolicyError == SslPolicyErrors.RemoteCertificateChainErrors && certificate is X509Certificate2 v2
+                    && CheckTrustedIssuer(v2, issuer);
+        }
+
+        private static bool CheckTrustedIssuer(X509Certificate2 certificateToValidate, X509Certificate2 authority)
+        {
+            // reference: https://stackoverflow.com/questions/6497040/how-do-i-validate-that-a-certificate-was-created-by-a-particular-certification-a
+            X509Chain chain = new X509Chain();
+            chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
+            chain.ChainPolicy.RevocationFlag = X509RevocationFlag.ExcludeRoot;
+            chain.ChainPolicy.VerificationFlags = X509VerificationFlags.AllowUnknownCertificateAuthority;
+            chain.ChainPolicy.VerificationTime = DateTime.Now;
+            chain.ChainPolicy.UrlRetrievalTimeout = new TimeSpan(0, 0, 0);
+
+            chain.ChainPolicy.ExtraStore.Add(authority);
+            return chain.Build(certificateToValidate);
+        }
 
         /// <summary>
         /// The client name to use for all connections
@@ -258,7 +303,12 @@ namespace StackExchange.Redis
         /// <summary>
         /// Specifies whether asynchronous operations should be invoked in a way that guarantees their original delivery order
         /// </summary>
-        public bool PreserveAsyncOrder { get { return preserveAsyncOrder.GetValueOrDefault(true); } set { preserveAsyncOrder = value; } }
+        [Obsolete("Not supported; if you require ordered pub/sub, please see " + nameof(ChannelMessageQueue), false)]
+        public bool PreserveAsyncOrder
+        {
+            get { return false; }
+            set { }
+        }
 
         /// <summary>
         /// Type of proxy to use (if any); for example Proxy.Twemproxy.
@@ -312,7 +362,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Specifies the time in milliseconds that the system should allow for synchronous operations (defaults to 1 second)
         /// </summary>
-        public int SyncTimeout { get { return syncTimeout.GetValueOrDefault(1000); } set { syncTimeout = value; } }
+        public int SyncTimeout { get { return syncTimeout.GetValueOrDefault(5000); } set { syncTimeout = value; } }
 
         /// <summary>
         /// Tie-breaker used to choose between masters (must match the endpoint exactly)
@@ -321,7 +371,8 @@ namespace StackExchange.Redis
         /// <summary>
         /// The size of the output buffer to use
         /// </summary>
-        public int WriteBuffer { get { return writeBuffer.GetValueOrDefault(4096); } set { writeBuffer = value; } }
+        [Obsolete("This setting no longer has any effect, and should not be used")]
+        public int WriteBuffer { get { return 0; } set { } }
 
         internal LocalCertificateSelectionCallback CertificateSelectionCallback { get { return CertificateSelection; } private set { CertificateSelection = value; } }
 
@@ -371,6 +422,7 @@ namespace StackExchange.Redis
                 ServiceName = ServiceName,
                 keepAlive = keepAlive,
                 syncTimeout = syncTimeout,
+                asyncTimeout = asyncTimeout,
                 allowAdmin = allowAdmin,
                 defaultVersion = defaultVersion,
                 connectTimeout = connectTimeout,
@@ -394,7 +446,6 @@ namespace StackExchange.Redis
                 responseTimeout = responseTimeout,
                 DefaultDatabase = DefaultDatabase,
                 ReconnectRetryPolicy = reconnectRetryPolicy,
-                preserveAsyncOrder = preserveAsyncOrder,
                 SslProtocols = SslProtocols,
             };
             foreach (var item in EndPoints)
@@ -434,6 +485,7 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.ServiceName, ServiceName);
             Append(sb, OptionKeys.KeepAlive, keepAlive);
             Append(sb, OptionKeys.SyncTimeout, syncTimeout);
+            Append(sb, OptionKeys.AsyncTimeout, asyncTimeout);
             Append(sb, OptionKeys.AllowAdmin, allowAdmin);
             Append(sb, OptionKeys.Version, defaultVersion);
             Append(sb, OptionKeys.ConnectTimeout, connectTimeout);
@@ -452,7 +504,6 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.ConfigCheckSeconds, configCheckSeconds);
             Append(sb, OptionKeys.ResponseTimeout, responseTimeout);
             Append(sb, OptionKeys.DefaultDatabase, DefaultDatabase);
-            Append(sb, OptionKeys.PreserveAsyncOrder, preserveAsyncOrder);
             commandMap?.AppendDeltas(sb);
             return sb.ToString();
         }
@@ -530,8 +581,8 @@ namespace StackExchange.Redis
         private void Clear()
         {
             ClientName = ServiceName = Password = tieBreaker = sslHost = configChannel = null;
-            keepAlive = syncTimeout = connectTimeout = writeBuffer = connectRetry = configCheckSeconds = DefaultDatabase = null;
-            allowAdmin = abortOnConnectFail = highPrioritySocketThreads = resolveDns = ssl = preserveAsyncOrder = null;
+            keepAlive = syncTimeout = asyncTimeout = connectTimeout = writeBuffer = connectRetry = configCheckSeconds = DefaultDatabase = null;
+            allowAdmin = abortOnConnectFail = highPrioritySocketThreads = resolveDns = ssl = null;
             defaultVersion = null;
             EndPoints.Clear();
             commandMap = null;
@@ -578,6 +629,9 @@ namespace StackExchange.Redis
                     {
                         case OptionKeys.SyncTimeout:
                             SyncTimeout = OptionKeys.ParseInt32(key, value, minValue: 1);
+                            break;
+                        case OptionKeys.AsyncTimeout:
+                            AsyncTimeout = OptionKeys.ParseInt32(key, value, minValue: 1);
                             break;
                         case OptionKeys.AllowAdmin:
                             AllowAdmin = OptionKeys.ParseBoolean(key, value);
@@ -645,7 +699,6 @@ namespace StackExchange.Redis
                             DefaultDatabase = OptionKeys.ParseInt32(key, value);
                             break;
                         case OptionKeys.PreserveAsyncOrder:
-                            PreserveAsyncOrder = OptionKeys.ParseBoolean(key, value);
                             break;
                         case OptionKeys.SslProtocols:
                             SslProtocols = OptionKeys.ParseSslProtocols(key, value);
@@ -679,14 +732,8 @@ namespace StackExchange.Redis
             }
         }
 
-        private bool GetDefaultAbortOnConnectFailSetting()
-        {
-            // Microsoft Azure team wants abortConnect=false by default
-            if (IsAzureEndpoint())
-                return false;
-
-            return true;
-        }
+        // Microsoft Azure team wants abortConnect=false by default
+        private bool GetDefaultAbortOnConnectFailSetting() => !IsAzureEndpoint();
 
         private bool IsAzureEndpoint()
         {

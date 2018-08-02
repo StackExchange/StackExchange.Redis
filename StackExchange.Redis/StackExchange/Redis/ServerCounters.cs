@@ -8,7 +8,11 @@ namespace StackExchange.Redis
     /// </summary>
     public class ServerCounters
     {
-        internal ServerCounters(EndPoint endpoint)
+        /// <summary>
+        /// Creates a <see cref="ServerCounters"/> instance for an <see cref="EndPoint"/>.
+        /// </summary>
+        /// <param name="endpoint">The <see cref="EndPoint"/> to create counters for.</param>
+        public ServerCounters(EndPoint endpoint)
         {
             EndPoint = endpoint;
             Interactive = new ConnectionCounters(ConnectionType.Interactive);

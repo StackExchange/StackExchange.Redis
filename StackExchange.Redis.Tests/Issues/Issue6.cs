@@ -12,10 +12,10 @@ namespace StackExchange.Redis.Tests.Issues
         {
             using(var conn = Create(proxy: Proxy.Twemproxy))
             {
-                Output.WriteLine("config: " + conn.Configuration);
+                Log("config: " + conn.Configuration);
                 var db = conn.GetDatabase();
                 var time = db.Ping();
-                Output.WriteLine("ping time: " + time);
+                Log("ping time: " + time);
             }
         }
     }

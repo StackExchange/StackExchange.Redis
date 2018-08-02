@@ -6,7 +6,7 @@ namespace NRediSearch.QueryBuilder
 {
     public sealed class RangeValue : Value
     {
-        private double from, to;
+        private readonly double from, to;
         private bool inclusiveMin = true, inclusiveMax = true;
 
         public override bool IsCombinable() => false;

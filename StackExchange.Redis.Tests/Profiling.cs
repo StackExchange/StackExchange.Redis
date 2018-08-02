@@ -6,6 +6,7 @@ using System.Threading;
 using System.Collections.Concurrent;
 using Xunit;
 using Xunit.Abstractions;
+using StackExchange.Redis.Profiling;
 
 namespace StackExchange.Redis.Tests
 {
@@ -13,61 +14,76 @@ namespace StackExchange.Redis.Tests
     {
         public Profiling(ITestOutputHelper output) : base (output) { }
 
-        private class TestProfiler : IProfiler
-        {
-            public object MyContext = new object();
-            public object GetContext() => MyContext;
-        }
-
         [Fact]
         public void Simple()
         {
             using (var conn = Create())
             {
-                var profiler = new TestProfiler();
+                var key = Me();
 
-                conn.RegisterProfiler(profiler);
-                conn.BeginProfiling(profiler.MyContext);
-                var db = conn.GetDatabase(4);
-                db.StringSet("hello", "world");
-                var val = db.StringGet("hello");
-                Assert.Equal("world", (string)val);
-                var result=db.ScriptEvaluate(LuaScript.Prepare("return redis.call('get', @key)"), new { key = (RedisKey)"hello" });
+                var session = new ProfilingSession();
+
+                conn.RegisterProfiler(() => session);
+
+                var dbId = TestConfig.GetDedicatedDB();
+                var db = conn.GetDatabase(dbId);
+                db.StringSet(key, "world");
+                var result = db.ScriptEvaluate(LuaScript.Prepare("return redis.call('get', @key)"), new { key = (RedisKey)key });
                 Assert.Equal("world", result.AsString());
+                var val = db.StringGet(key);
+                Assert.Equal("world", (string)val);
+                var s = (string)db.Execute("ECHO", "fii");
+                Assert.Equal("fii", s);
 
-                var cmds = conn.FinishProfiling(profiler.MyContext);
-                Assert.Equal(3, cmds.Count());
+                var cmds = session.FinishProfiling();
+                var i = 0;
+                foreach (var cmd in cmds)
+                {
+                    Log("Command {0} (DB: {1}): {2}", i++, cmd.Db, cmd.ToString().Replace("\n", ", "));
+                }
 
+                var all = string.Join(",", cmds.Select(x => x.Command));
+                Assert.Equal("SET,EVAL,GET,ECHO", all);
+                Log("Checking for SET");
                 var set = cmds.SingleOrDefault(cmd => cmd.Command == "SET");
                 Assert.NotNull(set);
+                Log("Checking for GET");
                 var get = cmds.SingleOrDefault(cmd => cmd.Command == "GET");
                 Assert.NotNull(get);
+                Log("Checking for EVAL");
                 var eval = cmds.SingleOrDefault(cmd => cmd.Command == "EVAL");
                 Assert.NotNull(eval);
+                Log("Checking for ECHO");
+                var echo = cmds.SingleOrDefault(cmd => cmd.Command == "ECHO");
+                Assert.NotNull(echo);
 
-                Assert.True(set.CommandCreated <= get.CommandCreated);
-                Assert.True(get.CommandCreated <= eval.CommandCreated);
+                Assert.Equal(4, cmds.Count());
 
-                AssertProfiledCommandValues(set, conn);
+                Assert.True(set.CommandCreated <= eval.CommandCreated);
+                Assert.True(eval.CommandCreated <= get.CommandCreated);
 
-                AssertProfiledCommandValues(get, conn);
+                AssertProfiledCommandValues(set, conn, dbId);
 
-                AssertProfiledCommandValues(eval, conn);
+                AssertProfiledCommandValues(get, conn, dbId);
+
+                AssertProfiledCommandValues(eval, conn, dbId);
+
+                AssertProfiledCommandValues(echo, conn, dbId);
             }
         }
 
-        private static void AssertProfiledCommandValues(IProfiledCommand command, ConnectionMultiplexer conn)
+        private static void AssertProfiledCommandValues(IProfiledCommand command, ConnectionMultiplexer conn, int dbId)
         {
-            Assert.Equal(4, command.Db);
+            Assert.Equal(dbId, command.Db);
             Assert.Equal(conn.GetEndPoints()[0], command.EndPoint);
-            Assert.True(command.CreationToEnqueued > TimeSpan.Zero);
-            Assert.True(command.EnqueuedToSending > TimeSpan.Zero);
-            Assert.True(command.SentToResponse > TimeSpan.Zero);
-            Assert.True(command.ResponseToCompletion > TimeSpan.Zero);
-            Assert.True(command.ElapsedTime > TimeSpan.Zero);
-            Assert.True(command.ElapsedTime > command.CreationToEnqueued && command.ElapsedTime > command.EnqueuedToSending && command.ElapsedTime > command.SentToResponse);
-            Assert.True(command.RetransmissionOf == null);
-            Assert.True(command.RetransmissionReason == null);
+            Assert.True(command.CreationToEnqueued > TimeSpan.Zero, nameof(command.CreationToEnqueued));
+            Assert.True(command.EnqueuedToSending > TimeSpan.Zero, nameof(command.EnqueuedToSending));
+            Assert.True(command.SentToResponse > TimeSpan.Zero, nameof(command.SentToResponse));
+            Assert.True(command.ResponseToCompletion >= TimeSpan.Zero, nameof(command.ResponseToCompletion));
+            Assert.True(command.ElapsedTime > TimeSpan.Zero, nameof(command.ElapsedTime));
+            Assert.True(command.ElapsedTime > command.CreationToEnqueued && command.ElapsedTime > command.EnqueuedToSending && command.ElapsedTime > command.SentToResponse, "Comparisons");
+            Assert.True(command.RetransmissionOf == null, nameof(command.RetransmissionOf));
+            Assert.True(command.RetransmissionReason == null, nameof(command.RetransmissionReason));
         }
 
         [Fact]
@@ -75,14 +91,14 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
-                var profiler = new TestProfiler();
+                var session = new ProfilingSession();
+                var prefix = Me();
 
-                conn.RegisterProfiler(profiler);
-                conn.BeginProfiling(profiler.MyContext);
+                conn.RegisterProfiler(() => session);
 
                 var threads = new List<Thread>();
-
-                for (var i = 0; i < 16; i++)
+                const int CountPer = 100;
+                for (var i = 1; i <= 16; i++)
                 {
                     var db = conn.GetDatabase(i);
 
@@ -90,9 +106,9 @@ namespace StackExchange.Redis.Tests
                     {
                         var threadTasks = new List<Task>();
 
-                        for (var j = 0; j < 1000; j++)
+                        for (var j = 0; j < CountPer; j++)
                         {
-                            var task = db.StringSetAsync("" + j, "" + j);
+                            var task = db.StringSetAsync(prefix + j, "" + j);
                             threadTasks.Add(task);
                         }
 
@@ -103,56 +119,40 @@ namespace StackExchange.Redis.Tests
                 threads.ForEach(thread => thread.Start());
                 threads.ForEach(thread => thread.Join());
 
-                var allVals = conn.FinishProfiling(profiler.MyContext);
+                var allVals = session.FinishProfiling();
+                var relevant = allVals.Where(cmd => cmd.Db > 0).ToList();
 
-                var kinds = allVals.Select(cmd => cmd.Command).Distinct().ToList();
+                var kinds = relevant.Select(cmd => cmd.Command).Distinct().ToList();
+                foreach (var k in kinds)
+                {
+                    Log("Kind Seen: " + k);
+                }
                 Assert.True(kinds.Count <= 2);
                 Assert.Contains("SET", kinds);
-                if (kinds.Count == 2 && !kinds.Contains("SELECT"))
+                if (kinds.Count == 2 && !kinds.Contains("SELECT") && !kinds.Contains("GET"))
                 {
-                    Assert.True(false, "Non-SET, Non-SELECT command seen");
+                    Assert.True(false, "Non-SET, Non-SELECT, Non-GET command seen");
                 }
 
-                Assert.Equal(16 * 1000, allVals.Count());
-                Assert.Equal(16, allVals.Select(cmd => cmd.Db).Distinct().Count());
+                Assert.Equal(16 * CountPer, relevant.Count);
+                Assert.Equal(16, relevant.Select(cmd => cmd.Db).Distinct().Count());
 
-                for (var i = 0; i < 16; i++)
+                for (var i = 1; i <= 16; i++)
                 {
-                    var setsInDb = allVals.Count(cmd => cmd.Db == i && cmd.Command == "SET");
-                    Assert.Equal(1000, setsInDb);
+                    var setsInDb = relevant.Count(cmd => cmd.Db == i);
+                    Assert.Equal(CountPer, setsInDb);
                 }
             }
         }
 
-        private class TestProfiler2 : IProfiler
-        {
-            private readonly ConcurrentDictionary<int, object> Contexts = new ConcurrentDictionary<int, object>();
-
-            public void RegisterContext(object context)
-            {
-                Contexts[Thread.CurrentThread.ManagedThreadId] = context;
-            }
-
-            public object GetContext()
-            {
-                if (!Contexts.TryGetValue(Thread.CurrentThread.ManagedThreadId, out object ret)) ret = null;
-                return ret;
-            }
-        }
-
-        [Fact]
+        [FactLongRunning]
         public void ManyContexts()
         {
             using (var conn = Create())
             {
-                var profiler = new TestProfiler2();
-                conn.RegisterProfiler(profiler);
-
-                var perThreadContexts = new List<object>();
-                for (var i = 0; i < 16; i++)
-                {
-                    perThreadContexts.Add(new object());
-                }
+                var profiler = new PerThreadProfiler();
+                var prefix = Me();
+                conn.RegisterProfiler(profiler.GetSession);
 
                 var threads = new List<Thread>();
 
@@ -163,23 +163,19 @@ namespace StackExchange.Redis.Tests
                     var ix = i;
                     var thread = new Thread(() =>
                     {
-                        var ctx = perThreadContexts[ix];
-                        profiler.RegisterContext(ctx);
-
-                        conn.BeginProfiling(ctx);
                         var db = conn.GetDatabase(ix);
 
                         var allTasks = new List<Task>();
 
                         for (var j = 0; j < 1000; j++)
                         {
-                            allTasks.Add(db.StringGetAsync("hello" + ix));
-                            allTasks.Add(db.StringSetAsync("hello" + ix, "world" + ix));
+                            allTasks.Add(db.StringGetAsync(prefix + ix));
+                            allTasks.Add(db.StringSetAsync(prefix + ix, "world" + ix));
                         }
 
                         Task.WaitAll(allTasks.ToArray());
 
-                        results[ix] = conn.FinishProfiling(ctx);
+                        results[ix] = profiler.GetSession().FinishProfiling();
                     });
 
                     threads.Add(thread);
@@ -203,221 +199,48 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        private class TestProfiler3 : IProfiler
+        internal class PerThreadProfiler
         {
-            private readonly ConcurrentDictionary<int, object> Contexts = new ConcurrentDictionary<int, object>();
+            private readonly ThreadLocal<ProfilingSession> perThreadSession = new ThreadLocal<ProfilingSession>(() => new ProfilingSession());
 
-            public void RegisterContext(object context)
-            {
-                Contexts[Thread.CurrentThread.ManagedThreadId] = context;
-            }
-
-            public object AnyContext() => Contexts.First().Value;
-            public void Reset() => Contexts.Clear();
-            public object GetContext()
-            {
-                if (!Contexts.TryGetValue(Thread.CurrentThread.ManagedThreadId, out object ret)) ret = null;
-                return ret;
-            }
+            public ProfilingSession GetSession() => perThreadSession.Value;
         }
-
-        // This is a separate method for target=DEBUG purposes.
-        // In release builds, the runtime is smart enough to figure out
-        //   that the contexts are unreachable and should be collected but in
-        //   debug builds... well, it's not very smart.
-        private object LeaksCollectedAndRePooled_Initialize(ConnectionMultiplexer conn, int threadCount)
+        internal class AsyncLocalProfiler
         {
-            var profiler = new TestProfiler3();
-            conn.RegisterProfiler(profiler);
+            private readonly AsyncLocal<ProfilingSession> perThreadSession = new AsyncLocal<ProfilingSession>();
 
-            var perThreadContexts = new List<object>();
-            for (var i = 0; i < threadCount; i++)
+            public ProfilingSession GetSession()
             {
-                perThreadContexts.Add(new object());
-            }
-
-            var threads = new List<Thread>();
-            var results = new IEnumerable<IProfiledCommand>[threadCount];
-
-            for (var i = 0; i < threadCount; i++)
-            {
-                var ix = i;
-                var thread = new Thread(() =>
+                var val = perThreadSession.Value;
+                if(val == null)
                 {
-                    var ctx = perThreadContexts[ix];
-                    profiler.RegisterContext(ctx);
-
-                    conn.BeginProfiling(ctx);
-                    var db = conn.GetDatabase(ix);
-
-                    var allTasks = new List<Task>();
-
-                    for (var j = 0; j < 1000; j++)
-                    {
-                        allTasks.Add(db.StringGetAsync("hello" + ix));
-                        allTasks.Add(db.StringSetAsync("hello" + ix, "world" + ix));
-                    }
-
-                    Task.WaitAll(allTasks.ToArray());
-
-                    // intentionally leaking!
-                });
-
-                threads.Add(thread);
-            }
-
-            threads.ForEach(t => t.Start());
-            threads.ForEach(t => t.Join());
-
-            var anyContext = profiler.AnyContext();
-            profiler.Reset();
-
-            return anyContext;
-        }
-
-        [FactLongRunning]
-        public void LeaksCollectedAndRePooled()
-        {
-            const int ThreadCount = 16;
-
-            using (var conn = Create())
-            {
-                var anyContext = LeaksCollectedAndRePooled_Initialize(conn, ThreadCount);
-
-                // force collection of everything but `anyContext`
-                GC.Collect(3, GCCollectionMode.Forced, blocking: true);
-                GC.WaitForPendingFinalizers();
-
-                Thread.Sleep(TimeSpan.FromMinutes(1.01));
-                conn.FinishProfiling(anyContext);
-
-                // make sure we haven't left anything in the active contexts dictionary
-                Assert.Equal(0, conn.profiledCommands.ContextCount);
-                Assert.Equal(ThreadCount, ConcurrentProfileStorageCollection.AllocationCount);
-                Assert.Equal(ThreadCount, ConcurrentProfileStorageCollection.CountInPool());
-            }
-        }
-
-        [Fact]
-        public void ReuseStorage()
-        {
-            const int ThreadCount = 16;
-
-            // have to reset so other tests don't clober
-            ConcurrentProfileStorageCollection.AllocationCount = 0;
-
-            using (var conn = Create())
-            {
-                var profiler = new TestProfiler2();
-                conn.RegisterProfiler(profiler);
-
-                var perThreadContexts = new List<object>();
-                for (var i = 0; i < 16; i++)
-                {
-                    perThreadContexts.Add(new object());
+                    perThreadSession.Value = val = new ProfilingSession();
                 }
-
-                var threads = new List<Thread>();
-
-                var results = new List<IEnumerable<IProfiledCommand>>[16];
-                for (var i = 0; i < 16; i++)
-                {
-                    results[i] = new List<IEnumerable<IProfiledCommand>>();
-                }
-
-                for (var i = 0; i < ThreadCount; i++)
-                {
-                    var ix = i;
-                    var thread = new Thread(() =>
-                    {
-                        for (var k = 0; k < 10; k++)
-                        {
-                            var ctx = perThreadContexts[ix];
-                            profiler.RegisterContext(ctx);
-
-                            conn.BeginProfiling(ctx);
-                            var db = conn.GetDatabase(ix);
-
-                            var allTasks = new List<Task>();
-
-                            for (var j = 0; j < 1000; j++)
-                            {
-                                allTasks.Add(db.StringGetAsync("hello" + ix));
-                                allTasks.Add(db.StringSetAsync("hello" + ix, "world" + ix));
-                            }
-
-                            Task.WaitAll(allTasks.ToArray());
-
-                            results[ix].Add(conn.FinishProfiling(ctx));
-                        }
-                    });
-
-                    threads.Add(thread);
-                }
-
-                threads.ForEach(t => t.Start());
-                threads.ForEach(t => t.Join());
-
-                // only 16 allocations can ever be in flight at once
-                var allocCount = ConcurrentProfileStorageCollection.AllocationCount;
-                Assert.True(allocCount <= ThreadCount, allocCount.ToString());
-
-                // correctness check for all allocations
-                for (var i = 0; i < results.Length; i++)
-                {
-                    var resList = results[i];
-                    foreach (var res in resList)
-                    {
-                        Assert.NotNull(res);
-
-                        var numGets = res.Count(r => r.Command == "GET");
-                        var numSets = res.Count(r => r.Command == "SET");
-
-                        Assert.Equal(1000, numGets);
-                        Assert.Equal(1000, numSets);
-                        Assert.True(res.All(cmd => cmd.Db == i));
-                    }
-                }
-
-                // no crossed streams
-                var everything = results.SelectMany(r => r).ToList();
-                for (var i = 0; i < everything.Count; i++)
-                {
-                    for (var j = 0; j < everything.Count; j++)
-                    {
-                        if (i == j) continue;
-
-                        if (object.ReferenceEquals(everything[i], everything[j]))
-                        {
-                            Assert.True(false, "Profilings were jumbled");
-                        }
-                    }
-                }
+                return val;
             }
         }
 
         [Fact]
         public void LowAllocationEnumerable()
         {
-            const int OuterLoop = 10000;
+            const int OuterLoop = 1000;
 
             using (var conn = Create())
             {
-                var profiler = new TestProfiler();
-                conn.RegisterProfiler(profiler);
+                var session = new ProfilingSession();
+                conn.RegisterProfiler(() => session);
 
-                conn.BeginProfiling(profiler.MyContext);
-
-                var db = conn.GetDatabase();
+                var prefix = Me();
+                var db = conn.GetDatabase(1);
 
                 var allTasks = new List<Task<string>>();
 
                 foreach (var i in Enumerable.Range(0, OuterLoop))
                 {
                     var t =
-                        db.StringSetAsync("foo" + i, "bar" + i)
+                        db.StringSetAsync(prefix + i, "bar" + i)
                           .ContinueWith(
-                            async _ => (string)(await db.StringGetAsync("foo" + i).ForAwait())
+                            async _ => (string)(await db.StringGetAsync(prefix + i).ForAwait())
                           );
 
                     var finalResult = t.Unwrap();
@@ -426,7 +249,7 @@ namespace StackExchange.Redis.Tests
 
                 conn.WaitAll(allTasks.ToArray());
 
-                var res = conn.FinishProfiling(profiler.MyContext);
+                var res = session.FinishProfiling();
                 Assert.True(res.GetType().IsValueType);
 
                 using (var e = res.GetEnumerator())
@@ -443,33 +266,22 @@ namespace StackExchange.Redis.Tests
                     Assert.True(object.ReferenceEquals(i, j));
                 }
 
-                Assert.Equal(OuterLoop * 2, res.Count());
-                Assert.Equal(OuterLoop, res.Count(r => r.Command == "GET"));
-                Assert.Equal(OuterLoop, res.Count(r => r.Command == "SET"));
+                Assert.Equal(OuterLoop, res.Count(r => r.Command == "GET" && r.Db > 0));
+                Assert.Equal(OuterLoop, res.Count(r => r.Command == "SET" && r.Db > 0));
+                Assert.Equal(OuterLoop * 2, res.Count(r => r.Db > 0));
             }
         }
 
-        private class ToyProfiler : IProfiler
-        {
-            public ConcurrentDictionary<Thread, object> Contexts = new ConcurrentDictionary<Thread, object>();
-
-            public object GetContext()
-            {
-                if (!Contexts.TryGetValue(Thread.CurrentThread, out object ctx)) ctx = null;
-                return ctx;
-            }
-        }
-
-        [Fact]
+        [FactLongRunning]
         public void ProfilingMD_Ex1()
         {
             using (var c = Create())
             {
                 ConnectionMultiplexer conn = c;
-                var profiler = new ToyProfiler();
-                var thisGroupContext = new object();
+                var session = new ProfilingSession();
+                var prefix = Me();
 
-                conn.RegisterProfiler(profiler);
+                conn.RegisterProfiler(() => session);
 
                 var threads = new List<Thread>();
 
@@ -483,38 +295,35 @@ namespace StackExchange.Redis.Tests
 
                         for (var j = 0; j < 1000; j++)
                         {
-                            var task = db.StringSetAsync("" + j, "" + j);
+                            var task = db.StringSetAsync(prefix + j, "" + j);
                             threadTasks.Add(task);
                         }
 
                         Task.WaitAll(threadTasks.ToArray());
                     });
 
-                    profiler.Contexts[thread] = thisGroupContext;
-
                     threads.Add(thread);
                 }
-
-                conn.BeginProfiling(thisGroupContext);
 
                 threads.ForEach(thread => thread.Start());
                 threads.ForEach(thread => thread.Join());
 
-                IEnumerable<IProfiledCommand> timings = conn.FinishProfiling(thisGroupContext);
+                IEnumerable<IProfiledCommand> timings = session.FinishProfiling();
 
                 Assert.Equal(16000, timings.Count());
             }
         }
 
-        [Fact]
+        [FactLongRunning]
         public void ProfilingMD_Ex2()
         {
             using (var c = Create())
             {
                 ConnectionMultiplexer conn = c;
-                var profiler = new ToyProfiler();
+                var profiler = new PerThreadProfiler();
+                var prefix = Me();
 
-                conn.RegisterProfiler(profiler);
+                conn.RegisterProfiler(profiler.GetSession);
 
                 var threads = new List<Thread>();
 
@@ -528,20 +337,16 @@ namespace StackExchange.Redis.Tests
                     {
                         var threadTasks = new List<Task>();
 
-                        conn.BeginProfiling(Thread.CurrentThread);
-
                         for (var j = 0; j < 1000; j++)
                         {
-                            var task = db.StringSetAsync("" + j, "" + j);
+                            var task = db.StringSetAsync(prefix + j, "" + j);
                             threadTasks.Add(task);
                         }
 
                         Task.WaitAll(threadTasks.ToArray());
 
-                        perThreadTimings[Thread.CurrentThread] = conn.FinishProfiling(Thread.CurrentThread).ToList();
+                        perThreadTimings[Thread.CurrentThread] = profiler.GetSession().FinishProfiling().ToList();
                     });
-
-                    profiler.Contexts[thread] = thread;
 
                     threads.Add(thread);
                 }
@@ -551,6 +356,52 @@ namespace StackExchange.Redis.Tests
 
                 Assert.Equal(16, perThreadTimings.Count);
                 Assert.True(perThreadTimings.All(kv => kv.Value.Count == 1000));
+            }
+        }
+        [FactLongRunning]
+        public async Task ProfilingMD_Ex2_Async()
+        {
+            using (var c = Create())
+            {
+                ConnectionMultiplexer conn = c;
+                var profiler = new AsyncLocalProfiler();
+                var prefix = Me();
+
+                conn.RegisterProfiler(profiler.GetSession);
+
+                var tasks = new List<Task>();
+
+                var perThreadTimings = new ConcurrentBag<List<IProfiledCommand>>();
+
+                for (var i = 0; i < 16; i++)
+                {
+                    var db = conn.GetDatabase(i);
+
+                    var task = Task.Run(async () =>
+                    {
+                        for (var j = 0; j < 100; j++)
+                        {
+                            await db.StringSetAsync(prefix + j, "" + j).ForAwait();
+                        }
+
+                        perThreadTimings.Add(profiler.GetSession().FinishProfiling().ToList());
+                    });
+
+                    tasks.Add(task);
+                }
+
+                var timeout = Task.Delay(10000);
+                var complete = Task.WhenAll(tasks);
+                if (timeout == await Task.WhenAny(timeout, complete).ForAwait())
+                {
+                    throw new TimeoutException();
+                }
+
+                Assert.Equal(16, perThreadTimings.Count);
+                foreach(var item in perThreadTimings)
+                {
+                    Assert.Equal(100, item.Count);
+                }
             }
         }
     }

@@ -150,12 +150,12 @@ namespace StackExchange.Redis.Tests
                 double sum = 0;
                 foreach (var value in incr)
                 {
-                    await db.HashIncrementAsync(key, field, value).ForAwait();
+                    var t = db.HashIncrementAsync(key, field, value);
                     sum += value;
                 }
                 foreach (var value in decr)
                 {
-                    await db.HashDecrementAsync(key, field, value).ForAwait();
+                    var t = db.HashDecrementAsync(key, field, value);
                     sum -= value;
                 }
                 var val = (double)await db.HashGetAsync(key, field).ForAwait();

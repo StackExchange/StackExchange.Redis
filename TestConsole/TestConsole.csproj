@@ -1,0 +1,19 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFrameworks>netcoreapp2.0;netcoreapp2.1;net47</TargetFrameworks>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Computername)'=='OCHO' or '$(Computername)'=='SKINK'">
+    <LocalReference>true</LocalReference>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\BasicTest\BasicTest.csproj" />
+    <ProjectReference Include="..\StackExchange.Redis.Server\StackExchange.Redis.Server.csproj" />
+    <ProjectReference Include="..\StackExchange.Redis.Tests\StackExchange.Redis.Tests.csproj" />
+    <ProjectReference Include="..\StackExchange.Redis\StackExchange.Redis.csproj" />
+  </ItemGroup>
+</Project>

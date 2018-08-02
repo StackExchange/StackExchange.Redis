@@ -16,7 +16,6 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="key">The key to check for.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        [IgnoreNamePrefix(true)]
         bool IsConnected(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -385,7 +384,6 @@ namespace StackExchange.Redis
         /// <param name="key">The key to check.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The endpoint serving the key.</returns>
-        [IgnoreNamePrefix]
         Task<EndPoint> IdentifyEndpointAsync(RedisKey key = default(RedisKey), CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -425,6 +423,15 @@ namespace StackExchange.Redis
         Task<bool> KeyExistsAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Indicates how many of the supplied keys exists.
+        /// </summary>
+        /// <param name="keys">The keys to check.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The number of keys that existed.</returns>
+        /// <remarks>https://redis.io/commands/exists</remarks>
+        Task<long> KeyExistsAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Set a timeout on key. After the timeout has expired, the key will automatically be deleted. A key with an associated timeout is said to be volatile in Redis terminology.
         /// </summary>
         /// <param name="key">The key to set the expiration for.</param>
@@ -451,6 +458,15 @@ namespace StackExchange.Redis
         /// <remarks>https://redis.io/commands/pexpireat</remarks>
         /// <remarks>https://redis.io/commands/persist</remarks>
         Task<bool> KeyExpireAsync(RedisKey key, DateTime? expiry, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns the time since the object stored at the specified key is idle (not requested by read or write operations)
+        /// </summary>
+        /// <param name="key">The key to get the type of.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The time since the object stored at the specified key is idle</returns>
+        /// <remarks>https://redis.io/commands/object</remarks>
+        Task<TimeSpan?> KeyIdleTimeAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Move key from the currently selected database (see SELECT) to the specified destination database. When key already exists in the destination database, or it does not exist in the source database, it does nothing. It is possible to use MOVE as a locking primitive because of this.
@@ -740,6 +756,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="command">The command to run.</param>
         /// <param name="args">The arguments to pass for the command.</param>
+        /// <remarks>This API should be considered an advanced feature; inappropriate use can be harmful</remarks>
         /// <returns>A dynamic representation of the command's result</returns>
         Task<RedisResult> ExecuteAsync(string command, params object[] args);
 
@@ -751,6 +768,7 @@ namespace StackExchange.Redis
         /// <param name="command">The command to run.</param>
         /// <param name="args">The arguments to pass for the command.</param>
         /// <param name="flags">The flags to use for this operation.</param>
+        /// <remarks>This API should be considered an advanced feature; inappropriate use can be harmful</remarks>
         /// <returns>A dynamic representation of the command's result</returns>
         Task<RedisResult> ExecuteAsync(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None);
 
@@ -926,6 +944,16 @@ namespace StackExchange.Redis
         Task<RedisValue> SetPopAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Removes and returns the specified number of random elements from the set value stored at key.
+        /// </summary>
+        /// <param name="key">The key of the set.</param>
+        /// <param name="count">The number of elements to return.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The removed elements, or nil when key does not exist.</returns>
+        /// <remarks>https://redis.io/commands/spop</remarks>
+        Task<RedisValue[]> SetPopAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Return a random element from the set value stored at key.
         /// </summary>
         /// <param name="key">The key of the set.</param>
@@ -982,7 +1010,6 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The sorted elements, or the external values if <c>get</c> is specified.</returns>
         /// <remarks>https://redis.io/commands/sort</remarks>
-        [IgnoreNamePrefix]
         Task<RedisValue[]> SortAsync(RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default(RedisValue), RedisValue[] get = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1003,7 +1030,6 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of elements stored in the new list.</returns>
         /// <remarks>https://redis.io/commands/sort</remarks>
-        [IgnoreNamePrefix]
         Task<long> SortAndStoreAsync(RedisKey destination, RedisKey key, long skip = 0, long take = -1, Order order = Order.Ascending, SortType sortType = SortType.Numeric, RedisValue by = default(RedisValue), RedisValue[] get = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -1215,9 +1241,32 @@ namespace StackExchange.Redis
         /// <remarks>https://redis.io/commands/zrangebylex</remarks>
         /// <returns>list of elements in the specified score range.</returns>
         Task<RedisValue[]> SortedSetRangeByValueAsync(RedisKey key,
+            RedisValue min,
+            RedisValue max,
+            Exclude exclude,
+            long skip,
+            long take = -1,
+            CommandFlags flags = CommandFlags.None); // defaults removed to avoid ambiguity with overload with order
+
+        /// <summary>
+        /// When all the elements in a sorted set are inserted with the same score, in order to force lexicographical ordering, this command returns all the elements in the sorted set at key with a value between min and max.
+        /// </summary>
+        /// <param name="key">The key of the sorted set.</param>
+        /// <param name="min">The min value to filter by.</param>
+        /// <param name="max">The max value to filter by.</param>
+        /// <param name="exclude">Which of <paramref name="min"/> and <paramref name="max"/> to exclude (defaults to both inclusive).</param>
+        /// <param name="order">Whether to order the data ascending or descending</param>
+        /// <param name="skip">How many items to skip.</param>
+        /// <param name="take">How many items to take.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <remarks>https://redis.io/commands/zrangebylex</remarks>
+        /// <remarks>https://redis.io/commands/zrevrangebylex</remarks>
+        /// <returns>list of elements in the specified score range.</returns>
+        Task<RedisValue[]> SortedSetRangeByValueAsync(RedisKey key,
             RedisValue min = default(RedisValue),
             RedisValue max = default(RedisValue),
             Exclude exclude = Exclude.None,
+            Order order = Order.Ascending,
             long skip = 0,
             long take = -1,
             CommandFlags flags = CommandFlags.None);

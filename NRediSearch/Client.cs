@@ -50,9 +50,11 @@ namespace NRediSearch
             {
                 _options = options;
             }
+
             /// <summary>
-            /// Set a custom stopword list
+            /// Set a custom stopword list.
             /// </summary>
+            /// <param name="stopwords">The new stopwords to use.</param>
             public ConfiguredIndexOptions SetStopwords(params string[] stopwords)
             {
                 _stopwords = stopwords ?? throw new ArgumentNullException(nameof(stopwords));
@@ -178,7 +180,6 @@ namespace NRediSearch
 
             return (string)await _db.ExecuteAsync("FT.CREATE", args).ConfigureAwait(false) == "OK";
         }
-
 
         /// <summary>
         /// Create the index definition in redis
@@ -435,15 +436,15 @@ namespace NRediSearch
 
         private static Dictionary<string, RedisValue> ParseGetInfo(RedisResult value)
         {
-
             var res = (RedisResult[])value;
             var info = new Dictionary<string, RedisValue>();
             for (int i = 0; i < res.Length; i += 2)
             {
                 var val = res[i + 1];
-                try { info.Add((string)res[i], (RedisValue)val); }
-                catch { }
-                
+                if (val.Type != ResultType.MultiBulk)
+                {
+                    info.Add((string)res[i], (RedisValue)val);
+                }
             }
             return info;
         }
@@ -600,8 +601,10 @@ namespace NRediSearch
         /// <param name="query">The query to watch</param>
         public AggregationResult Aggregate(AggregationRequest query)
         {
-            var args = new List<object>();
-            args.Add(_boxedIndexName);
+            var args = new List<object>
+            {
+                _boxedIndexName
+            };
             query.SerializeRedisArgs(args);
 
             var resp = DbSync.Execute("FT.AGGREGATE", args);
@@ -614,8 +617,10 @@ namespace NRediSearch
         /// <param name="query">The query to watch</param>
         public async Task<AggregationResult> AggregateAsync(AggregationRequest query)
         {
-            var args = new List<object>();
-            args.Add(_boxedIndexName);
+            var args = new List<object>
+            {
+                _boxedIndexName
+            };
             query.SerializeRedisArgs(args);
 
             var resp = await _db.ExecuteAsync("FT.AGGREGATE", args).ConfigureAwait(false);
@@ -654,40 +659,47 @@ namespace NRediSearch
         }
 
         /// <summary>
-        /// Get a document from the index
+        /// Get a document from the index.
         /// </summary>
-        /// <param name="docId">The document ID to retrieve</param>
+        /// <param name="docId">The document ID to retrieve.</param>
         /// <returns>The document as stored in the index. If the document does not exist, null is returned.</returns>
         public Document GetDocument(string docId)
             => Document.Parse(docId, DbSync.Execute("FT.GET", _boxedIndexName, docId));
 
         /// <summary>
-        /// Get a document from the index
+        /// Get a document from the index.
         /// </summary>
-        /// <param name="docId">The document ID to retrieve</param>
+        /// <param name="docId">The document ID to retrieve.</param>
         /// <returns>The document as stored in the index. If the document does not exist, null is returned.</returns>
         public async Task<Document> GetDocumentAsync(string docId)
-            => Document.Parse(docId, await _db.ExecuteAsync("FT.GET", _boxedIndexName, docId));
+            => Document.Parse(docId, await _db.ExecuteAsync("FT.GET", _boxedIndexName, docId).ConfigureAwait(false));
+
+        /// <summary>
+        /// Replace specific fields in a document. Unlike #replaceDocument(), fields not present in the field list
+        /// are not erased, but retained. This avoids reindexing the entire document if the new values are not
+        /// indexed (though a reindex will happen).
+        /// </summary>
+        /// <param name="docId">The ID of the document.</param>
+        /// <param name="fields">The fields and values to update.</param>
+        /// <param name="score">The new score of the document.</param>
+        public bool UpdateDocument(string docId, Dictionary<string, RedisValue> fields, double score = 1.0)
+        {
+            var args = BuildAddDocumentArgs(docId, fields, score, false, AddOptions.ReplacementPolicy.Partial, null, null);
+            return (string)DbSync.Execute("FT.ADD", args) == "OK";
+        }
 
         /// <summary>
         /// Replace specific fields in a document. Unlike #replaceDocument(), fields not present in the field list
         /// are not erased, but retained. This avoids reindexing the entire document if the new values are not
         /// indexed (though a reindex will happen
         /// </summary>
-        public bool UpdateDocument(string docId, Dictionary<string, RedisValue> fields, double score = 1.0)
-        {
-            var args = BuildAddDocumentArgs(docId, fields, score, false, AddOptions.ReplacementPolicy.Partial, null, null);
-            return (string)DbSync.Execute("FT.ADD", args) == "OK";
-        }
-        /// <summary>
-        /// Replace specific fields in a document. Unlike #replaceDocument(), fields not present in the field list
-        /// are not erased, but retained. This avoids reindexing the entire document if the new values are not
-        /// indexed (though a reindex will happen
-        /// </summary>
+        /// <param name="docId">The ID of the document.</param>
+        /// <param name="fields">The fields and values to update.</param>
+        /// <param name="score">The new score of the document.</param>
         public async Task<bool> UpdateDocumentAsync(string docId, Dictionary<string, RedisValue> fields, double score = 1.0)
         {
             var args = BuildAddDocumentArgs(docId, fields, score, false, AddOptions.ReplacementPolicy.Partial, null, null);
-            return  ((string)await _db.ExecuteAsync("FT.ADD", args).ConfigureAwait(false) == "OK");
+            return  (string)await _db.ExecuteAsync("FT.ADD", args).ConfigureAwait(false) == "OK";
         }
     }
 }

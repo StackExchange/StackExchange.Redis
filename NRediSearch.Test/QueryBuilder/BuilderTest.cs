@@ -17,7 +17,7 @@ namespace NRediSearch.Test.QueryBuilder
         public BuilderTest(ITestOutputHelper output) : base(output) { }
 
         [Fact]
-        public void testTag()
+        public void TestTag()
         {
             Value v = Tags("foo");
             Assert.Equal("{foo}", v.ToString());
@@ -26,16 +26,13 @@ namespace NRediSearch.Test.QueryBuilder
         }
 
         [Fact]
-        public void testEmptyTag()
+        public void TestEmptyTag()
         {
-            Assert.Throws<ArgumentException>(() =>
-            {
-                Tags();
-            });
+            Assert.Throws<ArgumentException>(() => Tags());
         }
 
         [Fact]
-        public void testRange()
+        public void TestRange()
         {
             Value v = Between(1, 10);
             Assert.Equal("[1.0 10.0]", v.ToString());
@@ -60,7 +57,7 @@ namespace NRediSearch.Test.QueryBuilder
         }
 
         [Fact]
-        public void testIntersectionBasic()
+        public void TestIntersectionBasic()
         {
             INode n = Intersect().Add("name", "mark");
             Assert.Equal("@name:mark", n.ToString());
@@ -70,7 +67,7 @@ namespace NRediSearch.Test.QueryBuilder
         }
 
         [Fact]
-        public void testIntersectionNested()
+        public void TestIntersectionNested()
         {
             INode n = Intersect().
                     Add(Union("name", Value("mark"), Value("dvir"))).
@@ -79,14 +76,15 @@ namespace NRediSearch.Test.QueryBuilder
             Assert.Equal("(@name:(mark|dvir) @time:[100.0 200.0] -@created:[-inf (1000.0])", n.ToString());
         }
 
-        static string GetArgsString(AggregationRequest request)
+        private static string GetArgsString(AggregationRequest request)
         {
             var args = new List<object>();
             request.SerializeRedisArgs(args);
             return string.Join(" ", args);
         }
+
         [Fact]
-        public void testAggregation()
+        public void TestAggregation()
         {
             Assert.Equal("*", GetArgsString(new AggregationRequest()));
             AggregationRequest r = new AggregationRequest().

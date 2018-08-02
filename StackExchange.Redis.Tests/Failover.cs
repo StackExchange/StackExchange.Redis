@@ -17,17 +17,14 @@ namespace StackExchange.Redis.Tests
                 var shouldBeMaster = mutex.GetServer(TestConfig.Current.FailoverMasterServerAndPort);
                 if (shouldBeMaster.IsSlave)
                 {
-                    Output.WriteLine(shouldBeMaster.EndPoint + " should be master, fixing...");
+                    Log(shouldBeMaster.EndPoint + " should be master, fixing...");
                     shouldBeMaster.MakeMaster(ReplicationChangeOptions.SetTiebreaker);
                 }
-
-                Output.WriteLine("Flushing all databases...");
-                shouldBeMaster.FlushAllDatabases(CommandFlags.FireAndForget);
 
                 var shouldBeReplica = mutex.GetServer(TestConfig.Current.FailoverSlaveServerAndPort);
                 if (!shouldBeReplica.IsSlave)
                 {
-                    Output.WriteLine(shouldBeReplica.EndPoint + " should be a slave, fixing...");
+                    Log(shouldBeReplica.EndPoint + " should be a slave, fixing...");
                     shouldBeReplica.SlaveOf(shouldBeMaster.EndPoint);
                     Thread.Sleep(2000);
                 }
@@ -49,6 +46,30 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public async Task ConfigureAsync()
+        {
+            using (var muxer = Create())
+            {
+                await Task.Delay(1000).ForAwait();
+                Log("About to reconfigure.....");
+                await muxer.ConfigureAsync().ForAwait();
+                Log("Reconfigured");
+            }
+        }
+
+        [Fact]
+        public async Task ConfigureSync()
+        {
+            using (var muxer = Create())
+            {
+                await Task.Delay(1000).ForAwait();
+                Log("About to reconfigure.....");
+                muxer.Configure();
+                Log("Reconfigured");
+            }
+        }
+
+        [Fact]
         public async Task ConfigVerifyReceiveConfigChangeBroadcast()
         {
             var config = GetConfiguration();
@@ -58,14 +79,14 @@ namespace StackExchange.Redis.Tests
                 int total = 0;
                 receiver.ConfigurationChangedBroadcast += (s, a) =>
                 {
-                    Output.WriteLine("Config changed: " + (a.EndPoint == null ? "(none)" : a.EndPoint.ToString()));
+                    Log("Config changed: " + (a.EndPoint == null ? "(none)" : a.EndPoint.ToString()));
                     Interlocked.Increment(ref total);
                 };
                 // send a reconfigure/reconnect message
                 long count = sender.PublishReconfigure();
                 GetServer(receiver).Ping();
                 GetServer(receiver).Ping();
-                await Task.Delay(10).ConfigureAwait(false);
+                await Task.Delay(100).ConfigureAwait(false);
                 Assert.True(count == -1 || count >= 2, "subscribers");
                 Assert.True(Interlocked.CompareExchange(ref total, 0, 0) >= 1, "total (1st)");
 
@@ -169,18 +190,16 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [Theory]
-        [InlineData(false)]
-        [InlineData(true)]
-        public async Task SubscriptionsSurviveMasterSwitchAsync(bool useSharedSocketManager)
+        [Fact]
+        public async Task SubscriptionsSurviveMasterSwitchAsync()
         {
             if (RunningInCI)
             {
                 Skip.Inconclusive("TODO: Fix race in broadcast reconfig a zero latency.");
             }
 
-            using (var a = Create(allowAdmin: true, useSharedSocketManager: useSharedSocketManager))
-            using (var b = Create(allowAdmin: true, useSharedSocketManager: useSharedSocketManager))
+            using (var a = Create(allowAdmin: true))
+            using (var b = Create(allowAdmin: true))
             {
                 RedisChannel channel = Me();
                 var subA = a.GetSubscriber();
@@ -189,20 +208,20 @@ namespace StackExchange.Redis.Tests
                 long masterChanged = 0, aCount = 0, bCount = 0;
                 a.ConfigurationChangedBroadcast += delegate
                 {
-                    Output.WriteLine("A noticed config broadcast: " + Interlocked.Increment(ref masterChanged));
+                    Log("A noticed config broadcast: " + Interlocked.Increment(ref masterChanged));
                 };
                 b.ConfigurationChangedBroadcast += delegate
                 {
-                    Output.WriteLine("B noticed config broadcast: " + Interlocked.Increment(ref masterChanged));
+                    Log("B noticed config broadcast: " + Interlocked.Increment(ref masterChanged));
                 };
                 subA.Subscribe(channel, (_, message) =>
                 {
-                    Output.WriteLine("A got message: " + message);
+                    Log("A got message: " + message);
                     Interlocked.Increment(ref aCount);
                 });
                 subB.Subscribe(channel, (_, message) =>
                 {
-                    Output.WriteLine("B got message: " + message);
+                    Log("B got message: " + message);
                     Interlocked.Increment(ref bCount);
                 });
 
@@ -213,12 +232,14 @@ namespace StackExchange.Redis.Tests
 
                 var epA = subA.SubscribedEndpoint(channel);
                 var epB = subB.SubscribedEndpoint(channel);
-                Output.WriteLine("A: " + EndPointCollection.ToString(epA));
-                Output.WriteLine("B: " + EndPointCollection.ToString(epB));
+                Log("A: " + EndPointCollection.ToString(epA));
+                Log("B: " + EndPointCollection.ToString(epB));
                 subA.Publish(channel, "A1");
                 subB.Publish(channel, "B1");
-                subA.Ping();
-                subB.Ping();
+                Log("SubA ping: " + subA.Ping());
+                Log("SubB ping: " + subB.Ping());
+                // If redis is under load due to this suite, it may take a moment to send across.
+                await UntilCondition(5000, () => Interlocked.Read(ref aCount) == 2 && Interlocked.Read(ref bCount) == 2).ForAwait();
 
                 Assert.Equal(2, Interlocked.Read(ref aCount));
                 Assert.Equal(2, Interlocked.Read(ref bCount));
@@ -229,41 +250,42 @@ namespace StackExchange.Redis.Tests
                     Interlocked.Exchange(ref masterChanged, 0);
                     Interlocked.Exchange(ref aCount, 0);
                     Interlocked.Exchange(ref bCount, 0);
-                    Output.WriteLine("Changing master...");
+                    Log("Changing master...");
                     using (var sw = new StringWriter())
                     {
                         a.GetServer(TestConfig.Current.FailoverSlaveServerAndPort).MakeMaster(ReplicationChangeOptions.All, sw);
-                        Output.WriteLine(sw.ToString());
+                        Log(sw.ToString());
                     }
-                    await Task.Delay(5000).ForAwait();
+                    await UntilCondition(3000, () => b.GetServer(TestConfig.Current.FailoverMasterServerAndPort).IsSlave).ForAwait();
                     subA.Ping();
                     subB.Ping();
-                    Output.WriteLine("Pausing...");
-                    Output.WriteLine("A " + TestConfig.Current.FailoverMasterServerAndPort + " status: " + (a.GetServer(TestConfig.Current.FailoverMasterServerAndPort).IsSlave ? "Slave" : "Master"));
-                    Output.WriteLine("A " + TestConfig.Current.FailoverSlaveServerAndPort + " status: " + (a.GetServer(TestConfig.Current.FailoverSlaveServerAndPort).IsSlave ? "Slave" : "Master"));
-                    Output.WriteLine("B " + TestConfig.Current.FailoverMasterServerAndPort + " status: " + (b.GetServer(TestConfig.Current.FailoverMasterServerAndPort).IsSlave ? "Slave" : "Master"));
-                    Output.WriteLine("B " + TestConfig.Current.FailoverSlaveServerAndPort + " status: " + (b.GetServer(TestConfig.Current.FailoverSlaveServerAndPort).IsSlave ? "Slave" : "Master"));
+                    Log("Pausing...");
+                    Log("A " + TestConfig.Current.FailoverMasterServerAndPort + " status: " + (a.GetServer(TestConfig.Current.FailoverMasterServerAndPort).IsSlave ? "Slave" : "Master"));
+                    Log("A " + TestConfig.Current.FailoverSlaveServerAndPort + " status: " + (a.GetServer(TestConfig.Current.FailoverSlaveServerAndPort).IsSlave ? "Slave" : "Master"));
+                    Log("B " + TestConfig.Current.FailoverMasterServerAndPort + " status: " + (b.GetServer(TestConfig.Current.FailoverMasterServerAndPort).IsSlave ? "Slave" : "Master"));
+                    Log("B " + TestConfig.Current.FailoverSlaveServerAndPort + " status: " + (b.GetServer(TestConfig.Current.FailoverSlaveServerAndPort).IsSlave ? "Slave" : "Master"));
 
                     Assert.True(a.GetServer(TestConfig.Current.FailoverMasterServerAndPort).IsSlave, $"A Connection: {TestConfig.Current.FailoverMasterServerAndPort} should be a slave");
                     Assert.False(a.GetServer(TestConfig.Current.FailoverSlaveServerAndPort).IsSlave, $"A Connection: {TestConfig.Current.FailoverSlaveServerAndPort} should be a master");
                     Assert.True(b.GetServer(TestConfig.Current.FailoverMasterServerAndPort).IsSlave, $"B Connection: {TestConfig.Current.FailoverMasterServerAndPort} should be a slave");
                     Assert.False(b.GetServer(TestConfig.Current.FailoverSlaveServerAndPort).IsSlave, $"B Connection: {TestConfig.Current.FailoverSlaveServerAndPort} should be a master");
 
-                    Output.WriteLine("Pause complete");
-                    Output.WriteLine("A outstanding: " + a.GetCounters().TotalOutstanding);
-                    Output.WriteLine("B outstanding: " + b.GetCounters().TotalOutstanding);
+                    Log("Pause complete");
+                    Log("A outstanding: " + a.GetCounters().TotalOutstanding);
+                    Log("B outstanding: " + b.GetCounters().TotalOutstanding);
                     subA.Ping();
                     subB.Ping();
-                    await Task.Delay(2000).ForAwait();
+                    await Task.Delay(1000).ForAwait();
                     epA = subA.SubscribedEndpoint(channel);
                     epB = subB.SubscribedEndpoint(channel);
-                    Output.WriteLine("A: " + EndPointCollection.ToString(epA));
-                    Output.WriteLine("B: " + EndPointCollection.ToString(epB));
-                    Output.WriteLine("A2 sent to: " + subA.Publish(channel, "A2"));
-                    Output.WriteLine("B2 sent to: " + subB.Publish(channel, "B2"));
+                    Log("A: " + EndPointCollection.ToString(epA));
+                    Log("B: " + EndPointCollection.ToString(epB));
+                    Log("A2 sent to: " + subA.Publish(channel, "A2"));
+                    Log("B2 sent to: " + subB.Publish(channel, "B2"));
                     subA.Ping();
                     subB.Ping();
-                    Output.WriteLine("Checking...");
+                    Log("Checking...");
+                    await UntilCondition(5000, () => Interlocked.Read(ref aCount) == 2 && Interlocked.Read(ref bCount) == 2).ForAwait();
 
                     Assert.Equal(2, Interlocked.Read(ref aCount));
                     Assert.Equal(2, Interlocked.Read(ref bCount));
@@ -272,7 +294,7 @@ namespace StackExchange.Redis.Tests
                 }
                 finally
                 {
-                    Output.WriteLine("Restoring configuration...");
+                    Log("Restoring configuration...");
                     try
                     {
                         a.GetServer(TestConfig.Current.FailoverMasterServerAndPort).MakeMaster(ReplicationChangeOptions.All);

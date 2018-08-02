@@ -33,6 +33,7 @@ namespace StackExchange.Redis.Tests
             int errorCount = 0;
             int bgErrorCount = 0;
             var evt = new ManualResetEvent(false);
+            var key = Me();
             using (var c1 = Create(testMode))
             using (var c2 = Create(testMode))
             {
@@ -45,7 +46,7 @@ namespace StackExchange.Redis.Tests
 
                         for (int i = 0; i < 1000; i++)
                         {
-                            conn.LockTakeAsync("abc", "def", TimeSpan.FromSeconds(5));
+                            conn.LockTakeAsync(key, "def", TimeSpan.FromSeconds(5));
                         }
                         conn.Ping();
                         if (Interlocked.Decrement(ref count) == 0) evt.Set();
@@ -71,49 +72,22 @@ namespace StackExchange.Redis.Tests
             {
                 TestLockOpCountByVersion(conn, 1, false);
                 TestLockOpCountByVersion(conn, 1, true);
-
-                //TestManualLockOpCountByVersion(conn, 5, false);
-                //TestManualLockOpCountByVersion(conn, 3, true);
             }
         }
-        //[Test]
-        //public void TestOpCountByVersionLocal_DownLevel()
-        //{
-        //    using (var conn = GetUnsecuredConnection(open: false))
-        //    {
-        //        conn.SetServerVersion(new Version(2, 6, 0), ServerType.Master);
-        //        TestLockOpCountByVersion(conn, 5, false);
-        //        TestLockOpCountByVersion(conn, 3, true);
-        //        //TestManualLockOpCountByVersion(conn, 5, false);
-        //        //TestManualLockOpCountByVersion(conn, 3, true);
-        //    }
-        //}
-
-        //[Test]
-        //public void TestOpCountByVersionRemote()
-        //{
-        //    using (var conn = GetRemoteConnection(open: false))
-        //    {
-        //        TestLockOpCountByVersion(conn, 1, false);
-        //        TestLockOpCountByVersion(conn, 1, true);
-        //        //TestManualLockOpCountByVersion(conn, 1, false);
-        //        //TestManualLockOpCountByVersion(conn, 1, true);
-        //    }
-        //}
 
         private void TestLockOpCountByVersion(ConnectionMultiplexer conn, int expectedOps, bool existFirst)
         {
-            const int DB = 0, LockDuration = 30;
+            const int LockDuration = 30;
             RedisKey Key = Me();
 
-            var db = conn.GetDatabase(DB);
-            db.KeyDelete(Key);
+            var db = conn.GetDatabase();
+            db.KeyDelete(Key, CommandFlags.FireAndForget);
             RedisValue newVal = "us:" + Guid.NewGuid().ToString();
             RedisValue expectedVal = newVal;
             if (existFirst)
             {
                 expectedVal = "other:" + Guid.NewGuid().ToString();
-                db.StringSet(Key, expectedVal, TimeSpan.FromSeconds(LockDuration));
+                db.StringSet(Key, expectedVal, TimeSpan.FromSeconds(LockDuration), flags: CommandFlags.FireAndForget);
             }
             long countBefore = GetServer(conn).GetCounters().Interactive.OperationCount;
 
@@ -144,7 +118,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Theory, MemberData(nameof(TestModes))]
-        public void TakeLockAndExtend(TestMode mode)
+        public async Task TakeLockAndExtend(TestMode mode)
         {
             bool withTran = mode == TestMode.MultiExec;
             using (var conn = Create(mode))
@@ -153,11 +127,11 @@ namespace StackExchange.Redis.Tests
                     wrong = Guid.NewGuid().ToString();
 
                 int DB = mode == TestMode.Twemproxy ? 0 : 7;
-                RedisKey Key = "lock-key";
+                RedisKey Key = Me();
 
                 var db = conn.GetDatabase(DB);
 
-                db.KeyDelete(Key);
+                db.KeyDelete(Key, CommandFlags.FireAndForget);
 
                 var t1 = db.LockTakeAsync(Key, right, TimeSpan.FromSeconds(20));
                 var t1b = db.LockTakeAsync(Key, wrong, TimeSpan.FromSeconds(10));
@@ -177,22 +151,22 @@ namespace StackExchange.Redis.Tests
                 Assert.NotEqual(default(RedisValue), right);
                 Assert.NotEqual(default(RedisValue), wrong);
                 Assert.NotEqual(right, wrong);
-                Assert.True(conn.Wait(t1), "1");
-                Assert.False(conn.Wait(t1b), "1b");
-                Assert.Equal(right, conn.Wait(t2));
-                if (withTran) Assert.False(conn.Wait(t3), "3");
-                Assert.Equal(right, conn.Wait(t4));
-                if (withTran) Assert.False(conn.Wait(t5), "5");
-                Assert.Equal(right, conn.Wait(t6));
-                var ttl = conn.Wait(t7).Value.TotalSeconds;
+                Assert.True(await t1, "1");
+                Assert.False(await t1b, "1b");
+                Assert.Equal(right, await t2);
+                if (withTran) Assert.False(await t3, "3");
+                Assert.Equal(right, await t4);
+                if (withTran) Assert.False(await t5, "5");
+                Assert.Equal(right, await t6);
+                var ttl = (await t7).Value.TotalSeconds;
                 Assert.True(ttl > 0 && ttl <= 20, "7");
-                Assert.True(conn.Wait(t8), "8");
-                Assert.Equal(right, conn.Wait(t9));
-                ttl = conn.Wait(t10).Value.TotalSeconds;
+                Assert.True(await t8, "8");
+                Assert.Equal(right, await t9);
+                ttl = (await t10).Value.TotalSeconds;
                 Assert.True(ttl > 50 && ttl <= 60, "10");
-                Assert.True(conn.Wait(t11), "11");
-                Assert.Null((string)conn.Wait(t12));
-                Assert.True(conn.Wait(t13), "13");
+                Assert.True(await t11, "11");
+                Assert.Null((string)await t12);
+                Assert.True(await t13, "13");
             }
         }
 
@@ -225,7 +199,7 @@ namespace StackExchange.Redis.Tests
         //}
 
         [Theory, MemberData(nameof(TestModes))]
-        public void TestBasicLockNotTaken(TestMode testMode)
+        public async Task TestBasicLockNotTaken(TestMode testMode)
         {
             using (var conn = Create(testMode))
             {
@@ -236,17 +210,18 @@ namespace StackExchange.Redis.Tests
                 Task<TimeSpan?> ttl = null;
 
                 const int LOOP = 50;
-                var db = conn.GetDatabase(0);
+                var db = conn.GetDatabase();
+                var key = Me();
                 for (int i = 0; i < LOOP; i++)
                 {
-                    db.KeyDeleteAsync("lock-not-exists");
-                    taken = db.LockTakeAsync("lock-not-exists", "new-value", TimeSpan.FromSeconds(10));
-                    newValue = db.StringGetAsync("lock-not-exists");
-                    ttl = db.KeyTimeToLiveAsync("lock-not-exists");
+                    var d = db.KeyDeleteAsync(key);
+                    taken = db.LockTakeAsync(key, "new-value", TimeSpan.FromSeconds(10));
+                    newValue = db.StringGetAsync(key);
+                    ttl = db.KeyTimeToLiveAsync(key);
                 }
-                Assert.True(conn.Wait(taken), "taken");
-                Assert.Equal("new-value", (string)conn.Wait(newValue));
-                var ttlValue = conn.Wait(ttl).Value.TotalSeconds;
+                Assert.True(await taken, "taken");
+                Assert.Equal("new-value", (string)await newValue);
+                var ttlValue = (await ttl).Value.TotalSeconds;
                 Assert.True(ttlValue >= 8 && ttlValue <= 10, "ttl");
 
                 Assert.Equal(0, errorCount);
@@ -254,20 +229,21 @@ namespace StackExchange.Redis.Tests
         }
 
         [Theory, MemberData(nameof(TestModes))]
-        public void TestBasicLockTaken(TestMode testMode)
+        public async Task TestBasicLockTaken(TestMode testMode)
         {
             using (var conn = Create(testMode))
             {
-                var db = conn.GetDatabase(0);
-                db.KeyDelete("lock-exists");
-                db.StringSet("lock-exists", "old-value", TimeSpan.FromSeconds(20));
-                var taken = db.LockTakeAsync("lock-exists", "new-value", TimeSpan.FromSeconds(10));
-                var newValue = db.StringGetAsync("lock-exists");
-                var ttl = db.KeyTimeToLiveAsync("lock-exists");
+                var db = conn.GetDatabase();
+                var key = Me();
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.StringSet(key, "old-value", TimeSpan.FromSeconds(20), flags: CommandFlags.FireAndForget);
+                var taken = db.LockTakeAsync(key, "new-value", TimeSpan.FromSeconds(10));
+                var newValue = db.StringGetAsync(key);
+                var ttl = db.KeyTimeToLiveAsync(key);
 
-                Assert.False(conn.Wait(taken), "taken");
-                Assert.Equal("old-value", (string)conn.Wait(newValue));
-                var ttlValue = conn.Wait(ttl).Value.TotalSeconds;
+                Assert.False(await taken, "taken");
+                Assert.Equal("old-value", (string)await newValue);
+                var ttlValue = (await ttl).Value.TotalSeconds;
                 Assert.True(ttlValue >= 18 && ttlValue <= 20, "ttl");
             }
         }

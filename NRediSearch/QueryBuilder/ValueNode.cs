@@ -16,7 +16,7 @@ namespace NRediSearch.QueryBuilder
             _joinString = joinstr;
         }
 
-        private static Value[] fromStrings(string[] values)
+        private static Value[] FromStrings(string[] values)
         {
             Value[] objs = new Value[values.Length];
             for (int i = 0; i < values.Length; i++)
@@ -27,7 +27,7 @@ namespace NRediSearch.QueryBuilder
         }
 
         public ValueNode(string field, string joinstr, params string[] values)
-            : this(field, joinstr, fromStrings(values)) { }
+            : this(field, joinstr, FromStrings(values)) { }
 
         private string FormatField()
         {
@@ -69,7 +69,7 @@ namespace NRediSearch.QueryBuilder
             var sj = new StringJoiner(sb, _joinString);
             foreach (var v in _values)
             {
-                sj.Add(FormatField() + v.ToString());
+                sj.Add(FormatField() + v);
             }
             if (useParen)
             {

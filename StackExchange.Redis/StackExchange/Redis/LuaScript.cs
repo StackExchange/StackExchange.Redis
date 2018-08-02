@@ -6,15 +6,16 @@ using System.Threading.Tasks;
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Represents a Lua script that can be executed on Redis.
-    /// 
+    /// <para>Represents a Lua script that can be executed on Redis.</para>
+    /// <para>
     /// Unlike normal Redis Lua scripts, LuaScript can have named parameters (prefixed by a @).
     /// Public fields and properties of the passed in object are treated as parameters.
-    /// 
+    /// </para>
+    /// <para>
     /// Parameters of type RedisKey are sent to Redis as KEY (https://redis.io/commands/eval) in addition to arguments, 
     /// so as to play nicely with Redis Cluster.
-    /// 
-    /// All members of this class are thread safe.
+    /// </para>
+    /// <para>All members of this class are thread safe.</para>
     /// </summary>
     public sealed class LuaScript
     {
@@ -28,9 +29,8 @@ namespace StackExchange.Redis
         public string OriginalScript { get; }
 
         /// <summary>
-        /// The Lua script that will actually be sent to Redis for execution.
-        /// 
-        /// All @-prefixed parameter names have been replaced at this point.
+        /// <para>The Lua script that will actually be sent to Redis for execution.</para>
+        /// <para>All @-prefixed parameter names have been replaced at this point.</para>
         /// </summary>
         public string ExecutableScript { get; }
 
@@ -163,10 +163,11 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// <para>
         /// Loads this LuaScript into the given IServer so it can be run with it's SHA1 hash, instead of
         /// passing the full script on each Evaluate or EvaluateAsync call.
-        /// 
-        /// Note: the FireAndForget command flag cannot be set
+        /// </para>
+        /// <para>Note: the FireAndForget command flag cannot be set</para>
         /// </summary>
         /// <param name="server">The server to load the script on.</param>
         /// <param name="flags">The command flags to use.</param>
@@ -182,10 +183,11 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// <para>
         /// Loads this LuaScript into the given IServer so it can be run with it's SHA1 hash, instead of
         /// passing the full script on each Evaluate or EvaluateAsync call.
-        /// 
-        /// Note: the FireAndForget command flag cannot be set
+        /// </para>
+        /// <para>Note: the FireAndForget command flag cannot be set</para>
         /// </summary>
         /// <param name="server">The server to load the script on.</param>
         /// <param name="flags">The command flags to use.</param>
@@ -202,21 +204,24 @@ namespace StackExchange.Redis
     }
 
     /// <summary>
-    /// Represents a Lua script that can be executed on Redis.
-    /// 
+    /// <para>Represents a Lua script that can be executed on Redis.</para>
+    /// <para>
     /// Unlike LuaScript, LoadedLuaScript sends the hash of it's ExecutableScript to Redis rather than pass
     /// the whole script on each call.  This requires that the script be loaded into Redis before it is used.
-    /// 
+    /// </para>
+    /// <para>
     /// To create a LoadedLuaScript first create a LuaScript via LuaScript.Prepare(string), then
     /// call Load(IServer, CommandFlags) on the returned LuaScript.
-    /// 
+    /// </para>
+    /// <para>
     /// Unlike normal Redis Lua scripts, LoadedLuaScript can have named parameters (prefixed by a @).
     /// Public fields and properties of the passed in object are treated as parameters.
-    /// 
+    /// </para>
+    /// <para>
     /// Parameters of type RedisKey are sent to Redis as KEY (https://redis.io/commands/eval) in addition to arguments, 
     /// so as to play nicely with Redis Cluster.
-    /// 
-    /// All members of this class are thread safe.
+    /// </para>
+    /// <para>All members of this class are thread safe.</para>
     /// </summary>
     public sealed class LoadedLuaScript
     {
@@ -231,9 +236,8 @@ namespace StackExchange.Redis
         public string ExecutableScript => Original.ExecutableScript;
 
         /// <summary>
-        /// The SHA1 hash of ExecutableScript.
-        /// 
-        /// This is sent to Redis instead of ExecutableScript during Evaluate and EvaluateAsync calls.
+        /// <para>The SHA1 hash of ExecutableScript.</para>
+        /// <para>This is sent to Redis instead of ExecutableScript during Evaluate and EvaluateAsync calls.</para>
         /// </summary>
         public byte[] Hash { get; }
 
@@ -247,10 +251,11 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Evaluates this LoadedLuaScript against the given database, extracting parameters for the passed in object if any.
-        /// 
+        /// <para>Evaluates this LoadedLuaScript against the given database, extracting parameters for the passed in object if any.</para>
+        /// <para>
         /// This method sends the SHA1 hash of the ExecutableScript instead of the script itself.  If the script has not
         /// been loaded into the passed Redis instance it will fail.
+        /// </para>
         /// </summary>
         /// <param name="db">The redis databse to evaluate against.</param>
         /// <param name="ps">The parameter object to use.</param>
@@ -263,10 +268,11 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Evaluates this LoadedLuaScript against the given database, extracting parameters for the passed in object if any.
-        /// 
+        /// <para>Evaluates this LoadedLuaScript against the given database, extracting parameters for the passed in object if any.</para>
+        /// <para>
         /// This method sends the SHA1 hash of the ExecutableScript instead of the script itself.  If the script has not
         /// been loaded into the passed Redis instance it will fail.
+        /// </para>
         /// </summary>
         /// <param name="db">The redis databse to evaluate against.</param>
         /// <param name="ps">The parameter object to use.</param>

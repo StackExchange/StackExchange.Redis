@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading;
@@ -146,9 +146,9 @@ namespace StackExchange.Redis
                 set => wasQueued = value;
             }
 
-            internal override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(PhysicalConnection physical)
             {
-                Wrapped.WriteImpl(physical);
+                Wrapped.WriteTo(physical);
                 Wrapped.SetRequestSent();
             }
         }
@@ -173,16 +173,14 @@ namespace StackExchange.Redis
 
         private class TransactionMessage : Message, IMultiMessage
         {
-            private static readonly ConditionResult[] NixConditions = new ConditionResult[0];
-            private static readonly QueuedMessage[] NixMessages = new QueuedMessage[0];
             private readonly ConditionResult[] conditions;
             public QueuedMessage[] InnerOperations { get; }
 
             public TransactionMessage(int db, CommandFlags flags, List<ConditionResult> conditions, List<QueuedMessage> operations)
                 : base(db, flags, RedisCommand.EXEC)
             {
-                this.InnerOperations = (operations == null || operations.Count == 0) ? NixMessages : operations.ToArray();
-                this.conditions = (conditions == null || conditions.Count == 0) ? NixConditions : conditions.ToArray();
+                InnerOperations = (operations == null || operations.Count == 0) ? Array.Empty<QueuedMessage>() : operations.ToArray();
+                this.conditions = (conditions == null || conditions.Count == 0) ? Array.Empty<ConditionResult>(): conditions.ToArray();
             }
 
             public bool IsAborted => command != RedisCommand.EXEC;
@@ -225,8 +223,11 @@ namespace StackExchange.Redis
                     // up-version servers, pre-condition failures exit with UNWATCH; and on down-version servers pre-condition
                     // failures exit with DISCARD - but that's ok : both work fine
 
-                    bool explicitCheckForQueued = !connection.Bridge.ServerEndPoint.GetFeatures().ExecAbort;
-                    var multiplexer = connection.Multiplexer;
+                    var bridge = connection.BridgeCouldBeNull;
+                    if (bridge == null) throw new ObjectDisposedException(connection.ToString());
+
+                    bool explicitCheckForQueued = !bridge.ServerEndPoint.GetFeatures().ExecAbort;
+                    var multiplexer = bridge.Multiplexer;
 
                     // PART 1: issue the pre-conditions
                     if (!IsAborted && conditions.Length != 0)
@@ -250,7 +251,7 @@ namespace StackExchange.Redis
                         {
                             // need to get those sent ASAP; if they are stuck in the buffers, we die
                             multiplexer.Trace("Flushing and waiting for precondition responses");
-                            connection.Flush();
+                            connection.FlushAsync().Wait();
                             if (Monitor.Wait(lastBox, multiplexer.TimeoutMilliseconds))
                             {
                                 if (!AreAllConditionsSatisfied(multiplexer))
@@ -297,7 +298,7 @@ namespace StackExchange.Redis
                         if (explicitCheckForQueued && lastBox != null)
                         {
                             multiplexer.Trace("Flushing and waiting for precondition+queued responses");
-                            connection.Flush(); // make sure they get sent, so we can check for QUEUED (and the pre-conditions if necessary)
+                            connection.FlushAsync().Wait(); // make sure they get sent, so we can check for QUEUED (and the pre-conditions if necessary)
                             if (Monitor.Wait(lastBox, multiplexer.TimeoutMilliseconds))
                             {
                                 if (!AreAllConditionsSatisfied(multiplexer))
@@ -334,19 +335,19 @@ namespace StackExchange.Redis
                 }
                 if (IsAborted)
                 {
-                    connection.Multiplexer.Trace("Aborting: canceling wrapped messages");
-                    var bridge = connection.Bridge;
+                    connection.Trace("Aborting: canceling wrapped messages");
+                    var bridge = connection.BridgeCouldBeNull;
                     foreach (var op in InnerOperations)
                     {
                         op.Wrapped.Cancel();
-                        bridge.CompleteSyncOrAsync(op.Wrapped);
+                        bridge?.CompleteSyncOrAsync(op.Wrapped);
                     }
                 }
-                connection.Multiplexer.Trace("End ot transaction: " + Command);
+                connection.Trace("End of transaction: " + Command);
                 yield return this; // acts as either an EXEC or an UNWATCH, depending on "aborted"
             }
 
-            internal override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 0);
             }
@@ -380,11 +381,11 @@ namespace StackExchange.Redis
                 if (result.IsError && message is TransactionMessage tran)
                 {
                     string error = result.GetString();
-                    var bridge = connection.Bridge;
+                    var bridge = connection.BridgeCouldBeNull;
                     foreach (var op in tran.InnerOperations)
                     {
                         ServerFail(op.Wrapped, error);
-                        bridge.CompleteSyncOrAsync(op.Wrapped);
+                        bridge?.CompleteSyncOrAsync(op.Wrapped);
                     }
                 }
                 return base.SetResult(connection, message, result);
@@ -394,26 +395,26 @@ namespace StackExchange.Redis
             {
                 if (message is TransactionMessage tran)
                 {
-                    var bridge = connection.Bridge;
+                    var bridge = connection.BridgeCouldBeNull;
                     var wrapped = tran.InnerOperations;
                     switch (result.Type)
                     {
                         case ResultType.SimpleString:
                             if (tran.IsAborted && result.IsEqual(RedisLiterals.BytesOK))
                             {
-                                connection.Multiplexer.Trace("Acknowledging UNWATCH (aborted electively)");
+                                connection.Trace("Acknowledging UNWATCH (aborted electively)");
                                 SetResult(message, false);
                                 return true;
                             }
                             //EXEC returned with a NULL
                             if (!tran.IsAborted && result.IsNull)
                             {
-                                connection.Multiplexer.Trace("Server aborted due to failed EXEC");
+                                connection.Trace("Server aborted due to failed EXEC");
                                 //cancel the commands in the transaction and mark them as complete with the completion manager
                                 foreach (var op in wrapped)
                                 {
                                     op.Wrapped.Cancel();
-                                    bridge.CompleteSyncOrAsync(op.Wrapped);
+                                    bridge?.CompleteSyncOrAsync(op.Wrapped);
                                 }
                                 SetResult(message, false);
                                 return true;
@@ -423,25 +424,25 @@ namespace StackExchange.Redis
                             if (!tran.IsAborted)
                             {
                                 var arr = result.GetItems();
-                                if (arr == null)
+                                if (result.IsNull)
                                 {
-                                    connection.Multiplexer.Trace("Server aborted due to failed WATCH");
+                                    connection.Trace("Server aborted due to failed WATCH");
                                     foreach (var op in wrapped)
                                     {
                                         op.Wrapped.Cancel();
-                                        bridge.CompleteSyncOrAsync(op.Wrapped);
+                                        bridge?.CompleteSyncOrAsync(op.Wrapped);
                                     }
                                     SetResult(message, false);
                                     return true;
                                 }
                                 else if (wrapped.Length == arr.Length)
                                 {
-                                    connection.Multiplexer.Trace("Server committed; processing nested replies");
+                                    connection.Trace("Server committed; processing nested replies");
                                     for (int i = 0; i < arr.Length; i++)
                                     {
                                         if (wrapped[i].Wrapped.ComputeResult(connection, arr[i]))
                                         {
-                                            bridge.CompleteSyncOrAsync(wrapped[i].Wrapped);
+                                            bridge?.CompleteSyncOrAsync(wrapped[i].Wrapped);
                                         }
                                     }
                                     SetResult(message, true);
@@ -454,7 +455,7 @@ namespace StackExchange.Redis
                     // the pending tasks
                     foreach (var op in wrapped)
                     {
-                        op.Wrapped.Fail(ConnectionFailureType.ProtocolFailure, null);
+                        op.Wrapped.Fail(ConnectionFailureType.ProtocolFailure, null, "transaction failure");
                         bridge.CompleteSyncOrAsync(op.Wrapped);
                     }
                 }

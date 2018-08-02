@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using System.Reflection;
 using System.IO.Compression;
 using System.Runtime.CompilerServices;
+using StackExchange.Redis.Profiling;
 
 namespace StackExchange.Redis
 {
@@ -22,6 +23,18 @@ namespace StackExchange.Redis
         private const string timeoutHelpLink = "https://stackexchange.github.io/StackExchange.Redis/Timeouts";
 
         private static TaskFactory _factory = null;
+
+#if DEBUG
+        private static int _collectedWithoutDispose;
+        internal static int CollectedWithoutDispose => Thread.VolatileRead(ref _collectedWithoutDispose);
+        /// <summary>
+        /// Invoked by the garbage collector
+        /// </summary>
+        ~ConnectionMultiplexer()
+        {
+            Interlocked.Increment(ref _collectedWithoutDispose);
+        }
+#endif
 
         /// <summary>
         /// Provides a way of overriding the default Task Factory. If not set, it will use the default Task.Factory.
@@ -38,7 +51,7 @@ namespace StackExchange.Redis
         /// </summary>
         public ServerCounters GetCounters()
         {
-            var snapshot = serverSnapshot;
+            var snapshot = GetServerSnapshot();
 
             var counters = new ServerCounters(null);
             for (int i = 0; i < snapshot.Length; i++)
@@ -233,7 +246,7 @@ namespace StackExchange.Redis
 
             using (var zip = new ZipArchive(destination, ZipArchiveMode.Create, true))
             {
-                var arr = serverSnapshot;
+                var arr = GetServerSnapshot();
                 foreach (var server in arr)
                 {
                     const CommandFlags flags = CommandFlags.None;
@@ -280,9 +293,16 @@ namespace StackExchange.Redis
                     {
                         Write<ClientInfo[]>(zip, prefix + "/clients.txt", tasks[index++], (clients, writer) =>
                         {
-                            foreach (var client in clients)
+                            if (clients == null)
                             {
-                                writer.WriteLine(client.Raw);
+                                writer.WriteLine(NoContent);
+                            }
+                            else
+                            {
+                                foreach (var client in clients)
+                                {
+                                    writer.WriteLine(client.Raw);
+                                }
                             }
                         });
                     }
@@ -305,8 +325,9 @@ namespace StackExchange.Redis
 
             if (log == null) log = TextWriter.Null;
             CommandMap.AssertAvailable(RedisCommand.SLAVEOF);
-
+#pragma warning disable CS0618
             const CommandFlags flags = CommandFlags.NoRedirect | CommandFlags.HighPriority;
+#pragma warning restore CS0618
             Message msg;
 
             LogLocked(log, "Checking {0} is available...", Format.ToString(srv.EndPoint));
@@ -320,7 +341,7 @@ namespace StackExchange.Redis
                 throw;
             }
 
-            var nodes = serverSnapshot;
+            var nodes = GetServerSnapshot();
             RedisValue newMaster = Format.ToString(server.EndPoint);
 
             RedisKey tieBreakerKey = default(RedisKey);
@@ -335,7 +356,7 @@ namespace StackExchange.Redis
                     if (!node.IsConnected) continue;
                     LogLocked(log, "Attempting to set tie-breaker on {0}...", Format.ToString(node.EndPoint));
                     msg = Message.Create(0, flags, RedisCommand.SET, tieBreakerKey, newMaster);
-                    node.QueueDirectFireAndForget(msg, ResultProcessor.DemandOK);
+                    node.WriteDirectFireAndForget(msg, ResultProcessor.DemandOK);
                 }
             }
 
@@ -356,7 +377,7 @@ namespace StackExchange.Redis
             {
                 LogLocked(log, "Resending tie-breaker to {0}...", Format.ToString(server.EndPoint));
                 msg = Message.Create(0, flags, RedisCommand.SET, tieBreakerKey, newMaster);
-                server.QueueDirectFireAndForget(msg, ResultProcessor.DemandOK);
+                server.WriteDirectFireAndForget(msg, ResultProcessor.DemandOK);
             }
 
             // There's an inherent race here in zero-lantency environments (e.g. when Redis is on localhost) when a broadcast is specified
@@ -376,7 +397,7 @@ namespace StackExchange.Redis
                     if (!node.IsConnected) continue;
                     LogLocked(log, "Broadcasting via {0}...", Format.ToString(node.EndPoint));
                     msg = Message.Create(-1, flags, RedisCommand.PUBLISH, channel, newMaster);
-                    node.QueueDirectFireAndForget(msg, ResultProcessor.Int64);
+                    node.WriteDirectFireAndForget(msg, ResultProcessor.Int64);
                 }
             }
 
@@ -388,7 +409,7 @@ namespace StackExchange.Redis
 
                     LogLocked(log, "Enslaving {0}...", Format.ToString(node.EndPoint));
                     msg = RedisServer.CreateSlaveOfMessage(server.EndPoint, flags);
-                    node.QueueDirectFireAndForget(msg, ResultProcessor.DemandOK);
+                    node.WriteDirectFireAndForget(msg, ResultProcessor.DemandOK);
                 }
             }
 
@@ -444,14 +465,21 @@ namespace StackExchange.Redis
                 throw ExceptionFactory.AdminModeNotEnabled(IncludeDetailInExceptions, message.Command, message, null);
             CommandMap.AssertAvailable(message.Command);
         }
-
+        private const string NoContent = "(no content)";
         private static void WriteNormalizingLineEndings(string source, StreamWriter writer)
         {
-            using (var reader = new StringReader(source))
+            if (source == null)
             {
-                string line;
-                while ((line = reader.ReadLine()) != null)
-                    writer.WriteLine(line); // normalize line endings
+                writer.WriteLine(NoContent);
+            }
+            else
+            {
+                using (var reader = new StringReader(source))
+                {
+                    string line;
+                    while ((line = reader.ReadLine()) != null)
+                        writer.WriteLine(line); // normalize line endings
+                }
             }
         }
 
@@ -482,9 +510,13 @@ namespace StackExchange.Redis
         public event EventHandler<EndPointEventArgs> ConfigurationChangedBroadcast;
 
         /// <summary>
-        /// Gets the timeout associated with the connections
+        /// Gets the synchronous timeout associated with the connections
         /// </summary>
         public int TimeoutMilliseconds { get; }
+        /// <summary>
+        /// Gets the asynchronous timeout associated with the connections
+        /// </summary>
+        internal int AsyncTimeoutMilliseconds { get; }
 
         /// <summary>
         /// Gets all endpoints defined on the server
@@ -494,7 +526,7 @@ namespace StackExchange.Redis
         {
             if (configuredOnly) return configuration.EndPoints.ToArray();
 
-            return Array.ConvertAll(serverSnapshot, x => x.EndPoint);
+            return _serverSnapshot.GetEndPoints();
         }
 
         private readonly ConfigurationOptions configuration;
@@ -571,6 +603,9 @@ namespace StackExchange.Redis
             return false;
         }
 
+        internal bool AuthSuspect { get; private set; }
+        internal void SetAuthSuspect() => AuthSuspect = true;
+
         private void LogLockedWithThreadPoolStats(TextWriter log, string message, out int busyWorkerCount)
         {
             busyWorkerCount = 0;
@@ -595,7 +630,7 @@ namespace StackExchange.Redis
             return true;
         }
 
-        private async Task<bool> WaitAllIgnoreErrorsAsync(Task[] tasks, int timeoutMilliseconds, TextWriter log)
+        private async Task<bool> WaitAllIgnoreErrorsAsync(Task[] tasks, int timeoutMilliseconds, TextWriter log, [CallerMemberName] string caller = null, [CallerLineNumber] int callerLineNumber = 0)
         {
             if (tasks == null) throw new ArgumentNullException(nameof(tasks));
             if (tasks.Length == 0)
@@ -623,9 +658,11 @@ namespace StackExchange.Redis
                 }
 
                 var allTasks = Task.WhenAll(tasks).ObserveErrors();
-                var any = Task.WhenAny(allTasks, Task.Delay(remaining)).ObserveErrors();
+                var cts = new CancellationTokenSource();
+                var any = Task.WhenAny(allTasks, Task.Delay(remaining, cts.Token)).ObserveErrors();
                 bool all = await any.ForAwait() == allTasks;
-                LogLockedWithThreadPoolStats(log, all ? "All tasks completed cleanly" : "Not all tasks completed cleanly", out busyWorkerCount);
+                cts.Cancel();
+                LogLockedWithThreadPoolStats(log, all ? "All tasks completed cleanly" : $"Not all tasks completed cleanly (from {caller}#{callerLineNumber}, timeout {timeoutMilliseconds}ms)", out busyWorkerCount);
                 return all;
             }
             catch
@@ -680,7 +717,7 @@ namespace StackExchange.Redis
 
         internal ServerEndPoint AnyConnected(ServerType serverType, uint startOffset, RedisCommand command, CommandFlags flags)
         {
-            var tmp = serverSnapshot;
+            var tmp = GetServerSnapshot();
             int len = tmp.Length;
             ServerEndPoint fallback = null;
             for (int i = 0; i < len; i++)
@@ -735,7 +772,7 @@ namespace StackExchange.Redis
                 bool configured = await muxer.ReconfigureAsync(true, false, log, null, "connect").ObserveErrors().ForAwait();
                 if (!configured)
                 {
-                    throw ExceptionFactory.UnableToConnect(muxer.RawConfig.AbortOnConnectFail, muxer.failureMessage);
+                    throw ExceptionFactory.UnableToConnect(muxer, muxer.failureMessage);
                 }
                 killMe = null;
                 return muxer;
@@ -761,7 +798,7 @@ namespace StackExchange.Redis
                 bool configured = await muxer.ReconfigureAsync(true, false, log, null, "connect").ObserveErrors().ForAwait();
                 if (!configured)
                 {
-                    throw ExceptionFactory.UnableToConnect(muxer.RawConfig.AbortOnConnectFail, muxer.failureMessage);
+                    throw ExceptionFactory.UnableToConnect(muxer, muxer.failureMessage);
                 }
                 killMe = null;
                 return muxer;
@@ -776,13 +813,13 @@ namespace StackExchange.Redis
         {
             if (configuration == null) throw new ArgumentNullException(nameof(configuration));
             ConfigurationOptions config;
-            if (configuration is string)
+            if (configuration is string s)
             {
-                config = ConfigurationOptions.Parse((string)configuration);
+                config = ConfigurationOptions.Parse(s);
             }
-            else if (configuration is ConfigurationOptions)
+            else if (configuration is ConfigurationOptions configurationOptions)
             {
-                config = ((ConfigurationOptions)configuration).Clone();
+                config = (configurationOptions).Clone();
             }
             else
             {
@@ -828,14 +865,14 @@ namespace StackExchange.Redis
                     task.ObserveErrors();
                     if (muxer.RawConfig.AbortOnConnectFail)
                     {
-                        throw ExceptionFactory.UnableToConnect(muxer.RawConfig.AbortOnConnectFail, "ConnectTimeout");
+                        throw ExceptionFactory.UnableToConnect(muxer, "ConnectTimeout");
                     }
                     else
                     {
-                        muxer.LastException = ExceptionFactory.UnableToConnect(muxer.RawConfig.AbortOnConnectFail, "ConnectTimeout");
+                        muxer.LastException = ExceptionFactory.UnableToConnect(muxer, "ConnectTimeout");
                     }
                 }
-                if (!task.Result) throw ExceptionFactory.UnableToConnect(muxer.RawConfig.AbortOnConnectFail, muxer.failureMessage);
+                if (!task.Result) throw ExceptionFactory.UnableToConnect(muxer, muxer.failureMessage);
                 killMe = null;
                 return muxer;
             }
@@ -847,16 +884,60 @@ namespace StackExchange.Redis
 
         private string failureMessage;
         private readonly Hashtable servers = new Hashtable();
-        private volatile ServerEndPoint[] serverSnapshot = NilServers;
+        private volatile ServerSnapshot _serverSnapshot = ServerSnapshot.Empty;
+        internal ReadOnlySpan<ServerEndPoint> GetServerSnapshot() => _serverSnapshot.Span;
+        private sealed class ServerSnapshot
+        {
+            public static ServerSnapshot Empty { get; } = new ServerSnapshot(Array.Empty<ServerEndPoint>(), 0);
+            private ServerSnapshot(ServerEndPoint[] arr, int count)
+            {
+                _arr = arr;
+                _count = count;
+            }
+            private readonly ServerEndPoint[] _arr;
+            private readonly int _count;
+            public ReadOnlySpan<ServerEndPoint> Span => new ReadOnlySpan<ServerEndPoint>(_arr, 0, _count);
 
-        private static readonly ServerEndPoint[] NilServers = new ServerEndPoint[0];
+            internal ServerSnapshot Add(ServerEndPoint value)
+            {
+                if (value == null) return this;
 
-        internal ServerEndPoint GetServerEndPoint(EndPoint endpoint)
+                ServerEndPoint[] arr;
+                if (_arr.Length > _count)
+                {
+                    arr = _arr;
+                }
+                else
+                {
+                    // no more room; need a new array
+                    int newLen = _arr.Length << 1;
+                    if (newLen == 0) newLen = 4;
+                    arr = new ServerEndPoint[newLen];
+                    _arr.CopyTo(arr, 0);
+                }
+                arr[_count] = value;
+                return new ServerSnapshot(arr, _count + 1);
+            }
+
+            internal EndPoint[] GetEndPoints()
+            {
+                if (_count == 0) return Array.Empty<EndPoint>();
+
+                var arr = new EndPoint[_count];
+                for (int i = 0; i < _count; i++)
+                {
+                    arr[i] = _arr[i].EndPoint;
+                }
+                return arr;
+            }
+        }
+        internal ServerEndPoint GetServerEndPoint(EndPoint endpoint, TextWriter log = null, bool activate = true)
         {
             if (endpoint == null) return null;
             var server = (ServerEndPoint)servers[endpoint];
             if (server == null)
             {
+                bool isNew = false;
                 lock (servers)
                 {
                     server = (ServerEndPoint)servers[endpoint];
@@ -864,19 +945,14 @@ namespace StackExchange.Redis
                     {
                         if (isDisposed) throw new ObjectDisposedException(ToString());
 
-                        server = new ServerEndPoint(this, endpoint, null);
-                        // ^^ this causes ReconfigureAsync() which calls GetServerEndpoint() which can modify servers, so double check!
-                        if (!servers.ContainsKey(endpoint))
-                        {
-                            servers.Add(endpoint, server);
-                        }
-
-                        var newSnapshot = serverSnapshot;
-                        Array.Resize(ref newSnapshot, newSnapshot.Length + 1);
-                        newSnapshot[newSnapshot.Length - 1] = server;
-                        serverSnapshot = newSnapshot;
+                        server = new ServerEndPoint(this, endpoint);
+                        servers.Add(endpoint, server);
+                        isNew = true;
+                        _serverSnapshot = _serverSnapshot.Add(server);
                     }
                 }
+                // spin up the connection if this is new
+                if (isNew && activate) server.Activate(ConnectionType.Interactive, log);
             }
             return server;
         }
@@ -898,8 +974,8 @@ namespace StackExchange.Redis
                 map.AssertAvailable(RedisCommand.EXISTS);
             }
 
-            PreserveAsyncOrder = configuration.PreserveAsyncOrder;
             TimeoutMilliseconds = configuration.SyncTimeout;
+            AsyncTimeoutMilliseconds = configuration.AsyncTimeout;
 
             OnCreateReaderWriter(configuration);
             UnprocessableCompletionManager = new CompletionManager(this, "multiplexer");
@@ -916,8 +992,41 @@ namespace StackExchange.Redis
         partial void OnCreateReaderWriter(ConfigurationOptions configuration);
 
         internal const int MillisecondsPerHeartbeat = 1000;
+        private sealed class TimerToken
+        {
+            public TimerToken(ConnectionMultiplexer muxer)
+            {
+                _ref = new WeakReference(muxer);
+            }
+            private Timer _timer;
+            public void SetTimer(Timer timer) => _timer = timer;
+            private readonly WeakReference _ref;
 
-        private static readonly TimerCallback heartbeat = state => ((ConnectionMultiplexer)state).OnHeartbeat();
+            private static readonly TimerCallback Heartbeat = state =>
+            {
+                var token = (TimerToken)state;
+                var muxer = (ConnectionMultiplexer)(token._ref?.Target);
+                if (muxer != null)
+                {
+                    muxer.OnHeartbeat();
+                }
+                else
+                {
+                    // the muxer got disposed from out of us; kill the timer
+                    var tmp = token._timer;
+                    token._timer = null;
+                    if (tmp != null) try { tmp.Dispose(); } catch { }
+                }
+            };
+
+            internal static IDisposable Create(ConnectionMultiplexer connection)
+            {
+                var token = new TimerToken(connection);
+                var timer = new Timer(Heartbeat, token, MillisecondsPerHeartbeat, MillisecondsPerHeartbeat);
+                token.SetTimer(timer);
+                return timer;
+            }
+        }
 
         private int _activeHeartbeatErrors;
         private void OnHeartbeat()
@@ -929,7 +1038,7 @@ namespace StackExchange.Redis
                 Interlocked.Exchange(ref lastGlobalHeartbeatTicks, now);
                 Trace("heartbeat");
 
-                var tmp = serverSnapshot;
+                var tmp = GetServerSnapshot();
                 for (int i = 0; i < tmp.Length; i++)
                     tmp[i].OnHeartbeat();
             }
@@ -1083,7 +1192,7 @@ namespace StackExchange.Redis
             get
             {
                 long total = 0;
-                var snapshot = serverSnapshot;
+                var snapshot = GetServerSnapshot();
                 for (int i = 0; i < snapshot.Length; i++) total += snapshot[i].OperationCount;
                 return total;
             }
@@ -1179,17 +1288,29 @@ namespace StackExchange.Redis
         {
             if (log == null) return;
 
-            var tmp = serverSnapshot;
+            var tmp = GetServerSnapshot();
             foreach (var server in tmp)
             {
                 LogLocked(log, server.Summary());
                 LogLocked(log, server.GetCounters().ToString());
                 LogLocked(log, server.GetProfile());
             }
-            LogLocked(log, "Sync timeouts: {0}; fire and forget: {1}; last heartbeat: {2}s ago",
-                Interlocked.Read(ref syncTimeouts), Interlocked.Read(ref fireAndForgets), LastHeartbeatSecondsAgo);
+            LogLocked(log, "Sync timeouts: {0}; async timeouts: {1}; fire and forget: {2}; last heartbeat: {3}s ago",
+                Interlocked.Read(ref syncTimeouts), Interlocked.Read(ref asyncTimeouts),
+                Interlocked.Read(ref fireAndForgets), LastHeartbeatSecondsAgo);
         }
 
+        private void ActivateAllServers(TextWriter log)
+        {
+            foreach (var server in GetServerSnapshot())
+            {
+                server.Activate(ConnectionType.Interactive, log);
+                if (CommandMap.IsAvailable(RedisCommand.SUBSCRIBE))
+                {
+                    server.Activate(ConnectionType.Subscription, null); // no need to log the SUB stuff
+                }
+            }
+        }
         internal async Task<bool> ReconfigureAsync(bool first, bool reconfigureAll, TextWriter log, EndPoint blame, string cause, bool publishReconfigure = false, CommandFlags publishReconfigureFlags = CommandFlags.None)
         {
             if (isDisposed) throw new ObjectDisposedException(ToString());
@@ -1220,40 +1341,19 @@ namespace StackExchange.Redis
                 {
                     if (configuration.ResolveDns && configuration.HasDnsEndPoints())
                     {
+                        var cts = new CancellationTokenSource();
                         var dns = configuration.ResolveEndPointsAsync(this, log).ObserveErrors();
-                        if ((await Task.WhenAny(dns, Task.Delay(TimeoutMilliseconds)).ForAwait()) != dns)
+                        if ((await Task.WhenAny(dns, Task.Delay(TimeoutMilliseconds, cts.Token)).ForAwait()) != dns)
                         {
                             throw new TimeoutException("Timeout resolving endpoints");
                         }
+                        cts.Cancel();
                     }
-                    int index = 0;
-                    lock (servers)
+                    foreach (var endpoint in configuration.EndPoints)
                     {
-                        var newSnapshot = new ServerEndPoint[configuration.EndPoints.Count];
-                        foreach (var endpoint in configuration.EndPoints)
-                        {
-                            var server = (ServerEndPoint)servers[endpoint];
-                            if (server == null)
-                            {
-                                server = new ServerEndPoint(this, endpoint, log);
-                                // ^^ this causes ReconfigureAsync() which calls GetServerEndpoint() which can modify servers, so double check!
-                                if (!servers.ContainsKey(endpoint))
-                                {
-                                    servers.Add(endpoint, server);
-                                }
-                            }
-                            newSnapshot[index++] = server;
-                        }
-                        serverSnapshot = newSnapshot;
+                        GetServerEndPoint(endpoint, log, false);
                     }
-                    foreach (var server in serverSnapshot)
-                    {
-                        server.Activate(ConnectionType.Interactive, log);
-                        if (CommandMap.IsAvailable(RedisCommand.SUBSCRIBE))
-                        {
-                            server.Activate(ConnectionType.Subscription, null); // no need to log the SUB stuff
-                        }
-                    }
+                    ActivateAllServers(log);
                 }
                 int attemptsLeft = first ? configuration.ConnectRetry : 1;
 
@@ -1272,8 +1372,9 @@ namespace StackExchange.Redis
                     {
                         throw new InvalidOperationException("No nodes to consider");
                     }
-
+#pragma warning disable CS0618
                     const CommandFlags flags = CommandFlags.NoRedirect | CommandFlags.HighPriority;
+#pragma warning restore CS0618
                     List<ServerEndPoint> masters = new List<ServerEndPoint>(endpoints.Count);
                     bool useTieBreakers = !string.IsNullOrWhiteSpace(configuration.TieBreaker);
 
@@ -1319,7 +1420,7 @@ namespace StackExchange.Redis
                                 Message msg = Message.Create(0, flags, RedisCommand.GET, tieBreakerKey);
                                 msg.SetInternalCall();
                                 msg = LoggingMessage.Create(log, msg);
-                                tieBreakers[i] = server.QueueDirectAsync(msg, ResultProcessor.String);
+                                tieBreakers[i] = server.WriteDirectAsync(msg, ResultProcessor.String);
                             }
                         }
 
@@ -1501,7 +1602,7 @@ namespace StackExchange.Redis
                 if (first)
                 {
                     LogLocked(log, "Starting heartbeat...");
-                    pulse = new Timer(heartbeat, this, MillisecondsPerHeartbeat, MillisecondsPerHeartbeat);
+                    pulse = TimerToken.Create(this);
                 }
                 if (publishReconfigure)
                 {
@@ -1547,7 +1648,7 @@ namespace StackExchange.Redis
 
         private void ResetAllNonConnected()
         {
-            var snapshot = serverSnapshot;
+            var snapshot = GetServerSnapshot();
             foreach (var server in snapshot)
             {
                 server.ResetNonConnected();
@@ -1561,6 +1662,7 @@ namespace StackExchange.Redis
             if (useTieBreakers)
             {   // count the votes
                 uniques = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                LogLocked(log, "Waiting for tiebreakers...");
                 await WaitAllIgnoreErrorsAsync(tieBreakers, 50, log).ForAwait();
                 for (int i = 0; i < tieBreakers.Length; i++)
                 {
@@ -1717,13 +1819,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private Timer pulse;
-
-        internal ServerEndPoint[] GetServerSnapshot()
-        {
-            var tmp = serverSnapshot;
-            return tmp;
-        }
+        private IDisposable pulse;
 
         internal ServerEndPoint SelectServer(Message message)
         {
@@ -1736,7 +1832,7 @@ namespace StackExchange.Redis
             return ServerSelectionStrategy.Select(db, command, key, flags);
         }
 
-        private bool TryPushMessageToBridge<T>(Message message, ResultProcessor<T> processor, ResultBox<T> resultBox, ref ServerEndPoint server)
+        private WriteResult TryPushMessageToBridge<T>(Message message, ResultProcessor<T> processor, ResultBox<T> resultBox, ref ServerEndPoint server)
         {
             message.SetSource(processor, resultBox);
 
@@ -1754,8 +1850,6 @@ namespace StackExchange.Redis
                 switch (server.ServerType)
                 {
                     case ServerType.Cluster:
-                    case ServerType.Twemproxy: // strictly speaking twemproxy uses a different hashing algo, but the hash-tag behavior is
-                                               // the same, so this does a pretty good job of spotting illegal commands before sending them
                         if (message.GetHashSlot(ServerSelectionStrategy) == ServerSelectionStrategy.MultipleSlots)
                         {
                             throw ExceptionFactory.MultiSlot(IncludeDetailInExceptions, message);
@@ -1771,10 +1865,10 @@ namespace StackExchange.Redis
 
             if (server != null)
             {
-                var profCtx = profiler?.GetContext();
-                if (profCtx != null && profiledCommands.TryGetValue(profCtx, out ConcurrentProfileStorageCollection inFlightForCtx))
+                var profilingSession = _profilingSessionProvider?.Invoke();
+                if (profilingSession != null)
                 {
-                    message.SetProfileStorage(ProfileStorage.NewWithContext(inFlightForCtx, server));
+                    message.SetProfileStorage(ProfiledCommand.NewWithContext(profilingSession, server));
                 }
 
                 if (message.Db >= 0)
@@ -1787,10 +1881,10 @@ namespace StackExchange.Redis
                 }
 
                 Trace("Queueing on server: " + message);
-                if (server.TryEnqueue(message)) return true;
+                return server.TryWrite(message);
             }
             Trace("No server or server unavailable - aborting: " + message);
-            return false;
+            return WriteResult.NoConnectionAvailable;
         }
 
         /// <summary>
@@ -1809,7 +1903,12 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets or sets whether asynchronous operations should be invoked in a way that guarantees their original delivery order
         /// </summary>
-        public bool PreserveAsyncOrder { get; set; }
+        [Obsolete("Not supported; if you require ordered pub/sub, please see " + nameof(ChannelMessageQueue), false)]
+        public bool PreserveAsyncOrder
+        {
+            get => false;
+            set { }
+        }
 
         /// <summary>
         /// Indicates whether any servers are connected
@@ -1818,7 +1917,7 @@ namespace StackExchange.Redis
         {
             get
             {
-                var tmp = serverSnapshot;
+                var tmp = GetServerSnapshot();
                 for (int i = 0; i < tmp.Length; i++)
                     if (tmp[i].IsConnected) return true;
                 return false;
@@ -1832,7 +1931,7 @@ namespace StackExchange.Redis
         {
             get
             {
-                var tmp = serverSnapshot;
+                var tmp = GetServerSnapshot();
                 for (int i = 0; i < tmp.Length; i++)
                     if (tmp[i].IsConnecting) return true;
                 return false;
@@ -1850,6 +1949,7 @@ namespace StackExchange.Redis
         public void Close(bool allowCommandsToComplete = true)
         {
             isDisposed = true;
+            _profilingSessionProvider = null;
             using (var tmp = pulse)
             {
                 pulse = null;
@@ -1882,7 +1982,7 @@ namespace StackExchange.Redis
 
         private Task[] QuitAllServers()
         {
-            Task[] quits = new Task[servers.Count];
+            var quits = new Task[2 * servers.Count];
             lock (servers)
             {
                 var iter = servers.GetEnumerator();
@@ -1890,7 +1990,8 @@ namespace StackExchange.Redis
                 while (iter.MoveNext())
                 {
                     var server = (ServerEndPoint)iter.Value;
-                    quits[index++] = server.Close();
+                    quits[index++] = server.Close(ConnectionType.Interactive);
+                    quits[index++] = server.Close(ConnectionType.Subscription);
                 }
             }
             return quits;
@@ -1911,7 +2012,7 @@ namespace StackExchange.Redis
             if (allowCommandsToComplete)
             {
                 var quits = QuitAllServers();
-                await WaitAllIgnoreErrorsAsync(quits, configuration.SyncTimeout, null).ForAwait();
+                await WaitAllIgnoreErrorsAsync(quits, configuration.AsyncTimeout, null).ForAwait();
             }
 
             DisposeAndClearServers();
@@ -1922,6 +2023,7 @@ namespace StackExchange.Redis
         /// </summary>
         public void Dispose()
         {
+            GC.SuppressFinalize(this);
             Close(!isDisposed);
         }
 
@@ -1943,11 +2045,40 @@ namespace StackExchange.Redis
             {
                 var tcs = TaskSource.Create<T>(state);
                 var source = ResultBox<T>.Get(tcs);
-                if (!TryPushMessageToBridge(message, processor, source, ref server))
+                var result = TryPushMessageToBridge(message, processor, source, ref server);
+                if (result != WriteResult.Success)
                 {
-                    ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(IncludeDetailInExceptions, IncludePerformanceCountersInExceptions, message.Command, message, server, GetServerSnapshot()));
+                    var ex = GetException(result, message, server);
+                    ThrowFailed(tcs, ex);
                 }
                 return tcs.Task;
+            }
+        }
+        internal Exception GetException(WriteResult result, Message message, ServerEndPoint server)
+        {
+            switch (result)
+            {
+                case WriteResult.Success: return null;
+                case WriteResult.NoConnectionAvailable:
+                    return ExceptionFactory.NoConnectionAvailable(IncludeDetailInExceptions, IncludePerformanceCountersInExceptions, message.Command, message, server, GetServerSnapshot());
+                case WriteResult.TimeoutBeforeWrite:
+                    string counters = null;
+                    try
+                    {
+                        var bridge = server.GetBridge(message.Command, false);
+                        if (bridge != null)
+                        {
+                            bridge.GetOutstandingCount(out var inst, out var qs, out var @in);
+                            counters = $", inst={inst}, qs={qs}, in={@in}";
+                        }
+                    }
+                    catch { }
+
+                    return ExceptionFactory.Timeout(IncludeDetailInExceptions, "The timeout was reached before the message could be written to the output buffer, and it was not sent ("
+                        + Format.ToString(TimeoutMilliseconds) + "ms" + counters + ")", message, server);
+                case WriteResult.WriteFailure:
+                default:
+                    return ExceptionFactory.ConnectionFailure(IncludeDetailInExceptions, ConnectionFailureType.ProtocolFailure, "An unknown error occurred when writing the message", server);
             }
         }
 
@@ -1986,9 +2117,10 @@ namespace StackExchange.Redis
 
                 lock (source)
                 {
-                    if (!TryPushMessageToBridge(message, processor, source, ref server))
+                    var result = TryPushMessageToBridge(message, processor, source, ref server);
+                    if (result != WriteResult.Success)
                     {
-                        throw ExceptionFactory.NoConnectionAvailable(IncludeDetailInExceptions, IncludePerformanceCountersInExceptions, message.Command, message, server, GetServerSnapshot());
+                        throw GetException(result, message, server);
                     }
 
                     if (Monitor.Wait(source, TimeoutMilliseconds))
@@ -2007,32 +2139,22 @@ namespace StackExchange.Redis
                         }
                         else
                         {
-#if FEATURE_SOCKET_MODE_POLL
-                            var mgrState = socketManager.State;
-                            var lastError = socketManager.LastErrorTimeRelative();
-#endif
-                            var sb = new StringBuilder("Timeout performing ").Append(message.CommandAndKey);
+                            var sb = new StringBuilder("Timeout performing ").Append(message.CommandAndKey).Append(" (").Append(Format.ToString(TimeoutMilliseconds)).Append("ms)");
                             data = new List<Tuple<string, string>> { Tuple.Create("Message", message.CommandAndKey) };
                             void add(string lk, string sk, string v)
                             {
-                                data.Add(Tuple.Create(lk, v));
-                                sb.Append(", ").Append(sk).Append(": ").Append(v);
+                                if (v != null)
+                                {
+                                    data.Add(Tuple.Create(lk, v));
+                                    sb.Append(", ").Append(sk).Append(": ").Append(v);
+                                }
                             }
 
-                            int queue = server.GetOutstandingCount(message.Command, out int inst, out int qu, out int qs, out int qc, out int wr, out int wq, out int @in, out int ar);
+                            server.GetOutstandingCount(message.Command, out int inst, out int qs, out int @in);
                             add("Instantaneous", "inst", inst.ToString());
-#if FEATURE_SOCKET_MODE_POLL
-                            add("Manager-State", "mgr", mgrState.ToString());
-                            add("Last-Error", "err", lastError);
-#endif
-                            add("Queue-Length", "queue", queue.ToString());
-                            add("Queue-Outstanding", "qu", qu.ToString());
                             add("Queue-Awaiting-Response", "qs", qs.ToString());
-                            add("Queue-Completion-Outstanding", "qc", qc.ToString());
-                            add("Active-Writers", "wr", wr.ToString());
-                            add("Write-Queue", "wq", wq.ToString());
                             add("Inbound-Bytes", "in", @in.ToString());
-                            add("Active-Readers", "ar", ar.ToString());
+                            add("Manager", "mgr", SocketManager?.GetState());
 
                             add("Client-Name", "clientName", ClientName);
                             add("Server-Endpoint", "serverEndpoint", server.EndPoint.ToString());
@@ -2046,17 +2168,17 @@ namespace StackExchange.Redis
                             add("ThreadPool-IO-Completion", "IOCP", iocp);
                             add("ThreadPool-Workers", "WORKER", worker);
                             data.Add(Tuple.Create("Busy-Workers", busyWorkerCount.ToString()));
-#if FEATURE_PERFCOUNTER
+
                             if (IncludePerformanceCountersInExceptions)
                             {
                                 add("Local-CPU", "Local-CPU", GetSystemCpuPercent());
                             }
-#endif
+
                             sb.Append(" (Please take a look at this article for some common client-side issues that can cause timeouts: ");
                             sb.Append(timeoutHelpLink);
                             sb.Append(")");
                             errMessage = sb.ToString();
-                            if (StormLogThreshold >= 0 && queue >= StormLogThreshold && Interlocked.CompareExchange(ref haveStormLog, 1, 0) == 0)
+                            if (StormLogThreshold >= 0 && qs >= StormLogThreshold && Interlocked.CompareExchange(ref haveStormLog, 1, 0) == 0)
                             {
                                 var log = server.GetStormLog(message.Command);
                                 if (string.IsNullOrWhiteSpace(log)) Interlocked.Exchange(ref haveStormLog, 0);
@@ -2085,7 +2207,6 @@ namespace StackExchange.Redis
             }
         }
 
-#if FEATURE_PERFCOUNTER
         internal static string GetThreadPoolAndCPUSummary(bool includePerformanceCounters)
         {
             GetThreadPoolStats(out string iocp, out string worker);
@@ -2099,7 +2220,6 @@ namespace StackExchange.Redis
                 ? Math.Round(systemCPU, 2) + "%"
                 : "unavailable";
         }
-#endif
         private static int GetThreadPoolStats(out string iocp, out string worker)
         {
             ThreadPool.GetMaxThreads(out int maxWorkerThreads, out int maxIoThreads);
@@ -2149,7 +2269,9 @@ namespace StackExchange.Redis
             Interlocked.Exchange(ref haveStormLog, 0);
         }
 
-        private long syncTimeouts, fireAndForgets;
+        private long syncTimeouts, fireAndForgets, asyncTimeouts;
+
+        internal void OnAsyncTimeout() => Interlocked.Increment(ref asyncTimeouts);
 
         /// <summary>
         /// Request all compatible clients to reconfigure or reconnect
@@ -2189,5 +2311,19 @@ namespace StackExchange.Redis
 
             return GetSubscriber().PublishAsync(channel, RedisLiterals.Wildcard, flags);
         }
+
+        /// <summary>
+        /// Get the hash-slot associated with a given key, if applicable; this can be useful for grouping operations
+        /// </summary>
+        /// <param name="key">The <see cref="RedisKey"/> to determine the hash slot for.</param>
+        public int GetHashSlot(RedisKey key) => ServerSelectionStrategy.HashSlot(key);
+    }
+
+    internal enum WriteResult
+    {
+        Success,
+        NoConnectionAvailable,
+        TimeoutBeforeWrite,
+        WriteFailure,
     }
 }

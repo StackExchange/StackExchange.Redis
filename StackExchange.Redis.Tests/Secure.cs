@@ -14,14 +14,11 @@ namespace StackExchange.Redis.Tests
 
         public Secure(ITestOutputHelper output) : base (output) { }
 
-        [Theory]
-        [InlineData(true)]
-        [InlineData(false)]
-        public void MassiveBulkOpsFireAndForgetSecure(bool preserveOrder)
+        [Fact]
+        public void MassiveBulkOpsFireAndForgetSecure()
         {
             using (var muxer = Create())
             {
-                muxer.PreserveAsyncOrder = preserveOrder;
 #if DEBUG
                 long oldAlloc = ConnectionMultiplexer.GetResultBoxAllocationCount();
 #endif
@@ -38,12 +35,11 @@ namespace StackExchange.Redis.Tests
                 int val = (int)conn.StringGet(key);
                 Assert.Equal(AsyncOpsQty, val);
                 watch.Stop();
-                Output.WriteLine("{2}: Time for {0} ops: {1}ms ({3}); ops/s: {4}", AsyncOpsQty, watch.ElapsedMilliseconds, Me(),
-                    preserveOrder ? "preserve order" : "any order",
+                Log("{2}: Time for {0} ops: {1}ms (any order); ops/s: {3}", AsyncOpsQty, watch.ElapsedMilliseconds, Me(),
                     AsyncOpsQty / watch.Elapsed.TotalSeconds);
 #if DEBUG
                 long newAlloc = ConnectionMultiplexer.GetResultBoxAllocationCount();
-                Output.WriteLine("ResultBox allocations: {0}", newAlloc - oldAlloc);
+                Log("ResultBox allocations: {0}", newAlloc - oldAlloc);
                 Assert.True(newAlloc - oldAlloc <= 2, $"NewAllocs: {newAlloc}, OldAllocs: {oldAlloc}");
 #endif
             }
@@ -55,7 +51,7 @@ namespace StackExchange.Redis.Tests
             var config = ConfigurationOptions.Parse(GetConfiguration());
             foreach (var ep in config.EndPoints)
             {
-                Output.WriteLine(ep.ToString());
+                Log(ep.ToString());
             }
             Assert.Single(config.EndPoints);
             Assert.Equal("changeme", config.Password);
@@ -87,8 +83,8 @@ namespace StackExchange.Redis.Tests
                     conn.GetDatabase().Ping();
                 }
             }).ConfigureAwait(false);
-            Output.WriteLine("Exception: " + ex.Message);
-            Assert.Equal("It was not possible to connect to the redis server(s); to create a disconnected multiplexer, disable AbortOnConnectFail. AuthenticationFailure on PING", ex.Message);
+            Log("Exception: " + ex.Message);
+            Assert.StartsWith("It was not possible to connect to the redis server(s). There was an authentication failure; check that passwords (or client certificates) are configured correctly.", ex.Message);
         }
     }
 }

@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using StackExchange.Redis.Profiling;
 
 namespace StackExchange.Redis
 {
@@ -31,14 +32,15 @@ namespace StackExchange.Redis
 
         public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => tail.GetHashSlot(serverSelectionStrategy);
 
-        internal override void WriteImpl(PhysicalConnection physical)
+        protected override void WriteImpl(PhysicalConnection physical)
         {
             try
             {
-                physical.Multiplexer.LogLocked(log, "Writing to {0}: {1}", physical.Bridge, tail.CommandAndKey);
+                var bridge = physical.BridgeCouldBeNull;
+                bridge?.Multiplexer?.LogLocked(log, "Writing to {0}: {1}", bridge, tail.CommandAndKey);
             }
             catch { }
-            tail.WriteImpl(physical);
+            tail.WriteTo(physical);
         }
 
         public TextWriter Log => log;
@@ -46,14 +48,15 @@ namespace StackExchange.Redis
 
     internal abstract class Message : ICompletable
     {
-        public static readonly Message[] EmptyArray = new Message[0];
         public readonly int Db;
 
         internal const CommandFlags InternalCallFlag = (CommandFlags)128;
+
         protected RedisCommand command;
 
         private const CommandFlags AskingFlag = (CommandFlags)32,
-                                   ScriptUnavailableFlag = (CommandFlags)256;
+                                   ScriptUnavailableFlag = (CommandFlags)256,
+                                   NeedsAsyncTimeoutCheckFlag = (CommandFlags)1024;
 
         private const CommandFlags MaskMasterServerPreference = CommandFlags.DemandMaster
                                                               | CommandFlags.DemandSlave
@@ -65,7 +68,9 @@ namespace StackExchange.Redis
                                                        | CommandFlags.DemandSlave
                                                        | CommandFlags.PreferMaster
                                                        | CommandFlags.PreferSlave
+#pragma warning disable CS0618
                                                        | CommandFlags.HighPriority
+#pragma warning restore CS0618
                                                        | CommandFlags.FireAndForget
                                                        | CommandFlags.NoRedirect
                                                        | CommandFlags.NoScriptCache;
@@ -77,14 +82,18 @@ namespace StackExchange.Redis
         private ResultProcessor resultProcessor;
 
         // All for profiling purposes
-        private ProfileStorage performance;
+        private ProfiledCommand performance;
         internal DateTime createdDateTime;
         internal long createdTimestamp;
 
         protected Message(int db, CommandFlags flags, RedisCommand command)
         {
             bool dbNeeded = RequiresDatabase(command);
-            if (db < 0)
+            if (command == RedisCommand.UNKNOWN)
+            {
+                // all bets are off here
+            }
+            else if (db < 0)
             {
                 if (dbNeeded)
                 {
@@ -127,7 +136,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal void SetProfileStorage(ProfileStorage storage)
+        internal void SetProfileStorage(ProfiledCommand storage)
         {
             performance = storage;
             performance.SetMessage(this);
@@ -144,7 +153,7 @@ namespace StackExchange.Redis
 
             createdDateTime = DateTime.UtcNow;
             createdTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
-            performance = ProfileStorage.NewAttachedToSameContext(oldPerformance, resendTo, isMoved);
+            performance = ProfiledCommand.NewAttachedToSameContext(oldPerformance, resendTo, isMoved);
             performance.SetMessage(this);
             Status = CommandStatus.WaitingToBeSent;
         }
@@ -181,6 +190,7 @@ namespace StackExchange.Redis
                     case RedisCommand.SHUTDOWN:
                     case RedisCommand.SLAVEOF:
                     case RedisCommand.SLOWLOG:
+                    case RedisCommand.SWAPDB:
                     case RedisCommand.SYNC:
                         return true;
                     default:
@@ -199,13 +209,9 @@ namespace StackExchange.Redis
         }
 
         public bool IsFireAndForget => (flags & CommandFlags.FireAndForget) != 0;
-
-        public bool IsHighPriority => (flags & CommandFlags.HighPriority) != 0;
-
         public bool IsInternalCall => (flags & InternalCallFlag) != 0;
 
         public ResultBox ResultBox => resultBox;
-
         public static Message Create(int db, CommandFlags flags, RedisCommand command)
         {
             if (command == RedisCommand.SELECT)
@@ -383,6 +389,7 @@ namespace StackExchange.Redis
                 case RedisCommand.SPOP:
                 case RedisCommand.SREM:
                 case RedisCommand.SUNIONSTORE:
+                case RedisCommand.SWAPDB:
                 case RedisCommand.ZADD:
                 case RedisCommand.ZINTERSTORE:
                 case RedisCommand.ZINCRBY:
@@ -431,33 +438,32 @@ namespace StackExchange.Redis
             return $"[{Db}]:{CommandAndKey} ({resultProcessor?.GetType().Name ?? "(n/a)"})";
         }
 
-        public void SetResponseReceived()
-        {
-            performance?.SetResponseReceived();
-        }
+        public void SetResponseReceived() => performance?.SetResponseReceived();
 
         public bool TryComplete(bool isAsync)
         {
             //Ensure we can never call TryComplete on the same resultBox from two threads by grabbing it now
             var currBox = Interlocked.Exchange(ref resultBox, null);
+
+            if (!isAsync)
+            {   // set the performance completion the first chance we get (sync comes first)
+                performance?.SetCompleted();
+            }
             if (currBox != null)
             {
                 var ret = currBox.TryComplete(isAsync);
 
                 //in async mode TryComplete will have unwrapped and recycled resultBox
-                if (!(ret && isAsync))
+                if (!(ret || isAsync))
                 {
                     //put result box back if it was not already recycled
                     Interlocked.Exchange(ref resultBox, currBox);
                 }
-
-                performance?.SetCompleted();
                 return ret;
             }
             else
             {
                 ConnectionMultiplexer.TraceWithoutContext("No result-box to complete for " + Command, "Message");
-                performance?.SetCompleted();
                 return true;
             }
         }
@@ -574,32 +580,69 @@ namespace StackExchange.Redis
                             | masterSlave;
         }
 
-        internal void Cancel()
+        internal void Cancel(Exception ex = null)
         {
-            resultProcessor?.SetException(this, new TaskCanceledException());
+            resultProcessor?.SetException(this, ex ?? new TaskCanceledException());
         }
 
         // true if ready to be completed (i.e. false if re-issued to another server)
         internal bool ComputeResult(PhysicalConnection connection, RawResult result)
         {
-            return resultProcessor == null || resultProcessor.SetResult(connection, this, result);
+            var box = resultBox;
+            try
+            {
+                if (box != null && box.IsFaulted) return false; // already failed (timeout, etc)
+                return resultProcessor == null || resultProcessor.SetResult(connection, this, result);
+            }
+            catch (Exception ex)
+            {
+                box?.SetException(ex);
+                return box != null; // we still want to pulse/complete
+            }
         }
 
-        internal void Fail(ConnectionFailureType failure, Exception innerException)
+        internal void Fail(ConnectionFailureType failure, Exception innerException, string annotation)
         {
             PhysicalConnection.IdentifyFailureType(innerException, ref failure);
-            resultProcessor?.ConnectionFail(this, failure, innerException);
+            resultProcessor?.ConnectionFail(this, failure, innerException, annotation);
         }
 
-        internal void SetEnqueued()
+        internal void SetException(Exception exception)
         {
-            performance?.SetEnqueued();
+            resultBox?.SetException(exception);
         }
+
+        internal void SetEnqueued()=> performance?.SetEnqueued();
 
         internal void SetRequestSent()
         {
             Status = CommandStatus.Sent;
+            if ((flags & NeedsAsyncTimeoutCheckFlag) != 0)
+            {
+                _writeTickCount = Environment.TickCount; // note this might be reset if we resend a message, cluster-moved etc; I'm OK with that
+            }
             performance?.SetRequestSent();
+        }
+        // the time (ticks) at which this message was considered written
+        private int _writeTickCount;
+
+        private void SetNeedsTimeoutCheck() => flags |= NeedsAsyncTimeoutCheckFlag;
+        internal bool HasAsyncTimedOut(int now, int timeoutMilliseconds, out int millisecondsTaken)
+        {
+            if ((flags & NeedsAsyncTimeoutCheckFlag) != 0)
+            {
+                millisecondsTaken = unchecked(now - _writeTickCount); // note: we can't just check "if sent < cutoff" because of wrap-aro
+                if (millisecondsTaken >= timeoutMilliseconds)
+                {
+                    flags &= ~NeedsAsyncTimeoutCheckFlag; // note: we don't remove it from the queue - still might need to marry it up; but: it is toast
+                    return true;
+                }
+            }
+            else
+            {
+                millisecondsTaken = default;
+            }
+            return false;
         }
 
         internal void SetAsking(bool value)
@@ -625,17 +668,19 @@ namespace StackExchange.Redis
 
         internal void SetSource(ResultProcessor resultProcessor, ResultBox resultBox)
         { // note order here reversed to prevent overload resolution errors
+            if (resultBox != null && resultBox.IsAsync) SetNeedsTimeoutCheck();
             this.resultBox = resultBox;
             this.resultProcessor = resultProcessor;
         }
 
         internal void SetSource<T>(ResultBox<T> resultBox, ResultProcessor<T> resultProcessor)
         {
+            if (resultBox != null && resultBox.IsAsync) SetNeedsTimeoutCheck();
             this.resultBox = resultBox;
             this.resultProcessor = resultProcessor;
         }
 
-        internal abstract void WriteImpl(PhysicalConnection physical);
+        protected abstract void WriteImpl(PhysicalConnection physical);
 
         internal void WriteTo(PhysicalConnection physical)
         {
@@ -650,7 +695,7 @@ namespace StackExchange.Redis
             catch (Exception ex)
             {
                 physical?.OnInternalError(ex);
-                Fail(ConnectionFailureType.InternalFailure, ex);
+                Fail(ConnectionFailureType.InternalFailure, ex, null);
             }
         }
 
@@ -689,7 +734,7 @@ namespace StackExchange.Redis
         {
             public CommandChannelMessage(int db, CommandFlags flags, RedisCommand command, RedisChannel channel) : base(db, flags, command, channel)
             { }
-            internal override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 1);
                 physical.Write(Channel);
@@ -705,11 +750,11 @@ namespace StackExchange.Redis
                 this.value = value;
             }
 
-            internal override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 2);
                 physical.Write(Channel);
-                physical.Write(value);
+                physical.WriteBulkString(value);
             }
         }
 
@@ -731,7 +776,7 @@ namespace StackExchange.Redis
                 return serverSelectionStrategy.CombineSlot(slot, key2);
             }
 
-            internal override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 3);
                 physical.Write(Key);
@@ -755,7 +800,7 @@ namespace StackExchange.Redis
                 return serverSelectionStrategy.CombineSlot(slot, key1);
             }
 
-            internal override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 2);
                 physical.Write(Key);
@@ -785,7 +830,7 @@ namespace StackExchange.Redis
                 return slot;
             }
 
-            internal override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(command, keys.Length + 1);
                 physical.Write(Key);
@@ -805,12 +850,12 @@ namespace StackExchange.Redis
                 this.value = value;
             }
 
-            internal override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 3);
                 physical.Write(Key);
                 physical.Write(key1);
-                physical.Write(value);
+                physical.WriteBulkString(value);
             }
         }
 
@@ -818,7 +863,7 @@ namespace StackExchange.Redis
         {
             public CommandKeyMessage(int db, CommandFlags flags, RedisCommand command, RedisKey key) : base(db, flags, command, key)
             { }
-            internal override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 1);
                 physical.Write(Key);
@@ -837,12 +882,12 @@ namespace StackExchange.Redis
                 this.values = values;
             }
 
-            internal override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(command, values.Length);
                 for (int i = 0; i < values.Length; i++)
                 {
-                    physical.Write(values[i]);
+                    physical.WriteBulkString(values[i]);
                 }
             }
         }
@@ -869,7 +914,7 @@ namespace StackExchange.Redis
                 return slot;
             }
 
-            internal override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(command, keys.Length);
                 for (int i = 0; i < keys.Length; i++)
@@ -888,11 +933,11 @@ namespace StackExchange.Redis
                 this.value = value;
             }
 
-            internal override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 2);
                 physical.Write(Key);
-                physical.Write(value);
+                physical.WriteBulkString(value);
             }
         }
 
@@ -917,11 +962,11 @@ namespace StackExchange.Redis
                 return serverSelectionStrategy.CombineSlot(slot, key1);
             }
 
-            internal override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, values.Length + 2);
                 physical.Write(Key);
-                for (int i = 0; i < values.Length; i++) physical.Write(values[i]);
+                for (int i = 0; i < values.Length; i++) physical.WriteBulkString(values[i]);
                 physical.Write(key1);
             }
         }
@@ -938,11 +983,11 @@ namespace StackExchange.Redis
                 this.values = values;
             }
 
-            internal override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, values.Length + 1);
                 physical.Write(Key);
-                for (int i = 0; i < values.Length; i++) physical.Write(values[i]);
+                for (int i = 0; i < values.Length; i++) physical.WriteBulkString(values[i]);
             }
         }
 
@@ -957,12 +1002,12 @@ namespace StackExchange.Redis
                 this.value1 = value1;
             }
 
-            internal override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 3);
                 physical.Write(Key);
-                physical.Write(value0);
-                physical.Write(value1);
+                physical.WriteBulkString(value0);
+                physical.WriteBulkString(value1);
             }
         }
 
@@ -979,13 +1024,13 @@ namespace StackExchange.Redis
                 this.value2 = value2;
             }
 
-            internal override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 4);
                 physical.Write(Key);
-                physical.Write(value0);
-                physical.Write(value1);
-                physical.Write(value2);
+                physical.WriteBulkString(value0);
+                physical.WriteBulkString(value1);
+                physical.WriteBulkString(value2);
             }
         }
 
@@ -1004,21 +1049,21 @@ namespace StackExchange.Redis
                 this.value3 = value3;
             }
 
-            internal override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 5);
                 physical.Write(Key);
-                physical.Write(value0);
-                physical.Write(value1);
-                physical.Write(value2);
-                physical.Write(value3);
+                physical.WriteBulkString(value0);
+                physical.WriteBulkString(value1);
+                physical.WriteBulkString(value2);
+                physical.WriteBulkString(value3);
             }
         }
 
         private sealed class CommandMessage : Message
         {
             public CommandMessage(int db, CommandFlags flags, RedisCommand command) : base(db, flags, command) { }
-            internal override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 0);
             }
@@ -1045,12 +1090,12 @@ namespace StackExchange.Redis
                 return slot;
             }
 
-            internal override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(command, values.Length);
                 for (int i = 0; i < values.Length; i++)
                 {
-                    physical.Write(values[i]);
+                    physical.WriteBulkString(values[i]);
                 }
             }
         }
@@ -1064,10 +1109,10 @@ namespace StackExchange.Redis
                 this.value = value;
             }
 
-            internal override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 2);
-                physical.Write(value);
+                physical.WriteBulkString(value);
                 physical.Write(Channel);
             }
         }
@@ -1088,10 +1133,10 @@ namespace StackExchange.Redis
                 sb.Append(" (").Append((string)value).Append(')');
             }
 
-            internal override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 2);
-                physical.Write(value);
+                physical.WriteBulkString(value);
                 physical.Write(Key);
             }
         }
@@ -1105,10 +1150,10 @@ namespace StackExchange.Redis
                 this.value = value;
             }
 
-            internal override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 1);
-                physical.Write(value);
+                physical.WriteBulkString(value);
             }
         }
 
@@ -1123,11 +1168,11 @@ namespace StackExchange.Redis
                 this.value1 = value1;
             }
 
-            internal override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 2);
-                physical.Write(value0);
-                physical.Write(value1);
+                physical.WriteBulkString(value0);
+                physical.WriteBulkString(value1);
             }
         }
 
@@ -1144,12 +1189,12 @@ namespace StackExchange.Redis
                 this.value2 = value2;
             }
 
-            internal override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 3);
-                physical.Write(value0);
-                physical.Write(value1);
-                physical.Write(value2);
+                physical.WriteBulkString(value0);
+                physical.WriteBulkString(value1);
+                physical.WriteBulkString(value2);
             }
         }
 
@@ -1170,14 +1215,14 @@ namespace StackExchange.Redis
                 this.value4 = value4;
             }
 
-            internal override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 5);
-                physical.Write(value0);
-                physical.Write(value1);
-                physical.Write(value2);
-                physical.Write(value3);
-                physical.Write(value4);
+                physical.WriteBulkString(value0);
+                physical.WriteBulkString(value1);
+                physical.WriteBulkString(value2);
+                physical.WriteBulkString(value3);
+                physical.WriteBulkString(value4);
             }
         }
 
@@ -1187,10 +1232,10 @@ namespace StackExchange.Redis
             {
             }
 
-            internal override void WriteImpl(PhysicalConnection physical)
+            protected override void WriteImpl(PhysicalConnection physical)
             {
                 physical.WriteHeader(Command, 1);
-                physical.Write(Db);
+                physical.WriteBulkString(Db);
             }
         }
     }

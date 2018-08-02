@@ -1,18 +1,115 @@
 ﻿using System;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Threading;
+using System.Security.Authentication;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    [Collection(NonParallelCollection.Name)]
     public class Config : TestBase
     {
         public Config(ITestOutputHelper output) : base (output) { }
+
+        [Fact]
+        public void SslProtocols_SingleValue()
+        {
+            var options = ConfigurationOptions.Parse("myhost,sslProtocols=Tls11");
+            Assert.Equal(SslProtocols.Tls11, options.SslProtocols.Value);
+        }
+
+        [Fact]
+        public void SslProtocols_MultipleValues()
+        {
+            var options = ConfigurationOptions.Parse("myhost,sslProtocols=Tls11|Tls12");
+            Assert.Equal(SslProtocols.Tls11 | SslProtocols.Tls12, options.SslProtocols.Value);
+        }
+
+        [Fact]
+        public void SslProtocols_UsingIntegerValue()
+        {
+            // The below scenario is for cases where the *targeted*
+            // .NET framework version (e.g. .NET 4.0) doesn't define an enum value (e.g. Tls11)
+            // but the OS has been patched with support
+            const int integerValue = (int)(SslProtocols.Tls11 | SslProtocols.Tls12);
+            var options = ConfigurationOptions.Parse("myhost,sslProtocols=" + integerValue);
+            Assert.Equal(SslProtocols.Tls11 | SslProtocols.Tls12, options.SslProtocols.Value);
+        }
+
+        [Fact]
+        public void SslProtocols_InvalidValue()
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() => ConfigurationOptions.Parse("myhost,sslProtocols=InvalidSslProtocol"));
+        }
+
+        [Fact]
+        public void ConfigurationOptionsDefaultForAzure()
+        {
+            var options = ConfigurationOptions.Parse("contoso.redis.cache.windows.net");
+            Assert.True(options.DefaultVersion.Equals(new Version(3, 0, 0)));
+            Assert.False(options.AbortOnConnectFail);
+        }
+
+        [Fact]
+        public void ConfigurationOptionsForAzureWhenSpecified()
+        {
+            var options = ConfigurationOptions.Parse("contoso.redis.cache.windows.net,abortConnect=true, version=2.1.1");
+            Assert.True(options.DefaultVersion.Equals(new Version(2, 1, 1)));
+            Assert.True(options.AbortOnConnectFail);
+        }
+
+        [Fact]
+        public void ConfigurationOptionsDefaultForAzureChina()
+        {
+            // added a few upper case chars to validate comparison
+            var options = ConfigurationOptions.Parse("contoso.REDIS.CACHE.chinacloudapi.cn");
+            Assert.True(options.DefaultVersion.Equals(new Version(3, 0, 0)));
+            Assert.False(options.AbortOnConnectFail);
+        }
+
+        [Fact]
+        public void ConfigurationOptionsDefaultForAzureGermany()
+        {
+            var options = ConfigurationOptions.Parse("contoso.redis.cache.cloudapi.de");
+            Assert.True(options.DefaultVersion.Equals(new Version(3, 0, 0)));
+            Assert.False(options.AbortOnConnectFail);
+        }
+
+        [Fact]
+        public void ConfigurationOptionsDefaultForAzureUSGov()
+        {
+            var options = ConfigurationOptions.Parse("contoso.redis.cache.usgovcloudapi.net");
+            Assert.True(options.DefaultVersion.Equals(new Version(3, 0, 0)));
+            Assert.False(options.AbortOnConnectFail);
+        }
+
+        [Fact]
+        public void ConfigurationOptionsDefaultForNonAzure()
+        {
+            var options = ConfigurationOptions.Parse("redis.contoso.com");
+            Assert.True(options.DefaultVersion.Equals(new Version(2, 0, 0)));
+            Assert.True(options.AbortOnConnectFail);
+        }
+
+        [Fact]
+        public void ConfigurationOptionsDefaultWhenNoEndpointsSpecifiedYet()
+        {
+            var options = new ConfigurationOptions();
+            Assert.True(options.DefaultVersion.Equals(new Version(2, 0, 0)));
+            Assert.True(options.AbortOnConnectFail);
+        }
+
+        [Fact]
+        public void ConfigurationOptionsSyncTimeout()
+        {
+            // Default check
+            var options = new ConfigurationOptions();
+            Assert.Equal(5000, options.SyncTimeout);
+
+            options = ConfigurationOptions.Parse("syncTimeout=20");
+            Assert.Equal(20, options.SyncTimeout);
+        }
 
         [Fact]
         public void TalkToNonsenseServer()
@@ -29,13 +126,13 @@ namespace StackExchange.Redis.Tests
             var log = new StringWriter();
             using (var conn = ConnectionMultiplexer.Connect(config, log))
             {
-                Output.WriteLine(log.ToString());
+                Log(log.ToString());
                 Assert.False(conn.IsConnected);
             }
         }
 
         [Fact]
-        public void TestManaulHeartbeat()
+        public async Task TestManaulHeartbeat()
         {
             using (var muxer = Create(keepAlive: 2))
             {
@@ -44,8 +141,8 @@ namespace StackExchange.Redis.Tests
 
                 var before = muxer.OperationCount;
 
-                Output.WriteLine("sleeping to test heartbeat...");
-                Thread.Sleep(TimeSpan.FromSeconds(5));
+                Log("sleeping to test heartbeat...");
+                await Task.Delay(5000).ForAwait();
 
                 var after = muxer.OperationCount;
 
@@ -85,25 +182,23 @@ namespace StackExchange.Redis.Tests
 
                 var conn = muxer.GetDatabase();
                 conn.Ping();
-#if DEBUG
-                var name = GetAnyMaster(muxer).ClientGetName();
+
+                var name = (string)GetAnyMaster(muxer).Execute("CLIENT", "GETNAME");
                 Assert.Equal("TestRig", name);
-#endif
             }
         }
 
         [Fact]
         public void DefaultClientName()
         {
-            using (var muxer = Create(allowAdmin: true))
+            using (var muxer = Create(allowAdmin: true, caller: null)) // force default naming to kick in
             {
                 Assert.Equal(Environment.MachineName, muxer.ClientName);
                 var conn = muxer.GetDatabase();
                 conn.Ping();
-#if DEBUG
-                var name = GetAnyMaster(muxer).ClientGetName();
+
+                var name = (string)GetAnyMaster(muxer).Execute("CLIENT", "GETNAME");
                 Assert.Equal(Environment.MachineName, name);
-#endif
             }
         }
 
@@ -123,7 +218,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create(allowAdmin: true))
             {
-                Output.WriteLine("about to get config");
+                Log("about to get config");
                 var conn = GetAnyMaster(muxer);
                 var all = conn.ConfigGet();
                 Assert.True(all.Length > 0, "any");
@@ -141,37 +236,13 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public async System.Threading.Tasks.Task TestConfigureAsync()
-        {
-            using (var muxer = Create())
-            {
-                Thread.Sleep(1000);
-                Debug.WriteLine("About to reconfigure.....");
-                await muxer.ConfigureAsync().ForAwait();
-                Debug.WriteLine("Reconfigured");
-            }
-        }
-
-        [Fact]
-        public void TestConfigureSync()
-        {
-            using (var muxer = Create())
-            {
-                Thread.Sleep(1000);
-                Debug.WriteLine("About to reconfigure.....");
-                muxer.Configure();
-                Debug.WriteLine("Reconfigured");
-            }
-        }
-
-        [Fact]
         public void GetTime()
         {
             using (var muxer = Create())
             {
                 var server = GetAnyMaster(muxer);
                 var serverTime = server.Time();
-                Output.WriteLine(serverTime.ToString());
+                Log(serverTime.ToString());
                 var delta = Math.Abs((DateTime.UtcNow - serverTime).TotalSeconds);
 
                 Assert.True(delta < 5);
@@ -201,16 +272,16 @@ namespace StackExchange.Redis.Tests
                 var server = GetAnyMaster(muxer);
                 var info1 = server.Info();
                 Assert.True(info1.Length > 5);
-                Output.WriteLine("All sections");
+                Log("All sections");
                 foreach (var group in info1)
                 {
-                    Output.WriteLine(group.Key);
+                    Log(group.Key);
                 }
                 var first = info1[0];
-                Output.WriteLine("Full info for: " + first.Key);
+                Log("Full info for: " + first.Key);
                 foreach (var setting in first)
                 {
-                    Output.WriteLine("{0}  ==>  {1}", setting.Key, setting.Value);
+                    Log("{0}  ==>  {1}", setting.Key, setting.Value);
                 }
 
                 var info2 = server.Info("cpu");
@@ -261,7 +332,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void TestAutomaticHeartbeat()
+        public async Task TestAutomaticHeartbeat()
         {
             RedisValue oldTimeout = RedisValue.Null;
             using (var configMuxer = Create(allowAdmin: true))
@@ -280,8 +351,8 @@ namespace StackExchange.Redis.Tests
 
                         var before = innerMuxer.OperationCount;
 
-                        Output.WriteLine("sleeping to test heartbeat...");
-                        Thread.Sleep(TimeSpan.FromSeconds(8));
+                        Log("sleeping to test heartbeat...");
+                        await Task.Delay(8000).ForAwait();
 
                         var after = innerMuxer.OperationCount;
                         Assert.True(after >= before + 4);

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -131,13 +132,19 @@ namespace StackExchange.Redis
             TimeSpanFromSeconds = new TimeSpanProcessor(false);
         public static readonly HashEntryArrayProcessor
             HashEntryArray = new HashEntryArrayProcessor();
-        private static readonly byte[] MOVED = Encoding.UTF8.GetBytes("MOVED "), ASK = Encoding.UTF8.GetBytes("ASK ");
+        private static readonly byte[]
+            MOVED = Encoding.UTF8.GetBytes("MOVED "),
+            ASK = Encoding.UTF8.GetBytes("ASK "),
+            NOAUTH = Encoding.UTF8.GetBytes("NOAUTH ");
 
-        public void ConnectionFail(Message message, ConnectionFailureType fail, Exception innerException)
+        public void ConnectionFail(Message message, ConnectionFailureType fail, Exception innerException, string annotation)
         {
             PhysicalConnection.IdentifyFailureType(innerException, ref fail);
 
-            string exMessage = fail.ToString() + (message == null ? "" : (" on " + message.Command));
+            string exMessage = fail.ToString() + (message == null ? "" : (" on " + (
+                fail == ConnectionFailureType.ProtocolFailure ? message.ToString() : message.CommandAndKey)));
+            if (!string.IsNullOrWhiteSpace(annotation)) exMessage += ", " + annotation;
+
             var ex = innerException == null ? new RedisConnectionException(fail, exMessage)
                 : new RedisConnectionException(fail, exMessage, innerException);
             SetException(message, ex);
@@ -161,17 +168,19 @@ namespace StackExchange.Redis
         // true if ready to be completed (i.e. false if re-issued to another server)
         public virtual bool SetResult(PhysicalConnection connection, Message message, RawResult result)
         {
+            var bridge = connection.BridgeCouldBeNull;
             if (message is LoggingMessage logging)
             {
                 try
                 {
-                    connection.Multiplexer.LogLocked(logging.Log, "Response from {0} / {1}: {2}", connection.Bridge, message.CommandAndKey, result);
+                    bridge?.Multiplexer?.LogLocked(logging.Log, "Response from {0} / {1}: {2}", bridge, message.CommandAndKey, result);
                 }
                 catch { }
             }
             if (result.IsError)
             {
-                var bridge = connection.Bridge;
+                if (result.AssertStarts(NOAUTH)) bridge?.Multiplexer?.SetAuthSuspect();
+
                 var server = bridge.ServerEndPoint;
                 bool log = !message.IsInternalCall;
                 bool isMoved = result.AssertStarts(MOVED);
@@ -190,25 +199,25 @@ namespace StackExchange.Redis
                         // no point sending back to same server, and no point sending to a dead server
                         if (!Equals(server.EndPoint, endpoint))
                         {
-                            if (bridge.Multiplexer.TryResend(hashSlot, message, endpoint, isMoved))
+                            if (bridge == null)
+                            { } // already toast
+                            else if (bridge.Multiplexer.TryResend(hashSlot, message, endpoint, isMoved))
                             {
-                                connection.Multiplexer.Trace(message.Command + " re-issued to " + endpoint, isMoved ? "MOVED" : "ASK");
+                                bridge.Multiplexer.Trace(message.Command + " re-issued to " + endpoint, isMoved ? "MOVED" : "ASK");
                                 return false;
                             }
                             else
                             {
                                 if (isMoved && (message.Flags & CommandFlags.NoRedirect) != 0)
                                 {
-                                    err = $"Key has MOVED from Endpoint {endpoint} and hashslot {hashSlot} but CommandFlags.NoRedirect was specified - redirect not followed. ";
+                                    err = $"Key has MOVED from Endpoint {endpoint} and hashslot {hashSlot} but CommandFlags.NoRedirect was specified - redirect not followed for {message.CommandAndKey}. ";
                                 }
                                 else
                                 {
                                     unableToConnectError = true;
-                                    err = $"Endpoint {endpoint} serving hashslot {hashSlot} is not reachable at this point of time. Please check connectTimeout value. If it is low, try increasing it to give the ConnectionMultiplexer a chance to recover from the network disconnect.  ";
+                                    err = $"Endpoint {endpoint} serving hashslot {hashSlot} is not reachable at this point of time. Please check connectTimeout value. If it is low, try increasing it to give the ConnectionMultiplexer a chance to recover from the network disconnect. ";
                                 }
-#if FEATURE_PERFCOUNTER
                                 err += ConnectionMultiplexer.GetThreadPoolAndCPUSummary(bridge.Multiplexer.IncludePerformanceCountersInExceptions);
-#endif
                             }
                         }
                     }
@@ -223,7 +232,7 @@ namespace StackExchange.Redis
                 {
                     bridge.Multiplexer.OnErrorMessage(server.EndPoint, err);
                 }
-                connection.Multiplexer.Trace("Completed with error: " + err + " (" + GetType().Name + ")", ToString());
+                bridge?.Multiplexer?.Trace("Completed with error: " + err + " (" + GetType().Name + ")", ToString());
                 if (unableToConnectError)
                 {
                     ConnectionFail(message, ConnectionFailureType.UnableToConnect, err);
@@ -238,7 +247,7 @@ namespace StackExchange.Redis
                 bool coreResult = SetResultCore(connection, message, result);
                 if (coreResult)
                 {
-                    connection.Multiplexer.Trace("Completed with success: " + result.ToString() + " (" + GetType().Name + ")", ToString());
+                    bridge?.Multiplexer?.Trace("Completed with success: " + result.ToString() + " (" + GetType().Name + ")", ToString());
                 }
                 else
                 {
@@ -346,7 +355,7 @@ namespace StackExchange.Redis
                     this.value = value;
                 }
 
-                internal override void WriteImpl(PhysicalConnection physical)
+                protected override void WriteImpl(PhysicalConnection physical)
                 {
                     if (value.IsNull)
                     {
@@ -355,7 +364,7 @@ namespace StackExchange.Redis
                     else
                     {
                         physical.WriteHeader(command, 1);
-                        physical.Write(value);
+                        physical.WriteBulkString(value);
                     }
                 }
             }
@@ -417,11 +426,12 @@ namespace StackExchange.Redis
                 return script != null && sha1.IsMatch(script);
             }
 
+            internal const int Sha1HashLength = 20;
             internal static byte[] ParseSHA1(byte[] value)
             {
-                if (value?.Length == 40)
+                if (value?.Length == Sha1HashLength * 2)
                 {
-                    var tmp = new byte[20];
+                    var tmp = new byte[Sha1HashLength];
                     int charIndex = 0;
                     for (int i = 0; i < tmp.Length; i++)
                     {
@@ -436,9 +446,9 @@ namespace StackExchange.Redis
 
             internal static byte[] ParseSHA1(string value)
             {
-                if (value?.Length == 40 && sha1.IsMatch(value))
+                if (value?.Length == (Sha1HashLength * 2) && sha1.IsMatch(value))
                 {
-                    var tmp = new byte[20];
+                    var tmp = new byte[Sha1HashLength];
                     int charIndex = 0;
                     for (int i = 0; i < tmp.Length; i++)
                     {
@@ -466,7 +476,7 @@ namespace StackExchange.Redis
                 {
                     case ResultType.BulkString:
                         var asciiHash = result.GetBlob();
-                        if (asciiHash == null || asciiHash.Length != 40) return false;
+                        if (asciiHash == null || asciiHash.Length != (Sha1HashLength * 2)) return false;
 
                         byte[] hash = null;
                         if (!message.IsInternalCall)
@@ -476,7 +486,7 @@ namespace StackExchange.Redis
                         var sl = message as RedisDatabase.ScriptLoadMessage;
                         if (sl != null)
                         {
-                            connection.Bridge.ServerEndPoint.AddScript(sl.Script, asciiHash);
+                            connection.BridgeCouldBeNull?.ServerEndPoint?.AddScript(sl.Script, asciiHash);
                         }
                         SetResult(message, hash);
                         return true;
@@ -503,15 +513,13 @@ namespace StackExchange.Redis
 
         internal abstract class ValuePairInterleavedProcessorBase<T> : ResultProcessor<T[]>
         {
-            private static readonly T[] nix = new T[0];
-
             public bool TryParse(RawResult result, out T[] pairs)
             {
                 switch (result.Type)
                 {
                     case ResultType.MultiBulk:
                         var arr = result.GetItems();
-                        if (arr == null)
+                        if (result.IsNull)
                         {
                             pairs = null;
                         }
@@ -520,7 +528,7 @@ namespace StackExchange.Redis
                             int count = arr.Length / 2;
                             if (count == 0)
                             {
-                                pairs = nix;
+                                pairs = Array.Empty<T>();
                             }
                             else
                             {
@@ -558,16 +566,21 @@ namespace StackExchange.Redis
             {
                 if (result.IsError && result.AssertStarts(READONLY))
                 {
-                    var server = connection.Bridge.ServerEndPoint;
-                    server.Multiplexer.Trace("Auto-configured role: slave");
-                    server.IsSlave = true;
+                    var bridge = connection.BridgeCouldBeNull;
+                    if(bridge != null)
+                    {
+                        var server = bridge.ServerEndPoint;
+                        server.Multiplexer.Trace("Auto-configured role: slave");
+                        server.IsSlave = true;
+                    }
                 }
                 return base.SetResult(connection, message, result);
             }
 
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
-                var server = connection.Bridge.ServerEndPoint;
+                var server = connection.BridgeCouldBeNull?.ServerEndPoint;
+                if (server == null) return false;
                 switch (result.Type)
                 {
                     case ResultType.BulkString:
@@ -774,8 +787,10 @@ namespace StackExchange.Redis
         {
             internal static ClusterConfiguration Parse(PhysicalConnection connection, string nodes)
             {
-                var server = connection.Bridge.ServerEndPoint;
-                var config = new ClusterConfiguration(connection.Multiplexer.ServerSelectionStrategy, nodes, server.EndPoint);
+                var bridge = connection.BridgeCouldBeNull;
+                if (bridge == null) throw new ObjectDisposedException(connection.ToString());
+                var server = bridge.ServerEndPoint;
+                var config = new ClusterConfiguration(bridge.Multiplexer.ServerSelectionStrategy, nodes, server.EndPoint);
                 server.SetClusterConfiguration(config);
                 return config;
             }
@@ -786,7 +801,8 @@ namespace StackExchange.Redis
                 {
                     case ResultType.BulkString:
                         string nodes = result.GetString();
-                        connection.Bridge.ServerEndPoint.ServerType = ServerType.Cluster;
+                        var bridge = connection.BridgeCouldBeNull;
+                        if (bridge != null) bridge.ServerEndPoint.ServerType = ServerType.Cluster;
                         var config = Parse(connection, nodes);
                         SetResult(message, config);
                         return true;
@@ -820,7 +836,7 @@ namespace StackExchange.Redis
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
-                SetResult(message, connection.Bridge.ServerEndPoint.EndPoint);
+                SetResult(message, connection.BridgeCouldBeNull?.ServerEndPoint?.EndPoint);
                 return true;
             }
         }
@@ -915,6 +931,7 @@ namespace StackExchange.Redis
                     SetResult(message, true);
                     return true;
                 }
+                if(message.Command == RedisCommand.AUTH) connection?.BridgeCouldBeNull?.Multiplexer?.SetAuthSuspect();
                 return false;
             }
         }
@@ -986,7 +1003,7 @@ namespace StackExchange.Redis
                 if (result.Type == ResultType.MultiBulk)
                 {
                     var arr = result.GetItems();
-                    if (arr?.Length == 2 && arr[1].TryGetInt64(out long val))
+                    if (arr.Length == 2 && arr[1].TryGetInt64(out long val))
                     {
                         SetResult(message, val);
                         return true;
@@ -1065,7 +1082,7 @@ namespace StackExchange.Redis
                         RedisChannel[] final;
                         if (arr.Length == 0)
                         {
-                            final = RedisChannel.EmptyArray;
+                            final = Array.Empty<RedisChannel>();
                         }
                         else
                         {
@@ -1139,9 +1156,13 @@ namespace StackExchange.Redis
             {
                 switch (result.Type)
                 {
+                    // allow a single item to pass explicitly pretending to be an array; example: SPOP {key} 1
+                    case ResultType.BulkString:
+                        var arr = new[] { result.AsRedisValue() };
+                        SetResult(message, arr);
+                        return true;
                     case ResultType.MultiBulk:
-                        var arr = result.GetItemsAsValues();
-
+                        arr = result.GetItemsAsValues();
                         SetResult(message, arr);
                         return true;
                 }
@@ -1225,10 +1246,10 @@ namespace StackExchange.Redis
                 switch (result.Type)
                 {
                     case ResultType.MultiBulk:
-                        var arr = result.GetItemsAsRawResults();
+                        var arr = result.GetItems();
 
                         GeoRadiusResult[] typed;
-                        if (arr == null)
+                        if (result.IsNull)
                         {
                             typed = null;
                         }
@@ -1255,7 +1276,7 @@ namespace StackExchange.Redis
                     return new GeoRadiusResult(item.AsRedisValue(), null, null, null);
                 }
                 // If WITHCOORD, WITHDIST or WITHHASH options are specified, the command returns an array of arrays, where each sub-array represents a single item.
-                var arr = item.GetArrayOfRawResults();
+                var arr = item.GetItems();
 
                 int index = 0;
                 // the first item in the sub-array is always the name of the returned item.
@@ -1273,7 +1294,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 if ((options & GeoRadiusOptions.WithGeoHash) != 0) { hash = (long?)arr[index++].AsRedisValue(); }
                 if ((options & GeoRadiusOptions.WithCoordinates) != 0)
                 {
-                    var coords = arr[index++].GetArrayOfRawResults();
+                    var coords = arr[index++].GetItems();
                     double longitude = (double)coords[0].AsRedisValue(), latitude = (double)coords[1].AsRedisValue();
                     position = new GeoPosition(longitude, latitude);
                 }
@@ -1304,7 +1325,7 @@ The coordinates as a two items x,y array (longitude,latitude).
             {
                 if (result.Type == ResultType.Error && result.AssertStarts(NOSCRIPT))
                 { // scripts are not flushed individually, so assume the entire script cache is toast ("SCRIPT FLUSH")
-                    connection.Bridge.ServerEndPoint.FlushScriptCache();
+                    connection.BridgeCouldBeNull?.ServerEndPoint?.FlushScriptCache();
                     message.SetScriptUnavailable();
                 }
                 // and apply usual processing for the rest
@@ -1327,7 +1348,7 @@ The coordinates as a two items x,y array (longitude,latitude).
 
         internal sealed class SingleStreamProcessor : StreamProcessorBase<RedisStreamEntry[]>
         {
-            private bool skipStreamName;
+            private readonly bool skipStreamName;
 
             public SingleStreamProcessor(bool skipStreamName = false)
             {
@@ -1339,7 +1360,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 if (result.IsNull)
                 {
                     // Server returns 'nil' if no entries are returned for the given stream.
-                    SetResult(message, new RedisStreamEntry[0]);
+                    SetResult(message, Array.Empty<RedisStreamEntry>());
                     return true;
                 }
 
@@ -1422,7 +1443,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 if (result.IsNull)
                 {
                     // Nothing returned for any of the requested streams. The server returns 'nil'.
-                    SetResult(message, new RedisStream[0]);
+                    SetResult(message, Array.Empty<RedisStream>());
                     return true;
                 }
 
@@ -1433,7 +1454,7 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                 var arr = result.GetItems();
 
-                var streams = Array.ConvertAll(arr, item =>
+                var streams = ConvertAll(arr, item =>
                 {
                     var details = item.GetItems();
 
@@ -1448,7 +1469,16 @@ The coordinates as a two items x,y array (longitude,latitude).
                 return true;
             }
         }
-
+        private static T[] ConvertAll<T>(ReadOnlySpan<RawResult> items, Func<RawResult, T> converter)
+        {
+            if (items.Length == 0) return Array.Empty<T>();
+            T[] arr = new T[items.Length];
+            for (int i = 0; i < arr.Length; i++)
+            {
+                arr[i] = converter(items[i]);
+            }
+            return arr;
+        }
         internal sealed class StreamConsumerInfoProcessor : InterleavedStreamInfoProcessorBase<StreamConsumerInfo>
         {
             protected override StreamConsumerInfo ParseItem(RawResult result)
@@ -1519,7 +1549,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 }
 
                 var arr = result.GetItems();
-                var parsedItems = Array.ConvertAll(arr, item => ParseItem(item));
+                var parsedItems = ConvertAll(arr, item => ParseItem(item));
 
                 SetResult(message, parsedItems);
                 return true;
@@ -1569,7 +1599,14 @@ The coordinates as a two items x,y array (longitude,latitude).
                 // Items 9-12 represent the first and last entry in the stream. The values will
                 // be nil (stored in index 9 & 11) if the stream length is 0.
 
-                var entries = ParseRedisStreamEntries(RawResult.CreateMultiBulk(arr[9], arr[11]));
+                var leased = ArrayPool<RawResult>.Shared.Rent(2);
+                leased[0] = arr[9];
+                leased[1] = arr[11];
+                var tmp = new RawResult(leased, 2);
+                var entries = ParseRedisStreamEntries(tmp);
+                // note: don't .Recycle(), would be a stack overflow because
+                // it would bridge the fake and real result set
+                ArrayPool<RawResult>.Shared.Return(leased);
 
                 var streamInfo = new StreamInfo(length: (int)arr[1].AsRedisValue(),
                     radixTreeKeys: (int)arr[3].AsRedisValue(),
@@ -1615,7 +1652,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 // item in the response array will be null.
                 if (!arr[3].IsNull)
                 {
-                    consumers = Array.ConvertAll(arr[3].GetItems(), item =>
+                    consumers = ConvertAll(arr[3].GetItems(), item =>
                     {
                         var details = item.GetItems();
 
@@ -1628,7 +1665,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 var pendingInfo = new StreamPendingInfo(pendingMessageCount: (int)arr[0].AsRedisValue(),
                     lowestId: arr[1].AsRedisValue(),
                     highestId: arr[2].AsRedisValue(),
-                    consumers: consumers ?? new StreamConsumer[0]);
+                    consumers: consumers ?? Array.Empty<StreamConsumer>());
                     // ^^^^^
                     // Should we bother allocating an empty array only to prevent the need for a null check?
 
@@ -1648,7 +1685,7 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                 var arr = result.GetItems();
 
-                var messageInfoArray = Array.ConvertAll(arr, item =>
+                var messageInfoArray = ConvertAll(arr, item =>
                 {
                     var details = item.GetItems();
 
@@ -1676,7 +1713,7 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                 var arr = result.GetItems();
 
-                return Array.ConvertAll(arr, item =>
+                return ConvertAll(arr, item =>
                 {
                     if (item.IsNull || item.Type != ResultType.MultiBulk)
                     {
@@ -1725,10 +1762,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 // Calculate how many name/value pairs are in the stream entry.
                 int count = arr.Length / 2;
 
-                if (count == 0)
-                {
-                    return new NameValueEntry[0];
-                }
+                if (count == 0) return Array.Empty<NameValueEntry>();
 
                 var pairs = new NameValueEntry[count];
                 int offset = 0;
@@ -1816,7 +1850,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 switch (message.Command)
                 {
                     case RedisCommand.ECHO:
-                        happy = result.Type == ResultType.BulkString && (!establishConnection || result.IsEqual(connection.Multiplexer.UniqueId));
+                        happy = result.Type == ResultType.BulkString && (!establishConnection || result.IsEqual(connection.BridgeCouldBeNull?.Multiplexer?.UniqueId));
                         break;
                     case RedisCommand.PING:
                         happy = result.Type == ResultType.SimpleString && result.IsEqual(RedisLiterals.BytesPONG);
@@ -1833,7 +1867,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 }
                 if (happy)
                 {
-                    if (establishConnection) connection.Bridge.OnFullyEstablished(connection);
+                    if (establishConnection) connection.BridgeCouldBeNull?.OnFullyEstablished(connection);
                     SetResult(message, happy);
                     return true;
                 }
@@ -1851,13 +1885,18 @@ The coordinates as a two items x,y array (longitude,latitude).
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
+                // To repro timeout fail:
+                // if (result.Type == ResultType.MultiBulk) throw new Exception("Woops");
                 switch (result.Type)
                 {
                     case ResultType.MultiBulk:
                         var arr = result.GetItemsAsValues();
 
-                        int port;
-                        if (arr.Length == 2 && int.TryParse(arr[1], out port))
+                        if (result.IsNull)
+                        {
+                            return true;
+                        }
+                        else if (arr.Length == 2 && int.TryParse(arr[1], out var port))
                         {
                             SetResult(message, Format.ParseEndPoint(arr[0], port));
                             return true;
@@ -1882,8 +1921,7 @@ The coordinates as a two items x,y array (longitude,latitude).
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
-                var innerProcessor = StringPairInterleaved as StringPairInterleavedProcessor;
-                if (innerProcessor == null)
+                if (!(StringPairInterleaved is StringPairInterleavedProcessor innerProcessor))
                 {
                     return false;
                 }
@@ -1891,7 +1929,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 switch (result.Type)
                 {
                     case ResultType.MultiBulk:
-                        var arrayOfArrays = result.GetArrayOfRawResults();
+                        var arrayOfArrays = result.GetItems();
 
                         var returnArray = new KeyValuePair<string, string>[arrayOfArrays.Length][];
 

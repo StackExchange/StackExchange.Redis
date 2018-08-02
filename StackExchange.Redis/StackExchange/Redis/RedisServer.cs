@@ -18,6 +18,8 @@ namespace StackExchange.Redis
             this.server = server ?? throw new ArgumentNullException(nameof(server));
         }
 
+        int IServer.DatabaseCount => server.Databases;
+
         public ClusterConfiguration ClusterConfiguration => server.ClusterConfiguration;
 
         public EndPoint EndPoint => server.EndPoint;
@@ -505,6 +507,18 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.PubSubNumSub);
         }
 
+        public void SwapDatabases(int first, int second, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.SWAPDB, first, second);
+            ExecuteSync(msg, ResultProcessor.DemandOK);
+        }
+
+        public Task SwapDatabasesAsync(int first, int second, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.SWAPDB, first, second);
+            return ExecuteAsync(msg, ResultProcessor.DemandOK);
+        }
+
         public DateTime Time(CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(-1, flags, RedisCommand.TIME);
@@ -584,7 +598,7 @@ namespace StackExchange.Redis
             // prepare the actual slaveof message (not sent yet)
             var slaveofMsg = CreateSlaveOfMessage(master, flags);
 
-            var configuration = this.multiplexer.RawConfig;
+            var configuration = multiplexer.RawConfig;
 
             // attempt to cease having an opinion on the master; will resume that when replication completes
             // (note that this may fail; we aren't depending on it)
@@ -593,7 +607,7 @@ namespace StackExchange.Redis
             {
                 var del = Message.Create(0, CommandFlags.FireAndForget | CommandFlags.NoRedirect, RedisCommand.DEL, (RedisKey)configuration.TieBreaker);
                 del.SetInternalCall();
-                server.QueueDirectFireAndForget(del, ResultProcessor.Boolean);
+                server.WriteDirectFireAndForget(del, ResultProcessor.Boolean);
             }
             ExecuteSync(slaveofMsg, ResultProcessor.DemandOK);
 
@@ -603,7 +617,7 @@ namespace StackExchange.Redis
             {
                 var pub = Message.Create(-1, CommandFlags.FireAndForget | CommandFlags.NoRedirect, RedisCommand.PUBLISH, (RedisValue)channel, RedisLiterals.Wildcard);
                 pub.SetInternalCall();
-                server.QueueDirectFireAndForget(pub, ResultProcessor.Int64);
+                server.WriteDirectFireAndForget(pub, ResultProcessor.Int64);
             }
         }
 
@@ -810,6 +824,22 @@ namespace StackExchange.Redis
         {
             var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.SLAVES, (RedisValue)serviceName);
             return ExecuteAsync(msg, ResultProcessor.SentinelArrayOfArrays);
+        }
+
+        public RedisResult Execute(string command, params object[] args) => Execute(command, args, CommandFlags.None);
+
+        public RedisResult Execute(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = new RedisDatabase.ExecuteMessage(-1, flags, command, args);
+            return ExecuteSync(msg, ResultProcessor.ScriptResult);
+        }
+
+        public Task<RedisResult> ExecuteAsync(string command, params object[] args) => ExecuteAsync(command, args, CommandFlags.None);
+
+        public Task<RedisResult> ExecuteAsync(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = new RedisDatabase.ExecuteMessage(-1, flags, command, args);
+            return ExecuteAsync(msg, ResultProcessor.ScriptResult);
         }
 
         #endregion

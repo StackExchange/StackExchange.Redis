@@ -23,7 +23,6 @@ namespace NRediSearch.QueryBuilder
 
         internal static Value[] Value(string[] s) => Array.ConvertAll(s, _ => Value(_));
 
-
         public static RangeValue Between(double from, double to) => new RangeValue(from, to);
 
         public static RangeValue Between(int from, int to) => new RangeValue((double)from, (double)to);
@@ -47,7 +46,7 @@ namespace NRediSearch.QueryBuilder
             }
             return new TagValue("{" + string.Join(" | ", tags) + "}");
         }
-        sealed class TagValue : Value
+        private sealed class TagValue : Value
         {
             private readonly string s;
             public TagValue(string s) { this.s = s; }

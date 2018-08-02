@@ -1,9 +1,9 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFrameworks>$(LibraryTargetFrameworks)</TargetFrameworks>
-    <VersionPrefix>0.2</VersionPrefix>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <PackageTags>Redis;Search;Modules;RediSearch</PackageTags>
+    <SignAssembly>true</SignAssembly>
     <LangVersion>7.2</LangVersion>
   </PropertyGroup>
   <ItemGroup>

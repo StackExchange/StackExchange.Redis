@@ -10,6 +10,7 @@ namespace StackExchange.Redis
 
         public static Task<T> FromResult(T value, object asyncState)
         {
+            if (asyncState == null) return Task.FromResult<T>(value);
             // note we do not need to deny exec-sync here; the value will be known
             // before we hand it to them
             var tcs = TaskSource.Create<T>(asyncState);

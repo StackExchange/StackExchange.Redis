@@ -5,23 +5,13 @@ using System.IO;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
-    internal enum WriteResult
-    {
-        QueueEmptyAfterWrite,
-        NothingToDo,
-        MoreWork,
-        CompetingWriter,
-        NoConnection,
-    }
-
     internal sealed partial class PhysicalBridge : IDisposable
     {
         internal readonly string Name;
-
-        internal int inWriteQueue = 0;
 
         private const int ProfileLogSamples = 10;
 
@@ -31,7 +21,9 @@ namespace StackExchange.Redis
 
         private readonly CompletionManager completionManager;
         private readonly long[] profileLog = new long[ProfileLogSamples];
-        private readonly MessageQueue queue = new MessageQueue();
+
+        private readonly Queue<Message> _preconnectBacklog = new Queue<Message>();
+
         private int activeWriters = 0;
         private int beating;
         private int failConnectCount = 0;
@@ -44,17 +36,21 @@ namespace StackExchange.Redis
 
         private long profileLastLog;
         private int profileLogIndex;
+
         private volatile bool reportNextFailure = true, reconfigureNextFailure = false;
+
         private volatile int state = (int)State.Disconnected;
 
-        public PhysicalBridge(ServerEndPoint serverEndPoint, ConnectionType type)
+        public PhysicalBridge(ServerEndPoint serverEndPoint, ConnectionType type, int timeoutMilliseconds)
         {
             ServerEndPoint = serverEndPoint;
             ConnectionType = type;
             Multiplexer = serverEndPoint.Multiplexer;
             Name = Format.ToString(serverEndPoint.EndPoint) + "/" + ConnectionType.ToString();
             completionManager = new CompletionManager(Multiplexer, Name);
+            TimeoutMilliseconds = timeoutMilliseconds;
         }
+        private readonly int TimeoutMilliseconds;
 
         public enum State : byte
         {
@@ -102,8 +98,19 @@ namespace StackExchange.Redis
             {
                 physical = null;
             }
+            GC.SuppressFinalize(this);
         }
-
+        ~PhysicalBridge()
+        {
+            // shouldn't *really* touch managed objects
+            // in a finalizer, but we need to kill that socket,
+            // and this is the first place that isn't going to
+            // be rooted by the socket async bits
+            try {
+                var tmp = physical;
+                tmp?.Shutdown();
+            } catch { }
+        }
         public void ReportNextFailure()
         {
             reportNextFailure = true;
@@ -113,7 +120,7 @@ namespace StackExchange.Redis
 
         public void TryConnect(TextWriter log) => GetConnection(log);
 
-        public bool TryEnqueue(Message message, bool isSlave)
+        public WriteResult TryWrite(Message message, bool isSlave)
         {
             if (isDisposed) throw new ObjectDisposedException(Name);
             if (!IsConnected)
@@ -122,27 +129,28 @@ namespace StackExchange.Redis
                 {
                     // you can go in the queue, but we won't be starting
                     // a worker, because the handshake has not completed
-                    queue.Push(message);
+                    var queue = _preconnectBacklog;
+                    lock (queue)
+                    {
+                        queue.Enqueue(message);
+                    }
                     message.SetEnqueued();
-                    return true;
+                    return WriteResult.Success; // we'll take it...
                 }
                 else
                 {
                     // sorry, we're just not ready for you yet;
-                    return false;
+                    return WriteResult.NoConnectionAvailable;
                 }
             }
 
-            bool reqWrite = queue.Push(message);
-            message.SetEnqueued();
-            LogNonPreferred(message.Flags, isSlave);
-            Trace("Now pending: " + GetPendingCount());
+            var physical = this.physical;
+            if (physical == null) return WriteResult.NoConnectionAvailable;
 
-            if (reqWrite)
-            {
-                Multiplexer.RequestWrite(this, false);
-            }
-            return true;
+            var result = WriteMessageTakingWriteLock(physical, message);
+            LogNonPreferred(message.Flags, isSlave);
+
+            return result;
         }
 
         internal void AppendProfile(StringBuilder sb)
@@ -170,22 +178,8 @@ namespace StackExchange.Redis
             sb.Append(" (").Append(rate.ToString("N2")).Append(" ops/s; spans ").Append(ProfileLogSeconds).Append("s)");
         }
 
-        internal bool ConfirmRemoveFromWriteQueue()
-        {
-            lock (queue.SyncLock)
-            {
-                if (queue.Count() == 0)
-                {
-                    Interlocked.Exchange(ref inWriteQueue, 0);
-                    return true;
-                }
-            }
-            return false;
-        }
-
         internal void GetCounters(ConnectionCounters counters)
         {
-            counters.PendingUnsentItems = queue.Count();
             counters.OperationCount = OperationCount;
             counters.SocketCount = Interlocked.Read(ref socketCount);
             counters.WriterCount = Interlocked.CompareExchange(ref activeWriters, 0, 0);
@@ -194,28 +188,20 @@ namespace StackExchange.Redis
             physical?.GetCounters(counters);
         }
 
-        internal int GetOutstandingCount(out int inst, out int qu, out int qs, out int qc, out int wr, out int wq, out int @in, out int ar)
+        internal void GetOutstandingCount(out int inst, out int qs, out int @in)
         {// defined as: PendingUnsentItems + SentItemsAwaitingResponse + ResponsesAwaitingAsyncCompletion
             inst = (int)(Interlocked.Read(ref operationCount) - Interlocked.Read(ref profileLastLog));
-            qu = queue.Count();
             var tmp = physical;
-            if(tmp == null)
+            if (tmp == null)
             {
-                qs = @in = ar = 0;
-            } else
+                qs = 0;
+                @in = -1;
+            }
+            else
             {
                 qs = tmp.GetSentAwaitingResponseCount();
-                @in = tmp.GetAvailableInboundBytes(out ar);
+                @in = tmp.GetAvailableInboundBytes();
             }
-            qc = completionManager.GetOutstandingCount();
-            wr = Interlocked.CompareExchange(ref activeWriters, 0, 0);
-            wq = Interlocked.CompareExchange(ref inWriteQueue, 0, 0);
-            return qu + qs + qc;
-        }
-
-        internal int GetPendingCount()
-        {
-            return queue.Count();
         }
 
         internal string GetStormLog()
@@ -223,9 +209,7 @@ namespace StackExchange.Redis
             var sb = new StringBuilder("Storm log for ").Append(Format.ToString(ServerEndPoint.EndPoint)).Append(" / ").Append(ConnectionType)
                 .Append(" at ").Append(DateTime.UtcNow)
                 .AppendLine().AppendLine();
-            queue.GetStormLog(sb);
             physical?.GetStormLog(sb);
-            completionManager.GetStormLog(sb);
             sb.Append("Circular op-count snapshot:");
             AppendProfile(sb);
             sb.AppendLine();
@@ -260,19 +244,22 @@ namespace StackExchange.Redis
             {
                 msg.SetInternalCall();
                 Multiplexer.Trace("Enqueue: " + msg);
-                if (!TryEnqueue(msg, ServerEndPoint.IsSlave))
+                var result = TryWrite(msg, ServerEndPoint.IsSlave);
+
+                if (result != WriteResult.Success)
                 {
-                    OnInternalError(ExceptionFactory.NoConnectionAvailable(Multiplexer.IncludeDetailInExceptions, Multiplexer.IncludePerformanceCountersInExceptions, msg.Command, msg, ServerEndPoint, Multiplexer.GetServerSnapshot()));
+                    var ex = Multiplexer.GetException(result, msg, ServerEndPoint);
+                    OnInternalError(ex);
                 }
             }
         }
 
-        internal void OnConnected(PhysicalConnection connection, TextWriter log)
+        internal async Task OnConnectedAsync(PhysicalConnection connection, TextWriter log)
         {
             Trace("OnConnected");
             if (physical == connection && !isDisposed && ChangeState(State.Connecting, State.ConnectedEstablishing))
             {
-                ServerEndPoint.OnEstablishing(connection, log);
+                await ServerEndPoint.OnEstablishingAsync(connection, log).ForAwait();
             }
             else
             {
@@ -280,8 +267,7 @@ namespace StackExchange.Redis
                 {
                     connection.Dispose();
                 }
-                catch
-                { }
+                catch { }
             }
         }
 
@@ -297,6 +283,7 @@ namespace StackExchange.Redis
 
         internal void OnConnectionFailed(PhysicalConnection connection, ConnectionFailureType failureType, Exception innerException)
         {
+            AbandonPendingBacklog(innerException);
             if (reportNextFailure)
             {
                 LastException = innerException;
@@ -310,14 +297,6 @@ namespace StackExchange.Redis
         {
             Trace("OnDisconnected");
 
-            // if the next thing in the pipe is a PING, we can tell it that we failed (this really helps spot doomed connects)
-            var ping = queue.DequeueUnsentPing(out int count);
-            if (ping != null)
-            {
-                Trace("Marking PING as failed (queue length: " + count + ")");
-                ping.Fail(failureType, null);
-                CompleteSyncOrAsync(ping);
-            }
             oldState = default(State); // only defined when isCurrent = true
             if (isCurrent = (physical == connection))
             {
@@ -340,6 +319,38 @@ namespace StackExchange.Redis
             }
         }
 
+        private Message DequeueNextPendingBacklog()
+        {
+            lock (_preconnectBacklog)
+            {
+                return _preconnectBacklog.Count == 0 ? null : _preconnectBacklog.Dequeue();
+            }
+        }
+        private void WritePendingBacklog(PhysicalConnection connection)
+        {
+            if (connection != null)
+            {
+                Message next;
+                do
+                {
+                    next = DequeueNextPendingBacklog();
+                    if (next != null) WriteMessageTakingWriteLock(connection, next);
+                } while (next != null);
+            }
+        }
+        private void AbandonPendingBacklog(Exception ex)
+        {
+            Message next;
+            do
+            {
+                next = DequeueNextPendingBacklog();
+                if(next != null)
+                {
+                    next.Cancel(ex);
+                    CompleteSyncOrAsync(next);
+                }
+            } while (next != null);
+        }
         internal void OnFullyEstablished(PhysicalConnection connection)
         {
             Trace("OnFullyEstablished");
@@ -349,8 +360,9 @@ namespace StackExchange.Redis
                 LastException = null;
                 Interlocked.Exchange(ref failConnectCount, 0);
                 ServerEndPoint.OnFullyEstablished(connection);
-                Multiplexer.RequestWrite(this, true);
-                if(ConnectionType == ConnectionType.Interactive) ServerEndPoint.CheckInfoReplication();
+                WritePendingBacklog(connection);
+
+                if (ConnectionType == ConnectionType.Interactive) ServerEndPoint.CheckInfoReplication();
             }
             else
             {
@@ -382,7 +394,7 @@ namespace StackExchange.Redis
                         if (shouldRetry)
                         {
                             Interlocked.Increment(ref connectTimeoutRetryCount);
-                            LastException = ExceptionFactory.UnableToConnect(Multiplexer.RawConfig.AbortOnConnectFail, "ConnectTimeout");
+                            LastException = ExceptionFactory.UnableToConnect(Multiplexer, "ConnectTimeout");
                             Trace("Aborting connect");
                             // abort and reconnect
                             var snapshot = physical;
@@ -390,26 +402,22 @@ namespace StackExchange.Redis
                             using (snapshot) { } // dispose etc
                             TryConnect(null);
                         }
-                        if (!ifConnectedOnly)
-                        {
-                            AbortUnsent();
-                        }
                         break;
                     case (int)State.ConnectedEstablishing:
                     case (int)State.ConnectedEstablished:
                         var tmp = physical;
                         if (tmp != null)
                         {
-                            if(state == (int)State.ConnectedEstablished)
+                            if (state == (int)State.ConnectedEstablished)
                             {
                                 Interlocked.Exchange(ref connectTimeoutRetryCount, 0);
-                                tmp.Bridge.ServerEndPoint.ClearUnselectable(UnselectableFlags.DidNotRespond);
+                                tmp.BridgeCouldBeNull?.ServerEndPoint?.ClearUnselectable(UnselectableFlags.DidNotRespond);
                             }
-                            tmp.OnHeartbeat();
+                            tmp.OnBridgeHeartbeat();
                             int writeEverySeconds = ServerEndPoint.WriteEverySeconds,
                                 checkConfigSeconds = Multiplexer.RawConfig.ConfigCheckSeconds;
 
-                            if(state == (int)State.ConnectedEstablished && ConnectionType == ConnectionType.Interactive
+                            if (state == (int)State.ConnectedEstablished && ConnectionType == ConnectionType.Interactive
                                 && checkConfigSeconds > 0 && ServerEndPoint.LastInfoReplicationCheckSecondsAgo >= checkConfigSeconds
                                 && ServerEndPoint.CheckInfoReplication())
                             {
@@ -427,7 +435,7 @@ namespace StackExchange.Redis
                                     OnDisconnected(ConnectionFailureType.SocketFailure, tmp, out bool ignore, out State oldState);
                                 }
                             }
-                            else if (!queue.Any() && tmp.GetSentAwaitingResponseCount() != 0)
+                            else if (tmp.GetSentAwaitingResponseCount() != 0)
                             {
                                 // there's a chance this is a dead socket; sending data will shake that
                                 // up a bit, so if we have an empty unsent queue and a non-empty sent
@@ -440,17 +448,12 @@ namespace StackExchange.Redis
                         Interlocked.Exchange(ref connectTimeoutRetryCount, 0);
                         if (!ifConnectedOnly)
                         {
-                            AbortUnsent();
                             Multiplexer.Trace("Resurrecting " + ToString());
                             GetConnection(null);
                         }
                         break;
                     default:
                         Interlocked.Exchange(ref connectTimeoutRetryCount, 0);
-                        if (!ifConnectedOnly)
-                        {
-                            AbortUnsent();
-                        }
                         break;
                 }
             }
@@ -494,156 +497,76 @@ namespace StackExchange.Redis
             {
                 return false;
             }
-            bool reqWrite = false;
+
+            var physical = this.physical;
+            if (physical == null) return false;
             foreach (var message in messages)
             {   // deliberately not taking a single lock here; we don't care if
                 // other threads manage to interleave - in fact, it would be desirable
                 // (to avoid a batch monopolising the connection)
-                if (queue.Push(message)) reqWrite = true;
+                WriteMessageTakingWriteLock(physical, message);
                 LogNonPreferred(message.Flags, isSlave);
-            }
-            Trace("Now pending: " + GetPendingCount());
-            if (reqWrite) // was empty before
-            {
-                Multiplexer.RequestWrite(this, false);
             }
             return true;
         }
 
+        private readonly object WriteLock = new object();
+
         /// <summary>
-        /// This writes a message **directly** to the output stream; note
-        /// that this ignores the queue, so should only be used *either*
-        /// from the regular dequeue loop, *or* from the "I've just
-        /// connected" handshake (when there is no dequeue loop) - otherwise,
-        /// you can pretty much assume you're going to destroy the stream
+        /// This writes a message to the output stream
         /// </summary>
-        internal bool WriteMessageDirect(PhysicalConnection tmp, Message next)
+        /// <param name="physical">The phsyical connection to write to.</param>
+        /// <param name="next">The message to be written.</param>
+        internal WriteResult WriteMessageTakingWriteLock(PhysicalConnection physical, Message next)
         {
             Trace("Writing: " + next);
-            var messageIsSent = false;
-            if (next is IMultiMessage)
-            {
-                SelectDatabase(tmp, next); // need to switch database *before* the transaction
-                foreach (var subCommand in ((IMultiMessage)next).GetMessages(tmp))
-                {
-                    if (!WriteMessageToServer(tmp, subCommand))
-                    {
-                        // we screwed up; abort; note that WriteMessageToServer already
-                        // killed the underlying connection
-                        Trace("Unable to write to server");
-                        next.Fail(ConnectionFailureType.ProtocolFailure, null);
-                        CompleteSyncOrAsync(next);
-                        return false;
-                    }
-                    //The parent message (next) may be returned from GetMessages
-                    //and should not be marked as sent again below
-                    messageIsSent = messageIsSent || subCommand == next;
-                }
-                if (!messageIsSent)
-                {
-                    next.SetRequestSent();
-                }
+            next.SetEnqueued();
 
-                return true;
-            }
-            else
-            {
-                return WriteMessageToServer(tmp, next);
-            }
-        }
-
-        internal WriteResult WriteQueue(int maxWork)
-        {
-            bool weAreWriter = false;
-            PhysicalConnection conn = null;
+            WriteResult result;
+            bool haveLock = false;
+            Monitor.TryEnter(WriteLock, TimeoutMilliseconds, ref haveLock);
+            if (!haveLock) return WriteResult.TimeoutBeforeWrite;
             try
             {
-                Trace("Writing queue from bridge");
-
-                weAreWriter = Interlocked.CompareExchange(ref activeWriters, 1, 0) == 0;
-                if (!weAreWriter)
+                var messageIsSent = false;
+                if (next is IMultiMessage)
                 {
-                    Trace("(aborting: existing writer)");
-                    return WriteResult.CompetingWriter;
-                }
-
-                conn = GetConnection(null);
-                if (conn == null)
-                {
-                    AbortUnsent();
-                    Trace("Connection not available; exiting");
-                    return WriteResult.NoConnection;
-                }
-
-                Message last;
-                int count = 0;
-                while (true)
-                {
-                    var next = queue.Dequeue();
-                    if (next == null)
+                    SelectDatabaseInsideWriteLock(physical, next); // need to switch database *before* the transaction
+                    foreach (var subCommand in ((IMultiMessage)next).GetMessages(physical))
                     {
-                        Trace("Nothing to write; exiting");
-                        if(count == 0)
+                        result = WriteMessageToServerInsideWriteLock(physical, subCommand);
+                        if (result != WriteResult.Success)
                         {
-                            conn.Flush(); // only flush on an empty run
-                            return WriteResult.NothingToDo;
+                            // we screwed up; abort; note that WriteMessageToServer already
+                            // killed the underlying connection
+                            Trace("Unable to write to server");
+                            next.Fail(ConnectionFailureType.ProtocolFailure, null, "failure before write: " + result.ToString());
+                            CompleteSyncOrAsync(next);
+                            return result;
                         }
-                        return WriteResult.QueueEmptyAfterWrite;
+                        //The parent message (next) may be returned from GetMessages
+                        //and should not be marked as sent again below
+                        messageIsSent = messageIsSent || subCommand == next;
                     }
-                    last = next;
+                    if (!messageIsSent)
+                    {
+                        next.SetRequestSent(); // well, it was attempted, at least...
+                    }
 
-                    Trace("Now pending: " + GetPendingCount());
-                    if (!WriteMessageDirect(conn, next))
-                    {
-                        AbortUnsent();
-                        Trace("write failed; connection is toast; exiting");
-                        return WriteResult.NoConnection;
-                    }
-                    count++;
-                    if (maxWork > 0 && count >= maxWork)
-                    {
-                        Trace("Work limit; exiting");
-                        Trace(last != null, "Flushed up to: " + last);
-                        conn.Flush();
-                        break;
-                    }
+                    result = WriteResult.Success;
                 }
-            }
-            catch (IOException ex)
-            {
-                if (conn != null)
+                else
                 {
-                    conn.RecordConnectionFailed(ConnectionFailureType.SocketFailure, ex);
-                    conn = null;
+                    result = WriteMessageToServerInsideWriteLock(physical, next);
                 }
-                AbortUnsent();
-            }
-            catch (Exception ex)
-            {
-                AbortUnsent();
-                OnInternalError(ex);
+                result = physical.WakeWriterAndCheckForThrottle();
             }
             finally
             {
-                if (weAreWriter)
-                {
-                    Interlocked.Exchange(ref activeWriters, 0);
-                    Trace("Exiting writer");
-                }
+                if (haveLock) Monitor.Exit(WriteLock);
             }
-            return queue.Any() ? WriteResult.MoreWork : WriteResult.QueueEmptyAfterWrite;
-        }
 
-        private void AbortUnsent()
-        {
-            var dead = queue.DequeueAll();
-            Trace(dead.Length != 0, "Aborting " + dead.Length + " messages");
-            for (int i = 0; i < dead.Length; i++)
-            {
-                var msg = dead[i];
-                msg.Fail(ConnectionFailureType.UnableToResolvePhysicalConnection, null);
-                CompleteSyncOrAsync(msg);
-            }
+            return result;
         }
 
         private State ChangeState(State newState)
@@ -654,11 +577,6 @@ namespace StackExchange.Redis
             if (oldState != newState)
             {
                 Multiplexer.Trace(ConnectionType + " state changed from " + oldState + " to " + newState);
-
-                if (newState == State.Disconnected)
-                {
-                    AbortUnsent();
-                }
             }
             return oldState;
         }
@@ -692,7 +610,7 @@ namespace StackExchange.Redis
                             // separate creation and connection for case when connection completes synchronously
                             // in that case PhysicalConnection will call back to PhysicalBridge, and most of  PhysicalBridge methods assumes that physical is not null;
                             physical = new PhysicalConnection(this);
-                            physical.BeginConnect(log);
+                            physical.BeginConnectAsync(log);
                         }
                     }
                     return null;
@@ -731,7 +649,7 @@ namespace StackExchange.Redis
             Multiplexer.OnInternalError(exception, ServerEndPoint.EndPoint, ConnectionType, origin);
         }
 
-        private void SelectDatabase(PhysicalConnection connection, Message message)
+        private void SelectDatabaseInsideWriteLock(PhysicalConnection connection, Message message)
         {
             int db = message.Db;
             if (db >= 0)
@@ -739,17 +657,17 @@ namespace StackExchange.Redis
                 var sel = connection.GetSelectDatabaseCommand(db, message);
                 if (sel != null)
                 {
-                    connection.Enqueue(sel);
-                    sel.WriteImpl(connection);
+                    sel.WriteTo(connection);
+                    connection.EnqueueInsideWriteLock(sel);
                     sel.SetRequestSent();
                     IncrementOpCount();
                 }
             }
         }
 
-        private bool WriteMessageToServer(PhysicalConnection connection, Message message)
+        private WriteResult WriteMessageToServerInsideWriteLock(PhysicalConnection connection, Message message)
         {
-            if (message == null) return true;
+            if (message == null) return WriteResult.Success; // for some definition of success
 
             try
             {
@@ -760,15 +678,15 @@ namespace StackExchange.Redis
                     throw ExceptionFactory.MasterOnly(Multiplexer.IncludeDetailInExceptions, message.Command, message, ServerEndPoint);
                 }
 
-                SelectDatabase(connection, message);
+                SelectDatabaseInsideWriteLock(connection, message);
 
                 if (!connection.TransactionActive)
                 {
                     var readmode = connection.GetReadModeCommand(isMasterOnly);
                     if (readmode != null)
                     {
-                        connection.Enqueue(readmode);
                         readmode.WriteTo(connection);
+                        connection.EnqueueInsideWriteLock(readmode);
                         readmode.SetRequestSent();
                         IncrementOpCount();
                     }
@@ -776,8 +694,8 @@ namespace StackExchange.Redis
                     if (message.IsAsking)
                     {
                         var asking = ReusableAskingCommand;
-                        connection.Enqueue(asking);
-                        asking.WriteImpl(connection);
+                        asking.WriteTo(connection);
+                        connection.EnqueueInsideWriteLock(asking);
                         asking.SetRequestSent();
                         IncrementOpCount();
                     }
@@ -795,8 +713,8 @@ namespace StackExchange.Redis
                         break;
                 }
 
-                connection.Enqueue(message);
-                message.WriteImpl(connection);
+                message.WriteTo(connection);
+                connection.EnqueueInsideWriteLock(message);
                 message.SetRequestSent();
                 IncrementOpCount();
 
@@ -806,7 +724,7 @@ namespace StackExchange.Redis
                 {
                     case RedisCommand.EVAL:
                     case RedisCommand.EVALSHA:
-                        if(!ServerEndPoint.GetFeatures().ScriptingDatabaseSafe)
+                        if (!ServerEndPoint.GetFeatures().ScriptingDatabaseSafe)
                         {
                             connection.SetUnknownDatabase();
                         }
@@ -817,12 +735,12 @@ namespace StackExchange.Redis
                         connection.SetUnknownDatabase();
                         break;
                 }
-                return true;
+                return WriteResult.Success;
             }
             catch (RedisCommandException ex)
             {
                 Trace("Write failed: " + ex.Message);
-                message.Fail(ConnectionFailureType.ProtocolFailure, ex);
+                message.Fail(ConnectionFailureType.InternalFailure, ex, null);
                 CompleteSyncOrAsync(message);
                 // this failed without actually writing; we're OK with that... unless there's a transaction
 
@@ -830,19 +748,19 @@ namespace StackExchange.Redis
                 {
                     // we left it in a broken state; need to kill the connection
                     connection.RecordConnectionFailed(ConnectionFailureType.ProtocolFailure, ex);
-                    return false;
+                    return WriteResult.WriteFailure;
                 }
-                return true;
+                return WriteResult.Success;
             }
             catch (Exception ex)
             {
                 Trace("Write failed: " + ex.Message);
-                message.Fail(ConnectionFailureType.InternalFailure, ex);
+                message.Fail(ConnectionFailureType.InternalFailure, ex, null);
                 CompleteSyncOrAsync(message);
 
                 // we're not sure *what* happened here; probably an IOException; kill the connection
                 connection?.RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
-                return false;
+                return WriteResult.WriteFailure;
             }
         }
     }

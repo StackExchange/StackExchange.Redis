@@ -38,13 +38,13 @@ namespace NRediSearch
             return boxed;
         }
 
-
-        const int BOXED_MIN = -1, BOXED_MAX = 20;
-        static readonly object[] s_Boxed = Enumerable.Range(BOXED_MIN, BOXED_MAX - BOXED_MIN).Select(i => (object)i).ToArray();
+        private const int BOXED_MIN = -1, BOXED_MAX = 20;
+        private static readonly object[] s_Boxed = Enumerable.Range(BOXED_MIN, BOXED_MAX - BOXED_MIN).Select(i => (object)i).ToArray();
 
         /// <summary>
         /// Obtain a pre-boxed integer if possible, else box the inbound value
         /// </summary>
+        /// <param name="value">The value to get a pre-boxed integer for.</param>
         public static object Boxed(this int value) => value >= BOXED_MIN && value <= BOXED_MAX ? s_Boxed[value - BOXED_MIN] : value;
     }
 }

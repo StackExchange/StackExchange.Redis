@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Threading;
+using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -10,7 +11,7 @@ namespace StackExchange.Redis.Tests.Issues
         public SO24807536(ITestOutputHelper output) : base (output) { }
 
         [Fact]
-        public void Exec()
+        public async Task Exec()
         {
             var key = Me();
             using(var conn = Create())
@@ -18,9 +19,9 @@ namespace StackExchange.Redis.Tests.Issues
                 var cache = conn.GetDatabase();
 
                 // setup some data
-                cache.KeyDelete(key);
-                cache.HashSet(key, "full", "some value");
-                cache.KeyExpire(key, TimeSpan.FromSeconds(3));
+                cache.KeyDelete(key, CommandFlags.FireAndForget);
+                cache.HashSet(key, "full", "some value", flags: CommandFlags.FireAndForget);
+                cache.KeyExpire(key, TimeSpan.FromSeconds(3), CommandFlags.FireAndForget);
 
                 // test while exists
                 var keyExists = cache.KeyExists(key);
@@ -31,15 +32,18 @@ namespace StackExchange.Redis.Tests.Issues
                 Assert.Equal("some value", fullWait.Result);
 
                 // wait for expiry
-                Thread.Sleep(TimeSpan.FromSeconds(4));
+                await Task.Delay(4000).ForAwait();
 
                 // test once expired
                 keyExists = cache.KeyExists(key);
                 ttl = cache.KeyTimeToLive(key);
                 fullWait = cache.HashGetAsync(key, "full", flags: CommandFlags.None);
+
                 Assert.False(keyExists);
                 Assert.Null(ttl);
-                Assert.Null((string)fullWait.Result);
+                var r = await fullWait;
+                Assert.True(r.IsNull);
+                Assert.Null((string)r);
             }
         }
     }

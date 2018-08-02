@@ -211,6 +211,10 @@ namespace StackExchange.Redis.KeyspaceIsolation
         {
             return Inner.KeyExists(ToInner(key), flags);
         }
+        public long KeyExists(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.KeyExists(ToInner(keys), flags);
+        }
 
         public bool KeyExpire(RedisKey key, DateTime? expiry, CommandFlags flags = CommandFlags.None)
         {
@@ -220,6 +224,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public bool KeyExpire(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None)
         {
             return Inner.KeyExpire(ToInner(key), expiry, flags);
+        }
+
+        public TimeSpan? KeyIdleTime(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.KeyIdleTime(ToInner(key), flags);
         }
 
         public void KeyMigrate(RedisKey key, EndPoint toServer, int toDatabase = 0, int timeoutMilliseconds = 0, MigrateOptions migrateOptions = MigrateOptions.None, CommandFlags flags = CommandFlags.None)
@@ -447,6 +456,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.SetPop(ToInner(key), flags);
         }
 
+        public RedisValue[] SetPop(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.SetPop(ToInner(key), count, flags);
+        }
+
         public RedisValue SetRandomMember(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             return Inner.SetRandomMember(ToInner(key), flags);
@@ -547,9 +561,14 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.SortedSetRangeByScoreWithScores(ToInner(key), start, stop, exclude, order, skip, take, flags);
         }
 
-        public RedisValue[] SortedSetRangeByValue(RedisKey key, RedisValue min = default(RedisValue), RedisValue max = default(RedisValue), Exclude exclude = Exclude.None, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
+        public RedisValue[] SortedSetRangeByValue(RedisKey key, RedisValue min, RedisValue max, Exclude exclude, long skip, long take, CommandFlags flags)
         {
-            return Inner.SortedSetRangeByValue(ToInner(key), min, max, exclude, skip, take, flags);
+            return Inner.SortedSetRangeByValue(ToInner(key), min, max, exclude, Order.Ascending, skip, take, flags);
+        }
+
+        public RedisValue[] SortedSetRangeByValue(RedisKey key, RedisValue min = default(RedisValue), RedisValue max = default(RedisValue), Exclude exclude = Exclude.None, Order order = Order.Ascending, long skip = 0, long take = -1, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.SortedSetRangeByValue(ToInner(key), min, max, exclude, order, skip, take, flags);
         }
 
         public long? SortedSetRank(RedisKey key, RedisValue member, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
@@ -657,9 +676,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StreamPendingMessages(ToInner(key), groupName, count, consumerName, minId, maxId, flags);
         }
 
-        public RedisStreamEntry[] StreamRange(RedisKey key, RedisValue? minId = null, RedisValue? maxId = null, int? count = null, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        public RedisStreamEntry[] StreamRange(RedisKey key, RedisValue? minId = null, RedisValue? maxId = null, int? count = null, Order messageOrder = Order.Ascending, CommandFlags flags = CommandFlags.None)
         {
-            return Inner.StreamRange(ToInner(key), minId, maxId, count, order, flags);
+            return Inner.StreamRange(ToInner(key), minId, maxId, count, messageOrder, flags);
         }
 
         public RedisStreamEntry[] StreamRead(RedisKey key, RedisValue afterId, int? count = null, CommandFlags flags = CommandFlags.None)
@@ -816,17 +835,5 @@ namespace StackExchange.Redis.KeyspaceIsolation
         {
             return Inner.SortedSetScan(ToInner(key), pattern, pageSize, cursor, pageOffset, flags);
         }
-
-#if DEBUG
-        public string ClientGetName(CommandFlags flags = CommandFlags.None)
-        {
-            return Inner.ClientGetName(flags);
-        }
-
-        public void Quit(CommandFlags flags = CommandFlags.None)
-        {
-            Inner.Quit(flags);
-        }
-#endif
     }
 }

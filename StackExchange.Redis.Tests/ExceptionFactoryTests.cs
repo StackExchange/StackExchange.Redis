@@ -28,7 +28,7 @@ namespace StackExchange.Redis.Tests
         }
 #if DEBUG // needs debug connection features
         [Fact]
-        public void MultipleEndpointsThrowAggregateException()
+        public void MultipleEndpointsThrowConnectionException()
         {
             try
             {
@@ -43,14 +43,10 @@ namespace StackExchange.Redis.Tests
                     }
 
                     var ex = ExceptionFactory.NoConnectionAvailable(true, true, new RedisCommand(), null, null, muxer.GetServerSnapshot());
-                    Assert.IsType<RedisConnectionException>(ex);
-                    Assert.IsType<AggregateException>(ex.InnerException);
-                    var aggException = (AggregateException)ex.InnerException;
-                    Assert.Equal(2, aggException.InnerExceptions.Count);
-                    for (int i = 0; i < aggException.InnerExceptions.Count; i++)
-                    {
-                        Assert.Equal(ConnectionFailureType.SocketFailure, ((RedisConnectionException)aggException.InnerExceptions[i]).FailureType);
-                    }
+                    var outer = Assert.IsType<RedisConnectionException>(ex);
+                    Assert.Equal(ConnectionFailureType.UnableToResolvePhysicalConnection, outer.FailureType);
+                    var inner = Assert.IsType<RedisConnectionException>(outer.InnerException);
+                    Assert.Equal(ConnectionFailureType.SocketFailure, inner.FailureType);
                 }
             }
             finally

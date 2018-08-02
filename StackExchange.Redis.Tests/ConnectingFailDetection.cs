@@ -1,4 +1,5 @@
 ﻿using System.Threading;
+using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -8,9 +9,11 @@ namespace StackExchange.Redis.Tests
     {
         public ConnectingFailDetection(ITestOutputHelper output) : base (output) { }
 
+        protected override string GetConfiguration() => TestConfig.Current.MasterServerAndPort + "," + TestConfig.Current.SlaveServerAndPort;
+
 #if DEBUG
         [Fact]
-        public void FastNoticesFailOnConnectingSyncComlpetion()
+        public async Task FastNoticesFailOnConnectingSyncComlpetion()
         {
             try
             {
@@ -37,8 +40,8 @@ namespace StackExchange.Redis.Tests
 
                     // should reconnect within 1 keepalive interval
                     muxer.AllowConnect = true;
-                    Output.WriteLine("Waiting for reconnect");
-                    Thread.Sleep(2000);
+                    Log("Waiting for reconnect");
+                    await Task.Delay(2000).ForAwait();
 
                     Assert.True(muxer.IsConnected);
                 }
@@ -69,7 +72,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void FastNoticesFailOnConnectingAsyncComlpetion()
+        public async Task FastNoticesFailOnConnectingAsyncComlpetion()
         {
             try
             {
@@ -96,42 +99,14 @@ namespace StackExchange.Redis.Tests
 
                     // should reconnect within 1 keepalive interval
                     muxer.AllowConnect = true;
-                    Output.WriteLine("Waiting for reconnect");
-                    Thread.Sleep(2000);
+                    Log("Waiting for reconnect");
+                    await Task.Delay(2000).ForAwait();
 
                     Assert.True(muxer.IsConnected);
                 }
             }
             finally
             {
-                ClearAmbientFailures();
-            }
-        }
-
-        [Fact]
-        public void ReconnectsOnStaleConnection()
-        {
-            try
-            {
-                using (var muxer = Create(keepAlive: 1, connectTimeout: 3000))
-                {
-                    var conn = muxer.GetDatabase();
-                    conn.Ping();
-
-                    Assert.True(muxer.IsConnected);
-
-                    PhysicalConnection.EmulateStaleConnection = true;
-                    Thread.Sleep(500);
-                    Assert.False(muxer.IsConnected);
-
-                    PhysicalConnection.EmulateStaleConnection = false;
-                    Thread.Sleep(1000);
-                    Assert.True(muxer.IsConnected);
-                }
-            }
-            finally
-            {
-                PhysicalConnection.EmulateStaleConnection = false;
                 ClearAmbientFailures();
             }
         }

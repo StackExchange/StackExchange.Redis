@@ -8,9 +8,10 @@ namespace StackExchange.Redis.Tests
     {
         public Migrate(ITestOutputHelper output) : base (output) { }
 
+        [Fact]
         public void Basic()
         {
-            var fromConfig = new ConfigurationOptions { EndPoints = { { TestConfig.Current.MasterServer, TestConfig.Current.SecurePort } }, Password = TestConfig.Current.SecurePassword };
+            var fromConfig = new ConfigurationOptions { EndPoints = { { TestConfig.Current.SecureServer, TestConfig.Current.SecurePort } }, Password = TestConfig.Current.SecurePassword };
             var toConfig = new ConfigurationOptions { EndPoints = { { TestConfig.Current.MasterServer, TestConfig.Current.MasterPort } } };
             using (var from = ConnectionMultiplexer.Connect(fromConfig))
             using (var to = ConnectionMultiplexer.Connect(toConfig))
@@ -18,9 +19,9 @@ namespace StackExchange.Redis.Tests
                 RedisKey key = Me();
                 var fromDb = from.GetDatabase();
                 var toDb = to.GetDatabase();
-                fromDb.KeyDelete(key);
-                toDb.KeyDelete(key);
-                fromDb.StringSet(key, "foo");
+                fromDb.KeyDelete(key, CommandFlags.FireAndForget);
+                toDb.KeyDelete(key, CommandFlags.FireAndForget);
+                fromDb.StringSet(key, "foo", flags: CommandFlags.FireAndForget);
                 var dest = to.GetEndPoints(true).Single();
                 fromDb.KeyMigrate(key, dest);
                 Assert.False(fromDb.KeyExists(key));

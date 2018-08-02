@@ -152,6 +152,7 @@
         SUNION,
         SUNIONSTORE,
         SSCAN,
+        SWAPDB,
         SYNC,
 
         TIME,
@@ -192,6 +193,7 @@
         ZREMRANGEBYRANK,
         ZREMRANGEBYSCORE,
         ZREVRANGE,
+        ZREVRANGEBYLEX,
         ZREVRANGEBYSCORE,
         ZREVRANK,
         ZSCAN,

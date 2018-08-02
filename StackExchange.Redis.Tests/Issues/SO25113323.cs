@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
@@ -17,8 +16,8 @@ namespace StackExchange.Redis.Tests.Issues
             using (var conn =  Create())
             {
                 // Given
-                var cache = conn.GetDatabase(59);
-                cache.KeyDelete(key);
+                var cache = conn.GetDatabase();
+                cache.KeyDelete(key, CommandFlags.FireAndForget);
                 cache.HashSet(key, "full", "test", When.NotExists, CommandFlags.PreferMaster);
 
                 await Task.Delay(2000).ForAwait();

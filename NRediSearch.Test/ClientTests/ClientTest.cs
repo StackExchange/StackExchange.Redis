@@ -10,18 +10,20 @@ namespace NRediSearch.Test.ClientTests
     public class ClientTest : RediSearchTestBase
     {
         public ClientTest(ITestOutputHelper output) : base(output) { }
-     
+
         [Fact]
-        public void search()
+        public void Search()
         {
             Client cl = GetClient();
 
             Schema sc = new Schema().AddTextField("title", 1.0).AddTextField("body", 1.0);
 
             Assert.True(cl.CreateIndex(sc, Client.IndexOptions.Default));
-            var fields = new Dictionary<string, RedisValue>();
-            fields.Add("title", "hello world");
-            fields.Add("body", "lorem ipsum");
+            var fields = new Dictionary<string, RedisValue>
+            {
+                { "title", "hello world" },
+                { "body", "lorem ipsum" }
+            };
             for (int i = 0; i < 100; i++)
             {
                 Assert.True(cl.AddDocument($"doc{i}", fields, (double)i / 100.0));
@@ -45,16 +47,12 @@ namespace NRediSearch.Test.ClientTests
 
             Assert.True(cl.DropIndex());
 
-            var ex = Assert.Throws<RedisServerException>(() =>
-            {
-                cl.Search(new Query("hello world"));
-            });
+            var ex = Assert.Throws<RedisServerException>(() => cl.Search(new Query("hello world")));
             Assert.Equal("Unknown Index name", ex.Message);
         }
 
-
         [Fact]
-        public void testNumericFilter()
+        public void TestNumericFilter()
         {
             Client cl = GetClient();
 
@@ -62,12 +60,13 @@ namespace NRediSearch.Test.ClientTests
 
             Assert.True(cl.CreateIndex(sc, Client.IndexOptions.Default));
 
-
             for (int i = 0; i < 100; i++)
             {
-                var fields = new Dictionary<string, RedisValue>();
-                fields.Add("title", "hello world");
-                fields.Add("price", i);
+                var fields = new Dictionary<string, RedisValue>
+                {
+                    { "title", "hello world" },
+                    { "price", i }
+                };
                 Assert.True(cl.AddDocument($"doc{i}", fields));
             }
 
@@ -104,30 +103,30 @@ namespace NRediSearch.Test.ClientTests
             }
 
             res = cl.Search(new Query("hello world").
-                    AddFilter(new Query.NumericFilter("price", 20, Double.PositiveInfinity)));
+                    AddFilter(new Query.NumericFilter("price", 20, double.PositiveInfinity)));
             Assert.Equal(80, res.TotalResults);
             Assert.Equal(10, res.Documents.Count);
 
             res = cl.Search(new Query("hello world").
-                            AddFilter(new Query.NumericFilter("price", Double.NegativeInfinity, 10)));
+                            AddFilter(new Query.NumericFilter("price", double.NegativeInfinity, 10)));
             Assert.Equal(11, res.TotalResults);
             Assert.Equal(10, res.Documents.Count);
-
         }
 
         [Fact]
-        public void testStopwords()
+        public void TestStopwords()
         {
             Client cl = GetClient();
 
             Schema sc = new Schema().AddTextField("title", 1.0);
 
-
             Assert.True(cl.CreateIndex(sc,
                     Client.IndexOptions.Default.SetStopwords("foo", "bar", "baz")));
 
-            var fields = new Dictionary<string, RedisValue>();
-            fields.Add("title", "hello world foo bar");
+            var fields = new Dictionary<string, RedisValue>
+            {
+                { "title", "hello world foo bar" }
+            };
             Assert.True(cl.AddDocument("doc1", fields));
             SearchResult res = cl.Search(new Query("hello world"));
             Assert.Equal(1, res.TotalResults);
@@ -138,8 +137,10 @@ namespace NRediSearch.Test.ClientTests
 
             Assert.True(cl.CreateIndex(sc,
                     Client.IndexOptions.Default | Client.IndexOptions.DisableStopWords));
-            fields = new Dictionary<string, RedisValue>();
-            fields.Add("title", "hello world foo bar to be or not to be");
+            fields = new Dictionary<string, RedisValue>
+            {
+                { "title", "hello world foo bar to be or not to be" }
+            };
             Assert.True(cl.AddDocument("doc1", fields));
 
             Assert.Equal(1, cl.Search(new Query("hello world")).TotalResults);
@@ -147,18 +148,19 @@ namespace NRediSearch.Test.ClientTests
             Assert.Equal(1, cl.Search(new Query("to be or not to be")).TotalResults);
         }
 
-
         [Fact]
-        public void testGeoFilter()
+        public void TestGeoFilter()
         {
             Client cl = GetClient();
 
             Schema sc = new Schema().AddTextField("title", 1.0).AddGeoField("loc");
 
             Assert.True(cl.CreateIndex(sc, Client.IndexOptions.Default));
-            var fields = new Dictionary<string, RedisValue>();
-            fields.Add("title", "hello world");
-            fields.Add("loc", "-0.441,51.458");
+            var fields = new Dictionary<string, RedisValue>
+            {
+                { "title", "hello world" },
+                { "loc", "-0.441,51.458" }
+            };
             Assert.True(cl.AddDocument("doc1", fields));
 
             fields["loc"] = "-0.1,51.2";
@@ -180,7 +182,7 @@ namespace NRediSearch.Test.ClientTests
         }
 
         [Fact]
-        public void testPayloads()
+        public void TestPayloads()
         {
             Client cl = GetClient();
 
@@ -188,9 +190,11 @@ namespace NRediSearch.Test.ClientTests
 
             Assert.True(cl.CreateIndex(sc, Client.IndexOptions.Default));
 
-            var fields = new Dictionary<string, RedisValue>();
-            fields.Add("title", "hello world");
-            string payload = "foo bar";
+            var fields = new Dictionary<string, RedisValue>
+            {
+                { "title", "hello world" }
+            };
+            const string payload = "foo bar";
             Assert.True(cl.AddDocument("doc1", fields, 1.0, false, false, Encoding.UTF8.GetBytes(payload)));
             SearchResult res = cl.Search(new Query("hello world") { WithPayloads = true });
             Assert.Equal(1, res.TotalResults);
@@ -200,7 +204,7 @@ namespace NRediSearch.Test.ClientTests
         }
 
         [Fact]
-        public void testQueryFlags()
+        public void TestQueryFlags()
         {
             Client cl = GetClient();
 
@@ -208,7 +212,6 @@ namespace NRediSearch.Test.ClientTests
 
             Assert.True(cl.CreateIndex(sc, Client.IndexOptions.Default));
             var fields = new Dictionary<string, RedisValue>();
-
 
             for (int i = 0; i < 100; i++)
             {
@@ -226,7 +229,7 @@ namespace NRediSearch.Test.ClientTests
             {
                 Assert.StartsWith("doc", d.Id);
                 Assert.True(d.Score != 1.0);
-                Assert.StartsWith("hello world", ((string)d["title"]));
+                Assert.StartsWith("hello world", (string)d["title"]);
             }
 
             q = new Query("hello").SetNoContent();
@@ -253,15 +256,16 @@ namespace NRediSearch.Test.ClientTests
         }
 
         [Fact]
-        public void testSortQueryFlags()
+        public void TestSortQueryFlags()
         {
             Client cl = GetClient();
             Schema sc = new Schema().AddSortableTextField("title", 1.0);
 
             Assert.True(cl.CreateIndex(sc, Client.IndexOptions.Default));
-            var fields = new Dictionary<string, RedisValue>();
-
-            fields["title"] = "b title";
+            var fields = new Dictionary<string, RedisValue>
+            {
+                ["title"] = "b title"
+            };
             cl.AddDocument("doc1", fields, 1.0, false, true, null);
 
             fields["title"] = "a title";
@@ -285,7 +289,7 @@ namespace NRediSearch.Test.ClientTests
         }
 
         [Fact]
-        public void testAddHash()
+        public void TestAddHash()
         {
             Client cl = GetClient();
 
@@ -302,7 +306,7 @@ namespace NRediSearch.Test.ClientTests
         }
 
         [Fact]
-        public void testDrop()
+        public void TestDrop()
         {
             Client cl = GetClient();
             Db.Execute("FLUSHDB"); // yeah, this is horrible, deal with it
@@ -310,8 +314,10 @@ namespace NRediSearch.Test.ClientTests
             Schema sc = new Schema().AddTextField("title", 1.0);
 
             Assert.True(cl.CreateIndex(sc, Client.IndexOptions.Default));
-            var fields = new Dictionary<string, RedisValue>();
-            fields.Add("title", "hello world");
+            var fields = new Dictionary<string, RedisValue>
+            {
+                { "title", "hello world" }
+            };
             for (int i = 0; i < 100; i++)
             {
                 Assert.True(cl.AddDocument($"doc{i}", fields));
@@ -330,16 +336,18 @@ namespace NRediSearch.Test.ClientTests
         }
 
         [Fact]
-        public void testNoStem()
+        public void TestNoStem()
         {
             Client cl = GetClient();
 
             Schema sc = new Schema().AddTextField("stemmed", 1.0).AddField(new Schema.TextField("notStemmed", 1.0, false, true));
             Assert.True(cl.CreateIndex(sc, Client.IndexOptions.Default));
 
-            var doc = new Dictionary<string, RedisValue>();
-            doc.Add("stemmed", "located");
-            doc.Add("notStemmed", "located");
+            var doc = new Dictionary<string, RedisValue>
+            {
+                { "stemmed", "located" },
+                { "notStemmed", "located" }
+            };
             // Store it
             Assert.True(cl.AddDocument("doc", doc));
 
@@ -352,7 +360,7 @@ namespace NRediSearch.Test.ClientTests
         }
 
         [Fact]
-        public void testInfo()
+        public void TestInfo()
         {
             Client cl = GetClient();
 
@@ -361,11 +369,10 @@ namespace NRediSearch.Test.ClientTests
 
             var info = cl.GetInfo();
             Assert.Equal((string)cl.IndexName, (string)info["index_name"]);
-
         }
 
         [Fact]
-        public void testNoIndex()
+        public void TestNoIndex()
         {
             Client cl = GetClient();
 
@@ -374,10 +381,11 @@ namespace NRediSearch.Test.ClientTests
                         .AddField(new Schema.TextField("f2", 1.0));
             cl.CreateIndex(sc, Client.IndexOptions.Default);
 
-           var  mm = new Dictionary<string, RedisValue>();
-
-            mm.Add("f1", "MarkZZ");
-            mm.Add("f2", "MarkZZ");
+            var mm = new Dictionary<string, RedisValue>
+            {
+                { "f1", "MarkZZ" },
+                { "f2", "MarkZZ" }
+            };
             cl.AddDocument("doc1", mm);
 
             mm.Clear();
@@ -398,11 +406,10 @@ namespace NRediSearch.Test.ClientTests
 
             res = cl.Search(new Query("@f2:Mark*").SetSortBy("f1", true));
             Assert.Equal("doc2", res.Documents[0].Id);
-
         }
 
         [Fact]
-        public void testReplacePartial()
+        public void TestReplacePartial()
         {
             Client cl = GetClient();
 
@@ -412,9 +419,11 @@ namespace NRediSearch.Test.ClientTests
                         .AddTextField("f3", 1.0);
             cl.CreateIndex(sc, Client.IndexOptions.Default);
 
-            var mm = new Dictionary<string, RedisValue>();
-            mm.Add("f1", "f1_val");
-            mm.Add("f2", "f2_val");
+            var mm = new Dictionary<string, RedisValue>
+            {
+                { "f1", "f1_val" },
+                { "f2", "f2_val" }
+            };
 
             cl.AddDocument("doc1", mm);
             cl.AddDocument("doc2", mm);
@@ -426,7 +435,7 @@ namespace NRediSearch.Test.ClientTests
             cl.ReplaceDocument("doc2", mm, 1.0);
 
             // Search for f3 value. All documents should have it.
-            SearchResult res = cl.Search(new Query(("@f3:f3_Val")));
+            SearchResult res = cl.Search(new Query("@f3:f3_Val"));
             Assert.Equal(2, res.TotalResults);
 
             res = cl.Search(new Query("@f3:f3_val @f2:f2_val @f1:f1_val"));
@@ -434,7 +443,7 @@ namespace NRediSearch.Test.ClientTests
         }
 
         [Fact]
-        public void testExplain()
+        public void TestExplain()
         {
             Client cl = GetClient();
 
@@ -451,14 +460,16 @@ namespace NRediSearch.Test.ClientTests
         }
 
         [Fact]
-        public void testHighlightSummarize()
+        public void TestHighlightSummarize()
         {
             Client cl = GetClient();
             Schema sc = new Schema().AddTextField("text", 1.0);
             cl.CreateIndex(sc, Client.IndexOptions.Default);
 
-            var doc = new Dictionary<string, RedisValue>();
-            doc.Add("text", "Redis is often referred as a data structures server. What this means is that Redis provides access to mutable data structures via a set of commands, which are sent using a server-client model with TCP sockets and a simple protocol. So different processes can query and modify the same data structures in a shared way");
+            var doc = new Dictionary<string, RedisValue>
+            {
+                { "text", "Redis is often referred as a data structures server. What this means is that Redis provides access to mutable data structures via a set of commands, which are sent using a server-client model with TCP sockets and a simple protocol. So different processes can query and modify the same data structures in a shared way" }
+            };
             // Add a document
             cl.AddDocument("foo", doc, 1.0);
             Query q = new Query("data").HighlightFields().SummarizeFields();
@@ -469,7 +480,7 @@ namespace NRediSearch.Test.ClientTests
         }
 
         [Fact]
-        public void testLanguage()
+        public void TestLanguage()
         {
             Client cl = GetClient();
             Schema sc = new Schema().AddTextField("text", 1.0);
@@ -482,26 +493,20 @@ namespace NRediSearch.Test.ClientTests
             options.SetLanguage("ybreski");
             cl.DeleteDocument(d.Id);
 
-            var ex = Assert.Throws<RedisServerException>(() =>
-            {
-                cl.AddDocument(d, options);
-            });
+            var ex = Assert.Throws<RedisServerException>(() => cl.AddDocument(d, options));
             Assert.Equal("Unsupported Language", ex.Message);
         }
 
         [Fact]
-        public void testDropMissing()
+        public void TestDropMissing()
         {
             Client cl = GetClient();
-            var ex = Assert.Throws<RedisServerException>(() =>
-            {
-                cl.DropIndex();
-            });
+            var ex = Assert.Throws<RedisServerException>(() => cl.DropIndex());
             Assert.Equal("Unknown Index name", ex.Message);
         }
 
         [Fact]
-        public void testGet()
+        public void TestGet()
         {
             Client cl = GetClient();
             cl.CreateIndex(new Schema().AddTextField("txt1", 1.0), Client.IndexOptions.Default);

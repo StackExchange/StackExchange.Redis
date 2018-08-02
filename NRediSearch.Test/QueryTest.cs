@@ -8,7 +8,7 @@ namespace NRediSearch.Test
         public static Query GetQuery() => new Query("hello world");
 
         [Fact]
-        public void getNoContent()
+        public void GetNoContent()
         {
             var query = GetQuery();
             Assert.False(query.NoContent);
@@ -17,7 +17,7 @@ namespace NRediSearch.Test
         }
 
         [Fact]
-        public void getWithScores()
+        public void GetWithScores()
         {
             var query = GetQuery();
             Assert.False(query.WithScores);
@@ -26,7 +26,7 @@ namespace NRediSearch.Test
         }
 
         [Fact]
-        public void serializeRedisArgs()
+        public void SerializeRedisArgs()
         {
             var query = new Query("hello world")
             {
@@ -38,7 +38,6 @@ namespace NRediSearch.Test
                 WithScores = true
             };
 
-            
             var args = new List<object>();
             query.SerializeRedisArgs(args);
 
@@ -57,7 +56,7 @@ namespace NRediSearch.Test
         }
 
         [Fact]
-        public void limit()
+        public void Limit()
         {
             var query = GetQuery();
             Assert.Equal(0, query._paging.Offset);
@@ -65,11 +64,10 @@ namespace NRediSearch.Test
             Assert.Same(query, query.Limit(1, 30));
             Assert.Equal(1, query._paging.Offset);
             Assert.Equal(30, query._paging.Count);
-
         }
 
         [Fact]
-        public void addFilter()
+        public void AddFilter()
         {
             var query = GetQuery();
             Assert.Empty(query._filters);
@@ -79,7 +77,7 @@ namespace NRediSearch.Test
         }
 
         [Fact]
-        public void setVerbatim()
+        public void SetVerbatim()
         {
             var query = GetQuery();
             Assert.False(query.Verbatim);
@@ -87,20 +85,17 @@ namespace NRediSearch.Test
             Assert.True(query.Verbatim);
         }
 
-
         [Fact]
-        public void setNoStopwords()
+        public void SetNoStopwords()
         {
             var query = GetQuery();
             Assert.False(query.NoStopwords);
             Assert.Same(query, query.SetNoStopwords());
             Assert.True(query.NoStopwords);
-
         }
 
-
         [Fact]
-        public void setLanguage()
+        public void SetLanguage()
         {
             var query = GetQuery();
             Assert.Null(query.Language);
@@ -109,17 +104,16 @@ namespace NRediSearch.Test
         }
 
         [Fact]
-        public void limitFields()
+        public void LimitFields()
         {
             var query = GetQuery();
             Assert.Null(query._fields);
             Assert.Same(query, query.LimitFields("foo", "bar"));
             Assert.Equal(2, query._fields.Length);
-
         }
 
         [Fact]
-        public void highlightFields()
+        public void HighlightFields()
         {
             var query = GetQuery();
             Assert.False(query._wantsHighlight);
@@ -144,7 +138,7 @@ namespace NRediSearch.Test
         }
 
         [Fact]
-        public void summarizeFields()
+        public void SummarizeFields()
         {
             var query = GetQuery();
             Assert.False(query._wantsSummarize);

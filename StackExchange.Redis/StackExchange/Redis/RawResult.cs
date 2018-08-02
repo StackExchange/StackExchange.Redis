@@ -1,19 +1,35 @@
 ﻿using System;
+using System.Buffers;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace StackExchange.Redis
 {
-    internal struct RawResult
+    internal readonly struct RawResult
     {
-        public static readonly RawResult EmptyArray = new RawResult(new RawResult[0]);
-        public static readonly RawResult Nil = new RawResult();
+        internal RawResult this[int index]
+        {
+            get
+            {
+                if (index >= _itemsCount) throw new IndexOutOfRangeException();
+                return _itemsOversized[index];
+            }
+        }
+        internal int ItemsCount => _itemsCount;
+        internal static readonly RawResult NullMultiBulk = new RawResult(null, 0);
+        internal static readonly RawResult EmptyMultiBulk = new RawResult(Array.Empty<RawResult>(), 0);
+        internal static readonly RawResult Nil = default;
 
-        public static RawResult CreateMultiBulk(params RawResult[] results) => new RawResult(results);
+        private readonly ReadOnlySequence<byte> _payload;
+        internal ReadOnlySequence<byte> DirecyPayload => _payload;
+        // note: can't use Memory<RawResult> here - struct recursion breaks runtimr
+        private readonly RawResult[] _itemsOversized;
+        private readonly int _itemsCount;
+        private readonly ResultType _type;
 
-        private static readonly byte[] emptyBlob = new byte[0];
-        private readonly int offset, count;
-        private readonly Array arr;
-        public RawResult(ResultType resultType, byte[] buffer, int offset, int count)
+        private const ResultType NonNullFlag = (ResultType)128;
+
+        public RawResult(ResultType resultType, ReadOnlySequence<byte> payload, bool isNull)
         {
             switch (resultType)
             {
@@ -25,35 +41,32 @@ namespace StackExchange.Redis
                 default:
                     throw new ArgumentOutOfRangeException(nameof(resultType));
             }
-            Type = resultType;
-            arr = buffer;
-            this.offset = offset;
-            this.count = count;
+            if (!isNull) resultType |= NonNullFlag;
+            _type = resultType;
+            _payload = payload;
+            _itemsOversized = default;
+            _itemsCount = default;
         }
 
-        public RawResult(RawResult[] arr)
+        public RawResult(RawResult[] itemsOversized, int itemCount)
         {
-            if (arr == null) throw new ArgumentNullException(nameof(arr));
-            Type = ResultType.MultiBulk;
-            offset = 0;
-            count = arr.Length;
-            this.arr = arr;
+            _type = ResultType.MultiBulk;
+            if (itemsOversized != null) _type |= NonNullFlag;
+            _payload = default;
+            _itemsOversized = itemsOversized;
+            _itemsCount = itemCount;
         }
-
-        public bool HasValue => Type != ResultType.None;
 
         public bool IsError => Type == ResultType.Error;
 
-        public ResultType Type { get; }
+        public ResultType Type => _type & ~NonNullFlag;
 
-        internal bool IsNull => arr == null;
-
+        internal bool IsNull => (_type & NonNullFlag) == 0;
+        public bool HasValue => Type != ResultType.None;
         public override string ToString()
         {
-            if (arr == null)
-            {
-                return "(null)";
-            }
+            if (IsNull) return "(null)";
+
             switch (Type)
             {
                 case ResultType.SimpleString:
@@ -61,14 +74,64 @@ namespace StackExchange.Redis
                 case ResultType.Error:
                     return $"{Type}: {GetString()}";
                 case ResultType.BulkString:
-                    return $"{Type}: {count} bytes";
+                    return $"{Type}: {_payload.Length} bytes";
                 case ResultType.MultiBulk:
-                    return $"{Type}: {count} items";
+                    return $"{Type}: {_itemsCount} items";
                 default:
-                    return "(unknown)";
+                    return $"(unknown: {Type})";
             }
         }
 
+        public Tokenizer GetInlineTokenizer() => new Tokenizer(_payload);
+
+        internal ref struct Tokenizer
+        {
+            // tokenizes things according to the inline protocol
+            // specifically; the line: abc    "def ghi" jkl
+            // is 3 tokens: "abc", "def ghi" and "jkl"
+            public Tokenizer GetEnumerator() => this;
+            private BufferReader _value;
+
+            public Tokenizer(ReadOnlySequence<byte> value)
+            {
+                _value = new BufferReader(value);
+                Current = default;
+            }
+
+            public bool MoveNext()
+            {
+                Current = default;
+                // take any white-space
+                while (_value.PeekByte() == (byte)' ') { _value.Consume(1); }
+
+                byte terminator = (byte)' ';
+                var first = _value.PeekByte();
+                if (first < 0) return false; // EOF
+
+                switch (first)
+                {
+                    case (byte)'"':
+                    case (byte)'\'':
+                        // start of string
+                        terminator = (byte)first;
+                        _value.Consume(1);
+                        break;
+                }
+
+                int end = BufferReader.FindNext(_value, terminator);
+                if (end < 0)
+                {
+                    Current = _value.ConsumeToEnd();
+                }
+                else
+                {
+                    Current = _value.ConsumeAsBuffer(end);
+                    _value.Consume(1); // drop the terminator itself;
+                }
+                return true;
+            }
+            public ReadOnlySequence<byte> Current { get; private set; }
+        }
         internal RedisChannel AsRedisChannel(byte[] channelPrefix, RedisChannel.PatternMode mode)
         {
             switch (Type)
@@ -81,10 +144,7 @@ namespace StackExchange.Redis
                     }
                     if (AssertStarts(channelPrefix))
                     {
-                        var src = (byte[])arr;
-
-                        byte[] copy = new byte[count - channelPrefix.Length];
-                        Buffer.BlockCopy(src, offset + channelPrefix.Length, copy, 0, copy.Length);
+                        byte[] copy = _payload.Slice(channelPrefix.Length).ToArray();
                         return new RedisChannel(copy, mode);
                     }
                     return default(RedisChannel);
@@ -107,6 +167,7 @@ namespace StackExchange.Redis
 
         internal RedisValue AsRedisValue()
         {
+            if (IsNull) return RedisValue.Null;
             switch (Type)
             {
                 case ResultType.Integer:
@@ -120,29 +181,37 @@ namespace StackExchange.Redis
             throw new InvalidCastException("Cannot convert to RedisValue: " + Type);
         }
 
+        internal void Recycle(int limit = -1)
+        {
+            var arr = _itemsOversized;
+            if (arr != null)
+            {
+                if (limit < 0) limit = _itemsCount;
+                for (int i = 0; i < limit; i++)
+                {
+                    arr[i].Recycle();
+                }
+                ArrayPool<RawResult>.Shared.Return(arr, clearArray: false);
+            }
+        }
+
         internal unsafe bool IsEqual(byte[] expected)
         {
             if (expected == null) throw new ArgumentNullException(nameof(expected));
-            if (expected.Length != count) return false;
-            var actual = arr as byte[];
-            if (actual == null) return false;
 
-            int octets = count / 8, spare = count % 8;
-            fixed (byte* actual8 = &actual[offset])
-            fixed (byte* expected8 = expected)
+            var rangeToCheck = _payload;
+
+            if (expected.Length != rangeToCheck.Length) return false;
+            if (rangeToCheck.IsSingleSegment) return rangeToCheck.First.Span.SequenceEqual(expected);
+
+            int offset = 0;
+            foreach (var segment in rangeToCheck)
             {
-                long* actual64 = (long*)actual8;
-                long* expected64 = (long*)expected8;
+                var from = segment.Span;
+                var to = new Span<byte>(expected, offset, from.Length);
+                if (!from.SequenceEqual(to)) return false;
 
-                for (int i = 0; i < octets; i++)
-                {
-                    if (actual64[i] != expected64[i]) return false;
-                }
-                int index = count - spare;
-                while (spare-- != 0)
-                {
-                    if (actual8[index] != expected8[index]) return false;
-                }
+                offset += from.Length;
             }
             return true;
         }
@@ -150,35 +219,36 @@ namespace StackExchange.Redis
         internal bool AssertStarts(byte[] expected)
         {
             if (expected == null) throw new ArgumentNullException(nameof(expected));
-            if (expected.Length > count) return false;
-            var actual = arr as byte[];
-            if (actual == null) return false;
+            if (expected.Length > _payload.Length) return false;
 
-            for (int i = 0; i < expected.Length; i++)
+            var rangeToCheck = _payload.Slice(0, expected.Length);
+            if (rangeToCheck.IsSingleSegment) return rangeToCheck.First.Span.SequenceEqual(expected);
+
+            int offset = 0;
+            foreach(var segment in rangeToCheck)
             {
-                if (expected[i] != actual[offset + i]) return false;
+                var from = segment.Span;
+                var to = new Span<byte>(expected, offset, from.Length);
+                if (!from.SequenceEqual(to)) return false;
+
+                offset += from.Length;
             }
             return true;
         }
 
         internal byte[] GetBlob()
         {
-            var src = (byte[])arr;
-            if (src == null) return null;
+            if (IsNull) return null;
 
-            if (count == 0) return emptyBlob;
+            if (_payload.IsEmpty) return Array.Empty<byte>();
 
-            byte[] copy = new byte[count];
-            Buffer.BlockCopy(src, offset, copy, 0, count);
-            return copy;
+            return _payload.ToArray();
         }
 
         internal bool GetBoolean()
         {
-            if (count != 1) throw new InvalidCastException();
-            byte[] actual = arr as byte[];
-            if (actual == null) throw new InvalidCastException();
-            switch (actual[offset])
+            if (_payload.Length != 1) throw new InvalidCastException();
+            switch (_payload.First.Span[0])
             {
                 case (byte)'1': return true;
                 case (byte)'0': return false;
@@ -186,21 +256,29 @@ namespace StackExchange.Redis
             }
         }
 
-        internal RawResult[] GetItems()
+        internal ReadOnlySpan<RawResult> GetItems()
         {
-            return (RawResult[])arr;
+            if (Type == ResultType.MultiBulk)
+                return new ReadOnlySpan<RawResult>(_itemsOversized, 0, _itemsCount);
+            throw new InvalidOperationException();
+        }
+        internal ReadOnlyMemory<RawResult> GetItemsMemory()
+        {
+            if (Type == ResultType.MultiBulk)
+                return new ReadOnlyMemory<RawResult>(_itemsOversized, 0, _itemsCount);
+            throw new InvalidOperationException();
         }
 
         internal RedisKey[] GetItemsAsKeys()
         {
-            RawResult[] items = GetItems();
-            if (items == null)
+            var items = GetItems();
+            if (IsNull)
             {
                 return null;
             }
             else if (items.Length == 0)
             {
-                return RedisKey.EmptyArray;
+                return Array.Empty<RedisKey>();
             }
             else
             {
@@ -215,8 +293,8 @@ namespace StackExchange.Redis
 
         internal RedisValue[] GetItemsAsValues()
         {
-            RawResult[] items = GetItems();
-            if (items == null)
+            var items = GetItems();
+            if (IsNull)
             {
                 return null;
             }
@@ -234,18 +312,16 @@ namespace StackExchange.Redis
                 return arr;
             }
         }
-
-        private static readonly string[] NilStrings = new string[0];
         internal string[] GetItemsAsStrings()
         {
-            RawResult[] items = GetItems();
-            if (items == null)
+            var items = GetItems();
+            if (IsNull)
             {
                 return null;
             }
             else if (items.Length == 0)
             {
-                return NilStrings;
+                return Array.Empty<string>();
             }
             else
             {
@@ -260,89 +336,100 @@ namespace StackExchange.Redis
 
         internal GeoPosition? GetItemsAsGeoPosition()
         {
-            RawResult[] items = GetItems();
-            if (items == null || items.Length == 0)
+            var items = GetItems();
+            if (IsNull || items.Length == 0)
             {
                 return null;
             }
 
-            var coords = items[0].GetArrayOfRawResults();
-            if (coords == null)
+            var coords = items[0].GetItems();
+            if (items[0].IsNull)
             {
                 return null;
             }
-            return new GeoPosition((double)coords[1].AsRedisValue(), (double)coords[0].AsRedisValue());
+            return new GeoPosition((double)coords[0].AsRedisValue(), (double)coords[1].AsRedisValue());
         }
 
         internal GeoPosition?[] GetItemsAsGeoPositionArray()
         {
-            RawResult[] items = GetItems();
-            if (items == null)
+            var items = GetItems();
+            if (IsNull)
             {
                 return null;
             }
             else if (items.Length == 0)
             {
-                return new GeoPosition?[0];
+                return Array.Empty<GeoPosition?>();
             }
             else
             {
                 var arr = new GeoPosition?[items.Length];
                 for (int i = 0; i < arr.Length; i++)
                 {
-                    RawResult[] item = items[i].GetArrayOfRawResults();
-                    if (item == null)
+                    var item = items[i].GetItems();
+                    if (items[i].IsNull)
                     {
                         arr[i] = null;
                     }
                     else
                     {
-                        arr[i] = new GeoPosition((double)item[1].AsRedisValue(), (double)item[0].AsRedisValue());
+                        arr[i] = new GeoPosition((double)item[0].AsRedisValue(), (double)item[1].AsRedisValue());
                     }
                 }
                 return arr;
             }
         }
-
-        internal RawResult[] GetItemsAsRawResults()
+        internal unsafe string GetString()
         {
-            return GetItems();
-        }
+            if (IsNull) return null;
+            if (_payload.IsEmpty) return "";
 
-        // returns an array of RawResults
-        internal RawResult[] GetArrayOfRawResults()
-        {
-            if (arr == null)
+            if (_payload.IsSingleSegment)
             {
-                return null;
-            }
-            else if (arr.Length == 0)
-            {
-                return new RawResult[0];
-            }
-            else
-            {
-                var rawResultArray = new RawResult[arr.Length];
-                for (int i = 0; i < arr.Length; i++)
+                var span = _payload.First.Span;
+                fixed (byte* ptr = &MemoryMarshal.GetReference(span))
                 {
-                    var rawResult = (RawResult)arr.GetValue(i);
-                    rawResultArray.SetValue(rawResult, i);
+                    return Encoding.UTF8.GetString(ptr, span.Length);
                 }
-                return rawResultArray;
             }
-        }
+            var decoder = Encoding.UTF8.GetDecoder();
+            int charCount = 0;
+            foreach(var segment in _payload)
+            {
+                var span = segment.Span;
+                if (span.IsEmpty) continue;
 
-        internal string GetString()
-        {
-            if (arr == null) return null;
-            var blob = (byte[])arr;
-            if (blob.Length == 0) return "";
-            return Encoding.UTF8.GetString(blob, offset, count);
+                fixed(byte* bPtr = &MemoryMarshal.GetReference(span))
+                {
+                    charCount += decoder.GetCharCount(bPtr, span.Length, false);
+                }
+            }
+
+            decoder.Reset();
+
+            string s = new string((char)0, charCount);
+            fixed (char* sPtr = s)
+            {
+                char* cPtr = sPtr;
+                foreach (var segment in _payload)
+                {
+                    var span = segment.Span;
+                    if (span.IsEmpty) continue;
+
+                    fixed (byte* bPtr = &MemoryMarshal.GetReference(span))
+                    {
+                        var written = decoder.GetChars(bPtr, span.Length, cPtr, charCount, false);
+                        cPtr += written;
+                        charCount -= written;
+                    }
+                }
+            }
+            return s;
         }
 
         internal bool TryGetDouble(out double val)
         {
-            if (arr == null)
+            if (IsNull)
             {
                 val = 0;
                 return false;
@@ -357,12 +444,17 @@ namespace StackExchange.Redis
 
         internal bool TryGetInt64(out long value)
         {
-            if (arr == null)
+            if(IsNull || _payload.IsEmpty || _payload.Length > PhysicalConnection.MaxInt64TextLen)
             {
                 value = 0;
                 return false;
             }
-            return RedisValue.TryParseInt64(arr as byte[], offset, count, out value);
+
+            if (_payload.IsSingleSegment) return RedisValue.TryParseInt64(_payload.First.Span, out value);
+
+            Span<byte> span = stackalloc byte[(int)_payload.Length]; // we already checked the length was <= MaxInt64TextLen
+            _payload.CopyTo(span);
+            return RedisValue.TryParseInt64(span, out value);
         }
     }
 }
