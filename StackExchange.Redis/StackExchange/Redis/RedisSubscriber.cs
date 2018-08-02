@@ -201,7 +201,7 @@ namespace StackExchange.Redis
                 if (selected == null || Interlocked.CompareExchange(ref owner, selected, null) != null) return null;
 
                 var msg = Message.Create(-1, flags, cmd, channel);
-
+                if (internalCall) msg.SetInternalCall();
                 return selected.WriteDirectAsync(msg, ResultProcessor.TrackSubscriptions, asyncState);
             }
 
