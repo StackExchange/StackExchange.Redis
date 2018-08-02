@@ -274,7 +274,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void KeyRestoreAsync()
         {
-            Byte[] value = new Byte[0];
+            byte[] value = new byte[0];
             TimeSpan expiry = TimeSpan.FromSeconds(123);
             wrapper.KeyRestoreAsync("key", value, expiry, CommandFlags.HighPriority);
             mock.Verify(_ => _.KeyRestoreAsync("prefix:key", value, expiry, CommandFlags.HighPriority));

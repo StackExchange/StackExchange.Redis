@@ -201,8 +201,9 @@ namespace StackExchange.Redis
         {
             if (issuer == null) throw new ArgumentNullException(nameof(issuer));
 
-            return (object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyError)
-                => sslPolicyError == SslPolicyErrors.RemoteCertificateChainErrors && certificate is X509Certificate2 v2
+            return (object _, X509Certificate certificate, X509Chain __, SslPolicyErrors sslPolicyError)
+                => sslPolicyError == SslPolicyErrors.RemoteCertificateChainErrors
+                    && certificate is X509Certificate2 v2
                     && CheckTrustedIssuer(v2, issuer);
         }
 

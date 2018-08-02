@@ -42,8 +42,7 @@ namespace StackExchange.Redis
             var hashCode = -1923861349;
             hashCode = (hashCode * -1521134295) + _0.GetHashCode();
             hashCode = (hashCode * -1521134295) + _1.GetHashCode();
-            hashCode = (hashCode * -1521134295) + _2.GetHashCode();
-            return hashCode;
+            return (hashCode * -1521134295) + _2.GetHashCode();
         }
         public override bool Equals(object obj) => obj is CommandBytes cb && Equals(cb);
 
