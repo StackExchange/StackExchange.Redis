@@ -685,6 +685,7 @@ namespace StackExchange.Redis
             catch (IOException ex)
             {
                 Multiplexer.Trace("Could not connect: " + ex.Message, physicalName);
+                throw;
             }
         }
 
