@@ -369,7 +369,11 @@ namespace StackExchange.Redis
                             }
 
                             add("Last-Heartbeat", "last-heartbeat", (lastBeat == 0 ? "never" : ((unchecked(now - lastBeat) / 1000) + "s ago")) + (BridgeCouldBeNull.IsBeating ? " (mid-beat)" : ""));
-                            add("Last-Multiplexer-Heartbeat", "last-mbeat", bridge.Multiplexer.LastHeartbeatSecondsAgo + "s ago");
+                            var mbeat = bridge.Multiplexer.LastHeartbeatSecondsAgo;
+                            if (mbeat >= 0)
+                            {
+                                add("Last-Multiplexer-Heartbeat", "last-mbeat", mbeat + "s ago");
+                            }
                             add("Last-Global-Heartbeat", "global", ConnectionMultiplexer.LastGlobalHeartbeatSecondsAgo + "s ago");
                         }
                     }
