@@ -322,14 +322,21 @@ namespace StackExchange.Redis
 
         internal Task Close(ConnectionType connectionType)
         {
-            var tmp = GetBridge(connectionType, create: false);
-            if (tmp == null || !tmp.IsConnected || !Multiplexer.CommandMap.IsAvailable(RedisCommand.QUIT))
+            try
             {
-                return CompletedTask<bool>.Default(null);
+                var tmp = GetBridge(connectionType, create: false);
+                if (tmp == null || !tmp.IsConnected || !Multiplexer.CommandMap.IsAvailable(RedisCommand.QUIT))
+                {
+                    return Task.CompletedTask;
+                }
+                else
+                {
+                    return WriteDirectAsync(Message.Create(-1, CommandFlags.None, RedisCommand.QUIT), ResultProcessor.DemandOK, bridge: tmp);
+                }
             }
-            else
+            catch (Exception ex)
             {
-                return WriteDirectAsync(Message.Create(-1, CommandFlags.None, RedisCommand.QUIT), ResultProcessor.DemandOK, bridge: tmp);
+                return Task.FromException(ex);
             }
         }
 

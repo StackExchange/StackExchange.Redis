@@ -259,10 +259,10 @@ namespace StackExchange.Redis
 #endif
 
         [Conditional("TEST")]
-        internal void OnMessageFaulted(Message msg, Exception fault, [CallerMemberName] string origin = null)
+        internal void OnMessageFaulted(Message msg, Exception fault, [CallerMemberName] string origin = default, [CallerFilePath] string path = default, [CallerLineNumber] int lineNumber = default)
         {
 #if TEST
-            MessageFaulted?.Invoke(msg?.CommandAndKey, fault, origin);
+            MessageFaulted?.Invoke(msg?.CommandAndKey, fault, $"{origin} ({path}#{lineNumber})");
 #endif
         }
     }

@@ -52,7 +52,7 @@ namespace NRediSearch.Test
                 SyncTimeout = 15000,
             };
             var conn = ConnectionMultiplexer.Connect(options);
-            conn.MessageFaulted += (msg, ex, origin) => output.WriteLine($"Faulted from '{origin}': '{msg}' - {ex.Message}");
+            conn.MessageFaulted += (msg, ex, origin) => output.WriteLine($"Faulted from '{origin}': '{msg}' - '{(ex == null ? "(null)" : ex.Message)}'");
             var server = conn.GetServer(ep);
             var arr = (RedisResult[])server.Execute("module", "list");
             bool found = false;

@@ -126,7 +126,7 @@ namespace StackExchange.Redis
             if (isDisposed) throw new ObjectDisposedException(Name);
             if (!IsConnected)
             {
-                if (message.IsInternalCall)
+                if (message.IsInternalCall && message.Command != RedisCommand.QUIT)
                 {
                     // you can go in the queue, but we won't be starting
                     // a worker, because the handshake has not completed
@@ -141,12 +141,21 @@ namespace StackExchange.Redis
                 else
                 {
                     // sorry, we're just not ready for you yet;
+                    message.Cancel();
+                    Multiplexer?.OnMessageFaulted(message, null);
+                    this.CompleteSyncOrAsync(message);
                     return WriteResult.NoConnectionAvailable;
                 }
             }
 
             var physical = this.physical;
-            if (physical == null) return WriteResult.NoConnectionAvailable;
+            if (physical == null)
+            {
+                message.Cancel();
+                Multiplexer?.OnMessageFaulted(message, null);
+                this.CompleteSyncOrAsync(message);
+                return WriteResult.NoConnectionAvailable;
+            }
 
             var result = WriteMessageTakingWriteLock(physical, message);
             LogNonPreferred(message.Flags, isSlave);
@@ -519,23 +528,29 @@ namespace StackExchange.Redis
         /// This writes a message to the output stream
         /// </summary>
         /// <param name="physical">The phsyical connection to write to.</param>
-        /// <param name="next">The message to be written.</param>
-        internal WriteResult WriteMessageTakingWriteLock(PhysicalConnection physical, Message next)
+        /// <param name="message">The message to be written.</param>
+        internal WriteResult WriteMessageTakingWriteLock(PhysicalConnection physical, Message message)
         {
-            Trace("Writing: " + next);
-            next.SetEnqueued();
+            Trace("Writing: " + message);
+            message.SetEnqueued();
 
             WriteResult result;
             bool haveLock = false;
             Monitor.TryEnter(WriteLock, TimeoutMilliseconds, ref haveLock);
-            if (!haveLock) return WriteResult.TimeoutBeforeWrite;
+            if (!haveLock)
+            {
+                message.Cancel();
+                Multiplexer?.OnMessageFaulted(message, null);
+                this.CompleteSyncOrAsync(message);
+                return WriteResult.TimeoutBeforeWrite;
+            }
             try
             {
                 var messageIsSent = false;
-                if (next is IMultiMessage)
+                if (message is IMultiMessage)
                 {
-                    SelectDatabaseInsideWriteLock(physical, next); // need to switch database *before* the transaction
-                    foreach (var subCommand in ((IMultiMessage)next).GetMessages(physical))
+                    SelectDatabaseInsideWriteLock(physical, message); // need to switch database *before* the transaction
+                    foreach (var subCommand in ((IMultiMessage)message).GetMessages(physical))
                     {
                         result = WriteMessageToServerInsideWriteLock(physical, subCommand);
                         if (result != WriteResult.Success)
@@ -543,24 +558,24 @@ namespace StackExchange.Redis
                             // we screwed up; abort; note that WriteMessageToServer already
                             // killed the underlying connection
                             Trace("Unable to write to server");
-                            next.Fail(ConnectionFailureType.ProtocolFailure, null, "failure before write: " + result.ToString());
-                            this.CompleteSyncOrAsync(next);
+                            message.Fail(ConnectionFailureType.ProtocolFailure, null, "failure before write: " + result.ToString());
+                            this.CompleteSyncOrAsync(message);
                             return result;
                         }
                         //The parent message (next) may be returned from GetMessages
                         //and should not be marked as sent again below
-                        messageIsSent = messageIsSent || subCommand == next;
+                        messageIsSent = messageIsSent || subCommand == message;
                     }
                     if (!messageIsSent)
                     {
-                        next.SetRequestSent(); // well, it was attempted, at least...
+                        message.SetRequestSent(); // well, it was attempted, at least...
                     }
 
                     result = WriteResult.Success;
                 }
                 else
                 {
-                    result = WriteMessageToServerInsideWriteLock(physical, next);
+                    result = WriteMessageToServerInsideWriteLock(physical, message);
                 }
                 result = physical.WakeWriterAndCheckForThrottle();
             }

@@ -83,13 +83,13 @@ namespace StackExchange.Redis.Tests
                 }
             };
         }
-
+        private string Time() => DateTime.UtcNow.ToString("T");
         protected void OnConnectionFailed(object sender, ConnectionFailedEventArgs e)
         {
             Interlocked.Increment(ref privateFailCount);
             lock (privateExceptions)
             {
-                privateExceptions.Add($"Connection failed ({e.FailureType}): {EndPointCollection.ToString(e.EndPoint)}/{e.ConnectionType}: {e.Exception}");
+                privateExceptions.Add($"{Time()}: Connection failed ({e.FailureType}): {EndPointCollection.ToString(e.EndPoint)}/{e.ConnectionType}: {e.Exception}");
             }
         }
 
@@ -98,7 +98,7 @@ namespace StackExchange.Redis.Tests
             Interlocked.Increment(ref privateFailCount);
             lock (privateExceptions)
             {
-                privateExceptions.Add("Internal error: " + e.Origin + ", " + EndPointCollection.ToString(e.EndPoint) + "/" + e.ConnectionType);
+                privateExceptions.Add(Time() + ": Internal error: " + e.Origin + ", " + EndPointCollection.ToString(e.EndPoint) + "/" + e.ConnectionType);
             }
         }
 

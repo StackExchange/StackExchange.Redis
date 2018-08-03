@@ -128,7 +128,7 @@ namespace StackExchange.Redis
 
         internal void OnConnectionFailed(EndPoint endpoint, ConnectionType connectionType, ConnectionFailureType failureType, Exception exception, bool reconfigure)
         {
-            if (isDisposed) return;
+            if (_isDisposed) return;
             var handler = ConnectionFailed;
             if (handler != null)
             {
@@ -147,7 +147,7 @@ namespace StackExchange.Redis
             try
             {
                 Trace("Internal error: " + origin + ", " + exception == null ? "unknown" : exception.Message);
-                if (isDisposed) return;
+                if (_isDisposed) return;
                 var handler = InternalError;
                 if (handler != null)
                 {
@@ -163,7 +163,7 @@ namespace StackExchange.Redis
 
         internal void OnConnectionRestored(EndPoint endpoint, ConnectionType connectionType)
         {
-            if (isDisposed) return;
+            if (_isDisposed) return;
             var handler = ConnectionRestored;
             if (handler != null)
             {
@@ -176,7 +176,7 @@ namespace StackExchange.Redis
 
         private void OnEndpointChanged(EndPoint endpoint, EventHandler<EndPointEventArgs> handler)
         {
-            if (isDisposed) return;
+            if (_isDisposed) return;
             if (handler != null)
             {
                 UnprocessableCompletionManager.CompleteSyncOrAsync(
@@ -194,7 +194,7 @@ namespace StackExchange.Redis
         public event EventHandler<RedisErrorEventArgs> ErrorMessage;
         internal void OnErrorMessage(EndPoint endpoint, string message)
         {
-            if (isDisposed) return;
+            if (_isDisposed) return;
             var handler = ErrorMessage;
             if (handler != null)
             {
@@ -755,8 +755,8 @@ namespace StackExchange.Redis
             return fallback;
         }
 
-        private volatile bool isDisposed;
-        internal bool IsDisposed => isDisposed;
+        private volatile bool _isDisposed;
+        internal bool IsDisposed => _isDisposed;
 
         /// <summary>
         /// Create a new ConnectionMultiplexer instance
@@ -944,7 +944,7 @@ namespace StackExchange.Redis
                     server = (ServerEndPoint)servers[endpoint];
                     if (server == null)
                     {
-                        if (isDisposed) throw new ObjectDisposedException(ToString());
+                        if (_isDisposed) throw new ObjectDisposedException(ToString());
 
                         server = new ServerEndPoint(this, endpoint);
                         servers.Add(endpoint, server);
@@ -1314,7 +1314,7 @@ namespace StackExchange.Redis
         }
         internal async Task<bool> ReconfigureAsync(bool first, bool reconfigureAll, TextWriter log, EndPoint blame, string cause, bool publishReconfigure = false, CommandFlags publishReconfigureFlags = CommandFlags.None)
         {
-            if (isDisposed) throw new ObjectDisposedException(ToString());
+            if (_isDisposed) throw new ObjectDisposedException(ToString());
             bool showStats = true;
 
             if (log == null)
@@ -1949,7 +1949,7 @@ namespace StackExchange.Redis
         /// <param name="allowCommandsToComplete">Whether to allow all in-queue commands to complete first.</param>
         public void Close(bool allowCommandsToComplete = true)
         {
-            isDisposed = true;
+            _isDisposed = true;
             _profilingSessionProvider = null;
             using (var tmp = pulse)
             {
@@ -2004,7 +2004,7 @@ namespace StackExchange.Redis
         /// <param name="allowCommandsToComplete">Whether to allow all in-queue commands to complete first.</param>
         public async Task CloseAsync(bool allowCommandsToComplete = true)
         {
-            isDisposed = true;
+            _isDisposed = true;
             using (var tmp = pulse)
             {
                 pulse = null;
@@ -2025,12 +2025,12 @@ namespace StackExchange.Redis
         public void Dispose()
         {
             GC.SuppressFinalize(this);
-            Close(!isDisposed);
+            Close(!_isDisposed);
         }
 
         internal Task<T> ExecuteAsyncImpl<T>(Message message, ResultProcessor<T> processor, object state, ServerEndPoint server)
         {
-            if (isDisposed) throw new ObjectDisposedException(ToString());
+            if (_isDisposed) throw new ObjectDisposedException(ToString());
 
             if (message == null)
             {
@@ -2099,7 +2099,7 @@ namespace StackExchange.Redis
 
         internal T ExecuteSyncImpl<T>(Message message, ResultProcessor<T> processor, ServerEndPoint server)
         {
-            if (isDisposed) throw new ObjectDisposedException(ToString());
+            if (_isDisposed) throw new ObjectDisposedException(ToString());
 
             if (message == null) // fire-and forget could involve a no-op, represented by null - for example Increment by 0
             {
