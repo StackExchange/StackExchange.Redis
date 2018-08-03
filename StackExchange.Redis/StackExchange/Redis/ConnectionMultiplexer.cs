@@ -1949,6 +1949,9 @@ namespace StackExchange.Redis
         /// <param name="allowCommandsToComplete">Whether to allow all in-queue commands to complete first.</param>
         public void Close(bool allowCommandsToComplete = true)
         {
+            if (_isDisposed) return;
+
+            OnClosing(false);
             _isDisposed = true;
             _profilingSessionProvider = null;
             using (var tmp = pulse)
@@ -1963,6 +1966,7 @@ namespace StackExchange.Redis
             }
             DisposeAndClearServers();
             OnCloseReaderWriter();
+            OnClosing(true);
         }
 
         partial void OnCloseReaderWriter();

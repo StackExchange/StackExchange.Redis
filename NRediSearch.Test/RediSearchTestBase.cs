@@ -53,6 +53,9 @@ namespace NRediSearch.Test
             };
             var conn = ConnectionMultiplexer.Connect(options);
             conn.MessageFaulted += (msg, ex, origin) => output.WriteLine($"Faulted from '{origin}': '{msg}' - '{(ex == null ? "(null)" : ex.Message)}'");
+            conn.Connecting += (e, t) => output.WriteLine($"Connecting to {Format.ToString(e)} as {t}");
+            conn.Closing += complete => output.WriteLine(complete ? "Closed" : "Closing...");
+
             var server = conn.GetServer(ep);
             var arr = (RedisResult[])server.Execute("module", "list");
             bool found = false;

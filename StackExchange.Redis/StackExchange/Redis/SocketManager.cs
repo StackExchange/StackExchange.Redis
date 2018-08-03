@@ -133,6 +133,7 @@ namespace StackExchange.Redis
             var protocolType = addressFamily == AddressFamily.Unix ? ProtocolType.Unspecified : ProtocolType.Tcp;
             var socket = new Socket(addressFamily, SocketType.Stream, protocolType);
             SocketConnection.SetRecommendedClientOptions(socket);
+            socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.Linger, false);
             return socket;
         }
 

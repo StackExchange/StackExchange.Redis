@@ -1827,7 +1827,28 @@ The coordinates as a two items x,y array (longitude,latitude).
                         happy = result.Type == ResultType.BulkString && (!establishConnection || result.IsEqual(connection.BridgeCouldBeNull?.Multiplexer?.UniqueId));
                         break;
                     case RedisCommand.PING:
-                        happy = result.Type == ResultType.SimpleString && result.IsEqual(CommonReplies.PONG);
+                        // there are two different PINGs; "interactive" is a +PONG or +{your message},
+                        // but subscriber returns a bulk-array of [ "pong", {your message} ]
+                        switch (result.Type)
+                        {
+                            case ResultType.SimpleString:
+                                happy = result.IsEqual(CommonReplies.PONG);
+                                break;
+                            case ResultType.MultiBulk:
+                                if (result.ItemsCount == 2)
+                                {
+                                    var items = result.GetItems();
+                                    happy = items[0].IsEqual(CommonReplies.PONG) && items[1].Payload.IsEmpty;
+                                }
+                                else
+                                {
+                                    happy = false;
+                                }
+                                break;
+                            default:
+                                happy = false;
+                                break;
+                        }
                         break;
                     case RedisCommand.TIME:
                         happy = result.Type == ResultType.MultiBulk && result.GetItems().Length == 2;
@@ -1836,7 +1857,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                         happy = result.Type == ResultType.Integer;
                         break;
                     default:
-                        happy = true;
+                        happy = false;
                         break;
                 }
                 if (happy)
@@ -1847,7 +1868,8 @@ The coordinates as a two items x,y array (longitude,latitude).
                 }
                 else
                 {
-                    connection.RecordConnectionFailed(ConnectionFailureType.ProtocolFailure);
+                    connection.RecordConnectionFailed(ConnectionFailureType.ProtocolFailure,
+                        new InvalidOperationException($"unexpected tracer reply to {message.Command}: {result.ToString()}"));
                     return false;
                 }
             }

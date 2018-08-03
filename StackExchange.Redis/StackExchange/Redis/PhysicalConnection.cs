@@ -83,7 +83,7 @@ namespace StackExchange.Redis
 
             Trace("Connecting...");
             _socket = SocketManager.CreateSocket(endpoint);
-
+            bridge.Multiplexer.OnConnecting(endpoint, bridge.ConnectionType);
             bridge.Multiplexer.LogLocked(log, "BeginConnect: {0}", Format.ToString(endpoint));
 
             CancellationTokenSource timeoutSource = null;
@@ -99,7 +99,12 @@ namespace StackExchange.Redis
                 {
                     _socketArgs.Completed += SocketAwaitable.Callback;
 
-                    if (_socket.ConnectAsync(_socketArgs))
+                    var x = _socket;
+                    if (x == null)
+                    {
+                        awaitable.TryComplete(0, SocketError.ConnectionAborted);
+                    }
+                    else if (x.ConnectAsync(_socketArgs))
                     {   // asynchronous operation is pending
                         timeoutSource = ConfigureTimeout(_socketArgs, bridge.Multiplexer.RawConfig.ConnectTimeout);
                     }
@@ -121,7 +126,12 @@ namespace StackExchange.Redis
                         timeoutSource.Cancel();
                         timeoutSource.Dispose();
                     }
-                    if (await ConnectedAsync(_socket, log, bridge.Multiplexer.SocketManager).ForAwait())
+                    var x = _socket;
+                    if (x == null)
+                    {
+                        ConnectionMultiplexer.TraceWithoutContext("Socket was already aborted");
+                    }
+                    else if (await ConnectedAsync(x, log, bridge.Multiplexer.SocketManager).ForAwait())
                     {
                         bridge.Multiplexer.LogLocked(log, "Starting read");
                         try
@@ -276,8 +286,15 @@ namespace StackExchange.Redis
         }
 
         public void RecordConnectionFailed(ConnectionFailureType failureType, Exception innerException = null, [CallerMemberName] string origin = null,
-            bool isInitialConnect = false, IDuplexPipe connectingPipe = null)
+            bool isInitialConnect = false, IDuplexPipe connectingPipe = null
+#if TEST
+            , [CallerFilePath] string path = default, [CallerLineNumber] int line = default
+#endif
+            )
         {
+#if TEST
+            origin += $" ({path}#{line})";
+#endif
             Exception outerException = innerException;
             IdentifyFailureType(innerException, ref failureType);
             var bridge = BridgeCouldBeNull;

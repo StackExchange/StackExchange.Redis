@@ -61,6 +61,7 @@ namespace StackExchange.Redis
 
         internal bool IsNull => (_type & NonNullFlag) == 0;
         public bool HasValue => Type != ResultType.None;
+
         public override string ToString()
         {
             if (IsNull) return "(null)";

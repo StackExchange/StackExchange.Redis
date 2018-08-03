@@ -182,10 +182,7 @@ namespace StackExchange.Redis
             }
         }
 
-        public RedisFeatures GetFeatures()
-        {
-            return new RedisFeatures(version);
-        }
+        public RedisFeatures GetFeatures() => new RedisFeatures(version);
 
         public void SetClusterConfiguration(ClusterConfiguration configuration)
         {

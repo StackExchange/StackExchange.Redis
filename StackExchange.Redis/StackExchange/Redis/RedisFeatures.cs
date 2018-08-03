@@ -157,6 +157,11 @@ namespace StackExchange.Redis
         public bool Geo => Version >= v3_2_0;
 
         /// <summary>
+        /// Can PING be used on a subscription connection?
+        /// </summary>
+        internal bool PingOnSubscriber => Version >= v3_2_0;
+
+        /// <summary>
         /// Does SetPop support popping multiple items?
         /// </summary>
         public bool SetPopMultiple => Version >= v3_2_0;
