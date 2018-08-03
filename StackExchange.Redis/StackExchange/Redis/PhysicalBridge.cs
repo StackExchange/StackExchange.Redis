@@ -108,6 +108,7 @@ namespace StackExchange.Redis
             try
             {
                 var tmp = physical;
+                physical = null;
                 tmp?.Shutdown();
             }
             catch { }
