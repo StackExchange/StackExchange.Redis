@@ -2,6 +2,8 @@
 {
     internal enum RedisCommand
     {
+        NONE, // must be first for "zero reasons"
+
         APPEND,
         ASKING,
         AUTH,

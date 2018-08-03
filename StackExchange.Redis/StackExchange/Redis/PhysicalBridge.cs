@@ -86,6 +86,8 @@ namespace StackExchange.Redis
 
         internal long OperationCount => Interlocked.Read(ref operationCount);
 
+        public RedisCommand LastCommand { get; private set; }
+
         public void Dispose()
         {
             isDisposed = true;
@@ -103,10 +105,12 @@ namespace StackExchange.Redis
             // in a finalizer, but we need to kill that socket,
             // and this is the first place that isn't going to
             // be rooted by the socket async bits
-            try {
+            try
+            {
                 var tmp = physical;
                 tmp?.Shutdown();
-            } catch { }
+            }
+            catch { }
         }
         public void ReportNextFailure()
         {
@@ -342,7 +346,7 @@ namespace StackExchange.Redis
             do
             {
                 next = DequeueNextPendingBacklog();
-                if(next != null)
+                if (next != null)
                 {
                     Multiplexer?.OnMessageFaulted(next, ex);
                     next.SetException(ex);
@@ -671,12 +675,13 @@ namespace StackExchange.Redis
             try
             {
                 var cmd = message.Command;
+                LastCommand = cmd;
                 bool isMasterOnly = message.IsMasterOnly();
                 if (isMasterOnly && ServerEndPoint.IsSlave && (ServerEndPoint.SlaveReadOnly || !ServerEndPoint.AllowSlaveWrites))
                 {
                     throw ExceptionFactory.MasterOnly(Multiplexer.IncludeDetailInExceptions, message.Command, message, ServerEndPoint);
                 }
-                if (message.Command == RedisCommand.QUIT) connection.RecordQuit();
+                if (cmd == RedisCommand.QUIT) connection.RecordQuit();
                 SelectDatabaseInsideWriteLock(connection, message);
 
                 if (!connection.TransactionActive)

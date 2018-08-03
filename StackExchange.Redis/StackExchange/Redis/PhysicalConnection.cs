@@ -325,7 +325,8 @@ namespace StackExchange.Redis
                     {
                         if (bridge != null)
                         {
-                            exMessage.Append(" on ").Append(Format.ToString(bridge.ServerEndPoint?.EndPoint)).Append("/").Append(connectionType);
+                            exMessage.Append(" on ").Append(Format.ToString(bridge.ServerEndPoint?.EndPoint)).Append("/").Append(connectionType)
+                                .Append(", last: ").Append(bridge.LastCommand);
 
                             data.Add(Tuple.Create("FailureType", failureType.ToString()));
                             data.Add(Tuple.Create("EndPoint", Format.ToString(bridge.ServerEndPoint?.EndPoint)));
