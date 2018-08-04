@@ -83,7 +83,7 @@ namespace StackExchange.Redis.Tests
                 }
             };
         }
-        private string Time() => DateTime.UtcNow.ToString("T");
+        internal static string Time() => DateTime.UtcNow.ToString("HH:mm:ss.fff");
         protected void OnConnectionFailed(object sender, ConnectionFailedEventArgs e)
         {
             Interlocked.Increment(ref privateFailCount);

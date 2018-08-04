@@ -284,7 +284,6 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task TestQuit()
         {
-            string Time() => DateTime.UtcNow.ToString("HH:mm:ss.fff");
             SetExpectedAmbientFailureCount(1);
             using (var muxer = Create(allowAdmin: true))
             {

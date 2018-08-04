@@ -17,7 +17,7 @@ namespace StackExchange.Redis.Tests.Helpers
         {
             try
             {
-                base.Write(DateTime.UtcNow.ToString("HH:mm:ss.fff"));
+                base.Write(TestBase.Time());
                 base.Write(": ");
                 base.WriteLine(value);
             }
