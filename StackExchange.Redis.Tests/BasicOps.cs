@@ -287,8 +287,8 @@ namespace StackExchange.Redis.Tests
             SetExpectedAmbientFailureCount(1);
             using (var muxer = Create(allowAdmin: true))
             {
-                muxer.ConnectionFailed += (_, __) => Log("{0}: Connection Failed", Time());
-                muxer.ConnectionRestored += (_, __) => Log("{0}: Connection Restored", Time());
+                muxer.ConnectionFailed += (_, args) => Log("{0}: Connection Failed: {1}", Time(), args.ToString());
+                muxer.ConnectionRestored += (_, args) => Log("{0}: Connection Restored: {1}", Time(), args.ToString());
 
                 var db = muxer.GetDatabase();
                 string key = Guid.NewGuid().ToString();

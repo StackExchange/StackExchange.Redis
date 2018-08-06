@@ -55,5 +55,10 @@ namespace StackExchange.Redis
         {
             return ConnectionMultiplexer.TryCompleteHandler(handler, sender, this, isAsync);
         }
+
+        /// <summary>
+        /// Returns the physical name of the connection.
+        /// </summary>
+        public override string ToString() => _physicalName ?? base.ToString();
     }
 }
