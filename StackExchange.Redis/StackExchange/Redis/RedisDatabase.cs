@@ -828,6 +828,33 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.RedisType);
         }
 
+        public bool KeyUnlink(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.UNLINK, key);
+            return ExecuteSync(msg, ResultProcessor.DemandZeroOrOne);
+        }
+
+        public long KeyUnlink(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
+        {
+            if (keys == null) throw new ArgumentNullException(nameof(keys));
+            var msg = keys.Length == 0 ? null : Message.Create(Database, flags, RedisCommand.UNLINK, keys);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+
+        public Task<bool> KeyUnlinkAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.UNLINK, key);
+            return ExecuteAsync(msg, ResultProcessor.DemandZeroOrOne);
+        }
+
+        public Task<long> KeyUnlinkAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
+        {
+            if (keys == null) throw new ArgumentNullException(nameof(keys));
+
+            var msg = keys.Length == 0 ? null : Message.Create(Database, flags, RedisCommand.UNLINK, keys);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
+
         public RedisValue ListGetByIndex(RedisKey key, long index, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.LINDEX, key, index);

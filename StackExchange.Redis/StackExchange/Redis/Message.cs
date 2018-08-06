@@ -388,6 +388,7 @@ namespace StackExchange.Redis
                 case RedisCommand.SREM:
                 case RedisCommand.SUNIONSTORE:
                 case RedisCommand.SWAPDB:
+                case RedisCommand.UNLINK:
                 case RedisCommand.ZADD:
                 case RedisCommand.ZINTERSTORE:
                 case RedisCommand.ZINCRBY:

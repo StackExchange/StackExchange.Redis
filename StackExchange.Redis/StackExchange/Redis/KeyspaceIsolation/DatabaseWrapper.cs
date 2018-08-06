@@ -271,6 +271,16 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.KeyType(ToInner(key), flags);
         }
 
+        public long KeyUnlink(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.KeyUnlink(ToInner(keys), flags);
+        }
+
+        public bool KeyUnlink(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.KeyUnlink(ToInner(key), flags);
+        }
+
         public RedisValue ListGetByIndex(RedisKey key, long index, CommandFlags flags = CommandFlags.None)
         {
             return Inner.ListGetByIndex(ToInner(key), index, flags);
