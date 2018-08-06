@@ -11,7 +11,7 @@ namespace StackExchange.Redis
     {
         private readonly EventHandler<ConnectionFailedEventArgs> handler;
         private readonly object sender;
-        internal ConnectionFailedEventArgs(EventHandler<ConnectionFailedEventArgs> handler, object sender, EndPoint endPoint, ConnectionType connectionType, ConnectionFailureType failureType, Exception exception)
+        internal ConnectionFailedEventArgs(EventHandler<ConnectionFailedEventArgs> handler, object sender, EndPoint endPoint, ConnectionType connectionType, ConnectionFailureType failureType, Exception exception, string physicalName)
         {
             this.handler = handler;
             this.sender = sender;
@@ -19,7 +19,10 @@ namespace StackExchange.Redis
             ConnectionType = connectionType;
             Exception = exception;
             FailureType = failureType;
+            _physicalName = physicalName ?? GetType().Name;
         }
+
+        private readonly string _physicalName;
 
         /// <summary>
         /// Gets the connection-type of the failing connection

@@ -491,7 +491,7 @@ namespace StackExchange.Redis
                     {
                         Multiplexer.ResendSubscriptions(this);
                     }
-                    Multiplexer.OnConnectionRestored(EndPoint, bridge.ConnectionType);
+                    Multiplexer.OnConnectionRestored(EndPoint, bridge.ConnectionType, connection?.ToString());
                 }
             }
             catch (Exception ex)

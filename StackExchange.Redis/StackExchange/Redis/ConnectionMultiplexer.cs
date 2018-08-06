@@ -126,14 +126,14 @@ namespace StackExchange.Redis
         /// </summary>
         public string Configuration => RawConfig.ToString();
 
-        internal void OnConnectionFailed(EndPoint endpoint, ConnectionType connectionType, ConnectionFailureType failureType, Exception exception, bool reconfigure)
+        internal void OnConnectionFailed(EndPoint endpoint, ConnectionType connectionType, ConnectionFailureType failureType, Exception exception, bool reconfigure, string physicalName)
         {
             if (_isDisposed) return;
             var handler = ConnectionFailed;
             if (handler != null)
             {
                 UnprocessableCompletionManager.CompleteSyncOrAsync(
-                    new ConnectionFailedEventArgs(handler, this, endpoint, connectionType, failureType, exception)
+                    new ConnectionFailedEventArgs(handler, this, endpoint, connectionType, failureType, exception, physicalName)
                 );
             }
             if (reconfigure)
@@ -161,14 +161,14 @@ namespace StackExchange.Redis
             }
         }
 
-        internal void OnConnectionRestored(EndPoint endpoint, ConnectionType connectionType)
+        internal void OnConnectionRestored(EndPoint endpoint, ConnectionType connectionType, string physicalName)
         {
             if (_isDisposed) return;
             var handler = ConnectionRestored;
             if (handler != null)
             {
                 UnprocessableCompletionManager.CompleteSyncOrAsync(
-                    new ConnectionFailedEventArgs(handler, this, endpoint, connectionType, ConnectionFailureType.None, null)
+                    new ConnectionFailedEventArgs(handler, this, endpoint, connectionType, ConnectionFailureType.None, null, physicalName)
                 );
             }
             ReconfigureIfNeeded(endpoint, false, "connection restored");

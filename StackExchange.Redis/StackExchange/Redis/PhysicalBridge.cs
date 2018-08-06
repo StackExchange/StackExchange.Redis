@@ -306,7 +306,7 @@ namespace StackExchange.Redis
                 LastException = innerException;
                 reportNextFailure = false; // until it is restored
                 var endpoint = ServerEndPoint.EndPoint;
-                Multiplexer.OnConnectionFailed(endpoint, ConnectionType, failureType, innerException, reconfigureNextFailure);
+                Multiplexer.OnConnectionFailed(endpoint, ConnectionType, failureType, innerException, reconfigureNextFailure, connection?.ToString());
             }
         }
 

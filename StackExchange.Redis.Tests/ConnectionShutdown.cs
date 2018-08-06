@@ -9,9 +9,9 @@ namespace StackExchange.Redis.Tests
     public class ConnectionShutdown : TestBase
     {
         protected override string GetConfiguration() => TestConfig.Current.MasterServerAndPort;
-        public ConnectionShutdown(ITestOutputHelper output) : base (output) { }
+        public ConnectionShutdown(ITestOutputHelper output) : base(output) { }
 
-        [Fact(Skip="Unfriendly")]
+        [Fact(Skip = "Unfriendly")]
         public async Task ShutdownRaisesConnectionFailedAndRestore()
         {
             using (var conn = Create(allowAdmin: true))
@@ -20,12 +20,12 @@ namespace StackExchange.Redis.Tests
                 Stopwatch watch = Stopwatch.StartNew();
                 conn.ConnectionFailed += (sender, args) =>
                 {
-                    Log(watch.Elapsed + ": failed: " + EndPointCollection.ToString(args.EndPoint) + "/" + args.ConnectionType);
+                    Log(watch.Elapsed + ": failed: " + EndPointCollection.ToString(args.EndPoint) + "/" + args.ConnectionType + ": " + args.ToString());
                     Interlocked.Increment(ref failed);
                 };
                 conn.ConnectionRestored += (sender, args) =>
                 {
-                    Log(watch.Elapsed + ": restored: " + EndPointCollection.ToString(args.EndPoint) + "/" + args.ConnectionType);
+                    Log(watch.Elapsed + ": restored: " + EndPointCollection.ToString(args.EndPoint) + "/" + args.ConnectionType + ": " + args.ToString());
                     Interlocked.Increment(ref restored);
                 };
                 var db = conn.GetDatabase();
