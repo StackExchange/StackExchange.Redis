@@ -252,59 +252,29 @@ namespace StackExchange.Redis
         internal string GetConnectionName(EndPoint endPoint, ConnectionType connectionType)
             => GetServerEndPoint(endPoint)?.GetBridge(connectionType, false)?.PhysicalName;
 
-#if TEST
         internal event Action<string, Exception, string> MessageFaulted;
         internal event Action<bool> Closing;
         internal event Action<EndPoint, ConnectionType> Connecting;
         internal event Action<EndPoint, ConnectionType> Resurrecting;
-#else
-        internal event Action<string, Exception, string> MessageFaulted
-        {   // completely empty shell event, just to keep the test suite compiling
-            add { } remove { }
-        }
-        internal event Action<bool> Closing
-        {   // completely empty shell event, just to keep the test suite compiling
-            add { } remove { }
-        }
-        internal event Action<EndPoint, ConnectionType> Connecting
-        {   // completely empty shell event, just to keep the test suite compiling
-            add { } remove { }
-        }
-        internal event Action<EndPoint, ConnectionType> Resurrecting
-        {   // completely empty shell event, just to keep the test suite compiling
-            add { } remove { }
-        }
-#endif
 
-        [Conditional("TEST")]
         internal void OnMessageFaulted(Message msg, Exception fault, [CallerMemberName] string origin = default, [CallerFilePath] string path = default, [CallerLineNumber] int lineNumber = default)
         {
-#if TEST
             MessageFaulted?.Invoke(msg?.CommandAndKey, fault, $"{origin} ({path}#{lineNumber})");
-#endif
         }
 
-        [Conditional("TEST")]
         internal void OnClosing(bool complete)
         {
-#if TEST
             Closing?.Invoke(complete);
-#endif
         }
 
-        [Conditional("TEST")]
         internal void OnConnecting(EndPoint endpoint, ConnectionType connectionType)
         {
-#if TEST
             Connecting?.Invoke(endpoint, connectionType);
-#endif
         }
-        [Conditional("TEST")]
+
         internal void OnResurrecting(EndPoint endpoint, ConnectionType connectionType)
         {
-#if TEST
             Resurrecting.Invoke(endpoint, connectionType);
-#endif
         }
     }
 
