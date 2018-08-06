@@ -261,6 +261,7 @@ namespace StackExchange.Redis.Tests
             muxer.ConnectionFailed += OnConnectionFailed;
             muxer.MessageFaulted += (msg, ex, origin) => Writer?.WriteLine($"Faulted from '{origin}': '{msg}' - '{(ex == null ? "(null)" : ex.Message)}'");
             muxer.Connecting += (e, t) => Writer.WriteLine($"Connecting to {Format.ToString(e)} as {t}");
+            muxer.Resurrecting += (e, t) => Writer.WriteLine($"Resurrecting {Format.ToString(e)} as {t}");
             muxer.Closing += complete => Writer.WriteLine(complete ? "Closed" : "Closing...");
             return muxer;
         }

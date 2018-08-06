@@ -467,6 +467,7 @@ namespace StackExchange.Redis
                         if (!ifConnectedOnly)
                         {
                             Multiplexer.Trace("Resurrecting " + ToString());
+                            Multiplexer.OnResurrecting(ServerEndPoint?.EndPoint, ConnectionType);
                             GetConnection(null);
                         }
                         break;

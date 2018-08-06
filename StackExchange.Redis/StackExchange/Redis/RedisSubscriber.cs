@@ -253,6 +253,7 @@ namespace StackExchange.Redis
         internal event Action<string, Exception, string> MessageFaulted;
         internal event Action<bool> Closing;
         internal event Action<EndPoint, ConnectionType> Connecting;
+        internal event Action<EndPoint, ConnectionType> Resurrecting;
 #else
         internal event Action<string, Exception, string> MessageFaulted
         {   // completely empty shell event, just to keep the test suite compiling
@@ -263,6 +264,10 @@ namespace StackExchange.Redis
             add { } remove { }
         }
         internal event Action<EndPoint, ConnectionType> Connecting
+        {   // completely empty shell event, just to keep the test suite compiling
+            add { } remove { }
+        }
+        internal event Action<EndPoint, ConnectionType> Resurrecting
         {   // completely empty shell event, just to keep the test suite compiling
             add { } remove { }
         }
@@ -289,6 +294,13 @@ namespace StackExchange.Redis
         {
 #if TEST
             Connecting?.Invoke(endpoint, connectionType);
+#endif
+        }
+        [Conditional("TEST")]
+        internal void OnResurrecting(EndPoint endpoint, ConnectionType connectionType)
+        {
+#if TEST
+            Resurrecting.Invoke(endpoint, connectionType);
 #endif
         }
     }
