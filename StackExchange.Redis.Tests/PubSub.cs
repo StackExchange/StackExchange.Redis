@@ -455,6 +455,7 @@ namespace StackExchange.Redis.Tests
                     }
                 }
 
+                await subChannel.Completion;
                 Assert.True(subChannel.IsCompleted);
                 await Assert.ThrowsAsync<ChannelClosedException>(async delegate
                 {
@@ -515,6 +516,7 @@ namespace StackExchange.Redis.Tests
                     }
                 }
 
+                await subChannel.Completion;
                 Assert.True(subChannel.IsCompleted);
                 await Assert.ThrowsAsync<ChannelClosedException>(async delegate
                 {
