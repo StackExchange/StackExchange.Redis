@@ -396,7 +396,7 @@ namespace StackExchange.Redis.Tests
                     }
                 }
 
-                Assert.True(subChannel.IsCompleted);
+                await subChannel.Completion;
                 await Assert.ThrowsAsync<ChannelClosedException>(async delegate
                 {
                     var final = await subChannel.ReadAsync().ForAwait();

@@ -81,6 +81,12 @@ namespace StackExchange.Redis
             _queue.Reader.Completion.ContinueWith(
                 (_, state) => ((ChannelMessageQueue)state).IsCompleted = true, this, TaskContinuationOptions.ExecuteSynchronously);
         }
+
+        /// <summary>
+        /// An awaitable task the indicates completion of the queue (including drain of data)
+        /// </summary>
+        public Task Completion => _queue.Reader.Completion;
+
         private static readonly UnboundedChannelOptions s_ChannelOptions = new UnboundedChannelOptions
         {
             SingleWriter = true,
