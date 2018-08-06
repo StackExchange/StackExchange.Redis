@@ -249,6 +249,9 @@ namespace StackExchange.Redis
             }
         }
 
+        internal string GetConnectionName(EndPoint endPoint, ConnectionType connectionType)
+            => GetServerEndPoint(endPoint)?.GetBridge(connectionType, false)?.PhysicalName;
+
 #if TEST
         internal event Action<string, Exception, string> MessageFaulted;
         internal event Action<bool> Closing;

@@ -294,15 +294,19 @@ namespace StackExchange.Redis.Tests
                 string key = Guid.NewGuid().ToString();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
                 db.StringSet(key, key, flags: CommandFlags.FireAndForget);
-                Log("{0}: Issuing QUIT", Time());
+                var ep = muxer.GetEndPoints()[0];
+                var nameBefore = muxer.GetConnectionName(ep, ConnectionType.Interactive);
+                Log("{0}: Issuing QUIT to {1}", Time(), nameBefore);
                 GetServer(muxer).Execute("QUIT", null);
                 var watch = Stopwatch.StartNew();
                 Assert.Throws<RedisConnectionException>(() => Log("Ping time: " + db.Ping().ToString()));
                 watch.Stop();
                 Log("Time to notice quit: {0}ms (any order)", watch.ElapsedMilliseconds);
                 await Task.Delay(20).ForAwait();
-                Debug.WriteLine("Pinging...");
+                var nameAfter = muxer.GetConnectionName(ep, ConnectionType.Interactive);
+                Log("{0}: Not talking to {1}", Time(), nameAfter);
                 Assert.Equal(key, (string)db.StringGet(key));
+                Assert.NotEqual(nameBefore, nameAfter);
             }
         }
 
