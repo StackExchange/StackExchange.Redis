@@ -1263,18 +1263,6 @@ namespace StackExchange.Redis
         partial void OnCreateEcho();
         partial void OnDebugAbort();
 
-        internal void OnHeartbeat()
-        {
-            try
-            {
-                BridgeCouldBeNull?.OnHeartbeat(true); // all the fun code is here
-            }
-            catch (Exception ex)
-            {
-                OnInternalError(ex);
-            }
-        }
-
         partial void OnWrapForLogging(ref IDuplexPipe pipe, string name, SocketManager mgr);
 
         private async void ReadFromPipe() // yes it is an async void; deal with it!
