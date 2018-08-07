@@ -434,6 +434,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create())
             {
+                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.Unlink), r => r.Unlink);
                 var db = muxer.GetDatabase();
                 var key = Me();
                 var ss = db.StringSetAsync(key, "Heyyyyy");
@@ -451,6 +452,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create())
             {
+                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.Unlink), r => r.Unlink);
                 var db = muxer.GetDatabase();
                 var key = Me();
                 var ss = db.StringSetAsync(key, "Heyyyyy");
@@ -468,6 +470,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create())
             {
+                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.Unlink), r => r.Unlink);
                 var db = muxer.GetDatabase();
                 var key1 = Me();
                 var key2 = Me() + "2";
@@ -489,6 +492,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create())
             {
+                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.Unlink), r => r.Unlink);
                 var db = muxer.GetDatabase();
                 var key1 = Me();
                 var key2 = Me() + "2";
