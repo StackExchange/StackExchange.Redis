@@ -27,11 +27,13 @@ namespace StackExchange.Redis
     {
         private static readonly ResultBox<T>[] store = new ResultBox<T>[64];
         private object stateOrCompletionSource;
+        private int _usageCount;
         private T value;
 
         public ResultBox(object stateOrCompletionSource)
         {
             this.stateOrCompletionSource = stateOrCompletionSource;
+            _usageCount = 1;
         }
 
         public static ResultBox<T> Get(object stateOrCompletionSource)
@@ -64,6 +66,9 @@ namespace StackExchange.Redis
                 box._exception = null;
                 if (recycle)
                 {
+                    var newCount = Interlocked.Decrement(ref box._usageCount);
+                    if (newCount != 0)
+                        throw new InvalidOperationException($"Result box count error: is {newCount} in UnwrapAndRecycle (should be 0)");
                     for (int i = 0; i < store.Length; i++)
                     {
                         if (Interlocked.CompareExchange(ref store[i], box, null) == null) return;
@@ -119,6 +124,8 @@ namespace StackExchange.Redis
 
         private void Reset(object stateOrCompletionSource)
         {
+            var newCount = Interlocked.Increment(ref _usageCount);
+            if (newCount != 1) throw new InvalidOperationException($"Result box count error: is {newCount} in Reset (should be 1)");
             value = default(T);
             _exception = null;
 
