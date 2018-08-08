@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -28,6 +29,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        [Conditional("DEBUG")]
         public void MultipleEndpointsThrowConnectionException()
         {
             try
@@ -76,6 +78,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        [Conditional("DEBUG")]
         public void ServerTakesPrecendenceOverSnapshot()
         {
             try
