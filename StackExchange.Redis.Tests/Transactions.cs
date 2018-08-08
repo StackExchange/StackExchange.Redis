@@ -934,7 +934,7 @@ namespace StackExchange.Redis.Tests
                             {
                                 await Assert.ThrowsAsync<TaskCanceledException>(() => x);
                                 await Assert.ThrowsAsync<TaskCanceledException>(() => y);
-                            }                     
+                            }
                         }
                     });
                 }
@@ -944,7 +944,7 @@ namespace StackExchange.Redis.Tests
                 }
                 var actual = (int) await muxers[0].GetDatabase().StringGetAsync(hits);
                 Assert.Equal(expectedSuccess, actual);
-                Writer.WriteLine($"success: {actual} out of {(Workers * PerThread)} attempts");
+                Writer.WriteLine($"success: {actual} out of {Workers * PerThread} attempts");
             }
             finally
             {
