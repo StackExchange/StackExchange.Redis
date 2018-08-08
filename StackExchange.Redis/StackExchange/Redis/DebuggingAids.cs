@@ -5,13 +5,6 @@ using System.Runtime.InteropServices;
 namespace StackExchange.Redis
 {
 #if DEBUG
-    internal partial class ResultBox
-    {
-        internal static long allocations;
-        public static long GetAllocationCount() => System.Threading.Interlocked.Read(ref allocations);
-        static partial void OnAllocated() => System.Threading.Interlocked.Increment(ref allocations);
-    }
-
     public partial interface IServer
     {
         /// <summary>
@@ -37,11 +30,6 @@ namespace StackExchange.Redis
 
     public partial class ConnectionMultiplexer
     {
-        /// <summary>
-        /// Gets how many result-box instances were allocated
-        /// </summary>
-        public static long GetResultBoxAllocationCount() => ResultBox.GetAllocationCount();
-
         private volatile bool allowConnect = true,
                               ignoreConnect = false;
 

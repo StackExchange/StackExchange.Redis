@@ -1,11 +1,10 @@
 ﻿using System;
-using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
-    internal abstract partial class ResultBox
+    internal abstract class ResultBox
     {
         protected Exception _exception;
         public abstract bool IsAsync { get; }
@@ -14,14 +13,6 @@ namespace StackExchange.Redis
         public void SetException(Exception exception) => _exception = exception ?? s_cancelled;
 
         public abstract bool TryComplete(bool isAsync);
-
-        [Conditional("DEBUG")]
-        protected static void IncrementAllocationCount()
-        {
-            OnAllocated();
-        }
-
-        static partial void OnAllocated();
 
         public void Cancel() => _exception = s_cancelled;
 
@@ -54,7 +45,6 @@ namespace StackExchange.Redis
                     return found;
                 }
             }
-            IncrementAllocationCount();
 
             return new ResultBox<T>(stateOrCompletionSource);
         }

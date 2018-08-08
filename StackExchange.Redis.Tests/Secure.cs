@@ -19,9 +19,6 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create())
             {
-#if DEBUG
-                long oldAlloc = ConnectionMultiplexer.GetResultBoxAllocationCount();
-#endif
                 RedisKey key = "MBOF";
                 var conn = muxer.GetDatabase();
                 conn.Ping();
@@ -37,11 +34,6 @@ namespace StackExchange.Redis.Tests
                 watch.Stop();
                 Log("{2}: Time for {0} ops: {1}ms (any order); ops/s: {3}", AsyncOpsQty, watch.ElapsedMilliseconds, Me(),
                     AsyncOpsQty / watch.Elapsed.TotalSeconds);
-#if DEBUG
-                long newAlloc = ConnectionMultiplexer.GetResultBoxAllocationCount();
-                Log("ResultBox allocations: {0}", newAlloc - oldAlloc);
-                Assert.True(newAlloc - oldAlloc <= 2, $"NewAllocs: {newAlloc}, OldAllocs: {oldAlloc}");
-#endif
             }
         }
 

@@ -72,9 +72,6 @@ namespace StackExchange.Redis.Tests
                 RedisKey key = "MBOS";
                 var conn = muxer.GetDatabase();
                 conn.KeyDelete(key, CommandFlags.FireAndForget);
-#if DEBUG
-                long oldAlloc = ConnectionMultiplexer.GetResultBoxAllocationCount();
-#endif
                 var timeTaken = RunConcurrent(delegate
                 {
                     for (int i = 0; i < workPerThread; i++)
@@ -87,11 +84,6 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(workPerThread * threads, val);
                 Log("{2}: Time for {0} ops on {3} threads: {1}ms (any order); ops/s: {4}",
                     threads * workPerThread, timeTaken.TotalMilliseconds, Me(), threads, (workPerThread * threads) / timeTaken.TotalSeconds);
-#if DEBUG
-                long newAlloc = ConnectionMultiplexer.GetResultBoxAllocationCount();
-                Log("ResultBox allocations: {0}", newAlloc - oldAlloc);
-                Assert.True(newAlloc - oldAlloc <= 2 * threads, "number of box allocations");
-#endif
             }
         }
 
@@ -102,9 +94,6 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create(syncTimeout: 30000))
             {
-#if DEBUG
-                long oldAlloc = ConnectionMultiplexer.GetResultBoxAllocationCount();
-#endif
                 RedisKey key = "MBOF";
                 var conn = muxer.GetDatabase();
                 conn.Ping();
@@ -125,12 +114,6 @@ namespace StackExchange.Redis.Tests
                 Log("{2}: Time for {0} ops over {4} threads: {1:###,###}ms (any order); ops/s: {3:###,###,##0}",
                     val, elapsed.TotalMilliseconds, Me(),
                     val / elapsed.TotalSeconds, threads);
-#if DEBUG
-                long newAlloc = ConnectionMultiplexer.GetResultBoxAllocationCount();
-                Log("ResultBox allocations: {0}",
-                    newAlloc - oldAlloc);
-                Assert.True(newAlloc - oldAlloc <= 4);
-#endif
             }
         }
     }
