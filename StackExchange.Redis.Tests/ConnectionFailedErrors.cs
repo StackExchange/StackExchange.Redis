@@ -144,6 +144,13 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void TryGetAzureRoleInstanceIdNoThrow()
+        {
+            Assert.Null(ConnectionMultiplexer.TryGetAzureRoleInstanceIdNoThrow());
+        }
+
+#if DEBUG
+        [Fact]
         public async Task CheckFailureRecovered()
         {
             try
@@ -171,11 +178,6 @@ namespace StackExchange.Redis.Tests
                 ClearAmbientFailures();
             }
         }
-
-        [Fact]
-        public void TryGetAzureRoleInstanceIdNoThrow()
-        {
-            Assert.Null(ConnectionMultiplexer.TryGetAzureRoleInstanceIdNoThrow());
-        }
+#endif
     }
 }
