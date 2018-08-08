@@ -5,29 +5,6 @@ using System.Runtime.InteropServices;
 namespace StackExchange.Redis
 {
 #if DEBUG
-    public partial interface IServer
-    {
-        /// <summary>
-        /// Break the connection without mercy or thought
-        /// </summary>
-        void SimulateConnectionFailure();
-    }
-    
-
-    internal partial class ServerEndPoint
-    {
-        internal void SimulateConnectionFailure()
-        {
-            interactive?.SimulateConnectionFailure();
-            subscription?.SimulateConnectionFailure();
-        }
-    }
-
-    internal partial class RedisServer
-    {
-        void IServer.SimulateConnectionFailure() => server.SimulateConnectionFailure();
-    }
-
     public partial class ConnectionMultiplexer
     {
         private volatile bool allowConnect = true,
@@ -42,18 +19,6 @@ namespace StackExchange.Redis
         /// For debugging; when not enabled, end-connect is silently ignored (to simulate a long-running connect)
         /// </summary>
         public bool IgnoreConnect { get { return ignoreConnect; } set { ignoreConnect = value; } }
-    }
-
-    internal partial class PhysicalBridge
-    {
-        internal void SimulateConnectionFailure()
-        {
-            if (!Multiplexer.RawConfig.AllowAdmin)
-            {
-                throw ExceptionFactory.AdminModeNotEnabled(Multiplexer.IncludeDetailInExceptions, RedisCommand.DEBUG, null, ServerEndPoint); // close enough
-            }
-            physical?.RecordConnectionFailed(ConnectionFailureType.SocketFailure);
-        }
     }
 
     internal partial class PhysicalConnection

@@ -717,4 +717,13 @@ namespace StackExchange.Redis
 
         #endregion
     }
+
+    internal static class IServerExtensions
+    {
+        /// <summary>
+        /// For testing only: Break the connection without mercy or thought
+        /// </summary>
+        /// <param name="server">The server to simulate failure on.</param>
+        public static void SimulateConnectionFailure(this IServer server) => (server as RedisServer)?.SimulateConnectionFailure();
+    }
 }

@@ -732,5 +732,14 @@ namespace StackExchange.Redis
                 Multiplexer.ReconfigureIfNeeded(EndPoint, false, caller);
             }
         }
+
+        /// <summary>
+        /// For testing only
+        /// </summary>
+        internal void SimulateConnectionFailure()
+        {
+            interactive?.SimulateConnectionFailure();
+            subscription?.SimulateConnectionFailure();
+        }
     }
 }

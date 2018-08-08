@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
-    internal sealed partial class PhysicalBridge : IDisposable
+    internal sealed class PhysicalBridge : IDisposable
     {
         internal readonly string Name;
 
@@ -798,6 +798,18 @@ namespace StackExchange.Redis
                 connection?.RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
                 return WriteResult.WriteFailure;
             }
+        }
+
+        /// <summary>
+        /// For testing only
+        /// </summary>
+        internal void SimulateConnectionFailure()
+        {
+            if (!Multiplexer.RawConfig.AllowAdmin)
+            {
+                throw ExceptionFactory.AdminModeNotEnabled(Multiplexer.IncludeDetailInExceptions, RedisCommand.DEBUG, null, ServerEndPoint); // close enough
+            }
+            physical?.RecordConnectionFailed(ConnectionFailureType.SocketFailure);
         }
     }
 }
