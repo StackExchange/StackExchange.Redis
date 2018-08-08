@@ -103,7 +103,7 @@ namespace StackExchange.Redis
             // do the best we can with available commands
             var map = multiplexer.CommandMap;
             if(map.IsAvailable(RedisCommand.PING))
-                return ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.PING);
+                return ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.PING, "pong time");
             if(map.IsAvailable(RedisCommand.TIME))
                 return ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.TIME);
             if (map.IsAvailable(RedisCommand.ECHO))
