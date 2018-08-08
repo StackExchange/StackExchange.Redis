@@ -4,43 +4,6 @@ using System.Runtime.InteropServices;
 
 namespace StackExchange.Redis
 {
-#if DEBUG
-    public partial class ConnectionMultiplexer
-    {
-        private volatile bool allowConnect = true,
-                              ignoreConnect = false;
-
-        /// <summary>
-        /// For debugging; when not enabled, servers cannot connect
-        /// </summary>
-        public bool AllowConnect { get { return allowConnect; } set { allowConnect = value; } }
-
-        /// <summary>
-        /// For debugging; when not enabled, end-connect is silently ignored (to simulate a long-running connect)
-        /// </summary>
-        public bool IgnoreConnect { get { return ignoreConnect; } set { ignoreConnect = value; } }
-    }
-
-    internal partial class PhysicalConnection
-    {
-        partial void ShouldIgnoreConnect(ref bool ignore)
-        {
-            ignore = IgnoreConnect;
-        }
-
-        partial void OnDebugAbort()
-        {
-            var bridge = BridgeCouldBeNull;
-            if (bridge == null || !bridge.Multiplexer.AllowConnect)
-            {
-                throw new RedisConnectionException(ConnectionFailureType.InternalFailure, "debugging");
-            }
-        }
-
-        public bool IgnoreConnect => BridgeCouldBeNull?.Multiplexer?.IgnoreConnect ?? false;
-    }
-#endif
-
     internal static class PerfCounterHelper
     {
         private static readonly object staticLock = new object();

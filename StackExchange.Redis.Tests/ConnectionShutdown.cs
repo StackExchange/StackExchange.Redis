@@ -34,7 +34,6 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(0, Interlocked.CompareExchange(ref restored, 0, 0));
                 await Task.Delay(1).ForAwait(); // To make compiler happy in Release
 
-#if DEBUG
                 conn.AllowConnect = false;
                 var server = conn.GetServer(TestConfig.Current.MasterServer, TestConfig.Current.MasterPort);
 
@@ -50,7 +49,6 @@ namespace StackExchange.Redis.Tests
                 await Task.Delay(1500).ForAwait();
                 Assert.Equal(2, Interlocked.CompareExchange(ref failed, 0, 0));
                 Assert.Equal(2, Interlocked.CompareExchange(ref restored, 0, 0));
-#endif
                 watch.Stop();
             }
         }

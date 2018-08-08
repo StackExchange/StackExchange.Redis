@@ -124,7 +124,7 @@ namespace StackExchange.Redis.Tests
                 Assert.False(true); // force fail
             }
         }
-#if DEBUG // needs AllowConnect, which is DEBUG only
+
         [Fact]
         public void AbortOnConnectFailFalseConnectTimeoutError()
         {
@@ -172,7 +172,6 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-#endif
         [Fact]
         public void TryGetAzureRoleInstanceIdNoThrow()
         {

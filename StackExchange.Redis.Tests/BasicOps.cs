@@ -4,7 +4,6 @@ using StackExchange.Redis.KeyspaceIsolation;
 using Xunit;
 using Xunit.Abstractions;
 using System.Diagnostics;
-using System.Threading;
 
 namespace StackExchange.Redis.Tests
 {
@@ -310,8 +309,6 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-#if DEBUG
-
         [Fact]
         public async Task TestSevered()
         {
@@ -332,7 +329,6 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(key, db.StringGet(key));
             }
         }
-#endif
 
         [Fact]
         public async Task IncrAsync()
