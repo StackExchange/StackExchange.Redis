@@ -1261,7 +1261,6 @@ namespace StackExchange.Redis
 
         partial void OnCreateEcho();
 
-        [Conditional("DEBUG")]
         private void OnDebugAbort()
         {
             var bridge = BridgeCouldBeNull;
