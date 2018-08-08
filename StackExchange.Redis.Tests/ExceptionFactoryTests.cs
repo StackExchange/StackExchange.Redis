@@ -28,8 +28,8 @@ namespace StackExchange.Redis.Tests
             Assert.Null(ex.InnerException);
         }
 
+#if DEBUG
         [Fact]
-        [Conditional("DEBUG")]
         public void MultipleEndpointsThrowConnectionException()
         {
             try
@@ -58,27 +58,6 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void NullInnerExceptionForMultipleEndpointsWithNoLastException()
-        {
-            try
-            {
-                using (var muxer = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true))
-                {
-                    var conn = muxer.GetDatabase();
-                    muxer.AllowConnect = false;
-                    var ex = ExceptionFactory.NoConnectionAvailable(true, true, new RedisCommand(), null, null, muxer.GetServerSnapshot());
-                    Assert.IsType<RedisConnectionException>(ex);
-                    Assert.Null(ex.InnerException);
-                }
-            }
-            finally
-            {
-                ClearAmbientFailures();
-            }
-        }
-
-        [Fact]
-        [Conditional("DEBUG")]
         public void ServerTakesPrecendenceOverSnapshot()
         {
             try
@@ -94,6 +73,27 @@ namespace StackExchange.Redis.Tests
                     Assert.IsType<RedisConnectionException>(ex);
                     Assert.IsType<RedisConnectionException>(ex.InnerException);
                     Assert.Equal(ex.InnerException, muxer.GetServerSnapshot()[0].LastException);
+                }
+            }
+            finally
+            {
+                ClearAmbientFailures();
+            }
+        }
+#endif
+
+        [Fact]
+        public void NullInnerExceptionForMultipleEndpointsWithNoLastException()
+        {
+            try
+            {
+                using (var muxer = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true))
+                {
+                    var conn = muxer.GetDatabase();
+                    muxer.AllowConnect = false;
+                    var ex = ExceptionFactory.NoConnectionAvailable(true, true, new RedisCommand(), null, null, muxer.GetServerSnapshot());
+                    Assert.IsType<RedisConnectionException>(ex);
+                    Assert.Null(ex.InnerException);
                 }
             }
             finally
