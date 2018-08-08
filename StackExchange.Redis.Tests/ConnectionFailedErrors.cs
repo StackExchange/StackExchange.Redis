@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Security.Authentication;
 using System.Threading;
 using System.Threading.Tasks;
@@ -103,6 +104,12 @@ namespace StackExchange.Redis.Tests
             if (outer.InnerException is RedisConnectionException rce)
             {
                 Assert.Equal(ConnectionFailureType.UnableToConnect, rce.FailureType);
+            }
+            else if (outer.InnerException is AggregateException ae
+                && ae.InnerExceptions.Any(e => e is RedisConnectionException rce2
+                && rce2.FailureType == ConnectionFailureType.UnableToConnect))
+            {
+                // fine; at least *one* of them is the one we were hoping to see
             }
             else
             {
