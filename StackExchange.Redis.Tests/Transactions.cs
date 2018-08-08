@@ -1,4 +1,6 @@
 ﻿using System;
+using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
@@ -7,7 +9,7 @@ namespace StackExchange.Redis.Tests
 {
     public class Transactions : TestBase
     {
-        public Transactions(ITestOutputHelper output) : base (output) { }
+        public Transactions(ITestOutputHelper output) : base(output) { }
 
         [Fact]
         public void BasicEmptyTran()
@@ -891,5 +893,117 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(30, count);
             }
         }
+
+        [Fact]
+        public async Task ParallelTransactionsWithConditions()
+        {
+            const int Muxers = 4, Workers = 20, PerThread = 250;
+
+            var muxers = new ConnectionMultiplexer[Muxers];
+            try
+            {
+                for (int i = 0; i < Muxers; i++)
+                    muxers[i] = Create(log: TextWriter.Null);
+
+                RedisKey hits = Me(), trigger = Me() + "3";
+                int expectedSuccess = 0;
+
+                await muxers[0].GetDatabase().KeyDeleteAsync(new[] { hits, trigger });
+
+                Task[] tasks = new Task[Workers];
+                for (int i = 0; i < tasks.Length; i++)
+                {
+                    var scopedDb = muxers[i % Muxers].GetDatabase();
+                    var rand = new Random(i);
+                    tasks[i] = Task.Run(async () =>
+                    {
+                        for (int j = 0; j < PerThread; j++)
+                        {
+                            var oldVal = await scopedDb.StringGetAsync(trigger);
+                            var tran = scopedDb.CreateTransaction();
+                            tran.AddCondition(Condition.StringEqual(trigger, oldVal));
+                            var x = tran.StringIncrementAsync(trigger);
+                            var y = tran.StringIncrementAsync(hits);
+                            if (await tran.ExecuteAsync())
+                            {
+                                Interlocked.Increment(ref expectedSuccess);
+                                await x;
+                                await y;
+                            }
+                            else
+                            {
+                                await Assert.ThrowsAsync<TaskCanceledException>(() => x);
+                                await Assert.ThrowsAsync<TaskCanceledException>(() => y);
+                            }
+                        }
+                    });
+                }
+                for (int i = tasks.Length - 1; i >= 0; i--)
+                {
+                    await tasks[i];
+                }
+                var actual = (int)await muxers[0].GetDatabase().StringGetAsync(hits);
+                Assert.Equal(expectedSuccess, actual);
+                Writer.WriteLine($"success: {actual} out of {Workers * PerThread} attempts");
+            }
+            finally
+            {
+                for (int i = 0; i < muxers.Length; i++)
+                {
+                    try { muxers[i]?.Dispose(); } catch { }
+                }
+            }
+        }
+
+        [Fact]
+        public async Task WatchAbort_StringEqual()
+        {
+            using (var vic = Create(log: TextWriter.Null))
+            using (var perp = Create(log: TextWriter.Null))
+            {
+                var key = Me();
+                var db = vic.GetDatabase();
+
+                // expect foo, change to bar at the last minute
+                vic.PreTransactionExec += cmd =>
+                {
+                    Writer.WriteLine($"'{cmd}' detected; changing it...");
+                    perp.GetDatabase().StringSet(key, "bar");
+                };
+                db.KeyDelete(key);
+                db.StringSet(key, "foo");
+                var tran = db.CreateTransaction();
+                tran.AddCondition(Condition.StringEqual(key, "foo"));
+                var pong = tran.PingAsync();
+                Assert.False(await tran.ExecuteAsync());
+                await Assert.ThrowsAsync<TaskCanceledException>(() => pong);
+            }
+        }
+
+        [Fact]
+        public async Task WatchAbort_HashLengthEqual()
+        {
+            using (var vic = Create(log: TextWriter.Null))
+            using (var perp = Create(log: TextWriter.Null))
+            {
+                var key = Me();
+                var db = vic.GetDatabase();
+
+                // expect foo, change to bar at the last minute
+                vic.PreTransactionExec += cmd =>
+                {
+                    Writer.WriteLine($"'{cmd}' detected; changing it...");
+                    perp.GetDatabase().HashSet(key, "bar", "def");
+                };
+                db.KeyDelete(key);
+                db.HashSet(key, "foo", "abc");
+                var tran = db.CreateTransaction();
+                tran.AddCondition(Condition.HashLengthEqual(key, 1));
+                var pong = tran.PingAsync();
+                Assert.False(await tran.ExecuteAsync());
+                await Assert.ThrowsAsync<TaskCanceledException>(() => pong);
+            }
+        }
+
     }
 }

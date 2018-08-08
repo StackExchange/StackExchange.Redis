@@ -116,9 +116,8 @@ namespace StackExchange.Redis
                 // Complete connection
                 try
                 {
-                    bool ignoreConnect = false;
-                    ShouldIgnoreConnect(ref ignoreConnect);
-                    if (ignoreConnect) return;
+                    // If we're told to ignore connect, abort here
+                    if (BridgeCouldBeNull?.Multiplexer?.IgnoreConnect ?? false) return;
 
                     await awaitable; // wait for the connect to complete or fail (will throw)
                     if (timeoutSource != null)
@@ -1261,7 +1260,15 @@ namespace StackExchange.Redis
         partial void OnCloseEcho();
 
         partial void OnCreateEcho();
-        partial void OnDebugAbort();
+
+        private void OnDebugAbort()
+        {
+            var bridge = BridgeCouldBeNull;
+            if (bridge == null || !bridge.Multiplexer.AllowConnect)
+            {
+                throw new RedisConnectionException(ConnectionFailureType.InternalFailure, "debugging");
+            }
+        }
 
         partial void OnWrapForLogging(ref IDuplexPipe pipe, string name, SocketManager mgr);
 

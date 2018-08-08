@@ -254,12 +254,13 @@ namespace StackExchange.Redis
 
         internal event Action<string, Exception, string> MessageFaulted;
         internal event Action<bool> Closing;
+        internal event Action<string> PreTransactionExec;
         internal event Action<EndPoint, ConnectionType> Connecting;
         internal event Action<EndPoint, ConnectionType> Resurrecting;
 
-        internal void OnMessageFaulted(Message msg, Exception fault, [CallerMemberName] string origin = default, [CallerFilePath] string path = default, [CallerLineNumber] int lineNumber = default)
+        internal void OnMessageFaulted(Message msg, Exception fault, [CallerMemberName] string origin = default, [CallerFilePath] string path = default, [CallerLineNumber] int lineNumber = default, string value = default)
         {
-            MessageFaulted?.Invoke(msg?.CommandAndKey, fault, $"{origin} ({path}#{lineNumber})");
+            MessageFaulted?.Invoke(msg?.CommandAndKey, fault, $"{origin} ({path}#{lineNumber}) {value}");
         }
 
         internal void OnClosing(bool complete)
@@ -275,6 +276,11 @@ namespace StackExchange.Redis
         internal void OnResurrecting(EndPoint endpoint, ConnectionType connectionType)
         {
             Resurrecting.Invoke(endpoint, connectionType);
+        }
+
+        internal void OnPreTransactionExec(Message message)
+        {
+            PreTransactionExec?.Invoke(message.CommandAndKey);
         }
     }
 

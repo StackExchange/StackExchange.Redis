@@ -411,7 +411,7 @@ namespace StackExchange.Redis
             return bridge?.GetStormLog();
         }
 
-        internal Message GetTracerMessage(bool assertIdentity)
+        internal Message GetTracerMessage(bool assertIdentity, string preferredMessage)
         {
             // different configurations block certain commands, as can ad-hoc local configurations, so
             // we'll do the best with what we have available.
@@ -426,7 +426,7 @@ namespace StackExchange.Redis
             }
             else if (map.IsAvailable(RedisCommand.PING))
             {
-                msg = Message.Create(-1, flags, RedisCommand.PING);
+                msg = Message.Create(-1, flags, RedisCommand.PING, (RedisValue)preferredMessage);
             }
             else if (map.IsAvailable(RedisCommand.TIME))
             {
@@ -586,7 +586,7 @@ namespace StackExchange.Redis
 
         internal Task<bool> SendTracer(TextWriter log = null)
         {
-            var msg = GetTracerMessage(false);
+            var msg = GetTracerMessage(false, "pong test");
             msg = LoggingMessage.Create(log, msg);
             return WriteDirectAsync(msg, ResultProcessor.Tracer);
         }
@@ -704,7 +704,7 @@ namespace StackExchange.Redis
                 AutoConfigure(connection);
             }
             Multiplexer.LogLocked(log, "Sending critical tracer: {0}", bridge);
-            var tracer = GetTracerMessage(true);
+            var tracer = GetTracerMessage(true, "pong test");
             tracer = LoggingMessage.Create(log, tracer);
             WriteDirectOrQueueFireAndForget(connection, tracer, ResultProcessor.EstablishConnection);
 
@@ -731,6 +731,15 @@ namespace StackExchange.Redis
                 field = value;
                 Multiplexer.ReconfigureIfNeeded(EndPoint, false, caller);
             }
+        }
+
+        /// <summary>
+        /// For testing only
+        /// </summary>
+        internal void SimulateConnectionFailure()
+        {
+            interactive?.SimulateConnectionFailure();
+            subscription?.SimulateConnectionFailure();
         }
     }
 }

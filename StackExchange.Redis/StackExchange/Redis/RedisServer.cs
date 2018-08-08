@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
-    internal sealed partial class RedisServer : RedisBase, IServer
+    internal sealed class RedisServer : RedisBase, IServer
     {
         private readonly ServerEndPoint server;
 
@@ -841,5 +841,10 @@ namespace StackExchange.Redis
         }
 
         #endregion
+
+        /// <summary>
+        /// For testing only
+        /// </summary>
+        internal void SimulateConnectionFailure() => server.SimulateConnectionFailure();
     }
 }

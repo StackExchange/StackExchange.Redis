@@ -14,7 +14,6 @@ namespace StackExchange.Redis.Tests
 
         protected override string GetConfiguration() => TestConfig.Current.MasterServerAndPort;
 
-#if DEBUG // IRedisServerDebug and AllowConnect are only available if DEBUG is defined
         [Fact]
         public void AsyncTasksReportFailureIfServerUnavailable()
         {
@@ -43,7 +42,6 @@ namespace StackExchange.Redis.Tests
                 Assert.StartsWith("No connection is available to service this operation: SADD " + key.ToString(), ex.Message);
             }
         }
-#endif
 
         [Fact]
         public async Task AsyncTimeoutIsNoticed()

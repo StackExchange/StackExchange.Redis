@@ -37,6 +37,15 @@ namespace StackExchange.Redis
 #endif
 
         /// <summary>
+        /// For debugging: when not enabled, servers cannot connect
+        /// </summary>
+        internal volatile bool AllowConnect = true;
+        /// <summary>
+        /// For debugging: when not enabled, end-connect is silently ignored (to simulate a long-running connect)
+        /// </summary>
+        internal volatile bool IgnoreConnect;
+
+        /// <summary>
         /// Provides a way of overriding the default Task Factory. If not set, it will use the default Task.Factory.
         /// Useful when top level code sets it's own factory which may interfere with Redis queries.
         /// </summary>

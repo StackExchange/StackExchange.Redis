@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
-    internal sealed partial class PhysicalBridge : IDisposable
+    internal sealed class PhysicalBridge : IDisposable
     {
         internal readonly string Name;
 
@@ -240,13 +240,13 @@ namespace StackExchange.Redis
             switch (ConnectionType)
             {
                 case ConnectionType.Interactive:
-                    msg = ServerEndPoint.GetTracerMessage(false);
+                    msg = ServerEndPoint.GetTracerMessage(false, "pong hb");
                     msg.SetSource(ResultProcessor.Tracer, null);
                     break;
                 case ConnectionType.Subscription:
                     if (commandMap.IsAvailable(RedisCommand.PING) && ServerEndPoint.GetFeatures().PingOnSubscriber)
                     {
-                        msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.PING);
+                        msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.PING, (RedisValue)"pong sub");
                         msg.SetSource(ResultProcessor.Tracer, null);
                     }
                     else if (commandMap.IsAvailable(RedisCommand.UNSUBSCRIBE))
@@ -704,7 +704,16 @@ namespace StackExchange.Redis
                 {
                     throw ExceptionFactory.MasterOnly(Multiplexer.IncludeDetailInExceptions, message.Command, message, ServerEndPoint);
                 }
-                if (cmd == RedisCommand.QUIT) connection.RecordQuit();
+                switch(cmd)
+                {
+                    case RedisCommand.QUIT:
+                        connection.RecordQuit();
+                        break;
+                    case RedisCommand.EXEC:
+                        Multiplexer.OnPreTransactionExec(message); // testing purposes, to force certain errors
+                        break;
+                }
+
                 SelectDatabaseInsideWriteLock(connection, message);
 
                 if (!connection.TransactionActive)
@@ -789,6 +798,18 @@ namespace StackExchange.Redis
                 connection?.RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
                 return WriteResult.WriteFailure;
             }
+        }
+
+        /// <summary>
+        /// For testing only
+        /// </summary>
+        internal void SimulateConnectionFailure()
+        {
+            if (!Multiplexer.RawConfig.AllowAdmin)
+            {
+                throw ExceptionFactory.AdminModeNotEnabled(Multiplexer.IncludeDetailInExceptions, RedisCommand.DEBUG, null, ServerEndPoint); // close enough
+            }
+            physical?.RecordConnectionFailed(ConnectionFailureType.SocketFailure);
         }
     }
 }

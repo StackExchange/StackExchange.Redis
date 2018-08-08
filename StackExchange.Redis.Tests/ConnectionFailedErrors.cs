@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Security.Authentication;
 using System.Threading;
 using System.Threading.Tasks;
@@ -104,6 +105,12 @@ namespace StackExchange.Redis.Tests
             {
                 Assert.Equal(ConnectionFailureType.UnableToConnect, rce.FailureType);
             }
+            else if (outer.InnerException is AggregateException ae
+                && ae.InnerExceptions.Any(e => e is RedisConnectionException rce2
+                && rce2.FailureType == ConnectionFailureType.UnableToConnect))
+            {
+                // fine; at least *one* of them is the one we were hoping to see
+            }
             else
             {
                 Writer.WriteLine(outer.InnerException.ToString());
@@ -117,7 +124,7 @@ namespace StackExchange.Redis.Tests
                 Assert.False(true); // force fail
             }
         }
-#if DEBUG // needs AllowConnect, which is DEBUG only
+
         [Fact]
         public void AbortOnConnectFailFalseConnectTimeoutError()
         {
@@ -136,6 +143,13 @@ namespace StackExchange.Redis.Tests
             }
         }
 
+        [Fact]
+        public void TryGetAzureRoleInstanceIdNoThrow()
+        {
+            Assert.Null(ConnectionMultiplexer.TryGetAzureRoleInstanceIdNoThrow());
+        }
+
+#if DEBUG
         [Fact]
         public async Task CheckFailureRecovered()
         {
@@ -164,12 +178,6 @@ namespace StackExchange.Redis.Tests
                 ClearAmbientFailures();
             }
         }
-
 #endif
-        [Fact]
-        public void TryGetAzureRoleInstanceIdNoThrow()
-        {
-            Assert.Null(ConnectionMultiplexer.TryGetAzureRoleInstanceIdNoThrow());
-        }
     }
 }
