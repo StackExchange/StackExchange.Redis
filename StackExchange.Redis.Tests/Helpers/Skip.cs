@@ -28,7 +28,7 @@ namespace StackExchange.Redis.Tests
             var features = conn.GetServer(conn.GetEndPoints()[0]).Features;
             if (!check(features))
             {
-                throw new SkipTestException(features + " is not supported on this server.")
+                throw new SkipTestException($"'{feature}' is not supported on this server.")
                 {
                     MissingFeatures = feature
                 };
@@ -38,7 +38,7 @@ namespace StackExchange.Redis.Tests
         internal static void IfMissingDatabase(ConnectionMultiplexer conn, int dbId)
         {
             var dbCount = conn.GetServer(conn.GetEndPoints()[0]).DatabaseCount;
-            if (dbId >= dbCount) throw new SkipTestException($"Database {dbId} is not supported on this server.");
+            if (dbId >= dbCount) throw new SkipTestException($"Database '{dbId}' is not supported on this server.");
         }
     }
 
