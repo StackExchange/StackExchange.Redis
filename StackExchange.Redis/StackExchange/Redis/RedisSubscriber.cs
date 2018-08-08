@@ -254,6 +254,7 @@ namespace StackExchange.Redis
 
         internal event Action<string, Exception, string> MessageFaulted;
         internal event Action<bool> Closing;
+        internal event Action<string> PreTransactionExec;
         internal event Action<EndPoint, ConnectionType> Connecting;
         internal event Action<EndPoint, ConnectionType> Resurrecting;
 
@@ -275,6 +276,11 @@ namespace StackExchange.Redis
         internal void OnResurrecting(EndPoint endpoint, ConnectionType connectionType)
         {
             Resurrecting.Invoke(endpoint, connectionType);
+        }
+
+        internal void OnPreTransactionExec(Message message)
+        {
+            PreTransactionExec?.Invoke(message.CommandAndKey);
         }
     }
 

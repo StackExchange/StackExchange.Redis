@@ -704,7 +704,16 @@ namespace StackExchange.Redis
                 {
                     throw ExceptionFactory.MasterOnly(Multiplexer.IncludeDetailInExceptions, message.Command, message, ServerEndPoint);
                 }
-                if (cmd == RedisCommand.QUIT) connection.RecordQuit();
+                switch(cmd)
+                {
+                    case RedisCommand.QUIT:
+                        connection.RecordQuit();
+                        break;
+                    case RedisCommand.EXEC:
+                        Multiplexer.OnPreTransactionExec(message); // testing purposes, to force certain errors
+                        break;
+                }
+
                 SelectDatabaseInsideWriteLock(connection, message);
 
                 if (!connection.TransactionActive)
