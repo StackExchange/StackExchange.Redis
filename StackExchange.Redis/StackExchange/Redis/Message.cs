@@ -592,7 +592,7 @@ namespace StackExchange.Redis
             }
             catch (Exception ex)
             {
-                connection?.BridgeCouldBeNull?.Multiplexer?.OnMessageFaulted(this, ex, value: result.ToString());
+                connection?.BridgeCouldBeNull?.Multiplexer?.OnMessageFaulted(this, ex);
                 box?.SetException(ex);
                 return box != null; // we still want to pulse/complete
             }

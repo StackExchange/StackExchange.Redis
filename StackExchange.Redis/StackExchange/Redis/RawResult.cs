@@ -73,7 +73,7 @@ namespace StackExchange.Redis
                 case ResultType.Error:
                     return $"{Type}: {GetString()}";
                 case ResultType.BulkString:
-                    return $"{Type}: {GetString()}";
+                    return $"{Type}: {Payload.Length} bytes";
                 case ResultType.MultiBulk:
                     return $"{Type}: {ItemsCount} items";
                 default:

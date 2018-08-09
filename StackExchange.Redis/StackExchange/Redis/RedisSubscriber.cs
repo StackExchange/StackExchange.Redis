@@ -258,9 +258,9 @@ namespace StackExchange.Redis
         internal event Action<EndPoint, ConnectionType> Connecting;
         internal event Action<EndPoint, ConnectionType> Resurrecting;
 
-        internal void OnMessageFaulted(Message msg, Exception fault, [CallerMemberName] string origin = default, [CallerFilePath] string path = default, [CallerLineNumber] int lineNumber = default, string value = default)
+        internal void OnMessageFaulted(Message msg, Exception fault, [CallerMemberName] string origin = default, [CallerFilePath] string path = default, [CallerLineNumber] int lineNumber = default)
         {
-            MessageFaulted?.Invoke(msg?.CommandAndKey, fault, $"{origin} ({path}#{lineNumber}) {value}");
+            MessageFaulted?.Invoke(msg?.CommandAndKey, fault, $"{origin} ({path}#{lineNumber})");
         }
 
         internal void OnClosing(bool complete)
