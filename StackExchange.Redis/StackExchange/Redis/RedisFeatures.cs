@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Linq;
+using System.Reflection;
 using System.Text;
 
 namespace StackExchange.Redis
@@ -33,6 +35,7 @@ namespace StackExchange.Redis
                                          v4_9_1 = new Version(4, 9, 1); // 5.0 RC1 is version 4.9.1
 
         private readonly Version version;
+
         /// <summary>
         /// Create a new RedisFeatures instance for the given version
         /// </summary>
@@ -182,13 +185,33 @@ namespace StackExchange.Redis
         /// </summary>
         public override string ToString()
         {
-            var sb = new StringBuilder().Append("Features in ").Append(Version).AppendLine()
-                .Append("ExpireOverwrite: ").Append(ExpireOverwrite).AppendLine()
-                .Append("Persist: ").Append(Persist).AppendLine();
-
+            var v = Version; // the docs lie: Version.ToString(fieldCount) only supports 0-2 fields
+            var sb = new StringBuilder().Append("Features in ").Append(v.Major).Append('.').Append(v.Minor);
+            if (v.Revision >= 0) sb.Append('.').Append(v.Revision);
+            if (v.Build >= 0) sb.Append('.').Append(v.Build);
+            sb.AppendLine();
+            object boxed = this;
+            foreach(var prop in s_props)
+            {
+                sb.Append(prop.Name).Append(": ").Append(prop.GetValue(boxed)).AppendLine();
+            }
             return sb.ToString();
         }
-        // 2.9.5 (cluster beta 1) has a bug in EXECABORT re MOVED and ASK; it only affects cluster, but
-        // frankly if you aren't playing with cluster, why are you using 2.9.5 in the first place?
+
+        private static readonly PropertyInfo[] s_props = (
+            from prop in typeof(RedisFeatures).GetProperties(BindingFlags.Instance | BindingFlags.Public)
+            where prop.PropertyType == typeof(bool)
+            let indexers = prop.GetIndexParameters()
+            where indexers == null || indexers.Length == 0
+            orderby prop.Name
+            select prop).ToArray();
+
+        /// <summary>Returns the hash code for this instance.</summary>
+        /// <returns>A 32-bit signed integer that is the hash code for this instance.</returns>
+        public override int GetHashCode() => Version.GetHashCode();
+        /// <summary>Indicates whether this instance and a specified object are equal.</summary>
+        /// <returns>true if <paramref name="obj" /> and this instance are the same type and represent the same value; otherwise, false. </returns>
+        /// <param name="obj">The object to compare with the current instance. </param>
+        public override bool Equals(object obj) => obj is RedisFeatures f && f.Version == Version;
     }
 }
