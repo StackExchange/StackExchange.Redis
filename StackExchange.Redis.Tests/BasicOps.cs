@@ -426,6 +426,82 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public async Task Delete()
+        {
+            using (var muxer = Create())
+            {
+                var db = muxer.GetDatabase();
+                var key = Me();
+                var ss = db.StringSetAsync(key, "Heyyyyy");
+                var ke1 = db.KeyExistsAsync(key).ForAwait();
+                var ku1 = db.KeyDelete(key);
+                var ke2 = db.KeyExistsAsync(key).ForAwait();
+                Assert.True(await ke1);
+                Assert.True(ku1);
+                Assert.False(await ke2);
+            }
+        }
+
+        [Fact]
+        public async Task DeleteAsync()
+        {
+            using (var muxer = Create())
+            {
+                var db = muxer.GetDatabase();
+                var key = Me();
+                var ss = db.StringSetAsync(key, "Heyyyyy");
+                var ke1 = db.KeyExistsAsync(key).ForAwait();
+                var ku1 = db.KeyDeleteAsync(key).ForAwait();
+                var ke2 = db.KeyExistsAsync(key).ForAwait();
+                Assert.True(await ke1);
+                Assert.True(await ku1);
+                Assert.False(await ke2);
+            }
+        }
+
+        [Fact]
+        public async Task DeleteMany()
+        {
+            using (var muxer = Create())
+            {
+                var db = muxer.GetDatabase();
+                var key1 = Me();
+                var key2 = Me() + "2";
+                var key3 = Me() + "3";
+                var ss = db.StringSetAsync(key1, "Heyyyyy");
+                var ss2 = db.StringSetAsync(key2, "Heyyyyy");
+                // key 3 not set
+                var ku1 = db.KeyDelete(new RedisKey[] { key1, key2, key3 });
+                var ke1 = db.KeyExistsAsync(key1).ForAwait();
+                var ke2 = db.KeyExistsAsync(key2).ForAwait();
+                Assert.Equal(2, ku1);
+                Assert.False(await ke1);
+                Assert.False(await ke2);
+            }
+        }
+
+        [Fact]
+        public async Task DeleteManyAsync()
+        {
+            using (var muxer = Create())
+            {
+                var db = muxer.GetDatabase();
+                var key1 = Me();
+                var key2 = Me() + "2";
+                var key3 = Me() + "3";
+                var ss = db.StringSetAsync(key1, "Heyyyyy");
+                var ss2 = db.StringSetAsync(key2, "Heyyyyy");
+                // key 3 not set
+                var ku1 = db.KeyDeleteAsync(new RedisKey[] { key1, key2, key3 }).ForAwait();
+                var ke1 = db.KeyExistsAsync(key1).ForAwait();
+                var ke2 = db.KeyExistsAsync(key2).ForAwait();
+                Assert.Equal(2, await ku1);
+                Assert.False(await ke1);
+                Assert.False(await ke2);
+            }
+        }
+
+        [Fact]
         public void WrappedDatabasePrefixIntegration()
         {
             var key = Me();

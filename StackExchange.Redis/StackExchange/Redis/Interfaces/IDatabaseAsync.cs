@@ -388,20 +388,24 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Removes the specified key. A key is ignored if it does not exist.
+        /// If UNLINK is available (Redis 4.0+), it will be used.
         /// </summary>
         /// <param name="key">The key to delete.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>True if the key was removed.</returns>
         /// <remarks>https://redis.io/commands/del</remarks>
+        /// <remarks>https://redis.io/commands/unlink</remarks>
         Task<bool> KeyDeleteAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Removes the specified keys. A key is ignored if it does not exist.
+        /// If UNLINK is available (Redis 4.0+), it will be used.
         /// </summary>
         /// <param name="keys">The keys to delete.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of keys that were removed.</returns>
         /// <remarks>https://redis.io/commands/del</remarks>
+        /// <remarks>https://redis.io/commands/unlink</remarks>
         Task<long> KeyDeleteAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None);
 
         /// <summary>

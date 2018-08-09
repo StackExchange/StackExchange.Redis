@@ -161,6 +161,7 @@
         TTL,
         TYPE,
 
+        UNLINK,
         UNSUBSCRIBE,
         UNWATCH,
 
