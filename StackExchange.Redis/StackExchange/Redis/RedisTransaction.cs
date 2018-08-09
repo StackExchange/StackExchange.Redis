@@ -246,7 +246,7 @@ namespace StackExchange.Redis
                     // PART 1: issue the pre-conditions
                     if (!IsAborted && conditions.Length != 0)
                     {
-                        multiplexer.OnTransactionLog($"issueing conditions...");
+                        multiplexer.OnTransactionLog($"issuing conditions...");
                         int cmdCount = 0;
                         for (int i = 0; i < conditions.Length; i++)
                         {
