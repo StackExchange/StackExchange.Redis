@@ -1472,7 +1472,7 @@ namespace StackExchange.Redis
         /// <param name="position">The position from which to read for the consumer group.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>True if successful, otherwise false.</returns>
-        bool StreamConsumerGroupSetPosition(RedisKey key, RedisValue groupName, Position position, CommandFlags flags = CommandFlags.None);
+        bool StreamConsumerGroupSetPosition(RedisKey key, RedisValue groupName, RedisValue position, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Retrieve information about the consumers for the given consumer group. This is the equivalent of calling "XINFO GROUPS key group".
@@ -1489,11 +1489,11 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="key">The key of the stream.</param>
         /// <param name="groupName">The name of the group to create.</param>
-        /// <param name="position">The position to begin reading the stream. Defaults to <see cref="Position.New"/>.</param>
+        /// <param name="position">The position to begin reading the stream. Defaults to <see cref="StreamPosition.NewMessages"/>.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>True if the group was created.</returns>
         /// <remarks>https://redis.io/topics/streams-intro</remarks>
-        bool StreamCreateConsumerGroup(RedisKey key, RedisValue groupName, Position? position = null, CommandFlags flags = CommandFlags.None);
+        bool StreamCreateConsumerGroup(RedisKey key, RedisValue groupName, RedisValue? position = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Delete messages in the stream. This method does not delete the stream.
@@ -1600,7 +1600,7 @@ namespace StackExchange.Redis
         /// <returns>Returns a value of <see cref="StreamEntry"/> for each message returned.</returns>
         /// <remarks>Equivalent of calling XREAD COUNT num STREAMS key id.</remarks>
         /// <remarks>https://redis.io/commands/xread</remarks>
-        StreamEntry[] StreamRead(RedisKey key, Position position, int? count = null, CommandFlags flags = CommandFlags.None);
+        StreamEntry[] StreamRead(RedisKey key, RedisValue position, int? count = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Read from multiple streams.
@@ -1619,12 +1619,12 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the stream.</param>
         /// <param name="groupName">The name of the consumer group.</param>
         /// <param name="consumerName">The consumer name.</param>
-        /// <param name="position">The position from which to read the stream. Defaults to <see cref="Position.New"/> when null.</param>
+        /// <param name="position">The position from which to read the stream. Defaults to <see cref="StreamPosition.NewMessages"/> when null.</param>
         /// <param name="count">The maximum number of messages to return.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>Returns a value of <see cref="StreamEntry"/> for each message returned.</returns>
         /// <remarks>https://redis.io/commands/xreadgroup</remarks>
-        StreamEntry[] StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, Position? position = null, int? count = null, CommandFlags flags = CommandFlags.None);
+        StreamEntry[] StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Read from multiple streams into the given consumer group. The consumer group with the given <paramref name="groupName"/>

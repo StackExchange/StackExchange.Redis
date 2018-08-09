@@ -1703,7 +1703,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.RedisValueArray);
         }
 
-        public bool StreamConsumerGroupSetPosition(RedisKey key, RedisValue groupName, Position position, CommandFlags flags = CommandFlags.None)
+        public bool StreamConsumerGroupSetPosition(RedisKey key, RedisValue groupName, RedisValue position, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database,
                 flags,
@@ -1713,13 +1713,13 @@ namespace StackExchange.Redis
                     StreamConstants.SetId,
                     key.AsRedisValue(),
                     groupName,
-                    position.ResolveForCommand(RedisCommand.XGROUP)
+                    StreamPosition.Resolve(position, RedisCommand.XGROUP)
                 });
 
             return ExecuteSync(msg, ResultProcessor.Boolean);
         }
 
-        public Task<bool> StreamConsumerGroupSetPositionAsync(RedisKey key, RedisValue groupName, Position position, CommandFlags flags = CommandFlags.None)
+        public Task<bool> StreamConsumerGroupSetPositionAsync(RedisKey key, RedisValue groupName, RedisValue position, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database,
                 flags,
@@ -1729,15 +1729,15 @@ namespace StackExchange.Redis
                     StreamConstants.SetId,
                     key.AsRedisValue(),
                     groupName,
-                    position.ResolveForCommand(RedisCommand.XGROUP)
+                    StreamPosition.Resolve(position, RedisCommand.XGROUP)
                 });
 
             return ExecuteAsync(msg, ResultProcessor.Boolean);
         }
 
-        public bool StreamCreateConsumerGroup(RedisKey key, RedisValue groupName, Position? position = null, CommandFlags flags = CommandFlags.None)
+        public bool StreamCreateConsumerGroup(RedisKey key, RedisValue groupName, RedisValue? position = null, CommandFlags flags = CommandFlags.None)
         {
-            var actualPosition = position ?? Position.New;
+            var actualPosition = position ?? StreamConstants.NewMessages;
 
             var msg = Message.Create(Database,
                 flags,
@@ -1747,15 +1747,15 @@ namespace StackExchange.Redis
                     StreamConstants.Create,
                     key.AsRedisValue(),
                     groupName,
-                    actualPosition.ResolveForCommand(RedisCommand.XGROUP)
+                    StreamPosition.Resolve(actualPosition, RedisCommand.XGROUP)
                 });
 
             return ExecuteSync(msg, ResultProcessor.Boolean);
         }
 
-        public Task<bool> StreamCreateConsumerGroupAsync(RedisKey key, RedisValue groupName, Position? position = null, CommandFlags flags = CommandFlags.None)
+        public Task<bool> StreamCreateConsumerGroupAsync(RedisKey key, RedisValue groupName, RedisValue? position = null, CommandFlags flags = CommandFlags.None)
         {
-            var actualPosition = position ?? Position.New;
+            var actualPosition = position ?? StreamPosition.NewMessages;
 
             var msg = Message.Create(Database,
                 flags,
@@ -1765,7 +1765,7 @@ namespace StackExchange.Redis
                     StreamConstants.Create,
                     key.AsRedisValue(),
                     groupName,
-                    actualPosition.ResolveForCommand(RedisCommand.XGROUP)
+                    StreamPosition.Resolve(actualPosition, RedisCommand.XGROUP)
                 });
 
             return ExecuteAsync(msg, ResultProcessor.Boolean);
@@ -1983,20 +1983,20 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.SingleStream);
         }
 
-        public StreamEntry[] StreamRead(RedisKey key, Position position, int? count = null, CommandFlags flags = CommandFlags.None)
+        public StreamEntry[] StreamRead(RedisKey key, RedisValue position, int? count = null, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetSingleStreamReadMessage(key,
-                position.ResolveForCommand(RedisCommand.XREAD),
+                StreamPosition.Resolve(position, RedisCommand.XREAD),
                 count,
                 flags);
 
             return ExecuteSync(msg, ResultProcessor.SingleStreamWithNameSkip);
         }
 
-        public Task<StreamEntry[]> StreamReadAsync(RedisKey key, Position position, int? count = null, CommandFlags flags = CommandFlags.None)
+        public Task<StreamEntry[]> StreamReadAsync(RedisKey key, RedisValue position, int? count = null, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetSingleStreamReadMessage(key,
-                position.ResolveForCommand(RedisCommand.XREAD),
+                StreamPosition.Resolve(position, RedisCommand.XREAD),
                 count,
                 flags);
 
@@ -2015,28 +2015,28 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.MultiStream);
         }
 
-        public StreamEntry[] StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, Position? position = null, int? count = null, CommandFlags flags = CommandFlags.None)
+        public StreamEntry[] StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, CommandFlags flags = CommandFlags.None)
         {
-            var actualPosition = position ?? Position.New;
+            var actualPosition = position ?? StreamPosition.NewMessages;
 
             var msg = GetStreamReadGroupMessage(key,
                 groupName,
                 consumerName,
-                actualPosition.ResolveForCommand(RedisCommand.XREADGROUP),
+                StreamPosition.Resolve(actualPosition, RedisCommand.XREADGROUP),
                 count,
                 flags);
 
             return ExecuteSync(msg, ResultProcessor.SingleStreamWithNameSkip);
         }
 
-        public Task<StreamEntry[]> StreamReadGroupAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, Position? position = null, int? count = null, CommandFlags flags = CommandFlags.None)
+        public Task<StreamEntry[]> StreamReadGroupAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, CommandFlags flags = CommandFlags.None)
         {
-            var actualPosition = position ?? Position.New;
+            var actualPosition = position ?? StreamPosition.NewMessages;
 
             var msg = GetStreamReadGroupMessage(key,
                 groupName,
                 consumerName,
-                actualPosition.ResolveForCommand(RedisCommand.XREADGROUP),
+                StreamPosition.Resolve(actualPosition, RedisCommand.XREADGROUP),
                 count,
                 flags);
 
@@ -2459,7 +2459,7 @@ namespace StackExchange.Redis
             for (var i = 0; i < pairCount; i++)
             {
                 values[offset] = streamPositions[i].Key.AsRedisValue();
-                values[offset + pairCount] = streamPositions[i].Position.ResolveForCommand(RedisCommand.XREADGROUP);
+                values[offset + pairCount] = StreamPosition.Resolve(streamPositions[i].Position, RedisCommand.XREADGROUP);
 
                 offset++;
             }
@@ -2515,7 +2515,7 @@ namespace StackExchange.Redis
             for (var i = 0; i < pairCount; i++)
             {
                 values[offset] = streamPositions[i].Key.AsRedisValue();
-                values[offset + pairCount] = streamPositions[i].Position.ResolveForCommand(RedisCommand.XREAD);
+                values[offset + pairCount] = StreamPosition.Resolve(streamPositions[i].Position, RedisCommand.XREAD);
 
                 offset++;
             }
