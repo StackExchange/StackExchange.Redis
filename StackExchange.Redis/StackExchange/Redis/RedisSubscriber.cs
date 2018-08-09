@@ -254,7 +254,7 @@ namespace StackExchange.Redis
 
         internal event Action<string, Exception, string> MessageFaulted;
         internal event Action<bool> Closing;
-        internal event Action<string> PreTransactionExec;
+        internal event Action<string> PreTransactionExec, TransactionLog;
         internal event Action<EndPoint, ConnectionType> Connecting;
         internal event Action<EndPoint, ConnectionType> Resurrecting;
 
@@ -281,6 +281,11 @@ namespace StackExchange.Redis
         internal void OnPreTransactionExec(Message message)
         {
             PreTransactionExec?.Invoke(message.CommandAndKey);
+        }
+
+        internal void OnTransactionLog(string message)
+        {
+            TransactionLog?.Invoke(message);
         }
     }
 

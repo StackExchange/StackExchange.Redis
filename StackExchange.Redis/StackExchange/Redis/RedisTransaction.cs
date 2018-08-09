@@ -224,6 +224,11 @@ namespace StackExchange.Redis
             public IEnumerable<Message> GetMessages(PhysicalConnection connection)
             {
                 ResultBox lastBox = null;
+                var bridge = connection.BridgeCouldBeNull;
+                if (bridge == null) throw new ObjectDisposedException(connection.ToString());
+
+                bool explicitCheckForQueued = !bridge.ServerEndPoint.GetFeatures().ExecAbort;
+                var multiplexer = bridge.Multiplexer;
                 try
                 {
                     // Important: if the server supports EXECABORT, then we can check the pre-conditions (pause there),
@@ -234,15 +239,11 @@ namespace StackExchange.Redis
                     // up-version servers, pre-condition failures exit with UNWATCH; and on down-version servers pre-condition
                     // failures exit with DISCARD - but that's ok : both work fine
 
-                    var bridge = connection.BridgeCouldBeNull;
-                    if (bridge == null) throw new ObjectDisposedException(connection.ToString());
-
-                    bool explicitCheckForQueued = !bridge.ServerEndPoint.GetFeatures().ExecAbort;
-                    var multiplexer = bridge.Multiplexer;
-
                     // PART 1: issue the pre-conditions
                     if (!IsAborted && conditions.Length != 0)
                     {
+                        multiplexer.OnTransactionLog($"issueing conditions...");
+                        int cmdCount = 0;
                         for (int i = 0; i < conditions.Length; i++)
                         {
                             // need to have locked them before sending them
@@ -255,11 +256,15 @@ namespace StackExchange.Redis
                             {
                                 msg.SetNoRedirect(); // need to keep them in the current context only
                                 yield return msg;
+                                multiplexer.OnTransactionLog($"issuing {msg.CommandAndKey}");
+                                cmdCount++;
                             }
                         }
+                        multiplexer.OnTransactionLog($"issued {conditions.Length} conditions ({cmdCount} commands)");
 
                         if (!explicitCheckForQueued && lastBox != null)
                         {
+                            multiplexer.OnTransactionLog($"checking conditions in the *early* path");
                             // need to get those sent ASAP; if they are stuck in the buffers, we die
                             multiplexer.Trace("Flushing and waiting for precondition responses");
                             connection.FlushAsync().Wait();
@@ -267,11 +272,15 @@ namespace StackExchange.Redis
                             {
                                 if (!AreAllConditionsSatisfied(multiplexer))
                                     command = RedisCommand.UNWATCH; // somebody isn't happy
+
+                                multiplexer.OnTransactionLog($"after condition check, we are {command}");
                             }
                             else
                             { // timeout running pre-conditions
                                 multiplexer.Trace("Timeout checking preconditions");
                                 command = RedisCommand.UNWATCH;
+
+                                multiplexer.OnTransactionLog($"timeout waiting for conditions, we are {command}");
                             }
                             Monitor.Exit(lastBox);
                             lastBox = null;
@@ -283,12 +292,13 @@ namespace StackExchange.Redis
                     {
                         multiplexer.Trace("Begining transaction");
                         yield return Message.Create(-1, CommandFlags.None, RedisCommand.MULTI);
+                        multiplexer.OnTransactionLog($"issued MULTI");
                     }
 
                     // PART 3: issue the commands
                     if (!IsAborted && InnerOperations.Length != 0)
                     {
-                        multiplexer.Trace("Issuing transaction operations");
+                        multiplexer.Trace("Issuing operations...");
 
                         foreach (var op in InnerOperations)
                         {
@@ -304,10 +314,15 @@ namespace StackExchange.Redis
                                 }
                             }
                             yield return op;
+                            multiplexer.OnTransactionLog($"issued {op.CommandAndKey}");
                         }
+                        multiplexer.OnTransactionLog($"issued {InnerOperations.Length} operations");
+
 
                         if (explicitCheckForQueued && lastBox != null)
                         {
+                            multiplexer.OnTransactionLog($"checking conditions in the *late* path");
+
                             multiplexer.Trace("Flushing and waiting for precondition+queued responses");
                             connection.FlushAsync().Wait(); // make sure they get sent, so we can check for QUEUED (and the pre-conditions if necessary)
                             if (Monitor.Wait(lastBox, multiplexer.TimeoutMilliseconds))
@@ -323,17 +338,20 @@ namespace StackExchange.Redis
                                         if (!op.WasQueued)
                                         {
                                             multiplexer.Trace("Aborting: operation was not queued: " + op.Command);
+                                            multiplexer.OnTransactionLog($"command was not issued: {op.CommandAndKey}");
                                             command = RedisCommand.DISCARD;
                                             break;
                                         }
                                     }
                                 }
                                 multiplexer.Trace("Confirmed: QUEUED x " + InnerOperations.Length);
+                                multiplexer.OnTransactionLog($"after condition check, we are {command}");
                             }
                             else
                             {
                                 multiplexer.Trace("Aborting: timeout checking queued messages");
                                 command = RedisCommand.DISCARD;
+                                multiplexer.OnTransactionLog($"timeout waiting for conditions, we are {command}");
                             }
                             Monitor.Exit(lastBox);
                             lastBox = null;
@@ -346,8 +364,8 @@ namespace StackExchange.Redis
                 }
                 if (IsAborted)
                 {
+                    multiplexer.OnTransactionLog($"aborting {InnerOperations.Length} wrapped commands...");
                     connection.Trace("Aborting: canceling wrapped messages");
-                    var bridge = connection.BridgeCouldBeNull;
                     foreach (var op in InnerOperations)
                     {
                         op.Wrapped.Cancel();
@@ -355,6 +373,7 @@ namespace StackExchange.Redis
                     }
                 }
                 connection.Trace("End of transaction: " + Command);
+                multiplexer.OnTransactionLog($"issuing {this.Command}");
                 yield return this; // acts as either an EXEC or an UNWATCH, depending on "aborted"
             }
 

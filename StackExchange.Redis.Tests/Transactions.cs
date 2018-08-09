@@ -764,7 +764,7 @@ namespace StackExchange.Redis.Tests
         [InlineData("", ComparisonType.GreaterThan, 0L, false)]
         public async Task BasicTranWithListLengthCondition(string value, ComparisonType type, long length, bool expectTranResult)
         {
-            using (var muxer = Create())
+            using (var muxer = Create(log: TextWriter.Null))
             {
                 RedisKey key = Me(), key2 = Me() + "2";
                 var db = muxer.GetDatabase();
