@@ -253,16 +253,6 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.KeyTypeAsync(ToInner(key), flags);
         }
 
-        public Task<long> KeyUnlinkAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
-        {
-            return Inner.KeyUnlinkAsync(ToInner(keys), flags);
-        }
-
-        public Task<bool> KeyUnlinkAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-        {
-            return Inner.KeyUnlinkAsync(ToInner(key), flags);
-        }
-
         public Task<RedisValue> ListGetByIndexAsync(RedisKey key, long index, CommandFlags flags = CommandFlags.None)
         {
             return Inner.ListGetByIndexAsync(ToInner(key), index, flags);

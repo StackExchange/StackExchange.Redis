@@ -571,31 +571,52 @@ namespace StackExchange.Redis
             return server?.IsConnected == true;
         }
 
+        private RedisCommand GetDeleteCommand(RedisKey key, CommandFlags flags, out ServerEndPoint server)
+        {
+            var features = GetFeatures(Database, key, flags, out server);
+            if (server != null && features.Unlink && multiplexer.CommandMap.IsAvailable(RedisCommand.UNLINK))
+            {
+                return RedisCommand.UNLINK;
+            }
+            return RedisCommand.DEL;
+        }
+
         public bool KeyDelete(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(Database, flags, RedisCommand.DEL, key);
-            return ExecuteSync(msg, ResultProcessor.DemandZeroOrOne);
+            var cmd = GetDeleteCommand(key, flags, out var server);
+            var msg = Message.Create(Database, flags, cmd, key);
+            return ExecuteSync(msg, ResultProcessor.DemandZeroOrOne, server);
         }
 
         public long KeyDelete(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
         {
             if (keys == null) throw new ArgumentNullException(nameof(keys));
-            var msg = keys.Length == 0 ? null : Message.Create(Database, flags, RedisCommand.DEL, keys);
-            return ExecuteSync(msg, ResultProcessor.Int64);
+            if (keys.Length > 0)
+            {
+                var cmd = GetDeleteCommand(keys[0], flags, out var server);
+                var msg = keys.Length == 0 ? null : Message.Create(Database, flags, cmd, keys);
+                return ExecuteSync(msg, ResultProcessor.Int64, server);
+            }
+            return 0;
         }
 
         public Task<bool> KeyDeleteAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
+            var cmd = GetDeleteCommand(key, flags, out var server);
             var msg = Message.Create(Database, flags, RedisCommand.DEL, key);
-            return ExecuteAsync(msg, ResultProcessor.DemandZeroOrOne);
+            return ExecuteAsync(msg, ResultProcessor.DemandZeroOrOne, server);
         }
 
         public Task<long> KeyDeleteAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
         {
             if (keys == null) throw new ArgumentNullException(nameof(keys));
-
-            var msg = keys.Length == 0 ? null : Message.Create(Database, flags, RedisCommand.DEL, keys);
-            return ExecuteAsync(msg, ResultProcessor.Int64);
+            if (keys.Length > 0)
+            {
+                var cmd = GetDeleteCommand(keys[0], flags, out var server);
+                var msg = keys.Length == 0 ? null : Message.Create(Database, flags, cmd, keys);
+                return ExecuteAsync(msg, ResultProcessor.Int64, server);
+            }
+            return CompletedTask<long>.Default(0);
         }
 
         public byte[] KeyDump(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -826,33 +847,6 @@ namespace StackExchange.Redis
         {
             var msg = Message.Create(Database, flags, RedisCommand.TYPE, key);
             return ExecuteAsync(msg, ResultProcessor.RedisType);
-        }
-
-        public bool KeyUnlink(RedisKey key, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(Database, flags, RedisCommand.UNLINK, key);
-            return ExecuteSync(msg, ResultProcessor.DemandZeroOrOne);
-        }
-
-        public long KeyUnlink(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
-        {
-            if (keys == null) throw new ArgumentNullException(nameof(keys));
-            var msg = keys.Length == 0 ? null : Message.Create(Database, flags, RedisCommand.UNLINK, keys);
-            return ExecuteSync(msg, ResultProcessor.Int64);
-        }
-
-        public Task<bool> KeyUnlinkAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(Database, flags, RedisCommand.UNLINK, key);
-            return ExecuteAsync(msg, ResultProcessor.DemandZeroOrOne);
-        }
-
-        public Task<long> KeyUnlinkAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
-        {
-            if (keys == null) throw new ArgumentNullException(nameof(keys));
-
-            var msg = keys.Length == 0 ? null : Message.Create(Database, flags, RedisCommand.UNLINK, keys);
-            return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
         public RedisValue ListGetByIndex(RedisKey key, long index, CommandFlags flags = CommandFlags.None)

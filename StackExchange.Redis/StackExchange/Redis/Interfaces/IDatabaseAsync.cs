@@ -388,20 +388,24 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Removes the specified key. A key is ignored if it does not exist.
+        /// If UNLINK is available (Redis 4.0+), it will be used.
         /// </summary>
         /// <param name="key">The key to delete.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>True if the key was removed.</returns>
         /// <remarks>https://redis.io/commands/del</remarks>
+        /// <remarks>https://redis.io/commands/unlink</remarks>
         Task<bool> KeyDeleteAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Removes the specified keys. A key is ignored if it does not exist.
+        /// If UNLINK is available (Redis 4.0+), it will be used.
         /// </summary>
         /// <param name="keys">The keys to delete.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of keys that were removed.</returns>
         /// <remarks>https://redis.io/commands/del</remarks>
+        /// <remarks>https://redis.io/commands/unlink</remarks>
         Task<long> KeyDeleteAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -535,24 +539,6 @@ namespace StackExchange.Redis
         /// <returns>Type of key, or none when key does not exist.</returns>
         /// <remarks>https://redis.io/commands/type</remarks>
         Task<RedisType> KeyTypeAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
-        /// Removes the specified key. A key is ignored if it does not exist. It is removed from redis memory asynchronously later.
-        /// </summary>
-        /// <param name="key">The key to unlink.</param>
-        /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>True if the key was removed.</returns>
-        /// <remarks>https://redis.io/commands/unlink</remarks>
-        Task<bool> KeyUnlinkAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
-        /// Removes the specified keys. A key is ignored if it does not exist. It is removed from redis memory asynchronously later.
-        /// </summary>
-        /// <param name="keys">The keys to unlink.</param>
-        /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The number of keys that were removed.</returns>
-        /// <remarks>https://redis.io/commands/unlink</remarks>
-        Task<long> KeyUnlinkAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns the element at index index in the list stored at key. The index is zero-based, so 0 means the first element, 1 the second element and so on. Negative indices can be used to designate elements starting at the tail of the list. Here, -1 means the last element, -2 means the penultimate and so forth.

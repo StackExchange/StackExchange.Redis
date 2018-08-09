@@ -323,22 +323,6 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void KeyUnlink_1()
-        {
-            wrapper.KeyUnlink("key", CommandFlags.HighPriority);
-            mock.Verify(_ => _.KeyUnlink("prefix:key", CommandFlags.HighPriority));
-        }
-
-        [Fact]
-        public void KeyUnlink_2()
-        {
-            RedisKey[] keys = new RedisKey[] { "a", "b" };
-            Expression<Func<RedisKey[], bool>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
-            wrapper.KeyUnlink(keys, CommandFlags.HighPriority);
-            mock.Verify(_ => _.KeyUnlink(It.Is(valid), CommandFlags.HighPriority));
-        }
-
-        [Fact]
         public void ListGetByIndex()
         {
             wrapper.ListGetByIndex("key", 123, CommandFlags.HighPriority);
