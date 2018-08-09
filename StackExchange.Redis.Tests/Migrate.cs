@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
@@ -12,11 +13,14 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task Basic()
         {
-            var fromConfig = new ConfigurationOptions { EndPoints = { { TestConfig.Current.SecureServer, TestConfig.Current.SecurePort } }, Password = TestConfig.Current.SecurePassword };
-            var toConfig = new ConfigurationOptions { EndPoints = { { TestConfig.Current.MasterServer, TestConfig.Current.MasterPort } } };
+            var fromConfig = new ConfigurationOptions { EndPoints = { { TestConfig.Current.SecureServer, TestConfig.Current.SecurePort } }, Password = TestConfig.Current.SecurePassword, AllowAdmin = true };
+            var toConfig = new ConfigurationOptions { EndPoints = { { TestConfig.Current.MasterServer, TestConfig.Current.MasterPort } }, AllowAdmin = true };
             using (var from = ConnectionMultiplexer.Connect(fromConfig))
             using (var to = ConnectionMultiplexer.Connect(toConfig))
             {
+                if (await IsWindows(from) || await IsWindows(to))
+                    Skip.Inconclusive("'migrate' is unreliable on redis-64");
+
                 RedisKey key = Me();
                 var fromDb = from.GetDatabase();
                 var toDb = to.GetDatabase();
@@ -34,6 +38,16 @@ namespace StackExchange.Redis.Tests
                 string s = toDb.StringGet(key);
                 Assert.Equal("foo", s);
             }
+        }
+
+        private async Task<bool> IsWindows(ConnectionMultiplexer conn)
+        {
+            var server = conn.GetServer(conn.GetEndPoints().First());
+            var section = (await server.InfoAsync("server")).Single();
+            var os = section.FirstOrDefault(
+                x => string.Equals("os", x.Key, StringComparison.OrdinalIgnoreCase));
+            // note: WSL returns things like "os:Linux 4.4.0-17134-Microsoft x86_64"
+            return string.Equals("windows", os.Value, StringComparison.OrdinalIgnoreCase);
         }
     }
 }
