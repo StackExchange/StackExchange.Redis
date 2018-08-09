@@ -118,6 +118,41 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void StreamConsumerGroupSetId()
+        {
+            var key = GetUniqueKey("group_set_id");
+            var groupName = "test_group";
+            var consumer = "consumer";
+
+            using (var conn = Create())
+            {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+
+                var db = conn.GetDatabase();
+
+                // Create a stream
+                db.StreamAdd(key, "field1", "value1");
+                db.StreamAdd(key, "field2", "value2");
+
+                // Create a group and set the position to deliver new messages only.
+                db.StreamCreateConsumerGroup(key, groupName, Position.New);
+
+                // Read into the group, expect nothing
+                var firstRead = db.StreamReadGroup(key, groupName, consumer, Position.New);
+
+                // Reset the ID back to read from the beginning.
+                db.StreamConsumerGroupSetPosition(key, groupName, Position.Beginning);
+
+                var secondRead = db.StreamReadGroup(key, groupName, consumer, Position.New);
+
+                Assert.NotNull(firstRead);
+                Assert.NotNull(secondRead);
+                Assert.True(firstRead.Length == 0);
+                Assert.True(secondRead.Length == 2);
+            }
+        }
+
+        [Fact]
         public void StreamConsumerGroupWithNoConsumers()
         {
             var key = GetUniqueKey("group_with_no_consumers");
@@ -133,7 +168,7 @@ namespace StackExchange.Redis.Tests
                 db.StreamAdd(key, "field1", "value1");
 
                 // Create a group
-                db.StreamCreateConsumerGroup(key, groupName, "0-0");
+                db.StreamCreateConsumerGroup(key, groupName, new Position("0-0"));
 
                 // Query redis for the group consumers, expect an empty list in response.
                 var consumers = db.StreamConsumerInfo(key, groupName);
@@ -158,7 +193,7 @@ namespace StackExchange.Redis.Tests
                 db.StreamAdd(key, "field1", "value1");
 
                 // Create a group
-                var result = db.StreamCreateConsumerGroup(key, groupName, "-");
+                var result = db.StreamCreateConsumerGroup(key, groupName, Position.Beginning);
 
                 Assert.True(result);
             }
@@ -184,7 +219,7 @@ namespace StackExchange.Redis.Tests
                 db.StreamCreateConsumerGroup(key, groupName);
 
                 // Read, expect no messages
-                var entries = db.StreamReadGroup(key, groupName, "test_consumer", "0-0");
+                var entries = db.StreamReadGroup(key, groupName, "test_consumer", new Position("0-0"));
 
                 Assert.True(entries.Length == 0);
             }
@@ -205,9 +240,9 @@ namespace StackExchange.Redis.Tests
                 var id1 = db.StreamAdd(key, "field1", "value1");
                 var id2 = db.StreamAdd(key, "field2", "value2");
 
-                db.StreamCreateConsumerGroup(key, groupName, "-");
+                db.StreamCreateConsumerGroup(key, groupName, Position.Beginning);
 
-                var entries = db.StreamReadGroup(key, groupName, "test_consumer", "0-0");
+                var entries = db.StreamReadGroup(key, groupName, "test_consumer", new Position("0-0"));
 
                 Assert.True(entries.Length == 2);
                 Assert.True(id1 == entries[0].Id);
@@ -232,10 +267,10 @@ namespace StackExchange.Redis.Tests
                 var id3 = db.StreamAdd(key, "field3", "value3");
                 var id4 = db.StreamAdd(key, "field4", "value4");
 
-                db.StreamCreateConsumerGroup(key, groupName, "-");
-
                 // Start reading after id1.
-                var entries = db.StreamReadGroup(key, groupName, "test_consumer", id1, 2);
+                db.StreamCreateConsumerGroup(key, groupName, new Position(id1));
+                
+                var entries = db.StreamReadGroup(key, groupName, "test_consumer", Position.New, 2);
 
                 // Ensure we only received the requested count and that the IDs match the expected values.
                 Assert.True(entries.Length == 2);
@@ -262,10 +297,10 @@ namespace StackExchange.Redis.Tests
                 var id3 = db.StreamAdd(key, "field3", "value3");
                 var id4 = db.StreamAdd(key, "field4", "value4");
 
-                db.StreamCreateConsumerGroup(key, groupName, "-");
+                db.StreamCreateConsumerGroup(key, groupName, Position.Beginning);
 
                 // Read all 4 messages, they will be assigned to the consumer
-                var entries = db.StreamReadGroup(key, groupName, consumer, "0-0");
+                var entries = db.StreamReadGroup(key, groupName, consumer, new Position("0-0"));
 
                 // Send XACK for 3 of the messages
 
@@ -276,7 +311,7 @@ namespace StackExchange.Redis.Tests
                 var twoAck = db.StreamAcknowledge(key, groupName, new RedisValue[] { id3, id4 });
 
                 // Read the group again, it should only return the unacknowledged message.
-                var notAcknowledged = db.StreamReadGroup(key, groupName, consumer, "0-0");
+                var notAcknowledged = db.StreamReadGroup(key, groupName, consumer, new Position("0-0"));
 
                 Assert.True(entries.Length == 4);
                 Assert.Equal(1, oneAck);
@@ -305,7 +340,7 @@ namespace StackExchange.Redis.Tests
                 var id3 = db.StreamAdd(key, "field3", "value3");
                 var id4 = db.StreamAdd(key, "field4", "value4");
 
-                db.StreamCreateConsumerGroup(key, groupName, "0-0");
+                db.StreamCreateConsumerGroup(key, groupName, new Position("0-0"));
 
                 // Read a single message into the first consumer.
                 db.StreamReadGroup(key, groupName, consumer1, count: 1);
@@ -356,10 +391,10 @@ namespace StackExchange.Redis.Tests
                 var id3 = db.StreamAdd(key, "field3", "value3");
                 var id4 = db.StreamAdd(key, "field4", "value4");
 
-                db.StreamCreateConsumerGroup(key, groupName, "-");
+                db.StreamCreateConsumerGroup(key, groupName, Position.Beginning);
 
                 // Read a single message into the first consumer.
-                var consumer1Messages = db.StreamReadGroup(key, groupName, consumer1, "-", 1);
+                var consumer1Messages = db.StreamReadGroup(key, groupName, consumer1, Position.Beginning, 1);
 
                 // Read the remaining messages into the second consumer.
                 var consumer2Messages = db.StreamReadGroup(key, groupName, consumer2);
@@ -388,6 +423,175 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void StreamConsumerGroupReadMultipleOneReadBeginningOneReadNew()
+        {
+            // Create a group for each stream. One set to read from the beginning of the
+            // stream and the other to begin reading only new messages.
+
+            // Ask redis to read from the beginning of both stream, expect messages
+            // for only the stream set to read from the beginning.
+
+            var groupName = "test_group";
+            var stream1 = GetUniqueKey("stream1");
+            var stream2 = GetUniqueKey("stream2");
+
+            using (var conn = Create())
+            {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+
+                var db = conn.GetDatabase();
+
+                db.StreamAdd(stream1, "field1-1", "value1-1");
+                db.StreamAdd(stream1, "field1-2", "value1-2");
+
+                db.StreamAdd(stream2, "field2-1", "value2-1");
+                db.StreamAdd(stream2, "field2-2", "value2-2");
+                db.StreamAdd(stream2, "field2-3", "value2-3");
+
+                // stream1 set up to read only new messages.
+                db.StreamCreateConsumerGroup(stream1, groupName);
+
+                // stream2 set up to read from the beginning of the stream
+                db.StreamCreateConsumerGroup(stream2, groupName, Position.Beginning);
+
+                // Read for both streams from the beginning. We shouldn't get anything back for stream1.
+                var pairs = new StreamPosition[]
+                {
+                    new StreamPosition(stream1, Position.Beginning),
+                    new StreamPosition(stream2, Position.Beginning)
+                };
+
+                var streams = db.StreamReadGroup(pairs, groupName, "test_consumer");
+
+                Assert.NotNull(streams);
+                Assert.True(streams.Length == 2);
+                Assert.True(streams[0].Entries.Length == 0);
+                Assert.True(streams[1].Entries.Length == 3);
+            }
+        }
+
+        [Fact]
+        public void StreamConsumerGroupReadMultipleOnlyNewMessagesExpectNoResult()
+        {
+            var groupName = "test_group";
+            var stream1 = GetUniqueKey("stream1");
+            var stream2 = GetUniqueKey("stream2");
+
+            using (var conn = Create())
+            {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+
+                var db = conn.GetDatabase();
+
+                db.StreamAdd(stream1, "field1-1", "value1-1");
+                db.StreamAdd(stream2, "field2-1", "value2-1");
+                
+                // set both streams to read only new messages (default behavior).
+                db.StreamCreateConsumerGroup(stream1, groupName);
+                db.StreamCreateConsumerGroup(stream2, groupName);
+
+                // We shouldn't get anything for either stream.
+                var pairs = new StreamPosition[]
+                {
+                    new StreamPosition(stream1, Position.Beginning),
+                    new StreamPosition(stream2, Position.Beginning)
+                };
+
+                var streams = db.StreamReadGroup(pairs, groupName, "test_consumer");
+
+                Assert.NotNull(streams);
+                Assert.True(streams.Length == 2);
+                Assert.True(streams[0].Entries.Length == 0);
+                Assert.True(streams[1].Entries.Length == 0);
+            }
+        }
+
+        [Fact]
+        public void StreamConsumerGroupReadMultipleOnlyNewMessagesExpect1Result()
+        {
+            var groupName = "test_group";
+            var stream1 = GetUniqueKey("stream1");
+            var stream2 = GetUniqueKey("stream2");
+
+            using (var conn = Create())
+            {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+
+                var db = conn.GetDatabase();
+
+                // These messages won't be read.
+                db.StreamAdd(stream1, "field1-1", "value1-1");
+                db.StreamAdd(stream2, "field2-1", "value2-1");
+
+                // set both streams to read only new messages (default behavior).
+                db.StreamCreateConsumerGroup(stream1, groupName);
+                db.StreamCreateConsumerGroup(stream2, groupName);
+
+                // We should read these though.
+                var id1 = db.StreamAdd(stream1, "field1-2", "value1-2");
+                var id2 = db.StreamAdd(stream2, "field2-2", "value2-2");
+
+                // Read the new messages (messages created after the group was created).
+                var pairs = new StreamPosition[]
+                {
+                    new StreamPosition(stream1, Position.New),
+                    new StreamPosition(stream2, Position.New)
+                };
+
+                var streams = db.StreamReadGroup(pairs, groupName, "test_consumer");
+
+                Assert.NotNull(streams);
+                Assert.True(streams.Length == 2);
+                Assert.True(streams[0].Entries.Length == 1);
+                Assert.True(streams[1].Entries.Length == 1);
+                Assert.Equal(id1, streams[0].Entries[0].Id);
+                Assert.Equal(id2, streams[1].Entries[0].Id);
+            }
+        }
+
+        [Fact]
+        public void StreamConsumerGroupReadMultipleRestrictCount()
+        {
+            var groupName = "test_group";
+            var stream1 = GetUniqueKey("stream1");
+            var stream2 = GetUniqueKey("stream2");
+
+            using (var conn = Create())
+            {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+
+                var db = conn.GetDatabase();
+
+                var id1_1 = db.StreamAdd(stream1, "field1-1", "value1-1");
+                var id1_2 = db.StreamAdd(stream1, "field1-2", "value1-2");
+
+                var id2_1 = db.StreamAdd(stream2, "field2-1", "value2-1");
+                var id2_2 = db.StreamAdd(stream2, "field2-2", "value2-2");
+                var id2_3 = db.StreamAdd(stream2, "field2-3", "value2-3");
+
+                // Allow reading from the beginning in both streams
+                db.StreamCreateConsumerGroup(stream1, groupName, Position.Beginning);
+                db.StreamCreateConsumerGroup(stream2, groupName, Position.Beginning);
+
+                var pairs = new StreamPosition[]
+                {
+                    // Read after the first id in both streams
+                    new StreamPosition(stream1, new Position(id1_1)),
+                    new StreamPosition(stream2, new Position(id2_1))
+                };
+
+                // Restrict the count to 2 (expect only 1 message from first stream, 2 from the second).
+                var streams = db.StreamReadGroup(pairs, groupName, "test_consumer", 2);
+
+                Assert.NotNull(streams);
+                Assert.True(streams.Length == 2);
+                Assert.True(streams[0].Entries.Length == 1);
+                Assert.True(streams[1].Entries.Length == 2);
+                Assert.Equal(id1_2, streams[0].Entries[0].Id);
+            }
+        }
+
+        [Fact]
         public void StreamConsumerGroupViewPendingInfoNoConsumers()
         {
             var key = GetUniqueKey("group_pending_info_no_consumers");
@@ -401,7 +605,7 @@ namespace StackExchange.Redis.Tests
 
                 var id1 = db.StreamAdd(key, "field1", "value1");
 
-                db.StreamCreateConsumerGroup(key, groupName, "-");
+                db.StreamCreateConsumerGroup(key, groupName, Position.Beginning);
 
                 var pendingInfo = db.StreamPending(key, groupName);
 
@@ -427,7 +631,7 @@ namespace StackExchange.Redis.Tests
 
                 var id1 = db.StreamAdd(key, "field1", "value1");
 
-                db.StreamCreateConsumerGroup(key, groupName, "0-0");
+                db.StreamCreateConsumerGroup(key, groupName, new Position("0-0"));
 
                 var pendingMessages = db.StreamPendingMessages(key,
                     groupName,
@@ -458,10 +662,10 @@ namespace StackExchange.Redis.Tests
                 var id3 = db.StreamAdd(key, "field3", "value3");
                 var id4 = db.StreamAdd(key, "field4", "value4");
 
-                db.StreamCreateConsumerGroup(key, groupName, "-");
+                db.StreamCreateConsumerGroup(key, groupName, Position.Beginning);
 
                 // Read a single message into the first consumer.
-                var consumer1Messages = db.StreamReadGroup(key, groupName, consumer1, "-", 1);
+                var consumer1Messages = db.StreamReadGroup(key, groupName, consumer1, Position.Beginning, 1);
 
                 // Read the remaining messages into the second consumer.
                 var consumer2Messages = db.StreamReadGroup(key, groupName, consumer2);
@@ -500,7 +704,7 @@ namespace StackExchange.Redis.Tests
                 var id3 = db.StreamAdd(key, "field3", "value3");
                 var id4 = db.StreamAdd(key, "field4", "value4");
 
-                db.StreamCreateConsumerGroup(key, groupName, "-");
+                db.StreamCreateConsumerGroup(key, groupName, Position.Beginning);
 
                 // Read a single message into the first consumer.
                 var consumer1Messages = db.StreamReadGroup(key, groupName, consumer1, count: 1);
@@ -541,7 +745,7 @@ namespace StackExchange.Redis.Tests
                 var id3 = db.StreamAdd(key, "field3", "value3");
                 var id4 = db.StreamAdd(key, "field4", "value4");
 
-                db.StreamCreateConsumerGroup(key, groupName, "-");
+                db.StreamCreateConsumerGroup(key, groupName, Position.Beginning);
 
                 // Read a single message into the first consumer.
                 var consumer1Messages = db.StreamReadGroup(key, groupName, consumer1, count: 1);
@@ -557,6 +761,74 @@ namespace StackExchange.Redis.Tests
 
                 Assert.NotNull(pendingMessageInfoList);
                 Assert.Equal(3, pendingMessageInfoList.Length);
+            }
+        }
+
+        [Fact]
+        public void StreamDeleteConsumer()
+        {
+            var key = GetUniqueKey("delete_consumer_group");
+            var groupName = "test_group";
+            var consumer = "test_consumer";
+
+            using (var conn = Create())
+            {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+
+                var db = conn.GetDatabase();
+
+                // Add a message to create the stream.
+                db.StreamAdd(key, "field1", "value1");
+                db.StreamAdd(key, "fiedl2", "value2");
+
+                // Create a consumer group and read the message.
+                db.StreamCreateConsumerGroup(key, groupName, Position.Beginning);
+                db.StreamReadGroup(key, groupName, consumer, Position.Beginning);
+
+                var preDeleteConsumers = db.StreamConsumerInfo(key, groupName);
+
+                // Delete the consumer.
+                var deleteResult = db.StreamDeleteConsumer(key, groupName, consumer);
+
+                // Should get 2 messages in the deleteResult.
+                var postDeleteConsumers = db.StreamConsumerInfo(key, groupName);
+
+                Assert.Equal(2, deleteResult);
+                Assert.True(preDeleteConsumers.Length == 1);
+                Assert.True(postDeleteConsumers.Length == 0);
+            }
+        }
+
+        [Fact]
+        public void StreamDeleteConsumerGroup()
+        {
+            var key = GetUniqueKey("delete_consumer_group");
+            var groupName = "test_group";
+            var consumer = "test_consumer";
+
+            using (var conn = Create())
+            {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+
+                var db = conn.GetDatabase();
+
+                // Add a message to create the stream.
+                db.StreamAdd(key, "field1", "value1");
+
+                // Create a consumer group and read the messages.
+                db.StreamCreateConsumerGroup(key, groupName, Position.Beginning);
+                db.StreamReadGroup(key, groupName, consumer, Position.Beginning);
+
+                var preDeleteInfo = db.StreamInfo(key);
+
+                // Now delete the group.
+                var deleteResult = db.StreamDeleteConsumerGroup(key, groupName);
+
+                var postDeleteInfo = db.StreamInfo(key);
+
+                Assert.True(deleteResult);
+                Assert.True(preDeleteInfo.ConsumerGroupCount == 1);
+                Assert.True(postDeleteInfo.ConsumerGroupCount == 0);
             }
         }
 
@@ -577,7 +849,7 @@ namespace StackExchange.Redis.Tests
                 var id4 = db.StreamAdd(key, "field4", "value4");
 
                 var deletedCount = db.StreamDelete(key, new RedisValue[] { id3 });
-                var messages = db.StreamRange(key, "-", "+");
+                var messages = db.StreamRange(key);
 
                 Assert.Equal(1, deletedCount);
                 Assert.Equal(3, messages.Length);
@@ -601,7 +873,7 @@ namespace StackExchange.Redis.Tests
                 var id4 = db.StreamAdd(key, "field4", "value4");
 
                 var deletedCount = db.StreamDelete(key, new RedisValue[] { id2, id3 }, CommandFlags.None);
-                var messages = db.StreamRange(key, "-", "+");
+                var messages = db.StreamRange(key);
 
                 Assert.Equal(2, deletedCount);
                 Assert.Equal(2, messages.Length);
@@ -628,8 +900,8 @@ namespace StackExchange.Redis.Tests
                 var id3 = db.StreamAdd(key, "field3", "value3");
                 var id4 = db.StreamAdd(key, "field4", "value4");
 
-                db.StreamCreateConsumerGroup(key, group1, "-");
-                db.StreamCreateConsumerGroup(key, group2, "-");
+                db.StreamCreateConsumerGroup(key, group1, Position.Beginning);
+                db.StreamCreateConsumerGroup(key, group2, Position.Beginning);
 
                 // Read a single message into the first consumer.
                 var consumer1Messages = db.StreamReadGroup(key, group1, consumer1, count: 1);
@@ -669,7 +941,7 @@ namespace StackExchange.Redis.Tests
                 var id3 = db.StreamAdd(key, "field3", "value3");
                 var id4 = db.StreamAdd(key, "field4", "value4");
 
-                db.StreamCreateConsumerGroup(key, group, "-");
+                db.StreamCreateConsumerGroup(key, group, Position.Beginning);
                 db.StreamReadGroup(key, group, consumer1, count: 1);
                 db.StreamReadGroup(key, group, consumer2);
 
@@ -774,7 +1046,7 @@ namespace StackExchange.Redis.Tests
                 var id = db.StreamAdd(key, "field1", "value1");
                 db.StreamDelete(key, new RedisValue[] { id });
 
-                db.StreamCreateConsumerGroup(key, groupName, "0-0");
+                db.StreamCreateConsumerGroup(key, groupName, new Position("0-0"));
 
                 var pendingInfo = db.StreamPending(key, "test_group");
 
@@ -784,6 +1056,43 @@ namespace StackExchange.Redis.Tests
                 Assert.NotNull(pendingInfo.Consumers);
                 Assert.True(pendingInfo.Consumers.Length == 0);
             }
+        }
+        
+        [Fact]
+        public void StreamPositionDefaultValueIsBeginning()
+        {
+            Position position = default(Position);
+
+            Assert.Equal(StreamConstants.ReadMinValue, position.ResolveForCommand(RedisCommand.XREAD));
+            Assert.Equal(StreamConstants.ReadMinValue, position.ResolveForCommand(RedisCommand.XREADGROUP));
+            Assert.Equal(StreamConstants.ReadMinValue, position.ResolveForCommand(RedisCommand.XGROUP));
+        }
+
+        [Fact]
+        public void StreamPositionValidateBeginning()
+        {
+            var position = Position.Beginning;
+
+            Assert.Equal(StreamConstants.ReadMinValue, position.ResolveForCommand(RedisCommand.XREAD));
+        }
+
+        [Fact]
+        public void StreamPositionValidateExplicit()
+        {
+            var explicitValue = "1-0";
+            var position = new Position(explicitValue);
+
+            Assert.Equal(explicitValue, position.ResolveForCommand(RedisCommand.XREAD));
+        }
+
+        [Fact]
+        public void StreamPositionValidateNew()
+        {
+            var position = Position.New;
+
+            Assert.Equal(StreamConstants.NewMessages, position.ResolveForCommand(RedisCommand.XGROUP));
+            Assert.Equal(StreamConstants.UndeliveredMessages, position.ResolveForCommand(RedisCommand.XREADGROUP));
+            Assert.ThrowsAny<InvalidOperationException>(() => position.ResolveForCommand(RedisCommand.XREAD));
         }
 
         [Fact]
@@ -802,7 +1111,7 @@ namespace StackExchange.Redis.Tests
                 var id3 = db.StreamAdd(key, "field3", "value3");
 
                 // Read the entire stream from the beginning.
-                var entries = db.StreamRead(key, "0-0");
+                var entries = db.StreamRead(key, new Position("0-0"));
 
                 Assert.True(entries.Length == 3);
                 Assert.Equal(id1, entries[0].Id);
@@ -830,7 +1139,7 @@ namespace StackExchange.Redis.Tests
                 var len = db.StreamLength(key);
 
                 // Read the entire stream from the beginning.
-                var entries = db.StreamRead(key, "0-0");
+                var entries = db.StreamRead(key, new Position("0-0"));
 
                 Assert.True(entries.Length == 0);
                 Assert.Equal(0, len);
@@ -861,8 +1170,8 @@ namespace StackExchange.Redis.Tests
                 var len2 = db.StreamLength(key2);
 
                 // Read the entire stream from the beginning.
-                var entries1 = db.StreamRead(key1, "0-0");
-                var entries2 = db.StreamRead(key2, "0-0");
+                var entries1 = db.StreamRead(key1, new Position("0-0"));
+                var entries2 = db.StreamRead(key2, new Position("0-0"));
 
                 Assert.True(entries1.Length == 0);
                 Assert.True(entries2.Length == 0);
@@ -879,15 +1188,15 @@ namespace StackExchange.Redis.Tests
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
 
-                var streamPairs = new StreamIdPair[]
+                var streamPositions = new StreamPosition[]
                 {
-                    new StreamIdPair("key1", "0-0"),
-                    new StreamIdPair("key2", "0-0")
+                    new StreamPosition("key1", new Position("0-0")),
+                    new StreamPosition("key2", new Position("0-0"))
                 };
 
 
                 var db = conn.GetDatabase();
-                Assert.Throws<ArgumentOutOfRangeException>(() => db.StreamRead(streamPairs, 0));
+                Assert.Throws<ArgumentOutOfRangeException>(() => db.StreamRead(streamPositions, 0));
             }
         }
 
@@ -901,7 +1210,7 @@ namespace StackExchange.Redis.Tests
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
 
                 var db = conn.GetDatabase();
-                Assert.Throws<ArgumentOutOfRangeException>(() => db.StreamRead(key, "0-0", 0));
+                Assert.Throws<ArgumentOutOfRangeException>(() => db.StreamRead(key, new Position("0-0"), 0));
             }
         }
 
@@ -926,7 +1235,7 @@ namespace StackExchange.Redis.Tests
 
                 var db = conn.GetDatabase();
 
-                var emptyList = new StreamIdPair[0];
+                var emptyList = new StreamPosition[0];
 
                 Assert.Throws<ArgumentOutOfRangeException>(() => db.StreamRead(emptyList));
             }
@@ -950,10 +1259,10 @@ namespace StackExchange.Redis.Tests
                 var id4 = db.StreamAdd(key2, "field4", "value4");
 
                 // Read from both streams at the same time.
-                var streamList = new StreamIdPair[2]
+                var streamList = new StreamPosition[2]
                 {
-                    new StreamIdPair(key1, "0-0"),
-                    new StreamIdPair(key2, "0-0")
+                    new StreamPosition(key1, new Position("0-0")),
+                    new StreamPosition(key2, new Position("0-0"))
                 };
 
                 var streams = db.StreamRead(streamList);
@@ -989,10 +1298,10 @@ namespace StackExchange.Redis.Tests
                 var id3 = db.StreamAdd(key2, "field3", "value3");
                 var id4 = db.StreamAdd(key2, "field4", "value4");
 
-                var streamList = new StreamIdPair[2]
+                var streamList = new StreamPosition[2]
                 {
-                    new StreamIdPair(key1, "0-0"),
-                    new StreamIdPair(key2, "0-0")
+                    new StreamPosition(key1, new Position("0-0")),
+                    new StreamPosition(key2, new Position("0-0"))
                 };
 
                 var streams = db.StreamRead(streamList, countPerStream: 1);
@@ -1027,12 +1336,12 @@ namespace StackExchange.Redis.Tests
                 var id3 = db.StreamAdd(key2, "field3", "value3");
                 var id4 = db.StreamAdd(key2, "field4", "value4");
 
-                var streamList = new StreamIdPair[2]
+                var streamList = new StreamPosition[]
                 {
-                    new StreamIdPair(key1, "0-0"),
+                    new StreamPosition(key1, new Position("0-0")),
 
                     // read past the end of stream # 2
-                    new StreamIdPair(key2, id4)
+                    new StreamPosition(key2, new Position(id4))
                 };
 
                 var streams = db.StreamRead(streamList);
@@ -1062,11 +1371,11 @@ namespace StackExchange.Redis.Tests
                 var id3 = db.StreamAdd(key2, "field3", "value3");
                 var id4 = db.StreamAdd(key2, "field4", "value4");
 
-                var streamList = new StreamIdPair[]
+                var streamList = new StreamPosition[]
                 {
                     // Read past the end of both streams.
-                    new StreamIdPair(key1, id2),
-                    new StreamIdPair(key2, id4)
+                    new StreamPosition(key1, new Position(id2)),
+                    new StreamPosition(key2, new Position(id4))
                 };
 
                 var streams = db.StreamRead(streamList);
@@ -1092,7 +1401,7 @@ namespace StackExchange.Redis.Tests
 
                 // Read after the final ID in the stream, we expect an empty array as a response.
 
-                var entries = db.StreamRead(key, id2);
+                var entries = db.StreamRead(key, new Position(id2));
 
                 Assert.True(entries.Length == 0);
             }
@@ -1136,7 +1445,7 @@ namespace StackExchange.Redis.Tests
 
                 var deleted = db.StreamDelete(key, new RedisValue[] { id1, id2 });
 
-                var entries = db.StreamRange(key, "-", "+");
+                var entries = db.StreamRange(key);
 
                 Assert.Equal(2, deleted);
                 Assert.NotNull(entries);
@@ -1200,8 +1509,8 @@ namespace StackExchange.Redis.Tests
 
                 var id1 = db.StreamAdd(key, "field1", "value1");
                 var id2 = db.StreamAdd(key, "fiedl2", "value2");
-
-                var entries = db.StreamRange(key, count: 1, messageOrder: Order.Descending);
+                
+                var entries = db.StreamRange(key, id1, id2, 1, Order.Descending);
 
                 Assert.True(entries.Length == 1);
                 Assert.Equal(id2, entries[0].Id);
@@ -1224,7 +1533,7 @@ namespace StackExchange.Redis.Tests
                 var id3 = db.StreamAdd(key, "field3", "value3");
 
                 // Only read a single item from the stream.
-                var entries = db.StreamRead(key, id1, 1);
+                var entries = db.StreamRead(key, new Position(id1), 1);
 
                 Assert.True(entries.Length == 1);
                 Assert.Equal(id2, entries[0].Id);
@@ -1248,7 +1557,7 @@ namespace StackExchange.Redis.Tests
                 var id4 = db.StreamAdd(key, "field4", "value4");
 
                 // Read multiple items from the stream.
-                var entries = db.StreamRead(key, id1, 2);
+                var entries = db.StreamRead(key, new Position(id1), 2);
 
                 Assert.True(entries.Length == 2);
                 Assert.Equal(id2, entries[0].Id);

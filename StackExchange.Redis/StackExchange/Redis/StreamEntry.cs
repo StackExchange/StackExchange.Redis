@@ -3,9 +3,9 @@
     /// <summary>
     /// Describes an entry contained in a Redis Stream.
     /// </summary>
-    public struct RedisStreamEntry
+    public struct StreamEntry
     {
-        internal RedisStreamEntry(RedisValue id, NameValueEntry[] values)
+        internal StreamEntry(RedisValue id, NameValueEntry[] values)
         {
             Id = id;
             Values = values;
@@ -14,7 +14,7 @@
         /// <summary>
         /// A null stream entry.
         /// </summary>
-        public static RedisStreamEntry Null { get; } = new RedisStreamEntry(RedisValue.Null, null);
+        public static StreamEntry Null { get; } = new StreamEntry(RedisValue.Null, null);
 
         /// <summary>
         /// The ID assigned to the message.

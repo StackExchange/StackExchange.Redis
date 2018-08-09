@@ -1325,7 +1325,7 @@ The coordinates as a two items x,y array (longitude,latitude).
             }
         }
 
-        internal sealed class SingleStreamProcessor : StreamProcessorBase<RedisStreamEntry[]>
+        internal sealed class SingleStreamProcessor : StreamProcessorBase<StreamEntry[]>
         {
             private bool skipStreamName;
 
@@ -1339,7 +1339,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 if (result.IsNull)
                 {
                     // Server returns 'nil' if no entries are returned for the given stream.
-                    SetResult(message, new RedisStreamEntry[0]);
+                    SetResult(message, new StreamEntry[0]);
                     return true;
                 }
 
@@ -1348,7 +1348,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                     return false;
                 }
 
-                RedisStreamEntry[] entries = null;
+                StreamEntry[] entries = null;
 
                 if (skipStreamName)
                 {
@@ -1667,7 +1667,7 @@ The coordinates as a two items x,y array (longitude,latitude).
         {
             // For command response formats see https://redis.io/topics/streams-intro.
 
-            protected RedisStreamEntry[] ParseRedisStreamEntries(RawResult result)
+            protected StreamEntry[] ParseRedisStreamEntries(RawResult result)
             {
                 if (result.Type != ResultType.MultiBulk)
                 {
@@ -1680,7 +1680,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 {
                     if (item.IsNull || item.Type != ResultType.MultiBulk)
                     {
-                        return RedisStreamEntry.Null;
+                        return StreamEntry.Null;
                     }
 
                     // Process the Multibulk array for each entry. The entry contains the following elements:
@@ -1688,7 +1688,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                     //  [1] = Multibulk array of the name/value pairs of the stream entry's data
                     var entryDetails = item.GetItems();
 
-                    return new RedisStreamEntry(id: entryDetails[0].AsRedisValue(),
+                    return new StreamEntry(id: entryDetails[0].AsRedisValue(),
                         values: ParseStreamEntryValues(entryDetails[1]));
                 });
             }
