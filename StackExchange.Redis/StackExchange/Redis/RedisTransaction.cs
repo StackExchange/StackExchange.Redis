@@ -162,6 +162,9 @@ namespace StackExchange.Redis
                 Wrapped.SetRequestSent();
             }
             public override int ArgCount => Wrapped.ArgCount;
+            public override string CommandAndKey => Wrapped.CommandAndKey;
+            public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
+                => Wrapped.GetHashSlot(serverSelectionStrategy);            
         }
 
         private class QueuedProcessor : ResultProcessor<bool>
@@ -174,6 +177,7 @@ namespace StackExchange.Redis
                 {
                     if (message is QueuedMessage q)
                     {
+                        connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"observed QUEUED for " + q.Wrapped?.CommandAndKey);
                         q.WasQueued = true;
                     }
                     return true;
@@ -318,7 +322,6 @@ namespace StackExchange.Redis
                         }
                         multiplexer.OnTransactionLog($"issued {InnerOperations.Length} operations");
 
-
                         if (explicitCheckForQueued && lastBox != null)
                         {
                             multiplexer.OnTransactionLog($"checking conditions in the *late* path");
@@ -373,7 +376,7 @@ namespace StackExchange.Redis
                     }
                 }
                 connection.Trace("End of transaction: " + Command);
-                multiplexer.OnTransactionLog($"issuing {this.Command}");
+                multiplexer.OnTransactionLog($"issuing {Command}");
                 yield return this; // acts as either an EXEC or an UNWATCH, depending on "aborted"
             }
 
@@ -424,6 +427,7 @@ namespace StackExchange.Redis
 
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
+                connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"got {result} for {message.CommandAndKey}");
                 if (message is TransactionMessage tran)
                 {
                     var bridge = connection.BridgeCouldBeNull;
@@ -457,6 +461,7 @@ namespace StackExchange.Redis
                                 var arr = result.GetItems();
                                 if (result.IsNull)
                                 {
+                                    connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"aborting wrapped messages (failed watch)");
                                     connection.Trace("Server aborted due to failed WATCH");
                                     foreach (var op in wrapped)
                                     {
@@ -469,8 +474,10 @@ namespace StackExchange.Redis
                                 else if (wrapped.Length == arr.Length)
                                 {
                                     connection.Trace("Server committed; processing nested replies");
+                                    connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"processing {arr.Length} wrapped messages");
                                     for (int i = 0; i < arr.Length; i++)
                                     {
+                                        connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"> got {arr[i]} for {wrapped[i].Wrapped.CommandAndKey}");
                                         if (wrapped[i].Wrapped.ComputeResult(connection, arr[i]))
                                         {
                                             bridge.CompleteSyncOrAsync(wrapped[i].Wrapped);
