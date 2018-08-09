@@ -8,9 +8,9 @@ namespace StackExchange.Redis
 {
     internal class RedisTransaction : RedisDatabase, ITransaction
     {
-        private List<ConditionResult> conditions;
-
-        private List<QueuedMessage> pending;
+        private List<ConditionResult> _conditions;
+        private List<QueuedMessage> _pending;
+        private object SyncLock => this;
 
         public RedisTransaction(RedisDatabase wrapped, object asyncState) : base(wrapped.multiplexer, wrapped.Database, asyncState ?? wrapped.AsyncState)
         {
@@ -26,17 +26,20 @@ namespace StackExchange.Redis
             if (condition == null) throw new ArgumentNullException(nameof(condition));
 
             var commandMap = multiplexer.CommandMap;
-            if (conditions == null)
+            lock (SyncLock)
             {
-                // we don't demand these unless the user is requesting conditions, but we need both...
-                commandMap.AssertAvailable(RedisCommand.WATCH);
-                commandMap.AssertAvailable(RedisCommand.UNWATCH);
-                conditions = new List<ConditionResult>();
+                if (_conditions == null)
+                {
+                    // we don't demand these unless the user is requesting conditions, but we need both...
+                    commandMap.AssertAvailable(RedisCommand.WATCH);
+                    commandMap.AssertAvailable(RedisCommand.UNWATCH);
+                    _conditions = new List<ConditionResult>();
+                }
+                condition.CheckCommands(commandMap);
+                var result = new ConditionResult(condition);
+                _conditions.Add(result);
+                return result;
             }
-            condition.CheckCommands(commandMap);
-            var result = new ConditionResult(condition);
-            conditions.Add(result);
-            return result;
         }
 
         public void Execute()
@@ -83,22 +86,25 @@ namespace StackExchange.Redis
 
             // store it, and return the task of the *outer* command
             // (there is no task for the inner command)
-            (pending ?? (pending = new List<QueuedMessage>())).Add(queued);
-
-            switch (message.Command)
+            lock (SyncLock)
             {
-                case RedisCommand.UNKNOWN:
-                case RedisCommand.EVAL:
-                case RedisCommand.EVALSHA:
-                    // people can do very naughty things in an EVAL
-                    // including change the DB; change it back to what we
-                    // think it should be!
-                    var sel = PhysicalConnection.GetSelectDatabaseCommand(message.Db);
-                    queued = new QueuedMessage(sel);
-                    wasQueued = ResultBox<bool>.Get(null);
-                    queued.SetSource(wasQueued, QueuedProcessor.Default);
-                    pending.Add(queued);
-                    break;
+                (_pending ?? (_pending = new List<QueuedMessage>())).Add(queued);
+
+                switch (message.Command)
+                {
+                    case RedisCommand.UNKNOWN:
+                    case RedisCommand.EVAL:
+                    case RedisCommand.EVALSHA:
+                        // people can do very naughty things in an EVAL
+                        // including change the DB; change it back to what we
+                        // think it should be!
+                        var sel = PhysicalConnection.GetSelectDatabaseCommand(message.Db);
+                        queued = new QueuedMessage(sel);
+                        wasQueued = ResultBox<bool>.Get(null);
+                        queued.SetSource(wasQueued, QueuedProcessor.Default);
+                        _pending.Add(queued);
+                        break;
+                }
             }
             return task;
         }
@@ -110,11 +116,15 @@ namespace StackExchange.Redis
 
         private Message CreateMessage(CommandFlags flags, out ResultProcessor<bool> processor)
         {
-            var work = pending;
-            pending = null; // any new operations go into a different queue
-            var cond = conditions;
-            conditions = null; // any new conditions go into a different queue
-
+            List<ConditionResult> cond;
+            List<QueuedMessage> work;
+            lock (SyncLock)
+            {
+                work = _pending;
+                _pending = null; // any new operations go into a different queue
+                cond = _conditions;
+                _conditions = null; // any new conditions go into a different queue
+            }
             if ((work == null || work.Count == 0) && (cond == null || cond.Count == 0))
             {
                 if ((flags & CommandFlags.FireAndForget) != 0)

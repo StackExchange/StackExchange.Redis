@@ -79,8 +79,15 @@ namespace NRediSearch.Test
                 {
                     var i = config.LastIndexOf('/');
                     var modulePath = config.Substring(0, i + 1) + "redisearch.so";
-                    var result = server.Execute("module", "load", modulePath);
-                    output?.WriteLine((string)result);
+                    try
+                    {
+                        var result = server.Execute("module", "load", modulePath);
+                        output?.WriteLine((string)result);
+                    } catch(RedisServerException err)
+                    {
+                        // *probably* duplicate load; we'll try the tests anyways!
+                        output?.WriteLine(err.Message);
+                    }
                 }
             }
             return conn;
