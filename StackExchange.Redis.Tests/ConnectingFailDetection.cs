@@ -11,8 +11,9 @@ namespace StackExchange.Redis.Tests
 
         protected override string GetConfiguration() => TestConfig.Current.MasterServerAndPort + "," + TestConfig.Current.SlaveServerAndPort;
 
+#if DEBUG
         [Fact]
-        public async Task FastNoticesFailOnConnectingSyncComlpetion()
+        public async Task FastNoticesFailOnConnectingSyncCompletion()
         {
             try
             {
@@ -50,6 +51,7 @@ namespace StackExchange.Redis.Tests
                 ClearAmbientFailures();
             }
         }
+#endif
 
         [Fact]
         public void ConnectsWhenBeginConnectCompletesSynchronously()
@@ -71,7 +73,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public async Task FastNoticesFailOnConnectingAsyncComlpetion()
+        public async Task FastNoticesFailOnConnectingAsyncCompletion()
         {
             try
             {
