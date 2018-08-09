@@ -15,7 +15,7 @@ namespace StackExchange.Redis
         public static readonly ResultProcessor<bool>
             Boolean = new BooleanProcessor(),
             DemandOK = new ExpectBasicStringProcessor(CommonReplies.OK),
-            DemandPONG_TRAN = new ExpectBasicStringProcessor(CommonReplies.pong_tran),
+            DemandPONG = new ExpectBasicStringProcessor(CommonReplies.PONG),
             DemandZeroOrOne = new DemandZeroOrOneProcessor(),
             AutoConfigure = new AutoConfigureProcessor(),
             TrackSubscriptions = new TrackSubscriptionsProcessor(),
@@ -1827,13 +1827,10 @@ The coordinates as a two items x,y array (longitude,latitude).
                         happy = result.Type == ResultType.BulkString && (!establishConnection || result.IsEqual(connection.BridgeCouldBeNull?.Multiplexer?.UniqueId));
                         break;
                     case RedisCommand.PING:
-                        // there are two different PINGs; "interactive" is a +PONG or ${your message},
+                        // there are two different PINGs; "interactive" is a +PONG or +{your message},
                         // but subscriber returns a bulk-array of [ "pong", {your message} ]
                         switch (result.Type)
                         {
-                            case ResultType.BulkString:
-                                happy = result.IsEqual(CommonReplies.pong_hb) || result.IsEqual(CommonReplies.pong_test);
-                                break;
                             case ResultType.SimpleString:
                                 happy = result.IsEqual(CommonReplies.PONG);
                                 break;
@@ -1841,7 +1838,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                                 if (result.ItemsCount == 2)
                                 {
                                     var items = result.GetItems();
-                                    happy = items[0].IsEqual(CommonReplies.PONG) && items[1].IsEqual(CommonReplies.pong_sub);
+                                    happy = items[0].IsEqual(CommonReplies.PONG) && items[1].Payload.IsEmpty;
                                 }
                                 else
                                 {

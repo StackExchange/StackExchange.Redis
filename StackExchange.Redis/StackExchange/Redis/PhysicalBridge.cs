@@ -240,13 +240,13 @@ namespace StackExchange.Redis
             switch (ConnectionType)
             {
                 case ConnectionType.Interactive:
-                    msg = ServerEndPoint.GetTracerMessage(false, "pong hb");
+                    msg = ServerEndPoint.GetTracerMessage(false);
                     msg.SetSource(ResultProcessor.Tracer, null);
                     break;
                 case ConnectionType.Subscription:
                     if (commandMap.IsAvailable(RedisCommand.PING) && ServerEndPoint.GetFeatures().PingOnSubscriber)
                     {
-                        msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.PING, (RedisValue)"pong sub");
+                        msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.PING);
                         msg.SetSource(ResultProcessor.Tracer, null);
                     }
                     else if (commandMap.IsAvailable(RedisCommand.UNSUBSCRIBE))

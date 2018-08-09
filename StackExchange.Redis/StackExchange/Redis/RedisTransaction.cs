@@ -132,8 +132,8 @@ namespace StackExchange.Redis
                     processor = null;
                     return null; // they won't notice if we don't do anything...
                 }
-                processor = ResultProcessor.DemandPONG_TRAN;
-                return Message.Create(-1, flags, RedisCommand.PING, (RedisValue)"pong tran");
+                processor = ResultProcessor.DemandPONG;
+                return Message.Create(-1, flags, RedisCommand.PING);
             }
             processor = TransactionProcessor.Default;
             return new TransactionMessage(Database, flags, cond, work);

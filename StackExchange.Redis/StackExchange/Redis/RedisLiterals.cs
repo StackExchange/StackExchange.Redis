@@ -17,21 +17,14 @@ namespace StackExchange.Redis
             no = "no",
             OK = "OK",
             one = "1",
+            PONG = "PONG",
             QUEUED = "QUEUED",
             READONLY = "READONLY ",
             slave_read_only = "slave-read-only",
             timeout = "timeout",
             wildcard = "*",
             yes = "yes",
-            zero = "0",
-
-
-            pong_sub = "pong sub",
-            pong_hb = "pong hb",
-            pong_test = "pong test",
-            pong_time = "pong time",
-            pong_tran = "pong tran",
-            PONG = "PONG";
+            zero = "0";
     }
     internal static class RedisLiterals
     {

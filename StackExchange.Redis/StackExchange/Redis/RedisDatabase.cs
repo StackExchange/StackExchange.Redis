@@ -555,13 +555,13 @@ namespace StackExchange.Redis
 
         public EndPoint IdentifyEndpoint(RedisKey key = default(RedisKey), CommandFlags flags = CommandFlags.None)
         {
-            var msg = key.IsNull ? Message.Create(-1, flags, RedisCommand.PING, (RedisValue)"pong ident") : Message.Create(Database, flags, RedisCommand.EXISTS, key);
+            var msg = key.IsNull ? Message.Create(-1, flags, RedisCommand.PING) : Message.Create(Database, flags, RedisCommand.EXISTS, key);
             return ExecuteSync(msg, ResultProcessor.ConnectionIdentity);
         }
 
         public Task<EndPoint> IdentifyEndpointAsync(RedisKey key = default(RedisKey), CommandFlags flags = CommandFlags.None)
         {
-            var msg = key.IsNull ? Message.Create(-1, flags, RedisCommand.PING, (RedisValue)"pong ident") : Message.Create(Database, flags, RedisCommand.EXISTS, key);
+            var msg = key.IsNull ? Message.Create(-1, flags, RedisCommand.PING) : Message.Create(Database, flags, RedisCommand.EXISTS, key);
             return ExecuteAsync(msg, ResultProcessor.ConnectionIdentity);
         }
 
