@@ -530,7 +530,7 @@ namespace StackExchange.Redis
             return true;
         }
 
-        private readonly object WriteLock = new object();
+        private readonly object SingleWriterLock = new object();
 
         /// <summary>
         /// This writes a message to the output stream
@@ -544,16 +544,17 @@ namespace StackExchange.Redis
 
             WriteResult result;
             bool haveLock = false;
-            Monitor.TryEnter(WriteLock, TimeoutMilliseconds, ref haveLock);
-            if (!haveLock)
-            {
-                message.Cancel();
-                Multiplexer?.OnMessageFaulted(message, null);
-                this.CompleteSyncOrAsync(message);
-                return WriteResult.TimeoutBeforeWrite;
-            }
             try
             {
+                Monitor.TryEnter(SingleWriterLock, TimeoutMilliseconds, ref haveLock);
+                if (!haveLock)
+                {
+                    message.Cancel();
+                    Multiplexer?.OnMessageFaulted(message, null);
+                    this.CompleteSyncOrAsync(message);
+                    return WriteResult.TimeoutBeforeWrite;
+                }
+
                 var messageIsSent = false;
                 if (message is IMultiMessage)
                 {
@@ -589,7 +590,7 @@ namespace StackExchange.Redis
             }
             finally
             {
-                if (haveLock) Monitor.Exit(WriteLock);
+                if (haveLock) Monitor.Exit(SingleWriterLock);
             }
 
             return result;

@@ -1004,6 +1004,5 @@ namespace StackExchange.Redis.Tests
                 await Assert.ThrowsAsync<TaskCanceledException>(() => pong);
             }
         }
-
     }
 }
