@@ -571,16 +571,6 @@ namespace StackExchange.Redis
             return server?.IsConnected == true;
         }
 
-        private RedisCommand GetDeleteCommand(RedisKey key, CommandFlags flags, out ServerEndPoint server)
-        {
-            var features = GetFeatures(Database, key, flags, out server);
-            if (server != null && features.Unlink && multiplexer.CommandMap.IsAvailable(RedisCommand.UNLINK))
-            {
-                return RedisCommand.UNLINK;
-            }
-            return RedisCommand.DEL;
-        }
-
         public bool KeyDelete(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             var cmd = GetDeleteCommand(key, flags, out var server);
@@ -617,6 +607,16 @@ namespace StackExchange.Redis
                 return ExecuteAsync(msg, ResultProcessor.Int64, server);
             }
             return CompletedTask<long>.Default(0);
+        }
+
+        private RedisCommand GetDeleteCommand(RedisKey key, CommandFlags flags, out ServerEndPoint server)
+        {
+            var features = GetFeatures(Database, key, flags, out server);
+            if (server != null && features.Unlink && multiplexer.CommandMap.IsAvailable(RedisCommand.UNLINK))
+            {
+                return RedisCommand.UNLINK;
+            }
+            return RedisCommand.DEL;
         }
 
         public byte[] KeyDump(RedisKey key, CommandFlags flags = CommandFlags.None)
