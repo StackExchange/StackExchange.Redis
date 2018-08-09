@@ -2,12 +2,10 @@
   <PropertyGroup>
     <TargetFrameworks>$(LibraryTargetFrameworks)</TargetFrameworks>
     <Description>High performance Redis client, incorporating both synchronous and asynchronous usage.</Description>
-    <AssemblyTitle>StackExchange.Redis</AssemblyTitle>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <AssemblyName>StackExchange.Redis</AssemblyName>
+    <AssemblyTitle>StackExchange.Redis</AssemblyTitle>
     <PackageId>StackExchange.Redis</PackageId>
     <PackageTags>Async;Redis;Cache;PubSub;Messaging</PackageTags>
-    <OutputTypeEx>Library</OutputTypeEx>
     <SignAssembly>true</SignAssembly>
     <PublicSign Condition=" '$(OS)' != 'Windows_NT' ">true</PublicSign>
     <LangVersion>latest</LangVersion>
@@ -19,14 +17,11 @@
   <PropertyGroup Condition="'$(Configuration)' == 'Debug' and '$(Computername)'=='OCHO'">
     <!--<DefineConstants>$(DefineConstants);LOGOUTPUT</DefineConstants>-->
   </PropertyGroup>
-
-  <ItemGroup>
-    <PackageReference Include="System.IO.Pipelines" Version="$(CoreFxVersion)" />
-    <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="$(CoreFxVersion)" />
-  </ItemGroup>
   
   <ItemGroup>
     <PackageReference Include="Pipelines.Sockets.Unofficial" Version="0.2.1-alpha.77" />
+    <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="4.5.0" />
+    <PackageReference Include="System.IO.Pipelines" Version="4.5.0" />
     <PackageReference Include="System.Threading.Channels" Version="4.5.0" />
   </ItemGroup>
 </Project>

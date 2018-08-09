@@ -25,7 +25,6 @@
     <IncludeSymbols>false</IncludeSymbols>
 
     <LibraryTargetFrameworks>netstandard2.0</LibraryTargetFrameworks>
-    <CoreFxVersion>4.5.0</CoreFxVersion>
     <xUnitVersion>2.4.0-beta.2.build3981</xUnitVersion>
   </PropertyGroup>
   <ItemGroup>
