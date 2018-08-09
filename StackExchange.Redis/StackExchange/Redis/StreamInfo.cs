@@ -10,8 +10,8 @@ namespace StackExchange.Redis
             int radixTreeKeys,
             int radixTreeNodes,
             int groups,
-            RedisStreamEntry firstEntry,
-            RedisStreamEntry lastEntry)
+            StreamEntry firstEntry,
+            StreamEntry lastEntry)
         {
             Length = length;
             RadixTreeKeys = radixTreeKeys;
@@ -44,11 +44,11 @@ namespace StackExchange.Redis
         /// <summary>
         /// The first entry in the stream.
         /// </summary>
-        public RedisStreamEntry FirstEntry { get; }
+        public StreamEntry FirstEntry { get; }
 
         /// <summary>
         /// The last entry in the stream.
         /// </summary>
-        public RedisStreamEntry LastEntry { get; }
+        public StreamEntry LastEntry { get; }
     }
 }

@@ -42,11 +42,17 @@ namespace StackExchange.Redis
 
         internal static readonly RedisValue Create = "CREATE";
 
+        internal static readonly RedisValue DeleteConsumer = "DELCONSUMER";
+
+        internal static readonly RedisValue Destroy = "DESTROY";
+
         internal static readonly RedisValue Group = "GROUP";
 
         internal static readonly RedisValue Groups = "GROUPS";
 
         internal static readonly RedisValue JustId = "JUSTID";
+
+        internal static readonly RedisValue SetId = "SETID";
 
         internal static readonly RedisValue MaxLen = "MAXLEN";
 

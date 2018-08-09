@@ -88,6 +88,8 @@ namespace StackExchange.Redis.Tests
                     case nameof(IDatabaseAsync.ScriptEvaluateAsync):
                     case nameof(IDatabase.StreamRead):
                     case nameof(IDatabase.StreamReadAsync):
+                    case nameof(IDatabase.StreamReadGroup):
+                    case nameof(IDatabase.StreamReadGroupAsync):
                         continue; // they're fine, but don't want to widen check to return type
                 }
 
@@ -99,7 +101,6 @@ namespace StackExchange.Redis.Tests
         private static bool UsesKey(Type type)
         {
             if (type == typeof(RedisKey)) return true;
-            if (type == typeof(StreamIdPair)) return true;
 
             if (type.IsArray)
             {
