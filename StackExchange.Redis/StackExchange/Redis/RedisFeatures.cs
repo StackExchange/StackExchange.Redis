@@ -168,7 +168,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Can PING be used on a subscription connection?
         /// </summary>
-        internal bool PingOnSubscriber => Version >= v3_2_0;
+        internal bool PingOnSubscriber => Version >= v3_0_0;
 
         /// <summary>
         /// Does SetPop support popping multiple items?
