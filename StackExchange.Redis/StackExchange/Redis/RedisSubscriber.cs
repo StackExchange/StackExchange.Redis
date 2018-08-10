@@ -254,13 +254,17 @@ namespace StackExchange.Redis
 
         internal event Action<string, Exception, string> MessageFaulted;
         internal event Action<bool> Closing;
-        internal event Action<string> PreTransactionExec, TransactionLog;
+        internal event Action<string> PreTransactionExec, TransactionLog, Heartbeat;
         internal event Action<EndPoint, ConnectionType> Connecting;
         internal event Action<EndPoint, ConnectionType> Resurrecting;
 
         internal void OnMessageFaulted(Message msg, Exception fault, [CallerMemberName] string origin = default, [CallerFilePath] string path = default, [CallerLineNumber] int lineNumber = default)
         {
             MessageFaulted?.Invoke(msg?.CommandAndKey, fault, $"{origin} ({path}#{lineNumber})");
+        }
+        internal void OnHeartbeat(string message)
+        {
+            Heartbeat?.Invoke(message);
         }
 
         internal void OnClosing(bool complete)

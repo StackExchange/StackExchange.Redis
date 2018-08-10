@@ -237,6 +237,7 @@ namespace StackExchange.Redis
         {
             var commandMap = Multiplexer.CommandMap;
             Message msg = null;
+            var features = ServerEndPoint.GetFeatures();
             switch (ConnectionType)
             {
                 case ConnectionType.Interactive:
@@ -244,7 +245,7 @@ namespace StackExchange.Redis
                     msg.SetSource(ResultProcessor.Tracer, null);
                     break;
                 case ConnectionType.Subscription:
-                    if (commandMap.IsAvailable(RedisCommand.PING) && ServerEndPoint.GetFeatures().PingOnSubscriber)
+                    if (commandMap.IsAvailable(RedisCommand.PING) && features.PingOnSubscriber)
                     {
                         msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.PING);
                         msg.SetSource(ResultProcessor.Tracer, null);
@@ -261,6 +262,7 @@ namespace StackExchange.Redis
             {
                 msg.SetInternalCall();
                 Multiplexer.Trace("Enqueue: " + msg);
+                Multiplexer.OnHeartbeat($"heartbeat '{msg.CommandAndKey}' on '{PhysicalName}' (v{features.Version})");
                 var result = TryWrite(msg, ServerEndPoint.IsSlave);
 
                 if (result != WriteResult.Success)

@@ -276,6 +276,7 @@ namespace StackExchange.Redis.Tests
                 };
                 muxer.Connecting += (e, t) => Writer.WriteLine($"Connecting to {Format.ToString(e)} as {t}");
                 muxer.TransactionLog += msg => { lock (Writer) { Writer.WriteLine("tran: " + msg); } };
+                muxer.Heartbeat += msg => Writer.WriteLine($"{Time()}: {msg}");
                 muxer.Resurrecting += (e, t) => Writer.WriteLine($"Resurrecting {Format.ToString(e)} as {t}");
                 muxer.Closing += complete => Writer.WriteLine(complete ? "Closed" : "Closing...");
                 return muxer;

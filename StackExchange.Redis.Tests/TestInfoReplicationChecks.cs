@@ -22,7 +22,7 @@ namespace StackExchange.Redis.Tests
                 await Task.Delay(7000).ForAwait();
                 var after = conn.GetCounters();
                 int done = (int)(after.Interactive.CompletedSynchronously - before.Interactive.CompletedSynchronously);
-                Assert.True(done >= 2);
+                Assert.True(done >= 2, $"expected >=2, got {done}");
             }
         }
     }
