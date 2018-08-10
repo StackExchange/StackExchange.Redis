@@ -39,7 +39,7 @@ if ($RunTests) {
         & .\RedisConfigs\start-all.cmd
         Write-Host "Servers Started." -ForegroundColor "Green"
     }
-    dotnet restore /ConsoleLoggerParameters:Verbosity=Quiet
+    dotnet restore
     foreach ($project in $testsToRun) {
         Write-Host "Running tests: $project (all frameworks)" -ForegroundColor "Magenta"
         #Push-Location ".\tests\$project"
