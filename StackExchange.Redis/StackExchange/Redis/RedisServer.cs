@@ -301,6 +301,7 @@ namespace StackExchange.Redis
             Message msg = Message.Create(database, flags, RedisCommand.KEYS, pattern);
             return ExecuteSync(msg, ResultProcessor.RedisKeyArray);
         }
+        
 
         public DateTime LastSave(CommandFlags flags = CommandFlags.None)
         {
@@ -749,7 +750,7 @@ namespace StackExchange.Redis
                 }
             }
         }
-
+        
         #region Sentinel
 
         public EndPoint SentinelGetMasterAddressByName(string serviceName, CommandFlags flags = CommandFlags.None)
@@ -811,6 +812,7 @@ namespace StackExchange.Redis
             var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.SLAVES, (RedisValue)serviceName);
             return ExecuteAsync(msg, ResultProcessor.SentinelArrayOfArrays);
         }
+
 
         public KeyValuePair<string, string>[][] SentinelSentinels(string serviceName, CommandFlags flags = CommandFlags.None)
         {  
