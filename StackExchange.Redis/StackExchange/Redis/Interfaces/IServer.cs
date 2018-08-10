@@ -715,6 +715,22 @@ namespace StackExchange.Redis
         /// <remarks>https://redis.io/topics/sentinel</remarks>
         Task SentinelFailoverAsync(string serviceName, CommandFlags flags = CommandFlags.None);
 
+        /// <summary>
+        /// Show a list of sentinels for a master, and their state.
+        /// </summary>
+        /// <param name="serviceName">The sentinel service name.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/topics/sentinel</remarks>
+        KeyValuePair<string, string>[][] SentinelSentinels(string serviceName, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Show a list of sentinels for a master, and their state.
+        /// </summary>
+        /// <param name="serviceName">The sentinel service name.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/topics/sentinel</remarks>
+        Task<KeyValuePair<string, string>[][]> SentinelSentinelsAsync(string serviceName, CommandFlags flags = CommandFlags.None);
+
         #endregion
     }
 

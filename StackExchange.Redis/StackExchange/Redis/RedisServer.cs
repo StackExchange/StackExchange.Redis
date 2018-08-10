@@ -824,6 +824,20 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.SentinelArrayOfArrays);
         }
 
+        public KeyValuePair<string, string>[][] SentinelSentinels(string serviceName, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.SENTINELS, (RedisValue)serviceName);
+            return ExecuteSync(msg, ResultProcessor.SentinelArrayOfArrays);
+        }
+
+        public Task<KeyValuePair<string, string>[][]> SentinelSentinelsAsync(string serviceName, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.SENTINELS, (RedisValue)serviceName);
+            return ExecuteAsync(msg, ResultProcessor.SentinelArrayOfArrays);
+        }
+
+        #endregion
+
         public RedisResult Execute(string command, params object[] args) => Execute(command, args, CommandFlags.None);
 
         public RedisResult Execute(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
@@ -839,8 +853,6 @@ namespace StackExchange.Redis
             var msg = new RedisDatabase.ExecuteMessage(multiplexer?.CommandMap, -1, flags, command, args);
             return ExecuteAsync(msg, ResultProcessor.ScriptResult);
         }
-
-        #endregion
 
         /// <summary>
         /// For testing only
