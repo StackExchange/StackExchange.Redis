@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -321,7 +321,7 @@ namespace StackExchange.Redis
         /// <remarks>https://redis.io/commands/keys</remarks>
         /// <remarks>https://redis.io/commands/scan</remarks>
         IEnumerable<RedisKey> Keys(int database = 0, RedisValue pattern = default(RedisValue), int pageSize = RedisBase.CursorUtils.DefaultPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None);
-
+        
         /// <summary>
         /// Return the time of the last DB save executed with success. A client may check if a BGSAVE command succeeded reading the LASTSAVE value, then issuing a BGSAVE command and checking at regular intervals every N seconds if LASTSAVE changed.
         /// </summary>
@@ -645,6 +645,25 @@ namespace StackExchange.Redis
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/topics/sentinel</remarks>
         Task SentinelFailoverAsync(string serviceName, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>  
+        /// show a list of sentinels info about a redis master  
+        /// </summary>  
+        /// <param name="serviceName">The sentinel service name.</param>  
+        /// <param name="flags">The command flags to use.</param>  
+        /// <returns>an array of sentinel info KeyValuePair arrays</returns>  
+        /// <remarks>https://redis.io/topics/sentinel</remarks>  
+        KeyValuePair<string, string>[][] SentinelSentinels(string serviceName, CommandFlags flags = CommandFlags.None);  
+   
+        /// <summary>  
+        /// show a list of sentinels info about a redis master  
+        /// </summary>  
+        /// <param name="serviceName">The sentinel service name.</param>  
+        /// <param name="flags">The command flags to use.</param>  
+        /// <returns>an array of sentinel info KeyValuePair arrays</returns>  
+        /// <remarks>https://redis.io/topics/sentinel</remarks>  
+        Task<KeyValuePair<string, string>[][]> SentinelSentinelsAsync(string serviceName, CommandFlags flags = CommandFlags.None);
+
 
         #endregion
     }
