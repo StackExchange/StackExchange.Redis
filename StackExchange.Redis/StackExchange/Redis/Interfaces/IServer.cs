@@ -646,6 +646,25 @@ namespace StackExchange.Redis
         /// <remarks>https://redis.io/topics/sentinel</remarks>
         Task SentinelFailoverAsync(string serviceName, CommandFlags flags = CommandFlags.None);
 
+        /// <summary>  
+        /// show a list of sentinels info about a redis master  
+        /// </summary>  
+        /// <param name="serviceName">The sentinel service name.</param>  
+        /// <param name="flags">The command flags to use.</param>  
+        /// <returns>an array of sentinel info KeyValuePair arrays</returns>  
+        /// <remarks>https://redis.io/topics/sentinel</remarks>  
+        KeyValuePair<string, string>[][] SentinelSentinels(string serviceName, CommandFlags flags = CommandFlags.None);  
+   
+        /// <summary>  
+        /// show a list of sentinels info about a redis master  
+        /// </summary>  
+        /// <param name="serviceName">The sentinel service name.</param>  
+        /// <param name="flags">The command flags to use.</param>  
+        /// <returns>an array of sentinel info KeyValuePair arrays</returns>  
+        /// <remarks>https://redis.io/topics/sentinel</remarks>  
+        Task<KeyValuePair<string, string>[][]> SentinelSentinelsAsync(string serviceName, CommandFlags flags = CommandFlags.None);
+
+
         #endregion
     }
 }

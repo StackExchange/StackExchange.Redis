@@ -812,6 +812,18 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.SentinelArrayOfArrays);
         }
 
+        public KeyValuePair<string, string>[][] SentinelSentinels(string serviceName, CommandFlags flags = CommandFlags.None)
+        {  
+            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.Sentinels, (RedisValue)serviceName);  
+            return ExecuteSync(msg, ResultProcessor.SentinelArrayOfArrays);  
+        }  
+            
+        public Task<KeyValuePair<string, string>[][]> SentinelSentinelsAsync(string serviceName, CommandFlags flags = CommandFlags.None)
+        {  
+            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.Sentinels, (RedisValue)serviceName);  
+            return ExecuteAsync(msg, ResultProcessor.SentinelArrayOfArrays);  
+        }  
+
         #endregion
     }
 }
