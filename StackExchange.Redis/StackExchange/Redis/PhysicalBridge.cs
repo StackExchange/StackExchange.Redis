@@ -752,8 +752,10 @@ namespace StackExchange.Redis
                         break;
                 }
 
+                //connection.EnqueueInsideWriteLock(message);
                 message.WriteTo(connection);
                 connection.EnqueueInsideWriteLock(message);
+
                 message.SetRequestSent();
                 IncrementOpCount();
 

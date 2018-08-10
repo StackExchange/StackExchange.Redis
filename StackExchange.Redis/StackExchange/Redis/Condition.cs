@@ -275,6 +275,7 @@ namespace StackExchange.Redis
 
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
             {
+                connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"condition '{message.CommandAndKey}' got '{result.ToString()}'");
                 var msg = message as ConditionMessage;
                 var condition = msg?.Condition;
                 if (condition != null && condition.TryValidate(result, out bool final))
