@@ -28,7 +28,7 @@ namespace StackExchange.Redis.Tests
             ClearAmbientFailures();
         }
 
-        protected void Log(string message)
+        protected void LogNoTime(string message)
         {
             Output.WriteLine(message);
             if (TestConfig.Current.LogToConsole)
@@ -36,9 +36,17 @@ namespace StackExchange.Redis.Tests
                 Console.WriteLine(message);
             }
         }
+        protected void Log(string message)
+        {
+            Output.WriteLine(Time() + ": " + message);
+            if (TestConfig.Current.LogToConsole)
+            {
+                Console.WriteLine(message);
+            }
+        }
         protected void Log(string message, params object[] args)
         {
-            Output.WriteLine(message, args);
+            Output.WriteLine(Time() + ": " + message, args);
             if (TestConfig.Current.LogToConsole)
             {
                 Console.WriteLine(message, args);
@@ -146,14 +154,14 @@ namespace StackExchange.Redis.Tests
                 {
                     foreach (var item in privateExceptions.Take(5))
                     {
-                        Log(item);
+                        LogNoTime(item);
                     }
                 }
                 lock (backgroundExceptions)
                 {
                     foreach (var item in backgroundExceptions.Take(5))
                     {
-                        Log(item);
+                        LogNoTime(item);
                     }
                 }
                 Assert.True(false, $"There were {privateFailCount} private and {sharedFailCount.Value} ambient exceptions; expected {expectedFailCount}.");
