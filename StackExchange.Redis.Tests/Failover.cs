@@ -267,7 +267,12 @@ namespace StackExchange.Redis.Tests
 
                     Assert.True(a.GetServer(TestConfig.Current.FailoverMasterServerAndPort).IsSlave, $"A Connection: {TestConfig.Current.FailoverMasterServerAndPort} should be a slave");
                     Assert.False(a.GetServer(TestConfig.Current.FailoverSlaveServerAndPort).IsSlave, $"A Connection: {TestConfig.Current.FailoverSlaveServerAndPort} should be a master");
-                    Assert.True(b.GetServer(TestConfig.Current.FailoverMasterServerAndPort).IsSlave, $"B Connection: {TestConfig.Current.FailoverMasterServerAndPort} should be a slave");
+                    var sanityCheck = b.GetServer(TestConfig.Current.FailoverMasterServerAndPort).IsSlave;
+                    if (!sanityCheck)
+                    {
+                        Skip.Inconclusive("Not enough latency.");
+                    }
+                    Assert.True(sanityCheck, $"B Connection: {TestConfig.Current.FailoverMasterServerAndPort} should be a slave");
                     Assert.False(b.GetServer(TestConfig.Current.FailoverSlaveServerAndPort).IsSlave, $"B Connection: {TestConfig.Current.FailoverSlaveServerAndPort} should be a master");
 
                     Log("Pause complete");
