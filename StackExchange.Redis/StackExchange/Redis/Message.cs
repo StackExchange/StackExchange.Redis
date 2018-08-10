@@ -588,7 +588,14 @@ namespace StackExchange.Redis
             try
             {
                 if (box != null && box.IsFaulted) return false; // already failed (timeout, etc)
-                return resultProcessor == null || resultProcessor.SetResult(connection, this, result);
+                if (resultProcessor == null) return true;
+
+                var accepted = resultProcessor.SetResult(connection, this, result);
+                if (!accepted)
+                {
+                    connection?.BridgeCouldBeNull?.Multiplexer?.OnMessageFaulted(this, null);
+                }
+                return accepted;
             }
             catch (Exception ex)
             {
@@ -610,7 +617,7 @@ namespace StackExchange.Redis
             resultBox?.SetException(exception);
         }
 
-        internal void SetEnqueued()=> performance?.SetEnqueued();
+        internal void SetEnqueued() => performance?.SetEnqueued();
 
         internal void SetRequestSent()
         {
