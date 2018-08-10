@@ -601,9 +601,9 @@ namespace StackExchange.Redis.Tests
                 Assert.Contains(msgs, m => m.Command == "GET");
                 Log("Checking SET...");
                 Assert.Contains(msgs, m => m.Command == "SET");
-                Assert.Equal(2, msgs.Count());
+                Assert.Equal(2, msgs.Count(m => m.RetransmissionOf is null));
 
-                var arr = msgs.ToArray();
+                var arr = msgs.Where(m => m.RetransmissionOf is null).ToArray();
                 Assert.Equal("SET", arr[0].Command);
                 Assert.Equal("GET", arr[1].Command);
             }
