@@ -269,7 +269,7 @@ namespace StackExchange.Redis.Tests
                 muxer.MessageFaulted += (msg, ex, origin) =>
                 {
                     Writer?.WriteLine($"Faulted from '{origin}': '{msg}' - '{(ex == null ? "(null)" : ex.Message)}'");
-                    if (ex.Data.Contains("got"))
+                    if (ex != null && ex.Data.Contains("got"))
                     {
                         Writer?.WriteLine($"Got: '{ex.Data["got"]}'");
                     }
