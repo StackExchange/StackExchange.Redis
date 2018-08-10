@@ -230,7 +230,7 @@ namespace StackExchange.Redis.Tests
             if (connectTimeout != null) config.ConnectTimeout = connectTimeout.Value;
             if (proxy != null) config.Proxy = proxy.Value;
             var watch = Stopwatch.StartNew();
-            var task = ConnectionMultiplexer.ConnectAsync(config, log ?? Writer);
+            var task = ConnectionMultiplexer.ConnectAsync(config, log);
             if (!task.Wait(config.ConnectTimeout >= (int.MaxValue / 2) ? int.MaxValue : config.ConnectTimeout * 2))
             {
                 task.ContinueWith(x =>

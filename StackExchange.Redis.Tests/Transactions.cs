@@ -10,13 +10,6 @@ namespace StackExchange.Redis.Tests
 {
     public class Transactions : TestBase
     {
-
-        protected override ConnectionMultiplexer Create(string clientName = null, int? syncTimeout = null, bool? allowAdmin = null, int? keepAlive = null, int? connectTimeout = null, string password = null, string tieBreaker = null, TextWriter log = null, bool fail = true, string[] disabledCommands = null, string[] enabledCommands = null, bool checkConnect = true, string failMessage = null, string channelPrefix = null, Proxy? proxy = null, string configuration = null, [CallerMemberName] string caller = null)
-        {
-            return base.Create(clientName, syncTimeout, allowAdmin, keepAlive, connectTimeout, password, tieBreaker,
-                TextWriter.Null, // <== the one I care about
-                fail, disabledCommands, enabledCommands, checkConnect, failMessage, channelPrefix, proxy, configuration, caller);
-        }
         public Transactions(ITestOutputHelper output) : base(output) { }
 
         [Fact]
