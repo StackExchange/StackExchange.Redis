@@ -359,7 +359,7 @@ namespace StackExchange.Redis.Tests
 
                 async Task RunLoop()
                 {
-                    while (!subChannel.IsCompleted)
+                    while (!subChannel.Completion.IsCompleted)
                     {
                         var work = await subChannel.ReadAsync().ForAwait();
                         int i = int.Parse(Encoding.UTF8.GetString(work.Message));
@@ -456,7 +456,7 @@ namespace StackExchange.Redis.Tests
                 }
 
                 await subChannel.Completion;
-                Assert.True(subChannel.IsCompleted);
+                Assert.True(subChannel.Completion.IsCompleted);
                 await Assert.ThrowsAsync<ChannelClosedException>(async delegate
                 {
                     var final = await subChannel.ReadAsync().ForAwait();
@@ -517,7 +517,7 @@ namespace StackExchange.Redis.Tests
                 }
 
                 await subChannel.Completion;
-                Assert.True(subChannel.IsCompleted);
+                Assert.True(subChannel.Completion.IsCompleted);
                 await Assert.ThrowsAsync<ChannelClosedException>(async delegate
                 {
                     var final = await subChannel.ReadAsync().ForAwait();

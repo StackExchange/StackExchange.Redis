@@ -69,23 +69,16 @@ namespace StackExchange.Redis
         public override string ToString() => (string)Channel;
 
         /// <summary>
-        /// Indicates if all messages that will be received have been drained from this channel
+        /// An awaitable task the indicates completion of the queue (including drain of data)
         /// </summary>
-        public bool IsCompleted { get; private set; }
+        public Task Completion => _queue.Reader.Completion;
 
         internal ChannelMessageQueue(RedisChannel redisChannel, RedisSubscriber parent)
         {
             Channel = redisChannel;
             _parent = parent;
             _queue = System.Threading.Channels.Channel.CreateUnbounded<ChannelMessage>(s_ChannelOptions);
-            _queue.Reader.Completion.ContinueWith(
-                (_, state) => ((ChannelMessageQueue)state).IsCompleted = true, this, TaskContinuationOptions.ExecuteSynchronously);
         }
-
-        /// <summary>
-        /// An awaitable task the indicates completion of the queue (including drain of data)
-        /// </summary>
-        public Task Completion => _queue.Reader.Completion;
 
         private static readonly UnboundedChannelOptions s_ChannelOptions = new UnboundedChannelOptions
         {
@@ -165,7 +158,7 @@ namespace StackExchange.Redis
         private async void OnMessageSyncImpl()
         {
             var handler = (Action<ChannelMessage>)_onMessageHandler;
-            while (!IsCompleted)
+            while (!Completion.IsCompleted)
             {
                 ChannelMessage next;
                 try { if (!TryRead(out next)) next = await ReadAsync().ConfigureAwait(false); }
@@ -195,7 +188,7 @@ namespace StackExchange.Redis
         private async void OnMessageAsyncImpl()
         {
             var handler = (Func<ChannelMessage, Task>)_onMessageHandler;
-            while (!IsCompleted)
+            while (!Completion.IsCompleted)
             {
                 ChannelMessage next;
                 try { if (!TryRead(out next)) next = await ReadAsync().ConfigureAwait(false); }
