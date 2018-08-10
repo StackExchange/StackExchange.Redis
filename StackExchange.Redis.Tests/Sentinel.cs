@@ -74,6 +74,20 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void SentinelSentinelsTest()
+        {
+            var sentinels = Server.SentinelSentinels("mymaster");
+            Assert.True(sentinels[0].ToDictionary().ContainsKey("name"));
+            foreach (var config in sentinels)
+            {
+                foreach (var kvp in config)
+                {
+                    Output.WriteLine("{0}:{1}", kvp.Key, kvp.Value);
+                }
+            }
+        }
+
+        [Fact]
         public void SentinelMastersTest()
         {
             var masterConfigs = Server.SentinelMasters();

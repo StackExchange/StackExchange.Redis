@@ -816,13 +816,13 @@ namespace StackExchange.Redis
 
         public KeyValuePair<string, string>[][] SentinelSentinels(string serviceName, CommandFlags flags = CommandFlags.None)
         {  
-            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.Sentinels, (RedisValue)serviceName);  
+            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.SENTINELS, (RedisValue)serviceName);  
             return ExecuteSync(msg, ResultProcessor.SentinelArrayOfArrays);  
         }  
             
         public Task<KeyValuePair<string, string>[][]> SentinelSentinelsAsync(string serviceName, CommandFlags flags = CommandFlags.None)
         {  
-            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.Sentinels, (RedisValue)serviceName);  
+            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.SENTINELS, (RedisValue)serviceName);  
             return ExecuteAsync(msg, ResultProcessor.SentinelArrayOfArrays);  
         }  
 
