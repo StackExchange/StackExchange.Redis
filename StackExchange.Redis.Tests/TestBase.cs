@@ -203,68 +203,81 @@ namespace StackExchange.Redis.Tests
             string configuration = null,
             [CallerMemberName] string caller = null)
         {
-            configuration = configuration ?? GetConfiguration();
-            var config = ConfigurationOptions.Parse(configuration);
-            if (disabledCommands != null && disabledCommands.Length != 0)
+            StringWriter localLog = null;
+            if(log == null)
             {
-                config.CommandMap = CommandMap.Create(new HashSet<string>(disabledCommands), false);
+                log = localLog = new StringWriter();
             }
-            else if (enabledCommands != null && enabledCommands.Length != 0)
+            try
             {
-                config.CommandMap = CommandMap.Create(new HashSet<string>(enabledCommands), true);
-            }
-
-            if (Debugger.IsAttached)
-            {
-                syncTimeout = int.MaxValue;
-            }
-
-            if (channelPrefix != null) config.ChannelPrefix = channelPrefix;
-            if (tieBreaker != null) config.TieBreaker = tieBreaker;
-            if (password != null) config.Password = string.IsNullOrEmpty(password) ? null : password;
-            if (clientName != null) config.ClientName = clientName;
-            else if (caller != null) config.ClientName = caller;
-            if (syncTimeout != null) config.SyncTimeout = syncTimeout.Value;
-            if (allowAdmin != null) config.AllowAdmin = allowAdmin.Value;
-            if (keepAlive != null) config.KeepAlive = keepAlive.Value;
-            if (connectTimeout != null) config.ConnectTimeout = connectTimeout.Value;
-            if (proxy != null) config.Proxy = proxy.Value;
-            var watch = Stopwatch.StartNew();
-            var task = ConnectionMultiplexer.ConnectAsync(config, log);
-            if (!task.Wait(config.ConnectTimeout >= (int.MaxValue / 2) ? int.MaxValue : config.ConnectTimeout * 2))
-            {
-                task.ContinueWith(x =>
+                configuration = configuration ?? GetConfiguration();
+                var config = ConfigurationOptions.Parse(configuration);
+                if (disabledCommands != null && disabledCommands.Length != 0)
                 {
-                    try
+                    config.CommandMap = CommandMap.Create(new HashSet<string>(disabledCommands), false);
+                }
+                else if (enabledCommands != null && enabledCommands.Length != 0)
+                {
+                    config.CommandMap = CommandMap.Create(new HashSet<string>(enabledCommands), true);
+                }
+
+                if (Debugger.IsAttached)
+                {
+                    syncTimeout = int.MaxValue;
+                }
+
+                if (channelPrefix != null) config.ChannelPrefix = channelPrefix;
+                if (tieBreaker != null) config.TieBreaker = tieBreaker;
+                if (password != null) config.Password = string.IsNullOrEmpty(password) ? null : password;
+                if (clientName != null) config.ClientName = clientName;
+                else if (caller != null) config.ClientName = caller;
+                if (syncTimeout != null) config.SyncTimeout = syncTimeout.Value;
+                if (allowAdmin != null) config.AllowAdmin = allowAdmin.Value;
+                if (keepAlive != null) config.KeepAlive = keepAlive.Value;
+                if (connectTimeout != null) config.ConnectTimeout = connectTimeout.Value;
+                if (proxy != null) config.Proxy = proxy.Value;
+                var watch = Stopwatch.StartNew();
+                var task = ConnectionMultiplexer.ConnectAsync(config, log);
+                if (!task.Wait(config.ConnectTimeout >= (int.MaxValue / 2) ? int.MaxValue : config.ConnectTimeout * 2))
+                {
+                    task.ContinueWith(x =>
                     {
-                        GC.KeepAlive(x.Exception);
-                    }
-                    catch
-                    { }
-                }, TaskContinuationOptions.OnlyOnFaulted);
-                throw new TimeoutException("Connect timeout");
+                        try
+                        {
+                            GC.KeepAlive(x.Exception);
+                        }
+                        catch
+                        { }
+                    }, TaskContinuationOptions.OnlyOnFaulted);
+                    throw new TimeoutException("Connect timeout");
+                }
+                watch.Stop();
+                if (Output == null)
+                {
+                    Assert.True(false, "Failure: Be sure to call the TestBase constuctor like this: BasicOpsTests(ITestOutputHelper output) : base(output) { }");
+                }
+                Log("Connect took: " + watch.ElapsedMilliseconds + "ms");
+                var muxer = task.Result;
+                if (checkConnect && (muxer == null || !muxer.IsConnected))
+                {
+                    // If fail is true, we throw.
+                    Assert.False(fail, failMessage + "Server is not available");
+                    Skip.Inconclusive(failMessage + "Server is not available");
+                }
+                muxer.InternalError += OnInternalError;
+                muxer.ConnectionFailed += OnConnectionFailed;
+                muxer.MessageFaulted += (msg, ex, origin) => Writer?.WriteLine($"Faulted from '{origin}': '{msg}' - '{(ex == null ? "(null)" : ex.Message)}'");
+                muxer.Connecting += (e, t) => Writer.WriteLine($"Connecting to {Format.ToString(e)} as {t}");
+                muxer.TransactionLog += msg => { lock (Writer) { Writer.WriteLine("tran: " + msg); } };
+                muxer.Resurrecting += (e, t) => Writer.WriteLine($"Resurrecting {Format.ToString(e)} as {t}");
+                muxer.Closing += complete => Writer.WriteLine(complete ? "Closed" : "Closing...");
+                return muxer;
             }
-            watch.Stop();
-            if (Output == null)
+            catch
             {
-                Assert.True(false, "Failure: Be sure to call the TestBase constuctor like this: BasicOpsTests(ITestOutputHelper output) : base(output) { }");
+                if (localLog != null) Output?.WriteLine(localLog.ToString());
+                throw;
             }
-            Log("Connect took: " + watch.ElapsedMilliseconds + "ms");
-            var muxer = task.Result;
-            if (checkConnect && (muxer == null || !muxer.IsConnected))
-            {
-                // If fail is true, we throw.
-                Assert.False(fail, failMessage + "Server is not available");
-                Skip.Inconclusive(failMessage + "Server is not available");
-            }
-            muxer.InternalError += OnInternalError;
-            muxer.ConnectionFailed += OnConnectionFailed;
-            muxer.MessageFaulted += (msg, ex, origin) => Writer?.WriteLine($"Faulted from '{origin}': '{msg}' - '{(ex == null ? "(null)" : ex.Message)}'");
-            muxer.Connecting += (e, t) => Writer.WriteLine($"Connecting to {Format.ToString(e)} as {t}");
-            muxer.TransactionLog += msg => { lock (Writer) { Writer.WriteLine("tran: " + msg); } };
-            muxer.Resurrecting += (e, t) => Writer.WriteLine($"Resurrecting {Format.ToString(e)} as {t}");
-            muxer.Closing += complete => Writer.WriteLine(complete ? "Closed" : "Closing...");
-            return muxer;
         }
 
         public static string Me([CallerFilePath] string filePath = null, [CallerMemberName] string caller = null) =>
