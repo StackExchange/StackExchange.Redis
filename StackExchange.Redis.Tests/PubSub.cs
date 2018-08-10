@@ -312,7 +312,7 @@ namespace StackExchange.Redis.Tests
                     {
                         data.Add(int.Parse(Encoding.UTF8.GetString(val)));
                         pulse = data.Count == count;
-                        if ((data.Count % 100) == 99) Log(data.Count.ToString());
+                        if ((data.Count % 100) == 99) Log(Time() + ": " + data.Count.ToString());
                     }
                     if (pulse)
                     {
@@ -367,7 +367,7 @@ namespace StackExchange.Redis.Tests
                         {
                             data.Add(i);
                             if (data.Count == count) break;
-                            if ((data.Count % 100) == 99) Log(data.Count.ToString());
+                            if ((data.Count % 100) == 99) Log(Time() + ": " + data.Count.ToString());
                         }
                     }
                     lock (syncLock)
@@ -424,7 +424,7 @@ namespace StackExchange.Redis.Tests
                     {
                         data.Add(i);
                         if (data.Count == count) pulse = true;
-                        if ((data.Count % 100) == 99) Log(data.Count.ToString());
+                        if ((data.Count % 100) == 99) Log(Time() + ": " + data.Count.ToString());
                     }
                     if (pulse)
                     {
@@ -484,7 +484,7 @@ namespace StackExchange.Redis.Tests
                     {
                         data.Add(i);
                         if (data.Count == count) pulse = true;
-                        if ((data.Count % 100) == 99) Log(data.Count.ToString());
+                        if ((data.Count % 100) == 99) Log(Time() + ": " + data.Count.ToString());
                     }
                     if (pulse)
                     {
