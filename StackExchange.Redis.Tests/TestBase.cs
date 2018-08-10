@@ -266,7 +266,14 @@ namespace StackExchange.Redis.Tests
                 }
                 muxer.InternalError += OnInternalError;
                 muxer.ConnectionFailed += OnConnectionFailed;
-                muxer.MessageFaulted += (msg, ex, origin) => Writer?.WriteLine($"Faulted from '{origin}': '{msg}' - '{(ex == null ? "(null)" : ex.Message)}'");
+                muxer.MessageFaulted += (msg, ex, origin) =>
+                {
+                    Writer?.WriteLine($"Faulted from '{origin}': '{msg}' - '{(ex == null ? "(null)" : ex.Message)}'");
+                    if (ex.Data.Contains("got"))
+                    {
+                        Writer?.WriteLine($"Got: '{ex.Data["got"]}'");
+                    }
+                };
                 muxer.Connecting += (e, t) => Writer.WriteLine($"Connecting to {Format.ToString(e)} as {t}");
                 muxer.TransactionLog += msg => { lock (Writer) { Writer.WriteLine("tran: " + msg); } };
                 muxer.Resurrecting += (e, t) => Writer.WriteLine($"Resurrecting {Format.ToString(e)} as {t}");

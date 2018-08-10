@@ -592,6 +592,7 @@ namespace StackExchange.Redis
             }
             catch (Exception ex)
             {
+                ex.Data.Add("got", result.ToString());
                 connection?.BridgeCouldBeNull?.Multiplexer?.OnMessageFaulted(this, ex);
                 box?.SetException(ex);
                 return box != null; // we still want to pulse/complete
