@@ -1,4 +1,6 @@
-﻿using System;
+﻿#pragma warning disable RCS1090 // Call 'ConfigureAwait(false)'.
+
+using System;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Threading;
