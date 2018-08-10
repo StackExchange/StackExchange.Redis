@@ -280,35 +280,6 @@ namespace StackExchange.Redis.Tests
             Assert.Equal("WRONGTYPE Operation against a key holding the wrong kind of value", ex.Message);
         }
 
-        [Fact]
-        public async Task TestQuit()
-        {
-            SetExpectedAmbientFailureCount(1);
-            using (var muxer = Create(allowAdmin: true))
-            {
-                muxer.ConnectionFailed += (_, args) => Log("{0}: Connection Failed: {1}", Time(), args.ToString());
-                muxer.ConnectionRestored += (_, args) => Log("{0}: Connection Restored: {1}", Time(), args.ToString());
-
-                var db = muxer.GetDatabase();
-                string key = Guid.NewGuid().ToString();
-                db.KeyDelete(key, CommandFlags.FireAndForget);
-                db.StringSet(key, key, flags: CommandFlags.FireAndForget);
-                var ep = muxer.GetEndPoints()[0];
-                var nameBefore = muxer.GetConnectionName(ep, ConnectionType.Interactive);
-                Log("{0}: Issuing QUIT to {1}", Time(), nameBefore);
-                GetServer(muxer).Execute("QUIT", null);
-                var watch = Stopwatch.StartNew();
-                Assert.Throws<RedisConnectionException>(() => Log("Ping time: " + db.Ping().ToString()));
-                watch.Stop();
-                Log("Time to notice quit: {0}ms (any order)", watch.ElapsedMilliseconds);
-                await Task.Delay(20).ForAwait();
-                var nameAfter = muxer.GetConnectionName(ep, ConnectionType.Interactive);
-                Log("{0}: Not talking to {1}", Time(), nameAfter);
-                Assert.Equal(key, (string)db.StringGet(key));
-                Assert.NotEqual(nameBefore, nameAfter);
-            }
-        }
-
         [Fact(Skip = "Unfriendly to Redis 3.x on Windows...need to investigate")]
         public async Task TestSevered()
         {
