@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
@@ -9,6 +10,13 @@ namespace StackExchange.Redis.Tests
 {
     public class Transactions : TestBase
     {
+
+        protected override ConnectionMultiplexer Create(string clientName = null, int? syncTimeout = null, bool? allowAdmin = null, int? keepAlive = null, int? connectTimeout = null, string password = null, string tieBreaker = null, TextWriter log = null, bool fail = true, string[] disabledCommands = null, string[] enabledCommands = null, bool checkConnect = true, string failMessage = null, string channelPrefix = null, Proxy? proxy = null, string configuration = null, [CallerMemberName] string caller = null)
+        {
+            return base.Create(clientName, syncTimeout, allowAdmin, keepAlive, connectTimeout, password, tieBreaker,
+                TextWriter.Null, // <== the one I care about
+                fail, disabledCommands, enabledCommands, checkConnect, failMessage, channelPrefix, proxy, configuration, caller);
+        }
         public Transactions(ITestOutputHelper output) : base(output) { }
 
         [Fact]
@@ -764,7 +772,7 @@ namespace StackExchange.Redis.Tests
         [InlineData("", ComparisonType.GreaterThan, 0L, false)]
         public async Task BasicTranWithListLengthCondition(string value, ComparisonType type, long length, bool expectTranResult)
         {
-            using (var muxer = Create(log: TextWriter.Null))
+            using (var muxer = Create())
             {
                 RedisKey key = Me(), key2 = Me() + "2";
                 var db = muxer.GetDatabase();
@@ -903,7 +911,7 @@ namespace StackExchange.Redis.Tests
             try
             {
                 for (int i = 0; i < Muxers; i++)
-                    muxers[i] = Create(log: TextWriter.Null);
+                    muxers[i] = Create();
 
                 RedisKey hits = Me(), trigger = Me() + "3";
                 int expectedSuccess = 0;
@@ -958,8 +966,8 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task WatchAbort_StringEqual()
         {
-            using (var vic = Create(log: TextWriter.Null))
-            using (var perp = Create(log: TextWriter.Null))
+            using (var vic = Create())
+            using (var perp = Create())
             {
                 var key = Me();
                 var db = vic.GetDatabase();
@@ -983,8 +991,8 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task WatchAbort_HashLengthEqual()
         {
-            using (var vic = Create(log: TextWriter.Null))
-            using (var perp = Create(log: TextWriter.Null))
+            using (var vic = Create())
+            using (var perp = Create())
             {
                 var key = Me();
                 var db = vic.GetDatabase();
