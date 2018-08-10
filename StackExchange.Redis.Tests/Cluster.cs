@@ -711,7 +711,7 @@ namespace StackExchange.Redis.Tests
                 {
                     // expect 1 DEL, 1 SET, 1 GET (to right master), 1 GET (to wrong master) that was responded to by an ASK, and 1 GET (to right master or a slave of it)
                     Assert.Equal(5, msgs.Count);
-                    Assert.Equal(1, msgs.Count(c => c.Command == "DEL"));
+                    Assert.Equal(1, msgs.Count(c => c.Command == "DEL" || c.Command == "UNLINK"));
                     Assert.Equal(1, msgs.Count(c => c.Command == "SET"));
                     Assert.Equal(3, msgs.Count(c => c.Command == "GET"));
 
