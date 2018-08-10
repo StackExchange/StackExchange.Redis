@@ -308,8 +308,8 @@ return timeTaken
                     var complete = tran.ExecuteAsync();
 
                     Assert.True(muxer.Wait(complete));
-                    Assert.True(a.IsCompleted, a.Status.ToString());
-                    Assert.True(c.IsCompleted, "State: " + c.Status);
+                    Assert.True(QuickWait(a).IsCompleted, a.Status.ToString());
+                    Assert.True(QuickWait(c).IsCompleted, "State: " + c.Status);
                     Assert.Equal(1L, a.Result);
                     Assert.Equal(2L, c.Result);
 
@@ -322,6 +322,14 @@ return timeTaken
                 var afterTran = conn.StringGetAsync(key);
                 Assert.Equal(2L, (long)conn.Wait(afterTran));
             }
+        }
+        private static Task<T> QuickWait<T>(Task<T> task)
+        {
+            if (!task.IsCompleted)
+            {
+                try { task.Wait(200); } catch { }
+            }
+            return task;
         }
 
         [Fact]
