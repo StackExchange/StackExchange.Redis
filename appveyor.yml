@@ -40,7 +40,12 @@ install:
     redis-server.exe --service-install --service-name "redis-26380" "..\Sentinel\sentinel-26380.conf" --sentinel
 
     cd ..\..
-- sh: ./RedisConfigs/start-all.sh
+- sh: >-
+    cd RedisConfigs
+
+    ./start-all.sh
+
+    cd ..
 - ps: Start-Service redis-*
 
 skip_branch_with_pr: true
