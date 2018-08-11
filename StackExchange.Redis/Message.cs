@@ -593,7 +593,9 @@ namespace StackExchange.Redis
                 var accepted = resultProcessor.SetResult(connection, this, result);
                 if (!accepted)
                 {
-                    connection?.BridgeCouldBeNull?.Multiplexer?.OnMessageFaulted(this, null);
+                    var ex = new InvalidOperationException("Message rejected");
+                    ex.Data.Add("got", result.ToString());
+                    connection?.BridgeCouldBeNull?.Multiplexer?.OnMessageFaulted(this, ex);
                 }
                 return accepted;
             }
