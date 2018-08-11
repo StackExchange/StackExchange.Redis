@@ -1,4 +1,6 @@
-image: Visual Studio 2017
+image:
+- Visual Studio 2017
+- Ubuntu
 
 init:
   - git config --global core.autocrlf input
@@ -38,6 +40,7 @@ install:
     redis-server.exe --service-install --service-name "redis-26380" "..\Sentinel\sentinel-26380.conf" --sentinel
 
     cd ..\..
+- sh: ./RedisConfigs/start-all.sh
 - ps: Start-Service redis-*
 
 skip_branch_with_pr: true
