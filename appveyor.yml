@@ -48,7 +48,10 @@ install:
     ./start-all.sh
 
     cd ..
-- ps: >- if (Get-Command "Start-Service" -errorAction SilentlyContinue) { Start-Service redis-* }
+- ps: >-
+    if (Get-Command "Start-Service" -errorAction SilentlyContinue) {
+      Start-Service redis-*
+    }
 
 skip_branch_with_pr: true
 skip_tags: true
