@@ -24,7 +24,6 @@
     <DefaultLanguage>en-US</DefaultLanguage>
     <IncludeSymbols>false</IncludeSymbols>
 
-    <LibraryTargetFrameworks>netstandard2.0</LibraryTargetFrameworks>
     <xUnitVersion>2.4.0-beta.2.build3981</xUnitVersion>
   </PropertyGroup>
   <ItemGroup>

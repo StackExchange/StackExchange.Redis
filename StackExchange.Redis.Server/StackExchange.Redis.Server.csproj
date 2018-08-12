@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>$(LibraryTargetFrameworks)</TargetFrameworks>
+    <TargetFrameworks>netstandard2.0</TargetFrameworks>
     <Description>Basic redis server based on StackExchange.Redis</Description>
     <AssemblyTitle>StackExchange.Redis</AssemblyTitle>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>

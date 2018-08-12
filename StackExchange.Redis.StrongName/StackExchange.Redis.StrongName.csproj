@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>$(LibraryTargetFrameworks)</TargetFrameworks>
+    <TargetFrameworks>netstandard2.0</TargetFrameworks>
     <Description>High performance Redis client, incorporating both synchronous and asynchronous usage.</Description>
     <AssemblyTitle>StackExchange.Redis.StrongName</AssemblyTitle>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
@@ -13,7 +13,7 @@
     <LangVersion>latest</LangVersion>
   </PropertyGroup>
 
-  
+
   <ItemGroup>
     <ProjectReference Include="..\StackExchange.Redis\StackExchange.Redis.csproj" />
   </ItemGroup>
