@@ -1,5 +1,5 @@
 image:
-- Visual Studio 2017
+#- Visual Studio 2017
 - Ubuntu
 
 init:
@@ -43,10 +43,12 @@ install:
 - sh: >-
     cd RedisConfigs
 
+    chmod +x start-all.sh
+
     ./start-all.sh
 
     cd ..
-- ps: Start-Service redis-*
+- ps: >- if (Get-Command "Start-Service" -errorAction SilentlyContinue) { Start-Service redis-* }
 
 skip_branch_with_pr: true
 skip_tags: true
