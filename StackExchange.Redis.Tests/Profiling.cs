@@ -10,6 +10,7 @@ using StackExchange.Redis.Profiling;
 
 namespace StackExchange.Redis.Tests
 {
+    [Collection(NonParallelCollection.Name)]
     public class Profiling : TestBase
     {
         public Profiling(ITestOutputHelper output) : base(output) { }
