@@ -89,7 +89,7 @@ namespace StackExchange.Redis
 
         internal override T ExecuteSync<T>(Message message, ResultProcessor<T> processor, ServerEndPoint server = null)
         {
-            throw new NotSupportedException("ExecuteSync cannot be used inside a transaction");
+            throw new NotSupportedException("ExecuteSync cannot be used inside a batch");
         }
 
         private void FailNoServer(List<Message> messages)
