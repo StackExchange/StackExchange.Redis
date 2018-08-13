@@ -541,7 +541,7 @@ namespace StackExchange.Redis
 
         private readonly object SingleWriterLock = new object();
 
-        private int reentrantCount = 0;
+        private Message _activeMesssage;
         /// <summary>
         /// This writes a message to the output stream
         /// </summary>
@@ -565,9 +565,11 @@ namespace StackExchange.Redis
                     return WriteResult.TimeoutBeforeWrite;
                 }
 
-                if(reentrantCount++ != 0)
+                var existingMessage = Interlocked.CompareExchange(ref _activeMesssage, message, null);
+                if (existingMessage != null)
                 {
-                    Multiplexer?.OnInfoMessage("reentrant call to WriteMessageTakingWriteLock for " + message.CommandAndKey);
+                    Multiplexer?.OnInfoMessage($"reentrant call to WriteMessageTakingWriteLock for {message.CommandAndKey}, {existingMessage.CommandAndKey} is still active");
+                    return WriteResult.NoConnectionAvailable;
                 }
                 physical.SetWriting();
                 var messageIsSent = false;
@@ -608,7 +610,7 @@ namespace StackExchange.Redis
             {
                 if (haveLock)
                 {
-                    reentrantCount--;
+                    Interlocked.CompareExchange(ref _activeMesssage, null, message); // remove if it is us
                     Monitor.Exit(SingleWriterLock);
                 }
             }
@@ -834,5 +836,7 @@ namespace StackExchange.Redis
             }
             physical?.RecordConnectionFailed(ConnectionFailureType.SocketFailure);
         }
+
+        internal RedisCommand? GetActiveMessage() => Volatile.Read(ref _activeMesssage)?.Command;
     }
 }

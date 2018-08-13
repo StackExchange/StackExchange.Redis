@@ -12,7 +12,7 @@ namespace StackExchange.Redis.Tests
 {
     public class Profiling : TestBase
     {
-        public Profiling(ITestOutputHelper output) : base (output) { }
+        public Profiling(ITestOutputHelper output) : base(output) { }
 
         [Fact]
         public void Simple()
@@ -86,7 +86,7 @@ namespace StackExchange.Redis.Tests
             Assert.True(command.RetransmissionReason == null, nameof(command.RetransmissionReason));
         }
 
-        [Fact]
+        [FactLongRunning]
         public void ManyThreads()
         {
             using (var conn = Create())
@@ -201,6 +201,7 @@ namespace StackExchange.Redis.Tests
 
             public ProfilingSession GetSession() => perThreadSession.Value;
         }
+
         internal class AsyncLocalProfiler
         {
             private readonly AsyncLocal<ProfilingSession> perThreadSession = new AsyncLocal<ProfilingSession>();
@@ -208,7 +209,7 @@ namespace StackExchange.Redis.Tests
             public ProfilingSession GetSession()
             {
                 var val = perThreadSession.Value;
-                if(val == null)
+                if (val == null)
                 {
                     perThreadSession.Value = val = new ProfilingSession();
                 }
@@ -354,6 +355,7 @@ namespace StackExchange.Redis.Tests
                 Assert.True(perThreadTimings.All(kv => kv.Value.Count == 1000));
             }
         }
+
         [FactLongRunning]
         public async Task ProfilingMD_Ex2_Async()
         {
@@ -394,7 +396,7 @@ namespace StackExchange.Redis.Tests
                 }
 
                 Assert.Equal(16, perThreadTimings.Count);
-                foreach(var item in perThreadTimings)
+                foreach (var item in perThreadTimings)
                 {
                     Assert.Equal(100, item.Count);
                 }

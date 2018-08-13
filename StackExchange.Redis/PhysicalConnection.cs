@@ -56,7 +56,7 @@ namespace StackExchange.Redis
         private IDuplexPipe _ioPipe;
 
         private Socket _socket;
-        private Socket VolatileSocket => Interlocked.CompareExchange(ref _socket, null, null);
+        private Socket VolatileSocket => Volatile.Read(ref _socket);
 
         public PhysicalConnection(PhysicalBridge bridge)
         {
@@ -1345,7 +1345,7 @@ namespace StackExchange.Redis
                 // this CEX is just a hardcore "seriously, read the actual value" - there's no
                 // convenient "Thread.VolatileRead<T>(ref T field) where T : class", and I don't
                 // want to make the field volatile just for this one place that needs it
-                if (isReading && Interlocked.CompareExchange(ref _ioPipe, null, null) == null)
+                if (isReading && Volatile.Read(ref _ioPipe) == null)
                 {
                     // yeah, that's fine... don't worry about it
                 }
