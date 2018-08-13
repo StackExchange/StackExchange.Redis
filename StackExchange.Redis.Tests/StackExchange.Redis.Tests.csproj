@@ -14,6 +14,7 @@
   <ItemGroup>
     <None Update="*.json" CopyToOutputDirectory="Always" />
     <EmbeddedResource Include="*Config.json" />
+    <None Update="redislabs_ca.pem" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
@@ -30,11 +31,5 @@
 
   <ItemGroup Condition=" '$(TargetFramework)' == 'net462' ">
     <Reference Include="Microsoft.CSharp" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Update="redislabs_ca.pem">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
   </ItemGroup>
 </Project>

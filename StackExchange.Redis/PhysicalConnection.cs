@@ -42,7 +42,7 @@ namespace StackExchange.Redis
         // things sent to this physical, but not yet received
         private readonly Queue<Message> _writtenAwaitingResponse = new Queue<Message>();
 
-        private readonly string physicalName;
+        private readonly string _physicalName;
 
         private volatile int currentDatabase = 0;
 
@@ -56,6 +56,7 @@ namespace StackExchange.Redis
         private IDuplexPipe _ioPipe;
 
         private Socket _socket;
+        private Socket VolatileSocket => Interlocked.CompareExchange(ref _socket, null, null);
 
         public PhysicalConnection(PhysicalBridge bridge)
         {
@@ -66,7 +67,7 @@ namespace StackExchange.Redis
             ChannelPrefix = bridge.Multiplexer.RawConfig.ChannelPrefix;
             if (ChannelPrefix?.Length == 0) ChannelPrefix = null; // null tests are easier than null+empty
             var endpoint = bridge.ServerEndPoint.EndPoint;
-            physicalName = connectionType + "#" + Interlocked.Increment(ref totalCount) + "@" + Format.ToString(endpoint);
+            _physicalName = connectionType + "#" + Interlocked.Increment(ref totalCount) + "@" + Format.ToString(endpoint);
 
             OnCreateEcho();
         }
@@ -99,7 +100,7 @@ namespace StackExchange.Redis
                 {
                     _socketArgs.Completed += SocketAwaitable.Callback;
 
-                    var x = _socket;
+                    var x = VolatileSocket;
                     if (x == null)
                     {
                         awaitable.TryComplete(0, SocketError.ConnectionAborted);
@@ -125,7 +126,7 @@ namespace StackExchange.Redis
                         timeoutSource.Cancel();
                         timeoutSource.Dispose();
                     }
-                    var x = _socket;
+                    var x = VolatileSocket;
                     if (x == null)
                     {
                         ConnectionMultiplexer.TraceWithoutContext("Socket was already aborted");
@@ -217,7 +218,7 @@ namespace StackExchange.Redis
         private bool IncludeDetailInExceptions => BridgeCouldBeNull?.Multiplexer.IncludeDetailInExceptions ?? false;
 
         [Conditional("VERBOSE")]
-        internal void Trace(string message) => BridgeCouldBeNull?.Multiplexer?.Trace(message, physicalName);
+        internal void Trace(string message) => BridgeCouldBeNull?.Multiplexer?.Trace(message, ToString());
 
         public long SubscriptionCount { get; set; }
 
@@ -228,10 +229,8 @@ namespace StackExchange.Redis
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")]
         internal void Shutdown()
         {
-            var ioPipe = _ioPipe;
-            var socket = _socket;
-            _ioPipe = null;
-            _socket = null;
+            var ioPipe = Interlocked.Exchange(ref _ioPipe, null); // compare to the critical read
+            var socket = Interlocked.Exchange(ref _socket, null);
 
             if (ioPipe != null)
             {
@@ -255,7 +254,7 @@ namespace StackExchange.Redis
 
         public void Dispose()
         {
-            bool markDisposed = _socket != null;
+            bool markDisposed = VolatileSocket != null;
             Shutdown();
             if (markDisposed)
             {
@@ -269,17 +268,20 @@ namespace StackExchange.Redis
         private async Task AwaitedFlush(ValueTask<FlushResult> flush)
         {
             await flush;
-            Interlocked.Exchange(ref lastWriteTickCount, Environment.TickCount);
+            _writeStatus = WriteStatus.Flushed;
+            UpdateLastWriteTime();
         }
-
+        internal void UpdateLastWriteTime() => Interlocked.Exchange(ref lastWriteTickCount, Environment.TickCount);
         public Task FlushAsync()
         {
             var tmp = _ioPipe?.Output;
             if (tmp != null)
             {
+                _writeStatus = WriteStatus.Flushing;
                 var flush = tmp.FlushAsync();
                 if (!flush.IsCompletedSuccessfully) return AwaitedFlush(flush);
-                Interlocked.Exchange(ref lastWriteTickCount, Environment.TickCount);
+                _writeStatus = WriteStatus.Flushed;
+                UpdateLastWriteTime();
             }
             return Task.CompletedTask;
         }
@@ -333,7 +335,7 @@ namespace StackExchange.Redis
                         }
                         if (sc.BytesRead == 0) exMessage.Append(", 0-read");
                         if (sc.BytesSent == 0) exMessage.Append(", 0-sent");
-                        exMessage.Append(")");
+                        exMessage.Append(", last-recv: ").Append(sc.LastReceived).Append(")");
                     }
 
                     var data = new List<Tuple<string, string>>();
@@ -342,6 +344,7 @@ namespace StackExchange.Redis
                         if (bridge != null)
                         {
                             exMessage.Append(" on ").Append(Format.ToString(bridge.ServerEndPoint?.EndPoint)).Append("/").Append(connectionType)
+                                .Append(", ").Append(_writeStatus)
                                 .Append(", last: ").Append(bridge.LastCommand);
 
                             data.Add(Tuple.Create("FailureType", failureType.ToString()));
@@ -396,13 +399,21 @@ namespace StackExchange.Redis
                 while (_writtenAwaitingResponse.Count != 0)
                 {
                     var next = _writtenAwaitingResponse.Dequeue();
-                    var ex = innerException is RedisException ? innerException : outerException;
-                    if (bridge != null)
+
+                    if (next.Command == RedisCommand.QUIT && next.TrySetResult(true))
                     {
-                        bridge.Trace("Failing: " + next);
-                        bridge.Multiplexer?.OnMessageFaulted(next, ex, origin);
+                        // fine, death of a socket is close enough
                     }
-                    next.SetException(ex);
+                    else
+                    {
+                        var ex = innerException is RedisException ? innerException : outerException;
+                        if (bridge != null)
+                        {
+                            bridge.Trace("Failing: " + next);
+                            bridge.Multiplexer?.OnMessageFaulted(next, ex, origin);
+                        }
+                        next.SetException(ex);
+                    }
                     bridge.CompleteSyncOrAsync(next);
                 }
             }
@@ -411,10 +422,23 @@ namespace StackExchange.Redis
             Shutdown();
         }
 
-        public override string ToString()
+        internal bool IsIdle() => _writeStatus == WriteStatus.Idle;
+        internal void SetIdle() => _writeStatus = WriteStatus.Idle;
+        internal void SetWriting() => _writeStatus = WriteStatus.Writing;
+
+        private WriteStatus _writeStatus;
+        private enum WriteStatus
         {
-            return physicalName;
+            Initializing,
+            Idle,
+            Writing,
+            Flushing,
+            Flushed,
         }
+
+        /// <summary>Returns a string that represents the current object.</summary>
+        /// <returns>A string that represents the current object.</returns>
+        public override string ToString() => $"{_physicalName} ({_writeStatus})";
 
         internal static void IdentifyFailureType(Exception exception, ref ConnectionFailureType failureType)
         {
@@ -637,7 +661,7 @@ namespace StackExchange.Redis
         internal void WriteHeader(RedisCommand command, int arguments, CommandBytes commandBytes = default)
         {
             var bridge = BridgeCouldBeNull;
-            if (bridge == null) throw new ObjectDisposedException(physicalName);
+            if (bridge == null) throw new ObjectDisposedException(ToString());
 
             if (command == RedisCommand.UNKNOWN)
             {
@@ -799,15 +823,20 @@ namespace StackExchange.Redis
             return WriteCrlf(span, offset);
         }
 
-        internal WriteResult WakeWriterAndCheckForThrottle()
+        internal WriteResult FlushSync(bool throwOnFailure = false)
         {
+            var tmp = _ioPipe?.Output;
+            if (tmp == null) return WriteResult.NoConnectionAvailable;
             try
             {
-                var flush = _ioPipe.Output.FlushAsync();
+                _writeStatus = WriteStatus.Flushing;
+                var flush = tmp.FlushAsync();
                 if (!flush.IsCompletedSuccessfully) flush.AsTask().Wait();
+                _writeStatus = WriteStatus.Flushed;
+                UpdateLastWriteTime();
                 return WriteResult.Success;
             }
-            catch (ConnectionResetException ex)
+            catch (ConnectionResetException ex) when (!throwOnFailure)
             {
                 RecordConnectionFailed(ConnectionFailureType.SocketClosed, ex);
                 return WriteResult.WriteFailure;
@@ -1074,7 +1103,7 @@ namespace StackExchange.Redis
             writer.Advance(bytes);
         }
 
-        internal int GetAvailableInboundBytes() => _socket?.Available ?? -1;
+        internal int GetAvailableInboundBytes() => VolatileSocket?.Available ?? -1;
 
         private RemoteCertificateValidationCallback GetAmbientIssuerCertificateCallback()
         {
@@ -1168,7 +1197,7 @@ namespace StackExchange.Redis
                 {
                     pipe = SocketConnection.Create(socket, manager.SendPipeOptions, manager.ReceivePipeOptions, name: bridge.Name);
                 }
-                OnWrapForLogging(ref pipe, physicalName, manager);
+                OnWrapForLogging(ref pipe, _physicalName, manager);
 
                 _ioPipe = pipe;
 
@@ -1180,7 +1209,7 @@ namespace StackExchange.Redis
             catch (Exception ex)
             {
                 RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex, isInitialConnect: true, connectingPipe: pipe); // includes a bridge.OnDisconnected
-                bridge.Multiplexer.Trace("Could not connect: " + ex.Message, physicalName);
+                bridge.Multiplexer.Trace("Could not connect: " + ex.Message, ToString());
                 return false;
             }
         }
@@ -1274,9 +1303,9 @@ namespace StackExchange.Redis
 
         private async void ReadFromPipe() // yes it is an async void; deal with it!
         {
+            bool allowSyncRead = true, isReading = false;
             try
             {
-                bool allowSyncRead = true;
                 while (true)
                 {
                     var input = _ioPipe?.Input;
@@ -1284,10 +1313,12 @@ namespace StackExchange.Redis
 
                     // note: TryRead will give us back the same buffer in a tight loop
                     // - so: only use that if we're making progress
+                    isReading = true;
                     if (!(allowSyncRead && input.TryRead(out var readResult)))
                     {
                         readResult = await input.ReadAsync().ForAwait();
                     }
+                    isReading = false;
 
                     var buffer = readResult.Buffer;
                     int handled = 0;
@@ -1311,8 +1342,18 @@ namespace StackExchange.Redis
             }
             catch (Exception ex)
             {
-                Trace("Faulted");
-                RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
+                // this CEX is just a hardcore "seriously, read the actual value" - there's no
+                // convenient "Thread.VolatileRead<T>(ref T field) where T : class", and I don't
+                // want to make the field volatile just for this one place that needs it
+                if (isReading && Interlocked.CompareExchange(ref _ioPipe, null, null) == null)
+                {
+                    // yeah, that's fine... don't worry about it
+                }
+                else
+                {
+                    Trace("Faulted");
+                    RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
+                }
             }
         }
 

@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Runtime;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -90,6 +91,10 @@ namespace StackExchange.Redis.Tests
                     backgroundExceptions.Add(args.Exception.ToString());
                 }
             };
+            Console.WriteLine("Setup information:");
+            Console.WriteLine("  GC IsServer: " + GCSettings.IsServerGC);
+            Console.WriteLine("  GC LOH Mode: " + GCSettings.LargeObjectHeapCompactionMode);
+            Console.WriteLine("  GC Latency Mode: " + GCSettings.LatencyMode);
         }
         internal static string Time() => DateTime.UtcNow.ToString("HH:mm:ss.fff");
         protected void OnConnectionFailed(object sender, ConnectionFailedEventArgs e)
@@ -284,7 +289,7 @@ namespace StackExchange.Redis.Tests
                 };
                 muxer.Connecting += (e, t) => Writer.WriteLine($"Connecting to {Format.ToString(e)} as {t}");
                 muxer.TransactionLog += msg => { lock (Writer) { Writer.WriteLine("tran: " + msg); } };
-                muxer.Heartbeat += msg => Writer.WriteLine($"{Time()}: {msg}");
+                muxer.InfoMessage += msg => Writer.WriteLine(msg);
                 muxer.Resurrecting += (e, t) => Writer.WriteLine($"Resurrecting {Format.ToString(e)} as {t}");
                 muxer.Closing += complete => Writer.WriteLine(complete ? "Closed" : "Closing...");
                 return muxer;

@@ -88,7 +88,7 @@ namespace StackExchange.Redis
                 foreach (var pair in subscriptions)
                 {
                     var msg = pair.Value.ForSyncShutdown();
-                    if(msg != null) UnprocessableCompletionManager.CompleteSyncOrAsync(msg);
+                    if (msg != null) UnprocessableCompletionManager.CompleteSyncOrAsync(msg);
                     pair.Value.Remove(true, null);
                     pair.Value.Remove(false, null);
 
@@ -254,7 +254,7 @@ namespace StackExchange.Redis
 
         internal event Action<string, Exception, string> MessageFaulted;
         internal event Action<bool> Closing;
-        internal event Action<string> PreTransactionExec, TransactionLog, Heartbeat;
+        internal event Action<string> PreTransactionExec, TransactionLog, InfoMessage;
         internal event Action<EndPoint, ConnectionType> Connecting;
         internal event Action<EndPoint, ConnectionType> Resurrecting;
 
@@ -262,9 +262,9 @@ namespace StackExchange.Redis
         {
             MessageFaulted?.Invoke(msg?.CommandAndKey, fault, $"{origin} ({path}#{lineNumber})");
         }
-        internal void OnHeartbeat(string message)
+        internal void OnInfoMessage(string message)
         {
-            Heartbeat?.Invoke(message);
+            InfoMessage?.Invoke(message);
         }
 
         internal void OnClosing(bool complete)
@@ -320,18 +320,36 @@ namespace StackExchange.Redis
 
         public override TimeSpan Ping(CommandFlags flags = CommandFlags.None)
         {
-            // can't use regular PING, but we can unsubscribe from something random that we weren't even subscribed to...
-            RedisValue channel = Guid.NewGuid().ToByteArray();
-            var msg = ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.UNSUBSCRIBE, channel);
-            return ExecuteSync(msg, ResultProcessor.ResponseTimer);
+            var msg = CreatePingMessage(flags, out var server);
+            return ExecuteSync(msg, ResultProcessor.ResponseTimer, server);
         }
 
         public override Task<TimeSpan> PingAsync(CommandFlags flags = CommandFlags.None)
         {
-            // can't use regular PING, but we can unsubscribe from something random that we weren't even subscribed to...
-            RedisValue channel = Guid.NewGuid().ToByteArray();
-            var msg = ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.UNSUBSCRIBE, channel);
-            return ExecuteAsync(msg, ResultProcessor.ResponseTimer);
+            var msg = CreatePingMessage(flags, out var server);
+            return ExecuteAsync(msg, ResultProcessor.ResponseTimer, server);
+        }
+
+        private Message CreatePingMessage(CommandFlags flags, out ServerEndPoint server)
+        {
+            bool usePing = false;
+            server = null;
+            if (multiplexer.CommandMap.IsAvailable(RedisCommand.PING))
+            {
+                try { usePing = GetFeatures(-1, default, flags, out server).PingOnSubscriber; }
+                catch { }
+            }
+
+            if (usePing)
+            {
+                return ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.PING);
+            }
+            else
+            {
+                // can't use regular PING, but we can unsubscribe from something random that we weren't even subscribed to...
+                RedisValue channel = Guid.NewGuid().ToByteArray();
+                return ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.UNSUBSCRIBE, channel);
+            }
         }
 
         public long Publish(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None)

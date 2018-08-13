@@ -82,6 +82,13 @@ namespace StackExchange.Redis
             this.value = value;
         }
 
+        internal bool TrySetResult(T value)
+        {
+            if (_exception != null) return false;
+            this.value = value;
+            return true;
+        }
+
         public override bool IsAsync => stateOrCompletionSource is TaskCompletionSource<T>;
 
         public override bool TryComplete(bool isAsync)

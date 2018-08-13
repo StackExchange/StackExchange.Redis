@@ -235,6 +235,8 @@ namespace StackExchange.Redis
 
         internal void KeepAlive()
         {
+            if (!(physical?.IsIdle() ?? false)) return; // don't pile on if already doing something
+
             var commandMap = Multiplexer.CommandMap;
             Message msg = null;
             var features = ServerEndPoint.GetFeatures();
@@ -258,11 +260,13 @@ namespace StackExchange.Redis
                     }
                     break;
             }
+
             if (msg != null)
             {
                 msg.SetInternalCall();
                 Multiplexer.Trace("Enqueue: " + msg);
-                Multiplexer.OnHeartbeat($"heartbeat '{msg.CommandAndKey}' on '{PhysicalName}' (v{features.Version})");
+                Multiplexer.OnInfoMessage($"heartbeat ({physical?.LastWriteSecondsAgo}s >= {ServerEndPoint?.WriteEverySeconds}s, {physical?.GetSentAwaitingResponseCount()} waiting) '{msg.CommandAndKey}' on '{PhysicalName}' (v{features.Version})");
+                physical?.UpdateLastWriteTime(); // pre-emptively
                 var result = TryWrite(msg, ServerEndPoint.IsSlave);
 
                 if (result != WriteResult.Success)
@@ -375,6 +379,7 @@ namespace StackExchange.Redis
         internal void OnFullyEstablished(PhysicalConnection connection)
         {
             Trace("OnFullyEstablished");
+            connection?.SetIdle();
             if (physical == connection && !isDisposed && ChangeState(State.ConnectedEstablishing, State.ConnectedEstablished))
             {
                 reportNextFailure = reconfigureNextFailure = true;
@@ -456,7 +461,9 @@ namespace StackExchange.Redis
                                     OnDisconnected(ConnectionFailureType.SocketFailure, tmp, out bool ignore, out State oldState);
                                 }
                             }
-                            else if (tmp.GetSentAwaitingResponseCount() != 0)
+                            else if (writeEverySeconds <= 0 && tmp.IsIdle()
+                                && tmp.LastWriteSecondsAgo > 2
+                                && tmp.GetSentAwaitingResponseCount() != 0)
                             {
                                 // there's a chance this is a dead socket; sending data will shake that
                                 // up a bit, so if we have an empty unsent queue and a non-empty sent
@@ -534,6 +541,7 @@ namespace StackExchange.Redis
 
         private readonly object SingleWriterLock = new object();
 
+        private int reentrantCount = 0;
         /// <summary>
         /// This writes a message to the output stream
         /// </summary>
@@ -557,6 +565,11 @@ namespace StackExchange.Redis
                     return WriteResult.TimeoutBeforeWrite;
                 }
 
+                if(reentrantCount++ != 0)
+                {
+                    Multiplexer?.OnInfoMessage("reentrant call to WriteMessageTakingWriteLock for " + message.CommandAndKey);
+                }
+                physical.SetWriting();
                 var messageIsSent = false;
                 if (message is IMultiMessage)
                 {
@@ -588,11 +601,16 @@ namespace StackExchange.Redis
                 {
                     result = WriteMessageToServerInsideWriteLock(physical, message);
                 }
-                result = physical.WakeWriterAndCheckForThrottle();
+                result = physical.FlushSync();
+                physical.SetIdle();
             }
             finally
             {
-                if (haveLock) Monitor.Exit(SingleWriterLock);
+                if (haveLock)
+                {
+                    reentrantCount--;
+                    Monitor.Exit(SingleWriterLock);
+                }
             }
 
             return result;
