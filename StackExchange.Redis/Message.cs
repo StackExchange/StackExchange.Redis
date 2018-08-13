@@ -626,13 +626,16 @@ namespace StackExchange.Redis
         internal void SetRequestSent()
         {
             Status = CommandStatus.Sent;
+            performance?.SetRequestSent();
+        }
+        // the time (ticks) at which this message was considered written
+        internal void SetWriteTime()
+        {
             if ((Flags & NeedsAsyncTimeoutCheckFlag) != 0)
             {
                 _writeTickCount = Environment.TickCount; // note this might be reset if we resend a message, cluster-moved etc; I'm OK with that
             }
-            performance?.SetRequestSent();
         }
-        // the time (ticks) at which this message was considered written
         private int _writeTickCount;
 
         private void SetNeedsTimeoutCheck() => Flags |= NeedsAsyncTimeoutCheckFlag;

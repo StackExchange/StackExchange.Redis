@@ -454,6 +454,7 @@ namespace StackExchange.Redis
 
         internal void EnqueueInsideWriteLock(Message next)
         {
+            next.SetWriteTime();
             lock (_writtenAwaitingResponse)
             {
                 _writtenAwaitingResponse.Enqueue(next);
