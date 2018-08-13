@@ -155,8 +155,8 @@ namespace StackExchange.Redis
         {
             try
             {
-                Trace("Internal error: " + origin + ", " + exception == null ? "unknown" : exception.Message);
                 if (_isDisposed) return;
+                Trace("Internal error: " + origin + ", " + exception == null ? "unknown" : exception.Message);
                 var handler = InternalError;
                 if (handler != null)
                 {

@@ -1274,9 +1274,9 @@ namespace StackExchange.Redis
 
         private async void ReadFromPipe() // yes it is an async void; deal with it!
         {
+            bool allowSyncRead = true, isReading = false;
             try
             {
-                bool allowSyncRead = true;
                 while (true)
                 {
                     var input = _ioPipe?.Input;
@@ -1284,10 +1284,12 @@ namespace StackExchange.Redis
 
                     // note: TryRead will give us back the same buffer in a tight loop
                     // - so: only use that if we're making progress
+                    isReading = true;
                     if (!(allowSyncRead && input.TryRead(out var readResult)))
                     {
                         readResult = await input.ReadAsync().ForAwait();
                     }
+                    isReading = false;
 
                     var buffer = readResult.Buffer;
                     int handled = 0;
@@ -1311,8 +1313,18 @@ namespace StackExchange.Redis
             }
             catch (Exception ex)
             {
-                Trace("Faulted");
-                RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
+                // this CEX is just a hardcore "seriously, read the actual value" - there's no
+                // convenient "Thread.VolatileRead<T>(ref T field) where T : class", and I don't
+                // want to make the field volatile just for this one place that needs it
+                if (isReading && Interlocked.CompareExchange(ref _ioPipe, null, null) == null)
+                {
+                    // yeah, that's fine... don't worry about it
+                }
+                else
+                {
+                    Trace("Faulted");
+                    RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
+                }
             }
         }
 
