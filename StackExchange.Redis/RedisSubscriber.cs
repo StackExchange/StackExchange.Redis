@@ -320,18 +320,32 @@ namespace StackExchange.Redis
 
         public override TimeSpan Ping(CommandFlags flags = CommandFlags.None)
         {
-            // can't use regular PING, but we can unsubscribe from something random that we weren't even subscribed to...
-            RedisValue channel = Guid.NewGuid().ToByteArray();
-            var msg = ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.UNSUBSCRIBE, channel);
-            return ExecuteSync(msg, ResultProcessor.ResponseTimer);
+            var msg = CreatePingMessage(flags, out var server);
+            return ExecuteSync(msg, ResultProcessor.ResponseTimer, server);
         }
 
         public override Task<TimeSpan> PingAsync(CommandFlags flags = CommandFlags.None)
         {
-            // can't use regular PING, but we can unsubscribe from something random that we weren't even subscribed to...
-            RedisValue channel = Guid.NewGuid().ToByteArray();
-            var msg = ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.UNSUBSCRIBE, channel);
-            return ExecuteAsync(msg, ResultProcessor.ResponseTimer);
+            var msg = CreatePingMessage(flags, out var server);
+            return ExecuteAsync(msg, ResultProcessor.ResponseTimer, server);
+        }
+
+        private Message CreatePingMessage(CommandFlags flags, out ServerEndPoint server)
+        {
+            bool usePing;
+            try { usePing = GetFeatures(-1, default, flags, out server).PingOnSubscriber; }
+            catch { usePing = false; server = null; }
+
+            if (usePing)
+            {
+                return ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.PING);
+            }
+            else
+            {
+                // can't use regular PING, but we can unsubscribe from something random that we weren't even subscribed to...
+                RedisValue channel = Guid.NewGuid().ToByteArray();
+                return ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.UNSUBSCRIBE, channel);
+            }
         }
 
         public long Publish(RedisChannel channel, RedisValue message, CommandFlags flags = CommandFlags.None)
