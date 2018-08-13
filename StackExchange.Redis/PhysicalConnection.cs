@@ -56,6 +56,7 @@ namespace StackExchange.Redis
         private IDuplexPipe _ioPipe;
 
         private Socket _socket;
+        private Socket VolatileSocket => Interlocked.CompareExchange(ref _socket, null, null);
 
         public PhysicalConnection(PhysicalBridge bridge)
         {
@@ -99,7 +100,7 @@ namespace StackExchange.Redis
                 {
                     _socketArgs.Completed += SocketAwaitable.Callback;
 
-                    var x = _socket;
+                    var x = VolatileSocket;
                     if (x == null)
                     {
                         awaitable.TryComplete(0, SocketError.ConnectionAborted);
@@ -125,7 +126,7 @@ namespace StackExchange.Redis
                         timeoutSource.Cancel();
                         timeoutSource.Dispose();
                     }
-                    var x = _socket;
+                    var x = VolatileSocket;
                     if (x == null)
                     {
                         ConnectionMultiplexer.TraceWithoutContext("Socket was already aborted");
@@ -228,10 +229,8 @@ namespace StackExchange.Redis
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")]
         internal void Shutdown()
         {
-            var ioPipe = _ioPipe;
-            var socket = _socket;
-            _ioPipe = null;
-            _socket = null;
+            var ioPipe = Interlocked.Exchange(ref _ioPipe, null); // compare to the critical read
+            var socket = Interlocked.Exchange(ref _socket, null);
 
             if (ioPipe != null)
             {
@@ -255,7 +254,7 @@ namespace StackExchange.Redis
 
         public void Dispose()
         {
-            bool markDisposed = _socket != null;
+            bool markDisposed = VolatileSocket != null;
             Shutdown();
             if (markDisposed)
             {
@@ -1097,7 +1096,7 @@ namespace StackExchange.Redis
             writer.Advance(bytes);
         }
 
-        internal int GetAvailableInboundBytes() => _socket?.Available ?? -1;
+        internal int GetAvailableInboundBytes() => VolatileSocket?.Available ?? -1;
 
         private RemoteCertificateValidationCallback GetAmbientIssuerCertificateCallback()
         {
