@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace StackExchange.Redis
 {
@@ -47,6 +48,34 @@ namespace StackExchange.Redis
                 return true;
             }
             return false;
+        }
+
+        internal static string GetThreadPoolAndCPUSummary(bool includePerformanceCounters)
+        {
+            GetThreadPoolStats(out string iocp, out string worker);
+            var cpu = includePerformanceCounters ? GetSystemCpuPercent() : "n/a";
+            return $"IOCP: {iocp}, WORKER: {worker}, Local-CPU: {cpu}";
+        }
+
+        internal static string GetSystemCpuPercent()
+        {
+            return TryGetSystemCPU(out float systemCPU)
+                ? Math.Round(systemCPU, 2) + "%"
+                : "unavailable";
+        }
+
+        internal static int GetThreadPoolStats(out string iocp, out string worker)
+        {
+            ThreadPool.GetMaxThreads(out int maxWorkerThreads, out int maxIoThreads);
+            ThreadPool.GetAvailableThreads(out int freeWorkerThreads, out int freeIoThreads);
+            ThreadPool.GetMinThreads(out int minWorkerThreads, out int minIoThreads);
+
+            int busyIoThreads = maxIoThreads - freeIoThreads;
+            int busyWorkerThreads = maxWorkerThreads - freeWorkerThreads;
+
+            iocp = $"(Busy={busyIoThreads},Free={freeIoThreads},Min={minIoThreads},Max={maxIoThreads})";
+            worker = $"(Busy={busyWorkerThreads},Free={freeWorkerThreads},Min={minWorkerThreads},Max={maxWorkerThreads})";
+            return busyWorkerThreads;
         }
     }
 }
