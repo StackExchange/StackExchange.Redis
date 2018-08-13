@@ -264,7 +264,7 @@ namespace StackExchange.Redis
             {
                 msg.SetInternalCall();
                 Multiplexer.Trace("Enqueue: " + msg);
-                Multiplexer.OnInfoMessage($"heartbeat ({physical?.LastWriteSecondsAgo}s >= {ServerEndPoint?.WriteEverySeconds}s) '{msg.CommandAndKey}' on '{PhysicalName}' (v{features.Version})");
+                Multiplexer.OnInfoMessage($"heartbeat ({physical?.LastWriteSecondsAgo}s >= {ServerEndPoint?.WriteEverySeconds}s, {physical?.GetSentAwaitingResponseCount()} waiting) '{msg.CommandAndKey}' on '{PhysicalName}' (v{features.Version})");
                 physical?.UpdateLastWriteTime(); // pre-emptively
                 var result = TryWrite(msg, ServerEndPoint.IsSlave);
 

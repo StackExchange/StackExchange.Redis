@@ -335,7 +335,7 @@ namespace StackExchange.Redis
                         }
                         if (sc.BytesRead == 0) exMessage.Append(", 0-read");
                         if (sc.BytesSent == 0) exMessage.Append(", 0-sent");
-                        exMessage.Append(")");
+                        exMessage.Append(", last-recv: ").Append(sc.LastReceived).Append(")");
                     }
 
                     var data = new List<Tuple<string, string>>();
@@ -413,7 +413,6 @@ namespace StackExchange.Redis
             // burn the socket
             Shutdown();
         }
-
 
         internal bool IsIdle() => _writeStatus == WriteStatus.Idle;
         internal void SetIdle() => _writeStatus = WriteStatus.Idle;
