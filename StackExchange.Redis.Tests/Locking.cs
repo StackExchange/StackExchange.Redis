@@ -7,6 +7,7 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
+    [Collection(NonParallelCollection.Name)]
     public class Locking : TestBase
     {
         protected override string GetConfiguration() => TestConfig.Current.MasterServerAndPort;

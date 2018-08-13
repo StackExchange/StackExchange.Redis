@@ -426,7 +426,7 @@ namespace StackExchange.Redis
         internal void SetIdle() => _writeStatus = WriteStatus.Idle;
         internal void SetWriting() => _writeStatus = WriteStatus.Writing;
 
-        private WriteStatus _writeStatus;
+        private volatile WriteStatus _writeStatus;
         private enum WriteStatus
         {
             Initializing,
