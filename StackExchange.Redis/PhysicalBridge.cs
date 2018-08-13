@@ -262,7 +262,7 @@ namespace StackExchange.Redis
             {
                 msg.SetInternalCall();
                 Multiplexer.Trace("Enqueue: " + msg);
-                Multiplexer.OnHeartbeat($"heartbeat '{msg.CommandAndKey}' on '{PhysicalName}' (v{features.Version})");
+                Multiplexer.OnInfoMessage($"heartbeat '{msg.CommandAndKey}' on '{PhysicalName}' (v{features.Version})");
                 var result = TryWrite(msg, ServerEndPoint.IsSlave);
 
                 if (result != WriteResult.Success)
@@ -534,6 +534,7 @@ namespace StackExchange.Redis
 
         private readonly object SingleWriterLock = new object();
 
+        private int reentrantCount = 0;
         /// <summary>
         /// This writes a message to the output stream
         /// </summary>
@@ -557,6 +558,10 @@ namespace StackExchange.Redis
                     return WriteResult.TimeoutBeforeWrite;
                 }
 
+                if(reentrantCount++ != 0)
+                {
+                    Multiplexer?.OnInfoMessage("reentrant call to WriteMessageTakingWriteLock for " + message.CommandAndKey);
+                }
                 var messageIsSent = false;
                 if (message is IMultiMessage)
                 {
@@ -592,7 +597,11 @@ namespace StackExchange.Redis
             }
             finally
             {
-                if (haveLock) Monitor.Exit(SingleWriterLock);
+                if (haveLock)
+                {
+                    reentrantCount--;
+                    Monitor.Exit(SingleWriterLock);
+                }
             }
 
             return result;

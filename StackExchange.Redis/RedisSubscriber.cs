@@ -254,7 +254,7 @@ namespace StackExchange.Redis
 
         internal event Action<string, Exception, string> MessageFaulted;
         internal event Action<bool> Closing;
-        internal event Action<string> PreTransactionExec, TransactionLog, Heartbeat;
+        internal event Action<string> PreTransactionExec, TransactionLog, InfoMessage;
         internal event Action<EndPoint, ConnectionType> Connecting;
         internal event Action<EndPoint, ConnectionType> Resurrecting;
 
@@ -262,9 +262,9 @@ namespace StackExchange.Redis
         {
             MessageFaulted?.Invoke(msg?.CommandAndKey, fault, $"{origin} ({path}#{lineNumber})");
         }
-        internal void OnHeartbeat(string message)
+        internal void OnInfoMessage(string message)
         {
-            Heartbeat?.Invoke(message);
+            InfoMessage?.Invoke(message);
         }
 
         internal void OnClosing(bool complete)

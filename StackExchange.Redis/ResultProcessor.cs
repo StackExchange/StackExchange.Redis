@@ -1799,6 +1799,7 @@ The coordinates as a two items x,y array (longitude,latitude).
 
             public override bool SetResult(PhysicalConnection connection, Message message, RawResult result)
             {
+                connection?.BridgeCouldBeNull?.Multiplexer.OnInfoMessage($"got '{result}' for '{message.CommandAndKey}' on '{connection}'");
                 var final = base.SetResult(connection, message, result);
                 if (result.IsError)
                 {
