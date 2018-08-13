@@ -88,7 +88,7 @@ namespace StackExchange.Redis
                 foreach (var pair in subscriptions)
                 {
                     var msg = pair.Value.ForSyncShutdown();
-                    if(msg != null) UnprocessableCompletionManager.CompleteSyncOrAsync(msg);
+                    if (msg != null) UnprocessableCompletionManager.CompleteSyncOrAsync(msg);
                     pair.Value.Remove(true, null);
                     pair.Value.Remove(false, null);
 
@@ -332,9 +332,13 @@ namespace StackExchange.Redis
 
         private Message CreatePingMessage(CommandFlags flags, out ServerEndPoint server)
         {
-            bool usePing;
-            try { usePing = GetFeatures(-1, default, flags, out server).PingOnSubscriber; }
-            catch { usePing = false; server = null; }
+            bool usePing = false;
+            server = null;
+            if (multiplexer.CommandMap.IsAvailable(RedisCommand.PING))
+            {
+                try { usePing = GetFeatures(-1, default, flags, out server).PingOnSubscriber; }
+                catch { }
+            }
 
             if (usePing)
             {
