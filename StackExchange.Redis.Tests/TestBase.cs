@@ -7,6 +7,7 @@ using System.Linq;
 using System.Net;
 using System.Runtime;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
@@ -174,15 +175,6 @@ namespace StackExchange.Redis.Tests
             Log($"Service Counts: (Scheduler) Queue: {SocketManager.Shared?.SchedulerPool?.TotalServicedByQueue.ToString()}, Pool: {SocketManager.Shared?.SchedulerPool?.TotalServicedByPool.ToString()}, (Completion) Queue: {SocketManager.Shared?.CompletionPool?.TotalServicedByQueue.ToString()}, Pool: {SocketManager.Shared?.CompletionPool?.TotalServicedByPool.ToString()}");
         }
 
-        internal static Task Swallow(Task task)
-        {
-            task?.ContinueWith(t =>
-            {
-                if (t != null) GC.KeepAlive(t.Exception);
-            }, TaskContinuationOptions.OnlyOnFaulted);
-            return task;
-        }
-
         protected IServer GetServer(ConnectionMultiplexer muxer)
         {
             EndPoint[] endpoints = muxer.GetEndPoints();
@@ -208,6 +200,8 @@ namespace StackExchange.Redis.Tests
             throw new InvalidOperationException("Requires a master endpoint (found none)");
         }
 
+        private static readonly HashSet<GCHandle> ActiveMultiplexers = new HashSet<GCHandle>();
+
         protected virtual ConnectionMultiplexer Create(
             string clientName = null, int? syncTimeout = null, bool? allowAdmin = null, int? keepAlive = null,
             int? connectTimeout = null, string password = null, string tieBreaker = null, TextWriter log = null,
@@ -218,6 +212,7 @@ namespace StackExchange.Redis.Tests
             [CallerMemberName] string caller = null)
         {
             StringWriter localLog = null;
+            GCHandle handle;
             if(log == null)
             {
                 log = localLog = new StringWriter();
@@ -278,6 +273,10 @@ namespace StackExchange.Redis.Tests
                     Assert.False(fail, failMessage + "Server is not available");
                     Skip.Inconclusive(failMessage + "Server is not available");
                 }
+
+                handle = GCHandle.Alloc(muxer);
+                ActiveMultiplexers.Add(handle);
+
                 muxer.InternalError += OnInternalError;
                 muxer.ConnectionFailed += OnConnectionFailed;
                 muxer.MessageFaulted += (msg, ex, origin) =>
@@ -291,11 +290,18 @@ namespace StackExchange.Redis.Tests
                 muxer.Connecting += (e, t) => Writer.WriteLine($"Connecting to {Format.ToString(e)} as {t}");
                 if (logTransactionData)
                 {
-                    muxer.TransactionLog += msg => { Writer.WriteLine("tran: " + msg); };
+                    muxer.TransactionLog += msg => Writer.WriteLine("tran: " + msg);
                 }
                 muxer.InfoMessage += msg => Writer.WriteLine(msg);
                 muxer.Resurrecting += (e, t) => Writer.WriteLine($"Resurrecting {Format.ToString(e)} as {t}");
-                muxer.Closing += complete => Writer.WriteLine(complete ? "Closed" : "Closing...");
+                muxer.Closing += complete =>
+                {
+                    Writer.WriteLine((complete ? "Closed (" : "Closing... (") + ActiveMultiplexers.Count.ToString() + " remaining)");
+                    if (complete)
+                    {
+                        ActiveMultiplexers.Remove(handle);
+                    }
+                };
                 return muxer;
             }
             catch
