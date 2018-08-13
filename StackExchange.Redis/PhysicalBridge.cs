@@ -706,8 +706,8 @@ namespace StackExchange.Redis
                 var sel = connection.GetSelectDatabaseCommand(db, message);
                 if (sel != null)
                 {
-                    sel.WriteTo(connection);
                     connection.EnqueueInsideWriteLock(sel);
+                    sel.WriteTo(connection);
                     sel.SetRequestSent();
                     IncrementOpCount();
                 }
@@ -744,8 +744,8 @@ namespace StackExchange.Redis
                     var readmode = connection.GetReadModeCommand(isMasterOnly);
                     if (readmode != null)
                     {
-                        readmode.WriteTo(connection);
                         connection.EnqueueInsideWriteLock(readmode);
+                        readmode.WriteTo(connection);
                         readmode.SetRequestSent();
                         IncrementOpCount();
                     }
@@ -753,8 +753,8 @@ namespace StackExchange.Redis
                     if (message.IsAsking)
                     {
                         var asking = ReusableAskingCommand;
-                        asking.WriteTo(connection);
                         connection.EnqueueInsideWriteLock(asking);
+                        asking.WriteTo(connection);
                         asking.SetRequestSent();
                         IncrementOpCount();
                     }
@@ -772,9 +772,8 @@ namespace StackExchange.Redis
                         break;
                 }
 
-                //connection.EnqueueInsideWriteLock(message);
-                message.WriteTo(connection);
                 connection.EnqueueInsideWriteLock(message);
+                message.WriteTo(connection);
 
                 message.SetRequestSent();
                 IncrementOpCount();
@@ -795,21 +794,6 @@ namespace StackExchange.Redis
                     case RedisCommand.EXEC:
                         connection.SetUnknownDatabase();
                         break;
-                }
-                return WriteResult.Success;
-            }
-            catch (RedisCommandException ex)
-            {
-                Trace("Write failed: " + ex.Message);
-                message.Fail(ConnectionFailureType.InternalFailure, ex, null);
-                this.CompleteSyncOrAsync(message);
-                // this failed without actually writing; we're OK with that... unless there's a transaction
-
-                if (connection?.TransactionActive == true)
-                {
-                    // we left it in a broken state; need to kill the connection
-                    connection.RecordConnectionFailed(ConnectionFailureType.ProtocolFailure, ex);
-                    return WriteResult.WriteFailure;
                 }
                 return WriteResult.Success;
             }

@@ -457,7 +457,6 @@ namespace StackExchange.Redis
             lock (_writtenAwaitingResponse)
             {
                 _writtenAwaitingResponse.Enqueue(next);
-                if (_writtenAwaitingResponse.Count == 1) Monitor.Pulse(_writtenAwaitingResponse);
             }
         }
 
@@ -1271,11 +1270,7 @@ namespace StackExchange.Redis
             lock (_writtenAwaitingResponse)
             {
                 if (_writtenAwaitingResponse.Count == 0)
-                {
-                    // we could be racing with the writer, but this *really* shouldn't
-                    // be even remotely close
-                    Monitor.Wait(_writtenAwaitingResponse, 500);
-                }
+                    throw new InvalidOperationException("Received response with no message waiting: " + result.ToString());
                 msg = _writtenAwaitingResponse.Dequeue();
             }
 

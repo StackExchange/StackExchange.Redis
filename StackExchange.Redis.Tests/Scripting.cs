@@ -313,7 +313,7 @@ return timeTaken
                     Assert.Equal(1L, a.Result);
                     Assert.Equal(2L, c.Result);
 
-                    Assert.True(b.IsFaulted);
+                    Assert.True(QuickWait(b).IsFaulted, "should be faulted");
                     Assert.Single(b.Exception.InnerExceptions);
                     var ex = b.Exception.InnerExceptions.Single();
                     Assert.IsType<RedisServerException>(ex);
