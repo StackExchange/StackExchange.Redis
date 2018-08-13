@@ -399,13 +399,21 @@ namespace StackExchange.Redis
                 while (_writtenAwaitingResponse.Count != 0)
                 {
                     var next = _writtenAwaitingResponse.Dequeue();
-                    var ex = innerException is RedisException ? innerException : outerException;
-                    if (bridge != null)
+
+                    if (next.Command == RedisCommand.QUIT && next.TrySetResult(true))
                     {
-                        bridge.Trace("Failing: " + next);
-                        bridge.Multiplexer?.OnMessageFaulted(next, ex, origin);
+                        // fine, death of a socket is close enough
                     }
-                    next.SetException(ex);
+                    else
+                    {
+                        var ex = innerException is RedisException ? innerException : outerException;
+                        if (bridge != null)
+                        {
+                            bridge.Trace("Failing: " + next);
+                            bridge.Multiplexer?.OnMessageFaulted(next, ex, origin);
+                        }
+                        next.SetException(ex);
+                    }
                     bridge.CompleteSyncOrAsync(next);
                 }
             }

@@ -260,6 +260,7 @@ namespace StackExchange.Redis
                     }
                     break;
             }
+
             if (msg != null)
             {
                 msg.SetInternalCall();
@@ -460,7 +461,9 @@ namespace StackExchange.Redis
                                     OnDisconnected(ConnectionFailureType.SocketFailure, tmp, out bool ignore, out State oldState);
                                 }
                             }
-                            else if (tmp.GetSentAwaitingResponseCount() != 0)
+                            else if (writeEverySeconds <= 0 && tmp.IsIdle()
+                                && tmp.LastWriteSecondsAgo > 2
+                                && tmp.GetSentAwaitingResponseCount() != 0)
                             {
                                 // there's a chance this is a dead socket; sending data will shake that
                                 // up a bit, so if we have an empty unsent queue and a non-empty sent

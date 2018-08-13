@@ -619,6 +619,8 @@ namespace StackExchange.Redis
             resultBox?.SetException(exception);
         }
 
+        internal bool TrySetResult<T>(T value) => resultBox is ResultBox<T> typed && typed.TrySetResult(value);
+
         internal void SetEnqueued() => performance?.SetEnqueued();
 
         internal void SetRequestSent()
