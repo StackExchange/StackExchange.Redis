@@ -42,7 +42,7 @@ namespace StackExchange.Redis
         // things sent to this physical, but not yet received
         private readonly Queue<Message> _writtenAwaitingResponse = new Queue<Message>();
 
-        private readonly string physicalName;
+        private readonly string _physicalName;
 
         private volatile int currentDatabase = 0;
 
@@ -67,7 +67,7 @@ namespace StackExchange.Redis
             ChannelPrefix = bridge.Multiplexer.RawConfig.ChannelPrefix;
             if (ChannelPrefix?.Length == 0) ChannelPrefix = null; // null tests are easier than null+empty
             var endpoint = bridge.ServerEndPoint.EndPoint;
-            physicalName = connectionType + "#" + Interlocked.Increment(ref totalCount) + "@" + Format.ToString(endpoint);
+            _physicalName = connectionType + "#" + Interlocked.Increment(ref totalCount) + "@" + Format.ToString(endpoint);
 
             OnCreateEcho();
         }
@@ -218,7 +218,7 @@ namespace StackExchange.Redis
         private bool IncludeDetailInExceptions => BridgeCouldBeNull?.Multiplexer.IncludeDetailInExceptions ?? false;
 
         [Conditional("VERBOSE")]
-        internal void Trace(string message) => BridgeCouldBeNull?.Multiplexer?.Trace(message, physicalName);
+        internal void Trace(string message) => BridgeCouldBeNull?.Multiplexer?.Trace(message, ToString());
 
         public long SubscriptionCount { get; set; }
 
@@ -431,7 +431,7 @@ namespace StackExchange.Redis
 
         /// <summary>Returns a string that represents the current object.</summary>
         /// <returns>A string that represents the current object.</returns>
-        public override string ToString() => $"{physicalName} ({_writeStatus})";
+        public override string ToString() => $"{_physicalName} ({_writeStatus})";
 
         internal static void IdentifyFailureType(Exception exception, ref ConnectionFailureType failureType)
         {
@@ -654,7 +654,7 @@ namespace StackExchange.Redis
         internal void WriteHeader(RedisCommand command, int arguments, CommandBytes commandBytes = default)
         {
             var bridge = BridgeCouldBeNull;
-            if (bridge == null) throw new ObjectDisposedException(physicalName);
+            if (bridge == null) throw new ObjectDisposedException(ToString());
 
             if (command == RedisCommand.UNKNOWN)
             {
@@ -1190,7 +1190,7 @@ namespace StackExchange.Redis
                 {
                     pipe = SocketConnection.Create(socket, manager.SendPipeOptions, manager.ReceivePipeOptions, name: bridge.Name);
                 }
-                OnWrapForLogging(ref pipe, physicalName, manager);
+                OnWrapForLogging(ref pipe, _physicalName, manager);
 
                 _ioPipe = pipe;
 
@@ -1202,7 +1202,7 @@ namespace StackExchange.Redis
             catch (Exception ex)
             {
                 RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex, isInitialConnect: true, connectingPipe: pipe); // includes a bridge.OnDisconnected
-                bridge.Multiplexer.Trace("Could not connect: " + ex.Message, physicalName);
+                bridge.Multiplexer.Trace("Could not connect: " + ex.Message, ToString());
                 return false;
             }
         }
