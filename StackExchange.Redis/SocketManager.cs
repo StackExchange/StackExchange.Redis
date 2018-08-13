@@ -42,7 +42,7 @@ namespace StackExchange.Redis
                         shared = null;
                 }
                 finally { shared?.Dispose(); }
-                return Interlocked.CompareExchange(ref _shared, null, null);
+                return Volatile.Read(ref _shared);
             }
         }
 

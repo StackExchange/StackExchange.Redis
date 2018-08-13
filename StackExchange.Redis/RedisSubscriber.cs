@@ -216,7 +216,7 @@ namespace StackExchange.Redis
                 return oldOwner.WriteDirectAsync(msg, ResultProcessor.TrackSubscriptions, asyncState);
             }
 
-            internal ServerEndPoint GetOwner() => Interlocked.CompareExchange(ref owner, null, null);
+            internal ServerEndPoint GetOwner() => Volatile.Read(ref owner);
 
             internal void Resubscribe(RedisChannel channel, ServerEndPoint server)
             {
@@ -232,7 +232,7 @@ namespace StackExchange.Redis
             internal bool Validate(ConnectionMultiplexer multiplexer, RedisChannel channel)
             {
                 bool changed = false;
-                var oldOwner = Interlocked.CompareExchange(ref owner, null, null);
+                var oldOwner = Volatile.Read(ref owner);
                 if (oldOwner != null && !oldOwner.IsSelectable(RedisCommand.PSUBSCRIBE))
                 {
                     if (UnsubscribeFromServer(channel, CommandFlags.FireAndForget, null, true) != null)

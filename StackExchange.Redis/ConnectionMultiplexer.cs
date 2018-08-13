@@ -1216,7 +1216,7 @@ namespace StackExchange.Redis
             {
                 OnConfigurationChangedBroadcast(blame);
             }
-            string activeCause = Interlocked.CompareExchange(ref activeConfigCause, null, null);
+            string activeCause = Volatile.Read(ref activeConfigCause);
             if (activeCause == null)
             {
                 bool reconfigureAll = fromBroadcast || publishReconfigure;
@@ -2082,8 +2082,9 @@ namespace StackExchange.Redis
                         var bridge = server.GetBridge(message.Command, false);
                         if (bridge != null)
                         {
+                            var active = bridge.GetActiveMessage();
                             bridge.GetOutstandingCount(out var inst, out var qs, out var @in);
-                            counters = $", inst={inst}, qs={qs}, in={@in}";
+                            counters = $", inst={inst}, qs={qs}, in={@in}, active={active}";
                         }
                     }
                     catch { }
@@ -2271,8 +2272,7 @@ namespace StackExchange.Redis
         /// </summary>
         public string GetStormLog()
         {
-            var result = Interlocked.CompareExchange(ref stormLogSnapshot, null, null);
-            return result;
+            return Volatile.Read(ref stormLogSnapshot);
         }
         /// <summary>
         /// Resets the log of unusual busy patterns
