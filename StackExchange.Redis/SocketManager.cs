@@ -90,6 +90,9 @@ namespace StackExchange.Redis
         private DedicatedThreadPoolPipeScheduler _schedulerPool, _completionPool;
         internal readonly PipeOptions SendPipeOptions, ReceivePipeOptions;
 
+        internal DedicatedThreadPoolPipeScheduler SchedulerPool => _schedulerPool;
+        internal DedicatedThreadPoolPipeScheduler CompletionPool => _completionPool;
+
         private enum CallbackOperation
         {
             Read,
