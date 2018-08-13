@@ -746,7 +746,7 @@ return timeTaken
             Assert.Equal(1, LuaScript.GetCachedScriptCount());
         }
 
-        [Fact]
+        [FactLongRunning]
         public void PurgeLuaScriptOnFinalize()
         {
             const string Script = "redis.call('set', @PurgeLuaScriptOnFinalizeKey, @PurgeLuaScriptOnFinalizeValue)";
