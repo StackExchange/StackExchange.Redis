@@ -290,7 +290,7 @@ namespace StackExchange.Redis.Tests
                 muxer.Connecting += (e, t) => Writer.WriteLine($"Connecting to {Format.ToString(e)} as {t}");
                 if (logTransactionData)
                 {
-                    muxer.TransactionLog += msg => { lock (Writer) { Writer.WriteLine("tran: " + msg); } };
+                    muxer.TransactionLog += msg => { Writer.WriteLine("tran: " + msg); };
                 }
                 muxer.InfoMessage += msg => Writer.WriteLine(msg);
                 muxer.Resurrecting += (e, t) => Writer.WriteLine($"Resurrecting {Format.ToString(e)} as {t}");
