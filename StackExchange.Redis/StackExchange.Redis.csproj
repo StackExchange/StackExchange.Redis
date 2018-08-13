@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>$(LibraryTargetFrameworks)</TargetFrameworks>
+    <TargetFrameworks>netstandard2.0</TargetFrameworks>
     <Description>High performance Redis client, incorporating both synchronous and asynchronous usage.</Description>
     <AssemblyName>StackExchange.Redis</AssemblyName>
     <AssemblyTitle>StackExchange.Redis</AssemblyTitle>
@@ -17,7 +17,7 @@
   <PropertyGroup Condition="'$(Configuration)' == 'Debug' and '$(Computername)'=='OCHO'">
     <!--<DefineConstants>$(DefineConstants);LOGOUTPUT</DefineConstants>-->
   </PropertyGroup>
-  
+
   <ItemGroup>
     <PackageReference Include="Pipelines.Sockets.Unofficial" Version="0.2.1-alpha.80" />
     <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="4.5.0" />

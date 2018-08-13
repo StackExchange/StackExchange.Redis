@@ -623,7 +623,7 @@ namespace StackExchange.Redis
             {
                 var sb = new StringBuilder();
                 sb.Append(message);
-                busyWorkerCount = GetThreadPoolStats(out string iocp, out string worker);
+                busyWorkerCount = PerfCounterHelper.GetThreadPoolStats(out string iocp, out string worker);
                 sb.Append(", IOCP: ").Append(iocp).Append(", WORKER: ").Append(worker);
                 LogLocked(log, sb.ToString());
             }
@@ -2177,16 +2177,16 @@ namespace StackExchange.Redis
                             // only add keyslot if its a valid cluster key slot
                             if (hashSlot != ServerSelectionStrategy.NoSlot)
                             {
-                                add("Key-HashSlot", "keyHashSlot", message.GetHashSlot(this.ServerSelectionStrategy).ToString());
+                                add("Key-HashSlot", "PerfCounterHelperkeyHashSlot", message.GetHashSlot(this.ServerSelectionStrategy).ToString());
                             }
-                            int busyWorkerCount = GetThreadPoolStats(out string iocp, out string worker);
+                            int busyWorkerCount = PerfCounterHelper.GetThreadPoolStats(out string iocp, out string worker);
                             add("ThreadPool-IO-Completion", "IOCP", iocp);
                             add("ThreadPool-Workers", "WORKER", worker);
                             data.Add(Tuple.Create("Busy-Workers", busyWorkerCount.ToString()));
 
                             if (IncludePerformanceCountersInExceptions)
                             {
-                                add("Local-CPU", "Local-CPU", GetSystemCpuPercent());
+                                add("Local-CPU", "Local-CPU", PerfCounterHelper.GetSystemCpuPercent());
                             }
 
                             sb.Append(" (Please take a look at this article for some common client-side issues that can cause timeouts: ");
@@ -2220,33 +2220,6 @@ namespace StackExchange.Redis
                 Trace(message + " received " + val);
                 return val;
             }
-        }
-
-        internal static string GetThreadPoolAndCPUSummary(bool includePerformanceCounters)
-        {
-            GetThreadPoolStats(out string iocp, out string worker);
-            var cpu = includePerformanceCounters ? GetSystemCpuPercent() : "n/a";
-            return $"IOCP: {iocp}, WORKER: {worker}, Local-CPU: {cpu}";
-        }
-
-        private static string GetSystemCpuPercent()
-        {
-            return (PerfCounterHelper.TryGetSystemCPU(out float systemCPU))
-                ? Math.Round(systemCPU, 2) + "%"
-                : "unavailable";
-        }
-        private static int GetThreadPoolStats(out string iocp, out string worker)
-        {
-            ThreadPool.GetMaxThreads(out int maxWorkerThreads, out int maxIoThreads);
-            ThreadPool.GetAvailableThreads(out int freeWorkerThreads, out int freeIoThreads);
-            ThreadPool.GetMinThreads(out int minWorkerThreads, out int minIoThreads);
-
-            int busyIoThreads = maxIoThreads - freeIoThreads;
-            int busyWorkerThreads = maxWorkerThreads - freeWorkerThreads;
-
-            iocp = $"(Busy={busyIoThreads},Free={freeIoThreads},Min={minIoThreads},Max={maxIoThreads})";
-            worker = $"(Busy={busyWorkerThreads},Free={freeWorkerThreads},Min={minWorkerThreads},Max={maxWorkerThreads})";
-            return busyWorkerThreads;
         }
 
         /// <summary>

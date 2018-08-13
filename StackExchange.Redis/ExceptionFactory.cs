@@ -110,7 +110,7 @@ namespace StackExchange.Redis
 
             if (includeDetail)
             {
-                exceptionmessage.Append("; ").Append(ConnectionMultiplexer.GetThreadPoolAndCPUSummary(includePerformanceCounters));
+                exceptionmessage.Append("; ").Append(PerfCounterHelper.GetThreadPoolAndCPUSummary(includePerformanceCounters));
             }
 
             var ex = new RedisConnectionException(ConnectionFailureType.UnableToResolvePhysicalConnection, exceptionmessage.ToString(), innerException, message?.Status ?? CommandStatus.Unknown);
