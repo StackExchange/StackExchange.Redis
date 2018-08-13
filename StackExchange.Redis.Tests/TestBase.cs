@@ -213,7 +213,7 @@ namespace StackExchange.Redis.Tests
             bool fail = true, string[] disabledCommands = null, string[] enabledCommands = null,
             bool checkConnect = true, string failMessage = null,
             string channelPrefix = null, Proxy? proxy = null,
-            string configuration = null,
+            string configuration = null, bool logTransactionData = true,
             [CallerMemberName] string caller = null)
         {
             StringWriter localLog = null;
@@ -288,7 +288,10 @@ namespace StackExchange.Redis.Tests
                     }
                 };
                 muxer.Connecting += (e, t) => Writer.WriteLine($"Connecting to {Format.ToString(e)} as {t}");
-                muxer.TransactionLog += msg => { lock (Writer) { Writer.WriteLine("tran: " + msg); } };
+                if (logTransactionData)
+                {
+                    muxer.TransactionLog += msg => { lock (Writer) { Writer.WriteLine("tran: " + msg); } };
+                }
                 muxer.InfoMessage += msg => Writer.WriteLine(msg);
                 muxer.Resurrecting += (e, t) => Writer.WriteLine($"Resurrecting {Format.ToString(e)} as {t}");
                 muxer.Closing += complete => Writer.WriteLine(complete ? "Closed" : "Closing...");
