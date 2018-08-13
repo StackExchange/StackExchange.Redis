@@ -269,17 +269,20 @@ namespace StackExchange.Redis
         private async Task AwaitedFlush(ValueTask<FlushResult> flush)
         {
             await flush;
-            Interlocked.Exchange(ref lastWriteTickCount, Environment.TickCount);
+            _writeStatus = WriteStatus.Flushed;
+            UpdateLastWriteTime();
         }
-
+        internal void UpdateLastWriteTime() => Interlocked.Exchange(ref lastWriteTickCount, Environment.TickCount);
         public Task FlushAsync()
         {
             var tmp = _ioPipe?.Output;
             if (tmp != null)
             {
+                _writeStatus = WriteStatus.Flushing;
                 var flush = tmp.FlushAsync();
                 if (!flush.IsCompletedSuccessfully) return AwaitedFlush(flush);
-                Interlocked.Exchange(ref lastWriteTickCount, Environment.TickCount);
+                _writeStatus = WriteStatus.Flushed;
+                UpdateLastWriteTime();
             }
             return Task.CompletedTask;
         }
@@ -342,6 +345,7 @@ namespace StackExchange.Redis
                         if (bridge != null)
                         {
                             exMessage.Append(" on ").Append(Format.ToString(bridge.ServerEndPoint?.EndPoint)).Append("/").Append(connectionType)
+                                .Append(", ").Append(_writeStatus)
                                 .Append(", last: ").Append(bridge.LastCommand);
 
                             data.Add(Tuple.Create("FailureType", failureType.ToString()));
@@ -411,10 +415,20 @@ namespace StackExchange.Redis
             Shutdown();
         }
 
-        public override string ToString()
+        internal void SetIdle() => _writeStatus = WriteStatus.Idle;
+        internal void SetWriting() => _writeStatus = WriteStatus.Writing;
+
+        private WriteStatus _writeStatus;
+        private enum WriteStatus
         {
-            return physicalName;
+            Initializing,
+            Idle,
+            Writing,
+            Flushing,
+            Flushed,
         }
+
+        public override string ToString() => $"{physicalName} ({_writeStatus})";
 
         internal static void IdentifyFailureType(Exception exception, ref ConnectionFailureType failureType)
         {
@@ -799,15 +813,20 @@ namespace StackExchange.Redis
             return WriteCrlf(span, offset);
         }
 
-        internal WriteResult WakeWriterAndCheckForThrottle()
+        internal WriteResult FlushSync(bool throwOnFailure = false)
         {
+            var tmp = _ioPipe?.Output;
+            if (tmp == null) return WriteResult.NoConnectionAvailable;
             try
             {
-                var flush = _ioPipe.Output.FlushAsync();
+                _writeStatus = WriteStatus.Flushing;
+                var flush = tmp.FlushAsync();
                 if (!flush.IsCompletedSuccessfully) flush.AsTask().Wait();
+                _writeStatus = WriteStatus.Flushed;
+                UpdateLastWriteTime();
                 return WriteResult.Success;
             }
-            catch (ConnectionResetException ex)
+            catch (ConnectionResetException ex) when (!throwOnFailure)
             {
                 RecordConnectionFailed(ConnectionFailureType.SocketClosed, ex);
                 return WriteResult.WriteFailure;

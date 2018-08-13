@@ -263,6 +263,7 @@ namespace StackExchange.Redis
                 msg.SetInternalCall();
                 Multiplexer.Trace("Enqueue: " + msg);
                 Multiplexer.OnInfoMessage($"heartbeat '{msg.CommandAndKey}' on '{PhysicalName}' (v{features.Version})");
+                physical?.UpdateLastWriteTime(); // pre-emptively
                 var result = TryWrite(msg, ServerEndPoint.IsSlave);
 
                 if (result != WriteResult.Success)
@@ -375,6 +376,7 @@ namespace StackExchange.Redis
         internal void OnFullyEstablished(PhysicalConnection connection)
         {
             Trace("OnFullyEstablished");
+            connection?.SetIdle();
             if (physical == connection && !isDisposed && ChangeState(State.ConnectedEstablishing, State.ConnectedEstablished))
             {
                 reportNextFailure = reconfigureNextFailure = true;
@@ -562,6 +564,7 @@ namespace StackExchange.Redis
                 {
                     Multiplexer?.OnInfoMessage("reentrant call to WriteMessageTakingWriteLock for " + message.CommandAndKey);
                 }
+                physical.SetWriting();
                 var messageIsSent = false;
                 if (message is IMultiMessage)
                 {
@@ -593,7 +596,8 @@ namespace StackExchange.Redis
                 {
                     result = WriteMessageToServerInsideWriteLock(physical, message);
                 }
-                result = physical.WakeWriterAndCheckForThrottle();
+                result = physical.FlushSync();
+                physical.SetIdle();
             }
             finally
             {
