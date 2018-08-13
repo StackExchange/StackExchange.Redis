@@ -415,6 +415,8 @@ namespace StackExchange.Redis
             Shutdown();
         }
 
+
+        internal bool IsIdle() => _writeStatus == WriteStatus.Idle;
         internal void SetIdle() => _writeStatus = WriteStatus.Idle;
         internal void SetWriting() => _writeStatus = WriteStatus.Writing;
 
@@ -428,6 +430,8 @@ namespace StackExchange.Redis
             Flushed,
         }
 
+        /// <summary>Returns a string that represents the current object.</summary>
+        /// <returns>A string that represents the current object.</returns>
         public override string ToString() => $"{physicalName} ({_writeStatus})";
 
         internal static void IdentifyFailureType(Exception exception, ref ConnectionFailureType failureType)

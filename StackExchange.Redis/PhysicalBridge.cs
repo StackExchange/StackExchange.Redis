@@ -235,6 +235,8 @@ namespace StackExchange.Redis
 
         internal void KeepAlive()
         {
+            if (!(physical?.IsIdle() ?? false)) return; // don't pile on if already doing something
+
             var commandMap = Multiplexer.CommandMap;
             Message msg = null;
             var features = ServerEndPoint.GetFeatures();
