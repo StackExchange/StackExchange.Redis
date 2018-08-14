@@ -205,7 +205,7 @@ namespace StackExchange.Redis
                 {
                     for(int i = 0; i < inner.Length;i++)
                     {
-                        inner[i].Wrapped.SetExceptionAndComplete(exception, bridge);
+                        inner[i]?.Wrapped?.SetExceptionAndComplete(exception, bridge);
                     }
                 }
                 base.SetExceptionAndComplete(exception, bridge);
@@ -515,8 +515,12 @@ namespace StackExchange.Redis
                     // the pending tasks
                     foreach (var op in wrapped)
                     {
-                        op.Wrapped.Fail(ConnectionFailureType.ProtocolFailure, null, "transaction failure");
-                        bridge.CompleteSyncOrAsync(op.Wrapped);
+                        var inner = op?.Wrapped;
+                        if(inner != null)
+                        {
+                            inner.Fail(ConnectionFailureType.ProtocolFailure, null, "transaction failure");
+                            bridge.CompleteSyncOrAsync(inner);
+                        }
                     }
                 }
                 return false;
