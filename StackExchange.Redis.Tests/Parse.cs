@@ -56,7 +56,8 @@ namespace StackExchange.Redis.Tests
                 }
                 tail = next;
             }
-            var buffer = new ReadOnlySequence<byte>(chain, 0, tail, 0);
+            var buffer = new ReadOnlySequence<byte>(chain, 0, tail, 1);
+            Assert.Equal(bytes.Length, buffer.Length);
             ProcessMessages(buffer, expected);
 
 
