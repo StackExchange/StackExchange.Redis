@@ -9,10 +9,11 @@ namespace StackExchange.Redis.Tests
     public class Parse : TestBase
     {
         public Parse(ITestOutputHelper output) : base(output) { }
-        [Fact]
-        public void EvilParse()
+        [Theory]
+        [InlineData("$4\r\nPING\r\n$4\r\nPONG\r\n$4\r\r", 2)]
+        public void ParseAsSingleChunk(string ascii, int expected)
         {
-            ReadOnlySequence<byte> buffer = new ReadOnlySequence<byte>(Encoding.ASCII.GetBytes($"$4\r\nPING\r\n$4\r\nPONG\r\n"));
+            ReadOnlySequence<byte> buffer = new ReadOnlySequence<byte>(Encoding.ASCII.GetBytes(ascii));
 
 
             var reader = new BufferReader(buffer);
@@ -23,37 +24,31 @@ namespace StackExchange.Redis.Tests
                 Writer.WriteLine($"{result} - {result.GetString()}");
                 found++;
             }
-            Assert.Equal(2, found);
+            Assert.Equal(expected, found);
         }
 
         class FragmentedSegment : ReadOnlySequenceSegment<byte>
         {
+            public FragmentedSegment(long runningIndex, ReadOnlyMemory<byte> memory)
+            {
+                RunningIndex = runningIndex;
+                Memory = memory;
+            }
             public new FragmentedSegment Next
             {
                 get => (FragmentedSegment)base.Next;
                 set => base.Next = value;
             }
-            public new ReadOnlyMemory<byte> Memory
-            {
-                get => base.Memory;
-                set => base.Memory = value;
-            }
-            public new long RunningIndex
-            {
-                get => base.RunningIndex;
-                set => base.RunningIndex = value;
-            }
         }
-        [Fact]
-        public void EvilParse2()
+        [Theory]
+        [InlineData("$4\r\nPING\r\n$4\r\nPONG\r\n$4\r\r", 2)]
+        public void ParseAsLotsOfChunks(string ascii, int messages)
         {
-            var bytes = Encoding.ASCII.GetBytes($"$4\r\nPING\r\n$4\r\nPONG\r\n");
+            var bytes = Encoding.ASCII.GetBytes(ascii);
             FragmentedSegment chain = null, tail = null;
             for(int i = 0; i < bytes.Length; i++)
             {
-                var next = new FragmentedSegment();
-                next.RunningIndex = i;
-                next.Memory = new ReadOnlyMemory<byte>(bytes, i, 1);
+                var next = new FragmentedSegment(i, new ReadOnlyMemory<byte>(bytes, i, 1));
                 if(tail == null)
                 {
                     chain = next;
@@ -77,7 +72,7 @@ namespace StackExchange.Redis.Tests
                 Writer.WriteLine($"{result} - {result.GetString()}");
                 found++;
             }
-            Assert.Equal(2, found);
+            Assert.Equal(messages, found);
         }
     }
 }
