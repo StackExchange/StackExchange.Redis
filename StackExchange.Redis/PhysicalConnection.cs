@@ -1514,10 +1514,12 @@ namespace StackExchange.Redis
                     reader.Consume(1);
                     return ReadArray(in buffer, ref reader, includeDetilInExceptions, server);
                 default:
+                    // string s = Format.GetString(buffer);
                     if (allowInlineProtocol) return ParseInlineProtocol(ReadLineTerminatedString(ResultType.SimpleString, ref reader));
                     throw new InvalidOperationException("Unexpected response prefix: " + (char)prefix);
             }
         }
+
         private static RawResult ParseInlineProtocol(RawResult line)
         {
             if (!line.HasValue) return RawResult.Nil; // incomplete line

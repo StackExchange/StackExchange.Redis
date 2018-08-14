@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Globalization;
 using System.Net;
 using System.Numerics;
@@ -260,6 +261,25 @@ namespace StackExchange.Redis
                 return new IPEndPoint(address, port ?? 0);
             }
             return new DnsEndPoint(addressPart, port ?? 0);
+        }
+
+        internal static string GetString(ReadOnlySequence<byte> buffer)
+        {
+            if (buffer.IsSingleSegment) return GetString(buffer.First.Span);
+
+            var arr = ArrayPool<byte>.Shared.Rent(checked((int)buffer.Length));
+            var span = new Span<byte>(arr, 0, (int)buffer.Length);
+            buffer.CopyTo(span);
+            string s = GetString(span);
+            ArrayPool<byte>.Shared.Return(arr);
+            return s;
+        }
+        internal static unsafe string GetString(ReadOnlySpan<byte> span)
+        {
+            fixed (byte* ptr = &MemoryMarshal.GetReference(span))
+            {
+                return Encoding.UTF8.GetString(ptr, span.Length);
+            }
         }
     }
 }
