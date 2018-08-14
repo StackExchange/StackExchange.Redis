@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using StackExchange.Redis;
@@ -11,7 +12,13 @@ namespace TestConsole
     {
         private static void Main()
         {
-            RunCompetingBatchesOnSameMuxer();
+            Console.WriteLine($"{Environment.OSVersion} / {Environment.Version} / {(Environment.Is64BitProcess ? "64" : "32")}");
+            Console.WriteLine(RuntimeInformation.FrameworkDescription);
+            for (int i = 0; i < 500; i++)
+            {
+                Console.WriteLine(i);
+                RunCompetingBatchesOnSameMuxer();
+            }
         }
         static ConnectionMultiplexer Create()
         {
@@ -19,7 +26,7 @@ namespace TestConsole
             muxer.GetDatabase().Ping();
             return muxer;
         }
-        private const int IterationCount = 5000, InnerCount = 20;
+        private const int IterationCount = 500, InnerCount = 20;
         public static void RunCompetingBatchesOnSameMuxer()
         {
             using (var muxer = Create())
@@ -60,6 +67,7 @@ namespace TestConsole
                 }
                 batch.Execute();
                 db.Multiplexer.WaitAll(tasks);
+                if (i % 1000 == 0) Console.WriteLine(i);
             }
 
             var count = (long)db.StringGet(key);
@@ -78,6 +86,7 @@ namespace TestConsole
                 }
                 batch.Execute();
                 db.Multiplexer.WaitAll(tasks);
+                if (i % 1000 == 0) Console.WriteLine(i);
             }
         }
     }
