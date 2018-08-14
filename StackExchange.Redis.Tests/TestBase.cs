@@ -275,7 +275,10 @@ namespace StackExchange.Redis.Tests
                 }
 
                 handle = GCHandle.Alloc(muxer);
-                ActiveMultiplexers.Add(handle);
+                lock (ActiveMultiplexers)
+                {
+                    ActiveMultiplexers.Add(handle);
+                }
 
                 muxer.InternalError += OnInternalError;
                 muxer.ConnectionFailed += OnConnectionFailed;
@@ -296,11 +299,18 @@ namespace StackExchange.Redis.Tests
                 muxer.Resurrecting += (e, t) => Writer.WriteLine($"Resurrecting {Format.ToString(e)} as {t}");
                 muxer.Closing += complete =>
                 {
-                    Writer.WriteLine((complete ? "Closed (" : "Closing... (") + ActiveMultiplexers.Count.ToString() + " remaining)");
-                    if (complete)
+
+                    int count;
+                    lock(ActiveMultiplexers)
                     {
-                        ActiveMultiplexers.Remove(handle);
+                        count = ActiveMultiplexers.Count;
+                        if (complete)
+                        {
+                            ActiveMultiplexers.Remove(handle);
+                        }                        
                     }
+                    Writer.WriteLine((complete ? "Closed (" : "Closing... (") + count.ToString() + " remaining)");
+
                 };
                 return muxer;
             }
