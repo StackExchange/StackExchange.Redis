@@ -614,9 +614,10 @@ namespace StackExchange.Redis
             resultProcessor?.ConnectionFail(this, failure, innerException, annotation);
         }
 
-        internal void SetException(Exception exception)
+        internal virtual void SetExceptionAndComplete(Exception exception, PhysicalBridge bridge)
         {
             resultBox?.SetException(exception);
+            bridge.CompleteSyncOrAsync(this);
         }
 
         internal bool TrySetResult<T>(T value) => resultBox is ResultBox<T> typed && typed.TrySetResult(value);

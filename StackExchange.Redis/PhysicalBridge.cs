@@ -371,8 +371,7 @@ namespace StackExchange.Redis
                 if (next != null)
                 {
                     Multiplexer?.OnMessageFaulted(next, ex);
-                    next.SetException(ex);
-                    this.CompleteSyncOrAsync(next);
+                    next.SetExceptionAndComplete(ex, this);
                 }
             } while (next != null);
         }
@@ -603,8 +602,18 @@ namespace StackExchange.Redis
                 {
                     result = WriteMessageToServerInsideWriteLock(physical, message);
                 }
-                result = physical.FlushSync();
+
+                if (result == WriteResult.Success)
+                {
+                    result = physical.FlushSync();
+                }
                 physical.SetIdle();
+            }
+            catch (Exception ex)
+            {
+                var inner = new RedisConnectionException(ConnectionFailureType.InternalFailure, "Failed to write", ex);
+                message.SetExceptionAndComplete(inner, this);
+                result = WriteResult.WriteFailure;
             }
             finally
             {

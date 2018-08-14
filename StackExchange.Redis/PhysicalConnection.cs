@@ -403,6 +403,7 @@ namespace StackExchange.Redis
                     if (next.Command == RedisCommand.QUIT && next.TrySetResult(true))
                     {
                         // fine, death of a socket is close enough
+                        bridge.CompleteSyncOrAsync(next);
                     }
                     else
                     {
@@ -412,9 +413,8 @@ namespace StackExchange.Redis
                             bridge.Trace("Failing: " + next);
                             bridge.Multiplexer?.OnMessageFaulted(next, ex, origin);
                         }
-                        next.SetException(ex);
+                        next.SetExceptionAndComplete(ex, bridge);
                     }
-                    bridge.CompleteSyncOrAsync(next);
                 }
             }
 
@@ -589,8 +589,7 @@ namespace StackExchange.Redis
                         {
                             var timeoutEx = ExceptionFactory.Timeout(includeDetail, $"Timeout awaiting response ({elapsed}ms elapsed, timeout is {timeout}ms)", msg, server);
                             bridge.Multiplexer?.OnMessageFaulted(msg, timeoutEx);
-                            msg.SetException(timeoutEx); // tell the message that it is doomed
-                            bridge.CompleteSyncOrAsync(msg); // prod it - kicks off async continuations etc
+                            msg.SetExceptionAndComplete(timeoutEx, bridge); // tell the message that it is doomed
                             bridge.Multiplexer.OnAsyncTimeout();
                         }
                         // note: it is important that we **do not** remove the message unless we're tearing down the socket; that
