@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -22,7 +23,13 @@ namespace TestConsole
         }
         static ConnectionMultiplexer Create()
         {
-            var muxer = ConnectionMultiplexer.Connect("localhost:6379");
+            var options = new ConfigurationOptions
+            {
+                EndPoints = { "localhost:6379" },
+                SyncTimeout = int.MaxValue,
+                // CommandMap = CommandMap.Create(new HashSet<string> { "subscribe", "psubscsribe", "publish" }, false),
+            };
+            var muxer = ConnectionMultiplexer.Connect(options);
             muxer.GetDatabase().Ping();
             return muxer;
         }
@@ -82,7 +89,7 @@ namespace TestConsole
                 var batch = db.CreateBatch();
                 for (int j = 0; j < tasks.Length; j++)
                 {
-                    tasks[j] = batch.PingAsync();
+                    tasks[j] = batch.ExecuteAsync("echo", "echo" + j);
                 }
                 batch.Execute();
                 db.Multiplexer.WaitAll(tasks);

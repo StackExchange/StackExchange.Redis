@@ -13,8 +13,20 @@ namespace StackExchange.Redis.Tests
 
         public static IEnumerable<object[]> GetTestData()
         {
+            yield return new object[] { "$4\r\nPING\r\n$4\r\nPON", 1 };
+            yield return new object[] { "$4\r\nPING\r\n$4\r\nPONG", 1 };
+            yield return new object[] { "$4\r\nPING\r\n$4\r\nPONG\r", 1 };
             yield return new object[] { "$4\r\nPING\r\n$4\r\nPONG\r\n", 2 };
+            yield return new object[] { "$4\r\nPING\r\n$4\r\nPONG\r\n$4", 2 };
             yield return new object[] { "$4\r\nPING\r\n$4\r\nPONG\r\n$4\r", 2 };
+            yield return new object[] { "$4\r\nPING\r\n$4\r\nPONG\r\n$4\r\n", 2 };
+            yield return new object[] { "$4\r\nPING\r\n$4\r\nPONG\r\n$4\r\nP", 2 };
+            yield return new object[] { "$4\r\nPING\r\n$4\r\nPONG\r\n$4\r\nPO", 2 };
+            yield return new object[] { "$4\r\nPING\r\n$4\r\nPONG\r\n$4\r\nPON", 2 };
+            yield return new object[] { "$4\r\nPING\r\n$4\r\nPONG\r\n$4\r\nPONG", 2 };
+            yield return new object[] { "$4\r\nPING\r\n$4\r\nPONG\r\n$4\r\nPONG\r", 2 };
+            yield return new object[] { "$4\r\nPING\r\n$4\r\nPONG\r\n$4\r\nPONG\r\n", 3 };
+            yield return new object[] { "$4\r\nPING\r\n$4\r\nPONG\r\n$4\r\nPONG\r\n$", 3 };
         }
         [Theory]
         [MemberData(nameof(GetTestData))]
