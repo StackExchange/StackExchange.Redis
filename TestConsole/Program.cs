@@ -1,4 +1,8 @@
 ﻿using System;
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
+using System.Threading;
+using System.Threading.Tasks;
 using StackExchange.Redis;
 
 namespace TestConsole
@@ -7,97 +11,74 @@ namespace TestConsole
     {
         private static void Main()
         {
-            using (var muxer = ConnectionMultiplexer.Connect("localhost:6379", Console.Out))
+            RunCompetingBatchesOnSameMuxer();
+        }
+        static ConnectionMultiplexer Create()
+        {
+            var muxer = ConnectionMultiplexer.Connect("localhost:6379");
+            muxer.GetDatabase().Ping();
+            return muxer;
+        }
+        private const int IterationCount = 5000, InnerCount = 20;
+        public static void RunCompetingBatchesOnSameMuxer()
+        {
+            using (var muxer = Create())
             {
-                muxer.GetDatabase().Ping();
+                var db = muxer.GetDatabase();
+
+                Thread x = new Thread(state => BatchRunPings((IDatabase)state));
+                x.Name = nameof(BatchRunPings);
+                Thread y = new Thread(state => BatchRunIntegers((IDatabase)state));
+                y.Name = nameof(BatchRunIntegers);
+
+                var watch = Stopwatch.StartNew();
+                x.Start(db);
+                y.Start(db);
+                x.Join();
+                y.Join();
+                watch.Stop();
+                Console.WriteLine($"{watch.ElapsedMilliseconds}ms");
+                Console.WriteLine(muxer.GetCounters().Interactive);
+                Console.WriteLine($"Service Counts: {SocketManager.Shared}");
             }
         }
-        //private static async Task Main2()
-        //{
-        //    const int ClientCount = 150, ConnectionCount = 10;
-        //    CancellationTokenSource cancel = new CancellationTokenSource();
 
-        //    var config = new ConfigurationOptions
-        //    {
-        //        EndPoints = { new IPEndPoint(IPAddress.Loopback, 6379) }
-        //    };
-        //    var muxers = new ConnectionMultiplexer[ConnectionCount];
-        //    try
-        //    {
-        //        for (int i = 0; i < muxers.Length; i++)
-        //        {
-        //            muxers[i] = await ConnectionMultiplexer.ConnectAsync(config);
-        //        }
-        //        var tasks = new Task[ClientCount + 1];
-        //        tasks[0] = Task.Run(() => ShowState(cancel.Token));
+        static RedisKey Me([CallerMemberName]string caller = null) => caller;
 
-        //        for (int i = 1; i < tasks.Length; i++)
-        //        {
-        //            var db = muxers[i % muxers.Length].GetDatabase();
-        //            int seed = i;
-        //            var key = "test_client_" + i;
-        //            tasks[i] = Task.Run(() => RunClient(key, seed, db, cancel.Token));
-        //        }
+        private static void BatchRunIntegers(IDatabase db)
+        {
+            var key = Me();
+            db.KeyDelete(key);
+            db.StringSet(key, 1);
+            Task[] tasks = new Task[InnerCount];
+            for (int i = 0; i < IterationCount; i++)
+            {
+                var batch = db.CreateBatch();
+                for (int j = 0; j < tasks.Length; j++)
+                {
+                    tasks[j] = batch.StringIncrementAsync(key);
+                }
+                batch.Execute();
+                db.Multiplexer.WaitAll(tasks);
+            }
 
-        //        Console.ReadLine();
-        //        cancel.Cancel();
-        //        await Task.WhenAll(tasks);
-        //    }
-        //    finally
-        //    {
-        //        for (int i = 0; i < muxers.Length; i++)
-        //        {
-        //            try { muxers[i]?.Dispose(); } catch { }
-        //        }
-        //    }
-        //}
+            var count = (long)db.StringGet(key);
+            Console.WriteLine($"tally: {count}");
+        }
 
-        //private static int clients;
-        //private static long totalPings, pings, lastTicks;
-        //private static async Task ShowState(CancellationToken cancellation)
-        //{
-        //    while (!cancellation.IsCancellationRequested)
-        //    {
-        //        await Task.Delay(2000);
-        //        var nowTicks = DateTime.UtcNow.Ticks;
-        //        var thenTicks = Interlocked.Exchange(ref lastTicks, nowTicks);
-        //        long pingsInInterval = Interlocked.Exchange(ref pings, 0);
-        //        var newTotalPings = Interlocked.Add(ref totalPings, pingsInInterval);
-
-        //        var deltaTicks = nowTicks - thenTicks;
-
-        //        Console.WriteLine($"[{Thread.VolatileRead(ref clients)}], Pings: {newTotalPings} ({pingsInInterval}, {Rate(pingsInInterval, deltaTicks)}/s)");
-        //    }
-        //}
-
-        //private static string Rate(long pingsInInterval, long deltaTicks)
-        //{
-        //    if (deltaTicks == 0) return "n/a";
-        //    if (pingsInInterval == 0) return "0";
-
-        //    var seconds = ((decimal)deltaTicks) / TimeSpan.TicksPerSecond;
-        //    return (pingsInInterval / seconds).ToString("0.0");
-        //}
-
-        //private static async Task RunClient(RedisKey key, int seed, IDatabase db, CancellationToken cancellation)
-        //{
-        //    Interlocked.Increment(ref clients);
-        //    try
-        //    {
-        //        while (!cancellation.IsCancellationRequested)
-        //        {
-        //            await db.PingAsync();
-        //            Interlocked.Increment(ref pings);
-        //        }
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        Console.Error.WriteLine(ex.Message);
-        //    }
-        //    finally
-        //    {
-        //        Interlocked.Decrement(ref clients);
-        //    }
-        //}
+        private static void BatchRunPings(IDatabase db)
+        {
+            Task[] tasks = new Task[InnerCount];
+            for (int i = 0; i < IterationCount; i++)
+            {
+                var batch = db.CreateBatch();
+                for (int j = 0; j < tasks.Length; j++)
+                {
+                    tasks[j] = batch.PingAsync();
+                }
+                batch.Execute();
+                db.Multiplexer.WaitAll(tasks);
+            }
+        }
     }
 }

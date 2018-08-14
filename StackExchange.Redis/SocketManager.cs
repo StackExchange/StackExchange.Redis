@@ -28,7 +28,10 @@ namespace StackExchange.Redis
         public SocketManager(string name = null)
             : this(name, false, DEFAULT_MIN_THREADS, DEFAULT_MAX_THREADS) { }
 
-        internal static SocketManager Shared
+        /// <summary>
+        /// Default / shared socket manager
+        /// </summary>
+        public static SocketManager Shared
         {
             get
             {
@@ -44,6 +47,16 @@ namespace StackExchange.Redis
                 finally { shared?.Dispose(); }
                 return Volatile.Read(ref _shared);
             }
+        }
+
+        /// <summary>Returns a string that represents the current object.</summary>
+        /// <returns>A string that represents the current object.</returns>
+        public override string ToString()
+        {
+            var scheduler = SchedulerPool;
+            var comp = CompletionPool;
+
+            return $"scheduler - queue: {scheduler?.TotalServicedByQueue}, pool: {scheduler?.TotalServicedByPool}; completion - queue: {comp ?.TotalServicedByQueue}, pool: {comp?.TotalServicedByPool}";
         }
 
         private static SocketManager _shared;
