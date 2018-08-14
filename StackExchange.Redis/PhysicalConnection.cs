@@ -1341,15 +1341,24 @@ namespace StackExchange.Redis
                 // this CEX is just a hardcore "seriously, read the actual value" - there's no
                 // convenient "Thread.VolatileRead<T>(ref T field) where T : class", and I don't
                 // want to make the field volatile just for this one place that needs it
-                if (isReading && Volatile.Read(ref _ioPipe) == null)
+                if (isReading)
                 {
-                    // yeah, that's fine... don't worry about it
+                    var pipe = Volatile.Read(ref _ioPipe);
+                    if (pipe == null)
+                    {
+                        return;
+                        // yeah, that's fine... don't worry about it; we nuked it
+                    }
+
+                    // check for confusing read errors - no need to present "Reading is not allowed after reader was completed."
+                    if (pipe is SocketConnection sc && sc.ShutdownKind == PipeShutdownKind.ReadEndOfStream)
+                    {
+                        RecordConnectionFailed(ConnectionFailureType.SocketClosed, new EndOfStreamException());
+                        return;
+                    }
                 }
-                else
-                {
-                    Trace("Faulted");
-                    RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
-                }
+                Trace("Faulted");
+                RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);
             }
         }
 

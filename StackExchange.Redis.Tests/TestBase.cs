@@ -307,7 +307,7 @@ namespace StackExchange.Redis.Tests
                         if (complete)
                         {
                             ActiveMultiplexers.Remove(handle);
-                        }                        
+                        }
                     }
                     Writer.WriteLine((complete ? "Closed (" : "Closing... (") + count.ToString() + " remaining)");
 
