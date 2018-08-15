@@ -396,12 +396,16 @@ namespace StackExchange.Redis.Tests
                     }
                 }
 
+                Log("Awaiting completion.");
                 await subChannel.Completion;
+                Log("Completion awaited.");
                 await Assert.ThrowsAsync<ChannelClosedException>(async delegate
                 {
                     var final = await subChannel.ReadAsync().ForAwait();
                 }).ForAwait();
+                Log("End of muxer.");
             }
+            Log("End of test.");
         }
 
         [Fact]
@@ -455,13 +459,17 @@ namespace StackExchange.Redis.Tests
                     }
                 }
 
+                Log("Awaiting completion.");
                 await subChannel.Completion;
+                Log("Completion awaited.");
                 Assert.True(subChannel.Completion.IsCompleted);
                 await Assert.ThrowsAsync<ChannelClosedException>(async delegate
                 {
                     var final = await subChannel.ReadAsync().ForAwait();
                 }).ForAwait();
+                Log("End of muxer.");
             }
+            Log("End of test.");
         }
 
         [Fact]
@@ -516,13 +524,17 @@ namespace StackExchange.Redis.Tests
                     }
                 }
 
+                Log("Awaiting completion.");
                 await subChannel.Completion;
+                Log("Completion awaited.");
                 Assert.True(subChannel.Completion.IsCompleted);
                 await Assert.ThrowsAsync<ChannelClosedException>(async delegate
                 {
                     var final = await subChannel.ReadAsync().ForAwait();
                 }).ForAwait();
+                Log("End of muxer.");
             }
+            Log("End of test.");
         }
 
         [Fact]
