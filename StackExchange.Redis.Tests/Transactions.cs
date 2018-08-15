@@ -897,7 +897,7 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-#if !VERBOSE
+#if VERBOSE
         [Fact]
         public async Task WatchAbort_StringEqual()
         {
