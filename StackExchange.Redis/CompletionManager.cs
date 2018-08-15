@@ -8,6 +8,9 @@ namespace StackExchange.Redis
         public static void CompleteSyncOrAsync(this PhysicalBridge bridge, ICompletable operation)
             => CompletionManager.CompleteSyncOrAsyncImpl(bridge?.completionManager, operation);
 
+        public static void IncrementSyncCount(this PhysicalBridge bridge)
+            => bridge?.completionManager?.IncrementSyncCount();
+
         public static void CompleteAsync(this PhysicalBridge bridge, ICompletable operation)
             => CompletionManager.CompleteAsync(bridge?.completionManager, operation);
 
@@ -22,6 +25,8 @@ namespace StackExchange.Redis
             if (manager != null) manager.PerInstanceCompleteSyncOrAsync(operation);
             else SharedCompleteSyncOrAsync(operation);
         }
+
+        internal void IncrementSyncCount() => Interlocked.Increment(ref completedSync);
 
         internal static void CompleteAsync(CompletionManager manager, ICompletable operation)
         {
