@@ -41,7 +41,7 @@ namespace StackExchange.Redis.Tests
                     // it all goes to the server and back
                     for (int i = 0; i < COUNT; i++)
                     {
-                        sub.Publish(channel, i);
+                        sub.Publish(channel, i, CommandFlags.FireAndForget);
                     }
 
                     Log("Allowing time for delivery etc...");
