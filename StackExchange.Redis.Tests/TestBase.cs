@@ -200,8 +200,6 @@ namespace StackExchange.Redis.Tests
             throw new InvalidOperationException("Requires a master endpoint (found none)");
         }
 
-        private static readonly HashSet<GCHandle> ActiveMultiplexers = new HashSet<GCHandle>();
-
         protected virtual ConnectionMultiplexer Create(
             string clientName = null, int? syncTimeout = null, bool? allowAdmin = null, int? keepAlive = null,
             int? connectTimeout = null, string password = null, string tieBreaker = null, TextWriter log = null,
@@ -212,7 +210,6 @@ namespace StackExchange.Redis.Tests
             [CallerMemberName] string caller = null)
         {
             StringWriter localLog = null;
-            GCHandle handle;
             if(log == null)
             {
                 log = localLog = new StringWriter();
@@ -274,12 +271,6 @@ namespace StackExchange.Redis.Tests
                     Skip.Inconclusive(failMessage + "Server is not available");
                 }
 
-                handle = GCHandle.Alloc(muxer);
-                lock (ActiveMultiplexers)
-                {
-                    ActiveMultiplexers.Add(handle);
-                }
-
                 muxer.InternalError += OnInternalError;
                 muxer.ConnectionFailed += OnConnectionFailed;
                 muxer.MessageFaulted += (msg, ex, origin) =>
@@ -297,19 +288,7 @@ namespace StackExchange.Redis.Tests
                 }
                 muxer.InfoMessage += msg => Writer.WriteLine(msg);
                 muxer.Resurrecting += (e, t) => Writer.WriteLine($"Resurrecting {Format.ToString(e)} as {t}");
-                muxer.Closing += complete =>
-                {
-                    int count;
-                    lock(ActiveMultiplexers)
-                    {
-                        count = ActiveMultiplexers.Count;
-                        if (complete)
-                        {
-                            ActiveMultiplexers.Remove(handle);
-                        }
-                    }
-                    Writer.WriteLine((complete ? "Closed (" : "Closing... (") + count.ToString() + " remaining)");
-                };
+                muxer.Closing += complete => Writer.WriteLine(complete ? "Closed" : "Closing...");
                 return muxer;
             }
             catch
