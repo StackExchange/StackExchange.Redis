@@ -19,7 +19,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Pipelines.Sockets.Unofficial" Version="0.2.1-alpha.83" />
+    <PackageReference Include="Pipelines.Sockets.Unofficial" Version="0.2.1-alpha.84" />
     <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="4.5.0" />
     <PackageReference Include="System.IO.Pipelines" Version="4.5.0" />
     <PackageReference Include="System.Threading.Channels" Version="4.5.0" />

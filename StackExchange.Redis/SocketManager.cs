@@ -84,13 +84,17 @@ namespace StackExchange.Redis
                 minWorkers: minThreads, maxWorkers: maxThreads,
                 priority: useHighPrioritySocketThreads ? ThreadPriority.AboveNormal : ThreadPriority.Normal);
             SendPipeOptions = new PipeOptions(
-                defaultPipeOptions.Pool, _schedulerPool, _schedulerPool,
+                pool: defaultPipeOptions.Pool,
+                readerScheduler: _schedulerPool, // copying from the outbound Pipe to the socket should happen on the worker, to release the lock ASAP
+                writerScheduler: PipeScheduler.Inline, // it is fine for FlushAsync to run inline - after the handshake, we just `Wait()` on this, not `await`
                 pauseWriterThreshold: defaultPipeOptions.PauseWriterThreshold,
                 resumeWriterThreshold: defaultPipeOptions.ResumeWriterThreshold,
                 minimumSegmentSize: Math.Max(defaultPipeOptions.MinimumSegmentSize, MINIMUM_SEGMENT_SIZE),
                 useSynchronizationContext: false);
             ReceivePipeOptions = new PipeOptions(
-                defaultPipeOptions.Pool, _schedulerPool, _schedulerPool,
+                pool: defaultPipeOptions.Pool,
+                readerScheduler: PipeScheduler.Inline, // let the IO thread stomp all over the place on the receives
+                writerScheduler: PipeScheduler.Inline, // let the IO thread stomp all over the place on the receive
                 pauseWriterThreshold: Receive_PauseWriterThreshold,
                 resumeWriterThreshold: Receive_ResumeWriterThreshold,
                 minimumSegmentSize: Math.Max(defaultPipeOptions.MinimumSegmentSize, MINIMUM_SEGMENT_SIZE),
