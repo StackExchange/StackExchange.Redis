@@ -485,7 +485,7 @@ namespace StackExchange.Redis
 
         public long HyperLogLogLength(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
-            var features = GetFeatures(Database, key, flags, out ServerEndPoint server);
+            var features = GetFeatures(key, flags, out ServerEndPoint server);
             var cmd = Message.Create(Database, flags, RedisCommand.PFCOUNT, key);
             // technically a write / master-only command until 2.8.18
             if (server != null && !features.HyperLogLogCountSlaveSafe) cmd.SetMasterOnly();
@@ -499,7 +499,7 @@ namespace StackExchange.Redis
             var cmd = Message.Create(Database, flags, RedisCommand.PFCOUNT, keys);
             if (keys.Length != 0)
             {
-                var features = GetFeatures(Database, keys[0], flags, out server);
+                var features = GetFeatures(keys[0], flags, out server);
                 // technically a write / master-only command until 2.8.18
                 if (server != null && !features.HyperLogLogCountSlaveSafe) cmd.SetMasterOnly();
             }
@@ -508,7 +508,7 @@ namespace StackExchange.Redis
 
         public Task<long> HyperLogLogLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
-            var features = GetFeatures(Database, key, flags, out ServerEndPoint server);
+            var features = GetFeatures(key, flags, out ServerEndPoint server);
             var cmd = Message.Create(Database, flags, RedisCommand.PFCOUNT, key);
             // technically a write / master-only command until 2.8.18
             if (server != null && !features.HyperLogLogCountSlaveSafe) cmd.SetMasterOnly();
@@ -522,7 +522,7 @@ namespace StackExchange.Redis
             var cmd = Message.Create(Database, flags, RedisCommand.PFCOUNT, keys);
             if (keys.Length != 0)
             {
-                var features = GetFeatures(Database, keys[0], flags, out server);
+                var features = GetFeatures(keys[0], flags, out server);
                 // technically a write / master-only command until 2.8.18
                 if (server != null && !features.HyperLogLogCountSlaveSafe) cmd.SetMasterOnly();
             }
@@ -567,7 +567,7 @@ namespace StackExchange.Redis
 
         public bool IsConnected(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
-            var server = multiplexer.SelectServer(Database, RedisCommand.PING, flags, key);
+            var server = multiplexer.SelectServer(RedisCommand.PING, flags, key);
             return server?.IsConnected == true;
         }
 
@@ -611,7 +611,7 @@ namespace StackExchange.Redis
 
         private RedisCommand GetDeleteCommand(RedisKey key, CommandFlags flags, out ServerEndPoint server)
         {
-            var features = GetFeatures(Database, key, flags, out server);
+            var features = GetFeatures(key, flags, out server);
             if (server != null && features.Unlink && multiplexer.CommandMap.IsAvailable(RedisCommand.UNLINK))
             {
                 return RedisCommand.UNLINK;
@@ -813,7 +813,7 @@ namespace StackExchange.Redis
 
         public TimeSpan? KeyTimeToLive(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
-            var features = GetFeatures(Database, key, flags, out ServerEndPoint server);
+            var features = GetFeatures(key, flags, out ServerEndPoint server);
             Message msg;
             if (server != null && features.MillisecondExpiry && multiplexer.CommandMap.IsAvailable(RedisCommand.PTTL))
             {
@@ -826,7 +826,7 @@ namespace StackExchange.Redis
 
         public Task<TimeSpan?> KeyTimeToLiveAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
-            var features = GetFeatures(Database, key, flags, out ServerEndPoint server);
+            var features = GetFeatures(key, flags, out ServerEndPoint server);
             Message msg;
             if (server != null && features.MillisecondExpiry && multiplexer.CommandMap.IsAvailable(RedisCommand.PTTL))
             {
@@ -2406,7 +2406,7 @@ namespace StackExchange.Redis
             long milliseconds = duration.Ticks / TimeSpan.TicksPerMillisecond;
             if ((milliseconds % 1000) != 0)
             {
-                var features = GetFeatures(Database, key, flags, out server);
+                var features = GetFeatures(key, flags, out server);
                 if (server != null && features.MillisecondExpiry && multiplexer.CommandMap.IsAvailable(RedisCommand.PEXPIRE))
                 {
                     return Message.Create(Database, flags, RedisCommand.PEXPIRE, key, milliseconds);
@@ -2437,7 +2437,7 @@ namespace StackExchange.Redis
 
             if ((milliseconds % 1000) != 0)
             {
-                var features = GetFeatures(Database, key, flags, out server);
+                var features = GetFeatures(key, flags, out server);
                 if (server != null && features.MillisecondExpiry && multiplexer.CommandMap.IsAvailable(RedisCommand.PEXPIREAT))
                 {
                     return Message.Create(Database, flags, RedisCommand.PEXPIREAT, key, milliseconds);
@@ -3174,7 +3174,7 @@ namespace StackExchange.Redis
             {
                 throw new NotSupportedException("This operation is not possible inside a transaction or batch; please issue separate GetString and KeyTimeToLive requests");
             }
-            var features = GetFeatures(Database, key, flags, out server);
+            var features = GetFeatures(key, flags, out server);
             processor = StringGetWithExpiryProcessor.Default;
             if (server != null && features.MillisecondExpiry && multiplexer.CommandMap.IsAvailable(RedisCommand.PTTL))
             {
@@ -3278,7 +3278,7 @@ namespace StackExchange.Redis
             if (pageSize <= 0) throw new ArgumentOutOfRangeException(nameof(pageSize));
             if (!multiplexer.CommandMap.IsAvailable(command)) return null;
 
-            var features = GetFeatures(Database, key, flags, out ServerEndPoint server);
+            var features = GetFeatures(key, flags, out ServerEndPoint server);
             if (!features.Scan) return null;
 
             if (CursorUtils.IsNil(pattern)) pattern = (byte[])null;

@@ -1837,9 +1837,9 @@ namespace StackExchange.Redis
             return ServerSelectionStrategy.Select(message);
         }
 
-        internal ServerEndPoint SelectServer(int db, RedisCommand command, CommandFlags flags, RedisKey key)
+        internal ServerEndPoint SelectServer(RedisCommand command, CommandFlags flags, RedisKey key)
         {
-            return ServerSelectionStrategy.Select(db, command, key, flags);
+            return ServerSelectionStrategy.Select(command, key, flags);
         }
 
         private WriteResult TryPushMessageToBridge<T>(Message message, ResultProcessor<T> processor, ResultBox<T> resultBox, ref ServerEndPoint server)

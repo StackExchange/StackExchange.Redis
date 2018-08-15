@@ -107,7 +107,7 @@ namespace StackExchange.Redis
             return Select(slot, message.Command, message.Flags);
         }
 
-        public ServerEndPoint Select(int db, RedisCommand command, RedisKey key, CommandFlags flags)
+        public ServerEndPoint Select(RedisCommand command, RedisKey key, CommandFlags flags)
         {
             int slot = ServerType == ServerType.Cluster ? HashSlot(key) : NoSlot;
             return Select(slot, command, flags);

@@ -132,7 +132,7 @@ namespace StackExchange.Redis
             var server = GetSubscribedServer(channel);
             if (server != null) return server.IsConnected;
 
-            server = SelectServer(-1, RedisCommand.SUBSCRIBE, CommandFlags.DemandMaster, default(RedisKey));
+            server = SelectServer(RedisCommand.SUBSCRIBE, CommandFlags.DemandMaster, default(RedisKey));
             return server?.IsConnected == true;
         }
 
@@ -196,7 +196,7 @@ namespace StackExchange.Redis
             public Task SubscribeToServer(ConnectionMultiplexer multiplexer, RedisChannel channel, CommandFlags flags, object asyncState, bool internalCall)
             {
                 var cmd = channel.IsPatternBased ? RedisCommand.PSUBSCRIBE : RedisCommand.SUBSCRIBE;
-                var selected = multiplexer.SelectServer(-1, cmd, flags, default(RedisKey));
+                var selected = multiplexer.SelectServer(cmd, flags, default(RedisKey));
 
                 if (selected == null || Interlocked.CompareExchange(ref owner, selected, null) != null) return null;
 
@@ -336,7 +336,7 @@ namespace StackExchange.Redis
             server = null;
             if (multiplexer.CommandMap.IsAvailable(RedisCommand.PING))
             {
-                try { usePing = GetFeatures(-1, default, flags, out server).PingOnSubscriber; }
+                try { usePing = GetFeatures(default, flags, out server).PingOnSubscriber; }
                 catch { }
             }
 

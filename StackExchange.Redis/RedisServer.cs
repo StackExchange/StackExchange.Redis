@@ -583,7 +583,7 @@ namespace StackExchange.Redis
             return base.ExecuteSync<T>(message, processor, server);
         }
 
-        internal override RedisFeatures GetFeatures(int db, RedisKey key, CommandFlags flags, out ServerEndPoint server)
+        internal override RedisFeatures GetFeatures(RedisKey key, CommandFlags flags, out ServerEndPoint server)
         {
             server = this.server;
             return new RedisFeatures(server.Version);
