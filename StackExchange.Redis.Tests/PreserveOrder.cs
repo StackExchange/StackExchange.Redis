@@ -17,10 +17,11 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create())
             {
                 var sub = conn.GetSubscriber();
+                var channel = Me();
                 var received = new List<int>();
                 Log("Subscribing...");
-                const int COUNT = 1000;
-                sub.Subscribe("foo", (_, message) =>
+                const int COUNT = 100;
+                sub.Subscribe(channel, (_, message) =>
                 {
                     lock (received)
                     {
@@ -42,7 +43,7 @@ namespace StackExchange.Redis.Tests
                     // it all goes to the server and back
                     for (int i = 0; i < COUNT; i++)
                     {
-                        sub.Publish("foo", i);
+                        sub.Publish(channel, i);
                     }
 
                     Log("Allowing time for delivery etc...");
