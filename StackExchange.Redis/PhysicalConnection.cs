@@ -1215,12 +1215,13 @@ namespace StackExchange.Redis
 
         private void MatchResult(RawResult result)
         {
-            var muxer = BridgeCouldBeNull?.Multiplexer;
-            if (muxer == null) return;
-
             // check to see if it could be an out-of-band pubsub message
             if (connectionType == ConnectionType.Subscription && result.Type == ResultType.MultiBulk)
-            {   // out of band message does not match to a queued message
+            {
+                var muxer = BridgeCouldBeNull?.Multiplexer;
+                if (muxer == null) return;
+
+                // out of band message does not match to a queued message
                 var items = result.GetItems();
                 if (items.Length >= 3 && items[0].IsEqual(message))
                 {
@@ -1275,9 +1276,10 @@ namespace StackExchange.Redis
             }
 
             Trace("Response to: " + msg);
-            if (msg.ComputeResult(this, result))
-            {
-                BridgeCouldBeNull.CompleteSyncOrAsync(msg);
+            if (msg.ComputeResult(this, result) && !msg.TryComplete(false))
+            {   // got a result, and we couldn't complete it synchronously;
+                // note that we want to complete it async instead
+                BridgeCouldBeNull.CompleteAsync(msg);
             }
         }
 

@@ -7,6 +7,10 @@ namespace StackExchange.Redis
     {
         public static void CompleteSyncOrAsync(this PhysicalBridge bridge, ICompletable operation)
             => CompletionManager.CompleteSyncOrAsyncImpl(bridge?.completionManager, operation);
+
+        public static void CompleteAsync(this PhysicalBridge bridge, ICompletable operation)
+            => CompletionManager.CompleteAsync(bridge?.completionManager, operation);
+
         public static void CompleteSyncOrAsync(this CompletionManager manager, ICompletable operation)
             => CompletionManager.CompleteSyncOrAsyncImpl(manager, operation);
     }
@@ -17,6 +21,20 @@ namespace StackExchange.Redis
             if (operation == null) return;
             if (manager != null) manager.PerInstanceCompleteSyncOrAsync(operation);
             else SharedCompleteSyncOrAsync(operation);
+        }
+
+        internal static void CompleteAsync(CompletionManager manager, ICompletable operation)
+        {
+            var sched = manager.multiplexer.SocketManager;
+            if (sched != null)
+            {
+                sched.ScheduleTask(s_AnyOrderCompletionHandler, operation);
+                Interlocked.Increment(ref manager.completedAsync);
+            }
+            else
+            {
+                SocketManager.Shared.ScheduleTask(s_AnyOrderCompletionHandler, operation);
+            }
         }
 
         private readonly ConnectionMultiplexer multiplexer;

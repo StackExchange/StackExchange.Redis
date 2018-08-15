@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipelines;
 using System.Net;
@@ -26,7 +27,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="name">The name for this <see cref="SocketManager"/>.</param>
         public SocketManager(string name = null)
-            : this(name, false, DEFAULT_MIN_THREADS, DEFAULT_MAX_THREADS) { }
+            : this(name, false, DEFAULT_WORKERS) { }
 
         /// <summary>
         /// Default / shared socket manager
@@ -40,7 +41,7 @@ namespace StackExchange.Redis
                 try
                 {
                     // note: we'll allow a higher max thread count on the shared one
-                    shared = new SocketManager("DefaultSocketManager", false, DEFAULT_MIN_THREADS, DEFAULT_MAX_THREADS * 2);
+                    shared = new SocketManager("DefaultSocketManager", false, DEFAULT_WORKERS * 2);
                     if (Interlocked.CompareExchange(ref _shared, shared, null) == null)
                         shared = null;
                 }
@@ -67,11 +68,11 @@ namespace StackExchange.Redis
         /// <param name="name">The name for this <see cref="SocketManager"/>.</param>
         /// <param name="useHighPrioritySocketThreads">Whether this <see cref="SocketManager"/> should use high priority sockets.</param>
         public SocketManager(string name, bool useHighPrioritySocketThreads)
-            : this(name, useHighPrioritySocketThreads, DEFAULT_MIN_THREADS, DEFAULT_MAX_THREADS) { }
+            : this(name, useHighPrioritySocketThreads, DEFAULT_WORKERS) { }
 
-        private const int DEFAULT_MIN_THREADS = 1, DEFAULT_MAX_THREADS = 5, MINIMUM_SEGMENT_SIZE = 8 * 1024;
+        private const int DEFAULT_WORKERS = 5, MINIMUM_SEGMENT_SIZE = 8 * 1024;
 
-        private SocketManager(string name, bool useHighPrioritySocketThreads, int minThreads, int maxThreads)
+        private SocketManager(string name, bool useHighPrioritySocketThreads, int workerCount)
         {
             if (string.IsNullOrWhiteSpace(name)) name = GetType().Name;
             Name = name;
@@ -81,12 +82,12 @@ namespace StackExchange.Redis
 
             var defaultPipeOptions = PipeOptions.Default;
             _schedulerPool = new DedicatedThreadPoolPipeScheduler(name + ":IO",
-                minWorkers: minThreads, maxWorkers: maxThreads,
+                workerCount: workerCount,
                 priority: useHighPrioritySocketThreads ? ThreadPriority.AboveNormal : ThreadPriority.Normal);
             SendPipeOptions = new PipeOptions(
                 pool: defaultPipeOptions.Pool,
                 readerScheduler: _schedulerPool, // copying from the outbound Pipe to the socket should happen on the worker, to release the lock ASAP
-                writerScheduler: PipeScheduler.Inline, // it is fine for FlushAsync to run inline - after the handshake, we just `Wait()` on this, not `await`
+                writerScheduler: _schedulerPool,
                 pauseWriterThreshold: defaultPipeOptions.PauseWriterThreshold,
                 resumeWriterThreshold: defaultPipeOptions.ResumeWriterThreshold,
                 minimumSegmentSize: Math.Max(defaultPipeOptions.MinimumSegmentSize, MINIMUM_SEGMENT_SIZE),
@@ -94,14 +95,14 @@ namespace StackExchange.Redis
             ReceivePipeOptions = new PipeOptions(
                 pool: defaultPipeOptions.Pool,
                 readerScheduler: PipeScheduler.Inline, // let the IO thread stomp all over the place on the receives
-                writerScheduler: PipeScheduler.Inline, // let the IO thread stomp all over the place on the receive
+                writerScheduler: _schedulerPool,
                 pauseWriterThreshold: Receive_PauseWriterThreshold,
                 resumeWriterThreshold: Receive_ResumeWriterThreshold,
                 minimumSegmentSize: Math.Max(defaultPipeOptions.MinimumSegmentSize, MINIMUM_SEGMENT_SIZE),
                 useSynchronizationContext: false);
 
             _completionPool = new DedicatedThreadPoolPipeScheduler(name + ":Completion",
-                minWorkers: 1, maxWorkers: maxThreads, useThreadPoolQueueLength: 1);
+                workerCount: workerCount, useThreadPoolQueueLength: 1);
         }
 
         private DedicatedThreadPoolPipeScheduler _schedulerPool, _completionPool;
@@ -162,7 +163,7 @@ namespace StackExchange.Redis
         internal string GetState()
         {
             var s = _schedulerPool;
-            return s == null ? null : $"{s.BusyCount} of {s.WorkerCount} busy ({s.MaxWorkerCount} max)";
+            return s == null ? null : $"{s.AvailableCount} of {s.WorkerCount} available";
         }
 
         internal void ScheduleTask(Action<object> action, object state)

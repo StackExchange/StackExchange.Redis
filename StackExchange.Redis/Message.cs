@@ -590,14 +590,8 @@ namespace StackExchange.Redis
                 if (box != null && box.IsFaulted) return false; // already failed (timeout, etc)
                 if (resultProcessor == null) return true;
 
-                var accepted = resultProcessor.SetResult(connection, this, result);
-                if (!accepted)
-                {
-                    var ex = new InvalidOperationException("Message rejected");
-                    ex.Data.Add("got", result.ToString());
-                    connection?.BridgeCouldBeNull?.Multiplexer?.OnMessageFaulted(this, ex);
-                }
-                return accepted;
+                // false here would be things like resends (MOVED) - the message is not yet complete
+                return resultProcessor.SetResult(connection, this, result);
             }
             catch (Exception ex)
             {
