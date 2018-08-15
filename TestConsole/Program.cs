@@ -15,11 +15,13 @@ namespace TestConsole
         {
             Console.WriteLine($"{Environment.OSVersion} / {Environment.Version} / {(Environment.Is64BitProcess ? "64" : "32")}");
             Console.WriteLine(RuntimeInformation.FrameworkDescription);
-            for (int i = 0; i < 500; i++)
+            DateTime stop = DateTime.UtcNow.AddSeconds(30);
+            int i = 0;
+            do
             {
-                Console.WriteLine(i);
+                Console.WriteLine(i++);
                 RunCompetingBatchesOnSameMuxer();
-            }
+            } while (DateTime.UtcNow < stop);
         }
         static ConnectionMultiplexer Create()
         {
