@@ -897,6 +897,7 @@ namespace StackExchange.Redis.Tests
             }
         }
 
+#if !VERBOSE
         [Fact]
         public async Task WatchAbort_StringEqual()
         {
@@ -917,7 +918,7 @@ namespace StackExchange.Redis.Tests
                 var tran = db.CreateTransaction();
                 tran.AddCondition(Condition.StringEqual(key, "foo"));
                 var pong = tran.PingAsync();
-                Assert.False(await tran.ExecuteAsync());
+                Assert.False(await tran.ExecuteAsync(), "expected abort");
                 await Assert.ThrowsAsync<TaskCanceledException>(() => pong);
             }
         }
@@ -946,5 +947,7 @@ namespace StackExchange.Redis.Tests
                 await Assert.ThrowsAsync<TaskCanceledException>(() => pong);
             }
         }
+#endif
+
     }
 }
