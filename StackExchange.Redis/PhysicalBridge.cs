@@ -727,11 +727,13 @@ namespace StackExchange.Redis
         {
             if (message == null) return WriteResult.Success; // for some definition of success
 
+            bool isQueued = false;
             try
             {
                 var cmd = message.Command;
                 LastCommand = cmd;
                 bool isMasterOnly = message.IsMasterOnly();
+
                 if (isMasterOnly && ServerEndPoint.IsSlave && (ServerEndPoint.SlaveReadOnly || !ServerEndPoint.AllowSlaveWrites))
                 {
                     throw ExceptionFactory.MasterOnly(Multiplexer.IncludeDetailInExceptions, message.Command, message, ServerEndPoint);
@@ -782,6 +784,7 @@ namespace StackExchange.Redis
                 }
 
                 connection.EnqueueInsideWriteLock(message);
+                isQueued = true;
                 message.WriteTo(connection);
 
                 message.SetRequestSent();
@@ -803,6 +806,21 @@ namespace StackExchange.Redis
                     case RedisCommand.EXEC:
                         connection.SetUnknownDatabase();
                         break;
+                }
+                return WriteResult.Success;
+            }
+            catch (RedisCommandException ex) when (!isQueued)
+            {
+                Trace("Write failed: " + ex.Message);
+                message.Fail(ConnectionFailureType.InternalFailure, ex, null);
+                this.CompleteSyncOrAsync(message);
+                // this failed without actually writing; we're OK with that... unless there's a transaction
+
+                if (connection?.TransactionActive == true)
+                {
+                    // we left it in a broken state; need to kill the connection
+                    connection.RecordConnectionFailed(ConnectionFailureType.ProtocolFailure, ex);
+                    return WriteResult.WriteFailure;
                 }
                 return WriteResult.Success;
             }
