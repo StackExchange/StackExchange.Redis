@@ -146,7 +146,7 @@ namespace StackExchange.Redis.Tests
 
                 var after = muxer.OperationCount;
 
-                Assert.True(after >= before + 4);
+                Assert.True(after >= before + 4, $"after: {after}, before: {before}");
             }
         }
 
@@ -355,7 +355,7 @@ namespace StackExchange.Redis.Tests
                         await Task.Delay(8000).ForAwait();
 
                         var after = innerMuxer.OperationCount;
-                        Assert.True(after >= before + 4);
+                        Assert.True(after >= before + 4, $"after: {after}, before: {before}");
                     }
                 }
                 finally

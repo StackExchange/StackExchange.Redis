@@ -20,7 +20,7 @@ namespace StackExchange.Redis.Tests
                 var channel = Me();
                 var received = new List<int>();
                 Log("Subscribing...");
-                const int COUNT = 100;
+                const int COUNT = 500;
                 sub.Subscribe(channel, (_, message) =>
                 {
                     lock (received)
@@ -29,8 +29,6 @@ namespace StackExchange.Redis.Tests
                         if (received.Count == COUNT)
                             Monitor.PulseAll(received); // wake the test rig
                     }
-                    Thread.Sleep(1); // you kinda need to be slow, otherwise
-                    // the pool will end up doing everything on one thread
                 });
                 Log("");
                 Log("Sending (any order)...");
