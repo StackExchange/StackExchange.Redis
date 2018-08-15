@@ -597,6 +597,10 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal("world", val);
 
                 var msgs = profiler.FinishProfiling();
+                foreach (var msg in msgs)
+                {
+                    Log("Profiler Message: " + Environment.NewLine + msg.ToString());
+                }
                 Log("Checking GET...");
                 Assert.Contains(msgs, m => m.Command == "GET");
                 Log("Checking SET...");
