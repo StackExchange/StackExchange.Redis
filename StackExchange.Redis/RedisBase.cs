@@ -178,7 +178,7 @@ namespace StackExchange.Redis
                 return redis.ExecuteAsync(CreateMessage(cursor), Processor, server);
             }
 
-            protected ScanResult Wait(Task<ScanResult> pending) => redis.Wait(pending);
+            protected bool TryWait(Task<ScanResult> pending) => redis.TryWait(pending);
 
             private class CursorEnumerator : IEnumerator<T>, IScanningCursor
             {
@@ -254,7 +254,15 @@ namespace StackExchange.Redis
                             // do we have an outstanding operation? wait for the background task to finish
                             while (pending != null)
                             {
-                                ProcessReply(parent.Wait(pending));
+                                if (parent.TryWait(pending))
+                                {
+                                    ProcessReply(pending.Result);
+                                }
+                                else
+                                {
+                                    throw ExceptionFactory.Timeout(parent.redis.multiplexer.IncludeDetailInExceptions, "Timeout waiting for scan cursor to complete", null, parent.server);
+                                }
+
                                 if (SimpleNext()) return true;
                             }
 
