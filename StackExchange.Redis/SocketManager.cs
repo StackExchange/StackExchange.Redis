@@ -86,7 +86,7 @@ namespace StackExchange.Redis
                 priority: useHighPrioritySocketThreads ? ThreadPriority.AboveNormal : ThreadPriority.Normal);
             SendPipeOptions = new PipeOptions(
                 pool: defaultPipeOptions.Pool,
-                readerScheduler: _schedulerPool, // copying from the outbound Pipe to the socket should happen on the worker, to release the lock ASAP
+                readerScheduler: _schedulerPool,
                 writerScheduler: _schedulerPool,
                 pauseWriterThreshold: defaultPipeOptions.PauseWriterThreshold,
                 resumeWriterThreshold: defaultPipeOptions.ResumeWriterThreshold,
@@ -94,7 +94,7 @@ namespace StackExchange.Redis
                 useSynchronizationContext: false);
             ReceivePipeOptions = new PipeOptions(
                 pool: defaultPipeOptions.Pool,
-                readerScheduler: PipeScheduler.Inline, // let the IO thread stomp all over the place on the receives
+                readerScheduler: _schedulerPool,
                 writerScheduler: _schedulerPool,
                 pauseWriterThreshold: Receive_PauseWriterThreshold,
                 resumeWriterThreshold: Receive_ResumeWriterThreshold,
