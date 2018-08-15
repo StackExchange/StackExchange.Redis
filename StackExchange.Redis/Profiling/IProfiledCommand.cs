@@ -33,11 +33,12 @@ namespace StackExchange.Redis.Profiling
         CommandFlags Flags { get; }
 
         /// <summary>
+        /// <para>
         /// When this command was *created*, will be approximately
         /// when the paired method of StackExchange.Redis was called but
         /// before that method returned.
-        /// 
-        /// Note that the resolution of the returned DateTime is limited by DateTime.UtcNow.
+        /// </para>
+        /// <para>Note that the resolution of the returned DateTime is limited by DateTime.UtcNow.</para>
         /// </summary>
         DateTime CommandCreated { get; }
 
@@ -67,17 +68,17 @@ namespace StackExchange.Redis.Profiling
         TimeSpan ResponseToCompletion { get; }
 
         /// <summary>
-        /// How long it took this redis command to be processed, from creation to deserializing the final response.
-        /// 
-        /// Note that this TimeSpan *does not* include time spent awaiting a Task in consumer code.
+        /// <para>How long it took this redis command to be processed, from creation to deserializing the final response.</para>
+        /// <para>Note that this TimeSpan *does not* include time spent awaiting a Task in consumer code.</para>
         /// </summary>
         TimeSpan ElapsedTime { get; }
 
         /// <summary>
+        /// <para>
         /// If a command has to be resent due to an ASK or MOVED response from redis (in a cluster configuration),
         /// the second sending of the command will have this property set to the original IProfiledCommand.
-        /// 
-        /// This can only be set if redis is configured as a cluster.
+        /// </para>
+        /// <para>This can only be set if redis is configured as a cluster.</para>
         /// </summary>
         IProfiledCommand RetransmissionOf { get; }
 

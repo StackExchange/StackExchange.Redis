@@ -299,7 +299,6 @@ namespace StackExchange.Redis.Tests
                 muxer.Resurrecting += (e, t) => Writer.WriteLine($"Resurrecting {Format.ToString(e)} as {t}");
                 muxer.Closing += complete =>
                 {
-
                     int count;
                     lock(ActiveMultiplexers)
                     {
@@ -310,7 +309,6 @@ namespace StackExchange.Redis.Tests
                         }
                     }
                     Writer.WriteLine((complete ? "Closed (" : "Closing... (") + count.ToString() + " remaining)");
-
                 };
                 return muxer;
             }

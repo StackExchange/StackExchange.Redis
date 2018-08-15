@@ -25,7 +25,7 @@ namespace StackExchange.Redis.Tests
                 RedisKey hits = Me(), trigger = Me() + "3";
                 int expectedSuccess = 0;
 
-                await muxers[0].GetDatabase().KeyDeleteAsync(new[] { hits, trigger });
+                await muxers[0].GetDatabase().KeyDeleteAsync(new[] { hits, trigger }).ForAwait();
 
                 Task[] tasks = new Task[Workers];
                 for (int i = 0; i < tasks.Length; i++)
@@ -36,12 +36,12 @@ namespace StackExchange.Redis.Tests
                     {
                         for (int j = 0; j < PerThread; j++)
                         {
-                            var oldVal = await scopedDb.StringGetAsync(trigger);
+                            var oldVal = await scopedDb.StringGetAsync(trigger).ForAwait();
                             var tran = scopedDb.CreateTransaction();
                             tran.AddCondition(Condition.StringEqual(trigger, oldVal));
                             var x = tran.StringIncrementAsync(trigger);
                             var y = tran.StringIncrementAsync(hits);
-                            if (await tran.ExecuteAsync())
+                            if (await tran.ExecuteAsync().ForAwait())
                             {
                                 Interlocked.Increment(ref expectedSuccess);
                                 await x;
@@ -49,8 +49,8 @@ namespace StackExchange.Redis.Tests
                             }
                             else
                             {
-                                await Assert.ThrowsAsync<TaskCanceledException>(() => x);
-                                await Assert.ThrowsAsync<TaskCanceledException>(() => y);
+                                await Assert.ThrowsAsync<TaskCanceledException>(() => x).ForAwait();
+                                await Assert.ThrowsAsync<TaskCanceledException>(() => y).ForAwait();
                             }
                         }
                     });
@@ -59,7 +59,7 @@ namespace StackExchange.Redis.Tests
                 {
                     await tasks[i];
                 }
-                var actual = (int)await muxers[0].GetDatabase().StringGetAsync(hits);
+                var actual = (int)await muxers[0].GetDatabase().StringGetAsync(hits).ForAwait();
                 Assert.Equal(expectedSuccess, actual);
                 Writer.WriteLine($"success: {actual} out of {Workers * PerThread} attempts");
             }
@@ -81,10 +81,14 @@ namespace StackExchange.Redis.Tests
             {
                 var db = muxer.GetDatabase();
 
-                Thread x = new Thread(state => BatchRunPings((IDatabase)state));
-                x.Name = nameof(BatchRunPings);
-                Thread y = new Thread(state => BatchRunIntegers((IDatabase)state));
-                y.Name = nameof(BatchRunIntegers);
+                Thread x = new Thread(state => BatchRunPings((IDatabase)state))
+                {
+                    Name = nameof(BatchRunPings)
+                };
+                Thread y = new Thread(state => BatchRunIntegers((IDatabase)state))
+                {
+                    Name = nameof(BatchRunIntegers)
+                };
 
                 x.Start(db);
                 y.Start(db);
@@ -151,8 +155,8 @@ namespace StackExchange.Redis.Tests
         private async Task BatchRunIntegersAsync(IDatabase db)
         {
             var key = Me();
-            await db.KeyDeleteAsync(key);
-            await db.StringSetAsync(key, 1);
+            await db.KeyDeleteAsync(key).ForAwait();
+            await db.StringSetAsync(key, 1).ForAwait();
             Task[] tasks = new Task[InnerCount];
             for (int i = 0; i < IterationCount; i++)
             {
@@ -168,7 +172,7 @@ namespace StackExchange.Redis.Tests
                 }
             }
 
-            var count = (long)await db.StringGetAsync(key);
+            var count = (long)await db.StringGetAsync(key).ForAwait();
             Writer.WriteLine($"tally: {count}");
         }
 
@@ -197,10 +201,14 @@ namespace StackExchange.Redis.Tests
             {
                 var db = muxer.GetDatabase();
 
-                Thread x = new Thread(state => TranRunPings((IDatabase)state));
-                x.Name = nameof(BatchRunPings);
-                Thread y = new Thread(state => TranRunIntegers((IDatabase)state));
-                y.Name = nameof(BatchRunIntegers);
+                Thread x = new Thread(state => TranRunPings((IDatabase)state))
+                {
+                    Name = nameof(BatchRunPings)
+                };
+                Thread y = new Thread(state => TranRunIntegers((IDatabase)state))
+                {
+                    Name = nameof(BatchRunIntegers)
+                };
 
                 x.Start(db);
                 y.Start(db);
@@ -271,8 +279,8 @@ namespace StackExchange.Redis.Tests
         private async Task TranRunIntegersAsync(IDatabase db)
         {
             var key = Me();
-            await db.KeyDeleteAsync(key);
-            await db.StringSetAsync(key, 1);
+            await db.KeyDeleteAsync(key).ForAwait();
+            await db.StringSetAsync(key, 1).ForAwait();
             Task[] tasks = new Task[InnerCount];
             for (int i = 0; i < IterationCount; i++)
             {
@@ -282,15 +290,14 @@ namespace StackExchange.Redis.Tests
                 {
                     tasks[j] = batch.StringIncrementAsync(key);
                 }
-                await batch.ExecuteAsync();
+                await batch.ExecuteAsync().ForAwait();
                 for (int j = tasks.Length - 1; j >= 0; j--)
                 {
                     await tasks[j];
                 }
             }
 
-
-            var count = (long)await db.StringGetAsync(key);
+            var count = (long)await db.StringGetAsync(key).ForAwait();
             Writer.WriteLine($"tally: {count}");
         }
 
@@ -307,7 +314,7 @@ namespace StackExchange.Redis.Tests
                 {
                     tasks[j] = batch.PingAsync();
                 }
-                await batch.ExecuteAsync();
+                await batch.ExecuteAsync().ForAwait();
                 for (int j = tasks.Length - 1; j >= 0; j--)
                 {
                     await tasks[j];

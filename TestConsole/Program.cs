@@ -23,7 +23,7 @@ namespace TestConsole
                 RunCompetingBatchesOnSameMuxer();
             } while (DateTime.UtcNow < stop);
         }
-        static ConnectionMultiplexer Create()
+        private static ConnectionMultiplexer Create()
         {
             var options = new ConfigurationOptions
             {
@@ -42,10 +42,14 @@ namespace TestConsole
             {
                 var db = muxer.GetDatabase();
 
-                Thread x = new Thread(state => BatchRunPings((IDatabase)state));
-                x.Name = nameof(BatchRunPings);
-                Thread y = new Thread(state => BatchRunIntegers((IDatabase)state));
-                y.Name = nameof(BatchRunIntegers);
+                Thread x = new Thread(state => BatchRunPings((IDatabase)state))
+                {
+                    Name = nameof(BatchRunPings)
+                };
+                Thread y = new Thread(state => BatchRunIntegers((IDatabase)state))
+                {
+                    Name = nameof(BatchRunIntegers)
+                };
 
                 var watch = Stopwatch.StartNew();
                 x.Start(db);
@@ -59,7 +63,7 @@ namespace TestConsole
             }
         }
 
-        static RedisKey Me([CallerMemberName]string caller = null) => caller;
+        private static RedisKey Me([CallerMemberName]string caller = null) => caller;
 
         private static void BatchRunIntegers(IDatabase db)
         {

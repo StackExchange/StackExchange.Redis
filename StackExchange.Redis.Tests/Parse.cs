@@ -28,6 +28,7 @@ namespace StackExchange.Redis.Tests
             yield return new object[] { "$4\r\nPING\r\n$4\r\nPONG\r\n$4\r\nPONG\r\n", 3 };
             yield return new object[] { "$4\r\nPING\r\n$4\r\nPONG\r\n$4\r\nPONG\r\n$", 3 };
         }
+
         [Theory]
         [MemberData(nameof(GetTestData))]
         public void ParseAsSingleChunk(string ascii, int expected)
@@ -35,7 +36,6 @@ namespace StackExchange.Redis.Tests
             var buffer = new ReadOnlySequence<byte>(Encoding.ASCII.GetBytes(ascii));
             ProcessMessages(buffer, expected);
         }
-
 
         [Theory]
         [MemberData(nameof(GetTestData))]
@@ -59,10 +59,9 @@ namespace StackExchange.Redis.Tests
             var buffer = new ReadOnlySequence<byte>(chain, 0, tail, 1);
             Assert.Equal(bytes.Length, buffer.Length);
             ProcessMessages(buffer, expected);
-
-
         }
-        void ProcessMessages(ReadOnlySequence<byte> buffer, int expected)
+
+        private void ProcessMessages(ReadOnlySequence<byte> buffer, int expected)
         {
             Writer.WriteLine($"chain: {buffer.Length}");
             var reader = new BufferReader(buffer);
@@ -76,8 +75,7 @@ namespace StackExchange.Redis.Tests
             Assert.Equal(expected, found);
         }
 
-
-        class FragmentedSegment<T> : ReadOnlySequenceSegment<T>
+        private class FragmentedSegment<T> : ReadOnlySequenceSegment<T>
         {
             public FragmentedSegment(long runningIndex, ReadOnlyMemory<T> memory)
             {

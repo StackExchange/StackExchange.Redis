@@ -121,8 +121,8 @@ namespace StackExchange.Redis.Tests
         public void StreamConsumerGroupSetId()
         {
             var key = GetUniqueKey("group_set_id");
-            var groupName = "test_group";
-            var consumer = "consumer";
+            const string groupName = "test_group";
+            const string consumer = "consumer";
 
             using (var conn = Create())
             {
@@ -269,7 +269,7 @@ namespace StackExchange.Redis.Tests
 
                 // Start reading after id1.
                 db.StreamCreateConsumerGroup(key, groupName, id1);
-                
+
                 var entries = db.StreamReadGroup(key, groupName, "test_consumer", StreamPosition.NewMessages, 2);
 
                 // Ensure we only received the requested count and that the IDs match the expected values.
@@ -430,7 +430,7 @@ namespace StackExchange.Redis.Tests
             // Ask redis to read from the beginning of both stream, expect messages
             // for only the stream set to read from the beginning.
 
-            var groupName = "test_group";
+            const string groupName = "test_group";
             var stream1 = GetUniqueKey("stream1");
             var stream2 = GetUniqueKey("stream2");
 
@@ -472,7 +472,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamConsumerGroupReadMultipleOnlyNewMessagesExpectNoResult()
         {
-            var groupName = "test_group";
+            const string groupName = "test_group";
             var stream1 = GetUniqueKey("stream1");
             var stream2 = GetUniqueKey("stream2");
 
@@ -484,7 +484,7 @@ namespace StackExchange.Redis.Tests
 
                 db.StreamAdd(stream1, "field1-1", "value1-1");
                 db.StreamAdd(stream2, "field2-1", "value2-1");
-                
+
                 // set both streams to read only new messages (default behavior).
                 db.StreamCreateConsumerGroup(stream1, groupName);
                 db.StreamCreateConsumerGroup(stream2, groupName);
@@ -508,7 +508,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamConsumerGroupReadMultipleOnlyNewMessagesExpect1Result()
         {
-            var groupName = "test_group";
+            const string groupName = "test_group";
             var stream1 = GetUniqueKey("stream1");
             var stream2 = GetUniqueKey("stream2");
 
@@ -551,7 +551,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamConsumerGroupReadMultipleRestrictCount()
         {
-            var groupName = "test_group";
+            const string groupName = "test_group";
             var stream1 = GetUniqueKey("stream1");
             var stream2 = GetUniqueKey("stream2");
 
@@ -767,8 +767,8 @@ namespace StackExchange.Redis.Tests
         public void StreamDeleteConsumer()
         {
             var key = GetUniqueKey("delete_consumer_group");
-            var groupName = "test_group";
-            var consumer = "test_consumer";
+            const string groupName = "test_group";
+            const string consumer = "test_consumer";
 
             using (var conn = Create())
             {
@@ -802,8 +802,8 @@ namespace StackExchange.Redis.Tests
         public void StreamDeleteConsumerGroup()
         {
             var key = GetUniqueKey("delete_consumer_group");
-            var groupName = "test_group";
-            var consumer = "test_consumer";
+            const string groupName = "test_group";
+            const string consumer = "test_consumer";
 
             using (var conn = Create())
             {
@@ -1056,7 +1056,7 @@ namespace StackExchange.Redis.Tests
                 Assert.True(pendingInfo.Consumers.Length == 0);
             }
         }
-        
+
         [Fact]
         public void StreamPositionDefaultValueIsBeginning()
         {
@@ -1078,8 +1078,8 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamPositionValidateExplicit()
         {
-            var explicitValue = "1-0";
-            var position = explicitValue;
+            const string explicitValue = "1-0";
+            const string position = explicitValue;
 
             Assert.Equal(explicitValue, StreamPosition.Resolve(position, RedisCommand.XREAD));
         }
@@ -1507,7 +1507,7 @@ namespace StackExchange.Redis.Tests
 
                 var id1 = db.StreamAdd(key, "field1", "value1");
                 var id2 = db.StreamAdd(key, "fiedl2", "value2");
-                
+
                 var entries = db.StreamRange(key, id1, id2, 1, Order.Descending);
 
                 Assert.True(entries.Length == 1);
