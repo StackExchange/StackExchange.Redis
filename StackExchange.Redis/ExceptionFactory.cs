@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading;
 
 namespace StackExchange.Redis
 {
@@ -9,7 +10,8 @@ namespace StackExchange.Redis
         private const string
             DataCommandKey = "redis-command",
             DataSentStatusKey = "request-sent-status",
-            DataServerKey = "redis-server";
+            DataServerKey = "redis-server",
+            timeoutHelpLink = "https://stackexchange.github.io/StackExchange.Redis/Timeouts";
 
         internal static Exception AdminModeNotEnabled(bool includeDetail, RedisCommand command, Message message, ServerEndPoint server)
         {
@@ -165,10 +167,79 @@ namespace StackExchange.Redis
             return new RedisCommandException("Command cannot be used with a cursor: " + s);
         }
 
-        internal static Exception Timeout(bool includeDetail, string errorMessage, Message message, ServerEndPoint server)
+        internal static Exception Timeout(ConnectionMultiplexer mutiplexer, string baseErrorMessage, Message message, ServerEndPoint server)
         {
-            var ex = new RedisTimeoutException(errorMessage, message?.Status ?? CommandStatus.Unknown);
-            if (includeDetail) AddDetail(ex, message, server, null);
+            List<Tuple<string, string>> data = new List<Tuple<string, string>> { Tuple.Create("Message", message.CommandAndKey) };
+            var sb = new StringBuilder();
+            if (!string.IsNullOrEmpty(baseErrorMessage))
+            {
+                sb.Append(baseErrorMessage);
+            }
+            else
+            {
+                sb.Append("Timeout performing ").Append(message.CommandAndKey).Append(" (").Append(Format.ToString(mutiplexer.TimeoutMilliseconds)).Append("ms)");
+            }
+
+            void add(string lk, string sk, string v)
+            {
+                if (v != null)
+                {
+                    data.Add(Tuple.Create(lk, v));
+                    sb.Append(", ").Append(sk).Append(": ").Append(v);
+                }
+            }
+
+            if (server != null)
+            {
+                server.GetOutstandingCount(message.Command, out int inst, out int qs, out int @in);
+                add("Instantaneous", "inst", inst.ToString());
+                add("Queue-Awaiting-Response", "qs", qs.ToString());
+                add("Inbound-Bytes", "in", @in.ToString());
+
+                if (mutiplexer.StormLogThreshold >= 0 && qs >= mutiplexer.StormLogThreshold && Interlocked.CompareExchange(ref mutiplexer.haveStormLog, 1, 0) == 0)
+                {
+                    var log = server.GetStormLog(message.Command);
+                    if (string.IsNullOrWhiteSpace(log)) Interlocked.Exchange(ref mutiplexer.haveStormLog, 0);
+                    else Interlocked.Exchange(ref mutiplexer.stormLogSnapshot, log);
+                }
+                add("Server-Endpoint", "serverEndpoint", server.EndPoint.ToString());
+            }
+            add("Manager", "mgr", mutiplexer.SocketManager?.GetState());
+
+            add("Client-Name", "clientName", mutiplexer.ClientName);
+            var hashSlot = message.GetHashSlot(mutiplexer.ServerSelectionStrategy);
+            // only add keyslot if its a valid cluster key slot
+            if (hashSlot != ServerSelectionStrategy.NoSlot)
+            {
+                add("Key-HashSlot", "PerfCounterHelperkeyHashSlot", message.GetHashSlot(mutiplexer.ServerSelectionStrategy).ToString());
+            }
+            int busyWorkerCount = PerfCounterHelper.GetThreadPoolStats(out string iocp, out string worker);
+            add("ThreadPool-IO-Completion", "IOCP", iocp);
+            add("ThreadPool-Workers", "WORKER", worker);
+            data.Add(Tuple.Create("Busy-Workers", busyWorkerCount.ToString()));
+
+            if (mutiplexer.IncludePerformanceCountersInExceptions)
+            {
+                add("Local-CPU", "Local-CPU", PerfCounterHelper.GetSystemCpuPercent());
+            }
+
+            sb.Append(" (Please take a look at this article for some common client-side issues that can cause timeouts: ");
+            sb.Append(timeoutHelpLink);
+            sb.Append(")");
+
+            var ex = new RedisTimeoutException(sb.ToString(), message?.Status ?? CommandStatus.Unknown)
+            {
+                HelpLink = timeoutHelpLink
+            };
+            if (data != null)
+            {
+                foreach (var kv in data)
+                {
+                    ex.Data["Redis-" + kv.Item1] = kv.Item2;
+                }
+            }
+
+            if (mutiplexer.IncludeDetailInExceptions) AddDetail(ex, message, server, null);
             return ex;
         }
 

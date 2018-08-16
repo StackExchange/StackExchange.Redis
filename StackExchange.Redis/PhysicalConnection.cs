@@ -575,14 +575,13 @@ namespace StackExchange.Redis
                     var bridge = BridgeCouldBeNull;
                     if (bridge == null) return;
 
-                    bool includeDetail = bridge.Multiplexer.IncludeDetailInExceptions;
                     var server = bridge?.ServerEndPoint;
                     var timeout = bridge.Multiplexer.AsyncTimeoutMilliseconds;
                     foreach (var msg in _writtenAwaitingResponse)
                     {
                         if (msg.HasAsyncTimedOut(now, timeout, out var elapsed))
                         {
-                            var timeoutEx = ExceptionFactory.Timeout(includeDetail, $"Timeout awaiting response ({elapsed}ms elapsed, timeout is {timeout}ms)", msg, server);
+                            var timeoutEx = ExceptionFactory.Timeout(bridge.Multiplexer, $"Timeout awaiting response ({elapsed}ms elapsed, timeout is {timeout}ms)", msg, server);
                             bridge.Multiplexer?.OnMessageFaulted(msg, timeoutEx);
                             msg.SetExceptionAndComplete(timeoutEx, bridge); // tell the message that it is doomed
                             bridge.Multiplexer.OnAsyncTimeout();
