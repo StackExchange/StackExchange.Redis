@@ -280,7 +280,8 @@ namespace StackExchange.Redis.Tests
             Assert.Equal("WRONGTYPE Operation against a key holding the wrong kind of value", ex.Message);
         }
 
-        [Fact(Skip = "Unfriendly to Redis 3.x on Windows...need to investigate")]
+#if DEBUG
+        [Fact]
         public async Task TestSevered()
         {
             SetExpectedAmbientFailureCount(2);
@@ -300,6 +301,7 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(key, db.StringGet(key));
             }
         }
+#endif
 
         [Fact]
         public async Task IncrAsync()

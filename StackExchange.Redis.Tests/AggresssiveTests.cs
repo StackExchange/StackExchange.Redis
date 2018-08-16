@@ -11,7 +11,7 @@ namespace StackExchange.Redis.Tests
     {
         public AggresssiveTests(ITestOutputHelper output) : base(output) { }
 
-        [Fact]
+        [FactLongRunning]
         public async Task ParallelTransactionsWithConditions()
         {
             const int Muxers = 4, Workers = 20, PerThread = 250;
