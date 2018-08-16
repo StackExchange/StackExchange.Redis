@@ -153,10 +153,10 @@ namespace StackExchange.Redis
             AssertOnMessage(handler);
 
             ThreadPool.QueueUserWorkItem(
-            state => ((ChannelMessageQueue)state).OnMessageSyncImpl(), this);
+                state => ((ChannelMessageQueue)state).OnMessageSyncImpl().RedisFireAndForget(), this);
         }
 
-        private async void OnMessageSyncImpl()
+        private async Task OnMessageSyncImpl()
         {
             var handler = (Action<ChannelMessage>)_onMessageHandler;
             while (!Completion.IsCompleted)
@@ -184,10 +184,10 @@ namespace StackExchange.Redis
             AssertOnMessage(handler);
 
             ThreadPool.QueueUserWorkItem(
-                state => ((ChannelMessageQueue)state).OnMessageAsyncImpl(), this);
+                state => ((ChannelMessageQueue)state).OnMessageAsyncImpl().RedisFireAndForget(), this);
         }
 
-        private async void OnMessageAsyncImpl()
+        private async Task OnMessageAsyncImpl()
         {
             var handler = (Func<ChannelMessage, Task>)_onMessageHandler;
             while (!Completion.IsCompleted)

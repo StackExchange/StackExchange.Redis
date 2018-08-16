@@ -857,10 +857,7 @@ namespace StackExchange.Redis
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
         public static ConnectionMultiplexer Connect(ConfigurationOptions configuration, TextWriter log = null)
         {
-            using (ExecutionContext.IsFlowSuppressed() ? null : (AsyncFlowControl?)ExecutionContext.SuppressFlow())
-            {
-                return ConnectImpl(() => CreateMultiplexer(configuration), log);
-            }
+            return ConnectImpl(() => CreateMultiplexer(configuration), log);
         }
 
         private static ConnectionMultiplexer ConnectImpl(Func<ConnectionMultiplexer> multiplexerFactory, TextWriter log)

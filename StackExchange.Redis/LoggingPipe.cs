@@ -22,7 +22,7 @@ namespace StackExchange.Redis
             {
                 var pipe = new Pipe(mgr.ReceivePipeOptions);
                 Input = pipe.Reader;
-                CloneAsync(inPath, inner.Input, pipe.Writer);
+                CloneAsync(inPath, inner.Input, pipe.Writer).RedisFireAndForget();
             }
 
             if (string.IsNullOrWhiteSpace(outPath))
@@ -33,12 +33,12 @@ namespace StackExchange.Redis
             {
                 var pipe = new Pipe(mgr.SendPipeOptions);
                 Output = pipe.Writer;
-                CloneAsync(outPath, pipe.Reader, inner.Output);
+                CloneAsync(outPath, pipe.Reader, inner.Output).RedisFireAndForget();
             }
 
         }
 
-        private async void CloneAsync(string path, PipeReader from, PipeWriter to)
+        private async Task CloneAsync(string path, PipeReader from, PipeWriter to)
         {
             try {
                 to.OnReaderCompleted((ex, o) => {

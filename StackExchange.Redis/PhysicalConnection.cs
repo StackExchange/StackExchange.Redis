@@ -72,7 +72,7 @@ namespace StackExchange.Redis
             OnCreateEcho();
         }
 
-        internal async void BeginConnectAsync(TextWriter log)
+        internal async Task BeginConnectAsync(TextWriter log)
         {
             Thread.VolatileWrite(ref firstUnansweredWriteTickCount, 0);
             var bridge = BridgeCouldBeNull;
@@ -1301,7 +1301,7 @@ namespace StackExchange.Redis
 
         partial void OnWrapForLogging(ref IDuplexPipe pipe, string name, SocketManager mgr);
 
-        private async void ReadFromPipe() // yes it is an async void; deal with it!
+        private async Task ReadFromPipe()
         {
             bool allowSyncRead = true, isReading = false;
             try
@@ -1494,13 +1494,7 @@ namespace StackExchange.Redis
             return new RawResult(type, payload, false);
         }
 
-        internal void StartReading()
-        {
-            using (ExecutionContext.IsFlowSuppressed() ? null : (AsyncFlowControl?)ExecutionContext.SuppressFlow())
-            {
-                ReadFromPipe();
-            }
-        }
+        internal void StartReading() => ReadFromPipe().RedisFireAndForget();
 
         internal static RawResult TryParseResult(in ReadOnlySequence<byte> buffer, ref BufferReader reader,
             bool includeDetilInExceptions, ServerEndPoint server, bool allowInlineProtocol = false)

@@ -29,6 +29,8 @@ namespace StackExchange.Redis
         public static ConfiguredTaskAwaitable<T> ForAwait<T>(this Task<T> task) => task.ConfigureAwait(false);
         public static ConfiguredValueTaskAwaitable<T> ForAwait<T>(this ValueTask<T> task) => task.ConfigureAwait(false);
 
+        internal static void RedisFireAndForget(this Task task) => task?.ContinueWith(t => GC.KeepAlive(t.Exception), TaskContinuationOptions.OnlyOnFaulted);
+
         // Inspired from https://github.com/dotnet/corefx/blob/81a246f3adf1eece3d981f1d8bb8ae9de12de9c6/src/Common/tests/System/Threading/Tasks/TaskTimeoutExtensions.cs#L15-L43
         // Licensed to the .NET Foundation under one or more agreements.
         // The .NET Foundation licenses this file to you under the MIT license.

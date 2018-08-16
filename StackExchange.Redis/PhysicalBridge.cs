@@ -669,10 +669,7 @@ namespace StackExchange.Redis
                             // in that case PhysicalConnection will call back to PhysicalBridge, and most of  PhysicalBridge methods assumes that physical is not null;
                             physical = new PhysicalConnection(this);
 
-                            using (ExecutionContext.IsFlowSuppressed() ? null : (AsyncFlowControl?)ExecutionContext.SuppressFlow())
-                            {
-                                physical.BeginConnectAsync(log);
-                            }
+                            physical.BeginConnectAsync(log).RedisFireAndForget();
                         }
                     }
                     return null;
