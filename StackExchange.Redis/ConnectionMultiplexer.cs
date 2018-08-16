@@ -2089,7 +2089,7 @@ namespace StackExchange.Redis
                     }
                     catch { }
 
-                    return ExceptionFactory.Timeout(IncludeDetailInExceptions, "The timeout was reached before the message could be written to the output buffer, and it was not sent ("
+                    return ExceptionFactory.Timeout(this, "The timeout was reached before the message could be written to the output buffer, and it was not sent ("
                         + Format.ToString(TimeoutMilliseconds) + "ms" + counters + ")", message, server);
                 case WriteResult.WriteFailure:
                 default:
@@ -2146,71 +2146,7 @@ namespace StackExchange.Redis
                     {
                         Trace("Timeout performing " + message);
                         Interlocked.Increment(ref syncTimeouts);
-                        string errMessage;
-                        List<Tuple<string, string>> data = null;
-                        if (server == null || !IncludeDetailInExceptions)
-                        {
-                            errMessage = "Timeout performing " + message.Command.ToString();
-                        }
-                        else
-                        {
-                            var sb = new StringBuilder("Timeout performing ").Append(message.CommandAndKey).Append(" (").Append(Format.ToString(TimeoutMilliseconds)).Append("ms)");
-                            data = new List<Tuple<string, string>> { Tuple.Create("Message", message.CommandAndKey) };
-                            void add(string lk, string sk, string v)
-                            {
-                                if (v != null)
-                                {
-                                    data.Add(Tuple.Create(lk, v));
-                                    sb.Append(", ").Append(sk).Append(": ").Append(v);
-                                }
-                            }
-
-                            server.GetOutstandingCount(message.Command, out int inst, out int qs, out int @in);
-                            add("Instantaneous", "inst", inst.ToString());
-                            add("Queue-Awaiting-Response", "qs", qs.ToString());
-                            add("Inbound-Bytes", "in", @in.ToString());
-                            add("Manager", "mgr", SocketManager?.GetState());
-
-                            add("Client-Name", "clientName", ClientName);
-                            add("Server-Endpoint", "serverEndpoint", server.EndPoint.ToString());
-                            var hashSlot = message.GetHashSlot(ServerSelectionStrategy);
-                            // only add keyslot if its a valid cluster key slot
-                            if (hashSlot != ServerSelectionStrategy.NoSlot)
-                            {
-                                add("Key-HashSlot", "PerfCounterHelperkeyHashSlot", message.GetHashSlot(this.ServerSelectionStrategy).ToString());
-                            }
-                            int busyWorkerCount = PerfCounterHelper.GetThreadPoolStats(out string iocp, out string worker);
-                            add("ThreadPool-IO-Completion", "IOCP", iocp);
-                            add("ThreadPool-Workers", "WORKER", worker);
-                            data.Add(Tuple.Create("Busy-Workers", busyWorkerCount.ToString()));
-
-                            if (IncludePerformanceCountersInExceptions)
-                            {
-                                add("Local-CPU", "Local-CPU", PerfCounterHelper.GetSystemCpuPercent());
-                            }
-
-                            sb.Append(" (Please take a look at this article for some common client-side issues that can cause timeouts: ");
-                            sb.Append(timeoutHelpLink);
-                            sb.Append(")");
-                            errMessage = sb.ToString();
-                            if (StormLogThreshold >= 0 && qs >= StormLogThreshold && Interlocked.CompareExchange(ref haveStormLog, 1, 0) == 0)
-                            {
-                                var log = server.GetStormLog(message.Command);
-                                if (string.IsNullOrWhiteSpace(log)) Interlocked.Exchange(ref haveStormLog, 0);
-                                else Interlocked.Exchange(ref stormLogSnapshot, log);
-                            }
-                        }
-                        var timeoutEx = ExceptionFactory.Timeout(IncludeDetailInExceptions, errMessage, message, server);
-                        timeoutEx.HelpLink = timeoutHelpLink;
-
-                        if (data != null)
-                        {
-                            foreach (var kv in data)
-                            {
-                                timeoutEx.Data["Redis-" + kv.Item1] = kv.Item2;
-                            }
-                        }
-                        throw timeoutEx;
+                        throw ExceptionFactory.Timeout(this, "Timeout performing " + message.Command.ToString(), message, server);
                         // very important not to return "source" to the pool here
                     }
                 }
@@ -2232,8 +2168,8 @@ namespace StackExchange.Redis
         /// </summary>
         public bool IncludePerformanceCountersInExceptions { get; set; }
 
-        private int haveStormLog = 0;
-        private string stormLogSnapshot;
+        internal int haveStormLog = 0;
+        internal string stormLogSnapshot;
         /// <summary>
         /// Limit at which to start recording unusual busy patterns (only one log will be retained at a time;
         /// set to a negative value to disable this feature)

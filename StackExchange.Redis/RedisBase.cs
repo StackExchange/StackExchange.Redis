@@ -172,10 +172,11 @@ namespace StackExchange.Redis
                 return redis.ExecuteSync(CreateMessage(cursor), Processor, server);
             }
 
-            protected Task<ScanResult> GetNextPageAsync(IScanningCursor obj, long cursor)
+            protected Task<ScanResult> GetNextPageAsync(IScanningCursor obj, long cursor, out Message message)
             {
                 activeCursor = obj;
-                return redis.ExecuteAsync(CreateMessage(cursor), Processor, server);
+                message = CreateMessage(cursor);
+                return redis.ExecuteAsync(message, Processor, server);
             }
 
             protected bool TryWait(Task<ScanResult> pending) => redis.TryWait(pending);
@@ -197,8 +198,11 @@ namespace StackExchange.Redis
 
                 private void LoadNextPageAsync()
                 {
-                    if(pending == null && nextCursor != 0)
-                        pending = parent.GetNextPageAsync(this, nextCursor);
+                    if (pending == null && nextCursor != 0)
+                    {
+                        pending = parent.GetNextPageAsync(this, nextCursor, out var message);
+                        pendingMessage = message;
+                    }
                 }
 
                 private bool SimpleNext()
@@ -214,6 +218,7 @@ namespace StackExchange.Redis
 
                 private T[] page;
                 private Task<ScanResult> pending;
+                private Message pendingMessage;
                 private int pageIndex;
                 private long currentCursor, nextCursor;
 
@@ -233,6 +238,7 @@ namespace StackExchange.Redis
                     pageIndex = -1;
                     page = result.Values;
                     pending = null;
+                    pendingMessage = null;
                 }
 
                 public bool MoveNext()
@@ -260,7 +266,7 @@ namespace StackExchange.Redis
                                 }
                                 else
                                 {
-                                    throw ExceptionFactory.Timeout(parent.redis.multiplexer.IncludeDetailInExceptions, "Timeout waiting for scan cursor to complete", null, parent.server);
+                                    throw ExceptionFactory.Timeout(parent.redis.multiplexer, null, pendingMessage, parent.server);
                                 }
 
                                 if (SimpleNext()) return true;
@@ -290,6 +296,7 @@ namespace StackExchange.Redis
                     state = State.Initial;
                     page = null;
                     pending = null;
+                    pendingMessage = null;
                 }
 
                 long IScanningCursor.Cursor => currentCursor;
