@@ -1496,7 +1496,7 @@ namespace StackExchange.Redis
 
         internal void StartReading()
         {
-            using (ExecutionContext.SuppressFlow())
+            using (ExecutionContext.IsFlowSuppressed() ? null : (AsyncFlowControl?)ExecutionContext.SuppressFlow())
             {
                 ReadFromPipe();
             }
