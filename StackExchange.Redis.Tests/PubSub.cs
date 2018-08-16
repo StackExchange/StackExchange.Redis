@@ -367,7 +367,7 @@ namespace StackExchange.Redis.Tests
                         {
                             data.Add(i);
                             if (data.Count == count) break;
-                            if ((data.Count % 100) == 99) Log(data.Count.ToString());
+                            if ((data.Count % 100) == 99) Log("Received: " + data.Count.ToString());
                         }
                     }
                     lock (syncLock)
@@ -383,6 +383,7 @@ namespace StackExchange.Redis.Tests
                     for (int i = 0; i < count; i++)
                     {
                         sub.Publish(channel, i.ToString(), CommandFlags.FireAndForget);
+                        if ((data.Count % 100) == 99) Log("Published: " + data.Count.ToString());
                     }
                     Log("Send loop complete.");
                     if (!Monitor.Wait(syncLock, 20000))
@@ -433,7 +434,7 @@ namespace StackExchange.Redis.Tests
                     {
                         data.Add(i);
                         if (data.Count == count) pulse = true;
-                        if ((data.Count % 100) == 99) Log(data.Count.ToString());
+                        if ((data.Count % 100) == 99) Log("Received: " + data.Count.ToString());
                     }
                     if (pulse)
                     {
@@ -450,6 +451,7 @@ namespace StackExchange.Redis.Tests
                     for (int i = 0; i < count; i++)
                     {
                         sub.Publish(channel, i.ToString(), CommandFlags.FireAndForget);
+                        if ((data.Count % 100) == 99) Log("Published: " + data.Count.ToString());
                     }
                     Log("Send loop complete.");
                     if (!Monitor.Wait(syncLock, 20000))
@@ -501,7 +503,7 @@ namespace StackExchange.Redis.Tests
                     {
                         data.Add(i);
                         if (data.Count == count) pulse = true;
-                        if ((data.Count % 100) == 99) Log(data.Count.ToString());
+                        if ((data.Count % 100) == 99) Log("Received: " + data.Count.ToString());
                     }
                     if (pulse)
                     {
@@ -519,6 +521,7 @@ namespace StackExchange.Redis.Tests
                     for (int i = 0; i < count; i++)
                     {
                         sub.Publish(channel, i.ToString(), CommandFlags.FireAndForget);
+                        if ((data.Count % 100) == 99) Log("Published: " + data.Count.ToString());
                     }
                     Log("Send loop complete.");
                     if (!Monitor.Wait(syncLock, 20000))
