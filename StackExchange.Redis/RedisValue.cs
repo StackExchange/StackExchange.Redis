@@ -32,8 +32,10 @@ namespace StackExchange.Redis
             _objectOrSentinel = obj;
             _memory = default;
         }
+#pragma warning disable RCS1085 // Use auto-implemented property.
         internal object DirectObject => _objectOrSentinel;
         internal long DirectInt64 => _overlappedValue64;
+#pragma warning restore RCS1085 // Use auto-implemented property.
 
         private readonly static object Sentinel_Integer = new object();
         private readonly static object Sentinel_Raw = new object();

@@ -740,7 +740,7 @@ namespace StackExchange.Redis.Tests
                     Assert.True(msg.CreationToEnqueued > TimeSpan.Zero);
                     Assert.True(msg.EnqueuedToSending > TimeSpan.Zero);
                     Assert.True(msg.SentToResponse > TimeSpan.Zero);
-                    Assert.True(msg.ResponseToCompletion > TimeSpan.Zero);
+                    Assert.True(msg.ResponseToCompletion >= TimeSpan.Zero); // this can be immeasurably fast
                     Assert.True(msg.ElapsedTime > TimeSpan.Zero);
 
                     if (msg.RetransmissionOf != null)

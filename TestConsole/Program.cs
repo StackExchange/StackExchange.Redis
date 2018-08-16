@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -22,6 +21,7 @@ namespace TestConsole
                 Console.WriteLine(i++);
                 RunCompetingBatchesOnSameMuxer();
             } while (DateTime.UtcNow < stop);
+            Console.WriteLine($"Completed {i} iterations, {2 * i * IterationCount * InnerCount} operations");
         }
         private static ConnectionMultiplexer Create()
         {

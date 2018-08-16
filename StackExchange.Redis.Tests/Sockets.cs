@@ -23,7 +23,10 @@ namespace StackExchange.Redis.Tests
             // Force GC before memory dump in debug below...
             CollectGarbage();
 
-            Debugger.Break();
+            if (Debugger.IsAttached)
+            {
+                Debugger.Break();
+            }
         }
     }
 }
