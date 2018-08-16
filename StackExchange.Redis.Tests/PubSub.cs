@@ -372,6 +372,7 @@ namespace StackExchange.Redis.Tests
                     }
                     lock (syncLock)
                     {
+                        Log("PulseAll.");
                         Monitor.PulseAll(syncLock);
                     }
                 }
@@ -383,12 +384,16 @@ namespace StackExchange.Redis.Tests
                     {
                         sub.Publish(channel, i.ToString(), CommandFlags.FireAndForget);
                     }
+                    Log("Send loop complete.");
                     if (!Monitor.Wait(syncLock, 20000))
                     {
                         throw new TimeoutException("Items: " + data.Count);
                     }
+                    Log("Unsubscribe.");
                     subChannel.Unsubscribe();
+                    Log("Sub Ping.");
                     sub.Ping();
+                    Log("Database Ping.");
                     muxer.GetDatabase().Ping();
                     for (int i = 0; i < count; i++)
                     {
@@ -446,12 +451,16 @@ namespace StackExchange.Redis.Tests
                     {
                         sub.Publish(channel, i.ToString(), CommandFlags.FireAndForget);
                     }
+                    Log("Send loop complete.");
                     if (!Monitor.Wait(syncLock, 20000))
                     {
                         throw new TimeoutException("Items: " + data.Count);
                     }
+                    Log("Unsubscribe.");
                     subChannel.Unsubscribe();
+                    Log("Sub Ping.");
                     sub.Ping();
+                    Log("Database Ping.");
                     muxer.GetDatabase().Ping();
                     for (int i = 0; i < count; i++)
                     {
@@ -511,12 +520,16 @@ namespace StackExchange.Redis.Tests
                     {
                         sub.Publish(channel, i.ToString(), CommandFlags.FireAndForget);
                     }
+                    Log("Send loop complete.");
                     if (!Monitor.Wait(syncLock, 20000))
                     {
                         throw new TimeoutException("Items: " + data.Count);
                     }
+                    Log("Unsubscribe.");
                     subChannel.Unsubscribe();
+                    Log("Sub Ping.");
                     sub.Ping();
+                    Log("Database Ping.");
                     muxer.GetDatabase().Ping();
                     for (int i = 0; i < count; i++)
                     {
