@@ -27,8 +27,8 @@ if ($PullRequestNumber) {
 Write-Host "Building projects..." -ForegroundColor "Magenta"
 foreach ($project in $projectsToBuild + $testsToRun) {
     Write-Host "Building $project (dotnet restore/build)..." -ForegroundColor "Magenta"
-    dotnet restore ".\$project\$project.csproj" /p:CI=true
-    dotnet build ".\$project\$project.csproj" -c Release /p:CI=true
+    dotnet restore ".\src\$project\$project.csproj" /p:CI=true
+    dotnet build ".\src\$project\$project.csproj" -c Release /p:CI=true
     Write-Host ""
 }
 Write-Host "Done building." -ForegroundColor "Green"
@@ -42,7 +42,7 @@ if ($RunTests) {
     foreach ($project in $testsToRun) {
         Write-Host "Running tests: $project (all frameworks)" -ForegroundColor "Magenta"
         #Push-Location ".\tests\$project"
-        Push-Location ".\$project"
+        Push-Location ".\tests\$project"
 
         dotnet test -c Release
         if ($LastExitCode -ne 0) {
@@ -66,7 +66,7 @@ if ($CreatePackages) {
 
     foreach ($project in $projectsToBuild) {
         Write-Host "Packing $project (dotnet pack)..." -ForegroundColor "Magenta"
-        dotnet pack ".\$project\$project.csproj" --no-build -c Release /p:PackageOutputPath=$packageOutputFolder /p:NoPackageAnalysis=true /p:CI=true
+        dotnet pack ".\src\$project\$project.csproj" --no-build -c Release /p:PackageOutputPath=$packageOutputFolder /p:NoPackageAnalysis=true /p:CI=true
         Write-Host ""
     }
 }

@@ -13,7 +13,6 @@
     <LangVersion>latest</LangVersion>
   </PropertyGroup>
 
-
   <ItemGroup>
     <ProjectReference Include="..\StackExchange.Redis\StackExchange.Redis.csproj" />
   </ItemGroup>

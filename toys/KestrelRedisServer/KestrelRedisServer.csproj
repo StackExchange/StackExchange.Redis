@@ -6,12 +6,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Folder Include="wwwroot\" />
-  </ItemGroup>
-  
-  <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Microsoft.AspNetCore.Server.Kestrel.Transport.Libuv" Version="2.1.0" />
     <ProjectReference Include="..\StackExchange.Redis.Server\StackExchange.Redis.Server.csproj" />
   </ItemGroup>
+
 </Project>

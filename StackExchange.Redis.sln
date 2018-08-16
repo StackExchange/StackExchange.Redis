@@ -30,15 +30,15 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "RedisConfigs", "RedisConfig
 		RedisConfigs\start-sentinel.cmd = RedisConfigs\start-sentinel.cmd
 	EndProjectSection
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "StackExchange.Redis", "StackExchange.Redis\StackExchange.Redis.csproj", "{EF84877F-59BE-41BE-9013-E765AF0BB72E}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "StackExchange.Redis", "src\StackExchange.Redis\StackExchange.Redis.csproj", "{EF84877F-59BE-41BE-9013-E765AF0BB72E}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "StackExchange.Redis.Tests", "StackExchange.Redis.Tests\StackExchange.Redis.Tests.csproj", "{3B8BD8F1-8BFC-4D8C-B4DA-25FFAF3D1DBE}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "StackExchange.Redis.Tests", "tests\StackExchange.Redis.Tests\StackExchange.Redis.Tests.csproj", "{3B8BD8F1-8BFC-4D8C-B4DA-25FFAF3D1DBE}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BasicTest", "BasicTest\BasicTest.csproj", "{939FA5F7-16AA-4847-812B-6EBC3748A86D}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BasicTest", "tests\BasicTest\BasicTest.csproj", "{939FA5F7-16AA-4847-812B-6EBC3748A86D}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NRediSearch", "NRediSearch\NRediSearch.csproj", "{71455B07-E628-4F3A-9FFF-9EC63071F78E}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NRediSearch", "src\NRediSearch\NRediSearch.csproj", "{71455B07-E628-4F3A-9FFF-9EC63071F78E}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NRediSearch.Test", "NRediSearch.Test\NRediSearch.Test.csproj", "{94D233F5-2400-4542-98B9-BA72005C57DC}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NRediSearch.Test", "tests\NRediSearch.Test\NRediSearch.Test.csproj", "{94D233F5-2400-4542-98B9-BA72005C57DC}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Sentinel", "Sentinel", "{36255A0A-89EC-43C8-A642-F4C1ACAEF5BC}"
 	ProjectSection(SolutionItems) = preProject
@@ -71,11 +71,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Basic", "Basic", "{38BDEEED
 		RedisConfigs\Basic\slave-6380.conf = RedisConfigs\Basic\slave-6380.conf
 	EndProjectSection
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BasicTestBaseline", "BasicTestBaseline\BasicTestBaseline.csproj", "{8FDB623D-779B-4A84-BC6B-75106E41D8A4}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BasicTestBaseline", "tests\BasicTestBaseline\BasicTestBaseline.csproj", "{8FDB623D-779B-4A84-BC6B-75106E41D8A4}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TestConsole", "TestConsole\TestConsole.csproj", "{651FDB97-9DE3-4BD9-9A05-827AF8F1A94A}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TestConsole", "toys\TestConsole\TestConsole.csproj", "{651FDB97-9DE3-4BD9-9A05-827AF8F1A94A}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "StackExchange.Redis.StrongName", "StackExchange.Redis.StrongName\StackExchange.Redis.StrongName.csproj", "{769640F3-889C-4E8A-A7DF-916AE9B432A6}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "StackExchange.Redis.StrongName", "src\StackExchange.Redis.StrongName\StackExchange.Redis.StrongName.csproj", "{769640F3-889C-4E8A-A7DF-916AE9B432A6}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Failover", "Failover", "{D082703F-1652-4C35-840D-7D377F6B9979}"
 	ProjectSection(SolutionItems) = preProject
@@ -83,9 +83,15 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Failover", "Failover", "{D0
 		RedisConfigs\Failover\slave-6383.conf = RedisConfigs\Failover\slave-6383.conf
 	EndProjectSection
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "StackExchange.Redis.Server", "StackExchange.Redis.Server\StackExchange.Redis.Server.csproj", "{8375813E-FBAF-4DA3-A2C7-E4645B39B931}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "StackExchange.Redis.Server", "toys\StackExchange.Redis.Server\StackExchange.Redis.Server.csproj", "{8375813E-FBAF-4DA3-A2C7-E4645B39B931}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "KestrelRedisServer", "KestrelRedisServer\KestrelRedisServer.csproj", "{3DA1EEED-E9FE-43D9-B293-E000CFCCD91A}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "KestrelRedisServer", "toys\KestrelRedisServer\KestrelRedisServer.csproj", "{3DA1EEED-E9FE-43D9-B293-E000CFCCD91A}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{73A5C363-CA1F-44C4-9A9B-EF791A76BA6A}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{00CA0876-DA9F-44E8-B0DC-A88716BF347A}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "toys", "toys", "{E25031D3-5C64-430D-B86F-697B66816FD8}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -138,10 +144,21 @@ Global
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
+		{96E891CD-2ED7-4293-A7AB-4C6F5D8D2B05} = {73A5C363-CA1F-44C4-9A9B-EF791A76BA6A}
+		{EF84877F-59BE-41BE-9013-E765AF0BB72E} = {00CA0876-DA9F-44E8-B0DC-A88716BF347A}
+		{3B8BD8F1-8BFC-4D8C-B4DA-25FFAF3D1DBE} = {73A5C363-CA1F-44C4-9A9B-EF791A76BA6A}
+		{939FA5F7-16AA-4847-812B-6EBC3748A86D} = {73A5C363-CA1F-44C4-9A9B-EF791A76BA6A}
+		{71455B07-E628-4F3A-9FFF-9EC63071F78E} = {00CA0876-DA9F-44E8-B0DC-A88716BF347A}
+		{94D233F5-2400-4542-98B9-BA72005C57DC} = {73A5C363-CA1F-44C4-9A9B-EF791A76BA6A}
 		{36255A0A-89EC-43C8-A642-F4C1ACAEF5BC} = {96E891CD-2ED7-4293-A7AB-4C6F5D8D2B05}
 		{A3B4B972-5BD2-4D90-981F-7E51E350E628} = {96E891CD-2ED7-4293-A7AB-4C6F5D8D2B05}
 		{38BDEEED-7BEB-4B1F-9CE0-256D63F9C502} = {96E891CD-2ED7-4293-A7AB-4C6F5D8D2B05}
+		{8FDB623D-779B-4A84-BC6B-75106E41D8A4} = {73A5C363-CA1F-44C4-9A9B-EF791A76BA6A}
+		{651FDB97-9DE3-4BD9-9A05-827AF8F1A94A} = {E25031D3-5C64-430D-B86F-697B66816FD8}
+		{769640F3-889C-4E8A-A7DF-916AE9B432A6} = {00CA0876-DA9F-44E8-B0DC-A88716BF347A}
 		{D082703F-1652-4C35-840D-7D377F6B9979} = {96E891CD-2ED7-4293-A7AB-4C6F5D8D2B05}
+		{8375813E-FBAF-4DA3-A2C7-E4645B39B931} = {E25031D3-5C64-430D-B86F-697B66816FD8}
+		{3DA1EEED-E9FE-43D9-B293-E000CFCCD91A} = {E25031D3-5C64-430D-B86F-697B66816FD8}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {193AA352-6748-47C1-A5FC-C9AA6B5F000B}

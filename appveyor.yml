@@ -7,7 +7,7 @@ init:
 
 install:
 - cmd: >-
-    cd RedisConfigs\3.0.503
+    cd tests\RedisConfigs\3.0.503
 
     redis-server.exe --service-install --service-name "redis-6379" "..\Basic\master-6379.conf"
 
@@ -39,15 +39,15 @@ install:
 
     redis-server.exe --service-install --service-name "redis-26380" "..\Sentinel\sentinel-26380.conf" --sentinel
 
-    cd ..\..
+    cd ..\..\..
 - sh: >-
-    cd RedisConfigs
+    cd tests/RedisConfigs
 
     chmod +x start-all.sh
 
     ./start-all.sh
 
-    cd ..
+    cd ../..
 - ps: >-
     if (Get-Command "Start-Service" -errorAction SilentlyContinue) {
       Start-Service redis-*
@@ -74,7 +74,7 @@ deploy:
 - provider: NuGet
   server: https://www.myget.org/F/stackoverflow/api/v2
   on:
-    branch: master  
+    branch: master
   api_key:
     secure: P/UHxq2DEs0GI1SoDXDesHjRVsSVgdywz5vmsnhFQQY5aJgO3kP+QfhwfhXz19Rw
   symbol_server: https://www.myget.org/F/stackoverflow/symbols/api/v2/package
