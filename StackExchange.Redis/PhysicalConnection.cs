@@ -77,7 +77,7 @@ namespace StackExchange.Redis
             Thread.VolatileWrite(ref firstUnansweredWriteTickCount, 0);
             var bridge = BridgeCouldBeNull;
             var endpoint = bridge?.ServerEndPoint?.EndPoint;
-            if(endpoint == null)
+            if (endpoint == null)
             {
                 log?.WriteLine("No endpoint");
             }
@@ -598,7 +598,7 @@ namespace StackExchange.Redis
         internal void OnInternalError(Exception exception, [CallerMemberName] string origin = null)
         {
             var bridge = BridgeCouldBeNull;
-            if(bridge != null)
+            if (bridge != null)
             {
                 bridge.Multiplexer.OnInternalError(exception, bridge.ServerEndPoint.EndPoint, connectionType, origin);
             }
@@ -983,7 +983,7 @@ namespace StackExchange.Redis
         internal static Encoder GetPerThreadEncoder()
         {
             var encoder = s_PerThreadEncoder;
-            if(encoder == null)
+            if (encoder == null)
             {
                 s_PerThreadEncoder = encoder = Encoding.UTF8.GetEncoder();
             }
@@ -1171,7 +1171,7 @@ namespace StackExchange.Redis
                         {
                             ssl.AuthenticateAsClient(host, config.SslProtocols);
                         }
-                        catch(Exception ex)
+                        catch (Exception ex)
                         {
                             Debug.WriteLine(ex.Message);
                             bridge.Multiplexer?.SetAuthSuspect();
@@ -1494,7 +1494,13 @@ namespace StackExchange.Redis
             return new RawResult(type, payload, false);
         }
 
-        internal void StartReading() => ReadFromPipe();
+        internal void StartReading()
+        {
+            using (ExecutionContext.SuppressFlow())
+            {
+                ReadFromPipe();
+            }
+        }
 
         internal static RawResult TryParseResult(in ReadOnlySequence<byte> buffer, ref BufferReader reader,
             bool includeDetilInExceptions, ServerEndPoint server, bool allowInlineProtocol = false)

@@ -151,8 +151,11 @@ namespace StackExchange.Redis
         public void OnMessage(Action<ChannelMessage> handler)
         {
             AssertOnMessage(handler);
-            ThreadPool.QueueUserWorkItem(
+            using (ExecutionContext.SuppressFlow())
+            {
+                ThreadPool.QueueUserWorkItem(
                 state => ((ChannelMessageQueue)state).OnMessageSyncImpl(), this);
+            }
         }
 
         private async void OnMessageSyncImpl()
@@ -181,8 +184,11 @@ namespace StackExchange.Redis
         public void OnMessage(Func<ChannelMessage, Task> handler)
         {
             AssertOnMessage(handler);
-            ThreadPool.QueueUserWorkItem(
+            using (ExecutionContext.SuppressFlow())
+            {
+                ThreadPool.QueueUserWorkItem(
                 state => ((ChannelMessageQueue)state).OnMessageAsyncImpl(), this);
+            }
         }
 
         private async void OnMessageAsyncImpl()
