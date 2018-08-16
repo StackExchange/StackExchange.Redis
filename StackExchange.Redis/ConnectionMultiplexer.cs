@@ -2146,7 +2146,7 @@ namespace StackExchange.Redis
                     {
                         Trace("Timeout performing " + message);
                         Interlocked.Increment(ref syncTimeouts);
-                        throw ExceptionFactory.Timeout(this, "Timeout performing " + message.Command.ToString(), message, server);
+                        throw ExceptionFactory.Timeout(this, null, message, server);
                         // very important not to return "source" to the pool here
                     }
                 }
