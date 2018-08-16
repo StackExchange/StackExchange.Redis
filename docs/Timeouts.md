@@ -9,41 +9,55 @@ There can be commands that are taking long time to process on the redis-server c
 
 Was there a big request preceding several small requests to the Redis that timed out?
 ---------------
-The parameter “qs” in the error message tells you how many requests were sent from the client to the server, but have not yet processed a response. For some types of load you might see that this value keeps growing, because StackExchange.Redis uses a single TCP connection and can only read one response at a time.  Even though the first operation timed out, it does not stop the data being sent to/from the server, and other requests are blocked until this is finished. Thereby, causing timeouts. One solution is to minimize the chance of timeouts by ensuring that your redis-server cache is large enough for your workload and splitting large values into smaller chunks. Another possible solution is to use a pool of ConnectionMultiplexer objects in your client, and choose the "least loaded" ConnectionMultiplexer when sending a new request.  This should prevent a single timeout from causing other requests to also timeout.
+The parameter “`qs`” in the error message tells you how many requests were sent from the client to the server, but have not yet processed a response. For some types of load you might see that this value keeps growing, because StackExchange.Redis uses a single TCP connection and can only read one response at a time.  Even though the first operation timed out, it does not stop the data being sent to/from the server, and other requests are blocked until this is finished. Thereby, causing timeouts. One solution is to minimize the chance of timeouts by ensuring that your redis-server cache is large enough for your workload and splitting large values into smaller chunks. Another possible solution is to use a pool of ConnectionMultiplexer objects in your client, and choose the "least loaded" ConnectionMultiplexer when sending a new request.  This should prevent a single timeout from causing other requests to also timeout.
 
 
 Are you seeing high number of busyio or busyworker threads in the timeout exception?
 ---------------
-Let's first understand some details on ThreadPool Growth:
 
-The CLR ThreadPool has two types of threads - "Worker" and "I/O Completion Port" (aka IOCP) threads.  
+Asynchronous operations in StackExchange.Redis can come back in 3 different ways:
 
- - Worker threads are used when for things like processing `Task.Run(…)` or `ThreadPool.QueueUserWorkItem(…)` methods.  These threads are also used by various components in the CLR when work needs to happen on a background thread.
- - IOCP threads are used when asynchronous IO happens (e.g. reading from the network).  
+- IOCP threads are used when asynchronous IO happens (e.g. reading from the network).
+- From 2.0 onwards, StackExchange.Redis maintains a dedicated thread-pool that it uses for completing most `async` operations; the error message may include a an indication of how many of these workers are currently available - if this is zero, it may suggest that your system is particularly busy with asynchronous operations
+- .NET also has a global thread-pool; if the dedicated thread-pool is failing to keep up, additional work will be offered to the global thread-pool, so the message may include details of the global thread-pool
 
-The thread pool provides new worker threads or I/O completion threads on demand (without any throttling) until it reaches the "Minimum" setting for each type of thread.  By default, the minimum number of threads is set to the number of processors on a system.  
 
-Once the number of existing (busy) threads hits the "minimum" number of threads, the ThreadPool will throttle the rate at which is injects new threads to one thread per 500 milliseconds.  This means that if your system gets a burst of work needing an IOCP thread, it will process that work very quickly.   However, if the burst of work is more than the configured "Minimum" setting, there will be some delay in processing some of the work as the ThreadPool waits for one of two things to happen
+
+The StackExchange.Redis dedicated thread-pool has a fixed size suitable for many common scenarios, which is shared between multiple connection instances (this can be customized by explicitly providing a `SocketManager` when creating a `ConnectionMultiplexer`). In many scenarios when using 2.0 and above, the vast majority of asynchronous operations will be services by this dedicated pool. This pool exists to avoid contention, as we've frequently seen cases where the global thread-pool becomes jammed with threads that need redis results to unblock them.
+
+.NET itself provides new global thread pool worker threads or I/O completion threads on demand (without any throttling) until it reaches the "Minimum" setting for each type of thread.  By default, the minimum number of threads is set to the number of processors on a system.
+
+For these .NET-provided global thread pools: once the number of existing (busy) threads hits the "minimum" number of threads, the ThreadPool will throttle the rate at which is injects new threads to one thread per 500 milliseconds.  This means that if your system gets a burst of work needing an IOCP thread, it will process that work very quickly.   However, if the burst of work is more than the configured "Minimum" setting, there will be some delay in processing some of the work as the ThreadPool waits for one of two things to happen
 	1. An existing thread becomes free to process the work
 	2. No existing thread becomes free for 500ms, so a new thread is created.
 
-Basically, it means that when the number of Busy threads is greater than Min threads, you are likely paying a 500ms delay before network traffic is processed by the application.  Also, it is important to note that when an existing thread stays idle for longer than 15 seconds (based on what I remember), it will be cleaned up and this cycle of growth and shrinkage can repeat.
+Basically, *if* you're hitting the global thread pool (rather than the dedicated StackExchange.Redis thread-pool) it means that when the number of Busy threads is greater than Min threads, you are likely paying a 500ms delay before network traffic is processed by the application.  Also, it is important to note that when an existing thread stays idle for longer than 15 seconds (based on what I remember), it will be cleaned up and this cycle of growth and shrinkage can repeat.
 
-If we look at an example error message from StackExchange.Redis (build 1.0.450 or later), you will see that it now prints ThreadPool statistics (see IOCP and WORKER details below).
+If we look at an example error message from StackExchange.Redis 2.0, you will see that it now prints ThreadPool statistics (see IOCP and WORKER details below).
+
+	Timeout performing GET MyKey (1000ms), inst: 2, qs: 6, in: 0, mgr: 9 of 10 available,
+	IOCP: (Busy=6,Free=994,Min=4,Max=1000), 
+	WORKER: (Busy=3,Free=997,Min=4,Max=1000)
+
+In the above example, there are 6 operations currently awaiting replies from redis ("`qs`"), there are 0 bytes waiting to be read from the input stream from redis ("`in`"), and the dedicate thread-pool is almost fully available to service asynchronous completions ("`mgr`"). You can also see that for IOCP thread there are 6 busy threads and the system is configured to allow 4 minimum threads. 
+
+In 1.*, the information is similar but slightly different:
 
 	System.TimeoutException: Timeout performing GET MyKey, inst: 2, mgr: Inactive, 
 	queue: 6, qu: 0, qs: 6, qc: 0, wr: 0, wq: 0, in: 0, ar: 0, 
 	IOCP: (Busy=6,Free=994,Min=4,Max=1000), 
 	WORKER: (Busy=3,Free=997,Min=4,Max=1000)
 
-In the above example, you can see that for IOCP thread there are 6 busy threads and the system is configured to allow 4 minimum threads.  In this case, the client would have likely seen two 500 ms delays because 6 > 4.
+It may seem contradictory that there are *less* numbers in 2.0 - this is because the 2.0 code has been redesigned not to require some additional steps.
 
-Note that StackExchange.Redis can hit timeouts if growth of either IOCP or WORKER threads gets throttled.
+Note that StackExchange.Redis can hit timeouts if either the IOCP threadss or the worker threads (.NET global thread-pool, or the dedicated thread-pool) become saturated without the ability to grow.
 
 Also note that the IOCP and WORKER threads will not be shown on .NET Core if using `netstandard` < 2.0.
 
+Note that You shouldn't need a much fine-tuning of this from 2.0, since the dedicated thread-pool should be servicing most of the load.
+
 Recommendation:
-Given the above information, it's recommend to set the minimum configuration value for IOCP and WORKER threads to something larger than the default value.  We can't give one-size-fits-all guidance on what this value should be because the right value for one application will be too high/low for another application.  This setting can also impact the performance of other parts of complicated applications, so you need to fine-tune this setting to your specific needs.  A good starting place is 200 or 300, then test and tweak as needed.
+Given the above information, in 1.* it's recommend to set the minimum configuration value for IOCP and WORKER threads to something larger than the default value.  We can't give one-size-fits-all guidance on what this value should be because the right value for one application will be too high/low for another application.  This setting can also impact the performance of other parts of complicated applications, so you need to fine-tune this setting to your specific needs.  A good starting place is 200 or 300, then test and tweak as needed.
 
 How to configure this setting:
 
