@@ -596,7 +596,7 @@ namespace StackExchange.Redis.Tests
                 var val = db.StringGet(key);
                 Assert.Equal("world", val);
 
-                var msgs = profiler.FinishProfiling();
+                var msgs = profiler.FinishProfiling().Where(m => m.Command == "GET" || m.Command == "SET");
                 foreach (var msg in msgs)
                 {
                     Log("Profiler Message: " + Environment.NewLine + msg.ToString());
