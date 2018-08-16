@@ -383,7 +383,7 @@ namespace StackExchange.Redis.Tests
                     for (int i = 0; i < count; i++)
                     {
                         sub.Publish(channel, i.ToString(), CommandFlags.FireAndForget);
-                        if ((i % 100) == 99) Log("Published: " + data.Count.ToString());
+                        if ((i % 100) == 99) Log("Published: " + i.ToString());
                     }
                     Log("Send loop complete.");
                     if (!Monitor.Wait(syncLock, 20000))
@@ -451,7 +451,7 @@ namespace StackExchange.Redis.Tests
                     for (int i = 0; i < count; i++)
                     {
                         sub.Publish(channel, i.ToString(), CommandFlags.FireAndForget);
-                        if ((i % 100) == 99) Log("Published: " + data.Count.ToString());
+                        if ((i % 100) == 99) Log("Published: " + i.ToString());
                     }
                     Log("Send loop complete.");
                     if (!Monitor.Wait(syncLock, 20000))
@@ -521,7 +521,7 @@ namespace StackExchange.Redis.Tests
                     for (int i = 0; i < count; i++)
                     {
                         sub.Publish(channel, i.ToString(), CommandFlags.FireAndForget);
-                        if ((i % 100) == 99) Log("Published: " + data.Count.ToString());
+                        if ((i % 100) == 99) Log("Published: " + i.ToString());
                     }
                     Log("Send loop complete.");
                     if (!Monitor.Wait(syncLock, 20000))
