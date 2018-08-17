@@ -926,6 +926,16 @@ namespace StackExchange.Redis
         Task<RedisValue> SetPopAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Removes and returns an array of count random elements from the set value stored at key.
+        /// </summary>
+        /// <param name="key">The key of the set.</param>
+        /// <param name="count">The count of members to get.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>An array of elements, or an empty array when key does not exist.</returns>
+        /// <remarks>https://redis.io/commands/spop</remarks>
+        Task<RedisValue[]> SetPopAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Return a random element from the set value stored at key.
         /// </summary>
         /// <param name="key">The key of the set.</param>
