@@ -989,7 +989,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the set.</param>
         /// <param name="count">The number of elements to return.</param>
         /// <param name="flags">The flags to use for this operation.</param>
-        /// <returns>The removed elements, or nil when key does not exist.</returns>
+        /// <returns>An array of elements, or an empty array when key does not exist.</returns>
         /// <remarks>https://redis.io/commands/spop</remarks>
         RedisValue[] SetPop(RedisKey key, long count, CommandFlags flags = CommandFlags.None);
 

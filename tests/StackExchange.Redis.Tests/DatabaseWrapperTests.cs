@@ -563,11 +563,18 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void SetPop()
+        public void SetPop_1()
         {
             wrapper.SetPop("key", CommandFlags.HighPriority);
             mock.Verify(_ => _.SetPop("prefix:key", CommandFlags.HighPriority));
 
+            wrapper.SetPop("key", 5, CommandFlags.HighPriority);
+            mock.Verify(_ => _.SetPop("prefix:key", 5, CommandFlags.HighPriority));
+        }
+
+        [Fact]
+        public void SetPop_2()
+        {
             wrapper.SetPop("key", 5, CommandFlags.HighPriority);
             mock.Verify(_ => _.SetPop("prefix:key", 5, CommandFlags.HighPriority));
         }
