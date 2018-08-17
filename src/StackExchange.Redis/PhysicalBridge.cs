@@ -247,12 +247,13 @@ namespace StackExchange.Redis
                     msg.SetSource(ResultProcessor.Tracer, null);
                     break;
                 case ConnectionType.Subscription:
-                    if (commandMap.IsAvailable(RedisCommand.PING) && features.PingOnSubscriber)
-                    {
-                        msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.PING);
-                        msg.SetSource(ResultProcessor.Tracer, null);
-                    }
-                    else if (commandMap.IsAvailable(RedisCommand.UNSUBSCRIBE))
+                    //if (commandMap.IsAvailable(RedisCommand.PING) && features.PingOnSubscriber)
+                    //{
+                    //    msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.PING);
+                    //    msg.SetSource(ResultProcessor.Tracer, null);
+                    //}
+                    //else
+                    if (commandMap.IsAvailable(RedisCommand.UNSUBSCRIBE))
                     {
                         msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.UNSUBSCRIBE,
                             (RedisChannel)Guid.NewGuid().ToByteArray());
