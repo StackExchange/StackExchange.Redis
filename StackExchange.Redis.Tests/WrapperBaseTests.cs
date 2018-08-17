@@ -535,10 +535,17 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void SetPopAsync()
+        public void SetPopAsync_1()
         {
             wrapper.SetPopAsync("key", CommandFlags.HighPriority);
             mock.Verify(_ => _.SetPopAsync("prefix:key", CommandFlags.HighPriority));
+        }
+
+        [Fact]
+        public void SetPopAsync_2()
+        {
+            wrapper.SetPopAsync("key", 5, CommandFlags.HighPriority);
+            mock.Verify(_ => _.SetPopAsync("prefix:key", 5, CommandFlags.HighPriority));
         }
 
         [Fact]

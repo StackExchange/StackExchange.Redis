@@ -447,6 +447,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.SetPop(ToInner(key), flags);
         }
 
+        public RedisValue[] SetPop(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.SetPop(ToInner(key), count, flags);
+        }
+
         public RedisValue SetRandomMember(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             return Inner.SetRandomMember(ToInner(key), flags);

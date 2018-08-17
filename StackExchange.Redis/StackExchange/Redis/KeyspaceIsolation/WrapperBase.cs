@@ -426,6 +426,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.SetPopAsync(ToInner(key), flags);
         }
 
+        public Task<RedisValue[]> SetPopAsync(RedisKey key, long count, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.SetPopAsync(ToInner(key), count, flags);
+        }
+
         public Task<RedisValue> SetRandomMemberAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             return Inner.SetRandomMemberAsync(ToInner(key), flags);
