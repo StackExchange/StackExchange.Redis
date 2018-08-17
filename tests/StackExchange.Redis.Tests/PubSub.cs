@@ -349,7 +349,7 @@ namespace StackExchange.Redis.Tests
             {
                 var sub = muxer.GetSubscriber();
                 RedisChannel channel = Me();
-                const int count = 1000;
+                const int count = 250;
                 var syncLock = new object();
 
                 var data = new List<int>(count);
@@ -382,7 +382,7 @@ namespace StackExchange.Redis.Tests
                     Task.Run(RunLoop);
                     for (int i = 0; i < count; i++)
                     {
-                        sub.Publish(channel, i.ToString(), CommandFlags.FireAndForget);
+                        sub.Publish(channel, i.ToString());
                         if ((i % 100) == 99) Log("Published: " + i.ToString());
                     }
                     Log("Send loop complete.");
