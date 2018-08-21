@@ -98,6 +98,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.HashGetAsync(ToInner(key), hashField, flags);
         }
 
+        public Task<Lease<byte>> HashGetLeaseAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.HashGetLeaseAsync(ToInner(key), hashField, flags);
+        }
+
         public Task<double> HashIncrementAsync(RedisKey key, RedisValue hashField, double value, CommandFlags flags = CommandFlags.None)
         {
             return Inner.HashIncrementAsync(ToInner(key), hashField, value, flags);
@@ -744,6 +749,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<RedisValue> StringGetAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             return Inner.StringGetAsync(ToInner(key), flags);
+        }
+
+        public Task<Lease<byte>> StringGetLeaseAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StringGetLeaseAsync(ToInner(key), flags);
         }
 
         public Task<bool> StringGetBitAsync(RedisKey key, long offset, CommandFlags flags = CommandFlags.None)

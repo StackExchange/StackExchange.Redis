@@ -68,6 +68,9 @@ namespace StackExchange.Redis
         public static readonly ResultProcessor<RedisValue>
             RedisValue = new RedisValueProcessor();
 
+        public static readonly ResultProcessor<Lease<byte>>
+            Lease = new LeaseProcessor();
+
         public static readonly ResultProcessor<RedisValue[]>
             RedisValueArray = new RedisValueArrayProcessor();
 
@@ -1297,6 +1300,22 @@ The coordinates as a two items x,y array (longitude,latitude).
                     case ResultType.SimpleString:
                     case ResultType.BulkString:
                         SetResult(message, result.AsRedisValue());
+                        return true;
+                }
+                return false;
+            }
+        }
+
+        private sealed class LeaseProcessor : ResultProcessor<Lease<byte>>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            {
+                switch (result.Type)
+                {
+                    case ResultType.Integer:
+                    case ResultType.SimpleString:
+                    case ResultType.BulkString:
+                        SetResult(message, result.AsLease());
                         return true;
                 }
                 return false;

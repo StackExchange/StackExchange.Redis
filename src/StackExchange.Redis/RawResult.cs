@@ -180,6 +180,21 @@ namespace StackExchange.Redis
             throw new InvalidCastException("Cannot convert to RedisValue: " + Type);
         }
 
+        internal Lease<byte> AsLease()
+        {
+            if (IsNull) return null;
+            switch (Type)
+            {
+                case ResultType.SimpleString:
+                case ResultType.BulkString:
+                    var payload = Payload;
+                    var lease = Lease<byte>.Create(checked((int)payload.Length), false);
+                    payload.CopyTo(lease.Span);
+                    return lease;
+            }
+            throw new InvalidCastException("Cannot convert to Lease: " + Type);
+        }
+
         internal void Recycle(int limit = -1)
         {
             var arr = _itemsOversized;

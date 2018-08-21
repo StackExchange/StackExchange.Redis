@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Net.Security;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
+using System.Text;
 
 namespace StackExchange.Redis
 {
@@ -161,6 +163,66 @@ namespace StackExchange.Redis
         private static void AuthenticateAsClientUsingDefaultProtocols(SslStream ssl, string host)
         {
             ssl.AuthenticateAsClient(host);
+        }
+
+        /// <summary>
+        /// Represent a byte-Lease as a Stream
+        /// </summary>
+        /// <param name="bytes">The lease upon which to base the stream</param>
+        /// <param name="ownsLease">If true, disposing the stream also disposes the lease</param>
+        public static MemoryStream AsStream(this Lease<byte> bytes, bool ownsLease = true)
+        {
+            if (bytes == null) return null; // GIGO
+            var segment = bytes.ArraySegment;
+            if (ownsLease) return new LeaseMemoryStream(segment, bytes);
+            return new MemoryStream(segment.Array, segment.Offset, segment.Count, true, true);
+        }
+
+        /// <summary>
+        /// Decode a byte-Lease as a String, optionally specifying the encoding (UTF-8 if omitted)
+        /// </summary>
+        /// <param name="bytes">The bytes to decode</param>
+        /// <param name="encoding">The encoding to use</param>
+        public static string DecodeString(this Lease<byte> bytes, Encoding encoding = null)
+        {
+            if (bytes == null) return null;
+            if (encoding == null) encoding = Encoding.UTF8;
+            if (bytes.Length == 0) return "";
+            var segment = bytes.ArraySegment;
+            return encoding.GetString(segment.Array, segment.Offset, segment.Count);
+        }
+
+        /// <summary>
+        /// Decode a byte-Lease as a String, optionally specifying the encoding (UTF-8 if omitted)
+        /// </summary>
+        /// <param name="bytes">The bytes to decode</param>
+        /// <param name="encoding">The encoding to use</param>
+        public static Lease<char> DecodeLease(this Lease<byte> bytes, Encoding encoding = null)
+        {
+            if (bytes == null) return null;
+            if (encoding == null) encoding = Encoding.UTF8;
+            if (bytes.Length == 0) return Lease<char>.Empty;
+            var bytesSegment = bytes.ArraySegment;
+            var charCount = encoding.GetCharCount(bytesSegment.Array, bytesSegment.Offset, bytesSegment.Count);
+            var chars = Lease<char>.Create(charCount, false);
+            var charsSegment = chars.ArraySegment;
+            encoding.GetChars(bytesSegment.Array, bytesSegment.Offset, bytesSegment.Count,
+                charsSegment.Array, charsSegment.Offset);
+            return chars;
+        }
+
+        private sealed class LeaseMemoryStream : MemoryStream
+        {
+            private readonly IDisposable _parent;
+            public LeaseMemoryStream(ArraySegment<byte> segment, IDisposable parent)
+                : base(segment.Array, segment.Offset, segment.Count, true, true)
+                => _parent = parent;
+
+            protected override void Dispose(bool disposing)
+            {
+                base.Dispose(disposing);
+                if (disposing) _parent.Dispose();
+            }
         }
     }
 }

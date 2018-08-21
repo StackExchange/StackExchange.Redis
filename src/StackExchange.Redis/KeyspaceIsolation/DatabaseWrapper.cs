@@ -122,6 +122,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.HashGet(ToInner(key), hashField, flags);
         }
 
+        public Lease<byte> HashGetLease(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.HashGetLease(ToInner(key), hashField, flags);
+        }
+
         public double HashIncrement(RedisKey key, RedisValue hashField, double value, CommandFlags flags = CommandFlags.None)
         {
             return Inner.HashIncrement(ToInner(key), hashField, value, flags);
@@ -764,6 +769,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public RedisValue StringGet(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             return Inner.StringGet(ToInner(key), flags);
+        }
+
+        public Lease<byte>StringGetLease(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StringGetLease(ToInner(key), flags);
         }
 
         public bool StringGetBit(RedisKey key, long offset, CommandFlags flags = CommandFlags.None)

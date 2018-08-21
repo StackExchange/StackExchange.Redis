@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Xunit;
@@ -62,6 +63,45 @@ namespace StackExchange.Redis.Tests
 
                 Assert.Equal("abc", await v1);
                 Assert.Equal("def", Decode(await v2));
+            }
+        }
+
+        [Fact]
+        public async Task GetLease()
+        {
+            using (var muxer = Create())
+            {
+                var conn = muxer.GetDatabase();
+                var key = Me();
+                conn.KeyDelete(key, CommandFlags.FireAndForget);
+
+                conn.StringSet(key, "abc", flags: CommandFlags.FireAndForget);
+                using (var v1 = await conn.StringGetLeaseAsync(key).ConfigureAwait(false))
+                {
+                    string s = v1.DecodeString();
+                    Assert.Equal("abc", s);
+                }
+            }
+        }
+
+        [Fact]
+        public async Task GetLeaseAsStream()
+        {
+            using (var muxer = Create())
+            {
+                var conn = muxer.GetDatabase();
+                var key = Me();
+                conn.KeyDelete(key, CommandFlags.FireAndForget);
+
+                conn.StringSet(key, "abc", flags: CommandFlags.FireAndForget);
+                using (var v1 = (await conn.StringGetLeaseAsync(key).ConfigureAwait(false)).AsStream())
+                {
+                    using (var sr = new StreamReader(v1))
+                    {
+                        string s = sr.ReadToEnd();
+                        Assert.Equal("abc", s);
+                    }
+                }
             }
         }
 

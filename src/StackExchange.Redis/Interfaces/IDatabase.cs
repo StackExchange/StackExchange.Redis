@@ -241,6 +241,16 @@ namespace StackExchange.Redis
         RedisValue HashGet(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Returns the value associated with field in the hash stored at key.
+        /// </summary>
+        /// <param name="key">The key of the hash.</param>
+        /// <param name="hashField">The field in the hash to get.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The value associated with field, or nil when field is not present in the hash or key does not exist.</returns>
+        /// <remarks>https://redis.io/commands/hget</remarks>
+        Lease<byte> HashGetLease(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Returns the values associated with the specified fields in the hash stored at key.
         /// For every field that does not exist in the hash, a nil value is returned.Because a non-existing keys are treated as empty hashes, running HMGET against a non-existing key will return a list of nil values.
         /// </summary>
@@ -1809,6 +1819,15 @@ namespace StackExchange.Redis
         /// <returns>The values of the strings with nil for keys do not exist.</returns>
         /// <remarks>https://redis.io/commands/mget</remarks>
         RedisValue[] StringGet(RedisKey[] keys, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Get the value of key. If the key does not exist the special value nil is returned. An error is returned if the value stored at key is not a string, because GET only handles string values.
+        /// </summary>
+        /// <param name="key">The key of the string.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The value of key, or nil when key does not exist.</returns>
+        /// <remarks>https://redis.io/commands/get</remarks>
+        Lease<byte> StringGetLease(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns the bit value at offset in the string value stored at key.

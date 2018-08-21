@@ -309,6 +309,12 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.RedisValue);
         }
 
+        public Lease<byte> HashGetLease(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.HGET, key, hashField);
+            return ExecuteSync(msg, ResultProcessor.Lease);
+        }
+
         public RedisValue[] HashGet(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
         {
             if (hashFields == null) throw new ArgumentNullException(nameof(hashFields));
@@ -333,6 +339,12 @@ namespace StackExchange.Redis
         {
             var msg = Message.Create(Database, flags, RedisCommand.HGET, key, hashField);
             return ExecuteAsync(msg, ResultProcessor.RedisValue);
+        }
+
+        public Task<Lease<byte>> HashGetLeaseAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.HGET, key, hashField);
+            return ExecuteAsync(msg, ResultProcessor.Lease);
         }
 
         public Task<RedisValue[]> HashGetAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None)
@@ -2247,10 +2259,22 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.RedisValueArray);
         }
 
+        public Lease<byte> StringGetLease(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.GET, key);
+            return ExecuteSync(msg, ResultProcessor.Lease);
+        }
+
         public Task<RedisValue> StringGetAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.GET, key);
             return ExecuteAsync(msg, ResultProcessor.RedisValue);
+        }
+
+        public Task<Lease<byte>> StringGetLeaseAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.GET, key);
+            return ExecuteAsync(msg, ResultProcessor.Lease);
         }
 
         public Task<RedisValue[]> StringGetAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
