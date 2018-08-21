@@ -166,7 +166,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Represent a byte-Lease as a Stream
+        /// Represent a byte-Lease as a read-only Stream
         /// </summary>
         /// <param name="bytes">The lease upon which to base the stream</param>
         /// <param name="ownsLease">If true, disposing the stream also disposes the lease</param>
@@ -175,7 +175,7 @@ namespace StackExchange.Redis
             if (bytes == null) return null; // GIGO
             var segment = bytes.ArraySegment;
             if (ownsLease) return new LeaseMemoryStream(segment, bytes);
-            return new MemoryStream(segment.Array, segment.Offset, segment.Count, true, true);
+            return new MemoryStream(segment.Array, segment.Offset, segment.Count, false, true);
         }
 
         /// <summary>
@@ -215,7 +215,7 @@ namespace StackExchange.Redis
         {
             private readonly IDisposable _parent;
             public LeaseMemoryStream(ArraySegment<byte> segment, IDisposable parent)
-                : base(segment.Array, segment.Offset, segment.Count, true, true)
+                : base(segment.Array, segment.Offset, segment.Count, false, true)
                 => _parent = parent;
 
             protected override void Dispose(bool disposing)
