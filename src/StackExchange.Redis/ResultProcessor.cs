@@ -295,6 +295,10 @@ namespace StackExchange.Redis
                             return true;
                         }
                         break;
+                    // e.g. OBJECT IDLETIME on a key that doesn't exist
+                    case ResultType.BulkString when result.IsNull:
+                        expiry = null;
+                        return true;
                 }
                 expiry = null;
                 return false;

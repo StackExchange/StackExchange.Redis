@@ -1,5 +1,7 @@
-﻿using System.Linq;
+﻿using System;
+using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -103,6 +105,29 @@ namespace StackExchange.Redis.Tests
                 Assert.True(object.ReferenceEquals(key2.KeyValue, key3.KeyValue));
                 Assert.True(object.ReferenceEquals(key1.KeyValue, key3.KeyPrefix));
                 Assert.Equal("helloworld", (string)key3);
+            }
+        }
+
+        [Fact]
+        public async Task IdleTime()
+        {
+            using (var muxer = Create())
+            {
+                RedisKey key = Me();
+                var db = muxer.GetDatabase();
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
+                await Task.Delay(2000).ForAwait();
+                var idleTime = db.KeyIdleTime(key);
+                Assert.True(idleTime > TimeSpan.Zero);
+
+                db.StringSet(key, "new value2", flags: CommandFlags.FireAndForget);
+                var idleTime2 = db.KeyIdleTime(key);
+                Assert.True(idleTime2 < idleTime);
+
+                db.KeyDelete(key);
+                var idleTime3 = db.KeyIdleTime(key);
+                Assert.Null(idleTime3);
             }
         }
     }

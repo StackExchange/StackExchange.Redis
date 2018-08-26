@@ -512,7 +512,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Returns the time since the object stored at the specified key is idle (not requested by read or write operations)
         /// </summary>
-        /// <param name="key">The key to get the type of.</param>
+        /// <param name="key">The key to get the time of.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The time since the object stored at the specified key is idle</returns>
         /// <remarks>https://redis.io/commands/object</remarks>
