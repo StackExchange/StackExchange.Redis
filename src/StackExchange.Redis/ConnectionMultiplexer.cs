@@ -668,10 +668,7 @@ namespace StackExchange.Redis
                 }
 
                 var allTasks = Task.WhenAll(tasks).ObserveErrors();
-                var cts = new CancellationTokenSource();
-                var any = Task.WhenAny(allTasks, Task.Delay(remaining, cts.Token)).ObserveErrors();
-                bool all = await any.ForAwait() == allTasks;
-                cts.Cancel();
+                bool all = await allTasks.TimeoutAfter(timeoutMs: remaining).ObserveErrors().ForAwait();
                 LogLockedWithThreadPoolStats(log, all ? "All tasks completed cleanly" : $"Not all tasks completed cleanly (from {caller}#{callerLineNumber}, timeout {timeoutMilliseconds}ms)", out busyWorkerCount);
                 return all;
             }
@@ -1351,13 +1348,11 @@ namespace StackExchange.Redis
                 {
                     if (RawConfig.ResolveDns && RawConfig.HasDnsEndPoints())
                     {
-                        var cts = new CancellationTokenSource();
                         var dns = RawConfig.ResolveEndPointsAsync(this, log).ObserveErrors();
-                        if ((await Task.WhenAny(dns, Task.Delay(TimeoutMilliseconds, cts.Token)).ForAwait()) != dns)
+                        if (!await dns.TimeoutAfter(TimeoutMilliseconds).ForAwait())
                         {
                             throw new TimeoutException("Timeout resolving endpoints");
                         }
-                        cts.Cancel();
                     }
                     foreach (var endpoint in RawConfig.EndPoints)
                     {
