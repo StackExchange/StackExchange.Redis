@@ -32,6 +32,8 @@ namespace StackExchange.Redis.Tests
                 var d = conn.KeyTimeToLiveAsync(key);
                 conn.KeyExpire(key, TimeSpan.MaxValue, CommandFlags.FireAndForget);
                 var e = conn.KeyTimeToLiveAsync(key);
+                conn.KeyDelete(key, CommandFlags.FireAndForget);
+                var f = conn.KeyTimeToLiveAsync(key);
 
                 Assert.Null(await a);
                 var time = await b;
@@ -42,6 +44,7 @@ namespace StackExchange.Redis.Tests
                 Assert.NotNull(time);
                 Assert.True(time > TimeSpan.FromMinutes(89.9) && time <= TimeSpan.FromMinutes(90));
                 Assert.Null(await e);
+                Assert.Null(await f);
             }
         }
 
@@ -70,6 +73,8 @@ namespace StackExchange.Redis.Tests
                 var d = conn.KeyTimeToLiveAsync(key);
                 conn.KeyExpire(key, DateTime.MaxValue, CommandFlags.FireAndForget);
                 var e = conn.KeyTimeToLiveAsync(key);
+                conn.KeyDelete(key, CommandFlags.FireAndForget);
+                var f = conn.KeyTimeToLiveAsync(key);
 
                 Assert.Null(await a);
                 var time = await b;
@@ -83,6 +88,7 @@ namespace StackExchange.Redis.Tests
                 Assert.True(time >= TimeSpan.FromMinutes(89));
                 Assert.True(time <= TimeSpan.FromMinutes(90));
                 Assert.Null(await e);
+                Assert.Null(await f);
             }
         }
     }
