@@ -69,6 +69,9 @@ namespace StackExchange.Redis
                     var newCount = Interlocked.Decrement(ref box._usageCount);
                     if (newCount != 0)
                         throw new InvalidOperationException($"Result box count error: is {newCount} in UnwrapAndRecycle (should be 0)");
+
+                    // Clear state prior to recycling, so as not to root it
+                    box.stateOrCompletionSource = null;
                     for (int i = 0; i < store.Length; i++)
                     {
                         if (Interlocked.CompareExchange(ref store[i], box, null) == null) return;
