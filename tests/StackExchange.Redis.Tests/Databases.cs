@@ -116,5 +116,39 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal("b", await bNew); // db:0
             }
         }
+
+        [Fact]
+        public async Task SwapDatabasesAsync()
+        {
+            using (var muxer = Create(allowAdmin: true))
+            {
+                RedisKey key = Me();
+                var db0id = TestConfig.GetDedicatedDB(muxer);
+                var db0 = muxer.GetDatabase(db0id);
+                var db1id = TestConfig.GetDedicatedDB(muxer);
+                var db1 = muxer.GetDatabase(db1id);
+
+                db0.KeyDelete(key, CommandFlags.FireAndForget);
+                db1.KeyDelete(key, CommandFlags.FireAndForget);
+
+                db0.StringSet(key, "a", flags: CommandFlags.FireAndForget);
+                db1.StringSet(key, "b", flags: CommandFlags.FireAndForget);
+
+                var a = db0.StringGetAsync(key);
+                var b = db1.StringGetAsync(key);
+
+                Assert.Equal("a", await a); // db:0
+                Assert.Equal("b", await b); // db:1
+
+                var server = GetServer(muxer);
+                var swap = server.SwapDatabasesAsync(db0id, db1id).ForAwait();
+
+                var aNew = db1.StringGetAsync(key);
+                var bNew = db0.StringGetAsync(key);
+
+                Assert.Equal("a", await aNew); // db:1
+                Assert.Equal("b", await bNew); // db:0
+            }
+        }
     }
 }
