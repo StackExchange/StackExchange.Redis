@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace StackExchange.Redis
@@ -22,6 +23,21 @@ namespace StackExchange.Redis
         {
             task?.ContinueWith(observeErrors, TaskContinuationOptions.OnlyOnFaulted);
             return task;
+        }
+        public static async Task<bool> TryComplete(this Task task, int timeoutMs)
+        {
+            var cts = new CancellationTokenSource();
+
+            if (task == await Task.WhenAny(task, Task.Delay(timeoutMs, cts.Token)).ConfigureAwait(false))
+            {
+                cts.Cancel();
+                await task.ConfigureAwait(false);
+                return true;
+            }
+            else
+            {
+                return false;
+            }
         }
 
         public static ConfiguredTaskAwaitable ForAwait(this Task task) => task.ConfigureAwait(false);
