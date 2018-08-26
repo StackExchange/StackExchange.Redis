@@ -80,6 +80,7 @@ namespace StackExchange.Redis
                 box.exception = null;
                 if (recycle)
                 {
+                    box.stateOrCompletionSource = null;
                     for (int i = 0; i < store.Length; i++)
                     {
                         if (Interlocked.CompareExchange(ref store[i], box, null) == null) return;
