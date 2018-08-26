@@ -109,6 +109,73 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void Exists()
+        {
+            using (var muxer = Create())
+            {
+                RedisKey key = Me();
+                RedisKey key2 = Me() + "2";
+                var db = muxer.GetDatabase();
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.KeyDelete(key2, CommandFlags.FireAndForget);
+
+                Assert.False(db.KeyExists(key));
+                Assert.False(db.KeyExists(key2));
+                Assert.Equal(0, db.KeyExists(new[] { key, key2 }));
+
+                db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
+                Assert.True(db.KeyExists(key));
+                Assert.False(db.KeyExists(key2));
+                Assert.Equal(1, db.KeyExists(new[] { key, key2 }));
+
+                db.StringSet(key2, "new value", flags: CommandFlags.FireAndForget);
+                Assert.True(db.KeyExists(key));
+                Assert.True(db.KeyExists(key2));
+                Assert.Equal(2, db.KeyExists(new[] { key, key2 }));
+            }
+        }
+
+        [Fact]
+        public async Task ExistsAsync()
+        {
+            using (var muxer = Create())
+            {
+                RedisKey key = Me();
+                RedisKey key2 = Me() + "2";
+                var db = muxer.GetDatabase();
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.KeyDelete(key2, CommandFlags.FireAndForget);
+                var a1 = db.KeyExistsAsync(key).ForAwait();
+                var a2 = db.KeyExistsAsync(key2).ForAwait();
+                var a3 = db.KeyExistsAsync(new[] { key, key2 }).ForAwait();
+
+                db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
+
+                var b1 = db.KeyExistsAsync(key).ForAwait();
+                var b2 = db.KeyExistsAsync(key2).ForAwait();
+                var b3 = db.KeyExistsAsync(new[] { key, key2 }).ForAwait();
+
+                db.StringSet(key2, "new value", flags: CommandFlags.FireAndForget);
+
+                var c1 = db.KeyExistsAsync(key).ForAwait();
+                var c2 = db.KeyExistsAsync(key2).ForAwait();
+                var c3 = db.KeyExistsAsync(new[] { key, key2 }).ForAwait();
+
+                Assert.False(await a1);
+                Assert.False(await a2);
+                Assert.Equal(0, await a3);
+
+                Assert.True(await b1);
+                Assert.False(await b2);
+                Assert.Equal(1, await b3);
+
+                Assert.True(await c1);
+                Assert.True(await c2);
+                Assert.Equal(2, await c3);
+            }
+        }
+
+        [Fact]
         public async Task IdleTime()
         {
             using (var muxer = Create())
