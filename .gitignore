@@ -18,6 +18,7 @@ RedisQFork*.dat
 StackExchange.Redis.*.zip
 .idea/
 .vs/
+.vscode/
 *.lock.json
 test-results*.xml
 packages/
