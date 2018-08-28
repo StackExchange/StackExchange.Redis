@@ -971,7 +971,7 @@ namespace StackExchange.Redis
         {
             try
             {
-                DoNothingWith(System.Numerics.Vector.IsHardwareAccelerated, System.Numerics.Vector<byte>.Count);
+                CheckNumericsVectorsImpl();
             }
             catch (Exception ex)
             {
@@ -984,6 +984,12 @@ namespace StackExchange.Redis
                     + "keeps causing pain.", ex);
             }
         }
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void CheckNumericsVectorsImpl()
+        {
+            DoNothingWith(System.Numerics.Vector.IsHardwareAccelerated, System.Numerics.Vector<byte>.Count);
+        }
+
         [MethodImpl(MethodImplOptions.NoInlining)]
 #pragma warning disable RCS1163 // Unused parameter.
         private static void DoNothingWith(bool b, int i) { }
