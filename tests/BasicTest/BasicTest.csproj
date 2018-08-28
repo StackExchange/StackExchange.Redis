@@ -1,0 +1,19 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>StackExchange.Redis.BasicTest .NET Core</Description>
+    <TargetFrameworks>netcoreapp2.0;netcoreapp2.1;net47</TargetFrameworks>
+    <AssemblyName>BasicTest</AssemblyName>
+    <OutputType>Exe</OutputType>
+    <PackageId>BasicTest</PackageId>
+    <RuntimeIdentifiers>win7-x64</RuntimeIdentifiers>
+    <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" Version="0.11.0" />
+    <ProjectReference Include="..\..\src\StackExchange.Redis\StackExchange.Redis.csproj" />
+  </ItemGroup>
+
+</Project>

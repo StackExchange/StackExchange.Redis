@@ -2,6 +2,10 @@
 
 # Important: .NET 4.0 support is currently **disabled**; if you need .NET 4.0, please stick with 1.2.1 while we keep investigating
 
+## 2.0-alpha.* (not released)
+
+- this is the 2.0 preview build; please see [this tracking issue](https://github.com/StackExchange/StackExchange.Redis/issues/871)
+
 ## 1.2.6
 
 - fix change to `cluster nodes` output when using cluster-enabled target and 4.0+ (see [redis #4186](https://github.com/antirez/redis/issues/4186)

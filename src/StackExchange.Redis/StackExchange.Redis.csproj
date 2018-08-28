@@ -1,0 +1,29 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>$(LibTargetFrameworks)</TargetFrameworks>
+    <Description>High performance Redis client, incorporating both synchronous and asynchronous usage.</Description>
+    <AssemblyName>StackExchange.Redis</AssemblyName>
+    <AssemblyTitle>StackExchange.Redis</AssemblyTitle>
+    <PackageId>StackExchange.Redis</PackageId>
+    <PackageTags>Async;Redis;Cache;PubSub;Messaging</PackageTags>
+    <SignAssembly>true</SignAssembly>
+    <PublicSign Condition=" '$(OS)' != 'Windows_NT' ">true</PublicSign>
+    <LangVersion>latest</LangVersion>
+
+    <!-- we should preferably not include this in release builds, but isn't dramatic -->
+    <DefineConstants>$(DefineConstants);TEST</DefineConstants>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug' and '$(Computername)'=='OCHO'">
+    <!--<DefineConstants>$(DefineConstants);LOGOUTPUT</DefineConstants>-->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Pipelines.Sockets.Unofficial" Version="0.2.1-alpha.92" />
+    <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="4.5.0" />
+    <PackageReference Include="System.IO.Pipelines" Version="4.5.0" />
+    <PackageReference Include="System.Threading.Channels" Version="4.5.0" />
+    <PackageReference Include="System.IO.Compression" Version="4.3.0" />
+    <PackageReference Include="System.Numerics.Vectors" Version="4.5.0" />
+  </ItemGroup>
+</Project>
