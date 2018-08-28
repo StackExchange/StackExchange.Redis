@@ -3,6 +3,10 @@ StackExchange.Redis
 
 For all documentation, [see here](https://stackexchange.github.io/StackExchange.Redis/).
 
+#### Build Status
+
+[![Build status](https://ci.appveyor.com/api/projects/status/2o3frasprum8mbaj/branch/master?svg=true)](https://ci.appveyor.com/project/StackExchange/dotnet/branch/master)
+
 #### Package Status
 
 MyGet Pre-release feed: https://www.myget.org/gallery/stackoverflow
