@@ -4,6 +4,7 @@
     <Copyright>2017 Stack Exchange, Inc.</Copyright>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <LibTargetFrameworks>net461;netstandard2.0;net472</LibTargetFrameworks>
     <AssemblyOriginatorKeyFile>$(MSBuildThisFileDirectory)StackExchange.Redis.snk</AssemblyOriginatorKeyFile>
     <PackageId>$(AssemblyName)</PackageId>
     <Features>strict</Features>

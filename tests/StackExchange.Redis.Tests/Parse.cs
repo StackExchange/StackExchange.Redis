@@ -82,6 +82,7 @@ namespace StackExchange.Redis.Tests
                 RunningIndex = runningIndex;
                 Memory = memory;
             }
+
             public new FragmentedSegment<T> Next
             {
                 get => (FragmentedSegment<T>)base.Next;
