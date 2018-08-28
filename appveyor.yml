@@ -72,7 +72,7 @@ build_script:
     if ($env:OS -eq "Windows_NT") {
       .\build\dotnet-install.ps1 -Version 2.1.400
     }
-- ps: .\build.ps1 -PullRequestNumber "$env:APPVEYOR_PULL_REQUEST_NUMBER" -CreatePackages $true
+- ps: .\build.ps1 -PullRequestNumber "$env:APPVEYOR_PULL_REQUEST_NUMBER" -CreatePackages ($env:OS -eq "Windows_NT")
 
 test: off
 artifacts:
