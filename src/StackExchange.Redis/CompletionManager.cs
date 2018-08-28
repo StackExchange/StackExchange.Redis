@@ -62,7 +62,8 @@ namespace StackExchange.Redis
         }
         private void PerInstanceCompleteSyncOrAsync(ICompletable operation)
         {
-            if (operation.TryComplete(false))
+            if (operation == null) { }
+            else if (operation.TryComplete(false))
             {
                 multiplexer.Trace("Completed synchronously: " + operation, name);
                 Interlocked.Increment(ref completedSync);

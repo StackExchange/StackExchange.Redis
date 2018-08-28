@@ -170,7 +170,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="bytes">The lease upon which to base the stream</param>
         /// <param name="ownsLease">If true, disposing the stream also disposes the lease</param>
-        public static MemoryStream AsStream(this Lease<byte> bytes, bool ownsLease = true)
+        public static Stream AsStream(this Lease<byte> bytes, bool ownsLease = true)
         {
             if (bytes == null) return null; // GIGO
             var segment = bytes.ArraySegment;
