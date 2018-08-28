@@ -141,6 +141,11 @@ namespace StackExchange.Redis
         public bool StringSetRange => Version >= v2_1_8;
 
         /// <summary>
+        /// Is SWAPDB available?
+        /// </summary>
+        public bool SwapDB => Version >= v4_0_0;
+
+        /// <summary>
         /// Does TIME exist?
         /// </summary>
         public bool Time => Version >= v2_6_0;
