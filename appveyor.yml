@@ -60,6 +60,10 @@ skip_commits:
     - '**/*.md'
     - docs/*
 
+environment:
+  Appveyor: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+
 nuget:
   disable_publish_on_pr: true
 
