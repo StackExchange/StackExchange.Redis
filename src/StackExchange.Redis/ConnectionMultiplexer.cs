@@ -971,7 +971,7 @@ namespace StackExchange.Redis
         {
             try
             {
-                DoNothingWith(System.Numerics.Vector.IsHardwareAccelerated, System.Numerics.Vector<int>.Count);
+                DoNothingWith(System.Numerics.Vector.IsHardwareAccelerated, System.Numerics.Vector<byte>.Count);
             }
             catch (Exception ex)
             {
