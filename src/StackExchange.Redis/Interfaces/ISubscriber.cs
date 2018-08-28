@@ -11,14 +11,14 @@ namespace StackExchange.Redis
     public interface ISubscriber : IRedis
     {
         /// <summary>
-        /// Inidicate exactly which redis server we are talking to
+        /// Indicate exactly which redis server we are talking to
         /// </summary>
         /// <param name="channel">The channel to identify the server endpoint by.</param>
         /// <param name="flags">The command flags to use.</param>
         EndPoint IdentifyEndpoint(RedisChannel channel, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Inidicate exactly which redis server we are talking to
+        /// Indicate exactly which redis server we are talking to
         /// </summary>
         /// <param name="channel">The channel to identify the server endpoint by.</param>
         /// <param name="flags">The command flags to use.</param>
@@ -94,7 +94,7 @@ namespace StackExchange.Redis
         Task<ChannelMessageQueue> SubscribeAsync(RedisChannel channel, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Inidicate to which redis server we are actively subscribed for a given channel; returns null if
+        /// Indicate to which redis server we are actively subscribed for a given channel; returns null if
         /// the channel is not actively subscribed
         /// </summary>
         /// <param name="channel">The channel to check which server endpoint was subscribed on.</param>
