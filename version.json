@@ -3,7 +3,6 @@
   "assemblyVersion": "2.0.0.0",
   "publicReleaseRefSpec": [
     "^refs/heads/master$",
-    "^refs/heads/pipelines$",
     "^refs/tags/v\\d+\\.\\d+"
   ],
   "nugetPackageVersion": {
