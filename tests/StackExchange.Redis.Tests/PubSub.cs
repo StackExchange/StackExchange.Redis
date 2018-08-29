@@ -213,8 +213,9 @@ namespace StackExchange.Redis.Tests
                     Assert.Empty(received);
                 }
                 Assert.Equal(0, Thread.VolatileRead(ref secondHandler));
-                var count = sub.Publish("abc", "def");
 
+                await PingAsync(muxer, pub, sub).ForAwait();
+                var count = sub.Publish("abc", "def");
                 await PingAsync(muxer, pub, sub).ForAwait();
 
                 lock (received)
