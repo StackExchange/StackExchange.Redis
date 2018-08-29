@@ -9,9 +9,6 @@
     <SignAssembly>true</SignAssembly>
     <PublicSign Condition=" '$(OS)' != 'Windows_NT' ">true</PublicSign>
     <LangVersion>latest</LangVersion>
-
-    <!-- we should preferably not include this in release builds, but isn't dramatic -->
-    <DefineConstants>$(DefineConstants);TEST</DefineConstants>
     <DefineConstants Condition="'$(TargetFramework)' != 'net461'">$(DefineConstants);VECTOR_SAFE</DefineConstants>
   </PropertyGroup>
 

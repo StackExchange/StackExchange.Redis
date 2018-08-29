@@ -283,14 +283,8 @@ namespace StackExchange.Redis
 
         public void RecordConnectionFailed(ConnectionFailureType failureType, Exception innerException = null, [CallerMemberName] string origin = null,
             bool isInitialConnect = false, IDuplexPipe connectingPipe = null
-#if TEST
-            , [CallerFilePath] string path = default, [CallerLineNumber] int line = default
-#endif
             )
         {
-#if TEST
-            origin += $" ({path}#{line})";
-#endif
             Exception outerException = innerException;
             IdentifyFailureType(innerException, ref failureType);
             var bridge = BridgeCouldBeNull;
