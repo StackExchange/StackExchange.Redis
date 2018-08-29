@@ -12,10 +12,23 @@
 
     <!-- we should preferably not include this in release builds, but isn't dramatic -->
     <DefineConstants>$(DefineConstants);TEST</DefineConstants>
+    <VectorSafe>true</VectorSafe>
+  </PropertyGroup>
+  
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net461'">
+    <VectorSafe>false</VectorSafe>
+  </PropertyGroup>
+  
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net472'">
+    <!--<PackageReference Include="System.IO.Compression" Version="4.3.0" />-->
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Debug' and '$(Computername)'=='OCHO'">
     <!--<DefineConstants>$(DefineConstants);LOGOUTPUT</DefineConstants>-->
+  </PropertyGroup>
+  
+  <PropertyGroup Condition="'$(VectorSafe)' == 'true'">
+    <DefineConstants>$(DefineConstants);VECTOR_SAFE</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
@@ -23,7 +36,5 @@
     <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="4.5.0" />
     <PackageReference Include="System.IO.Pipelines" Version="4.5.0" />
     <PackageReference Include="System.Threading.Channels" Version="4.5.0" />
-    <PackageReference Include="System.IO.Compression" Version="4.3.0" />
-    <PackageReference Include="System.Numerics.Vectors" Version="4.5.0" />
   </ItemGroup>
 </Project>
