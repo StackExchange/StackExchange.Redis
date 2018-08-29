@@ -12,15 +12,7 @@
 
     <!-- we should preferably not include this in release builds, but isn't dramatic -->
     <DefineConstants>$(DefineConstants);TEST</DefineConstants>
-    <VectorSafe>true</VectorSafe>
-  </PropertyGroup>
-  
-  <PropertyGroup Condition="'$(TargetFramework)' == 'net461'">
-    <VectorSafe>false</VectorSafe>
-  </PropertyGroup>
-  
-  <PropertyGroup Condition="'$(VectorSafe)' == 'true'">
-    <DefineConstants>$(DefineConstants);VECTOR_SAFE</DefineConstants>
+    <DefineConstants Condition="'$(TargetFramework)' != 'net461'">$(DefineConstants);VECTOR_SAFE</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
