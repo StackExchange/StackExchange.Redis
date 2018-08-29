@@ -4,8 +4,7 @@
     <Copyright>2017 Stack Exchange, Inc.</Copyright>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <LibTargetFrameworks Condition="'$(OS)' == 'Windows_NT'">net461;netstandard2.0</LibTargetFrameworks>
-    <LibTargetFrameworks Condition="'$(OS)' != 'Windows_NT'">netstandard2.0</LibTargetFrameworks>
+    <LibTargetFrameworks>netstandard2.0</LibTargetFrameworks>
     <AssemblyOriginatorKeyFile>$(MSBuildThisFileDirectory)StackExchange.Redis.snk</AssemblyOriginatorKeyFile>
     <PackageId>$(AssemblyName)</PackageId>
     <Features>strict</Features>
