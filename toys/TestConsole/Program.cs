@@ -11,15 +11,19 @@ namespace TestConsole
             using (var conn = Create())
             {
                 var sub = conn.GetSubscriber();
+                Console.WriteLine("Subscsribe...");
                 sub.Subscribe("foo", (channel, value) => Console.WriteLine($"{channel}: {value}"));
+                Console.WriteLine("Ping...");
                 sub.Ping();
 
+                Console.WriteLine("Run publish...");
                 await RunPub().ConfigureAwait(false);
             }
 
             await Console.Out.WriteLineAsync("Waiting a minute...").ConfigureAwait(false);
             await Task.Delay(60 * 1000).ConfigureAwait(false);
         }
+
         private static ConnectionMultiplexer Create()
         {
             var options = new ConfigurationOptions
@@ -29,12 +33,18 @@ namespace TestConsole
                 SyncTimeout = int.MaxValue,
                 // CommandMap = CommandMap.Create(new HashSet<string> { "subscribe", "psubscsribe", "publish" }, false),
             };
-            var muxer = ConnectionMultiplexer.Connect(options);
-            muxer.ConnectionFailed += (s, a) => Console.WriteLine($"Failed: {a.ConnectionType}, {a.EndPoint}, {a.FailureType}, {a.Exception}");
-            muxer.ConnectionRestored += (s, a) => Console.WriteLine($"Restored: {a.ConnectionType}, {a.EndPoint}, {a.FailureType}, {a.Exception}");
-            muxer.GetDatabase().Ping();
+
+            Console.WriteLine("Connecting...");
+            var muxer = ConnectionMultiplexer.Connect(options, Console.Out);
+            Console.WriteLine("Connected");
+            muxer.ConnectionFailed += (_, a) => Console.WriteLine($"Failed: {a.ConnectionType}, {a.EndPoint}, {a.FailureType}, {a.Exception}");
+            muxer.ConnectionRestored += (_, a) => Console.WriteLine($"Restored: {a.ConnectionType}, {a.EndPoint}, {a.FailureType}, {a.Exception}");
+            Console.WriteLine("Ping...");
+            var time = muxer.GetDatabase().Ping();
+            Console.WriteLine($"Pinged: {time.TotalMilliseconds}ms");
             return muxer;
         }
+
         public static async Task RunPub()
         {
             using (var conn = Create())

@@ -155,7 +155,7 @@ namespace StackExchange.Redis
                 if (reader.RemainingThisSpan == 0) continue;
 
                 var span = reader.SlicedSpan;
-                int found = span.IndexOf(value);
+                int found = span.VectorSafeIndexOf(value);
                 if (found >= 0) return totalSkipped + found;
 
                 totalSkipped += span.Length;
@@ -168,7 +168,6 @@ namespace StackExchange.Redis
 
             int totalSkipped = 0;
             bool haveTrailingCR = false;
-            ReadOnlySpan<byte> CRLF = stackalloc byte[2] { (byte)'\r', (byte)'\n' };
             do
             {
                 if (reader.RemainingThisSpan == 0) continue;
@@ -180,7 +179,7 @@ namespace StackExchange.Redis
                     haveTrailingCR = false;
                 }
 
-                int found = span.IndexOf(CRLF);
+                int found = span.VectorSafeIndexOfCRLF();
                 if (found >= 0) return totalSkipped + found;
 
                 haveTrailingCR = span[span.Length - 1] == '\r';

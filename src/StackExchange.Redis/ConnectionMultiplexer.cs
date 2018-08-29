@@ -966,38 +966,8 @@ namespace StackExchange.Redis
 
         internal readonly CommandMap CommandMap;
 
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void CheckNumericsVectors()
-        {
-            try
-            {
-                CheckNumericsVectorsImpl();
-            }
-            catch (Exception ex)
-            {
-                throw new InvalidOperationException(
-                    "It looks like there's a problem resolving System.Numerics.Vectors.dll; "
-                    + "this is a well-known pain point between .NET Framework and .NET Core - "
-                    + "try adding an explicit package reference to System.Numerics.Vectors; "
-                    + "and if you're wondering 'why do you need that?' - we actually don't: "
-                    + "it is a down-stream dependency that we don't need directly, but which "
-                    + "keeps causing pain.", ex);
-            }
-        }
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void CheckNumericsVectorsImpl()
-        {
-            DoNothingWith(System.Numerics.Vector.IsHardwareAccelerated, System.Numerics.Vector<byte>.Count);
-        }
-
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#pragma warning disable RCS1163 // Unused parameter.
-        private static void DoNothingWith(bool b, int i) { }
-#pragma warning restore RCS1163 // Unused parameter.
         private ConnectionMultiplexer(ConfigurationOptions configuration)
         {
-            CheckNumericsVectors();
-
             IncludeDetailInExceptions = true;
             IncludePerformanceCountersInExceptions = false;
 

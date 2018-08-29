@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Security;
+using System.Runtime.CompilerServices;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
@@ -224,5 +225,51 @@ namespace StackExchange.Redis
                 if (disposing) _parent.Dispose();
             }
         }
+
+        // IMPORTANT: System.Numerics.Vectors is just... broken on .NET with anything < net472; the dependency
+        // indirection routinely fails and causes epic levels of fail. We're going to get around this by simply
+        // *not using SpanHelpers.IndexOf* (which is what uses it) for net < net472 builds. I've tried every
+        // trick (including some that are pure evil), and I can't see a better mechanism. Ultimately, the bindings
+        // fail in unusual and unexpected ways, causing:
+        //
+        //     Could not load file or assembly 'System.Numerics.Vectors, Version=4.1.3.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a'
+        //     or one of its dependencies.The located assembly's manifest definition does not match the assembly reference. (Exception from HRESULT: 0x80131040)
+        //
+        // also; note that the nuget tools *do not* reliably (or even occasionally) produce the correct
+        // assembly-binding-redirect entries to fix this up, so; it would present an unreasonable support burden
+        // otherwise. And yes, I've tried explicitly referencing System.Numerics.Vectors in the manifest to
+        // force it... nothing. Nada.
+
+#if VECTOR_SAFE
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static int VectorSafeIndexOf(this ReadOnlySpan<byte> span, byte value)
+            => span.IndexOf(value);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static int VectorSafeIndexOfCRLF(this ReadOnlySpan<byte> span)
+        {
+            ReadOnlySpan<byte> CRLF = stackalloc byte[2] { (byte)'\r', (byte)'\n' };
+            return span.IndexOf(CRLF);
+        }
+#else
+        internal static int VectorSafeIndexOf(this ReadOnlySpan<byte> span, byte value)
+        {
+            // yes, this has zero optimization; I'm OK with this as the fallback strategy
+            for (int i = 0; i < span.Length; i++)
+            {
+                if (span[i] == value) return i;
+            }
+            return -1;
+        }
+        internal static int VectorSafeIndexOfCRLF(this ReadOnlySpan<byte> span)
+        {
+            // yes, this has zero optimization; I'm OK with this as the fallback strategy
+            for (int i = 1; i < span.Length; i++)
+            {
+                if (span[i] == '\n' && span[i-1] == '\r') return i - 1;
+            }
+            return -1;
+        }
+#endif
     }
 }
