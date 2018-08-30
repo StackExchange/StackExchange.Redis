@@ -769,12 +769,17 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="configuration">The string configuration to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
-        public static async Task<ConnectionMultiplexer> ConnectAsync(string configuration, TextWriter log = null)
+        public static Task<ConnectionMultiplexer> ConnectAsync(string configuration, TextWriter log = null)
+            => ConnectImplAsync(configuration, log);
+
+        private static async Task<ConnectionMultiplexer> ConnectImplAsync(object configuration, TextWriter log = null)
         {
             IDisposable killMe = null;
+            EventHandler<ConnectionFailedEventArgs> connectHandler = null;
+            ConnectionMultiplexer muxer = null;
             try
             {
-                var muxer = CreateMultiplexer(configuration);
+                muxer = CreateMultiplexer(configuration, log, out connectHandler);
                 killMe = muxer;
                 bool configured = await muxer.ReconfigureAsync(true, false, log, null, "connect").ObserveErrors().ForAwait();
                 if (!configured)
@@ -786,6 +791,7 @@ namespace StackExchange.Redis
             }
             finally
             {
+                if (connectHandler != null) muxer.ConnectionFailed -= connectHandler;
                 if (killMe != null) try { killMe.Dispose(); } catch { }
             }
         }
@@ -795,28 +801,10 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="configuration">The configuration options to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
-        public static async Task<ConnectionMultiplexer> ConnectAsync(ConfigurationOptions configuration, TextWriter log = null)
-        {
-            IDisposable killMe = null;
-            try
-            {
-                var muxer = CreateMultiplexer(configuration);
-                killMe = muxer;
-                bool configured = await muxer.ReconfigureAsync(true, false, log, null, "connect").ObserveErrors().ForAwait();
-                if (!configured)
-                {
-                    throw ExceptionFactory.UnableToConnect(muxer, muxer.failureMessage);
-                }
-                killMe = null;
-                return muxer;
-            }
-            finally
-            {
-                if (killMe != null) try { killMe.Dispose(); } catch { }
-            }
-        }
+        public static Task<ConnectionMultiplexer> ConnectAsync(ConfigurationOptions configuration, TextWriter log = null)
+            => ConnectImplAsync(configuration, log);
 
-        private static ConnectionMultiplexer CreateMultiplexer(object configuration)
+        private static ConnectionMultiplexer CreateMultiplexer(object configuration, TextWriter log, out EventHandler<ConnectionFailedEventArgs> connectHandler)
         {
             if (configuration == null) throw new ArgumentNullException(nameof(configuration));
             ConfigurationOptions config;
@@ -830,11 +818,35 @@ namespace StackExchange.Redis
             }
             else
             {
-                throw new ArgumentException("configuration");
+                throw new ArgumentException("Invalid configuration object", nameof(configuration));
             }
             if (config.EndPoints.Count == 0) throw new ArgumentException("No endpoints specified", nameof(configuration));
             config.SetDefaultPorts();
-            return new ConnectionMultiplexer(config);
+            var muxer = new ConnectionMultiplexer(config);
+            connectHandler = null;
+            if(log != null)
+            {
+                // create a detachable event-handler to log detailed errors if something happens during connect/handshake
+                connectHandler = (_, a) =>
+                {
+                    try
+                    {
+                        lock (muxer.LogSyncLock) // keep the outer and any inner errors contiguous
+                        {
+                            var ex = a.Exception;
+                            log.WriteLine($"connection failed: {Format.ToString(a.EndPoint)} ({a.ConnectionType}, {a.FailureType}): {ex?.Message ?? "(unknown)"}");
+                            while ((ex = ex.InnerException) != null)
+                            {
+                                log.Write("> ");
+                                log.WriteLine(ex.Message);
+                            }
+                        }
+                    }
+                    catch { }
+                };
+                muxer.ConnectionFailed += connectHandler;
+            }
+            return muxer;
         }
 
         /// <summary>
@@ -843,9 +855,7 @@ namespace StackExchange.Redis
         /// <param name="configuration">The string configuration to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
         public static ConnectionMultiplexer Connect(string configuration, TextWriter log = null)
-        {
-            return ConnectImpl(() => CreateMultiplexer(configuration), log);
-        }
+            => ConnectImpl(configuration, log);
 
         /// <summary>
         /// Create a new ConnectionMultiplexer instance
@@ -853,16 +863,16 @@ namespace StackExchange.Redis
         /// <param name="configuration">The configurtion options to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
         public static ConnectionMultiplexer Connect(ConfigurationOptions configuration, TextWriter log = null)
-        {
-            return ConnectImpl(() => CreateMultiplexer(configuration), log);
-        }
+            => ConnectImpl(configuration, log);
 
-        private static ConnectionMultiplexer ConnectImpl(Func<ConnectionMultiplexer> multiplexerFactory, TextWriter log)
+        private static ConnectionMultiplexer ConnectImpl(object configuration, TextWriter log)
         {
             IDisposable killMe = null;
+            EventHandler<ConnectionFailedEventArgs> connectHandler = null;
+            ConnectionMultiplexer muxer = null;
             try
             {
-                var muxer = multiplexerFactory();
+                muxer = CreateMultiplexer(configuration, log, out connectHandler);
                 killMe = muxer;
                 // note that task has timeouts internally, so it might take *just over* the regular timeout
                 var task = muxer.ReconfigureAsync(true, false, log, null, "connect");
@@ -885,6 +895,7 @@ namespace StackExchange.Redis
             }
             finally
             {
+                if (connectHandler != null) muxer.ConnectionFailed -= connectHandler;
                 if (killMe != null) try { killMe.Dispose(); } catch { }
             }
         }
