@@ -91,6 +91,27 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{00CA0876-DA9
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "toys", "toys", "{E25031D3-5C64-430D-B86F-697B66816FD8}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{153A10E4-E668-41AD-9E0F-6785CE7EED66}"
+	ProjectSection(SolutionItems) = preProject
+		docs\Basics.md = docs\Basics.md
+		docs\Configuration.md = docs\Configuration.md
+		docs\Events.md = docs\Events.md
+		docs\ExecSync.md = docs\ExecSync.md
+		docs\index.md = docs\index.md
+		docs\KeysScan.md = docs\KeysScan.md
+		docs\KeysValues.md = docs\KeysValues.md
+		docs\PipelinesMultiplexers.md = docs\PipelinesMultiplexers.md
+		docs\Profiling v1.md = docs\Profiling v1.md
+		docs\Profiling v2.md = docs\Profiling v2.md
+		docs\Profiling.md = docs\Profiling.md
+		docs\PubSubOrder.md = docs\PubSubOrder.md
+		docs\ReleaseNotes.md = docs\ReleaseNotes.md
+		docs\Scripting.md = docs\Scripting.md
+		docs\Testing.md = docs\Testing.md
+		docs\Timeouts.md = docs\Timeouts.md
+		docs\Transactions.md = docs\Transactions.md
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
