@@ -203,17 +203,17 @@ public class RedisProfiler
 }
 ```
 
-Then, add the following to your Global.asax.cs file:
+Then, add the following to your Global.asax.cs file (where `_redisProfiler` is the *instance* of the profiler):
 
 ```C#
 protected void Application_BeginRequest()
 {
-    RedisProfiler.CreateSessionForCurrentRequest();
+    _redisProfiler.CreateSessionForCurrentRequest();
 }
 
 protected void Application_EndRequest()
 {
-    var session = RedisProfiler.GetContext();
+    var session = _redisProfiler.GetSession();
     if (session != null)
     {
         var timings = session.FinishProfiling();
@@ -221,6 +221,12 @@ protected void Application_EndRequest()
 		// do what you will with `timings` here
     }
 }
+```
+
+and ensure that the connection has the profiler registered when the connection is created:
+
+```C#
+connection.RegisterProfiler(() => _redisProfiler.GetSession());
 ```
 
 This implementation will group all redis commands, including `async/await`-ed ones, with the http request that initiated them.
