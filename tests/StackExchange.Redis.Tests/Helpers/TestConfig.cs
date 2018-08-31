@@ -43,6 +43,7 @@ namespace StackExchange.Redis.Tests
 
         public class Config
         {
+            public bool UseSharedConnection { get; set; } = true;
             public bool RunLongRunning { get; set; }
             public bool LogToConsole { get; set; }
 

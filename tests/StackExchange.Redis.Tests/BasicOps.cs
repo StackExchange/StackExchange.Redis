@@ -402,6 +402,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void ShouldUseSharedMuxer()
         {
+            Writer.WriteLine($"Shared: {SharedFixtureAvailable}");
             if (SharedFixtureAvailable)
             {
                 using (var a = Create())

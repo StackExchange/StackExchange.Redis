@@ -12,7 +12,7 @@ namespace StackExchange.Redis.Tests
 {
     public class SharedConnectionFixture : IDisposable
     {
-        public bool IsEnabled => true; // set to false to disable globally
+        public bool IsEnabled { get; }
 
         public const string Key = "Shared Muxer";
         private readonly ConnectionMultiplexer _actualConnection;
@@ -21,6 +21,7 @@ namespace StackExchange.Redis.Tests
 
         public SharedConnectionFixture()
         {
+            IsEnabled = TestConfig.Current.UseSharedConnection;
             Configuration = TestBase.GetDefaultConfiguration();
             _actualConnection = TestBase.CreateDefault(
                 output: null,
