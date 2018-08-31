@@ -6,10 +6,19 @@ using StackExchange.Redis.Profiling;
 
 namespace StackExchange.Redis
 {
+    internal interface IInternalConnectionMultiplexer : IConnectionMultiplexer
+    {
+        bool AllowConnect { get; set; }
+
+        bool IgnoreConnect { get; set; }
+
+        ReadOnlySpan<ServerEndPoint> GetServerSnapshot();
+    }
+
     /// <summary>
     /// Represents the abstract multiplexer API
     /// </summary>
-    public interface IConnectionMultiplexer
+    public interface IConnectionMultiplexer : IDisposable
     {
         /// <summary>
         /// Gets the client-name that will be used on all new connections
@@ -221,11 +230,6 @@ namespace StackExchange.Redis
         Task CloseAsync(bool allowCommandsToComplete = true);
 
         /// <summary>
-        /// Release all resources associated with this object
-        /// </summary>
-        void Dispose();
-
-        /// <summary>
         /// Obtains the log of unusual busy patterns
         /// </summary>
         string GetStormLog();
@@ -254,5 +258,12 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="key">The key to get a the slot for.</param>
         int GetHashSlot(RedisKey key);
+
+        /// <summary>
+        /// Write the configuration of all servers to an output stream
+        /// </summary>
+        /// <param name="destination">The destination stream to write the export to.</param>
+        /// <param name="options">The options to use for this export.</param>
+        void ExportConfiguration(Stream destination, ExportOptions options = ExportOptions.All);
     }
 }

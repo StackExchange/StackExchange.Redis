@@ -18,7 +18,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// Represents an inter-related group of connections to redis servers
     /// </summary>
-    public sealed partial class ConnectionMultiplexer : IConnectionMultiplexer, IDisposable
+    public sealed partial class ConnectionMultiplexer : IInternalConnectionMultiplexer // implies : IConnectionMultiplexer and : IDisposable
     {
         private const string timeoutHelpLink = "https://stackexchange.github.io/StackExchange.Redis/Timeouts";
 
@@ -36,10 +36,23 @@ namespace StackExchange.Redis
         }
 #endif
 
+        bool IInternalConnectionMultiplexer.AllowConnect
+        {
+            get => AllowConnect;
+            set => AllowConnect = value;
+        }
+
+        bool IInternalConnectionMultiplexer.IgnoreConnect
+        {
+            get => IgnoreConnect;
+            set => IgnoreConnect = value;
+        }
+
         /// <summary>
         /// For debugging: when not enabled, servers cannot connect
         /// </summary>
         internal volatile bool AllowConnect = true;
+
         /// <summary>
         /// For debugging: when not enabled, end-connect is silently ignored (to simulate a long-running connect)
         /// </summary>
@@ -903,6 +916,8 @@ namespace StackExchange.Redis
         private string failureMessage;
         private readonly Hashtable servers = new Hashtable();
         private volatile ServerSnapshot _serverSnapshot = ServerSnapshot.Empty;
+
+        ReadOnlySpan<ServerEndPoint> IInternalConnectionMultiplexer.GetServerSnapshot() => GetServerSnapshot();
         internal ReadOnlySpan<ServerEndPoint> GetServerSnapshot() => _serverSnapshot.Span;
         private sealed class ServerSnapshot
         {

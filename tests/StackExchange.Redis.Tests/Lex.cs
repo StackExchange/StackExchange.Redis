@@ -3,9 +3,10 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
+    [Collection(SharedConnectionFixture.Key)]
     public class Lex : TestBase
     {
-        public Lex(ITestOutputHelper output) : base(output) { }
+        public Lex(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
         [Fact]
         public void QueryRangeAndLengthByLex()

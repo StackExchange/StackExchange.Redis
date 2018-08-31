@@ -76,7 +76,7 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        private void TestLockOpCountByVersion(ConnectionMultiplexer conn, int expectedOps, bool existFirst)
+        private void TestLockOpCountByVersion(IConnectionMultiplexer conn, int expectedOps, bool existFirst)
         {
             const int LockDuration = 30;
             RedisKey Key = Me();
@@ -103,7 +103,7 @@ namespace StackExchange.Redis.Tests
             // note we get a ping from GetCounters
         }
 
-        private ConnectionMultiplexer Create(TestMode mode)
+        private IConnectionMultiplexer Create(TestMode mode)
         {
             switch (mode)
             {

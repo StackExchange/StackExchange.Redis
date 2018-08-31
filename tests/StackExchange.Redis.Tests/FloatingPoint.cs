@@ -5,9 +5,10 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
+    [Collection(SharedConnectionFixture.Key)]
     public class FloatingPoint : TestBase
     {
-        public FloatingPoint(ITestOutputHelper output) : base (output) { }
+        public FloatingPoint(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
 
         private static bool Within(double x, double y, double delta)
         {

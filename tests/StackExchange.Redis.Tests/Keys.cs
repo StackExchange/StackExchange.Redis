@@ -7,9 +7,10 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
+    [Collection(SharedConnectionFixture.Key)]
     public class Keys : TestBase
     {
-        public Keys(ITestOutputHelper output) : base (output) { }
+        public Keys(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
 
         [Fact]
         public void TestScan()

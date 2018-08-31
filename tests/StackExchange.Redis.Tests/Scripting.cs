@@ -8,11 +8,12 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
+    [Collection(SharedConnectionFixture.Key)]
     public class Scripting : TestBase
     {
-        public Scripting(ITestOutputHelper output) : base (output) { }
+        public Scripting(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
 
-        private ConnectionMultiplexer GetScriptConn(bool allowAdmin = false)
+        private IConnectionMultiplexer GetScriptConn(bool allowAdmin = false)
         {
             int syncTimeout = 5000;
             if (Debugger.IsAttached) syncTimeout = 500000;
@@ -596,7 +597,7 @@ return timeTaken
 
                 var p = new { key = (RedisKey)key, value = 123 };
 
-                script.Evaluate(db, p, flags: CommandFlags.FireAndForget);
+                script.Evaluate(db, p);
                 var val = db.StringGet(key);
                 Assert.Equal(123, (int)val);
 
@@ -804,7 +805,7 @@ return timeTaken
 
                 var prepared = server.ScriptLoad(script);
 
-                db.ScriptEvaluate(prepared, new { key = (RedisKey)key, value = "value3" }, flags: CommandFlags.FireAndForget);
+                db.ScriptEvaluate(prepared, new { key = (RedisKey)key, value = "value3" });
                 var val = db.StringGet(key);
                 Assert.Equal("value3", val);
             }
@@ -842,7 +843,7 @@ return timeTaken
                 db.KeyDelete(key, CommandFlags.FireAndForget);
 
                 var prepared = LuaScript.Prepare(Script);
-                wrappedDb.ScriptEvaluate(prepared, new { key = (RedisKey)key, value = 123 }, flags: CommandFlags.FireAndForget);
+                wrappedDb.ScriptEvaluate(prepared, new { key = (RedisKey)key, value = 123 });
                 var val1 = wrappedDb.StringGet(key);
                 Assert.Equal(123, (int)val1);
 

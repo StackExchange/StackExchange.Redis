@@ -9,9 +9,10 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis.Tests
 {
+    [Collection(SharedConnectionFixture.Key)]
     public class Hashes : TestBase // https://redis.io/commands#hash
     {
-        public Hashes(ITestOutputHelper output) : base(output) { }
+        public Hashes(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
         [Fact]
         public async Task TestIncrBy()

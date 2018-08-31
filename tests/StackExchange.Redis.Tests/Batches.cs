@@ -6,9 +6,10 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
+    [Collection(SharedConnectionFixture.Key)]
     public class Batches : TestBase
     {
-        public Batches(ITestOutputHelper output) : base(output) { }
+        public Batches(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
         [Fact]
         public void TestBatchNotSent()

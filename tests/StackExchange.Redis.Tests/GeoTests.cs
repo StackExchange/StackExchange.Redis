@@ -5,9 +5,10 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis.Tests
 {
+    [Collection(SharedConnectionFixture.Key)]
     public class GeoTests : TestBase
     {
-        public GeoTests(ITestOutputHelper output) : base (output) { }
+        public GeoTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
 
         public static GeoEntry
             palermo = new GeoEntry(13.361389, 38.115556, "Palermo"),

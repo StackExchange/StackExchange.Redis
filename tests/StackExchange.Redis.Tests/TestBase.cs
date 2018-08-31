@@ -1,5 +1,4 @@
-﻿using StackExchange.Redis.Tests.Helpers;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -7,9 +6,9 @@ using System.Linq;
 using System.Net;
 using System.Runtime;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
+using StackExchange.Redis.Tests.Helpers;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -20,27 +19,35 @@ namespace StackExchange.Redis.Tests
         private ITestOutputHelper Output { get; }
         protected TextWriterOutputHelper Writer { get; }
         protected static bool RunningInCI { get; } = Environment.GetEnvironmentVariable("APPVEYOR") != null;
-        protected virtual string GetConfiguration() => TestConfig.Current.MasterServerAndPort;
+        protected virtual string GetConfiguration() => GetDefaultConfiguration();
+        internal static string GetDefaultConfiguration() => TestConfig.Current.MasterServerAndPort;
 
-        protected TestBase(ITestOutputHelper output)
+        private readonly SharedConnectionFixture _fixture;
+
+        protected bool SharedFixtureAvailable => _fixture != null && _fixture.IsEnabled;
+
+        protected TestBase(ITestOutputHelper output, SharedConnectionFixture fixture = null)
         {
             Output = output;
             Output.WriteFrameworkVersion();
             Writer = new TextWriterOutputHelper(output, TestConfig.Current.LogToConsole);
+            _fixture = fixture;
             ClearAmbientFailures();
         }
 
-        protected void LogNoTime(string message)
+        protected void LogNoTime(string message) => LogNoTime(Writer, message);
+        internal static void LogNoTime(TextWriter output, string message)
         {
-            Output.WriteLine(message);
+            output.WriteLine(message);
             if (TestConfig.Current.LogToConsole)
             {
                 Console.WriteLine(message);
             }
         }
-        protected void Log(string message)
+        protected void Log(string message) => Log(Writer, message);
+        public static void Log(TextWriter output, string message)
         {
-            Output.WriteLine(Time() + ": " + message);
+            output?.WriteLine(Time() + ": " + message);
             if (TestConfig.Current.LogToConsole)
             {
                 Console.WriteLine(message);
@@ -65,6 +72,7 @@ namespace StackExchange.Redis.Tests
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1063:ImplementIDisposableCorrectly")]
         public void Dispose()
         {
+            _fixture?.Teardown(Writer);
             Teardown();
         }
 
@@ -175,7 +183,7 @@ namespace StackExchange.Redis.Tests
             Log($"Service Counts: (Scheduler) Queue: {SocketManager.Shared?.SchedulerPool?.TotalServicedByQueue.ToString()}, Pool: {SocketManager.Shared?.SchedulerPool?.TotalServicedByPool.ToString()}, (Completion) Queue: {SocketManager.Shared?.CompletionPool?.TotalServicedByQueue.ToString()}, Pool: {SocketManager.Shared?.CompletionPool?.TotalServicedByPool.ToString()}");
         }
 
-        protected IServer GetServer(ConnectionMultiplexer muxer)
+        protected IServer GetServer(IConnectionMultiplexer muxer)
         {
             EndPoint[] endpoints = muxer.GetEndPoints();
             IServer result = null;
@@ -190,7 +198,7 @@ namespace StackExchange.Redis.Tests
             return result;
         }
 
-        protected IServer GetAnyMaster(ConnectionMultiplexer muxer)
+        protected IServer GetAnyMaster(IConnectionMultiplexer muxer)
         {
             foreach (var endpoint in muxer.GetEndPoints())
             {
@@ -200,13 +208,54 @@ namespace StackExchange.Redis.Tests
             throw new InvalidOperationException("Requires a master endpoint (found none)");
         }
 
-        protected virtual ConnectionMultiplexer Create(
+        internal virtual IInternalConnectionMultiplexer Create(
             string clientName = null, int? syncTimeout = null, bool? allowAdmin = null, int? keepAlive = null,
             int? connectTimeout = null, string password = null, string tieBreaker = null, TextWriter log = null,
             bool fail = true, string[] disabledCommands = null, string[] enabledCommands = null,
             bool checkConnect = true, string failMessage = null,
             string channelPrefix = null, Proxy? proxy = null,
             string configuration = null, bool logTransactionData = true,
+            bool shared = true,
+            [CallerMemberName] string caller = null)
+        {
+            if (Output == null)
+            {
+                Assert.True(false, "Failure: Be sure to call the TestBase constuctor like this: BasicOpsTests(ITestOutputHelper output) : base(output) { }");
+            }
+
+            if (shared && _fixture != null && _fixture.IsEnabled && enabledCommands == null && disabledCommands == null && fail && channelPrefix == null && proxy == null
+                && configuration == null && password == null && tieBreaker == null && (allowAdmin == null || allowAdmin == true) && expectedFailCount == 0)
+            {
+                configuration = GetConfiguration();
+                if (configuration == _fixture.Configuration)
+                {   // only if the 
+                    return _fixture.Connection;
+                }
+            }
+
+            var muxer = CreateDefault(
+                Writer,
+                clientName, syncTimeout, allowAdmin, keepAlive,
+                connectTimeout, password, tieBreaker, log,
+                fail, disabledCommands, enabledCommands,
+                checkConnect, failMessage,
+                channelPrefix, proxy,
+                configuration ?? GetConfiguration(),
+                logTransactionData, caller);
+            muxer.InternalError += OnInternalError;
+            muxer.ConnectionFailed += OnConnectionFailed;
+            return muxer;
+        }
+
+        public static ConnectionMultiplexer CreateDefault(
+            TextWriter output,
+            string clientName = null, int? syncTimeout = null, bool? allowAdmin = null, int? keepAlive = null,
+            int? connectTimeout = null, string password = null, string tieBreaker = null, TextWriter log = null,
+            bool fail = true, string[] disabledCommands = null, string[] enabledCommands = null,
+            bool checkConnect = true, string failMessage = null,
+            string channelPrefix = null, Proxy? proxy = null,
+            string configuration = null, bool logTransactionData = true,
+
             [CallerMemberName] string caller = null)
         {
             StringWriter localLog = null;
@@ -216,7 +265,6 @@ namespace StackExchange.Redis.Tests
             }
             try
             {
-                configuration = configuration ?? GetConfiguration();
                 var config = ConfigurationOptions.Parse(configuration);
                 if (disabledCommands != null && disabledCommands.Length != 0)
                 {
@@ -258,11 +306,10 @@ namespace StackExchange.Redis.Tests
                     throw new TimeoutException("Connect timeout");
                 }
                 watch.Stop();
-                if (Output == null)
+                if (output != null)
                 {
-                    Assert.True(false, "Failure: Be sure to call the TestBase constuctor like this: BasicOpsTests(ITestOutputHelper output) : base(output) { }");
+                    Log(output, "Connect took: " + watch.ElapsedMilliseconds + "ms");
                 }
-                Log("Connect took: " + watch.ElapsedMilliseconds + "ms");
                 var muxer = task.Result;
                 if (checkConnect && (muxer == null || !muxer.IsConnected))
                 {
@@ -270,30 +317,30 @@ namespace StackExchange.Redis.Tests
                     Assert.False(fail, failMessage + "Server is not available");
                     Skip.Inconclusive(failMessage + "Server is not available");
                 }
-
-                muxer.InternalError += OnInternalError;
-                muxer.ConnectionFailed += OnConnectionFailed;
-                muxer.MessageFaulted += (msg, ex, origin) =>
+                if (output != null)
                 {
-                    Writer?.WriteLine($"Faulted from '{origin}': '{msg}' - '{(ex == null ? "(null)" : ex.Message)}'");
-                    if (ex != null && ex.Data.Contains("got"))
+                    muxer.MessageFaulted += (msg, ex, origin) =>
                     {
-                        Writer?.WriteLine($"Got: '{ex.Data["got"]}'");
+                        output?.WriteLine($"Faulted from '{origin}': '{msg}' - '{(ex == null ? "(null)" : ex.Message)}'");
+                        if (ex != null && ex.Data.Contains("got"))
+                        {
+                            output?.WriteLine($"Got: '{ex.Data["got"]}'");
+                        }
+                    };
+                    muxer.Connecting += (e, t) => output?.WriteLine($"Connecting to {Format.ToString(e)} as {t}");
+                    if (logTransactionData)
+                    {
+                        muxer.TransactionLog += msg => output?.WriteLine("tran: " + msg);
                     }
-                };
-                muxer.Connecting += (e, t) => Writer.WriteLine($"Connecting to {Format.ToString(e)} as {t}");
-                if (logTransactionData)
-                {
-                    muxer.TransactionLog += msg => Writer.WriteLine("tran: " + msg);
+                    muxer.InfoMessage += msg => output?.WriteLine(msg);
+                    muxer.Resurrecting += (e, t) => output?.WriteLine($"Resurrecting {Format.ToString(e)} as {t}");
+                    muxer.Closing += complete => output?.WriteLine(complete ? "Closed" : "Closing...");
                 }
-                muxer.InfoMessage += msg => Writer.WriteLine(msg);
-                muxer.Resurrecting += (e, t) => Writer.WriteLine($"Resurrecting {Format.ToString(e)} as {t}");
-                muxer.Closing += complete => Writer.WriteLine(complete ? "Closed" : "Closing...");
                 return muxer;
             }
             catch
             {
-                if (localLog != null) Output?.WriteLine(localLog.ToString());
+                if (localLog != null) output?.WriteLine(localLog.ToString());
                 throw;
             }
         }

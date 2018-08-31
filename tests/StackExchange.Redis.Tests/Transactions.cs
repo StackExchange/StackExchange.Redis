@@ -10,9 +10,10 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
+    [Collection(SharedConnectionFixture.Key)]
     public class Transactions : TestBase
     {
-        public Transactions(ITestOutputHelper output) : base(output) { }
+        public Transactions(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
         [Fact]
         public void BasicEmptyTran()

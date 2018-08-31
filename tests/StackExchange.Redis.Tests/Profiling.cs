@@ -73,7 +73,7 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        private static void AssertProfiledCommandValues(IProfiledCommand command, ConnectionMultiplexer conn, int dbId)
+        private static void AssertProfiledCommandValues(IProfiledCommand command, IConnectionMultiplexer conn, int dbId)
         {
             Assert.Equal(dbId, command.Db);
             Assert.Equal(conn.GetEndPoints()[0], command.EndPoint);
@@ -275,7 +275,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var c = Create())
             {
-                ConnectionMultiplexer conn = c;
+                IConnectionMultiplexer conn = c;
                 var session = new ProfilingSession();
                 var prefix = Me();
 
@@ -317,7 +317,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var c = Create())
             {
-                ConnectionMultiplexer conn = c;
+                IConnectionMultiplexer conn = c;
                 var profiler = new PerThreadProfiler();
                 var prefix = Me();
 
@@ -362,7 +362,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var c = Create())
             {
-                ConnectionMultiplexer conn = c;
+                IConnectionMultiplexer conn = c;
                 var profiler = new AsyncLocalProfiler();
                 var prefix = Me();
 

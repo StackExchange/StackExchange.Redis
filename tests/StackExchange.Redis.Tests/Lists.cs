@@ -4,9 +4,10 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
+    [Collection(SharedConnectionFixture.Key)]
     public class Lists : TestBase
     {
-        public Lists(ITestOutputHelper output) : base(output) { }
+        public Lists(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
         [Fact]
         public void Ranges()

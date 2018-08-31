@@ -4,9 +4,10 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
+    [Collection(SharedConnectionFixture.Key)]
     public class MultiAdd : TestBase
     {
-        public MultiAdd(ITestOutputHelper output) : base(output) { }
+        public MultiAdd(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
         [Fact]
         public void AddSortedSetEveryWay()

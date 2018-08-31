@@ -5,9 +5,10 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
+    [Collection(SharedConnectionFixture.Key)]
     public class ExecuteTests : TestBase
     {
-        public ExecuteTests(ITestOutputHelper output) : base(output) { }
+        public ExecuteTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
         [Fact]
         public async Task DBExecute()

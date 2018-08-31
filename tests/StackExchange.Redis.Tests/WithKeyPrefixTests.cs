@@ -5,9 +5,10 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
+    [Collection(SharedConnectionFixture.Key)]
     public class WithKeyPrefixTests : TestBase
     {
-        public WithKeyPrefixTests(ITestOutputHelper output) : base(output) { }
+        public WithKeyPrefixTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
         [Fact]
         public void BlankPrefixYieldsSame_Bytes()

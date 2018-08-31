@@ -10,9 +10,10 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
+    [Collection(SharedConnectionFixture.Key)]
     public class PubSub : TestBase
     {
-        public PubSub(ITestOutputHelper output) : base(output) { }
+        public PubSub(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
         [Fact]
         public async Task ExplicitPublishMode()
@@ -172,7 +173,7 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        private static async Task PingAsync(ConnectionMultiplexer muxer, IServer pub, ISubscriber sub, int times = 1)
+        private static async Task PingAsync(IConnectionMultiplexer muxer, IServer pub, ISubscriber sub, int times = 1)
         {
             while (times-- > 0)
             {
@@ -558,8 +559,8 @@ namespace StackExchange.Redis.Tests
         public async Task TestPublishWithSubscribers()
         {
             var channel = Me();
-            using (var muxerA = Create())
-            using (var muxerB = Create())
+            using (var muxerA = Create(shared: false))
+            using (var muxerB = Create(shared: false))
             using (var conn = Create())
             {
                 var listenA = muxerA.GetSubscriber();
@@ -578,8 +579,8 @@ namespace StackExchange.Redis.Tests
         public async Task TestMultipleSubscribersGetMessage()
         {
             var channel = Me();
-            using (var muxerA = Create())
-            using (var muxerB = Create())
+            using (var muxerA = Create(shared: false))
+            using (var muxerB = Create(shared: false))
             using (var conn = Create())
             {
                 var listenA = muxerA.GetSubscriber();

@@ -3,9 +3,10 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
+    [Collection(SharedConnectionFixture.Key)]
     public class AdhocTests : TestBase
     {
-        public AdhocTests(ITestOutputHelper output) : base (output) { }
+        public AdhocTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
 
         [Fact]
         public void TestAdhocCommandsAPI()

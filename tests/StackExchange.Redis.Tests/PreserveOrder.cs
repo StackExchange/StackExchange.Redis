@@ -7,9 +7,10 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
+    [Collection(SharedConnectionFixture.Key)]
     public class PreserveOrder : TestBase
     {
-        public PreserveOrder(ITestOutputHelper output) : base (output) { }
+        public PreserveOrder(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
 
         [Fact]
         public void Execute()

@@ -6,9 +6,10 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
+    [Collection(SharedConnectionFixture.Key)]
     public class Scans : TestBase
     {
-        public Scans(ITestOutputHelper output) : base (output) { }
+        public Scans(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
 
         [Theory]
         [InlineData(true)]
@@ -339,7 +340,7 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        private bool GotCursors(ConnectionMultiplexer conn, RedisKey key, int count)
+        private bool GotCursors(IConnectionMultiplexer conn, RedisKey key, int count)
         {
             var db = conn.GetDatabase();
             db.KeyDelete(key, CommandFlags.FireAndForget);

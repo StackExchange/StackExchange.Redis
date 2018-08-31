@@ -7,9 +7,10 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
+    [Collection(SharedConnectionFixture.Key)]
     public class Strings : TestBase // https://redis.io/commands#string
     {
-        public Strings(ITestOutputHelper output) : base(output) { }
+        public Strings(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
         [Fact]
         public async Task Append()

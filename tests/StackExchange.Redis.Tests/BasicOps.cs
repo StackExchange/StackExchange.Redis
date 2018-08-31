@@ -1,15 +1,16 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using StackExchange.Redis.KeyspaceIsolation;
 using Xunit;
 using Xunit.Abstractions;
-using System.Diagnostics;
 
 namespace StackExchange.Redis.Tests
 {
+    [Collection(SharedConnectionFixture.Key)]
     public class BasicOpsTests : TestBase
     {
-        public BasicOpsTests(ITestOutputHelper output) : base (output) { }
+        public BasicOpsTests(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
 
         [Fact]
         public async Task PingOnce()
@@ -35,7 +36,7 @@ namespace StackExchange.Redis.Tests
 
                 for (int i = 0; i < 10; i++)
                 {
-                    using (var secondary = Create(fail: true))
+                    using (var secondary = Create(fail: true, shared: false))
                     {
                         secondary.GetDatabase().StringIncrement(key, flags: CommandFlags.FireAndForget);
                     }
@@ -396,6 +397,33 @@ namespace StackExchange.Redis.Tests
         {
             database.StringIncrement(key, delta, CommandFlags.FireAndForget);
             total += delta;
+        }
+
+        [Fact]
+        public void ShouldUseSharedMuxer()
+        {
+            if (SharedFixtureAvailable)
+            {
+                using (var a = Create())
+                {
+                    Assert.IsNotType<ConnectionMultiplexer>(a);
+                    using (var b = Create())
+                    {
+                        Assert.Same(a, b);
+                    }
+                }
+            }
+            else
+            {
+                using (var a = Create())
+                {
+                    Assert.IsType<ConnectionMultiplexer>(a);
+                    using (var b = Create())
+                    {
+                        Assert.NotSame(a, b);
+                    }
+                }
+            }
         }
 
         [Fact]

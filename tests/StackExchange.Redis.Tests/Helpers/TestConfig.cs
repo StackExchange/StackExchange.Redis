@@ -12,7 +12,7 @@ namespace StackExchange.Redis.Tests
         public static Config Current { get; }
 
         private static int _db = 17;
-        public static int GetDedicatedDB(ConnectionMultiplexer conn = null)
+        public static int GetDedicatedDB(IConnectionMultiplexer conn = null)
         {
             int db = Interlocked.Increment(ref _db);
             if (conn != null) Skip.IfMissingDatabase(conn, db);

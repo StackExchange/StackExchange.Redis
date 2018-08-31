@@ -3,9 +3,10 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
+    [Collection(SharedConnectionFixture.Key)]
     public class HyperLogLog : TestBase
     {
-        public HyperLogLog(ITestOutputHelper output) : base (output) { }
+        public HyperLogLog(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
 
         [Fact]
         public void SingleKeyLength()

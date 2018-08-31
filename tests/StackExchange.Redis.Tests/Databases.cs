@@ -4,9 +4,10 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
+    [Collection(SharedConnectionFixture.Key)]
     public class Databases : TestBase
     {
-        public Databases(ITestOutputHelper output) : base (output) { }
+        public Databases(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
 
         [Fact]
         public async Task CountKeys()

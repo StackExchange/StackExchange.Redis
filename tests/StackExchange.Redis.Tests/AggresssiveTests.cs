@@ -16,7 +16,7 @@ namespace StackExchange.Redis.Tests
         {
             const int Muxers = 4, Workers = 20, PerThread = 250;
 
-            var muxers = new ConnectionMultiplexer[Muxers];
+            var muxers = new IConnectionMultiplexer[Muxers];
             try
             {
                 for (int i = 0; i < Muxers; i++)

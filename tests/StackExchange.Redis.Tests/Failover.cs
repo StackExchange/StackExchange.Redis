@@ -199,8 +199,8 @@ namespace StackExchange.Redis.Tests
                 Skip.Inconclusive("TODO: Fix race in broadcast reconfig a zero latency.");
             }
 
-            using (var a = Create(allowAdmin: true))
-            using (var b = Create(allowAdmin: true))
+            using (var a = Create(allowAdmin: true, shared: false))
+            using (var b = Create(allowAdmin: true, shared: false))
             {
                 RedisChannel channel = Me();
                 var subA = a.GetSubscriber();

@@ -6,9 +6,10 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
+    [Collection(SharedConnectionFixture.Key)]
     public class Streams : TestBase
     {
-        public Streams(ITestOutputHelper output) : base(output) { }
+        public Streams(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
         [Fact]
         public void IsStreamType()

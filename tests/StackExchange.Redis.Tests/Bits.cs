@@ -3,9 +3,10 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
+    [Collection(SharedConnectionFixture.Key)]
     public class Bits : TestBase
     {
-        public Bits(ITestOutputHelper output) : base (output) { }
+        public Bits(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
 
         [Fact]
         public void BasicOps()

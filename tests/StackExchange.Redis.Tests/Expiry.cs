@@ -5,9 +5,10 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
+    [Collection(SharedConnectionFixture.Key)]
     public class Expiry : TestBase
     {
-        public Expiry(ITestOutputHelper output) : base (output) { }
+        public Expiry(ITestOutputHelper output, SharedConnectionFixture fixture) : base (output, fixture) { }
 
         private static string[] GetMap(bool disablePTimes) => disablePTimes ? (new[] { "pexpire", "pexpireat", "pttl" }) : null;
 

@@ -23,7 +23,7 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        public static void IfMissingFeature(ConnectionMultiplexer conn, string feature, Func<RedisFeatures, bool> check)
+        public static void IfMissingFeature(IConnectionMultiplexer conn, string feature, Func<RedisFeatures, bool> check)
         {
             var features = conn.GetServer(conn.GetEndPoints()[0]).Features;
             if (!check(features))
@@ -35,7 +35,7 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        internal static void IfMissingDatabase(ConnectionMultiplexer conn, int dbId)
+        internal static void IfMissingDatabase(IConnectionMultiplexer conn, int dbId)
         {
             var dbCount = conn.GetServer(conn.GetEndPoints()[0]).DatabaseCount;
             if (dbId >= dbCount) throw new SkipTestException($"Database '{dbId}' is not supported on this server.");
