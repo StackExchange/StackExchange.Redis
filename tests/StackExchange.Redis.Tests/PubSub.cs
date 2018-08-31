@@ -570,6 +570,10 @@ namespace StackExchange.Redis.Tests
 
                 await Task.WhenAll(t1, t2).ForAwait();
 
+                // subscribe is just a thread-race-mess
+                await listenA.PingAsync();
+                await listenB.PingAsync();
+
                 var pub = conn.GetSubscriber().PublishAsync(channel, "message");
                 Assert.Equal(2, await pub); // delivery count
             }
