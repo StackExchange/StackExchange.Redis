@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -331,33 +332,49 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void Issue883_Exhaustive()
         {
-            var a = ConnectionMultiplexer.PrepareConfig("myDNS:883,password=mypassword,connectRetry=3,connectTimeout=5000,syncTimeout=5000,defaultDatabase=0,ssl=true,abortConnect=false");
-            var b = ConnectionMultiplexer.PrepareConfig(new ConfigurationOptions
+            var old = CultureInfo.CurrentCulture;
+            try
             {
-                EndPoints = { { "myDNS", 883 } },
-                Password = "mypassword",
-                ConnectRetry = 3,
-                ConnectTimeout = 5000,
-                SyncTimeout = 5000,
-                DefaultDatabase = 0,
-                Ssl = true,
-                AbortOnConnectFail = false,
-            });
-            Writer.WriteLine($"computed: {b.ToString(true)}");
+                var all = CultureInfo.GetCultures(CultureTypes.AllCultures);
+                Writer.WriteLine($"Checking {all.Length} cultures...");
+                foreach (var ci in all)
+                {
+                    Writer.WriteLine("Tessting: " + ci.Name);
+                    CultureInfo.CurrentCulture = ci;
 
-            Writer.WriteLine("Checking endpoints...");
-            var c = a.EndPoints.Cast<DnsEndPoint>().Single();
-            var d = b.EndPoints.Cast<DnsEndPoint>().Single();
-            Check(nameof(c.Host), c.Host, d.Host);
-            Check(nameof(c.Port), c.Port, d.Port);
-            Check(nameof(c.AddressFamily), c.AddressFamily, d.AddressFamily);
+                    var a = ConnectionMultiplexer.PrepareConfig("myDNS:883,password=mypassword,connectRetry=3,connectTimeout=5000,syncTimeout=5000,defaultDatabase=0,ssl=true,abortConnect=false");
+                    var b = ConnectionMultiplexer.PrepareConfig(new ConfigurationOptions
+                    {
+                        EndPoints = { { "myDNS", 883 } },
+                        Password = "mypassword",
+                        ConnectRetry = 3,
+                        ConnectTimeout = 5000,
+                        SyncTimeout = 5000,
+                        DefaultDatabase = 0,
+                        Ssl = true,
+                        AbortOnConnectFail = false,
+                    });
+                    Writer.WriteLine($"computed: {b.ToString(true)}");
 
-            var fields = typeof(ConfigurationOptions).GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-            Writer.WriteLine($"Comparing {fields.Length} fields...");
-            Array.Sort(fields, (x, y) => string.Compare(x.Name, y.Name));
-            foreach (var field in fields)
+                    Writer.WriteLine("Checking endpoints...");
+                    var c = a.EndPoints.Cast<DnsEndPoint>().Single();
+                    var d = b.EndPoints.Cast<DnsEndPoint>().Single();
+                    Check(nameof(c.Host), c.Host, d.Host);
+                    Check(nameof(c.Port), c.Port, d.Port);
+                    Check(nameof(c.AddressFamily), c.AddressFamily, d.AddressFamily);
+
+                    var fields = typeof(ConfigurationOptions).GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                    Writer.WriteLine($"Comparing {fields.Length} fields...");
+                    Array.Sort(fields, (x, y) => string.Compare(x.Name, y.Name));
+                    foreach (var field in fields)
+                    {
+                        Check(field.Name, field.GetValue(a), field.GetValue(b));
+                    }
+                }
+            }
+            finally
             {
-                Check(field.Name, field.GetValue(a), field.GetValue(b));
+                CultureInfo.CurrentCulture = old;
             }
         }
 

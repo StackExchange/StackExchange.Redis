@@ -1916,7 +1916,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                         {
                             return true;
                         }
-                        else if (arr.Length == 2 && int.TryParse(arr[1], out var port))
+                        else if (arr.Length == 2 && Format.TryParseInt32(arr[1], out var port))
                         {
                             SetResult(message, Format.ParseEndPoint(arr[0], port));
                             return true;

@@ -245,7 +245,7 @@ namespace StackExchange.Redis
             int? port = 0;
             if (portPart != null)
             {
-                if (int.TryParse(portPart, out var portVal))
+                if (Format.TryParseInt32(portPart, out var portVal))
                 {
                     port = portVal;
                 }
