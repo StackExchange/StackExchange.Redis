@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.IO;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -806,7 +807,7 @@ namespace StackExchange.Redis
         {
             if (stream == null) return Null;
             if (stream.Length == 0) return Array.Empty<byte>();
-            if(stream.TryGetBuffer(out var segment))
+            if(stream.TryGetBuffer(out var segment) || ReflectionTryGetBuffer(stream, out segment))
             {
                 return new Memory<byte>(segment.Array, segment.Offset, segment.Count);
             }
@@ -815,6 +816,27 @@ namespace StackExchange.Redis
                 // nowhere near as efficient, but...
                 return stream.ToArray();
             }
+        }
+
+        private static readonly FieldInfo
+            s_origin = typeof(MemoryStream).GetField("_origin", BindingFlags.NonPublic | BindingFlags.Instance),
+            s_buffer = typeof(MemoryStream).GetField("_buffer", BindingFlags.NonPublic | BindingFlags.Instance);
+
+        private static bool ReflectionTryGetBuffer(MemoryStream ms, out ArraySegment<byte> buffer)
+        {
+            if (s_origin != null && s_buffer != null)
+            {
+                try
+                {
+                    int offset = (int)s_origin.GetValue(ms);
+                    byte[] arr = (byte[])s_buffer.GetValue(ms);
+                    buffer = new ArraySegment<byte>(arr, offset, checked((int)ms.Length));
+                    return true;
+                }
+                catch { }
+            }
+            buffer = default;
+            return false;
         }
 
         /// <summary>
