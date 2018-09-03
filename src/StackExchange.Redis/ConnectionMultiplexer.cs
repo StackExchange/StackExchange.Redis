@@ -817,7 +817,7 @@ namespace StackExchange.Redis
         public static Task<ConnectionMultiplexer> ConnectAsync(ConfigurationOptions configuration, TextWriter log = null)
             => ConnectImplAsync(configuration, log);
 
-        private static ConnectionMultiplexer CreateMultiplexer(object configuration, TextWriter log, out EventHandler<ConnectionFailedEventArgs> connectHandler)
+        internal static ConfigurationOptions PrepareConfig(object configuration)
         {
             if (configuration == null) throw new ArgumentNullException(nameof(configuration));
             ConfigurationOptions config;
@@ -835,7 +835,11 @@ namespace StackExchange.Redis
             }
             if (config.EndPoints.Count == 0) throw new ArgumentException("No endpoints specified", nameof(configuration));
             config.SetDefaultPorts();
-            var muxer = new ConnectionMultiplexer(config);
+            return config;
+        }
+        private static ConnectionMultiplexer CreateMultiplexer(object configuration, TextWriter log, out EventHandler<ConnectionFailedEventArgs> connectHandler)
+        {
+            var muxer = new ConnectionMultiplexer(PrepareConfig(configuration));
             connectHandler = null;
             if(log != null)
             {

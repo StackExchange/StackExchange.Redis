@@ -10,7 +10,7 @@ namespace StackExchange.Redis.Tests
 {
     public class Config : TestBase
     {
-        public Config(ITestOutputHelper output) : base (output) { }
+        public Config(ITestOutputHelper output) : base(output) { }
 
         [Fact]
         public void SslProtocols_SingleValue()

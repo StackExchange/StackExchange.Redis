@@ -2,7 +2,10 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
+using System.Net;
 using System.Net.Security;
+using System.Reflection;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading.Tasks;
 using StackExchange.Redis.Tests.Helpers;
@@ -317,6 +320,45 @@ namespace StackExchange.Redis.Tests
                             }
             };
             Assert.True(options.SslHost == null);
+        }
+
+        private void Check(string name, object x, object y)
+        {
+            Writer.WriteLine($"{name}: {(x == null ? "(null)" : x.ToString())} vs {(y == null ? "(null)" : y.ToString())}");
+            Assert.Equal(x, y);
+        }
+
+        [Fact]
+        public void Issue883_Exhaustive()
+        {
+            var a = ConnectionMultiplexer.PrepareConfig("myDNS:883,password=mypassword,connectRetry=3,connectTimeout=5000,syncTimeout=5000,defaultDatabase=0,ssl=true,abortConnect=false");
+            var b = ConnectionMultiplexer.PrepareConfig(new ConfigurationOptions
+            {
+                EndPoints = { { "myDNS", 883 } },
+                Password = "mypassword",
+                ConnectRetry = 3,
+                ConnectTimeout = 5000,
+                SyncTimeout = 5000,
+                DefaultDatabase = 0,
+                Ssl = true,
+                AbortOnConnectFail = false,
+            });
+            Writer.WriteLine($"computed: {b.ToString(true)}");
+
+            Writer.WriteLine("Checking endpoints...");
+            var c = a.EndPoints.Cast<DnsEndPoint>().Single();
+            var d = b.EndPoints.Cast<DnsEndPoint>().Single();
+            Check(nameof(c.Host), c.Host, d.Host);
+            Check(nameof(c.Port), c.Port, d.Port);
+            Check(nameof(c.AddressFamily), c.AddressFamily, d.AddressFamily);
+
+            var fields = typeof(ConfigurationOptions).GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            Writer.WriteLine($"Comparing {fields.Length} fields...");
+            Array.Sort(fields, (x, y) => string.Compare(x.Name, y.Name));
+            foreach (var field in fields)
+            {
+                Check(field.Name, field.GetValue(a), field.GetValue(b));
+            }
         }
 
         [Fact]
