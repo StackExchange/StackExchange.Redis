@@ -566,7 +566,14 @@ namespace StackExchange.Redis
         public void Wait(Task task)
         {
             if (task == null) throw new ArgumentNullException(nameof(task));
-            if (!task.Wait(TimeoutMilliseconds)) throw new TimeoutException();
+            try
+            {
+                if (!task.Wait(TimeoutMilliseconds)) throw new TimeoutException();
+            }
+            catch (AggregateException aex) when (IsSingle(aex))
+            {
+                throw aex.InnerExceptions[0];
+            }
         }
 
         /// <summary>
@@ -577,8 +584,21 @@ namespace StackExchange.Redis
         public T Wait<T>(Task<T> task)
         {
             if (task == null) throw new ArgumentNullException(nameof(task));
-            if (!task.Wait(TimeoutMilliseconds)) throw new TimeoutException();
+            try
+            {
+                if (!task.Wait(TimeoutMilliseconds)) throw new TimeoutException();
+            }
+            catch (AggregateException aex) when (IsSingle(aex))
+            {
+                throw aex.InnerExceptions[0];
+            }
             return task.Result;
+        }
+
+        private static bool IsSingle(AggregateException aex)
+        {
+            try { return aex != null && aex.InnerExceptions.Count == 1; }
+            catch { return false; }
         }
 
         /// <summary>
