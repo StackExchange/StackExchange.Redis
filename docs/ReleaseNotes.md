@@ -7,7 +7,7 @@
 - 2.0 is a large - and breaking - change
 
 - HARD BREAK: the package identity has changed; instead of `StackExchange.Redis` (not strong-named) and `StackExchange.Redis.StrongName` (strong-named), we are now
-  only releasing `StackExchange.Redis` (strong-named). This is a binary breaking change that requires consumers to be re-compiled; it cannot be applied via binding-redirects.
+  only releasing `StackExchange.Redis` (strong-named). This is a binary breaking change that requires consumers to be re-compiled; it cannot be applied via binding-redirects
 - HARD BREAK: the platform targets have been rationalized - supported targets are .NETStandard 2.0 (and above), .NETFramework 4.6.1 (and above), and .NETFramework 4.7.2 (and above)
   (note - the last two are mainly due to assembly binding problems)
 - HARD BREAK: the profiling API has been overhauled and simplified; full documentation is [provided here](https://stackexchange.github.io/StackExchange.Redis/Profiling_v2.html)
@@ -16,6 +16,7 @@
 - internal: the network architecture has moved to use `System.IO.Pipelines`; this has allowed us to simplify and unify a lot of the network code, and in particular 
   fix a lot of problems relating to how the library worked with TLS and/or .NETStandard
 - internal: most buffers internally now make use of pooled memory; `RedisValue` no longer pre-emptively allocates buffers
+- added: asynchronous operations now have full support for reporting timeouts
 - added: new APIs now exist to work with pooled memory without allocations - `RedisValue.CreateFrom(MemoryStream)` and `operator` support for `Memory<byte>` and `ReadOnlyMemory<byte>`; and `IDatabase.StringGetLease[Async](...)`, `IDatabase.HashGetLease[Async](...)`, `Lease<byte>.AsStream()`)
 - added: ["streams"](https://redis.io/topics/streams-intro) support (thanks to [ttingen](https://github.com/ttingen) for their contribution)
 - various missing commands / overloads have been added
