@@ -15,7 +15,9 @@
   the `Subscribe` method has a new overload *without* a handler parameter which returns a `ChannelMessageQueue`, which provides `async` ordered access to messsages)
 - internal: the network architecture has moved to use `System.IO.Pipelines`; this has allowed us to simplify and unify a lot of the network code, and in particular 
   fix a lot of problems relating to how the library worked with TLS and/or .NETStandard
-- added: ["streams"](https://redis.io/topics/streams-intro) support
+- internal: most buffers internally now make use of pooled memory; `RedisValue` no longer pre-emptively allocates buffers; new APIs now exist to use pooled memory
+  directly (`RedisValue.CreateFrom(MemoryStream)` and `operator` support for `Memory<byte>` and `ReadOnlyMemory<byte>`; `IDatabase.StringGetLease[Async](...)`, `IDatabase.HashGetLease[Async](...)`, `Lease<byte>.AsStream()`)
+- added: ["streams"](https://redis.io/topics/streams-intro) support (thanks to [ttingen](https://github.com/ttingen) for their contribution)
 - various missing commands / overloads have been added
 - a *lot* of general bugs and issues have been resolved
 
