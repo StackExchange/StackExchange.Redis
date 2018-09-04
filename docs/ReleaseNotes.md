@@ -2,9 +2,26 @@
 
 # Important: .NET 4.0 support is currently **disabled**; if you need .NET 4.0, please stick with 1.2.1 while we keep investigating
 
-## 2.0-alpha.* (not released)
+## 2.0
 
-- this is the 2.0 preview build; please see [this tracking issue](https://github.com/StackExchange/StackExchange.Redis/issues/871)
+- 2.0 is a large - and breaking - change
+
+- HARD BREAK: the package identity has changed; instead of `StackExchange.Redis` (not strong-named) and `StackExchange.Redis.StrongName` (strong-named), we are now
+  only releasing `StackExchange.Redis` (strong-named). This is a binary breaking change that requires consumers to be re-compiled; it cannot be applied via binding-redirects.
+- HARD BREAK: the platform targets have been rationalized - supported targets are .NETStandard 2.0 (and above), .NETFramework 4.6.1 (and above), and .NETFramework 4.7.2 (and above)
+  (note - the last two are mainly due to assembly binding problems)
+- HARD BREAK: the profiling API has been overhauled and simplified; full documentation is [provided here](https://stackexchange.github.io/StackExchange.Redis/Profiling_v2.html)
+- SOFT BREAK: the `PreserveAsyncOrder` behaviour of the pub/sub API has been deprecated; a *new* API has been provided for scenarios that require in-order pub/sub handling -
+  the `Subscribe` method has a new overload *without* a handler parameter which returns a `ChannelMessageQueue`, which provides `async` ordered access to messsages)
+- internal: the network architecture has moved to use `System.IO.Pipelines`; this has allowed us to simplify and unify a lot of the network code, and in particular 
+  fix a lot of problems relating to how the library worked with TLS and/or .NETStandard
+- added: ["streams"](https://redis.io/topics/streams-intro) support
+- various missing commands / overloads have been added
+- a *lot* of general bugs and issues have been resolved
+
+a more complete list of issues addressed can be seen in [this tracking issue](https://github.com/StackExchange/StackExchange.Redis/issues/871)
+
+---
 
 ## 1.2.6
 
