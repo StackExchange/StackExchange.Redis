@@ -19,10 +19,11 @@
 - removed: the `HighPriority` (queue-jumping) flag is now deprecated
 - internal: most buffers internally now make use of pooled memory; `RedisValue` no longer pre-emptively allocates buffers
 - internal: added new custom thread-pool for handling async continuations to avoid thread-pool starvation issues
+- intenal: all IL has been removed internally; the library should now work on platforms that do not allow runtime-emit
 - added: asynchronous operations now have full support for reporting timeouts
 - added: new APIs now exist to work with pooled memory without allocations - `RedisValue.CreateFrom(MemoryStream)` and `operator` support for `Memory<byte>` and `ReadOnlyMemory<byte>`; and `IDatabase.StringGetLease[Async](...)`, `IDatabase.HashGetLease[Async](...)`, `Lease<byte>.AsStream()`)
 - added: ["streams"](https://redis.io/topics/streams-intro) support (thanks to [ttingen](https://github.com/ttingen) for their contribution)
-- various missing commands / overloads have been added
+- various missing commands / overloads have been added; `Execute[Async]` for additional commands is now available on `IServer`
 - fix: a *lot* of general bugs and issues have been resolved
 
 a more complete list of issues addressed can be seen in [this tracking issue](https://github.com/StackExchange/StackExchange.Redis/issues/871)
