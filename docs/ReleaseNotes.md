@@ -1,7 +1,5 @@
 # Release Notes
 
-# Important: .NET 4.0 support is currently **disabled**; if you need .NET 4.0, please stick with 1.2.1 while we keep investigating
-
 ## 2.0
 
 - 2.0 is a large - and breaking - change
