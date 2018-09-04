@@ -26,6 +26,9 @@
 
 a more complete list of issues addressed can be seen in [this tracking issue](https://github.com/StackExchange/StackExchange.Redis/issues/871)
 
+Note: we currently have no plans to do an additional 1.* release. In particular, even though there was a `1.2.7-alpha` build on nuget, we *do not* currently have
+plans to release `1.2.7`.
+
 ---
 
 ## 1.2.6
