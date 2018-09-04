@@ -45,6 +45,6 @@ namespace NRediSearch
         /// Obtain a pre-boxed integer if possible, else box the inbound value
         /// </summary>
         /// <param name="value">The value to get a pre-boxed integer for.</param>
-        public static object Boxed(this int value) => value >= BOXED_MIN && value <= BOXED_MAX ? s_Boxed[value - BOXED_MIN] : value;
+        public static object Boxed(this int value) => value >= BOXED_MIN && value < BOXED_MAX ? s_Boxed[value - BOXED_MIN] : value;
     }
 }
