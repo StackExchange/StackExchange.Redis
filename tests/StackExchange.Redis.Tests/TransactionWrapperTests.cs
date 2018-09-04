@@ -75,15 +75,15 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void ExecuteAsync()
         {
-            wrapper.ExecuteAsync(CommandFlags.HighPriority);
-            mock.Verify(_ => _.ExecuteAsync(CommandFlags.HighPriority), Times.Once());
+            wrapper.ExecuteAsync(CommandFlags.None);
+            mock.Verify(_ => _.ExecuteAsync(CommandFlags.None), Times.Once());
         }
 
         [Fact]
         public void Execute()
         {
-            wrapper.Execute(CommandFlags.HighPriority);
-            mock.Verify(_ => _.Execute(CommandFlags.HighPriority), Times.Once());
+            wrapper.Execute(CommandFlags.None);
+            mock.Verify(_ => _.Execute(CommandFlags.None), Times.Once());
         }
     }
 #pragma warning restore RCS1047 // Non-asynchronous method name should not end with 'Async'.

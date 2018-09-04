@@ -12,10 +12,11 @@ namespace StackExchange.Redis
         /// Default behaviour.
         /// </summary>
         None = 0,
+
         /// <summary>
         /// From 2.0, this flag is not used
         /// </summary>
-        // [Obsolete("From 2.0, this flag is not used", false)]
+        [Obsolete("From 2.0, this flag is not used", false)]
         HighPriority = 1,
         /// <summary>
         /// The caller is not interested in the result; the caller will immediately receive a default-value
