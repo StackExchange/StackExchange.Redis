@@ -18,6 +18,7 @@
 - change: as a result of the `System.IO.Pipelines` change, the error-reporting on timeouts is now much simpler and clearer; the [timeouts documentation](Timeouts.md) has been updated
 - removed: the `HighPriority` (queue-jumping) flag is now deprecated
 - internal: most buffers internally now make use of pooled memory; `RedisValue` no longer pre-emptively allocates buffers
+- internal: added new custom thread-pool for handling async continuations to avoid thread-pool starvation issues
 - added: asynchronous operations now have full support for reporting timeouts
 - added: new APIs now exist to work with pooled memory without allocations - `RedisValue.CreateFrom(MemoryStream)` and `operator` support for `Memory<byte>` and `ReadOnlyMemory<byte>`; and `IDatabase.StringGetLease[Async](...)`, `IDatabase.HashGetLease[Async](...)`, `Lease<byte>.AsStream()`)
 - added: ["streams"](https://redis.io/topics/streams-intro) support (thanks to [ttingen](https://github.com/ttingen) for their contribution)
