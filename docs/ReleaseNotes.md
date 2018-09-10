@@ -25,6 +25,7 @@ The key focus of this release is stability and reliability.
 - added: ["streams"](https://redis.io/topics/streams-intro) support (thanks to [ttingen](https://github.com/ttingen) for their contribution)
 - various missing commands / overloads have been added; `Execute[Async]` for additional commands is now available on `IServer`
 - fix: a *lot* of general bugs and issues have been resolved
+- ACCIDENTAL BREAK: `RedisValue.TryParse` was accidentally ommitted in the overhaul; this has been rectified and will be available in the next build
 
 a more complete list of issues addressed can be seen in [this tracking issue](https://github.com/StackExchange/StackExchange.Redis/issues/871)
 
