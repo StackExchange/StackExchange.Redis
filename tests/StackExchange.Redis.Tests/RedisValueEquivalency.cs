@@ -188,5 +188,95 @@ namespace StackExchange.Redis.Tests
             Assert.True(x.StartsWith(10), LineNumber());
             Assert.False(x.StartsWith(100), LineNumber());
         }
+
+        [Fact]
+        public void TryParseInt64()
+        {
+            Assert.True(((RedisValue)123).TryParse(out long l));
+            Assert.Equal(123, l);
+
+            Assert.True(((RedisValue)123.0).TryParse(out l));
+            Assert.Equal(123, l);
+
+            Assert.True(((RedisValue)(int.MaxValue + 123L)).TryParse(out l));
+            Assert.Equal(int.MaxValue + 123L, l);
+
+            Assert.True(((RedisValue)"123").TryParse(out l));
+            Assert.Equal(123, l);
+
+            Assert.True(((RedisValue)(-123)).TryParse(out l));
+            Assert.Equal(-123, l);
+
+            Assert.True(default(RedisValue).TryParse(out l));
+            Assert.Equal(0, l);
+
+            Assert.True(((RedisValue)123.0).TryParse(out l));
+            Assert.Equal(123, l);
+
+            Assert.False(((RedisValue)"abc").TryParse(out l));
+            Assert.False(((RedisValue)"123.1").TryParse(out l));
+            Assert.False(((RedisValue)123.1).TryParse(out l));
+        }
+
+        [Fact]
+        public void TryParseInt32()
+        {
+            Assert.True(((RedisValue)123).TryParse(out int i));
+            Assert.Equal(123, i);
+
+            Assert.True(((RedisValue)123.0).TryParse(out i));
+            Assert.Equal(123, i);
+
+            Assert.False(((RedisValue)(int.MaxValue + 123L)).TryParse(out i));
+
+            Assert.True(((RedisValue)"123").TryParse(out i));
+            Assert.Equal(123, i);
+
+            Assert.True(((RedisValue)(-123)).TryParse(out i));
+            Assert.Equal(-123, i);
+
+            Assert.True(default(RedisValue).TryParse(out i));
+            Assert.Equal(0, i);
+
+            Assert.True(((RedisValue)123.0).TryParse(out i));
+            Assert.Equal(123, i);
+
+            Assert.False(((RedisValue)"abc").TryParse(out i));
+            Assert.False(((RedisValue)"123.1").TryParse(out i));
+            Assert.False(((RedisValue)123.1).TryParse(out i));
+        }
+
+        [Fact]
+        public void TryParseDouble()
+        {
+            Assert.True(((RedisValue)123).TryParse(out double d));
+            Assert.Equal(123, d);
+
+            Assert.True(((RedisValue)123.0).TryParse(out d));
+            Assert.Equal(123.0, d);
+
+            Assert.True(((RedisValue)123.1).TryParse(out d));
+            Assert.Equal(123.1, d);
+
+            Assert.True(((RedisValue)(int.MaxValue + 123L)).TryParse(out d));
+            Assert.Equal(int.MaxValue + 123L, d);
+
+            Assert.True(((RedisValue)"123").TryParse(out d));
+            Assert.Equal(123.0, d);
+
+            Assert.True(((RedisValue)(-123)).TryParse(out d));
+            Assert.Equal(-123.0, d);
+
+            Assert.True(default(RedisValue).TryParse(out d));
+            Assert.Equal(0.0, d);
+
+            Assert.True(((RedisValue)123.0).TryParse(out d));
+            Assert.Equal(123.0, d);
+
+            Assert.True(((RedisValue)"123.1").TryParse(out d));
+            Assert.Equal(123.1, d);
+
+            Assert.False(((RedisValue)"abc").TryParse(out d));
+        }
     }
 }

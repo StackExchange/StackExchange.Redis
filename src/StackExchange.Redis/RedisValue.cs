@@ -799,6 +799,84 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// Convert to a long if possible, returning true.
+        ///
+        /// Returns false otherwise.
+        /// </summary>
+        /// <param name="val">The <see cref="long"/> value, if conversion was possible.</param>
+        public bool TryParse(out long val)
+        {
+            switch (Type)
+            {
+                case StorageType.Int64:
+                    val = _overlappedValue64;
+                    return true;
+                case StorageType.String:
+                    return TryParseInt64((string)_objectOrSentinel, out val);
+                case StorageType.Raw:
+                    return TryParseInt64(_memory.Span, out val);
+                case StorageType.Double:
+                    var d = OverlappedValueDouble;
+                    try { val = (long)d; }
+                    catch { val = default;  return false; }
+                    return val == d;
+                case StorageType.Null:
+                    // in redis-land 0 approx. equal null; so roll with it
+                    val = 0;
+                    return true;
+            }
+            val = default;
+            return false;
+        }
+
+        /// <summary>
+        /// Convert to a int if possible, returning true.
+        ///
+        /// Returns false otherwise.
+        /// </summary>
+        /// <param name="val">The <see cref="int"/> value, if conversion was possible.</param>
+        public bool TryParse(out int val)
+        {
+            if (!TryParse(out long l) || l > int.MaxValue || l < int.MinValue)
+            {
+                val = 0;
+                return false;
+            }
+
+            val = (int)l;
+            return true;
+        }
+
+        /// <summary>
+        /// Convert to a double if possible, returning true.
+        ///
+        /// Returns false otherwise.
+        /// </summary>
+        /// <param name="val">The <see cref="double"/> value, if conversion was possible.</param>
+        public bool TryParse(out double val)
+        {
+            switch (Type)
+            {
+                case StorageType.Int64:
+                    val = _overlappedValue64;
+                    return true;
+                case StorageType.Double:
+                    val = OverlappedValueDouble;
+                    return true;
+                case StorageType.String:
+                    return Format.TryParseDouble((string)_objectOrSentinel, out val);
+                case StorageType.Raw:
+                    return TryParseDouble(_memory.Span, out val);
+                case StorageType.Null:
+                    // in redis-land 0 approx. equal null; so roll with it
+                    val = 0;
+                    return true;
+            }
+            val = default;
+            return false;
+        }
+
+        /// <summary>
         /// Create a RedisValue from a MemoryStream; it will *attempt* to use the internal buffer
         /// directly, but if this isn't possibly it will fallback to ToArray
         /// </summary>
