@@ -950,5 +950,37 @@ namespace StackExchange.Redis.Tests
         }
 #endif
 
+        [Fact]
+        public async Task ExecCompletes_Issue943()
+        {
+            int hashHit = 0, hashMiss = 0, expireHit = 0, expireMiss = 0;
+            using (var conn = Create())
+            {
+                var db = conn.GetDatabase();
+                for (int i = 0; i < 40000; i++)
+                {
+                    RedisKey key = Me();
+                    await db.KeyDeleteAsync(key);
+                    HashEntry[] hashEntries = new HashEntry[]
+                    {
+                        new HashEntry("blah", DateTime.UtcNow.ToString("R"))
+                    };
+                    ITransaction transaction = db.CreateTransaction();
+                    ConditionResult keyNotExists = transaction.AddCondition(Condition.KeyNotExists(key));
+                    Task hashSetTask = transaction.HashSetAsync(key, hashEntries);
+                    Task<bool> expireTask = transaction.KeyExpireAsync(key, TimeSpan.FromSeconds(30));
+                    bool committed = await transaction.ExecuteAsync();
+                    if (committed)
+                    {
+                        if (hashSetTask.IsCompleted) hashHit++; else hashMiss++;
+                        if (expireTask.IsCompleted) expireHit++; else expireMiss++;
+                        await hashSetTask;
+                        await expireTask;
+                    }
+                }
+            }
+
+            Writer.WriteLine($"hash hit: {hashHit}, miss: {hashMiss}; expire hit: {expireHit}, miss: {expireMiss}");
+        }
     }
 }

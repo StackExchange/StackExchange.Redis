@@ -200,7 +200,7 @@ namespace StackExchange.Redis
                     sb.Append(", ").Append(sk).Append(": ").Append(v);
                 }
             }
-            add("Version", "v", GetLibVersion());
+
             if (server != null)
             {
                 server.GetOutstandingCount(message.Command, out int inst, out int qs, out int @in);
@@ -234,6 +234,8 @@ namespace StackExchange.Redis
             {
                 add("Local-CPU", "Local-CPU", PerfCounterHelper.GetSystemCpuPercent());
             }
+
+            add("Version", "v", GetLibVersion());
 
             sb.Append(" (Please take a look at this article for some common client-side issues that can cause timeouts: ");
             sb.Append(timeoutHelpLink);

@@ -333,7 +333,6 @@ namespace StackExchange.Redis
                         data.Add(Tuple.Create(lk, v));
                         exMessage.Append(", ").Append(sk).Append(": ").Append(v);
                     }
-                    add("Version", "v", ExceptionFactory.GetLibVersion());
 
                     if (IncludeDetailInExceptions)
                     {
@@ -369,6 +368,8 @@ namespace StackExchange.Redis
                             add("Last-Global-Heartbeat", "global", ConnectionMultiplexer.LastGlobalHeartbeatSecondsAgo + "s ago");
                         }
                     }
+
+                    add("Version", "v", ExceptionFactory.GetLibVersion());
 
                     outerException = innerException == null
                         ? new RedisConnectionException(failureType, exMessage.ToString())
