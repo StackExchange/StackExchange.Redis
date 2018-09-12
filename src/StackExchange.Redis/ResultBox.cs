@@ -98,8 +98,11 @@ namespace StackExchange.Redis
         {
             if (stateOrCompletionSource is TaskCompletionSource<T> tcs)
             {
-                if (isAsync)
+                if (isAsync || (tcs.Task.CreationOptions & TaskCreationOptions.RunContinuationsAsynchronously) != 0)
                 {
+                    // either on the async completion step, or the task is guarded
+                    // againsts thread-stealing; complete it directly
+                    // (note: RunContinuationsAsynchronously is only usable from NET46)
                     UnwrapAndRecycle(this, true, out T val, out Exception ex);
 
                     if (ex == null)
@@ -117,7 +120,8 @@ namespace StackExchange.Redis
                     return true;
                 }
                 else
-                { // looks like continuations; push to async to preserve the reader thread
+                {
+                    // could be thread-stealing continuations; push to async to preserve the reader thread
                     return false;
                 }
             }

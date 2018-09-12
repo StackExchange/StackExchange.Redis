@@ -219,7 +219,7 @@ namespace StackExchange.Redis.Server
             }
         }
 
-        private readonly TaskCompletionSource<ShutdownReason> _shutdown = new TaskCompletionSource<ShutdownReason>(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource<ShutdownReason> _shutdown = TaskSource.Create<ShutdownReason>(null, TaskCreationOptions.RunContinuationsAsynchronously);
         private bool _isShutdown;
         protected void ThrowIfShutdown()
         {
