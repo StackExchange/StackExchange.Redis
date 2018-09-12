@@ -22,6 +22,13 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void CanGetVersion()
+        {
+            var libVer = ExceptionFactory.GetLibVersion();
+            Assert.Matches(@"2\.[0-9]+\.[0-9]+\.[0-9]+", libVer);
+        }
+
+        [Fact]
         public void NullSnapshot()
         {
             var ex = ExceptionFactory.NoConnectionAvailable(true, true, new RedisCommand(), null, null, null);

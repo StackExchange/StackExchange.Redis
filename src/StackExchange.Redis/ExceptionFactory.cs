@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Text;
 using System.Threading;
 
@@ -146,7 +147,7 @@ namespace StackExchange.Redis
             {
                 return innerExceptions[0];
             }
-            else if(innerExceptions.Count > 1)
+            else if (innerExceptions.Count > 1)
             {
                 return new AggregateException(innerExceptions);
             }
@@ -167,6 +168,17 @@ namespace StackExchange.Redis
             return new RedisCommandException("Command cannot be used with a cursor: " + s);
         }
 
+        private static string _libVersion;
+        internal static string GetLibVersion()
+        {
+            if (_libVersion == null)
+            {
+                var assembly = typeof(ConnectionMultiplexer).Assembly;
+                _libVersion = ((AssemblyFileVersionAttribute)Attribute.GetCustomAttribute(assembly, typeof(AssemblyFileVersionAttribute)))?.Version
+                    ?? assembly.GetName().Version.ToString();
+            }
+            return _libVersion;
+        }
         internal static Exception Timeout(ConnectionMultiplexer mutiplexer, string baseErrorMessage, Message message, ServerEndPoint server)
         {
             List<Tuple<string, string>> data = new List<Tuple<string, string>> { Tuple.Create("Message", message.CommandAndKey) };
@@ -188,13 +200,13 @@ namespace StackExchange.Redis
                     sb.Append(", ").Append(sk).Append(": ").Append(v);
                 }
             }
-
+            add("Version", "v", GetLibVersion());
             if (server != null)
             {
                 server.GetOutstandingCount(message.Command, out int inst, out int qs, out int @in);
                 add("Instantaneous", "inst", inst.ToString());
                 add("Queue-Awaiting-Response", "qs", qs.ToString());
-                add("Inbound-Bytes", "in", @in.ToString());
+                if (@in >= 0) add("Inbound-Bytes", "in", @in.ToString());
 
                 if (mutiplexer.StormLogThreshold >= 0 && qs >= mutiplexer.StormLogThreshold && Interlocked.CompareExchange(ref mutiplexer.haveStormLog, 1, 0) == 0)
                 {

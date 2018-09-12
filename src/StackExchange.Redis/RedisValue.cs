@@ -799,9 +799,8 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Convert to a long if possible, returning true.
-        ///
-        /// Returns false otherwise.
+        /// <para>Convert to a long if possible, returning true.</para>
+        /// <para>Returns false otherwise.</para>
         /// </summary>
         /// <param name="val">The <see cref="long"/> value, if conversion was possible.</param>
         public bool TryParse(out long val)
@@ -830,9 +829,8 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Convert to a int if possible, returning true.
-        ///
-        /// Returns false otherwise.
+        /// <para>Convert to a int if possible, returning true.</para>
+        /// <para>Returns false otherwise.</para>
         /// </summary>
         /// <param name="val">The <see cref="int"/> value, if conversion was possible.</param>
         public bool TryParse(out int val)
@@ -848,9 +846,8 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// Convert to a double if possible, returning true.
-        ///
-        /// Returns false otherwise.
+        /// <para>Convert to a double if possible, returning true.</para>
+        /// <para>Returns false otherwise.</para>
         /// </summary>
         /// <param name="val">The <see cref="double"/> value, if conversion was possible.</param>
         public bool TryParse(out double val)

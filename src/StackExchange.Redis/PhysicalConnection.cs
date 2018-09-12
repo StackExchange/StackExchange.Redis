@@ -328,6 +328,13 @@ namespace StackExchange.Redis
                     }
 
                     var data = new List<Tuple<string, string>>();
+                    void add(string lk, string sk, string v)
+                    {
+                        data.Add(Tuple.Create(lk, v));
+                        exMessage.Append(", ").Append(sk).Append(": ").Append(v);
+                    }
+                    add("Version", "v", ExceptionFactory.GetLibVersion());
+
                     if (IncludeDetailInExceptions)
                     {
                         if (bridge != null)
@@ -338,12 +345,6 @@ namespace StackExchange.Redis
 
                             data.Add(Tuple.Create("FailureType", failureType.ToString()));
                             data.Add(Tuple.Create("EndPoint", Format.ToString(bridge.ServerEndPoint?.EndPoint)));
-
-                            void add(string lk, string sk, string v)
-                            {
-                                data.Add(Tuple.Create(lk, v));
-                                exMessage.Append(", ").Append(sk).Append(": ").Append(v);
-                            }
 
                             add("Origin", "origin", origin);
                             // add("Input-Buffer", "input-buffer", _ioPipe.Input);
