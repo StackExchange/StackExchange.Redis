@@ -73,7 +73,7 @@ namespace StackExchange.Redis
             }
             else
             {
-                var tcs = TaskSource.Create<T>(asyncState);
+                var tcs = TaskSource.Create<T>(asyncState, TaskCreationOptions.RunContinuationsAsynchronously);
                 var source = ResultBox<T>.Get(tcs);
                 message.SetSource(source, processor);
                 task = tcs.Task;
