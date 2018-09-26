@@ -64,7 +64,7 @@ namespace BasicTest
             db.GeoAdd(GeoKey, 13.361389, 38.115556, "Palermo ");
             db.GeoAdd(GeoKey, 15.087269, 37.502669, "Catania");
         }
-        private static readonly RedisKey GeoKey = "GeoTest", IncrByKey = "counter";
+        private static readonly RedisKey GeoKey = "GeoTest", IncrByKey = "counter", StringKey = "string";
         void IDisposable.Dispose()
         {
             mgr?.Dispose();
@@ -164,6 +164,39 @@ namespace BasicTest
                 total += results.Length;
             }
             return total;
+        }
+
+        /// <summary>
+        /// Run StringSet lots of times
+        /// </summary>
+#if TEST_BASELINE
+        [Benchmark(Description = "StringSet:v1/a", OperationsPerInvoke = COUNT)]
+#else
+        [Benchmark(Description = "StringSet:v2/a", OperationsPerInvoke = COUNT)]
+#endif
+        public void StringSet()
+        {
+            for (int i = 0; i < COUNT; i++)
+            {
+                db.StringSet(StringKey, "hey");
+            }
+        }
+
+
+        /// <summary>
+        /// Run StringGet lots of times
+        /// </summary>
+#if TEST_BASELINE
+        [Benchmark(Description = "StringGet:v1/a", OperationsPerInvoke = COUNT)]
+#else
+        [Benchmark(Description = "StringGet:v2/a", OperationsPerInvoke = COUNT)]
+#endif
+        public void StringGet()
+        {
+            for (int i = 0; i < COUNT; i++)
+            {
+                db.StringGet(StringKey);
+            }
         }
     }
 #pragma warning disable CS1591
