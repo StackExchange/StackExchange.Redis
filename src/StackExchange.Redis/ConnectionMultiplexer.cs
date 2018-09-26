@@ -12,6 +12,7 @@ using System.Reflection;
 using System.IO.Compression;
 using System.Runtime.CompilerServices;
 using StackExchange.Redis.Profiling;
+using Pipelines.Sockets.Unofficial;
 
 namespace StackExchange.Redis
 {
@@ -803,7 +804,10 @@ namespace StackExchange.Redis
         /// <param name="configuration">The string configuration to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
         public static Task<ConnectionMultiplexer> ConnectAsync(string configuration, TextWriter log = null)
-            => ConnectImplAsync(configuration, log);
+        {
+            SocketConnection.AssertDependencies();
+            return ConnectImplAsync(configuration, log);
+        }
 
         private static async Task<ConnectionMultiplexer> ConnectImplAsync(object configuration, TextWriter log = null)
         {
@@ -835,7 +839,10 @@ namespace StackExchange.Redis
         /// <param name="configuration">The configuration options to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
         public static Task<ConnectionMultiplexer> ConnectAsync(ConfigurationOptions configuration, TextWriter log = null)
-            => ConnectImplAsync(configuration, log);
+        {
+            SocketConnection.AssertDependencies();
+            return ConnectImplAsync(configuration, log);
+        }
 
         internal static ConfigurationOptions PrepareConfig(object configuration)
         {
@@ -892,7 +899,10 @@ namespace StackExchange.Redis
         /// <param name="configuration">The string configuration to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
         public static ConnectionMultiplexer Connect(string configuration, TextWriter log = null)
-            => ConnectImpl(configuration, log);
+        {
+            SocketConnection.AssertDependencies();
+            return ConnectImpl(configuration, log);
+        }
 
         /// <summary>
         /// Create a new ConnectionMultiplexer instance
@@ -900,7 +910,10 @@ namespace StackExchange.Redis
         /// <param name="configuration">The configurtion options to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
         public static ConnectionMultiplexer Connect(ConfigurationOptions configuration, TextWriter log = null)
-            => ConnectImpl(configuration, log);
+        {
+            SocketConnection.AssertDependencies();
+            return ConnectImpl(configuration, log);
+        }
 
         private static ConnectionMultiplexer ConnectImpl(object configuration, TextWriter log)
         {
