@@ -21,7 +21,7 @@ namespace BasicTest
     {
         protected virtual Job Configure(Job j)
             => j.With(new GcMode { Force = true })
-                .With(InProcessToolchain.Instance)
+                //.With(InProcessToolchain.Instance)
                 ;
 
         public CustomConfig()
