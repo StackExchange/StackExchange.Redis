@@ -21,7 +21,8 @@ namespace BasicTest
     {
         protected virtual Job Configure(Job j)
             => j.With(new GcMode { Force = true })
-                .With(InProcessToolchain.Instance);
+                .With(InProcessToolchain.Instance)
+                ;
 
         public CustomConfig()
         {
@@ -54,8 +55,11 @@ namespace BasicTest
         /// <summary>
         /// Create
         /// </summary>
-        public RedisBenchmarks()
+        [GlobalSetup]
+        public void Setup()
         {
+            // Pipelines.Sockets.Unofficial.SocketConnection.AssertDependencies();
+
             var options = ConfigurationOptions.Parse("127.0.0.1:6379");
             connection = ConnectionMultiplexer.Connect(options);
             db = connection.GetDatabase(3);
@@ -80,9 +84,9 @@ namespace BasicTest
         /// Run INCRBY lots of times
         /// </summary>
 #if TEST_BASELINE
-        [Benchmark(Description = "INCRBY:v1/s", OperationsPerInvoke = COUNT)]
+//        [Benchmark(Description = "INCRBY:v1/s", OperationsPerInvoke = COUNT)]
 #else
-        [Benchmark(Description = "INCRBY:v2/s", OperationsPerInvoke = COUNT)]
+//        [Benchmark(Description = "INCRBY:v2/s", OperationsPerInvoke = COUNT)]
 #endif
         public int ExecuteIncrBy()
         {
@@ -105,9 +109,9 @@ namespace BasicTest
         /// Run INCRBY lots of times
         /// </summary>
 #if TEST_BASELINE
-        [Benchmark(Description = "INCRBY:v1/a", OperationsPerInvoke = COUNT)]
+ //       [Benchmark(Description = "INCRBY:v1/a", OperationsPerInvoke = COUNT)]
 #else
-        [Benchmark(Description = "INCRBY:v2/a", OperationsPerInvoke = COUNT)]
+ //       [Benchmark(Description = "INCRBY:v2/a", OperationsPerInvoke = COUNT)]
 #endif
         public async Task<int> ExecuteIncrByAsync()
         {
@@ -130,9 +134,9 @@ namespace BasicTest
         /// Run GEORADIUS lots of times
         /// </summary>
 #if TEST_BASELINE
-        [Benchmark(Description = "GEORADIUS:v1/s", OperationsPerInvoke = COUNT)]
+//        [Benchmark(Description = "GEORADIUS:v1/s", OperationsPerInvoke = COUNT)]
 #else
-        [Benchmark(Description = "GEORADIUS:v2/s", OperationsPerInvoke = COUNT)]
+//        [Benchmark(Description = "GEORADIUS:v2/s", OperationsPerInvoke = COUNT)]
 #endif
         public int ExecuteGeoRadius()
         {
@@ -150,9 +154,9 @@ namespace BasicTest
         /// Run GEORADIUS lots of times
         /// </summary>
 #if TEST_BASELINE
-        [Benchmark(Description = "GEORADIUS:v1/a", OperationsPerInvoke = COUNT)]
+//        [Benchmark(Description = "GEORADIUS:v1/a", OperationsPerInvoke = COUNT)]
 #else
-        [Benchmark(Description = "GEORADIUS:v2/a", OperationsPerInvoke = COUNT)]
+//        [Benchmark(Description = "GEORADIUS:v2/a", OperationsPerInvoke = COUNT)]
 #endif
         public async Task<int> ExecuteGeoRadiusAsync()
         {

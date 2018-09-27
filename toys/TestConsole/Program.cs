@@ -1,63 +1,60 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using StackExchange.Redis;
 
-namespace TestConsole
+static class Program
 {
-    internal static class Program
+    private static int taskCount = 10;
+    private static int totalRecords = 100000;
+
+    static void Main()
     {
-        private static async Task Main()
+
+#if SEV2
+        Pipelines.Sockets.Unofficial.SocketConnection.AssertDependencies();
+        Console.WriteLine("We loaded the things...");
+        // Console.ReadLine();
+#endif
+
+        Stopwatch stopwatch = new Stopwatch();
+        stopwatch.Start();
+
+        var taskList = new List<Task>();
+        var connection = ConnectionMultiplexer.Connect("127.0.0.1", Console.Out);
+        for (int i = 0; i < taskCount; i++)
         {
-            using (var conn = Create())
-            {
-                var sub = conn.GetSubscriber();
-                Console.WriteLine("Subscsribe...");
-                sub.Subscribe("foo", (channel, value) => Console.WriteLine($"{channel}: {value}"));
-                Console.WriteLine("Ping...");
-                sub.Ping();
-
-                Console.WriteLine("Run publish...");
-                await RunPub().ConfigureAwait(false);
-            }
-
-            await Console.Out.WriteLineAsync("Waiting a minute...").ConfigureAwait(false);
-            await Task.Delay(60 * 1000).ConfigureAwait(false);
+            var i1 = i;
+            var task = new Task(() => Run(i1, connection));
+            task.Start();
+            taskList.Add(task);
         }
 
-        private static ConnectionMultiplexer Create()
-        {
-            var options = new ConfigurationOptions
-            {
-                KeepAlive = 5,
-                EndPoints = { "localhost:6379" },
-                SyncTimeout = int.MaxValue,
-                // CommandMap = CommandMap.Create(new HashSet<string> { "subscribe", "psubscsribe", "publish" }, false),
-            };
+        Task.WaitAll(taskList.ToArray());
 
-            Console.WriteLine("Connecting...");
-            var muxer = ConnectionMultiplexer.Connect(options, Console.Out);
-            Console.WriteLine("Connected");
-            muxer.ConnectionFailed += (_, a) => Console.WriteLine($"Failed: {a.ConnectionType}, {a.EndPoint}, {a.FailureType}, {a.Exception}");
-            muxer.ConnectionRestored += (_, a) => Console.WriteLine($"Restored: {a.ConnectionType}, {a.EndPoint}, {a.FailureType}, {a.Exception}");
-            Console.WriteLine("Ping...");
-            var time = muxer.GetDatabase().Ping();
-            Console.WriteLine($"Pinged: {time.TotalMilliseconds}ms");
-            return muxer;
+        stopwatch.Stop();
+
+        Console.WriteLine($"Done. {stopwatch.ElapsedMilliseconds}");
+        Console.ReadLine();
+    }
+
+    static void Run(int taskId, ConnectionMultiplexer connection)
+    {
+        Console.WriteLine($"{taskId} Started");
+        var database = connection.GetDatabase(0);
+
+        for (int i = 0; i < totalRecords; i++)
+        {
+            database.StringSet(i.ToString(), i.ToString());
         }
 
-        public static async Task RunPub()
-        {
-            using (var conn = Create())
-            {
-                var pub = conn.GetSubscriber();
-                for (int i = 0; i < 100; i++)
-                {
-                    await pub.PublishAsync("foo", i).ConfigureAwait(false);
-                }
+        Console.WriteLine($"{taskId} Insert completed");
 
-                await Console.Out.WriteLineAsync("Waiting a minute...").ConfigureAwait(false);
-                await Task.Delay(60 * 1000).ConfigureAwait(false);
-            }
+        for (int i = 0; i < totalRecords; i++)
+        {
+            var result = database.StringGet(i.ToString());
         }
+        Console.WriteLine($"{taskId} Completed");
     }
 }
