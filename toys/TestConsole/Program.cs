@@ -22,7 +22,7 @@ static class Program
         stopwatch.Start();
 
         var taskList = new List<Task>();
-        var connection = ConnectionMultiplexer.Connect("127.0.0.1", Console.Out);
+        var connection = ConnectionMultiplexer.Connect("127.0.0.1");
         for (int i = 0; i < taskCount; i++)
         {
             var i1 = i;
