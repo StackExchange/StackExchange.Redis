@@ -349,7 +349,7 @@ namespace StackExchange.Redis
             else
             {
                 // can't use regular PING, but we can unsubscribe from something random that we weren't even subscribed to...
-                RedisValue channel = Guid.NewGuid().ToByteArray();
+                RedisValue channel = multiplexer.UniqueId;
                 return ResultProcessor.TimingProcessor.CreateMessage(-1, flags, RedisCommand.UNSUBSCRIBE, channel);
             }
         }

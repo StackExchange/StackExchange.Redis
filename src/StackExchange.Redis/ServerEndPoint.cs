@@ -300,7 +300,7 @@ namespace StackExchange.Redis
             else if (commandMap.IsAvailable(RedisCommand.SET))
             {
                 // this is a nasty way to find if we are a slave, and it will only work on up-level servers, but...
-                RedisKey key = Guid.NewGuid().ToByteArray();
+                RedisKey key = Multiplexer.UniqueId;
                 msg = Message.Create(0, flags, RedisCommand.SET, key, RedisLiterals.slave_read_only, RedisLiterals.PX, 1, RedisLiterals.NX);
                 msg.SetInternalCall();
                 WriteDirectOrQueueFireAndForget(connection, msg, ResultProcessor.AutoConfigure);
