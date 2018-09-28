@@ -1,6 +1,17 @@
 # Release Notes
 
-## 2.0
+## 2.0.513
+
+- fix #961 - fix assembly binding redirect problems; IMPORTANT: this drops to an older `System.Buffers` version - if you have manually added redirects for `4.0.3.0`, you may need to manually update to `4.0.2.0` (or remove completely)
+- fix #962 - avoid NRE in edge-case when fetching bridge
+
+## 2.0.505
+
+- fix #943 - ensure transaction inner tasks are completed prior to completing the outer transaction task
+- fix #946 - reinstate missing `TryParse` methods on `RedisValue`
+- fix #940 - off-by-one on pre-boxed integer cache (NRediSearch)
+
+## 2.0.495
 
 - 2.0 is a large - and breaking - change
 
