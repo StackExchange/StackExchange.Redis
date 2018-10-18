@@ -183,6 +183,7 @@ namespace StackExchange.Redis
                 var server = bridge.ServerEndPoint;
                 bool log = !message.IsInternalCall;
                 bool isMoved = result.StartsWith(CommonReplies.MOVED);
+                bool wasNoRedirect = ( message.Flags & CommandFlags.NoRedirect ) != 0;
                 string err = string.Empty;
                 bool unableToConnectError = false;
                 if (isMoved || result.StartsWith(CommonReplies.ASK))
@@ -207,9 +208,9 @@ namespace StackExchange.Redis
                             }
                             else
                             {
-                                if (isMoved && (message.Flags & CommandFlags.NoRedirect) != 0)
+                                if (isMoved && wasNoRedirect)
                                 {
-                                    err = $"Key has MOVED from Endpoint {endpoint} and hashslot {hashSlot} but CommandFlags.NoRedirect was specified - redirect not followed for {message.CommandAndKey}. ";
+                                    err = $"Key has MOVED to Endpoint {endpoint} and hashslot {hashSlot} but CommandFlags.NoRedirect was specified - redirect not followed for {message.CommandAndKey}. ";
                                 }
                                 else
                                 {
