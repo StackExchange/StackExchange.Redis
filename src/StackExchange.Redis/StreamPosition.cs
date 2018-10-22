@@ -54,7 +54,10 @@ namespace StackExchange.Redis
             {
                 switch(command)
                 {
-                    case RedisCommand.XGROUP: return StreamConstants.AllMessages;
+                    case RedisCommand.XREAD:
+                    case RedisCommand.XREADGROUP:
+                    case RedisCommand.XGROUP:
+                        return StreamConstants.AllMessages;
                 }
             }
             return value;
