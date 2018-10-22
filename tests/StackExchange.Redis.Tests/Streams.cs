@@ -894,6 +894,7 @@ namespace StackExchange.Redis.Tests
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
 
                 var db = conn.GetDatabase();
+                db.KeyDelete(key);
 
                 var id1 = db.StreamAdd(key, "field1", "value1");
                 var id2 = db.StreamAdd(key, "field2", "value2");
