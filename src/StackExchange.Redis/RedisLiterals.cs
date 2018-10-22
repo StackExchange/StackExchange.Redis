@@ -26,7 +26,6 @@ namespace StackExchange.Redis
             yes = "yes",
             zero = "0",
 
-
             // streams
             length = "length",
             radixTreeKeys = "radix-tree-keys",
