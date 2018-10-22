@@ -24,7 +24,17 @@ namespace StackExchange.Redis
             timeout = "timeout",
             wildcard = "*",
             yes = "yes",
-            zero = "0";
+            zero = "0",
+
+
+            // streams
+            length = "length",
+            radixTreeKeys = "radix-tree-keys",
+            radixTreeNodes = "radix-tree-nodes",
+            groups = "groups",
+            lastGeneratedId = "last-generated-id",
+            firstEntry = "first-entry",
+            lastEntry = "last-entry";
     }
     internal static class RedisLiterals
     {
