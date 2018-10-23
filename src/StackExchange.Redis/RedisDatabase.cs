@@ -2905,8 +2905,6 @@ namespace StackExchange.Redis
             var values = new RedisValue[totalLength];
             var offset = 0;
 
-            values[offset++] = messageId;
-
             if (maxLength.HasValue)
             {
                 values[offset++] = StreamConstants.MaxLen;
@@ -2921,6 +2919,8 @@ namespace StackExchange.Redis
                     values[offset++] = maxLength.Value;
                 }
             }
+
+            values[offset++] = messageId;
 
             values[offset++] = streamPair.Name;
             values[offset] = streamPair.Value;
@@ -2952,8 +2952,6 @@ namespace StackExchange.Redis
 
             var offset = 0;
 
-            values[offset++] = entryId;
-
             if (maxLength.HasValue)
             {
                 values[offset++] = StreamConstants.MaxLen;
@@ -2965,6 +2963,8 @@ namespace StackExchange.Redis
 
                 values[offset++] = maxLength.Value;
             }
+
+            values[offset++] = entryId;
 
             for (var i = 0; i < streamPairs.Length; i++)
             {

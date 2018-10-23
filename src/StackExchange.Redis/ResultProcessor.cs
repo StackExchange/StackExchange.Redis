@@ -1593,34 +1593,55 @@ The coordinates as a two items x,y array (longitude,latitude).
                 }
 
                 var arr = result.GetItems();
+                var max = arr.Length / 2;
 
-                if (arr.Length != 12)
+                long length = -1, radixTreeKeys = -1, radixTreeNodes = -1, groups = -1;
+                var lastGeneratedId = Redis.RedisValue.Null;
+                StreamEntry firstEntry = StreamEntry.Null, lastEntry = StreamEntry.Null;
+                for(int index = 0, i = 0; i < max; i++)
                 {
-                    return false;
+                    RawResult key = arr[index++], value = arr[index++];
+                    if (key.Payload.Length > CommandBytes.MaxLength) continue;
+
+                    var keyBytes = new CommandBytes(key.Payload);
+                    if(keyBytes.Equals(CommonReplies.length))
+                    {
+                        if (!value.TryGetInt64(out length)) return false;
+                    }
+                    else if (keyBytes.Equals(CommonReplies.radixTreeKeys))
+                    {
+                        if (!value.TryGetInt64(out radixTreeKeys)) return false;
+                    }
+                    else if (keyBytes.Equals(CommonReplies.radixTreeNodes))
+                    {
+                        if (!value.TryGetInt64(out radixTreeNodes)) return false;
+                    }
+                    else if (keyBytes.Equals(CommonReplies.groups))
+                    {
+                        if (!value.TryGetInt64(out groups)) return false;
+                    }
+                    else if (keyBytes.Equals(CommonReplies.lastGeneratedId))
+                    {
+                        lastGeneratedId = value.AsRedisValue();
+                    }
+                    else if (keyBytes.Equals(CommonReplies.firstEntry))
+                    {
+                        firstEntry = ParseRedisStreamEntry(value);
+                    }
+                    else if (keyBytes.Equals(CommonReplies.lastEntry))
+                    {
+                        lastEntry = ParseRedisStreamEntry(value);
+                    }
                 }
 
-                // Note: Even if there is only 1 message in the stream, this command returns
-                //       the single entry as the first-entry and last-entry in the response.
-
-                // The first 8 items are interleaved name/value pairs.
-                // Items 9-12 represent the first and last entry in the stream. The values will
-                // be nil (stored in index 9 & 11) if the stream length is 0.
-
-                var leased = ArrayPool<RawResult>.Shared.Rent(2);
-                leased[0] = arr[9];
-                leased[1] = arr[11];
-                var tmp = new RawResult(leased, 2);
-                var entries = ParseRedisStreamEntries(tmp);
-                // note: don't .Recycle(), would be a stack overflow because
-                // it would bridge the fake and real result set
-                ArrayPool<RawResult>.Shared.Return(leased);
-
-                var streamInfo = new StreamInfo(length: (int)arr[1].AsRedisValue(),
-                    radixTreeKeys: (int)arr[3].AsRedisValue(),
-                    radixTreeNodes: (int)arr[5].AsRedisValue(),
-                    groups: (int)arr[7].AsRedisValue(),
-                    firstEntry: entries[0],
-                    lastEntry: entries[1]);
+                var streamInfo = new StreamInfo(
+                    length: checked((int)length),
+                    radixTreeKeys: checked((int)radixTreeKeys),
+                    radixTreeNodes: checked((int)radixTreeNodes),
+                    groups: checked((int)groups),
+                    firstEntry: firstEntry,
+                    lastEntry: lastEntry,
+                    lastGeneratedId: lastGeneratedId);
 
                 SetResult(message, streamInfo);
                 return true;
@@ -1711,6 +1732,20 @@ The coordinates as a two items x,y array (longitude,latitude).
         {
             // For command response formats see https://redis.io/topics/streams-intro.
 
+            protected StreamEntry ParseRedisStreamEntry(RawResult item)
+            {
+                if (item.IsNull || item.Type != ResultType.MultiBulk)
+                {
+                    return StreamEntry.Null;
+                }
+                // Process the Multibulk array for each entry. The entry contains the following elements:
+                //  [0] = SimpleString (the ID of the stream entry)
+                //  [1] = Multibulk array of the name/value pairs of the stream entry's data
+                var entryDetails = item.GetItems();
+
+                return new StreamEntry(id: entryDetails[0].AsRedisValue(),
+                    values: ParseStreamEntryValues(entryDetails[1]));
+            }
             protected StreamEntry[] ParseRedisStreamEntries(RawResult result)
             {
                 if (result.Type != ResultType.MultiBulk)
@@ -1720,21 +1755,7 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                 var arr = result.GetItems();
 
-                return ConvertAll(arr, item =>
-                {
-                    if (item.IsNull || item.Type != ResultType.MultiBulk)
-                    {
-                        return StreamEntry.Null;
-                    }
-
-                    // Process the Multibulk array for each entry. The entry contains the following elements:
-                    //  [0] = SimpleString (the ID of the stream entry)
-                    //  [1] = Multibulk array of the name/value pairs of the stream entry's data
-                    var entryDetails = item.GetItems();
-
-                    return new StreamEntry(id: entryDetails[0].AsRedisValue(),
-                        values: ParseStreamEntryValues(entryDetails[1]));
-                });
+                return ConvertAll(arr, item => ParseRedisStreamEntry(item));
             }
 
             protected NameValueEntry[] ParseStreamEntryValues(RawResult result)

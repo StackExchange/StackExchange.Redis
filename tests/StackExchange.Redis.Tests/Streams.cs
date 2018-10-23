@@ -894,6 +894,7 @@ namespace StackExchange.Redis.Tests
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
 
                 var db = conn.GetDatabase();
+                db.KeyDelete(key);
 
                 var id1 = db.StreamAdd(key, "field1", "value1");
                 var id2 = db.StreamAdd(key, "field2", "value2");
@@ -1610,6 +1611,34 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        private string GetUniqueKey(string type) => $"{type}_stream_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+        [Fact]
+        public async Task AddWithApproxCountAsync()
+        {
+            var key = GetUniqueKey("approx");
+
+            using (var conn = Create())
+            {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+
+                var db = conn.GetDatabase();
+                await db.StreamAddAsync(key, "field", "value", maxLength: 10, useApproximateMaxLength: true, flags: CommandFlags.None).ConfigureAwait(false);
+            }
+        }
+
+        [Fact]
+        public void AddWithApproxCount()
+        {
+            var key = GetUniqueKey("approx");
+
+            using (var conn = Create())
+            {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+
+                var db = conn.GetDatabase();
+                db.StreamAdd(key, "field", "value", maxLength: 10, useApproximateMaxLength: true, flags: CommandFlags.None);
+            }
+        }
+
+        private RedisKey GetUniqueKey(string type) => $"{type}_stream_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
     }
 }
