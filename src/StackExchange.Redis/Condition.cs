@@ -22,7 +22,7 @@ namespace StackExchange.Redis
         {
             if (hashField.IsNull) throw new ArgumentNullException(nameof(hashField));
             if (value.IsNull) return HashNotExists(key, hashField);
-            return new EqualsCondition(key, hashField, true, value);
+            return new EqualsCondition(key, RedisType.Hash, hashField, true, value);
         }
 
         /// <summary>
@@ -46,7 +46,7 @@ namespace StackExchange.Redis
         {
             if (hashField.IsNull) throw new ArgumentNullException(nameof(hashField));
             if (value.IsNull) return HashExists(key, hashField);
-            return new EqualsCondition(key, hashField, false, value);
+            return new EqualsCondition(key, RedisType.Hash, hashField, false, value);
         }
 
         /// <summary>
@@ -110,7 +110,7 @@ namespace StackExchange.Redis
         public static Condition StringEqual(RedisKey key, RedisValue value)
         {
             if (value.IsNull) return KeyNotExists(key);
-            return new EqualsCondition(key, RedisValue.Null, true, value);
+            return new EqualsCondition(key, RedisType.Hash, RedisValue.Null, true, value);
         }
 
         /// <summary>
@@ -121,7 +121,7 @@ namespace StackExchange.Redis
         public static Condition StringNotEqual(RedisKey key, RedisValue value)
         {
             if (value.IsNull) return KeyExists(key);
-            return new EqualsCondition(key, RedisValue.Null, false, value);
+            return new EqualsCondition(key, RedisType.Hash, RedisValue.Null, false, value);
         }
 
         /// <summary>
@@ -257,6 +257,52 @@ namespace StackExchange.Redis
         /// <param name="member">The member the sorted set must not contain.</param>
         public static Condition SortedSetNotContains(RedisKey key, RedisValue member) => new ExistsCondition(key, RedisType.SortedSet, member, false);
 
+        /// <summary>
+        /// Enforces that the given sorted set member must have the specified score.
+        /// </summary>
+        /// <param name="key">The key of the sorted set to check.</param>
+        /// <param name="member">The member the sorted set to check.</param>
+        /// <param name="score">The score that member must have.</param>
+        public static Condition SortedSetEqual(RedisKey key, RedisValue member, RedisValue score) => new EqualsCondition(key, RedisType.SortedSet, member, true, score);
+
+        /// <summary>
+        /// Enforces that the given sorted set member must not have the specified score.
+        /// </summary>
+        /// <param name="key">The key of the sorted set to check.</param>
+        /// <param name="member">The member the sorted set to check.</param>
+        /// <param name="score">The score that member must not have.</param>
+        public static Condition SortedSetNotEqual(RedisKey key, RedisValue member, RedisValue score) => new EqualsCondition(key, RedisType.SortedSet, member, false, score);
+
+        /// <summary>
+        /// Enforces that the given sorted set must have the given score.
+        /// </summary>
+        /// <param name="key">The key of the sorted set to check.</param>
+        /// <param name="score">The score that the sorted set must have.</param>
+        public static Condition SortedSetScoreExists(RedisKey key, RedisValue score) => new SortedSetScoreCondition(key, score, false, 0);
+
+        /// <summary>
+        /// Enforces that the given sorted set must not have the given score.
+        /// </summary>
+        /// <param name="key">The key of the sorted set to check.</param>
+        /// <param name="score">The score that the sorted set must not have.</param>
+        public static Condition SortedSetScoreNotExists(RedisKey key, RedisValue score) => new SortedSetScoreCondition(key, score, true, 0);
+
+        /// <summary>
+        /// Enforces that the given sorted set must have the specified count of the given score.
+        /// </summary>
+        /// <param name="key">The key of the sorted set to check.</param>
+        /// <param name="score">The score that the sorted set must have.</param>
+        /// <param name="count">The number of members which sorted set must have.</param>
+        public static Condition SortedSetScoreExists(RedisKey key, RedisValue score, RedisValue count) => new SortedSetScoreCondition(key, score, true, count);
+
+        /// <summary>
+        /// Enforces that the given sorted set must not have the specified count of the given score.
+        /// </summary>
+        /// <param name="key">The key of the sorted set to check.</param>
+        /// <param name="score">The score that the sorted set must not have.</param>
+        /// <param name="count">The number of members which sorted set must not have.</param>
+        public static Condition SortedSetScoreNotExists(RedisKey key, RedisValue score, RedisValue count) => new SortedSetScoreCondition(key, score, false, count);
+
         internal abstract void CheckCommands(CommandMap commandMap);
 
         internal abstract IEnumerable<Message> CreateMessages(int db, ResultBox resultBox);
@@ -271,6 +317,11 @@ namespace StackExchange.Redis
             public static Message CreateMessage(Condition condition, int db, CommandFlags flags, RedisCommand command, RedisKey key, RedisValue value = default(RedisValue))
             {
                 return new ConditionMessage(condition, db, flags, command, key, value);
+            }
+
+            public static Message CreateMessage(Condition condition, int db, CommandFlags flags, RedisCommand command, RedisKey key, RedisValue value, RedisValue value1)
+            {
+                return new ConditionMessage(condition, db, flags, command, key, value, value1);
             }
 
             protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
@@ -289,13 +340,20 @@ namespace StackExchange.Redis
             private class ConditionMessage : Message.CommandKeyBase
             {
                 public readonly Condition Condition;
-                private RedisValue value;
+                private readonly RedisValue value;
+                private readonly RedisValue value1;
 
                 public ConditionMessage(Condition condition, int db, CommandFlags flags, RedisCommand command, RedisKey key, RedisValue value)
                     : base(db, flags, command, key)
                 {
                     Condition = condition;
                     this.value = value; // note no assert here
+                }
+
+                public ConditionMessage(Condition condition, int db, CommandFlags flags, RedisCommand command, RedisKey key, RedisValue value, RedisValue value1)
+                    : this(condition, db, flags, command, key, value)
+                {
+                    this.value1 = value1; // note no assert here
                 }
 
                 protected override void WriteImpl(PhysicalConnection physical)
@@ -307,12 +365,16 @@ namespace StackExchange.Redis
                     }
                     else
                     {
-                        physical.WriteHeader(command, 2);
+                        physical.WriteHeader(command, value1.IsNull ? 2 : 3);
                         physical.Write(Key);
                         physical.WriteBulkString(value);
+                        if (!value1.IsNull)
+                        {
+                            physical.WriteBulkString(value1);
+                        }
                     }
                 }
-                public override int ArgCount => value.IsNull ? 1 : 2;
+                public override int ArgCount => value.IsNull ? 1 : value1.IsNull ? 2 : 3;
             }
         }
 
@@ -410,39 +472,52 @@ namespace StackExchange.Redis
         {
             internal override Condition MapKeys(Func<RedisKey, RedisKey> map)
             {
-                return new EqualsCondition(map(key), hashField, expectedEqual, expectedValue);
+                return new EqualsCondition(map(key), type, memberName, expectedEqual, expectedValue);
             }
 
             private readonly bool expectedEqual;
-            private readonly RedisValue hashField, expectedValue;
+            private readonly RedisValue memberName, expectedValue;
             private readonly RedisKey key;
-            public EqualsCondition(RedisKey key, RedisValue hashField, bool expectedEqual, RedisValue expectedValue)
+            private readonly RedisType type;
+            private readonly RedisCommand cmd;
+
+            public EqualsCondition(RedisKey key, RedisType type, RedisValue memberName, bool expectedEqual, RedisValue expectedValue)
             {
                 if (key.IsNull) throw new ArgumentException("key");
                 this.key = key;
-                this.hashField = hashField;
+                this.memberName = memberName;
                 this.expectedEqual = expectedEqual;
                 this.expectedValue = expectedValue;
+                this.type = type;
+                switch (type)
+                {
+                    case RedisType.Hash:
+                        cmd = memberName.IsNull ? RedisCommand.GET : RedisCommand.HGET;
+                        break;
+
+                    case RedisType.SortedSet:
+                        cmd = RedisCommand.ZSCORE;
+                        break;
+
+                    default:
+                        throw new ArgumentException(nameof(type));
+                }
             }
 
             public override string ToString()
             {
-                return (hashField.IsNull ? key.ToString() : ((string)key) + " > " + hashField)
+                return (memberName.IsNull ? key.ToString() : ((string)key) + " " + type + " > " + memberName)
                     + (expectedEqual ? " == " : " != ")
                     + expectedValue;
             }
 
-            internal override void CheckCommands(CommandMap commandMap)
-            {
-                commandMap.AssertAvailable(hashField.IsNull ? RedisCommand.GET : RedisCommand.HGET);
-            }
+            internal override void CheckCommands(CommandMap commandMap) => commandMap.AssertAvailable(cmd);
 
             internal sealed override IEnumerable<Message> CreateMessages(int db, ResultBox resultBox)
             {
                 yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key);
 
-                var cmd = hashField.IsNull ? RedisCommand.GET : RedisCommand.HGET;
-                var message = ConditionProcessor.CreateMessage(this, db, CommandFlags.None, cmd, key, hashField);
+                var message = ConditionProcessor.CreateMessage(this, db, CommandFlags.None, cmd, key, memberName);
                 message.SetSource(ConditionProcessor.Default, resultBox);
                 yield return message;
             }
@@ -454,19 +529,38 @@ namespace StackExchange.Redis
 
             internal override bool TryValidate(RawResult result, out bool value)
             {
-                switch (result.Type)
+                switch (type)
                 {
-                    case ResultType.BulkString:
-                    case ResultType.SimpleString:
-                    case ResultType.Integer:
-                        var parsed = result.AsRedisValue();
-                        value = (parsed == expectedValue) == expectedEqual;
-                        ConnectionMultiplexer.TraceWithoutContext("actual: " + (string)parsed + "; expected: " + (string)expectedValue +
-                            "; wanted: " + (expectedEqual ? "==" : "!=") + "; voting: " + value);
+                    case RedisType.SortedSet:
+                        var parsedValue = RedisValue.Null;
+                        if (!result.IsNull)
+                        {
+                            if (result.TryGetDouble(out var val))
+                            {
+                                parsedValue = val;
+                            }
+                        }
+
+                        value = (parsedValue == expectedValue) == expectedEqual;
+                        ConnectionMultiplexer.TraceWithoutContext("actual: " + (string)parsedValue + "; expected: " + (string)expectedValue +
+                                                                  "; wanted: " + (expectedEqual ? "==" : "!=") + "; voting: " + value);
                         return true;
+
+                    default:
+                        switch (result.Type)
+                        {
+                            case ResultType.BulkString:
+                            case ResultType.SimpleString:
+                            case ResultType.Integer:
+                                var parsed = result.AsRedisValue();
+                                value = (parsed == expectedValue) == expectedEqual;
+                                ConnectionMultiplexer.TraceWithoutContext("actual: " + (string)parsed + "; expected: " + (string)expectedValue +
+                                                                          "; wanted: " + (expectedEqual ? "==" : "!=") + "; voting: " + value);
+                                return true;
+                        }
+                        value = false;
+                        return false;
                 }
-                value = false;
-                return false;
             }
         }
 
@@ -627,6 +721,65 @@ namespace StackExchange.Redis
                             "; wanted: " + GetComparisonString() + "; voting: " + value);
                         return true;
                 }
+                value = false;
+                return false;
+            }
+        }
+
+        internal class SortedSetScoreCondition : Condition
+        {
+            internal override Condition MapKeys(Func<RedisKey, RedisKey> map)
+            {
+                return new SortedSetScoreCondition(map(key), sortedSetScore, expectedEqual, expectedValue);
+            }
+
+            private readonly bool expectedEqual;
+            private readonly RedisValue sortedSetScore, expectedValue;
+            private readonly RedisKey key;
+
+            public SortedSetScoreCondition(RedisKey key, RedisValue sortedSetScore, bool expectedEqual, RedisValue expectedValue)
+            {
+                if (key.IsNull)
+                {
+                    throw new ArgumentException("key");
+                }
+
+                this.key = key;
+                this.sortedSetScore = sortedSetScore;
+                this.expectedEqual = expectedEqual;
+                this.expectedValue = expectedValue;
+            }
+
+            public override string ToString()
+            {
+                return key.ToString() + (!expectedEqual ? " contains " : " not contains ") + expectedValue + " members with score: " + sortedSetScore;
+            }
+
+            internal override void CheckCommands(CommandMap commandMap) => commandMap.AssertAvailable(RedisCommand.ZCOUNT);
+
+            internal sealed override IEnumerable<Message> CreateMessages(int db, ResultBox resultBox)
+            {
+                yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key);
+
+                var message = ConditionProcessor.CreateMessage(this, db, CommandFlags.None, RedisCommand.ZCOUNT, key, sortedSetScore, sortedSetScore);
+                message.SetSource(ConditionProcessor.Default, resultBox);
+
+                yield return message;
+            }
+
+            internal override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => serverSelectionStrategy.HashSlot(key);
+
+            internal override bool TryValidate(RawResult result, out bool value)
+            {
+                switch (result.Type)
+                {
+                    case ResultType.Integer:
+                        var parsedValue = result.AsRedisValue();
+                        value = (parsedValue == expectedValue) == expectedEqual;
+                        ConnectionMultiplexer.TraceWithoutContext("actual: " + (string)parsedValue + "; expected: " + (string)expectedValue + "; wanted: " + (expectedEqual ? "==" : "!=") + "; voting: " + value);
+                        return true;
+                }
+
                 value = false;
                 return false;
             }
