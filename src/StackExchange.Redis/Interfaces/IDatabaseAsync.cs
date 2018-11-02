@@ -1073,7 +1073,7 @@ namespace StackExchange.Redis
         /// Adds all the specified members with the specified scores to the sorted set stored at key. If a specified member is already a member of the sorted set, the score is updated and the element reinserted at the right position to ensure the correct ordering.
         /// </summary>
         /// <param name="key">The key of the sorted set.</param>
-        /// <param name="values">The members and vlues to add to the sorted set.</param>
+        /// <param name="values">The members and values to add to the sorted set.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of elements added to the sorted sets, not including elements already existing for which the score was updated.</returns>
         /// <remarks>https://redis.io/commands/zadd</remarks>
@@ -1083,7 +1083,7 @@ namespace StackExchange.Redis
         /// Adds all the specified members with the specified scores to the sorted set stored at key. If a specified member is already a member of the sorted set, the score is updated and the element reinserted at the right position to ensure the correct ordering.
         /// </summary>
         /// <param name="key">The key of the sorted set.</param>
-        /// <param name="values">The members and vlues to add to the sorted set.</param>
+        /// <param name="values">The members and values to add to the sorted set.</param>
         /// <param name="when">What conditions to add the element under (defaults to always).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of elements added to the sorted sets, not including elements already existing for which the score was updated.</returns>
