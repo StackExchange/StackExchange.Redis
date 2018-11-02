@@ -752,7 +752,7 @@ namespace StackExchange.Redis
 
             public override string ToString()
             {
-                return key.ToString() + (!expectedEqual ? " contains " : " not contains ") + expectedValue + " members with score: " + sortedSetScore;
+                return key.ToString() + (expectedEqual ? " contains " : " not contains ") + expectedValue + " members with score: " + sortedSetScore;
             }
 
             internal override void CheckCommands(CommandMap commandMap) => commandMap.AssertAvailable(RedisCommand.ZCOUNT);

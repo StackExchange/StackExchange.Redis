@@ -20,14 +20,14 @@ namespace StackExchange.Redis.Tests
         public void AddCondition_HashEqual()
         {
             wrapper.AddCondition(Condition.HashEqual("key", "field", "value"));
-            mock.Verify(_ => _.AddCondition(It.Is<Condition>(value => "prefix:key > field == value" == value.ToString())));
+            mock.Verify(_ => _.AddCondition(It.Is<Condition>(value => "prefix:key Hash > field == value" == value.ToString())));
         }
 
         [Fact]
         public void AddCondition_HashNotEqual()
         {
             wrapper.AddCondition(Condition.HashNotEqual("key", "field", "value"));
-            mock.Verify(_ => _.AddCondition(It.Is<Condition>(value => "prefix:key > field != value" == value.ToString())));
+            mock.Verify(_ => _.AddCondition(It.Is<Condition>(value => "prefix:key Hash > field != value" == value.ToString())));
         }
 
         [Fact]
@@ -70,6 +70,48 @@ namespace StackExchange.Redis.Tests
         {
             wrapper.AddCondition(Condition.StringNotEqual("key", "value"));
             mock.Verify(_ => _.AddCondition(It.Is<Condition>(value => "prefix:key != value" == value.ToString())));
+        }
+
+        [Fact]
+        public void AddCondition_SortedSetEqual()
+        {
+            wrapper.AddCondition(Condition.SortedSetEqual("key", "member", "score"));
+            mock.Verify(_ => _.AddCondition(It.Is<Condition>(value => "prefix:key SortedSet > member == score" == value.ToString())));
+        }
+
+        [Fact]
+        public void AddCondition_SortedSetNotEqual()
+        {
+            wrapper.AddCondition(Condition.SortedSetNotEqual("key", "member", "score"));
+            mock.Verify(_ => _.AddCondition(It.Is<Condition>(value => "prefix:key SortedSet > member != score" == value.ToString())));
+        }
+
+        [Fact]
+        public void AddCondition_SortedSetScoreExists()
+        {
+            wrapper.AddCondition(Condition.SortedSetScoreExists("key", "score"));
+            mock.Verify(_ => _.AddCondition(It.Is<Condition>(value => "prefix:key not contains 0 members with score: score" == value.ToString())));
+        }
+
+        [Fact]
+        public void AddCondition_SortedSetScoreNotExists()
+        {
+            wrapper.AddCondition(Condition.SortedSetScoreNotExists("key", "score"));
+            mock.Verify(_ => _.AddCondition(It.Is<Condition>(value => "prefix:key contains 0 members with score: score" == value.ToString())));
+        }
+
+        [Fact]
+        public void AddCondition_SortedSetScoreCountExists()
+        {
+            wrapper.AddCondition(Condition.SortedSetScoreExists("key", "score", "count"));
+            mock.Verify(_ => _.AddCondition(It.Is<Condition>(value => "prefix:key contains count members with score: score" == value.ToString())));
+        }
+
+        [Fact]
+        public void AddCondition_SortedSetScoreCountNotExists()
+        {
+            wrapper.AddCondition(Condition.SortedSetScoreNotExists("key", "score", "count"));
+            mock.Verify(_ => _.AddCondition(It.Is<Condition>(value => "prefix:key not contains count members with score: score" == value.ToString())));
         }
 
         [Fact]
