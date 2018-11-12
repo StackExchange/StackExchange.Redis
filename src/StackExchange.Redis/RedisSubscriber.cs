@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 
 namespace StackExchange.Redis
@@ -297,6 +298,13 @@ namespace StackExchange.Redis
 
     internal sealed class RedisSubscriber : RedisBase, ISubscriber
     {
+        private static readonly UnboundedChannelOptions s_ChannelOptions = new UnboundedChannelOptions
+        {
+            SingleWriter = true,
+            SingleReader = false,
+            AllowSynchronousContinuations = false,
+        };
+
         internal RedisSubscriber(ConnectionMultiplexer multiplexer, object asyncState) : base(multiplexer, asyncState)
         {
         }
@@ -376,22 +384,23 @@ namespace StackExchange.Redis
 
         public ChannelMessageQueue Subscribe(RedisChannel channel, CommandFlags flags = CommandFlags.None)
         {
-            var c = new ChannelMessageQueue(channel, this);
-            c.Subscribe(flags);
-            return c;
+            var (queue, handler) = CreateMessageQueue(channel);
+            Subscribe(channel, handler, flags);
+            return queue;
         }
 
         public Task SubscribeAsync(RedisChannel channel, Action<RedisChannel, RedisValue> handler, CommandFlags flags = CommandFlags.None)
         {
             if (channel.IsNullOrEmpty) throw new ArgumentNullException(nameof(channel));
+
             return multiplexer.AddSubscription(channel, handler, flags, asyncState);
         }
 
         public async Task<ChannelMessageQueue> SubscribeAsync(RedisChannel channel, CommandFlags flags = CommandFlags.None)
         {
-            var c = new ChannelMessageQueue(channel, this);
-            await c.SubscribeAsync(flags).ForAwait();
-            return c;
+            var (queue, handler) = CreateMessageQueue(channel);
+            await SubscribeAsync(channel, handler, flags).ForAwait();
+            return queue;
         }
 
         public EndPoint SubscribedEndpoint(RedisChannel channel)
@@ -420,7 +429,39 @@ namespace StackExchange.Redis
         public Task UnsubscribeAsync(RedisChannel channel, Action<RedisChannel, RedisValue> handler = null, CommandFlags flags = CommandFlags.None)
         {
             if (channel.IsNullOrEmpty) throw new ArgumentNullException(nameof(channel));
+
             return multiplexer.RemoveSubscription(channel, handler, flags, asyncState);
+        }
+
+        internal (ChannelMessageQueue queue, Action<RedisChannel, RedisValue> handler) CreateMessageQueue(RedisChannel channel)
+        {
+            var queue = Channel.CreateUnbounded<ChannelMessage>(s_ChannelOptions);
+
+            // We need to create the variable before constructing the queue so that the Handler function below can capture it.
+            // It'll be fully assigned before it's used since the delegate is invoked by the Unsubscribe instance method,
+            // which isn't available until the value is fully initialized.
+            ChannelMessageQueue messageQueue = null;
+            messageQueue = new ChannelMessageQueue(
+                channel,
+                queue.Reader,
+                (f) => Unsubscribe(channel, Handler, f),
+                (f) => UnsubscribeAsync(channel, Handler, f),
+                (ex) => multiplexer?.OnInternalError(ex));
+
+            void Handler(RedisChannel c, RedisValue v)
+            {
+                if (c.IsNull && v.IsNull)
+                {
+                    queue.Writer.TryComplete();
+                }
+                else
+                {
+                    var wrote = queue.Writer.TryWrite(new ChannelMessage(messageQueue, c, v));
+                    Debug.Assert(wrote, "Queue should be unbounded!");
+                }
+            }
+
+            return (messageQueue, Handler);
         }
     }
 }
