@@ -20,7 +20,7 @@ namespace StackExchange.Redis
     public sealed class LuaScript
     {
         // Since the mapping of "script text" -> LuaScript doesn't depend on any particular details of
-        //    the redis connection itself, this cache is global.
+        // the redis connection itself, this cache is global.
         private static readonly ConcurrentDictionary<string, WeakReference> Cache = new ConcurrentDictionary<string, WeakReference>();
 
         /// <summary>
@@ -139,7 +139,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Evaluates this LuaScript against the given database, extracting parameters from the passed in object if any.
         /// </summary>
-        /// <param name="db">The redis databse to evaluate against.</param>
+        /// <param name="db">The redis database to evaluate against.</param>
         /// <param name="ps">The parameter object to use.</param>
         /// <param name="withKeyPrefix">The key prefix to use, if any.</param>
         /// <param name="flags">The command flags to use.</param>
@@ -152,7 +152,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Evaluates this LuaScript against the given database, extracting parameters from the passed in object if any.
         /// </summary>
-        /// <param name="db">The redis databse to evaluate against.</param>
+        /// <param name="db">The redis database to evaluate against.</param>
         /// <param name="ps">The parameter object to use.</param>
         /// <param name="withKeyPrefix">The key prefix to use, if any.</param>
         /// <param name="flags">The command flags to use.</param>
@@ -257,7 +257,7 @@ namespace StackExchange.Redis
         /// been loaded into the passed Redis instance it will fail.
         /// </para>
         /// </summary>
-        /// <param name="db">The redis databse to evaluate against.</param>
+        /// <param name="db">The redis database to evaluate against.</param>
         /// <param name="ps">The parameter object to use.</param>
         /// <param name="withKeyPrefix">The key prefix to use, if any.</param>
         /// <param name="flags">The command flags to use.</param>
@@ -274,7 +274,7 @@ namespace StackExchange.Redis
         /// been loaded into the passed Redis instance it will fail.
         /// </para>
         /// </summary>
-        /// <param name="db">The redis databse to evaluate against.</param>
+        /// <param name="db">The redis database to evaluate against.</param>
         /// <param name="ps">The parameter object to use.</param>
         /// <param name="withKeyPrefix">The key prefix to use, if any.</param>
         /// <param name="flags">The command flags to use.</param>
