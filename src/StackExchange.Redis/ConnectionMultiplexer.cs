@@ -868,7 +868,7 @@ namespace StackExchange.Redis
         {
             var muxer = new ConnectionMultiplexer(PrepareConfig(configuration));
             connectHandler = null;
-            if(log != null)
+            if (log != null)
             {
                 // create a detachable event-handler to log detailed errors if something happens during connect/handshake
                 connectHandler = (_, a) =>
@@ -2135,21 +2135,27 @@ namespace StackExchange.Redis
                 case WriteResult.NoConnectionAvailable:
                     return ExceptionFactory.NoConnectionAvailable(IncludeDetailInExceptions, IncludePerformanceCountersInExceptions, message.Command, message, server, GetServerSnapshot());
                 case WriteResult.TimeoutBeforeWrite:
-                    string counters = null;
+                    string bridgeCounters = null, connectionState = null;
                     try
                     {
+                        if (message.TryGetPhysicalState(out var state, out var sentDelta, out var receivedDelta))
+                        {
+                            connectionState = (sentDelta >= 0 && receivedDelta >= 0) // these might not always be available
+                                ? $", state={state}, outbound={sentDelta >> 10}KiB, inbound={receivedDelta >> 10}KiB"
+                                : $", state={state}";
+                        }
                         var bridge = server.GetBridge(message.Command, false);
                         if (bridge != null)
                         {
                             var active = bridge.GetActiveMessage();
                             bridge.GetOutstandingCount(out var inst, out var qs, out var @in);
-                            counters = $", inst={inst}, qs={qs}, in={@in}, active={active}";
+                            bridgeCounters = $", inst={inst}, qs={qs}, in={@in}, active={active}";
                         }
                     }
                     catch { }
 
                     return ExceptionFactory.Timeout(this, "The timeout was reached before the message could be written to the output buffer, and it was not sent ("
-                        + Format.ToString(TimeoutMilliseconds) + "ms" + counters + ")", message, server);
+                        + Format.ToString(TimeoutMilliseconds) + "ms" + connectionState + bridgeCounters + ")", message, server);
                 case WriteResult.WriteFailure:
                 default:
                     return ExceptionFactory.ConnectionFailure(IncludeDetailInExceptions, ConnectionFailureType.ProtocolFailure, "An unknown error occurred when writing the message", server);

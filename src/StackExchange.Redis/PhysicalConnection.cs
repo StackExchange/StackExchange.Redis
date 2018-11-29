@@ -53,6 +53,19 @@ namespace StackExchange.Redis
         private int lastWriteTickCount, lastReadTickCount, lastBeatTickCount;
         private int firstUnansweredWriteTickCount;
 
+        internal void GetBytes(out long sent, out long received)
+        {
+            if(_ioPipe is IMeasuredDuplexPipe sc)
+            {
+                sent = sc.TotalBytesSent;
+                received = sc.TotalBytesReceived;
+            }
+            else
+            {
+                sent = received = -1;
+            }
+        }
+
         private IDuplexPipe _ioPipe;
 
         private Socket _socket;
@@ -315,7 +328,8 @@ namespace StackExchange.Redis
 
                     var exMessage = new StringBuilder(failureType.ToString());
 
-                    if ((connectingPipe ?? _ioPipe) is SocketConnection sc)
+                    var pipe = connectingPipe ?? _ioPipe;
+                    if (pipe is SocketConnection sc)
                     {
                         exMessage.Append(" (").Append(sc.ShutdownKind);
                         if (sc.SocketError != SocketError.Success)
@@ -325,6 +339,13 @@ namespace StackExchange.Redis
                         if (sc.BytesRead == 0) exMessage.Append(", 0-read");
                         if (sc.BytesSent == 0) exMessage.Append(", 0-sent");
                         exMessage.Append(", last-recv: ").Append(sc.LastReceived).Append(")");
+                    }
+                    else if (pipe is IMeasuredDuplexPipe mdp)
+                    {
+                        long sent = mdp.TotalBytesSent, recd = mdp.TotalBytesReceived;
+
+                        if (sent == 0) { exMessage.Append(recd == 0 ? " (0-read, 0-sent)" : " (0-sent)"); }
+                        else if (recd == 0) { exMessage.Append(" (0-read)"); }
                     }
 
                     var data = new List<Tuple<string, string>>();
@@ -418,7 +439,10 @@ namespace StackExchange.Redis
         internal void SetWriting() => _writeStatus = WriteStatus.Writing;
 
         private volatile WriteStatus _writeStatus;
-        private enum WriteStatus
+
+        internal WriteStatus Status => _writeStatus;
+
+        internal enum WriteStatus
         {
             Initializing,
             Idle,
@@ -577,7 +601,10 @@ namespace StackExchange.Redis
                     {
                         if (msg.HasAsyncTimedOut(now, timeout, out var elapsed))
                         {
-                            var timeoutEx = ExceptionFactory.Timeout(bridge.Multiplexer, $"Timeout awaiting response ({elapsed}ms elapsed, timeout is {timeout}ms)", msg, server);
+                            bool haveDeltas = msg.TryGetPhysicalState(out _, out long sentDelta, out var receivedDelta) && sentDelta >= 0 && receivedDelta >= 0;
+                            var timeoutEx = ExceptionFactory.Timeout(bridge.Multiplexer, haveDeltas
+                                ? $"Timeout awaiting response (outbound={sentDelta >> 10}KiB, inbound={receivedDelta >> 10}KiB, {elapsed}ms elapsed, timeout is {timeout}ms)"
+                                : $"Timeout awaiting response ({elapsed}ms elapsed, timeout is {timeout}ms)", msg, server);
                             bridge.Multiplexer?.OnMessageFaulted(msg, timeoutEx);
                             msg.SetExceptionAndComplete(timeoutEx, bridge); // tell the message that it is doomed
                             bridge.Multiplexer.OnAsyncTimeout();
