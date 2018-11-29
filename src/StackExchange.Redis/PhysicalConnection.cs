@@ -55,10 +55,10 @@ namespace StackExchange.Redis
 
         internal void GetBytes(out long sent, out long received)
         {
-            if(_ioPipe is SocketConnection sc)
+            if(_ioPipe is IMeasuredDuplexPipe sc)
             {
-                sent = sc.BytesSent;
-                received = sc.BytesRead;
+                sent = sc.TotalBytesSent;
+                received = sc.TotalBytesReceived;
             }
             else
             {
@@ -328,7 +328,8 @@ namespace StackExchange.Redis
 
                     var exMessage = new StringBuilder(failureType.ToString());
 
-                    if ((connectingPipe ?? _ioPipe) is SocketConnection sc)
+                    var pipe = connectingPipe ?? _ioPipe;
+                    if (pipe is SocketConnection sc)
                     {
                         exMessage.Append(" (").Append(sc.ShutdownKind);
                         if (sc.SocketError != SocketError.Success)
@@ -338,6 +339,13 @@ namespace StackExchange.Redis
                         if (sc.BytesRead == 0) exMessage.Append(", 0-read");
                         if (sc.BytesSent == 0) exMessage.Append(", 0-sent");
                         exMessage.Append(", last-recv: ").Append(sc.LastReceived).Append(")");
+                    }
+                    else if (pipe is IMeasuredDuplexPipe mdp)
+                    {
+                        long sent = mdp.TotalBytesSent, recd = mdp.TotalBytesReceived;
+
+                        if (sent == 0) { exMessage.Append(recd == 0 ? " (0-read, 0-sent)" : " (0-sent)"); }
+                        else if (recd == 0) { exMessage.Append(" (0-read)"); }
                     }
 
                     var data = new List<Tuple<string, string>>();
