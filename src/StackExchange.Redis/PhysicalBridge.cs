@@ -137,7 +137,7 @@ namespace StackExchange.Redis
                     {
                         queue.Enqueue(message);
                     }
-                    message.SetEnqueued();
+                    message.SetEnqueued(null);
                     return WriteResult.Success; // we'll take it...
                 }
                 else
@@ -549,7 +549,7 @@ namespace StackExchange.Redis
         internal WriteResult WriteMessageTakingWriteLock(PhysicalConnection physical, Message message)
         {
             Trace("Writing: " + message);
-            message.SetEnqueued();
+            message.SetEnqueued(physical); // this also records the read/write stats at this point
 
             WriteResult result;
             bool haveLock = false;

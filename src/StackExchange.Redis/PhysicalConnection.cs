@@ -53,6 +53,19 @@ namespace StackExchange.Redis
         private int lastWriteTickCount, lastReadTickCount, lastBeatTickCount;
         private int firstUnansweredWriteTickCount;
 
+        internal void GetBytes(out long sent, out long received)
+        {
+            if(_ioPipe is SocketConnection sc)
+            {
+                sent = sc.BytesSent;
+                received = sc.BytesRead;
+            }
+            else
+            {
+                sent = received = -1;
+            }
+        }
+
         private IDuplexPipe _ioPipe;
 
         private Socket _socket;
@@ -418,7 +431,10 @@ namespace StackExchange.Redis
         internal void SetWriting() => _writeStatus = WriteStatus.Writing;
 
         private volatile WriteStatus _writeStatus;
-        private enum WriteStatus
+
+        internal WriteStatus Status => _writeStatus;
+
+        internal enum WriteStatus
         {
             Initializing,
             Idle,
@@ -577,7 +593,10 @@ namespace StackExchange.Redis
                     {
                         if (msg.HasAsyncTimedOut(now, timeout, out var elapsed))
                         {
-                            var timeoutEx = ExceptionFactory.Timeout(bridge.Multiplexer, $"Timeout awaiting response ({elapsed}ms elapsed, timeout is {timeout}ms)", msg, server);
+                            bool haveDeltas = msg.TryGetPhysicalState(out _, out long sentDelta, out var receivedDelta) && sentDelta >= 0 && receivedDelta >= 0;
+                            var timeoutEx = ExceptionFactory.Timeout(bridge.Multiplexer, haveDeltas
+                                ? $"Timeout awaiting response (outbound={sentDelta >> 10}KiB, inbound={receivedDelta >> 10}KiB, {elapsed}ms elapsed, timeout is {timeout}ms)"
+                                : $"Timeout awaiting response ({elapsed}ms elapsed, timeout is {timeout}ms)", msg, server);
                             bridge.Multiplexer?.OnMessageFaulted(msg, timeoutEx);
                             msg.SetExceptionAndComplete(timeoutEx, bridge); // tell the message that it is doomed
                             bridge.Multiplexer.OnAsyncTimeout();

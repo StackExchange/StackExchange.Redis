@@ -617,13 +617,48 @@ namespace StackExchange.Redis
 
         internal bool TrySetResult<T>(T value) => resultBox is ResultBox<T> typed && typed.TrySetResult(value);
 
-        internal void SetEnqueued() => performance?.SetEnqueued();
+        internal void SetEnqueued(PhysicalConnection connection)
+        {
+            performance?.SetEnqueued();
+            _enqueuedTo = connection;
+            if (connection == null)
+            {
+                _queuedStampSent = _queuedStampReceived = -1;
+            }
+            else
+            {
+                connection.GetBytes(out _queuedStampSent, out _queuedStampReceived);
+            }
+        }
+
+        internal bool TryGetPhysicalState(out PhysicalConnection.WriteStatus status, out long sentDelta, out long receivedDelta)
+        {
+            var connection = _enqueuedTo;
+            sentDelta = receivedDelta = -1;
+            if (connection != null)
+            {
+                status = connection.Status;
+                connection.GetBytes(out var sent, out var received);
+                if (sent >= 0 && _queuedStampSent >= 0) sentDelta = sent - _queuedStampSent;
+                if (received >= 0 && _queuedStampReceived >= 0) receivedDelta = received - _queuedStampReceived;
+                return true;
+            }
+            else
+            {
+                status = default;
+                return false;
+            }
+        }
+
+        private PhysicalConnection _enqueuedTo;
+        private long _queuedStampReceived, _queuedStampSent;
 
         internal void SetRequestSent()
         {
             Status = CommandStatus.Sent;
             performance?.SetRequestSent();
         }
+
         // the time (ticks) at which this message was considered written
         internal void SetWriteTime()
         {
