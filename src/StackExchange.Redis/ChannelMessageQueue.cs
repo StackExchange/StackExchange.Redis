@@ -28,7 +28,7 @@ namespace StackExchange.Redis
         /// <param name="obj">The <see cref="object"/> to compare.</param>
         public override bool Equals(object obj) => obj is ChannelMessage cm
             && cm.Channel == Channel && cm.Message == Message;
-        internal ChannelMessage(ChannelMessageQueue queue, RedisChannel channel, RedisValue value)
+        internal ChannelMessage(ChannelMessageQueue queue, in RedisChannel channel, in RedisValue value)
         {
             _queue = queue;
             Channel = channel;
@@ -73,7 +73,7 @@ namespace StackExchange.Redis
         /// </summary>
         public Task Completion => _queue.Reader.Completion;
 
-        internal ChannelMessageQueue(RedisChannel redisChannel, RedisSubscriber parent)
+        internal ChannelMessageQueue(in RedisChannel redisChannel, RedisSubscriber parent)
         {
             Channel = redisChannel;
             _parent = parent;
@@ -89,7 +89,9 @@ namespace StackExchange.Redis
         internal void Subscribe(CommandFlags flags) => _parent.Subscribe(Channel, HandleMessage, flags);
         internal Task SubscribeAsync(CommandFlags flags) => _parent.SubscribeAsync(Channel, HandleMessage, flags);
 
+#pragma warning disable RCS1231 // Make parameter ref read-only. - uses as a delegate for Action<RedisChannel, RedisValue>
         private void HandleMessage(RedisChannel channel, RedisValue value)
+#pragma warning restore RCS1231 // Make parameter ref read-only.
         {
             var writer = _queue.Writer;
             if (channel.IsNull && value.IsNull) // see ForSyncShutdown

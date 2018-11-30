@@ -631,7 +631,7 @@ namespace StackExchange.Redis
             currentDatabase = -1;
         }
 
-        internal void Write(RedisKey key)
+        internal void Write(in RedisKey key)
         {
             var val = key.KeyValue;
             if (val is string s)
@@ -644,13 +644,13 @@ namespace StackExchange.Redis
             }
         }
 
-        internal void Write(RedisChannel channel)
+        internal void Write(in RedisChannel channel)
             => WriteUnifiedPrefixedBlob(_ioPipe.Output, ChannelPrefix, channel.Value);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal void WriteBulkString(RedisValue value)
+        internal void WriteBulkString(in RedisValue value)
             => WriteBulkString(value, _ioPipe.Output);
-        internal static void WriteBulkString(RedisValue value, PipeWriter output)
+        internal static void WriteBulkString(in RedisValue value, PipeWriter output)
         {
             switch (value.Type)
             {
@@ -889,7 +889,7 @@ namespace StackExchange.Redis
             {
                 var span = writer.GetSpan(5 + MaxInt32TextLen + value.Length);
                 span[0] = (byte)'$';
-                int bytes = AppendToSpanSpan(span, value, 1);
+                int bytes = AppendToSpan(span, value, 1);
                 writer.Advance(bytes);
             }
             else
@@ -906,7 +906,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private static int AppendToSpanCommand(Span<byte> span, CommandBytes value, int offset = 0)
+        private static int AppendToSpanCommand(Span<byte> span, in CommandBytes value, int offset = 0)
         {
             span[offset++] = (byte)'$';
             int len = value.Length;
@@ -916,7 +916,9 @@ namespace StackExchange.Redis
             return WriteCrlf(span, offset);
         }
 
-        private static int AppendToSpanSpan(Span<byte> span, ReadOnlySpan<byte> value, int offset = 0)
+#pragma warning disable RCS1231 // Make parameter ref read-only. - spans are tiny
+        private static int AppendToSpan(Span<byte> span, ReadOnlySpan<byte> value, int offset = 0)
+#pragma warning restore RCS1231 // Make parameter ref read-only.
         {
             offset = WriteRaw(span, value.Length, offset: offset);
             value.CopyTo(span.Slice(offset, value.Length));
@@ -1230,7 +1232,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private void MatchResult(RawResult result)
+        private void MatchResult(in RawResult result)
         {
             // check to see if it could be an out-of-band pubsub message
             if (connectionType == ConnectionType.Subscription && result.Type == ResultType.MultiBulk)

@@ -1896,7 +1896,7 @@ namespace StackExchange.Redis
             return ServerSelectionStrategy.Select(message);
         }
 
-        internal ServerEndPoint SelectServer(RedisCommand command, CommandFlags flags, RedisKey key)
+        internal ServerEndPoint SelectServer(RedisCommand command, CommandFlags flags, in RedisKey key)
         {
             return ServerSelectionStrategy.Select(command, key, flags);
         }

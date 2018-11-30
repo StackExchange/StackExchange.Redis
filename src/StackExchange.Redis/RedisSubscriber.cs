@@ -29,7 +29,7 @@ namespace StackExchange.Redis
             return false;
         }
 
-        internal Task AddSubscription(RedisChannel channel, Action<RedisChannel, RedisValue> handler, CommandFlags flags, object asyncState)
+        internal Task AddSubscription(in RedisChannel channel, Action<RedisChannel, RedisValue> handler, CommandFlags flags, object asyncState)
         {
             if (handler != null)
             {
@@ -52,7 +52,7 @@ namespace StackExchange.Redis
             return CompletedTask<bool>.Default(asyncState);
         }
 
-        internal ServerEndPoint GetSubscribedServer(RedisChannel channel)
+        internal ServerEndPoint GetSubscribedServer(in RedisChannel channel)
         {
             if (!channel.IsNullOrEmpty)
             {
@@ -67,7 +67,7 @@ namespace StackExchange.Redis
             return null;
         }
 
-        internal void OnMessage(RedisChannel subscription, RedisChannel channel, RedisValue payload)
+        internal void OnMessage(in RedisChannel subscription, in RedisChannel channel, in RedisValue payload)
         {
             ICompletable completable = null;
             lock (subscriptions)
@@ -100,7 +100,7 @@ namespace StackExchange.Redis
             return last;
         }
 
-        internal Task RemoveSubscription(RedisChannel channel, Action<RedisChannel, RedisValue> handler, CommandFlags flags, object asyncState)
+        internal Task RemoveSubscription(in RedisChannel channel, Action<RedisChannel, RedisValue> handler, CommandFlags flags, object asyncState)
         {
             lock (subscriptions)
             {
@@ -171,7 +171,7 @@ namespace StackExchange.Redis
                 var syncHandler = _syncHandler;
                 return syncHandler == null ? null : new MessageCompletable(default, default, syncHandler, null);
             }
-            public ICompletable ForInvoke(RedisChannel channel, RedisValue message)
+            public ICompletable ForInvoke(in RedisChannel channel, in RedisValue message)
             {
                 var syncHandler = _syncHandler;
                 var asyncHandler = _asyncHandler;
@@ -193,7 +193,7 @@ namespace StackExchange.Redis
                 return _syncHandler == null && _asyncHandler == null;
             }
 
-            public Task SubscribeToServer(ConnectionMultiplexer multiplexer, RedisChannel channel, CommandFlags flags, object asyncState, bool internalCall)
+            public Task SubscribeToServer(ConnectionMultiplexer multiplexer, in RedisChannel channel, CommandFlags flags, object asyncState, bool internalCall)
             {
                 var cmd = channel.IsPatternBased ? RedisCommand.PSUBSCRIBE : RedisCommand.SUBSCRIBE;
                 var selected = multiplexer.SelectServer(cmd, flags, default(RedisKey));
@@ -205,7 +205,7 @@ namespace StackExchange.Redis
                 return selected.WriteDirectAsync(msg, ResultProcessor.TrackSubscriptions, asyncState);
             }
 
-            public Task UnsubscribeFromServer(RedisChannel channel, CommandFlags flags, object asyncState, bool internalCall)
+            public Task UnsubscribeFromServer(in RedisChannel channel, CommandFlags flags, object asyncState, bool internalCall)
             {
                 var oldOwner = Interlocked.Exchange(ref owner, null);
                 if (oldOwner == null) return null;
@@ -218,7 +218,7 @@ namespace StackExchange.Redis
 
             internal ServerEndPoint GetOwner() => Volatile.Read(ref owner);
 
-            internal void Resubscribe(RedisChannel channel, ServerEndPoint server)
+            internal void Resubscribe(in RedisChannel channel, ServerEndPoint server)
             {
                 if (server != null && Interlocked.CompareExchange(ref owner, server, server) == server)
                 {
@@ -229,7 +229,7 @@ namespace StackExchange.Redis
                 }
             }
 
-            internal bool Validate(ConnectionMultiplexer multiplexer, RedisChannel channel)
+            internal bool Validate(ConnectionMultiplexer multiplexer, in RedisChannel channel)
             {
                 bool changed = false;
                 var oldOwner = Volatile.Read(ref owner);

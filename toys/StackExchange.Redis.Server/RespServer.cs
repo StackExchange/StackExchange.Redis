@@ -122,7 +122,7 @@ namespace StackExchange.Redis.Server
             public bool HasSubCommands => _subcommands != null;
             internal RespCommand WithSubCommands(RespCommand[] subs)
                 => new RespCommand(this, subs);
-            private RespCommand(RespCommand parent, RespCommand[] subs)
+            private RespCommand(in RespCommand parent, RespCommand[] subs)
             {
                 if (parent.IsSubCommand) throw new InvalidOperationException("Cannot have nested sub-commands");
                 if (parent.HasSubCommands) throw new InvalidOperationException("Already has sub-commands");
@@ -155,7 +155,7 @@ namespace StackExchange.Redis.Server
                 }
                 return this;
             }
-            public TypedRedisValue Execute(RedisClient client, RedisRequest request)
+            public TypedRedisValue Execute(RedisClient client, in RedisRequest request)
             {
                 var args = request.Count;
                 if (!CheckArity(request.Count))

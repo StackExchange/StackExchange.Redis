@@ -176,7 +176,7 @@ namespace StackExchange.Redis
             COUNT = Encoding.ASCII.GetBytes("COUNT"),
             ASC = Encoding.ASCII.GetBytes("ASC"),
             DESC = Encoding.ASCII.GetBytes("DESC");
-        private Message GetGeoRadiusMessage(RedisKey key, RedisValue? member, double longitude, double latitude, double radius, GeoUnit unit, int count, Order? order, GeoRadiusOptions options, CommandFlags flags)
+        private Message GetGeoRadiusMessage(in RedisKey key, RedisValue? member, double longitude, double latitude, double radius, GeoUnit unit, int count, Order? order, GeoRadiusOptions options, CommandFlags flags)
         {
             var redisValues = new List<RedisValue>();
             RedisCommand command;
@@ -2419,7 +2419,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.RedisValue);
         }
 
-        private Message GetExpiryMessage(RedisKey key, CommandFlags flags, TimeSpan? expiry, out ServerEndPoint server)
+        private Message GetExpiryMessage(in RedisKey key, CommandFlags flags, TimeSpan? expiry, out ServerEndPoint server)
         {
             TimeSpan duration;
             if (expiry == null || (duration = expiry.Value) == TimeSpan.MaxValue)
@@ -2441,7 +2441,7 @@ namespace StackExchange.Redis
             return Message.Create(Database, flags, RedisCommand.EXPIRE, key, seconds);
         }
 
-        private Message GetExpiryMessage(RedisKey key, CommandFlags flags, DateTime? expiry, out ServerEndPoint server)
+        private Message GetExpiryMessage(in RedisKey key, CommandFlags flags, DateTime? expiry, out ServerEndPoint server)
         {
             DateTime when;
             if (expiry == null || (when = expiry.Value) == DateTime.MaxValue)
@@ -3686,7 +3686,7 @@ namespace StackExchange.Redis
             private readonly RedisCommand ttlCommand;
             private ResultBox<TimeSpan?> box;
 
-            public StringGetWithExpiryMessage(int db, CommandFlags flags, RedisCommand ttlCommand, RedisKey key)
+            public StringGetWithExpiryMessage(int db, CommandFlags flags, RedisCommand ttlCommand, in RedisKey key)
                 : base(db, flags, RedisCommand.GET, key)
             {
                 this.ttlCommand = ttlCommand;

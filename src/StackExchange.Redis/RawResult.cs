@@ -27,7 +27,7 @@ namespace StackExchange.Redis
 
         private const ResultType NonNullFlag = (ResultType)128;
 
-        public RawResult(ResultType resultType, ReadOnlySequence<byte> payload, bool isNull)
+        public RawResult(ResultType resultType, in ReadOnlySequence<byte> payload, bool isNull)
         {
             switch (resultType)
             {
@@ -91,7 +91,7 @@ namespace StackExchange.Redis
             public Tokenizer GetEnumerator() => this;
             private BufferReader _value;
 
-            public Tokenizer(ReadOnlySequence<byte> value)
+            public Tokenizer(in ReadOnlySequence<byte> value)
             {
                 _value = new BufferReader(value);
                 Current = default;
@@ -209,7 +209,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal bool IsEqual(CommandBytes expected)
+        internal bool IsEqual(in CommandBytes expected)
         {
             if (expected.Length != Payload.Length) return false;
             return new CommandBytes(Payload).Equals(expected);
@@ -236,7 +236,7 @@ namespace StackExchange.Redis
             return true;
         }
 
-        internal bool StartsWith(CommandBytes expected)
+        internal bool StartsWith(in CommandBytes expected)
         {
             var len = expected.Length;
             if (len > Payload.Length) return false;
