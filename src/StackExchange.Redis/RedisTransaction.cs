@@ -171,7 +171,7 @@ namespace StackExchange.Redis
         {
             public static readonly ResultProcessor<bool> Default = new QueuedProcessor();
 
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
                 if (result.Type == ResultType.SimpleString && result.IsEqual(CommonReplies.QUEUED))
                 {
@@ -432,7 +432,7 @@ namespace StackExchange.Redis
         {
             public static readonly TransactionProcessor Default = new TransactionProcessor();
 
-            public override bool SetResult(PhysicalConnection connection, Message message, RawResult result)
+            public override bool SetResult(PhysicalConnection connection, Message message, in RawResult result)
             {
                 if (result.IsError && message is TransactionMessage tran)
                 {
@@ -447,7 +447,7 @@ namespace StackExchange.Redis
                 return base.SetResult(connection, message, result);
             }
 
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
                 connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"got {result} for {message.CommandAndKey}");
                 if (message is TransactionMessage tran)

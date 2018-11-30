@@ -1549,7 +1549,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private static RawResult ParseInlineProtocol(RawResult line)
+        private static RawResult ParseInlineProtocol(in RawResult line)
         {
             if (!line.HasValue) return RawResult.Nil; // incomplete line
 

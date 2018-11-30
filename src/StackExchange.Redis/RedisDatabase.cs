@@ -3447,7 +3447,7 @@ namespace StackExchange.Redis
         {
             public static readonly ResultProcessor<ScanIterator<HashEntry>.ScanResult> Default = new HashScanResultProcessor();
             private HashScanResultProcessor() { }
-            protected override HashEntry[] Parse(RawResult result)
+            protected override HashEntry[] Parse(in RawResult result)
             {
                 if (!HashEntryArray.TryParse(result, out HashEntry[] pairs)) pairs = null;
                 return pairs;
@@ -3456,9 +3456,9 @@ namespace StackExchange.Redis
 
         private abstract class ScanResultProcessor<T> : ResultProcessor<ScanIterator<T>.ScanResult>
         {
-            protected abstract T[] Parse(RawResult result);
+            protected abstract T[] Parse(in RawResult result);
 
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
                 switch (result.Type)
                 {
@@ -3628,7 +3628,7 @@ namespace StackExchange.Redis
         {
             public static readonly ResultProcessor<ScanIterator<RedisValue>.ScanResult> Default = new SetScanResultProcessor();
             private SetScanResultProcessor() { }
-            protected override RedisValue[] Parse(RawResult result)
+            protected override RedisValue[] Parse(in RawResult result)
             {
                 return result.GetItemsAsValues();
             }
@@ -3674,7 +3674,7 @@ namespace StackExchange.Redis
         {
             public static readonly ResultProcessor<ScanIterator<SortedSetEntry>.ScanResult> Default = new SortedSetScanResultProcessor();
             private SortedSetScanResultProcessor() { }
-            protected override SortedSetEntry[] Parse(RawResult result)
+            protected override SortedSetEntry[] Parse(in RawResult result)
             {
                 if (!SortedSetWithScores.TryParse(result, out SortedSetEntry[] pairs)) pairs = null;
                 return pairs;
@@ -3729,7 +3729,7 @@ namespace StackExchange.Redis
         {
             public static readonly ResultProcessor<RedisValueWithExpiry> Default = new StringGetWithExpiryProcessor();
             private StringGetWithExpiryProcessor() { }
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
                 switch (result.Type)
                 {

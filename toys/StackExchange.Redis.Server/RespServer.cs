@@ -468,7 +468,7 @@ namespace StackExchange.Redis.Server
             }
         }
 
-        internal static string ToLower(RawResult value)
+        internal static string ToLower(in RawResult value)
         {
             var val = value.GetString();
             if (string.IsNullOrWhiteSpace(val)) return val;

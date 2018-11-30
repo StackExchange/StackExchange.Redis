@@ -262,7 +262,7 @@ namespace StackExchange.Redis
         internal abstract IEnumerable<Message> CreateMessages(int db, ResultBox resultBox);
 
         internal abstract int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy);
-        internal abstract bool TryValidate(RawResult result, out bool value);
+        internal abstract bool TryValidate(in RawResult result, out bool value);
 
         internal sealed class ConditionProcessor : ResultProcessor<bool>
         {
@@ -273,7 +273,7 @@ namespace StackExchange.Redis
                 return new ConditionMessage(condition, db, flags, command, key, value);
             }
 
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
                 connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"condition '{message.CommandAndKey}' got '{result.ToString()}'");
                 var msg = message as ConditionMessage;
@@ -382,7 +382,7 @@ namespace StackExchange.Redis
 
             internal override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => serverSelectionStrategy.HashSlot(key);
 
-            internal override bool TryValidate(RawResult result, out bool value)
+            internal override bool TryValidate(in RawResult result, out bool value)
             {
                 switch (type)
                 {
@@ -452,7 +452,7 @@ namespace StackExchange.Redis
                 return serverSelectionStrategy.HashSlot(key);
             }
 
-            internal override bool TryValidate(RawResult result, out bool value)
+            internal override bool TryValidate(in RawResult result, out bool value)
             {
                 switch (result.Type)
                 {
@@ -512,7 +512,7 @@ namespace StackExchange.Redis
 
             internal override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => serverSelectionStrategy.HashSlot(key);
 
-            internal override bool TryValidate(RawResult result, out bool value)
+            internal override bool TryValidate(in RawResult result, out bool value)
             {
                 switch (result.Type)
                 {
@@ -614,7 +614,7 @@ namespace StackExchange.Redis
                 return serverSelectionStrategy.HashSlot(key);
             }
 
-            internal override bool TryValidate(RawResult result, out bool value)
+            internal override bool TryValidate(in RawResult result, out bool value)
             {
                 switch (result.Type)
                 {
