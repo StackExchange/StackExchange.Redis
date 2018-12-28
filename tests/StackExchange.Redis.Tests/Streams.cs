@@ -432,8 +432,8 @@ namespace StackExchange.Redis.Tests
             // for only the stream set to read from the beginning.
 
             const string groupName = "test_group";
-            var stream1 = GetUniqueKey("stream1");
-            var stream2 = GetUniqueKey("stream2");
+            var stream1 = GetUniqueKey("stream1a");
+            var stream2 = GetUniqueKey("stream2a");
 
             using (var conn = Create())
             {
@@ -474,9 +474,8 @@ namespace StackExchange.Redis.Tests
         public void StreamConsumerGroupReadMultipleOnlyNewMessagesExpectNoResult()
         {
             const string groupName = "test_group";
-            var stream1 = GetUniqueKey("stream1");
-            var stream2 = GetUniqueKey("stream2");
-
+            var stream1 = GetUniqueKey("stream1b");
+            var stream2 = GetUniqueKey("stream2b");
             using (var conn = Create())
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
@@ -510,8 +509,8 @@ namespace StackExchange.Redis.Tests
         public void StreamConsumerGroupReadMultipleOnlyNewMessagesExpect1Result()
         {
             const string groupName = "test_group";
-            var stream1 = GetUniqueKey("stream1");
-            var stream2 = GetUniqueKey("stream2");
+            var stream1 = GetUniqueKey("stream1c");
+            var stream2 = GetUniqueKey("stream2c");
 
             using (var conn = Create())
             {
@@ -553,8 +552,8 @@ namespace StackExchange.Redis.Tests
         public void StreamConsumerGroupReadMultipleRestrictCount()
         {
             const string groupName = "test_group";
-            var stream1 = GetUniqueKey("stream1");
-            var stream2 = GetUniqueKey("stream2");
+            var stream1 = GetUniqueKey("stream1d");
+            var stream2 = GetUniqueKey("stream2d");
 
             using (var conn = Create())
             {
@@ -767,7 +766,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamDeleteConsumer()
         {
-            var key = GetUniqueKey("delete_consumer_group");
+            var key = GetUniqueKey("delete_consumer");
             const string groupName = "test_group";
             const string consumer = "test_consumer";
 
@@ -1244,8 +1243,8 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamReadMultipleStreams()
         {
-            var key1 = GetUniqueKey("read_multi_1");
-            var key2 = GetUniqueKey("read_multi_2");
+            var key1 = GetUniqueKey("read_multi_1a");
+            var key2 = GetUniqueKey("read_multi_2a");
 
             using (var conn = Create())
             {
@@ -1322,8 +1321,8 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamReadMultipleStreamsWithReadPastSecondStream()
         {
-            var key1 = GetUniqueKey("read_multi_1");
-            var key2 = GetUniqueKey("read_multi_2");
+            var key1 = GetUniqueKey("read_multi_1b");
+            var key2 = GetUniqueKey("read_multi_2b");
 
             using (var conn = Create())
             {
@@ -1357,8 +1356,8 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamReadMultipleStreamsWithEmptyResponse()
         {
-            var key1 = GetUniqueKey("read_multi_1");
-            var key2 = GetUniqueKey("read_multi_2");
+            var key1 = GetUniqueKey("read_multi_1c");
+            var key2 = GetUniqueKey("read_multi_2c");
 
             using (var conn = Create())
             {
@@ -1520,7 +1519,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamReadWithAfterIdAndCount_1()
         {
-            var key = GetUniqueKey("read");
+            var key = GetUniqueKey("read1");
 
             using (var conn = Create())
             {
@@ -1543,7 +1542,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamReadWithAfterIdAndCount_2()
         {
-            var key = GetUniqueKey("read");
+            var key = GetUniqueKey("read2");
 
             using (var conn = Create())
             {
@@ -1614,7 +1613,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task AddWithApproxCountAsync()
         {
-            var key = GetUniqueKey("approx");
+            var key = GetUniqueKey("approx-async");
 
             using (var conn = Create())
             {
