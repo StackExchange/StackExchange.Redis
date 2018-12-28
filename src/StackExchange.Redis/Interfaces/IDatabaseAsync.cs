@@ -1363,6 +1363,29 @@ namespace StackExchange.Redis
         Task<double?> SortedSetScoreAsync(RedisKey key, RedisValue member, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Removes and returns the first element from the sorted set stored at key, by default with the scores ordered from low to high.
+        /// </summary>
+        /// <param name="key">The key of the sorted set.</param>
+        /// <param name="order">The order to sort by (defaults to ascending).</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The removed element, or nil when key does not exist.</returns>
+        /// <remarks>https://redis.io/commands/zpopmin</remarks>
+        /// <remarks>https://redis.io/commands/zpopmax</remarks>
+        Task<SortedSetEntry?> SortedSetPopAsync(RedisKey key, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Removes and returns the specified number of first elements from the sorted set stored at key, by default with the scores ordered from low to high.
+        /// </summary>
+        /// <param name="key">The key of the sorted set.</param>
+        /// <param name="count">The number of elements to return.</param>
+        /// <param name="order">The order to sort by (defaults to ascending).</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>An array of elements, or an empty array when key does not exist.</returns>
+        /// <remarks>https://redis.io/commands/zpopmin</remarks>
+        /// <remarks>https://redis.io/commands/zpopmax</remarks>
+        Task<SortedSetEntry[]> SortedSetPopAsync(RedisKey key, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Allow the consumer to mark a pending message as correctly processed. Returns the number of messages acknowledged.
         /// </summary>
         /// <param name="key">The key of the stream.</param>

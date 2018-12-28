@@ -88,6 +88,8 @@ namespace StackExchange.Redis
         public static readonly ResultProcessor<RedisResult>
             ScriptResult = new ScriptResultProcessor();
 
+        public static readonly SortedSetEntryProcessor
+            SortedSetEntry = new SortedSetEntryProcessor();
         public static readonly SortedSetEntryArrayProcessor
             SortedSetWithScores = new SortedSetEntryArrayProcessor();
 
@@ -492,6 +494,40 @@ namespace StackExchange.Redis
                         }
                         SetResult(message, hash);
                         return true;
+                }
+                return false;
+            }
+        }
+
+        internal sealed class SortedSetEntryProcessor : ResultProcessor<SortedSetEntry?>
+        {
+            public bool TryParse(in RawResult result, out SortedSetEntry? entry)
+            {
+                switch (result.Type)
+                {
+                    case ResultType.MultiBulk:
+                        var arr = result.GetItems();
+                        if (result.IsNull || arr.Length < 2)
+                        {
+                            entry = null;
+                        }
+                        else
+                        {
+                            entry = new SortedSetEntry(arr[0].AsRedisValue(), arr[1].TryGetDouble(out double val) ? val : double.NaN);
+                        }
+                        return true;
+                    default:
+                        entry = null;
+                        return false;
+                }
+            }
+
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                if (TryParse(result, out SortedSetEntry? entry))
+                {
+                    SetResult(message, entry);
+                    return true;
                 }
                 return false;
             }

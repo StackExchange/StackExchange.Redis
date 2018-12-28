@@ -187,6 +187,8 @@
         ZINCRBY,
         ZINTERSTORE,
         ZLEXCOUNT,
+        ZPOPMAX,
+        ZPOPMIN,
         ZRANGE,
         ZRANGEBYLEX,
         ZRANGEBYSCORE,

@@ -611,6 +611,16 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.SortedSetScore(ToInner(key), member, flags);
         }
 
+        public SortedSetEntry? SortedSetPop(RedisKey key, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.SortedSetPop(ToInner(key), order, flags);
+        }
+
+        public SortedSetEntry[] SortedSetPop(RedisKey key, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.SortedSetPop(ToInner(key), count, order, flags);
+        }
+
         public long StreamAcknowledge(RedisKey key, RedisValue groupName, RedisValue messageId, CommandFlags flags = CommandFlags.None)
         {
             return Inner.StreamAcknowledge(ToInner(key), groupName, messageId, flags);
