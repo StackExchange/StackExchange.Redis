@@ -126,6 +126,11 @@ namespace StackExchange.Redis
         public bool SetVaradicAddRemove => Version >= v2_4_0;
 
         /// <summary>
+        /// Is ZPOPMAX and ZPOPMIN available?
+        /// </summary>
+        public bool SortedSetPop => Version >= v4_9_1;
+
+        /// <summary>
         /// Are Redis Streams available?
         /// </summary>
         public bool Streams => Version >= v4_9_1;
