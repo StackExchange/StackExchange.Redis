@@ -63,13 +63,13 @@ namespace StackExchange.Redis.Tests
 
                 var entries = db.StreamRange(key);
 
-                Assert.True(entries.Length == 1);
+                Assert.Single(entries);
                 Assert.Equal(messageId, entries[0].Id);
-                Assert.True(entries[0].Values.Length == 2);
-                Assert.True(entries[0].Values[0].Name == "field1");
-                Assert.True(entries[0].Values[0].Value == "value1");
-                Assert.True(entries[0].Values[1].Name == "field2");
-                Assert.True(entries[0].Values[1].Value == "value2");
+                Assert.Equal(2, entries[0].Values.Length);
+                Assert.Equal("field1", entries[0].Values[0].Name);
+                Assert.Equal("value1", entries[0].Values[0].Value);
+                Assert.Equal("field2", entries[0].Values[1].Name);
+                Assert.Equal("value2", entries[0].Values[1].Value);
             }
         }
 
@@ -113,7 +113,7 @@ namespace StackExchange.Redis.Tests
 
                 Assert.Equal(id, messageId);
                 Assert.NotNull(entries);
-                Assert.True(entries.Length == 1);
+                Assert.Single(entries);
                 Assert.Equal(id, entries[0].Id);
             }
         }
@@ -148,8 +148,8 @@ namespace StackExchange.Redis.Tests
 
                 Assert.NotNull(firstRead);
                 Assert.NotNull(secondRead);
-                Assert.True(firstRead.Length == 0);
-                Assert.True(secondRead.Length == 2);
+                Assert.Empty(firstRead);
+                Assert.Equal(2, secondRead.Length);
             }
         }
 
@@ -174,7 +174,7 @@ namespace StackExchange.Redis.Tests
                 // Query redis for the group consumers, expect an empty list in response.
                 var consumers = db.StreamConsumerInfo(key, groupName);
 
-                Assert.True(consumers.Length == 0);
+                Assert.Empty(consumers);
             }
         }
 
@@ -222,7 +222,7 @@ namespace StackExchange.Redis.Tests
                 // Read, expect no messages
                 var entries = db.StreamReadGroup(key, groupName, "test_consumer", "0-0");
 
-                Assert.True(entries.Length == 0);
+                Assert.Empty(entries);
             }
         }
 
@@ -245,7 +245,7 @@ namespace StackExchange.Redis.Tests
 
                 var entries = db.StreamReadGroup(key, groupName, "test_consumer", "0-0");
 
-                Assert.True(entries.Length == 2);
+                Assert.Equal(2, entries.Length);
                 Assert.True(id1 == entries[0].Id);
                 Assert.True(id2 == entries[1].Id);
             }
@@ -274,7 +274,7 @@ namespace StackExchange.Redis.Tests
                 var entries = db.StreamReadGroup(key, groupName, "test_consumer", StreamPosition.NewMessages, 2);
 
                 // Ensure we only received the requested count and that the IDs match the expected values.
-                Assert.True(entries.Length == 2);
+                Assert.Single(entries);
                 Assert.True(id2 == entries[0].Id);
                 Assert.True(id3 == entries[1].Id);
             }
@@ -314,10 +314,10 @@ namespace StackExchange.Redis.Tests
                 // Read the group again, it should only return the unacknowledged message.
                 var notAcknowledged = db.StreamReadGroup(key, groupName, consumer, "0-0");
 
-                Assert.True(entries.Length == 4);
+                Assert.Equal(4, entries.Length);
                 Assert.Equal(1, oneAck);
                 Assert.Equal(2, twoAck);
-                Assert.True(notAcknowledged.Length == 1);
+                Assert.Single(notAcknowledged);
                 Assert.Equal(id2, notAcknowledged[0].Id);
             }
         }
@@ -367,9 +367,9 @@ namespace StackExchange.Redis.Tests
                 var pendingSummary = db.StreamPending(key, groupName);
 
                 Assert.NotNull(pendingSummary.Consumers);
-                Assert.True(pendingSummary.Consumers.Length == 1);
+                Assert.Single(pendingSummary.Consumers);
                 Assert.Equal(4, pendingSummary.Consumers[0].PendingMessageCount);
-                Assert.True(pendingMessages.Length == messages.Length);
+                Assert.Equal(pendingMessages.Length, messages.Length);
             }
         }
 
@@ -464,9 +464,9 @@ namespace StackExchange.Redis.Tests
                 var streams = db.StreamReadGroup(pairs, groupName, "test_consumer");
 
                 Assert.NotNull(streams);
-                Assert.True(streams.Length == 2);
-                Assert.True(streams[0].Entries.Length == 0);
-                Assert.True(streams[1].Entries.Length == 3);
+                Assert.Equal(2, streams.Length);
+                Assert.Empty(streams[0].Entries);
+                Assert.Equal(3, streams[1].Entries.Length);
             }
         }
 
@@ -499,9 +499,9 @@ namespace StackExchange.Redis.Tests
                 var streams = db.StreamReadGroup(pairs, groupName, "test_consumer");
 
                 Assert.NotNull(streams);
-                Assert.True(streams.Length == 2);
-                Assert.True(streams[0].Entries.Length == 0);
-                Assert.True(streams[1].Entries.Length == 0);
+                Assert.Equal(2, streams.Length);
+                Assert.Empty(streams[0].Entries);
+                Assert.Empty(streams[1].Entries);
             }
         }
 
@@ -540,9 +540,9 @@ namespace StackExchange.Redis.Tests
                 var streams = db.StreamReadGroup(pairs, groupName, "test_consumer");
 
                 Assert.NotNull(streams);
-                Assert.True(streams.Length == 2);
-                Assert.True(streams[0].Entries.Length == 1);
-                Assert.True(streams[1].Entries.Length == 1);
+                Assert.Equal(2, streams.Length);
+                Assert.Single(streams[0].Entries);
+                Assert.Single(streams[1].Entries);
                 Assert.Equal(id1, streams[0].Entries[0].Id);
                 Assert.Equal(id2, streams[1].Entries[0].Id);
             }
@@ -583,9 +583,9 @@ namespace StackExchange.Redis.Tests
                 var streams = db.StreamReadGroup(pairs, groupName, "test_consumer", 2);
 
                 Assert.NotNull(streams);
-                Assert.True(streams.Length == 2);
-                Assert.True(streams[0].Entries.Length == 1);
-                Assert.True(streams[1].Entries.Length == 2);
+                Assert.Equal(2, streams.Length);
+                Assert.Single(streams[0].Entries);
+                Assert.Equal(2, streams[1].Entries.Length);
                 Assert.Equal(id1_2, streams[0].Entries[0].Id);
             }
         }
@@ -609,10 +609,10 @@ namespace StackExchange.Redis.Tests
                 var pendingInfo = db.StreamPending(key, groupName);
 
                 Assert.Equal(0, pendingInfo.PendingMessageCount);
-                Assert.True(pendingInfo.LowestPendingMessageId == RedisValue.Null);
-                Assert.True(pendingInfo.HighestPendingMessageId == RedisValue.Null);
+                Assert.Equal(RedisValue.Null, pendingInfo.LowestPendingMessageId);
+                Assert.Equal(RedisValue.Null, pendingInfo.HighestPendingMessageId);
                 Assert.NotNull(pendingInfo.Consumers);
-                Assert.True(pendingInfo.Consumers.Length == 0);
+                Assert.Empty(pendingInfo.Consumers);
             }
         }
 
@@ -638,7 +638,7 @@ namespace StackExchange.Redis.Tests
                     consumerName: RedisValue.Null);
 
                 Assert.NotNull(pendingMessages);
-                Assert.True(pendingMessages.Length == 0);
+                Assert.Empty(pendingMessages);
             }
         }
 
@@ -793,8 +793,8 @@ namespace StackExchange.Redis.Tests
                 var postDeleteConsumers = db.StreamConsumerInfo(key, groupName);
 
                 Assert.Equal(2, deleteResult);
-                Assert.True(preDeleteConsumers.Length == 1);
-                Assert.True(postDeleteConsumers.Length == 0);
+                Assert.Single(preDeleteConsumers);
+                Assert.Empty(postDeleteConsumers);
             }
         }
 
@@ -826,8 +826,8 @@ namespace StackExchange.Redis.Tests
                 var postDeleteInfo = db.StreamInfo(key);
 
                 Assert.True(deleteResult);
-                Assert.True(preDeleteInfo.ConsumerGroupCount == 1);
-                Assert.True(postDeleteInfo.ConsumerGroupCount == 0);
+                Assert.Equal(1, preDeleteInfo.ConsumerGroupCount);
+                Assert.Equal(0, postDeleteInfo.ConsumerGroupCount);
             }
         }
 
@@ -1027,7 +1027,7 @@ namespace StackExchange.Redis.Tests
                 var groups = db.StreamGroupInfo(key);
 
                 Assert.NotNull(groups);
-                Assert.True(groups.Length == 0);
+                Assert.Empty(groups);
             }
         }
 
@@ -1054,7 +1054,7 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(RedisValue.Null, pendingInfo.LowestPendingMessageId);
                 Assert.Equal(RedisValue.Null, pendingInfo.HighestPendingMessageId);
                 Assert.NotNull(pendingInfo.Consumers);
-                Assert.True(pendingInfo.Consumers.Length == 0);
+                Assert.Empty(pendingInfo.Consumers);
             }
         }
 
@@ -1113,7 +1113,7 @@ namespace StackExchange.Redis.Tests
                 // Read the entire stream from the beginning.
                 var entries = db.StreamRead(key, "0-0");
 
-                Assert.True(entries.Length == 3);
+                Assert.Equal(3, entries.Length);
                 Assert.Equal(id1, entries[0].Id);
                 Assert.Equal(id2, entries[1].Id);
                 Assert.Equal(id3, entries[2].Id);
@@ -1141,7 +1141,7 @@ namespace StackExchange.Redis.Tests
                 // Read the entire stream from the beginning.
                 var entries = db.StreamRead(key, "0-0");
 
-                Assert.True(entries.Length == 0);
+                Assert.Empty(entries);
                 Assert.Equal(0, len);
             }
         }
@@ -1173,8 +1173,8 @@ namespace StackExchange.Redis.Tests
                 var entries1 = db.StreamRead(key1, "0-0");
                 var entries2 = db.StreamRead(key2, "0-0");
 
-                Assert.True(entries1.Length == 0);
-                Assert.True(entries2.Length == 0);
+                Assert.Empty(entries1);
+                Assert.Empty(entries2);
 
                 Assert.Equal(0, len1);
                 Assert.Equal(0, len2);
@@ -1269,12 +1269,12 @@ namespace StackExchange.Redis.Tests
                 Assert.True(streams.Length == 2);
 
                 Assert.Equal(key1, streams[0].Key);
-                Assert.True(streams[0].Entries.Length == 2);
+                Assert.Equal(2, streams[0].Entries.Length);
                 Assert.Equal(id1, streams[0].Entries[0].Id);
                 Assert.Equal(id2, streams[0].Entries[1].Id);
 
                 Assert.Equal(key2, streams[1].Key);
-                Assert.True(streams[1].Entries.Length == 2);
+                Assert.Equal(2, streams[1].Entries.Length);
                 Assert.Equal(id3, streams[1].Entries[0].Id);
                 Assert.Equal(id4, streams[1].Entries[1].Id);
             }
@@ -1306,11 +1306,11 @@ namespace StackExchange.Redis.Tests
                 var streams = db.StreamRead(streamList, countPerStream: 1);
 
                 // We should get both streams back.
-                Assert.True(streams.Length == 2);
+                Assert.Equal(2, streams.Length);
 
                 // Ensure we only got one message per stream.
-                Assert.True(streams[0].Entries.Length == 1);
-                Assert.True(streams[1].Entries.Length == 1);
+                Assert.Single(streams[0].Entries);
+                Assert.Single(streams[1].Entries);
 
                 // Check the message IDs as well.
                 Assert.Equal(id1, streams[0].Entries[0].Id);
@@ -1346,10 +1346,10 @@ namespace StackExchange.Redis.Tests
                 var streams = db.StreamRead(streamList);
 
                 // We should only get the first stream back.
-                Assert.True(streams.Length == 1);
+                Assert.Single(streams);
 
                 Assert.Equal(key1, streams[0].Key);
-                Assert.True(streams[0].Entries.Length == 2);
+                Assert.Equal(2, streams[0].Entries.Length);
             }
         }
 
@@ -1380,7 +1380,7 @@ namespace StackExchange.Redis.Tests
                 var streams = db.StreamRead(streamList);
 
                 // We expect an empty response.
-                Assert.True(streams.Length == 0);
+                Assert.Empty(streams);
             }
         }
 
@@ -1402,7 +1402,7 @@ namespace StackExchange.Redis.Tests
 
                 var entries = db.StreamRead(key, id2);
 
-                Assert.True(entries.Length == 0);
+                Assert.Empty(entries);
             }
         }
 
@@ -1448,7 +1448,7 @@ namespace StackExchange.Redis.Tests
 
                 Assert.Equal(2, deleted);
                 Assert.NotNull(entries);
-                Assert.True(entries.Length == 0);
+                Assert.Empty(entries);
             }
         }
 
@@ -1468,7 +1468,7 @@ namespace StackExchange.Redis.Tests
 
                 var entries = db.StreamRange(key, count: 1);
 
-                Assert.True(entries.Length == 1);
+                Assert.Single(entries);
                 Assert.Equal(id1, entries[0].Id);
             }
         }
@@ -1489,7 +1489,7 @@ namespace StackExchange.Redis.Tests
 
                 var entries = db.StreamRange(key, messageOrder: Order.Descending);
 
-                Assert.True(entries.Length == 2);
+                Assert.Equal(2, entries.Length);
                 Assert.Equal(id2, entries[0].Id);
                 Assert.Equal(id1, entries[1].Id);
             }
@@ -1511,7 +1511,7 @@ namespace StackExchange.Redis.Tests
 
                 var entries = db.StreamRange(key, id1, id2, 1, Order.Descending);
 
-                Assert.True(entries.Length == 1);
+                Assert.Single(entries);
                 Assert.Equal(id2, entries[0].Id);
             }
         }
@@ -1534,7 +1534,7 @@ namespace StackExchange.Redis.Tests
                 // Only read a single item from the stream.
                 var entries = db.StreamRead(key, id1, 1);
 
-                Assert.True(entries.Length == 1);
+                Assert.Single(entries);
                 Assert.Equal(id2, entries[0].Id);
             }
         }
@@ -1558,7 +1558,7 @@ namespace StackExchange.Redis.Tests
                 // Read multiple items from the stream.
                 var entries = db.StreamRead(key, id1, 2);
 
-                Assert.True(entries.Length == 2);
+                Assert.Equal(2, entries.Length);
                 Assert.Equal(id2, entries[0].Id);
                 Assert.Equal(id3, entries[1].Id);
             }
