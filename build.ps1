@@ -12,12 +12,14 @@ Write-Host "  RunTests: $RunTests"
 Write-Host "  dotnet --version:" (dotnet --version)
 
 $packageOutputFolder = "$PSScriptRoot\.nupkgs"
-$projectsToBuild =
+$projectsToBuild = @(
     'StackExchange.Redis',
     'NRediSearch'
+)
 
-$testsToRun =
+$testsToRun = @(
     'StackExchange.Redis.Tests'
+)
 
 if ($PullRequestNumber) {
     Write-Host "Building for a pull request (#$PullRequestNumber), skipping packaging." -ForegroundColor Yellow
@@ -25,7 +27,7 @@ if ($PullRequestNumber) {
 }
 
 Write-Host "Building projects..." -ForegroundColor "Magenta"
-foreach ($project in $projectsToBuild + $testsToRun) {
+foreach ($project in $projectsToBuild) {
     Write-Host "Building $project (dotnet restore/build)..." -ForegroundColor "Magenta"
     dotnet restore ".\src\$project\$project.csproj" /p:CI=true
     dotnet build ".\src\$project\$project.csproj" -c Release /p:CI=true

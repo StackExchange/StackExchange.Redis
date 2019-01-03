@@ -68,7 +68,7 @@ namespace StackExchange.Redis
         /// <param name="distance">Tthe distance from the result.</param>
         /// <param name="hash">The hash of the result.</param>
         /// <param name="position">The geo position of the result.</param>
-        internal GeoRadiusResult(RedisValue member, double? distance, long? hash, GeoPosition? position)
+        internal GeoRadiusResult(in RedisValue member, double? distance, long? hash, GeoPosition? position)
         {
             Member = member;
             Distance = distance;
@@ -140,21 +140,27 @@ namespace StackExchange.Redis
         /// Compares two values for equality
         /// </summary>
         /// <param name="other">The <see cref="GeoPosition"/> to compare to.</param>
+#pragma warning disable RCS1231 // Make parameter ref read-only. - public API
         public bool Equals(GeoPosition other) => this == other;
+#pragma warning restore RCS1231 // Make parameter ref read-only.
 
         /// <summary>
         /// Compares two values for equality
         /// </summary>
         /// <param name="x">The first position to compare.</param>
         /// <param name="y">The second position to compare.</param>
+#pragma warning disable RCS1231 // Make parameter ref read-only. - public API
         public static bool operator ==(GeoPosition x, GeoPosition y) => x.Longitude == y.Longitude && x.Latitude == y.Latitude;
+#pragma warning restore RCS1231 // Make parameter ref read-only.
 
         /// <summary>
         /// Compares two values for non-equality
         /// </summary>
         /// <param name="x">The first position to compare.</param>
         /// <param name="y">The second position to compare.</param>
+#pragma warning disable RCS1231 // Make parameter ref read-only. - public API
         public static bool operator !=(GeoPosition x, GeoPosition y) => x.Longitude != y.Longitude || x.Latitude != y.Latitude;
+#pragma warning restore RCS1231 // Make parameter ref read-only.
     }
 
     /// <summary>
@@ -179,7 +185,9 @@ namespace StackExchange.Redis
         /// <param name="longitude">The longitude position to use.</param>
         /// <param name="latitude">The latitude position to use.</param>
         /// <param name="member">The value to store for this position.</param>
+#pragma warning disable RCS1231 // Make parameter ref read-only. - public API
         public GeoEntry(double longitude, double latitude, RedisValue member)
+#pragma warning restore RCS1231 // Make parameter ref read-only.
         {
             Member = member;
             Position = new GeoPosition(longitude, latitude);
@@ -222,13 +230,17 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="x">The first entry to compare.</param>
         /// <param name="y">The second entry to compare.</param>
+#pragma warning disable RCS1231 // Make parameter ref read-only. - public API
         public static bool operator ==(GeoEntry x, GeoEntry y) => x.Position == y.Position && x.Member == y.Member;
+#pragma warning restore RCS1231 // Make parameter ref read-only.
 
         /// <summary>
         /// Compares two values for non-equality
         /// </summary>
         /// <param name="x">The first entry to compare.</param>
         /// <param name="y">The second entry to compare.</param>
+#pragma warning disable RCS1231 // Make parameter ref read-only. - public API
         public static bool operator !=(GeoEntry x, GeoEntry y) => x.Position != y.Position || x.Member != y.Member;
+#pragma warning restore RCS1231 // Make parameter ref read-only.
     }
 }

@@ -28,7 +28,7 @@ namespace StackExchange.Redis.Server
             => string.Equals(value, _inner[index].GetString(), StringComparison.OrdinalIgnoreCase);
 
         public override int GetHashCode() => throw new NotSupportedException();
-        internal RedisRequest(RawResult result)
+        internal RedisRequest(in RawResult result)
         {
             _inner = result;
             Count = result.ItemsCount;

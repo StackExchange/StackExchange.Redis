@@ -186,7 +186,6 @@ namespace BasicTest
             }
         }
 
-
         /// <summary>
         /// Run StringGet lots of times
         /// </summary>

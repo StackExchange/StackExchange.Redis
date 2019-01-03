@@ -45,7 +45,7 @@ namespace StackExchange.Redis
         // internally, this is very similar to RawResult, except it is designed to be usable
         // outside of the IO-processing pipeline: the buffers are standalone, etc
 
-        internal static RedisResult TryCreate(PhysicalConnection connection, RawResult result)
+        internal static RedisResult TryCreate(PhysicalConnection connection, in RawResult result)
         {
             try
             {

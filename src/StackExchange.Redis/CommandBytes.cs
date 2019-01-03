@@ -46,7 +46,9 @@ namespace StackExchange.Redis
         }
         public override bool Equals(object obj) => obj is CommandBytes cb && Equals(cb);
 
-        public bool Equals(CommandBytes other) => _0 == other._0 && _1 == other._1 && _2 == other._2;
+        bool IEquatable<CommandBytes>.Equals(CommandBytes other) => _0 == other._0 && _1 == other._1 && _2 == other._2;
+
+        public bool Equals(in CommandBytes other) => _0 == other._0 && _1 == other._1 && _2 == other._2;
 
         // note: don't add == operators; with the implicit op above, that invalidates "==null" compiler checks (which should report a failure!)
 
@@ -74,7 +76,9 @@ namespace StackExchange.Redis
 
         public bool IsEmpty => _0 == 0L; // cheap way of checking zero length
 
+#pragma warning disable RCS1231 // Make parameter ref read-only. - spans are tiny!
         public unsafe void CopyTo(Span<byte> target)
+#pragma warning restore RCS1231 // Make parameter ref read-only.
         {
             fixed (ulong* uPtr = &_0)
             {
@@ -114,7 +118,9 @@ namespace StackExchange.Redis
             }
         }
 
+#pragma warning disable RCS1231 // Make parameter ref read-only. - spans are tiny!
         public unsafe CommandBytes(ReadOnlySpan<byte> value)
+#pragma warning restore RCS1231 // Make parameter ref read-only.
         {
             if (value.Length > MaxLength) throw new ArgumentOutOfRangeException("Maximum command length exceeed: " + value.Length + " bytes");
             _0 = _1 = _2 = 0L;
@@ -125,7 +131,8 @@ namespace StackExchange.Redis
                 *bPtr = (byte)UpperCasify(value.Length, bPtr + 1);
             }
         }
-        public unsafe CommandBytes(ReadOnlySequence<byte> value)
+
+        public unsafe CommandBytes(in ReadOnlySequence<byte> value)
         {
             if (value.Length > MaxLength) throw new ArgumentOutOfRangeException("Maximum command length exceeed");
             int len = unchecked((int)value.Length);

@@ -53,6 +53,19 @@ namespace StackExchange.Redis
         private int lastWriteTickCount, lastReadTickCount, lastBeatTickCount;
         private int firstUnansweredWriteTickCount;
 
+        internal void GetBytes(out long sent, out long received)
+        {
+            if(_ioPipe is IMeasuredDuplexPipe sc)
+            {
+                sent = sc.TotalBytesSent;
+                received = sc.TotalBytesReceived;
+            }
+            else
+            {
+                sent = received = -1;
+            }
+        }
+
         private IDuplexPipe _ioPipe;
 
         private Socket _socket;
@@ -315,7 +328,8 @@ namespace StackExchange.Redis
 
                     var exMessage = new StringBuilder(failureType.ToString());
 
-                    if ((connectingPipe ?? _ioPipe) is SocketConnection sc)
+                    var pipe = connectingPipe ?? _ioPipe;
+                    if (pipe is SocketConnection sc)
                     {
                         exMessage.Append(" (").Append(sc.ShutdownKind);
                         if (sc.SocketError != SocketError.Success)
@@ -325,6 +339,13 @@ namespace StackExchange.Redis
                         if (sc.BytesRead == 0) exMessage.Append(", 0-read");
                         if (sc.BytesSent == 0) exMessage.Append(", 0-sent");
                         exMessage.Append(", last-recv: ").Append(sc.LastReceived).Append(")");
+                    }
+                    else if (pipe is IMeasuredDuplexPipe mdp)
+                    {
+                        long sent = mdp.TotalBytesSent, recd = mdp.TotalBytesReceived;
+
+                        if (sent == 0) { exMessage.Append(recd == 0 ? " (0-read, 0-sent)" : " (0-sent)"); }
+                        else if (recd == 0) { exMessage.Append(" (0-read)"); }
                     }
 
                     var data = new List<Tuple<string, string>>();
@@ -418,7 +439,10 @@ namespace StackExchange.Redis
         internal void SetWriting() => _writeStatus = WriteStatus.Writing;
 
         private volatile WriteStatus _writeStatus;
-        private enum WriteStatus
+
+        internal WriteStatus Status => _writeStatus;
+
+        internal enum WriteStatus
         {
             Initializing,
             Idle,
@@ -577,7 +601,10 @@ namespace StackExchange.Redis
                     {
                         if (msg.HasAsyncTimedOut(now, timeout, out var elapsed))
                         {
-                            var timeoutEx = ExceptionFactory.Timeout(bridge.Multiplexer, $"Timeout awaiting response ({elapsed}ms elapsed, timeout is {timeout}ms)", msg, server);
+                            bool haveDeltas = msg.TryGetPhysicalState(out _, out long sentDelta, out var receivedDelta) && sentDelta >= 0 && receivedDelta >= 0;
+                            var timeoutEx = ExceptionFactory.Timeout(bridge.Multiplexer, haveDeltas
+                                ? $"Timeout awaiting response (outbound={sentDelta >> 10}KiB, inbound={receivedDelta >> 10}KiB, {elapsed}ms elapsed, timeout is {timeout}ms)"
+                                : $"Timeout awaiting response ({elapsed}ms elapsed, timeout is {timeout}ms)", msg, server);
                             bridge.Multiplexer?.OnMessageFaulted(msg, timeoutEx);
                             msg.SetExceptionAndComplete(timeoutEx, bridge); // tell the message that it is doomed
                             bridge.Multiplexer.OnAsyncTimeout();
@@ -604,7 +631,7 @@ namespace StackExchange.Redis
             currentDatabase = -1;
         }
 
-        internal void Write(RedisKey key)
+        internal void Write(in RedisKey key)
         {
             var val = key.KeyValue;
             if (val is string s)
@@ -617,13 +644,13 @@ namespace StackExchange.Redis
             }
         }
 
-        internal void Write(RedisChannel channel)
+        internal void Write(in RedisChannel channel)
             => WriteUnifiedPrefixedBlob(_ioPipe.Output, ChannelPrefix, channel.Value);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal void WriteBulkString(RedisValue value)
+        internal void WriteBulkString(in RedisValue value)
             => WriteBulkString(value, _ioPipe.Output);
-        internal static void WriteBulkString(RedisValue value, PipeWriter output)
+        internal static void WriteBulkString(in RedisValue value, PipeWriter output)
         {
             switch (value.Type)
             {
@@ -862,7 +889,7 @@ namespace StackExchange.Redis
             {
                 var span = writer.GetSpan(5 + MaxInt32TextLen + value.Length);
                 span[0] = (byte)'$';
-                int bytes = AppendToSpanSpan(span, value, 1);
+                int bytes = AppendToSpan(span, value, 1);
                 writer.Advance(bytes);
             }
             else
@@ -879,7 +906,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private static int AppendToSpanCommand(Span<byte> span, CommandBytes value, int offset = 0)
+        private static int AppendToSpanCommand(Span<byte> span, in CommandBytes value, int offset = 0)
         {
             span[offset++] = (byte)'$';
             int len = value.Length;
@@ -889,7 +916,9 @@ namespace StackExchange.Redis
             return WriteCrlf(span, offset);
         }
 
-        private static int AppendToSpanSpan(Span<byte> span, ReadOnlySpan<byte> value, int offset = 0)
+#pragma warning disable RCS1231 // Make parameter ref read-only. - spans are tiny
+        private static int AppendToSpan(Span<byte> span, ReadOnlySpan<byte> value, int offset = 0)
+#pragma warning restore RCS1231 // Make parameter ref read-only.
         {
             offset = WriteRaw(span, value.Length, offset: offset);
             value.CopyTo(span.Slice(offset, value.Length));
@@ -1203,7 +1232,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private void MatchResult(RawResult result)
+        private void MatchResult(in RawResult result)
         {
             // check to see if it could be an out-of-band pubsub message
             if (connectionType == ConnectionType.Subscription && result.Type == ResultType.MultiBulk)
@@ -1520,7 +1549,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private static RawResult ParseInlineProtocol(RawResult line)
+        private static RawResult ParseInlineProtocol(in RawResult line)
         {
             if (!line.HasValue) return RawResult.Nil; // incomplete line
 
