@@ -319,6 +319,11 @@ namespace StackExchange.Redis
                 return new ConditionMessage(condition, db, flags, command, key, value);
             }
 
+            public static Message CreateMessage(Condition condition, int db, CommandFlags flags, RedisCommand command, RedisKey key, RedisValue value, RedisValue value1)
+            {
+                return new ConditionMessage(condition, db, flags, command, key, value, value1);
+            }
+
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
                 connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"condition '{message.CommandAndKey}' got '{result.ToString()}'");
@@ -764,7 +769,7 @@ namespace StackExchange.Redis
 
             internal override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy) => serverSelectionStrategy.HashSlot(key);
 
-            internal override bool TryValidate(RawResult result, out bool value)
+            internal override bool TryValidate(in RawResult result, out bool value)
             {
                 switch (result.Type)
                 {
