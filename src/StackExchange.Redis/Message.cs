@@ -217,62 +217,62 @@ namespace StackExchange.Redis
             return new CommandMessage(db, flags, command);
         }
 
-        public static Message Create(int db, CommandFlags flags, RedisCommand command, RedisKey key)
+        public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key)
         {
             return new CommandKeyMessage(db, flags, command, key);
         }
 
-        public static Message Create(int db, CommandFlags flags, RedisCommand command, RedisKey key0, RedisKey key1)
+        public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key0, in RedisKey key1)
         {
             return new CommandKeyKeyMessage(db, flags, command, key0, key1);
         }
 
-        public static Message Create(int db, CommandFlags flags, RedisCommand command, RedisKey key0, RedisKey key1, RedisValue value)
+        public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key0, in RedisKey key1, in RedisValue value)
         {
             return new CommandKeyKeyValueMessage(db, flags, command, key0, key1, value);
         }
 
-        public static Message Create(int db, CommandFlags flags, RedisCommand command, RedisKey key0, RedisKey key1, RedisKey key2)
+        public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key0, in RedisKey key1, in RedisKey key2)
         {
             return new CommandKeyKeyKeyMessage(db, flags, command, key0, key1, key2);
         }
 
-        public static Message Create(int db, CommandFlags flags, RedisCommand command, RedisValue value)
+        public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisValue value)
         {
             return new CommandValueMessage(db, flags, command, value);
         }
 
-        public static Message Create(int db, CommandFlags flags, RedisCommand command, RedisKey key, RedisValue value)
+        public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value)
         {
             return new CommandKeyValueMessage(db, flags, command, key, value);
         }
 
-        public static Message Create(int db, CommandFlags flags, RedisCommand command, RedisChannel channel)
+        public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisChannel channel)
         {
             return new CommandChannelMessage(db, flags, command, channel);
         }
 
-        public static Message Create(int db, CommandFlags flags, RedisCommand command, RedisChannel channel, RedisValue value)
+        public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisChannel channel, in RedisValue value)
         {
             return new CommandChannelValueMessage(db, flags, command, channel, value);
         }
 
-        public static Message Create(int db, CommandFlags flags, RedisCommand command, RedisValue value, RedisChannel channel)
+        public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisValue value, in RedisChannel channel)
         {
             return new CommandValueChannelMessage(db, flags, command, value, channel);
         }
 
-        public static Message Create(int db, CommandFlags flags, RedisCommand command, RedisKey key, RedisValue value0, RedisValue value1)
+        public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value0, in RedisValue value1)
         {
             return new CommandKeyValueValueMessage(db, flags, command, key, value0, value1);
         }
 
-        public static Message Create(int db, CommandFlags flags, RedisCommand command, RedisKey key, RedisValue value0, RedisValue value1, RedisValue value2)
+        public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value0, in RedisValue value1, in RedisValue value2)
         {
             return new CommandKeyValueValueValueMessage(db, flags, command, key, value0, value1, value2);
         }
 
-        public static Message Create(int db, CommandFlags flags, RedisCommand command, RedisKey key, GeoEntry[] values)
+        public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key, GeoEntry[] values)
         {
             if (values == null) throw new ArgumentNullException(nameof(values));
             if (values.Length == 0)
@@ -295,27 +295,27 @@ namespace StackExchange.Redis
             return new CommandKeyValuesMessage(db, flags, command, key, arr);
         }
 
-        public static Message Create(int db, CommandFlags flags, RedisCommand command, RedisKey key, RedisValue value0, RedisValue value1, RedisValue value2, RedisValue value3)
+        public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value0, in RedisValue value1, in RedisValue value2, in RedisValue value3)
         {
             return new CommandKeyValueValueValueValueMessage(db, flags, command, key, value0, value1, value2, value3);
         }
 
-        public static Message Create(int db, CommandFlags flags, RedisCommand command, RedisValue value0, RedisValue value1)
+        public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisValue value0, in RedisValue value1)
         {
             return new CommandValueValueMessage(db, flags, command, value0, value1);
         }
 
-        public static Message Create(int db, CommandFlags flags, RedisCommand command, RedisValue value, RedisKey key)
+        public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisValue value, in RedisKey key)
         {
             return new CommandValueKeyMessage(db, flags, command, value, key);
         }
 
-        public static Message Create(int db, CommandFlags flags, RedisCommand command, RedisValue value0, RedisValue value1, RedisValue value2)
+        public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisValue value0, in RedisValue value1, in RedisValue value2)
         {
             return new CommandValueValueValueMessage(db, flags, command, value0, value1, value2);
         }
 
-        public static Message Create(int db, CommandFlags flags, RedisCommand command, RedisValue value0, RedisValue value1, RedisValue value2, RedisValue value3, RedisValue value4)
+        public static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisValue value0, in RedisValue value1, in RedisValue value2, in RedisValue value3, in RedisValue value4)
         {
             return new CommandValueValueValueValueValueMessage(db, flags, command, value0, value1, value2, value3, value4);
         }
@@ -467,7 +467,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal static Message Create(int db, CommandFlags flags, RedisCommand command, RedisKey key, RedisKey[] keys)
+        internal static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key, RedisKey[] keys)
         {
             switch (keys.Length)
             {
@@ -504,7 +504,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal static Message Create(int db, CommandFlags flags, RedisCommand command, RedisKey key, RedisValue[] values)
+        internal static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key, RedisValue[] values)
         {
             if (values == null) throw new ArgumentNullException(nameof(values));
             switch (values.Length)
@@ -518,7 +518,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal static Message Create(int db, CommandFlags flags, RedisCommand command, RedisKey key0, RedisValue[] values, RedisKey key1)
+        internal static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key0, RedisValue[] values, in RedisKey key1)
         {
             if (values == null) throw new ArgumentNullException(nameof(values));
             return new CommandKeyValuesKeyMessage(db, flags, command, key0, values, key1);
@@ -583,7 +583,7 @@ namespace StackExchange.Redis
         internal void Cancel() => resultBox?.Cancel();
 
         // true if ready to be completed (i.e. false if re-issued to another server)
-        internal bool ComputeResult(PhysicalConnection connection, RawResult result)
+        internal bool ComputeResult(PhysicalConnection connection, in RawResult result)
         {
             var box = resultBox;
             try
@@ -617,13 +617,48 @@ namespace StackExchange.Redis
 
         internal bool TrySetResult<T>(T value) => resultBox is ResultBox<T> typed && typed.TrySetResult(value);
 
-        internal void SetEnqueued() => performance?.SetEnqueued();
+        internal void SetEnqueued(PhysicalConnection connection)
+        {
+            performance?.SetEnqueued();
+            _enqueuedTo = connection;
+            if (connection == null)
+            {
+                _queuedStampSent = _queuedStampReceived = -1;
+            }
+            else
+            {
+                connection.GetBytes(out _queuedStampSent, out _queuedStampReceived);
+            }
+        }
+
+        internal bool TryGetPhysicalState(out PhysicalConnection.WriteStatus status, out long sentDelta, out long receivedDelta)
+        {
+            var connection = _enqueuedTo;
+            sentDelta = receivedDelta = -1;
+            if (connection != null)
+            {
+                status = connection.Status;
+                connection.GetBytes(out var sent, out var received);
+                if (sent >= 0 && _queuedStampSent >= 0) sentDelta = sent - _queuedStampSent;
+                if (received >= 0 && _queuedStampReceived >= 0) receivedDelta = received - _queuedStampReceived;
+                return true;
+            }
+            else
+            {
+                status = default;
+                return false;
+            }
+        }
+
+        private PhysicalConnection _enqueuedTo;
+        private long _queuedStampReceived, _queuedStampSent;
 
         internal void SetRequestSent()
         {
             Status = CommandStatus.Sent;
             performance?.SetRequestSent();
         }
+
         // the time (ticks) at which this message was considered written
         internal void SetWriteTime()
         {
@@ -711,7 +746,7 @@ namespace StackExchange.Redis
         {
             protected readonly RedisChannel Channel;
 
-            protected CommandChannelBase(int db, CommandFlags flags, RedisCommand command, RedisChannel channel) : base(db, flags, command)
+            protected CommandChannelBase(int db, CommandFlags flags, RedisCommand command, in RedisChannel channel) : base(db, flags, command)
             {
                 channel.AssertNotNull();
                 Channel = channel;
@@ -724,7 +759,7 @@ namespace StackExchange.Redis
         {
             protected readonly RedisKey Key;
 
-            protected CommandKeyBase(int db, CommandFlags flags, RedisCommand command, RedisKey key) : base(db, flags, command)
+            protected CommandKeyBase(int db, CommandFlags flags, RedisCommand command, in RedisKey key) : base(db, flags, command)
             {
                 key.AssertNotNull();
                 Key = key;
@@ -740,7 +775,7 @@ namespace StackExchange.Redis
 
         private sealed class CommandChannelMessage : CommandChannelBase
         {
-            public CommandChannelMessage(int db, CommandFlags flags, RedisCommand command, RedisChannel channel) : base(db, flags, command, channel)
+            public CommandChannelMessage(int db, CommandFlags flags, RedisCommand command, in RedisChannel channel) : base(db, flags, command, channel)
             { }
             protected override void WriteImpl(PhysicalConnection physical)
             {
@@ -753,7 +788,7 @@ namespace StackExchange.Redis
         private sealed class CommandChannelValueMessage : CommandChannelBase
         {
             private readonly RedisValue value;
-            public CommandChannelValueMessage(int db, CommandFlags flags, RedisCommand command, RedisChannel channel, RedisValue value) : base(db, flags, command, channel)
+            public CommandChannelValueMessage(int db, CommandFlags flags, RedisCommand command, in RedisChannel channel, in RedisValue value) : base(db, flags, command, channel)
             {
                 value.AssertNotNull();
                 this.value = value;
@@ -771,7 +806,7 @@ namespace StackExchange.Redis
         private sealed class CommandKeyKeyKeyMessage : CommandKeyBase
         {
             private readonly RedisKey key1, key2;
-            public CommandKeyKeyKeyMessage(int db, CommandFlags flags, RedisCommand command, RedisKey key0, RedisKey key1, RedisKey key2) : base(db, flags, command, key0)
+            public CommandKeyKeyKeyMessage(int db, CommandFlags flags, RedisCommand command, in RedisKey key0, in RedisKey key1, in RedisKey key2) : base(db, flags, command, key0)
             {
                 key1.AssertNotNull();
                 key2.AssertNotNull();
@@ -799,7 +834,7 @@ namespace StackExchange.Redis
         private class CommandKeyKeyMessage : CommandKeyBase
         {
             protected readonly RedisKey key1;
-            public CommandKeyKeyMessage(int db, CommandFlags flags, RedisCommand command, RedisKey key0, RedisKey key1) : base(db, flags, command, key0)
+            public CommandKeyKeyMessage(int db, CommandFlags flags, RedisCommand command, in RedisKey key0, in RedisKey key1) : base(db, flags, command, key0)
             {
                 key1.AssertNotNull();
                 this.key1 = key1;
@@ -823,7 +858,7 @@ namespace StackExchange.Redis
         private sealed class CommandKeyKeysMessage : CommandKeyBase
         {
             private readonly RedisKey[] keys;
-            public CommandKeyKeysMessage(int db, CommandFlags flags, RedisCommand command, RedisKey key, RedisKey[] keys) : base(db, flags, command, key)
+            public CommandKeyKeysMessage(int db, CommandFlags flags, RedisCommand command, in RedisKey key, RedisKey[] keys) : base(db, flags, command, key)
             {
                 for (int i = 0; i < keys.Length; i++)
                 {
@@ -857,7 +892,7 @@ namespace StackExchange.Redis
         private sealed class CommandKeyKeyValueMessage : CommandKeyKeyMessage
         {
             private readonly RedisValue value;
-            public CommandKeyKeyValueMessage(int db, CommandFlags flags, RedisCommand command, RedisKey key0, RedisKey key1, RedisValue value) : base(db, flags, command, key0, key1)
+            public CommandKeyKeyValueMessage(int db, CommandFlags flags, RedisCommand command, in RedisKey key0, in RedisKey key1, in RedisValue value) : base(db, flags, command, key0, key1)
             {
                 value.AssertNotNull();
                 this.value = value;
@@ -876,7 +911,7 @@ namespace StackExchange.Redis
 
         private sealed class CommandKeyMessage : CommandKeyBase
         {
-            public CommandKeyMessage(int db, CommandFlags flags, RedisCommand command, RedisKey key) : base(db, flags, command, key)
+            public CommandKeyMessage(int db, CommandFlags flags, RedisCommand command, in RedisKey key) : base(db, flags, command, key)
             { }
             protected override void WriteImpl(PhysicalConnection physical)
             {
@@ -945,7 +980,7 @@ namespace StackExchange.Redis
         private sealed class CommandKeyValueMessage : CommandKeyBase
         {
             private readonly RedisValue value;
-            public CommandKeyValueMessage(int db, CommandFlags flags, RedisCommand command, RedisKey key, RedisValue value) : base(db, flags, command, key)
+            public CommandKeyValueMessage(int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value) : base(db, flags, command, key)
             {
                 value.AssertNotNull();
                 this.value = value;
@@ -964,7 +999,7 @@ namespace StackExchange.Redis
         {
             private readonly RedisKey key1;
             private readonly RedisValue[] values;
-            public CommandKeyValuesKeyMessage(int db, CommandFlags flags, RedisCommand command, RedisKey key0, RedisValue[] values, RedisKey key1) : base(db, flags, command, key0)
+            public CommandKeyValuesKeyMessage(int db, CommandFlags flags, RedisCommand command, in RedisKey key0, RedisValue[] values, in RedisKey key1) : base(db, flags, command, key0)
             {
                 for (int i = 0; i < values.Length; i++)
                 {
@@ -994,7 +1029,7 @@ namespace StackExchange.Redis
         private sealed class CommandKeyValuesMessage : CommandKeyBase
         {
             private readonly RedisValue[] values;
-            public CommandKeyValuesMessage(int db, CommandFlags flags, RedisCommand command, RedisKey key, RedisValue[] values) : base(db, flags, command, key)
+            public CommandKeyValuesMessage(int db, CommandFlags flags, RedisCommand command, in RedisKey key, RedisValue[] values) : base(db, flags, command, key)
             {
                 for (int i = 0; i < values.Length; i++)
                 {
@@ -1015,7 +1050,7 @@ namespace StackExchange.Redis
         private sealed class CommandKeyValueValueMessage : CommandKeyBase
         {
             private readonly RedisValue value0, value1;
-            public CommandKeyValueValueMessage(int db, CommandFlags flags, RedisCommand command, RedisKey key, RedisValue value0, RedisValue value1) : base(db, flags, command, key)
+            public CommandKeyValueValueMessage(int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value0, in RedisValue value1) : base(db, flags, command, key)
             {
                 value0.AssertNotNull();
                 value1.AssertNotNull();
@@ -1036,7 +1071,7 @@ namespace StackExchange.Redis
         private sealed class CommandKeyValueValueValueMessage : CommandKeyBase
         {
             private readonly RedisValue value0, value1, value2;
-            public CommandKeyValueValueValueMessage(int db, CommandFlags flags, RedisCommand command, RedisKey key, RedisValue value0, RedisValue value1, RedisValue value2) : base(db, flags, command, key)
+            public CommandKeyValueValueValueMessage(int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value0, in RedisValue value1, in RedisValue value2) : base(db, flags, command, key)
             {
                 value0.AssertNotNull();
                 value1.AssertNotNull();
@@ -1060,7 +1095,7 @@ namespace StackExchange.Redis
         private sealed class CommandKeyValueValueValueValueMessage : CommandKeyBase
         {
             private readonly RedisValue value0, value1, value2, value3;
-            public CommandKeyValueValueValueValueMessage(int db, CommandFlags flags, RedisCommand command, RedisKey key, RedisValue value0, RedisValue value1, RedisValue value2, RedisValue value3) : base(db, flags, command, key)
+            public CommandKeyValueValueValueValueMessage(int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value0, in RedisValue value1, in RedisValue value2, in RedisValue value3) : base(db, flags, command, key)
             {
                 value0.AssertNotNull();
                 value1.AssertNotNull();
@@ -1129,7 +1164,7 @@ namespace StackExchange.Redis
         private sealed class CommandValueChannelMessage : CommandChannelBase
         {
             private readonly RedisValue value;
-            public CommandValueChannelMessage(int db, CommandFlags flags, RedisCommand command, RedisValue value, RedisChannel channel) : base(db, flags, command, channel)
+            public CommandValueChannelMessage(int db, CommandFlags flags, RedisCommand command, in RedisValue value, in RedisChannel channel) : base(db, flags, command, channel)
             {
                 value.AssertNotNull();
                 this.value = value;
@@ -1148,7 +1183,7 @@ namespace StackExchange.Redis
         {
             private readonly RedisValue value;
 
-            public CommandValueKeyMessage(int db, CommandFlags flags, RedisCommand command, RedisValue value, RedisKey key) : base(db, flags, command, key)
+            public CommandValueKeyMessage(int db, CommandFlags flags, RedisCommand command, in RedisValue value, in RedisKey key) : base(db, flags, command, key)
             {
                 value.AssertNotNull();
                 this.value = value;
@@ -1172,7 +1207,7 @@ namespace StackExchange.Redis
         private sealed class CommandValueMessage : Message
         {
             private readonly RedisValue value;
-            public CommandValueMessage(int db, CommandFlags flags, RedisCommand command, RedisValue value) : base(db, flags, command)
+            public CommandValueMessage(int db, CommandFlags flags, RedisCommand command, in RedisValue value) : base(db, flags, command)
             {
                 value.AssertNotNull();
                 this.value = value;
@@ -1189,7 +1224,7 @@ namespace StackExchange.Redis
         private sealed class CommandValueValueMessage : Message
         {
             private readonly RedisValue value0, value1;
-            public CommandValueValueMessage(int db, CommandFlags flags, RedisCommand command, RedisValue value0, RedisValue value1) : base(db, flags, command)
+            public CommandValueValueMessage(int db, CommandFlags flags, RedisCommand command, in RedisValue value0, in RedisValue value1) : base(db, flags, command)
             {
                 value0.AssertNotNull();
                 value1.AssertNotNull();
@@ -1209,7 +1244,7 @@ namespace StackExchange.Redis
         private sealed class CommandValueValueValueMessage : Message
         {
             private readonly RedisValue value0, value1, value2;
-            public CommandValueValueValueMessage(int db, CommandFlags flags, RedisCommand command, RedisValue value0, RedisValue value1, RedisValue value2) : base(db, flags, command)
+            public CommandValueValueValueMessage(int db, CommandFlags flags, RedisCommand command, in RedisValue value0, in RedisValue value1, in RedisValue value2) : base(db, flags, command)
             {
                 value0.AssertNotNull();
                 value1.AssertNotNull();
@@ -1232,7 +1267,7 @@ namespace StackExchange.Redis
         private sealed class CommandValueValueValueValueValueMessage : Message
         {
             private readonly RedisValue value0, value1, value2, value3, value4;
-            public CommandValueValueValueValueValueMessage(int db, CommandFlags flags, RedisCommand command, RedisValue value0, RedisValue value1, RedisValue value2, RedisValue value3, RedisValue value4) : base(db, flags, command)
+            public CommandValueValueValueValueValueMessage(int db, CommandFlags flags, RedisCommand command, in RedisValue value0, in RedisValue value1, in RedisValue value2, in RedisValue value3, in RedisValue value4) : base(db, flags, command)
             {
                 value0.AssertNotNull();
                 value1.AssertNotNull();

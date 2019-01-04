@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.0.519
+
+- adapt to late changes in the RC streams API (#983, #1007)
+- documentation fixes (#997, #1005)
+- build: switch to SDK 2.1.500
+
 ## 2.0.513
 
 - fix #961 - fix assembly binding redirect problems; IMPORTANT: this drops to an older `System.Buffers` version - if you have manually added redirects for `4.0.3.0`, you may need to manually update to `4.0.2.0` (or remove completely)

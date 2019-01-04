@@ -742,7 +742,7 @@ namespace StackExchange.Redis
             public static readonly ResultProcessor<ScanResult> processor = new KeysResultProcessor();
             private class KeysResultProcessor : ResultProcessor<ScanResult>
             {
-                protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+                protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
                 {
                     switch (result.Type)
                     {

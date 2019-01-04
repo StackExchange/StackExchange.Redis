@@ -56,73 +56,93 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
         /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
+#pragma warning disable RCS1231 // Make parameter ref read-only. - public API
         public static bool operator !=(RedisChannel x, RedisChannel y) => !(x == y);
+#pragma warning restore RCS1231 // Make parameter ref read-only.
 
         /// <summary>
         /// Indicate whether two channel names are not equal
         /// </summary>
         /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
         /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
+#pragma warning disable RCS1231 // Make parameter ref read-only. - public API
         public static bool operator !=(string x, RedisChannel y) => !(x == y);
+#pragma warning restore RCS1231 // Make parameter ref read-only.
 
         /// <summary>
         /// Indicate whether two channel names are not equal
         /// </summary>
         /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
         /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
+#pragma warning disable RCS1231 // Make parameter ref read-only. - public API
         public static bool operator !=(byte[] x, RedisChannel y) => !(x == y);
+#pragma warning restore RCS1231 // Make parameter ref read-only.
 
         /// <summary>
         /// Indicate whether two channel names are not equal
         /// </summary>
         /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
         /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
+#pragma warning disable RCS1231 // Make parameter ref read-only. - public API
         public static bool operator !=(RedisChannel x, string y) => !(x == y);
+#pragma warning restore RCS1231 // Make parameter ref read-only.
 
         /// <summary>
         /// Indicate whether two channel names are not equal
         /// </summary>
         /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
         /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
+#pragma warning disable RCS1231 // Make parameter ref read-only. - public API
         public static bool operator !=(RedisChannel x, byte[] y) => !(x == y);
+#pragma warning restore RCS1231 // Make parameter ref read-only.
 
         /// <summary>
         /// Indicate whether two channel names are equal
         /// </summary>
         /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
         /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
+#pragma warning disable RCS1231 // Make parameter ref read-only. - public API
         public static bool operator ==(RedisChannel x, RedisChannel y) =>
             x.IsPatternBased == y.IsPatternBased && RedisValue.Equals(x.Value, y.Value);
+#pragma warning restore RCS1231 // Make parameter ref read-only.
 
         /// <summary>
         /// Indicate whether two channel names are equal
         /// </summary>
         /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
         /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
+#pragma warning disable RCS1231 // Make parameter ref read-only. - public API
         public static bool operator ==(string x, RedisChannel y) =>
             RedisValue.Equals(x == null ? null : Encoding.UTF8.GetBytes(x), y.Value);
+#pragma warning restore RCS1231 // Make parameter ref read-only.
 
         /// <summary>
         /// Indicate whether two channel names are equal
         /// </summary>
         /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
         /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
+#pragma warning disable RCS1231 // Make parameter ref read-only. - public API
         public static bool operator ==(byte[] x, RedisChannel y) => RedisValue.Equals(x, y.Value);
+#pragma warning restore RCS1231 // Make parameter ref read-only.
 
         /// <summary>
         /// Indicate whether two channel names are equal
         /// </summary>
         /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
         /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
+#pragma warning disable RCS1231 // Make parameter ref read-only. - public API
         public static bool operator ==(RedisChannel x, string y) =>
             RedisValue.Equals(x.Value, y == null ? null : Encoding.UTF8.GetBytes(y));
+#pragma warning restore RCS1231 // Make parameter ref read-only.
 
         /// <summary>
         /// Indicate whether two channel names are equal
         /// </summary>
         /// <param name="x">The first <see cref="RedisChannel"/> to compare.</param>
         /// <param name="y">The second <see cref="RedisChannel"/> to compare.</param>
+#pragma warning disable RCS1231 // Make parameter ref read-only. - public API
         public static bool operator ==(RedisChannel x, byte[] y) => RedisValue.Equals(x.Value, y);
+#pragma warning restore RCS1231 // Make parameter ref read-only.
 
         /// <summary>
         /// See Object.Equals
@@ -223,13 +243,17 @@ namespace StackExchange.Redis
         /// Obtain the channel name as a <see cref="T:byte[]"/>.
         /// </summary>
         /// <param name="key">The channel to get a byte[] from.</param>
+#pragma warning disable RCS1231 // Make parameter ref read-only. - public API
         public static implicit operator byte[] (RedisChannel key) => key.Value;
+#pragma warning restore RCS1231 // Make parameter ref read-only.
 
         /// <summary>
         /// Obtain the channel name as a <see cref="string"/>.
         /// </summary>
         /// <param name="key">The channel to get a string from.</param>
+#pragma warning disable RCS1231 // Make parameter ref read-only. - public API
         public static implicit operator string (RedisChannel key)
+#pragma warning restore RCS1231 // Make parameter ref read-only.
         {
             var arr = key.Value;
             if (arr == null) return null;

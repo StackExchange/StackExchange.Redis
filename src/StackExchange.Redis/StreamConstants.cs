@@ -22,6 +22,11 @@ namespace StackExchange.Redis
         internal static readonly RedisValue NewMessages = "$";
 
         /// <summary>
+        /// The "0" value used in the XGROUP command. Indicates reading all messages from the stream.
+        /// </summary>
+        internal static readonly RedisValue AllMessages = "0";
+
+        /// <summary>
         /// The "-" value used in the XRANGE, XREAD, and XREADGROUP commands. Indicates the minimum message ID from the stream.
         /// </summary>
         internal static readonly RedisValue ReadMinValue = "-";

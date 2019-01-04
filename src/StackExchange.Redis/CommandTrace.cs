@@ -71,7 +71,7 @@ namespace StackExchange.Redis
 
         private class CommandTraceProcessor : ResultProcessor<CommandTrace[]>
         {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
                 switch(result.Type)
                 {

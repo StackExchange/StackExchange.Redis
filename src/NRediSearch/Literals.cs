@@ -17,7 +17,7 @@ namespace NRediSearch
         /// Obtain a lazily-cached pre-encoded and boxed representation of a string
         /// </summary>
         /// <param name="value">The value to get a literal representation for.</param>
-        /// <remarks>This shoul donly be used for fixed values, not user data (the cache is never reclaimed, so it will be a memory leak)</remarks>
+        /// <remarks>This should only be used for fixed values, not user data (the cache is never reclaimed, so it will be a memory leak)</remarks>
         public static object Literal(this string value)
         {
             if (value == null) return _null;

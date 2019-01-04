@@ -176,7 +176,7 @@ namespace StackExchange.Redis
             COUNT = Encoding.ASCII.GetBytes("COUNT"),
             ASC = Encoding.ASCII.GetBytes("ASC"),
             DESC = Encoding.ASCII.GetBytes("DESC");
-        private Message GetGeoRadiusMessage(RedisKey key, RedisValue? member, double longitude, double latitude, double radius, GeoUnit unit, int count, Order? order, GeoRadiusOptions options, CommandFlags flags)
+        private Message GetGeoRadiusMessage(in RedisKey key, RedisValue? member, double longitude, double latitude, double radius, GeoUnit unit, int count, Order? order, GeoRadiusOptions options, CommandFlags flags)
         {
             var redisValues = new List<RedisValue>();
             RedisCommand command;
@@ -2419,7 +2419,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.RedisValue);
         }
 
-        private Message GetExpiryMessage(RedisKey key, CommandFlags flags, TimeSpan? expiry, out ServerEndPoint server)
+        private Message GetExpiryMessage(in RedisKey key, CommandFlags flags, TimeSpan? expiry, out ServerEndPoint server)
         {
             TimeSpan duration;
             if (expiry == null || (duration = expiry.Value) == TimeSpan.MaxValue)
@@ -2441,7 +2441,7 @@ namespace StackExchange.Redis
             return Message.Create(Database, flags, RedisCommand.EXPIRE, key, seconds);
         }
 
-        private Message GetExpiryMessage(RedisKey key, CommandFlags flags, DateTime? expiry, out ServerEndPoint server)
+        private Message GetExpiryMessage(in RedisKey key, CommandFlags flags, DateTime? expiry, out ServerEndPoint server)
         {
             DateTime when;
             if (expiry == null || (when = expiry.Value) == DateTime.MaxValue)
@@ -2905,8 +2905,6 @@ namespace StackExchange.Redis
             var values = new RedisValue[totalLength];
             var offset = 0;
 
-            values[offset++] = messageId;
-
             if (maxLength.HasValue)
             {
                 values[offset++] = StreamConstants.MaxLen;
@@ -2921,6 +2919,8 @@ namespace StackExchange.Redis
                     values[offset++] = maxLength.Value;
                 }
             }
+
+            values[offset++] = messageId;
 
             values[offset++] = streamPair.Name;
             values[offset] = streamPair.Value;
@@ -2952,8 +2952,6 @@ namespace StackExchange.Redis
 
             var offset = 0;
 
-            values[offset++] = entryId;
-
             if (maxLength.HasValue)
             {
                 values[offset++] = StreamConstants.MaxLen;
@@ -2965,6 +2963,8 @@ namespace StackExchange.Redis
 
                 values[offset++] = maxLength.Value;
             }
+
+            values[offset++] = entryId;
 
             for (var i = 0; i < streamPairs.Length; i++)
             {
@@ -3447,7 +3447,7 @@ namespace StackExchange.Redis
         {
             public static readonly ResultProcessor<ScanIterator<HashEntry>.ScanResult> Default = new HashScanResultProcessor();
             private HashScanResultProcessor() { }
-            protected override HashEntry[] Parse(RawResult result)
+            protected override HashEntry[] Parse(in RawResult result)
             {
                 if (!HashEntryArray.TryParse(result, out HashEntry[] pairs)) pairs = null;
                 return pairs;
@@ -3456,9 +3456,9 @@ namespace StackExchange.Redis
 
         private abstract class ScanResultProcessor<T> : ResultProcessor<ScanIterator<T>.ScanResult>
         {
-            protected abstract T[] Parse(RawResult result);
+            protected abstract T[] Parse(in RawResult result);
 
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
                 switch (result.Type)
                 {
@@ -3628,7 +3628,7 @@ namespace StackExchange.Redis
         {
             public static readonly ResultProcessor<ScanIterator<RedisValue>.ScanResult> Default = new SetScanResultProcessor();
             private SetScanResultProcessor() { }
-            protected override RedisValue[] Parse(RawResult result)
+            protected override RedisValue[] Parse(in RawResult result)
             {
                 return result.GetItemsAsValues();
             }
@@ -3674,7 +3674,7 @@ namespace StackExchange.Redis
         {
             public static readonly ResultProcessor<ScanIterator<SortedSetEntry>.ScanResult> Default = new SortedSetScanResultProcessor();
             private SortedSetScanResultProcessor() { }
-            protected override SortedSetEntry[] Parse(RawResult result)
+            protected override SortedSetEntry[] Parse(in RawResult result)
             {
                 if (!SortedSetWithScores.TryParse(result, out SortedSetEntry[] pairs)) pairs = null;
                 return pairs;
@@ -3686,7 +3686,7 @@ namespace StackExchange.Redis
             private readonly RedisCommand ttlCommand;
             private ResultBox<TimeSpan?> box;
 
-            public StringGetWithExpiryMessage(int db, CommandFlags flags, RedisCommand ttlCommand, RedisKey key)
+            public StringGetWithExpiryMessage(int db, CommandFlags flags, RedisCommand ttlCommand, in RedisKey key)
                 : base(db, flags, RedisCommand.GET, key)
             {
                 this.ttlCommand = ttlCommand;
@@ -3729,7 +3729,7 @@ namespace StackExchange.Redis
         {
             public static readonly ResultProcessor<RedisValueWithExpiry> Default = new StringGetWithExpiryProcessor();
             private StringGetWithExpiryProcessor() { }
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, RawResult result)
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
                 switch (result.Type)
                 {

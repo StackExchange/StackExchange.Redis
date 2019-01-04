@@ -50,6 +50,15 @@ namespace StackExchange.Redis
                     default: // new is only valid for the above
                         throw new ArgumentException($"Unsupported command in StreamPosition.Resolve: {command}.", nameof(command));
                 }
+            } else if (value == StreamPosition.Beginning)
+            {
+                switch(command)
+                {
+                    case RedisCommand.XREAD:
+                    case RedisCommand.XREADGROUP:
+                    case RedisCommand.XGROUP:
+                        return StreamConstants.AllMessages;
+                }
             }
             return value;
         }

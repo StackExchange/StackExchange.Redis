@@ -6,12 +6,14 @@ namespace StackExchange.Redis
     /// </summary>
     public readonly struct StreamInfo
     {
-        internal StreamInfo(int length,
+        internal StreamInfo(
+            int length,
             int radixTreeKeys,
             int radixTreeNodes,
             int groups,
             StreamEntry firstEntry,
-            StreamEntry lastEntry)
+            StreamEntry lastEntry,
+            RedisValue lastGeneratedId)
         {
             Length = length;
             RadixTreeKeys = radixTreeKeys;
@@ -19,6 +21,7 @@ namespace StackExchange.Redis
             ConsumerGroupCount = groups;
             FirstEntry = firstEntry;
             LastEntry = lastEntry;
+            LastGeneratedId = lastGeneratedId;
         }
 
         /// <summary>
@@ -50,5 +53,10 @@ namespace StackExchange.Redis
         /// The last entry in the stream.
         /// </summary>
         public StreamEntry LastEntry { get; }
+
+        /// <summary>
+        /// The last generated id
+        /// </summary>
+        public RedisValue LastGeneratedId { get; }
     }
 }
