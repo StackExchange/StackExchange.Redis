@@ -1325,6 +1325,7 @@ namespace StackExchange.Redis
 
         partial void OnWrapForLogging(ref IDuplexPipe pipe, string name, SocketManager mgr);
 
+        internal void UpdateLastReadTime() => Interlocked.Exchange(ref lastReadTickCount, Environment.TickCount);
         private async Task ReadFromPipe()
         {
             bool allowSyncRead = true, isReading = false;
@@ -1343,6 +1344,7 @@ namespace StackExchange.Redis
                         readResult = await input.ReadAsync().ForAwait();
                     }
                     isReading = false;
+                    UpdateLastReadTime();
 
                     var buffer = readResult.Buffer;
                     int handled = 0;
