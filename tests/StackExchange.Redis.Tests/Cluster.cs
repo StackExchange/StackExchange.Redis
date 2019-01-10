@@ -196,7 +196,7 @@ namespace StackExchange.Redis.Tests
                     Assert.Equal(value, b); // wrong master, allow redirect
 
                     var ex = Assert.Throws<RedisServerException>(() => StringGet(conn.GetServer(node.EndPoint), key, CommandFlags.NoRedirect));
-                    Assert.StartsWith($"Key has MOVED from Endpoint {rightMasterNode.EndPoint} and hashslot {slot}", ex.Message);
+                    Assert.StartsWith($"Key has MOVED to Endpoint {rightMasterNode.EndPoint} and hashslot {slot}", ex.Message);
                 }
 
                 node = config.Nodes.FirstOrDefault(x => x.IsSlave && x.ParentNodeId == rightMasterNode.NodeId);
@@ -215,7 +215,7 @@ namespace StackExchange.Redis.Tests
                     Assert.Equal(value, e); // wrong slave, allow redirect
 
                     var ex = Assert.Throws<RedisServerException>(() => StringGet(conn.GetServer(node.EndPoint), key, CommandFlags.NoRedirect));
-                    Assert.StartsWith($"Key has MOVED from Endpoint {rightMasterNode.EndPoint} and hashslot {slot}", ex.Message);
+                    Assert.StartsWith($"Key has MOVED to Endpoint {rightMasterNode.EndPoint} and hashslot {slot}", ex.Message);
                 }
             }
         }
