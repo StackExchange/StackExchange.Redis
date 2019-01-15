@@ -591,6 +591,16 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.SortedSetScoreAsync(ToInner(key), member, flags);
         }
 
+        public Task<SortedSetEntry?> SortedSetPopAsync(RedisKey key, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.SortedSetPopAsync(ToInner(key), order, flags);
+        }
+
+        public Task<SortedSetEntry[]> SortedSetPopAsync(RedisKey key, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.SortedSetPopAsync(ToInner(key), count, order, flags);
+        }
+
         public Task<long> StreamAcknowledgeAsync(RedisKey key, RedisValue groupName, RedisValue messageId, CommandFlags flags = CommandFlags.None)
         {
             return Inner.StreamAcknowledgeAsync(ToInner(key), groupName, messageId, flags);

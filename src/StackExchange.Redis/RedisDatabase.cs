@@ -1677,6 +1677,36 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.NullableDouble);
         }
 
+        public SortedSetEntry? SortedSetPop(RedisKey key, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, order == Order.Descending ? RedisCommand.ZPOPMAX : RedisCommand.ZPOPMIN, key);
+            return ExecuteSync(msg, ResultProcessor.SortedSetEntry);
+        }
+
+        public Task<SortedSetEntry?> SortedSetPopAsync(RedisKey key, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, order == Order.Descending ? RedisCommand.ZPOPMAX : RedisCommand.ZPOPMIN, key);
+            return ExecuteAsync(msg, ResultProcessor.SortedSetEntry);
+        }
+
+        public SortedSetEntry[] SortedSetPop(RedisKey key, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        {
+            if (count == 0) return Array.Empty<SortedSetEntry>();
+            var msg = count == 1
+                    ? Message.Create(Database, flags, order == Order.Descending ? RedisCommand.ZPOPMAX : RedisCommand.ZPOPMIN, key)
+                    : Message.Create(Database, flags, order == Order.Descending ? RedisCommand.ZPOPMAX : RedisCommand.ZPOPMIN, key, count);
+            return ExecuteSync(msg, ResultProcessor.SortedSetWithScores);
+        }
+
+        public Task<SortedSetEntry[]> SortedSetPopAsync(RedisKey key, long count, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+        {
+            if (count == 0) return Task.FromResult(Array.Empty<SortedSetEntry>());
+            var msg = count == 1
+                    ? Message.Create(Database, flags, order == Order.Descending ? RedisCommand.ZPOPMAX : RedisCommand.ZPOPMIN, key)
+                    : Message.Create(Database, flags, order == Order.Descending ? RedisCommand.ZPOPMAX : RedisCommand.ZPOPMIN, key, count);
+            return ExecuteAsync(msg, ResultProcessor.SortedSetWithScores);
+        }
+
         public long StreamAcknowledge(RedisKey key, RedisValue groupName, RedisValue messageId, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamAcknowledgeMessage(key, groupName, messageId, flags);
