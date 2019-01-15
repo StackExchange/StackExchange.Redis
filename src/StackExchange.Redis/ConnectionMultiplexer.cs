@@ -379,7 +379,7 @@ namespace StackExchange.Redis
                     if (!node.IsConnected) continue;
                     LogLocked(log, "Attempting to set tie-breaker on {0}...", Format.ToString(node.EndPoint));
                     msg = Message.Create(0, flags, RedisCommand.SET, tieBreakerKey, newMaster);
-                    node.WriteDirectFireAndForget(msg, ResultProcessor.DemandOK);
+                    node.WriteDirectFireAndForgetSync(msg, ResultProcessor.DemandOK);
                 }
             }
 
@@ -400,7 +400,7 @@ namespace StackExchange.Redis
             {
                 LogLocked(log, "Resending tie-breaker to {0}...", Format.ToString(server.EndPoint));
                 msg = Message.Create(0, flags, RedisCommand.SET, tieBreakerKey, newMaster);
-                server.WriteDirectFireAndForget(msg, ResultProcessor.DemandOK);
+                server.WriteDirectFireAndForgetSync(msg, ResultProcessor.DemandOK);
             }
 
             // There's an inherent race here in zero-lantency environments (e.g. when Redis is on localhost) when a broadcast is specified
@@ -420,7 +420,7 @@ namespace StackExchange.Redis
                     if (!node.IsConnected) continue;
                     LogLocked(log, "Broadcasting via {0}...", Format.ToString(node.EndPoint));
                     msg = Message.Create(-1, flags, RedisCommand.PUBLISH, channel, newMaster);
-                    node.WriteDirectFireAndForget(msg, ResultProcessor.Int64);
+                    node.WriteDirectFireAndForgetSync(msg, ResultProcessor.Int64);
                 }
             }
 
@@ -432,7 +432,7 @@ namespace StackExchange.Redis
 
                     LogLocked(log, "Enslaving {0}...", Format.ToString(node.EndPoint));
                     msg = RedisServer.CreateSlaveOfMessage(server.EndPoint, flags);
-                    node.WriteDirectFireAndForget(msg, ResultProcessor.DemandOK);
+                    node.WriteDirectFireAndForgetSync(msg, ResultProcessor.DemandOK);
                 }
             }
 
@@ -1901,7 +1901,7 @@ namespace StackExchange.Redis
             return ServerSelectionStrategy.Select(command, key, flags);
         }
 
-        private WriteResult TryPushMessageToBridge<T>(Message message, ResultProcessor<T> processor, ResultBox<T> resultBox, ref ServerEndPoint server)
+        private bool PrepareToPushMessageToBridge<T>(Message message, ResultProcessor<T> processor, ResultBox<T> resultBox, ref ServerEndPoint server)
         {
             message.SetSource(processor, resultBox);
 
@@ -1950,11 +1950,16 @@ namespace StackExchange.Redis
                 }
 
                 Trace("Queueing on server: " + message);
-                return server.TryWrite(message);
+                return true;
             }
             Trace("No server or server unavailable - aborting: " + message);
-            return WriteResult.NoConnectionAvailable;
+            return false;
         }
+        private ValueTask<WriteResult> TryPushMessageToBridgeAsync<T>(Message message, ResultProcessor<T> processor, ResultBox<T> resultBox, ref ServerEndPoint server)
+            => PrepareToPushMessageToBridge(message, processor, resultBox, ref server) ? server.TryWriteAsync(message) : new ValueTask<WriteResult>(WriteResult.NoConnectionAvailable);
+
+        private WriteResult TryPushMessageToBridgeSync<T>(Message message, ResultProcessor<T> processor, ResultBox<T> resultBox, ref ServerEndPoint server)
+            => PrepareToPushMessageToBridge(message, processor, resultBox, ref server) ? server.TryWriteSync(message) : WriteResult.NoConnectionAvailable;
 
         /// <summary>
         /// See Object.ToString()
@@ -2111,14 +2116,18 @@ namespace StackExchange.Redis
 
             if (message.IsFireAndForget)
             {
-                TryPushMessageToBridge(message, processor, null, ref server);
+                TryPushMessageToBridgeAsync(message, processor, null, ref server);
                 return CompletedTask<T>.Default(null); // F+F explicitly does not get async-state
             }
             else
             {
                 var tcs = TaskSource.Create<T>(state);
                 var source = ResultBox<T>.Get(tcs);
-                var result = TryPushMessageToBridge(message, processor, source, ref server);
+                var write = TryPushMessageToBridgeAsync(message, processor, source, ref server);
+
+                if (!write.IsCompletedSuccessfully) return ExecuteAsyncImpl_Awaited<T>(this, write, tcs, message, server);
+
+                var result = write.Result;
                 if (result != WriteResult.Success)
                 {
                     var ex = GetException(result, message, server);
@@ -2127,6 +2136,18 @@ namespace StackExchange.Redis
                 return tcs.Task;
             }
         }
+
+        private static async Task<T> ExecuteAsyncImpl_Awaited<T>(ConnectionMultiplexer @this, ValueTask<WriteResult> write, TaskCompletionSource<T> tcs, Message message, ServerEndPoint server)
+        {
+            var result = await write.ConfigureAwait(false);
+            if (result != WriteResult.Success)
+            {
+                var ex = @this.GetException(result, message, server);
+                ThrowFailed(tcs, ex);
+            }
+            return await tcs.Task.ConfigureAwait(false);
+        }
+
         internal Exception GetException(WriteResult result, Message message, ServerEndPoint server)
         {
             switch (result)
@@ -2187,7 +2208,7 @@ namespace StackExchange.Redis
 
             if (message.IsFireAndForget)
             {
-                TryPushMessageToBridge(message, processor, null, ref server);
+                TryPushMessageToBridgeSync(message, processor, null, ref server);
                 Interlocked.Increment(ref fireAndForgets);
                 return default(T);
             }
@@ -2197,7 +2218,7 @@ namespace StackExchange.Redis
 
                 lock (source)
                 {
-                    var result = TryPushMessageToBridge(message, processor, source, ref server);
+                    var result = TryPushMessageToBridgeSync(message, processor, source, ref server);
                     if (result != WriteResult.Success)
                     {
                         throw GetException(result, message, server);

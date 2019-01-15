@@ -291,10 +291,13 @@ namespace StackExchange.Redis
         /// </summary>
         public bool HighPrioritySocketThreads { get { return highPrioritySocketThreads ?? true; } set { highPrioritySocketThreads = value; } }
 
+        // Use coalesce expression.
         /// <summary>
         /// Specifies the time in seconds at which connections should be pinged to ensure validity
         /// </summary>
+#pragma warning disable RCS1128
         public int KeepAlive { get { return keepAlive.GetValueOrDefault(-1); } set { keepAlive = value; } }
+#pragma warning restore RCS1128 // Use coalesce expression.
 
         /// <summary>
         /// The password to use to authenticate with the server.
@@ -363,7 +366,9 @@ namespace StackExchange.Redis
         /// <summary>
         /// Specifies the time in milliseconds that the system should allow for synchronous operations (defaults to 1 second)
         /// </summary>
+#pragma warning disable RCS1128
         public int SyncTimeout { get { return syncTimeout.GetValueOrDefault(5000); } set { syncTimeout = value; } }
+#pragma warning restore RCS1128
 
         /// <summary>
         /// Tie-breaker used to choose between masters (must match the endpoint exactly)
@@ -383,7 +388,9 @@ namespace StackExchange.Redis
         /// <summary>
         /// Check configuration every n seconds (every minute by default)
         /// </summary>
+#pragma warning disable RCS1128
         public int ConfigCheckSeconds { get { return configCheckSeconds.GetValueOrDefault(60); } set { configCheckSeconds = value; } }
+#pragma warning restore RCS1128
 
         /// <summary>
         /// Parse the configuration from a comma-delimited configuration string

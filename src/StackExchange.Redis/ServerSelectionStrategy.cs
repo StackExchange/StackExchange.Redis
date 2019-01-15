@@ -61,10 +61,10 @@ namespace StackExchange.Redis
         /// Computes the hash-slot that would be used by the given key
         /// </summary>
         /// <param name="key">The <see cref="RedisKey"/> to determine a slot ID for.</param>
-        public int HashSlot(RedisKey key)
+        public int HashSlot(in RedisKey key)
             => ServerType == ServerType.Standalone ? NoSlot : GetClusterSlot(key);
 
-        private static unsafe int GetClusterSlot(RedisKey key)
+        private static unsafe int GetClusterSlot(in RedisKey key)
         {
             //HASH_SLOT = CRC16(key) mod 16384
             if (key.IsNull) return NoSlot;
@@ -107,7 +107,7 @@ namespace StackExchange.Redis
             return Select(slot, message.Command, message.Flags);
         }
 
-        public ServerEndPoint Select(RedisCommand command, RedisKey key, CommandFlags flags)
+        public ServerEndPoint Select(RedisCommand command, in RedisKey key, CommandFlags flags)
         {
             int slot = ServerType == ServerType.Cluster ? HashSlot(key) : NoSlot;
             return Select(slot, command, flags);
@@ -155,7 +155,7 @@ namespace StackExchange.Redis
                         else
                         {
                             message.PrepareToResend(resendVia, isMoved);
-                            retry = resendVia.TryWrite(message) == WriteResult.Success;
+                            retry = resendVia.TryWriteSync(message) == WriteResult.Success;
                         }
                     }
 
@@ -187,7 +187,7 @@ namespace StackExchange.Redis
             return oldSlot == newSlot ? oldSlot : MultipleSlots;
         }
 
-        internal int CombineSlot(int oldSlot, RedisKey key)
+        internal int CombineSlot(int oldSlot, in RedisKey key)
         {
             if (oldSlot == MultipleSlots || key.IsNull) return oldSlot;
 

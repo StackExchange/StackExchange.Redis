@@ -127,7 +127,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal bool SubscriberConnected(RedisChannel channel = default(RedisChannel))
+        internal bool SubscriberConnected(in RedisChannel channel = default(RedisChannel))
         {
             var server = GetSubscribedServer(channel);
             if (server != null) return server.IsConnected;
@@ -225,7 +225,7 @@ namespace StackExchange.Redis
                     var cmd = channel.IsPatternBased ? RedisCommand.PSUBSCRIBE : RedisCommand.SUBSCRIBE;
                     var msg = Message.Create(-1, CommandFlags.FireAndForget, cmd, channel);
                     msg.SetInternalCall();
-                    server.WriteDirectFireAndForget(msg, ResultProcessor.TrackSubscriptions);
+                    server.WriteDirectFireAndForgetSync(msg, ResultProcessor.TrackSubscriptions);
                 }
             }
 
