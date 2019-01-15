@@ -749,6 +749,184 @@ namespace StackExchange.Redis.Tests
         }
 
         [Theory]
+        [InlineData(4D, 4D, true, true)]
+        [InlineData(4D, 5D, true, false)]
+        [InlineData(4D, null, true, false)]
+        [InlineData(null, 5D, true, false)]
+        [InlineData(null, null, true, true)]
+
+        [InlineData(4D, 4D, false, false)]
+        [InlineData(4D, 5D, false, true)]
+        [InlineData(4D, null, false, true)]
+        [InlineData(null, 5D, false, true)]
+        [InlineData(null, null, false, false)]
+        public async Task BasicTranWithSortedSetEqualCondition(double? expected, double? value, bool expectEqual, bool expectedTranResult)
+        {
+            using (var muxer = Create())
+            {
+                RedisKey key = Me(), key2 = Me() + "2";
+                var db = muxer.GetDatabase();
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.KeyDelete(key2, CommandFlags.FireAndForget);
+
+                RedisValue member = "member";
+                if (value != null) db.SortedSetAdd(key2, member, value.Value, flags: CommandFlags.FireAndForget);
+                Assert.False(db.KeyExists(key));
+                Assert.Equal(value, db.SortedSetScore(key2, member));
+
+                var tran = db.CreateTransaction();
+                var cond = tran.AddCondition(expectEqual ? Condition.SortedSetEqual(key2, member, expected) : Condition.SortedSetNotEqual(key2, member, expected));
+                var incr = tran.StringIncrementAsync(key);
+                var exec = tran.ExecuteAsync();
+                var get = db.StringGet(key);
+
+                Assert.Equal(expectedTranResult, await exec);
+                if (expectEqual == (value == expected))
+                {
+                    Assert.True(await exec, "eq: exec");
+                    Assert.True(cond.WasSatisfied, "eq: was satisfied");
+                    Assert.Equal(1, await incr); // eq: incr
+                    Assert.Equal(1, (long)get); // eq: get
+                }
+                else
+                {
+                    Assert.False(await exec, "neq: exec");
+                    Assert.False(cond.WasSatisfied, "neq: was satisfied");
+                    Assert.Equal(TaskStatus.Canceled, SafeStatus(incr)); // neq: incr
+                    Assert.Equal(0, (long)get); // neq: get
+                }
+            }
+        }
+
+        [Theory]
+        [InlineData(true, true, true, true)]
+        [InlineData(true, false, true, true)]
+        [InlineData(false, true, true, true)]
+        [InlineData(true, true, false, false)]
+        [InlineData(true, false, false, false)]
+        [InlineData(false, true, false, false)]
+        [InlineData(false, false, true, false)]
+        [InlineData(false, false, false, true)]
+        public async Task BasicTranWithSortedSetScoreExistsCondition(bool member1HasScore, bool member2HasScore, bool demandScoreExists, bool expectedTranResult)
+        {
+            using (var muxer = Create())
+            {
+                RedisKey key = Me(), key2 = Me() + "2";
+                var db = muxer.GetDatabase();
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.KeyDelete(key2, CommandFlags.FireAndForget);
+
+                const double Score = 4D;
+                RedisValue member1 = "member1";
+                RedisValue member2 = "member2";
+                if (member1HasScore)
+                {
+                    db.SortedSetAdd(key2, member1, Score, flags: CommandFlags.FireAndForget);
+                }
+
+                if (member2HasScore)
+                {
+                    db.SortedSetAdd(key2, member2, Score, flags: CommandFlags.FireAndForget);
+                }
+
+                Assert.False(db.KeyExists(key));
+                Assert.Equal(member1HasScore ? (double?)Score : null, db.SortedSetScore(key2, member1));
+                Assert.Equal(member2HasScore ? (double?)Score : null, db.SortedSetScore(key2, member2));
+
+                var tran = db.CreateTransaction();
+                var cond = tran.AddCondition(demandScoreExists ? Condition.SortedSetScoreExists(key2, Score) : Condition.SortedSetScoreNotExists(key2, Score));
+                var incr = tran.StringIncrementAsync(key);
+                var exec = tran.ExecuteAsync();
+                var get = db.StringGet(key);
+
+                Assert.Equal(expectedTranResult, await exec);
+                if ((member1HasScore || member2HasScore) == demandScoreExists)
+                {
+                    Assert.True(await exec, "eq: exec");
+                    Assert.True(cond.WasSatisfied, "eq: was satisfied");
+                    Assert.Equal(1, await incr); // eq: incr
+                    Assert.Equal(1, (long)get); // eq: get
+                }
+                else
+                {
+                    Assert.False(await exec, "neq: exec");
+                    Assert.False(cond.WasSatisfied, "neq: was satisfied");
+                    Assert.Equal(TaskStatus.Canceled, SafeStatus(incr)); // neq: incr
+                    Assert.Equal(0, (long)get); // neq: get
+                }
+            }
+        }
+
+        [Theory]
+        [InlineData(true, true, 2L, true, true)]
+        [InlineData(true, true, 2L, false, false)]
+        [InlineData(true, true, 1L, true, false)]
+        [InlineData(true, true, 1L, false, true)]
+        [InlineData(true, false, 2L, true, false)]
+        [InlineData(true, false, 2L, false, true)]
+        [InlineData(true, false, 1L, true, true)]
+        [InlineData(true, false, 1L, false, false)]
+        [InlineData(false, true, 2L, true, false)]
+        [InlineData(false, true, 2L, false, true)]
+        [InlineData(false, true, 1L, true, true)]
+        [InlineData(false, true, 1L, false, false)]
+        [InlineData(false, false, 2L, true, false)]
+        [InlineData(false, false, 2L, false, true)]
+        [InlineData(false, false, 1L, true, false)]
+        [InlineData(false, false, 1L, false, true)]
+        public async Task BasicTranWithSortedSetScoreCountExistsCondition(bool member1HasScore, bool member2HasScore, long expectedLength, bool expectEqual, bool expectedTranResult)
+        {
+            using (var muxer = Create())
+            {
+                RedisKey key = Me(), key2 = Me() + "2";
+                var db = muxer.GetDatabase();
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.KeyDelete(key2, CommandFlags.FireAndForget);
+
+                const double Score = 4D;
+                var length = 0L;
+                RedisValue member1 = "member1";
+                RedisValue member2 = "member2";
+                if (member1HasScore)
+                {
+                    db.SortedSetAdd(key2, member1, Score, flags: CommandFlags.FireAndForget);
+                    length++;
+                }
+
+                if (member2HasScore)
+                {
+                    db.SortedSetAdd(key2, member2, Score, flags: CommandFlags.FireAndForget);
+                    length++;
+                }
+
+                Assert.False(db.KeyExists(key));
+                Assert.Equal(length, db.SortedSetLength(key2, Score, Score));
+
+                var tran = db.CreateTransaction();
+                var cond = tran.AddCondition(expectEqual ? Condition.SortedSetScoreExists(key2, Score, expectedLength) : Condition.SortedSetScoreNotExists(key2, Score, expectedLength));
+                var incr = tran.StringIncrementAsync(key);
+                var exec = tran.ExecuteAsync();
+                var get = db.StringGet(key);
+
+                Assert.Equal(expectedTranResult, await exec);
+                if (expectEqual == (length == expectedLength))
+                {
+                    Assert.True(await exec, "eq: exec");
+                    Assert.True(cond.WasSatisfied, "eq: was satisfied");
+                    Assert.Equal(1, await incr); // eq: incr
+                    Assert.Equal(1, (long)get); // eq: get
+                }
+                else
+                {
+                    Assert.False(await exec, "neq: exec");
+                    Assert.False(cond.WasSatisfied, "neq: was satisfied");
+                    Assert.Equal(TaskStatus.Canceled, SafeStatus(incr)); // neq: incr
+                    Assert.Equal(0, (long)get); // neq: get
+                }
+            }
+        }
+
+        [Theory]
         [InlineData("five", ComparisonType.Equal, 5L, false)]
         [InlineData("four", ComparisonType.Equal, 4L, true)]
         [InlineData("three", ComparisonType.Equal, 3L, false)]
