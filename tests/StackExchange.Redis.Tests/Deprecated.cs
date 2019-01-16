@@ -40,6 +40,18 @@ namespace StackExchange.Redis.Tests
             options = ConfigurationOptions.Parse("writeBuffer=8092");
             Assert.Equal(0, options.WriteBuffer);
         }
+
+        [Fact]
+        public void ResponseTimeout()
+        {
+            AssemblyLoadEventArgs.True(Attribute.IsDefined(typeof(ConfigurationOptions).GetProperty(nameof(ConfigurationOptions.ResponseTimeout)), typeof(ObsoleteAttribute)));
+
+            var options = ConfigurationOptions.Parse("name=Hello");
+            Assert.Equal(0, options.ResponseTimeout);
+
+            options = ConfigurationOptions.Parse("responseTimeout=1000");
+            Assert.Equal(0, options.ResponseTimeout);
+        }
 #pragma warning restore CS0618 // Type or member is obsolete
     }
 }

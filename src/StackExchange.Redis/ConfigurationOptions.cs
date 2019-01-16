@@ -332,7 +332,8 @@ namespace StackExchange.Redis
         /// Specifies the time in milliseconds that the system should allow for responses before concluding that the socket is unhealthy
         /// (defaults to SyncTimeout)
         /// </summary>
-        public int ResponseTimeout { get { return responseTimeout ?? SyncTimeout; } set { responseTimeout = value; } }
+        [Obsolete("This setting no longer has any effect, and should not be used")]
+        public int ResponseTimeout { get { return 0; } set { } }
 
         /// <summary>
         /// The service name used to resolve a service via sentinel.
@@ -694,7 +695,9 @@ namespace StackExchange.Redis
                             Proxy = OptionKeys.ParseProxy(key, value);
                             break;
                         case OptionKeys.ResponseTimeout:
+#pragma warning disable CS0618 // Type or member is obsolete
                             ResponseTimeout = OptionKeys.ParseInt32(key, value, minValue: 1);
+#pragma warning restore CS0618 // Type or member is obsolete
                             break;
                         case OptionKeys.DefaultDatabase:
                             DefaultDatabase = OptionKeys.ParseInt32(key, value);
