@@ -44,7 +44,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void ResponseTimeout()
         {
-            AssemblyLoadEventArgs.True(Attribute.IsDefined(typeof(ConfigurationOptions).GetProperty(nameof(ConfigurationOptions.ResponseTimeout)), typeof(ObsoleteAttribute)));
+            Assert.True(Attribute.IsDefined(typeof(ConfigurationOptions).GetProperty(nameof(ConfigurationOptions.ResponseTimeout)), typeof(ObsoleteAttribute)));
 
             var options = ConfigurationOptions.Parse("name=Hello");
             Assert.Equal(0, options.ResponseTimeout);
