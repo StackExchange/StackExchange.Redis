@@ -488,8 +488,7 @@ namespace StackExchange.Redis
                         {
                             hash = ParseSHA1(asciiHash); // external caller wants the hex bytes, not the ascii bytes
                         }
-                        var sl = message as RedisDatabase.ScriptLoadMessage;
-                        if (sl != null)
+                        if (message is RedisDatabase.ScriptLoadMessage sl)
                         {
                             connection.BridgeCouldBeNull?.ServerEndPoint?.AddScript(sl.Script, asciiHash);
                         }
@@ -1413,7 +1412,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                     return false;
                 }
 
-                StreamEntry[] entries = null;
+                StreamEntry[] entries;
 
                 if (skipStreamName)
                 {

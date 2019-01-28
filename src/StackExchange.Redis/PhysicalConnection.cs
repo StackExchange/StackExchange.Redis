@@ -232,8 +232,6 @@ namespace StackExchange.Redis
 
         public bool TransactionActive { get; internal set; }
 
-        partial void ShouldIgnoreConnect(ref bool ignore);
-
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")]
         internal void Shutdown()
         {
@@ -275,7 +273,7 @@ namespace StackExchange.Redis
 
         private async Task AwaitedFlush(ValueTask<FlushResult> flush)
         {
-            await flush;
+            await flush.ForAwait();
             _writeStatus = WriteStatus.Flushed;
             UpdateLastWriteTime();
         }
@@ -843,7 +841,7 @@ namespace StackExchange.Redis
         {
             try
             {
-                await flush;
+                await flush.ForAwait();
                 connection._writeStatus = WriteStatus.Flushed;
                 connection.UpdateLastWriteTime();
                 return WriteResult.Success;
@@ -978,8 +976,8 @@ namespace StackExchange.Redis
                 for (int i = 0; i < value.Length; i++)
                 {
                     var b = value[i];
-                    span[offset++] = ToHexNibble(value[i] >> 4);
-                    span[offset++] = ToHexNibble(value[i] & 15);
+                    span[offset++] = ToHexNibble(b >> 4);
+                    span[offset++] = ToHexNibble(b & 15);
                 }
                 span[offset++] = (byte)'\r';
                 span[offset++] = (byte)'\n';
@@ -1585,7 +1583,9 @@ namespace StackExchange.Redis
             if (!line.HasValue) return RawResult.Nil; // incomplete line
 
             int count = 0;
-            foreach (var token in line.GetInlineTokenizer()) count++;
+#pragma warning disable IDE0059
+            foreach (var _ in line.GetInlineTokenizer()) count++;
+#pragma warning restore IDE0059
             var oversized = ArrayPool<RawResult>.Shared.Rent(count);
             count = 0;
             foreach (var token in line.GetInlineTokenizer())

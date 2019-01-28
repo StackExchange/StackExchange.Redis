@@ -225,7 +225,9 @@ namespace StackExchange.Redis
                     var cmd = channel.IsPatternBased ? RedisCommand.PSUBSCRIBE : RedisCommand.SUBSCRIBE;
                     var msg = Message.Create(-1, CommandFlags.FireAndForget, cmd, channel);
                     msg.SetInternalCall();
+#pragma warning disable CS0618
                     server.WriteDirectFireAndForgetSync(msg, ResultProcessor.TrackSubscriptions);
+#pragma warning restore CS0618
                 }
             }
 

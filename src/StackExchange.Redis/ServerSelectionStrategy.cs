@@ -155,7 +155,9 @@ namespace StackExchange.Redis
                         else
                         {
                             message.PrepareToResend(resendVia, isMoved);
+#pragma warning disable CS0618
                             retry = resendVia.TryWriteSync(message) == WriteResult.Success;
+#pragma warning restore CS0618
                         }
                     }
 

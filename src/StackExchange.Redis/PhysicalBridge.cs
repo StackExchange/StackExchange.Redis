@@ -155,6 +155,7 @@ namespace StackExchange.Redis
             return WriteResult.NoConnectionAvailable;
         }
 
+        [Obsolete("prefer async")]
         public WriteResult TryWriteSync(Message message, bool isSlave)
         {
             if (isDisposed) throw new ObjectDisposedException(Name);
@@ -163,7 +164,9 @@ namespace StackExchange.Redis
             var physical = this.physical;
             if (physical == null) return FailDueToNoConnection(message);
 
+#pragma warning disable CS0618
             var result = WriteMessageTakingWriteLockSync(physical, message);
+#pragma warning restore CS0618
             LogNonPreferred(message.Flags, isSlave);
             return result;
         }
@@ -283,7 +286,9 @@ namespace StackExchange.Redis
                 Multiplexer.Trace("Enqueue: " + msg);
                 Multiplexer.OnInfoMessage($"heartbeat ({physical?.LastWriteSecondsAgo}s >= {ServerEndPoint?.WriteEverySeconds}s, {physical?.GetSentAwaitingResponseCount()} waiting) '{msg.CommandAndKey}' on '{PhysicalName}' (v{features.Version})");
                 physical?.UpdateLastWriteTime(); // pre-emptively
+#pragma warning disable CS0618
                 var result = TryWriteSync(msg, ServerEndPoint.IsSlave);
+#pragma warning restore CS0618
 
                 if (result != WriteResult.Success)
                 {
@@ -366,6 +371,8 @@ namespace StackExchange.Redis
                 return _preconnectBacklog.Count == 0 ? null : _preconnectBacklog.Dequeue();
             }
         }
+
+        [Obsolete("prefer async")]
         private void WritePendingBacklogSync(PhysicalConnection connection)
         {
             if (connection != null)
@@ -374,7 +381,9 @@ namespace StackExchange.Redis
                 do
                 {
                     next = DequeueNextPendingBacklog();
+#pragma warning disable CS0618
                     if (next != null) WriteMessageTakingWriteLockSync(connection, next);
+#pragma warning restore CS0618
                 } while (next != null);
             }
         }
@@ -401,7 +410,9 @@ namespace StackExchange.Redis
                 LastException = null;
                 Interlocked.Exchange(ref failConnectCount, 0);
                 ServerEndPoint.OnFullyEstablished(connection);
+#pragma warning disable CS0618
                 WritePendingBacklogSync(connection);
+#pragma warning restore CS0618
 
                 if (ConnectionType == ConnectionType.Interactive) ServerEndPoint.CheckInfoReplication();
             }
@@ -548,7 +559,9 @@ namespace StackExchange.Redis
             {   // deliberately not taking a single lock here; we don't care if
                 // other threads manage to interleave - in fact, it would be desirable
                 // (to avoid a batch monopolising the connection)
+#pragma warning disable CS0618
                 WriteMessageTakingWriteLockSync(physical, message);
+#pragma warning restore CS0618
                 LogNonPreferred(message.Flags, isSlave);
             }
             return true;
@@ -608,7 +621,7 @@ namespace StackExchange.Redis
             {
                 // WriteMessageTakingWriteLockAsync will have checked for immediate availability,
                 // so this is the fallback case - fine to go straight to "await"
-                haveLock = await _SingleWriterLock.WaitAsync(TimeoutMilliseconds).ConfigureAwait(false);
+                haveLock = await _SingleWriterLock.WaitAsync(TimeoutMilliseconds).ForAwait();
                 if (!haveLock)
                 {
                     message.Cancel();
@@ -621,7 +634,7 @@ namespace StackExchange.Redis
 
                 if (result == WriteResult.Success)
                 {
-                    result = await physical.FlushAsync(false).ConfigureAwait(false);
+                    result = await physical.FlushAsync(false).ForAwait();
                 }
 
                 physical.SetIdle();
@@ -631,6 +644,7 @@ namespace StackExchange.Redis
             finally { if (haveLock) ReleaseSingleWriterLock(message); }
         }
 
+        [Obsolete("prefer async")]
         internal WriteResult WriteMessageTakingWriteLockSync(PhysicalConnection physical, Message message)
         {
             Trace("Writing: " + message);
@@ -704,7 +718,7 @@ namespace StackExchange.Redis
 
         private async Task<WriteResult> CompleteWriteAndReleaseLockAsync(ValueTask<WriteResult> flush, Message message)
         {
-            try { return await flush.ConfigureAwait(false); }
+            try { return await flush.ForAwait(); }
             catch (Exception ex) { return HandleWriteException(message, ex); }
             finally { ReleaseSingleWriterLock(message); }
         }
