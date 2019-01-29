@@ -5,7 +5,9 @@ using System.IO;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
+using PendingSubscriptionState = global::StackExchange.Redis.ConnectionMultiplexer.Subscription.PendingSubscriptionState;
 
 namespace StackExchange.Redis
 {
@@ -92,6 +94,7 @@ namespace StackExchange.Redis
         public void Dispose()
         {
             isDisposed = true;
+            ShutdownSubscriptionQueue();
             using (var tmp = physical)
             {
                 physical = null;
@@ -219,6 +222,70 @@ namespace StackExchange.Redis
             physical?.GetCounters(counters);
         }
 
+        private Channel<PendingSubscriptionState> _subscriptionBackgroundQueue;
+        private static readonly UnboundedChannelOptions s_subscriptionQueueOptions = new UnboundedChannelOptions
+        {
+             AllowSynchronousContinuations = false, // we do *not* want the async work to end up on the caller's thread
+             SingleReader = true, // only one reader will be started per channel
+             SingleWriter = true, // writes will be synchronized, because order matters
+        };
+
+        private Channel<PendingSubscriptionState> GetSubscriptionQueue()
+        {
+            var queue = _subscriptionBackgroundQueue;
+            if (queue == null)
+            {
+                queue = Channel.CreateUnbounded<PendingSubscriptionState>(s_subscriptionQueueOptions);
+                var existing = Interlocked.CompareExchange(ref _subscriptionBackgroundQueue, queue, null);
+
+                if (existing != null) return existing; // we didn't win, but that's fine 
+
+                // we won (_subqueue is now queue)
+                // this means we have a new channel without a reader; let's fix that!
+                Task.Run(() => ExecuteSubscriptionLoop());
+            }
+            return queue;
+        }
+
+        private void ShutdownSubscriptionQueue()
+        {
+            try
+            {
+                Interlocked.CompareExchange(ref _subscriptionBackgroundQueue, null, null)?.Writer.TryComplete();
+            }
+            catch { }
+        }
+
+        private async Task ExecuteSubscriptionLoop() // pushes items that have been enqueued over the bridge
+        {
+            // note: this will execute on the default pool rather than our dedicated pool; I'm... OK with this
+            var queue = _subscriptionBackgroundQueue ?? Interlocked.CompareExchange(ref _subscriptionBackgroundQueue, null, null); // just to be sure we can read it!
+            try
+            {
+                while (await queue.Reader.WaitToReadAsync().ForAwait() && queue.Reader.TryRead(out var next))
+                {
+                    try
+                    {
+                        if ((await TryWriteAsync(next.Message, next.IsSlave).ForAwait()) != WriteResult.Success)
+                        {
+                            next.Abort();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        next.Fail(ex);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Multiplexer.OnInternalError(ex, ServerEndPoint?.EndPoint, ConnectionType);
+            }
+        }
+
+        internal bool TryEnqueueBackgroundSubscriptionWrite(PendingSubscriptionState state)
+            => isDisposed ? false : (_subscriptionBackgroundQueue ?? GetSubscriptionQueue()).Writer.TryWrite(state);
+    
         internal void GetOutstandingCount(out int inst, out int qs, out int @in)
         {// defined as: PendingUnsentItems + SentItemsAwaitingResponse + ResponsesAwaitingAsyncCompletion
             inst = (int)(Interlocked.Read(ref operationCount) - Interlocked.Read(ref profileLastLog));
