@@ -38,7 +38,7 @@ So how do I use them?
 
 Simple: start from a server, not a database.
 
-```C#
+```csharp
 // get the target server
 var server = conn.GetServer(someServer);
 

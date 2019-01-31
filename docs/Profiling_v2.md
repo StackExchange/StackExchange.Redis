@@ -45,7 +45,7 @@ This is achieved by providing the desired `ProfilingSession` object via the call
 
 Probably the most useful general-purpose session-provider is one that provides session automatically and works between `async` calls; this is simply:
 
-```c#
+```csharp
 class AsyncLocalProfiler
 {
     private readonly AsyncLocal<ProfilingSession> perThreadSession = new AsyncLocal<ProfilingSession>();
@@ -76,7 +76,7 @@ A toy example of associating commands issued from many different threads togethe
 
 1.*
 
-```C#
+```csharp
 class ToyProfiler
 {
     // note this won't work over "await" boundaries; "AsyncLocal" would be necessary there
@@ -134,7 +134,7 @@ At the end, `timings` will contain 16,000 `IProfiledCommand` objects - one for e
 
 If instead you did the following:
 
-```C#
+```csharp
 ConnectionMultiplexer conn = /* initialization */;
 var profiler = new ToyProfiler();
 
@@ -179,7 +179,7 @@ Moving away from toy examples, here's how you can profile StackExchange.Redis in
 
 First register the following `IProfiler` against your `ConnectionMultiplexer`:
 
-```C#
+```csharp
 public class RedisProfiler
 {
     const string RequestContextKey = "RequestProfilingContext";
@@ -205,7 +205,7 @@ public class RedisProfiler
 
 Then, add the following to your Global.asax.cs file (where `_redisProfiler` is the *instance* of the profiler):
 
-```C#
+```csharp
 protected void Application_BeginRequest()
 {
     _redisProfiler.CreateSessionForCurrentRequest();
@@ -225,7 +225,7 @@ protected void Application_EndRequest()
 
 and ensure that the connection has the profiler registered when the connection is created:
 
-```C#
+```csharp
 connection.RegisterProfiler(() => _redisProfiler.GetSession());
 ```
 
