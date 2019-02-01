@@ -3,7 +3,7 @@
 
 The central object in StackExchange.Redis is the `ConnectionMultiplexer` class in the `StackExchange.Redis` namespace; this is the object that hides away the details of multiple servers. Because the `ConnectionMultiplexer` does a lot, it is designed to be **shared and reused** between callers. You should not create a `ConnectionMultiplexer` per operation. It is fully thread-safe and ready for this usage. In all the subsequent examples it will be assumed that you have a `ConnectionMultiplexer` instance stored away for re-use. But for now, let's create one. This is done using `ConnectionMultiplexer.Connect` or `ConnectionMultiplexer.ConnectAsync`, passing in either a configuration string or a `ConfigurationOptions` object. The configuration string can take the form of a comma-delimited series of nodes, so let's just connect to an instance on the local machine on the default port (6379):
 
-```C#
+```csharp
 using StackExchange.Redis;
 ...
 ConnectionMultiplexer redis = ConnectionMultiplexer.Connect("localhost");
@@ -14,7 +14,7 @@ Note that `ConnectionMultiplexer` implements `IDisposable` and can be disposed w
 
 A more complicated scenario might involve a master/slave setup; for this usage, simply specify all the desired nodes that make up that logical redis tier (it will automatically identify the master):
 
-```C#
+```csharp
 ConnectionMultiplexer redis = ConnectionMultiplexer.Connect("server1:6379,server2:6379");
 ```
 
@@ -31,13 +31,13 @@ Using a redis database
 
 Accessing a redis database is as simple as:
 
-```C#
+```csharp
 IDatabase db = redis.GetDatabase();
 ```
 
 The object returned from `GetDatabase` is a cheap pass-thru object, and does not need to be stored. Note that redis supports multiple databases (although this is not supported on "cluster"); this can be optionally specified in the call to `GetDatabase`. Additionally, if you plan to make use of the asynchronous API and you require the [`Task.AsyncState`][2] to have a value, this can also be specified:
 
-```C#
+```csharp
 int databaseNumber = ...
 object asyncState = ...
 IDatabase db = redis.GetDatabase(databaseNumber, asyncState);
@@ -47,7 +47,7 @@ Once you have the `IDatabase`, it is simply a case of using the [redis API](http
 
 The simplest operation would be to store and retrieve a value:
 
-```C#
+```csharp
 string value = "abcdefg";
 db.StringSet("mykey", value);
 ...
@@ -57,7 +57,7 @@ Console.WriteLine(value); // writes: "abcdefg"
 
 Note that the `String...` prefix here denotes the [String redis type](http://redis.io/topics/data-types), and is largely separate to the [.NET String type][3], although both can store text data. However, redis allows raw binary data for both keys and values - the usage is identical:
 
-```C#
+```csharp
 byte[] key = ..., value = ...;
 db.StringSet(key, value);
 ...
@@ -71,13 +71,13 @@ Using redis pub/sub
 
 Another common use of redis is as a [pub/sub message](http://redis.io/topics/pubsub) distribution tool; this is also simple, and in the event of connection failure, the `ConnectionMultiplexer` will handle all the details of re-subscribing to the requested channels.
 
-```C#
+```csharp
 ISubscriber sub = redis.GetSubscriber();
 ```
 
 Again, the object returned from `GetSubscriber` is a cheap pass-thru object that does not need to be stored. The pub/sub API has no concept of databases, but as before we can optionally provide an async-state. Note that all subscriptions are global: they are not scoped to the lifetime of the `ISubscriber` instance. The pub/sub features in redis use named "channels"; channels do not need to be defined in advance on the server (an interesting use here is things like per-user notification channels, which is what drives parts of the realtime updates on [Stack Overflow](http://stackoverflow.com)). As is common in .NET, subscriptions take the form of callback delegates which accept the channel-name and the message:
 
-```C#
+```csharp
 sub.Subscribe("messages", (channel, message) => {
     Console.WriteLine((string)message);
 });
@@ -85,7 +85,7 @@ sub.Subscribe("messages", (channel, message) => {
 
 Separately (and often in a separate process on a separate machine) you can publish to this channel:
 
-```C#
+```csharp
 sub.Publish("messages", "hello");
 ```
 
@@ -98,19 +98,19 @@ Accessing individual servers
 
 For maintenance purposes, it is sometimes necessary to issue server-specific commands:
 
-```C#
+```csharp
 IServer server = redis.GetServer("localhost", 6379);
 ```
 
 The `GetServer` method will accept an [`EndPoint`](http://msdn.microsoft.com/en-us/library/system.net.endpoint(v=vs.110).aspx) or the name/value pair that uniquely identify the server. As before, the object returned from `GetServer` is a cheap pass-thru object that does not need to be stored, and async-state can be optionally specified. Note that the set of available endpoints is also available:
 
-```C#
+```csharp
 EndPoint[] endpoints = redis.GetEndPoints();
 ```
 
 From the `IServer` instance, the [Server commands](http://redis.io/commands#server) are available; for example:
 
-```C#
+```csharp
 DateTime lastSave = server.LastSave();
 ClientInfo[] clients = server.ClientList();
 ```
@@ -131,7 +131,7 @@ The synchronous usage is already shown in the examples above. This is the simple
 
 For asynchronous usage, the key difference is the `Async` suffix on methods, and (typically) the use of the `await` language feature. For example:
 
-```C#
+```csharp
 string value = "abcdefg";
 await db.StringSetAsync("mykey", value);
 ...
@@ -141,7 +141,7 @@ Console.WriteLine(value); // writes: "abcdefg"
 
 The fire-and-forget usage is accessed by the optional `CommandFlags flags` parameter on all methods (defaults to none). In this usage, the method returns the default value immediately (so a method that normally returns a `String` will always return `null`, and a method that normally returns an `Int64` will always return `0`). The operation will continue in the background. A typical use-case of this might be to increment page-view counts:
 
-```C#
+```csharp
 db.StringIncrement(pageKey, flags: CommandFlags.FireAndForget);
 ```
 

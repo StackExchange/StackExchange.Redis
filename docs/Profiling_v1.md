@@ -45,7 +45,7 @@ command is sent (via the `IProfiler` interface's `GetContext()` method).
 
 A toy example of associating commands issued from many different threads together
 
-```C#
+```csharp
 class ToyProfiler : IProfiler
 {
 	public ConcurrentDictionary<Thread, object> Contexts = new ConcurrentDictionary<Thread, object>();
@@ -106,7 +106,7 @@ At the end, `timings` will contain 16,000 `IProfiledCommand` objects - one for e
 
 If instead you did the following:
 
-```C#
+```csharp
 ConnectionMultiplexer conn = /* initialization */;
 var profiler = new ToyProfiler();
 
@@ -155,7 +155,7 @@ Moving away from toy examples, here's how you can profile StackExchange.Redis in
 
 First register the following `IProfiler` against your `ConnectionMultiplexer`:
 
-```C#
+```csharp
 public class RedisProfiler : IProfiler
 {
     const string RequestContextKey = "RequestProfilingContext";
@@ -183,7 +183,7 @@ public class RedisProfiler : IProfiler
 
 Then, add the following to your Global.asax.cs file:
 
-```C#
+```csharp
 protected void Application_BeginRequest()
 {
     var ctxObj = RedisProfiler.CreateContextForCurrentRequest();

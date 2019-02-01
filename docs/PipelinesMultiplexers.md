@@ -3,7 +3,7 @@
 
 Latency sucks. Modern computers can churn data at an alarming rate, and high speed networking (often with multiple parallel links between important servers) provides enormous bandwidth, but... that damned latency means that computers spend an awful lot of time *waiting for data* and that is one of the several reasons that continuation-based programming is becoming increasingly popular. Let's consider some regular procedural code:
 
-```C#
+```csharp
 string a = db.StringGet("a");
 string b = db.StringGet("b");
 ```
@@ -42,7 +42,7 @@ Because of this, many redis clients allow you to make use of *pipelining*; this 
 
 For example, to pipeline the two gets using procedural (blocking) code, we could use:
 
-```C#
+```csharp
 var aPending = db.StringGetAsync("a");
 var bPending = db.StringGetAsync("b");
 var a = db.Wait(aPending);
@@ -56,7 +56,7 @@ Fire and Forget
 
 A special-case of pipelining is when we expressly don't care about the response from a particular operation, which allows our code to continue immediately while the enqueued operation proceeds in the background. Often, this means that we can put concurrent work on the connection from a single caller. This is achieved using the `flags` parameter:
 
-```C#
+```csharp
 // sliding expiration
 db.KeyExpire(key, TimeSpan.FromMinutes(5), flags: CommandFlags.FireAndForget);
 var value = (string)db.StringGet(key);
@@ -71,7 +71,7 @@ Pipelining is all well and good, but often any single block of code only wants a
 
 For this reason, the only redis features that StackExchange.Redis does not offer (and *will not ever offer*) are the "blocking pops" ([BLPOP](http://redis.io/commands/blpop), [BRPOP](http://redis.io/commands/brpop) and [BRPOPLPUSH](http://redis.io/commands/brpoplpush)) - because this would allow a single caller to stall the entire multiplexer, blocking all other callers. The only other time that StackExchange.Redis needs to hold work is when verifying pre-conditions for a transaction, which is why StackExchange.Redis encapsulates such conditions into internally managed `Condition` instances. [Read more about transactions here](Transactions). If you feel you want "blocking pops", then I strongly suggest you consider pub/sub instead:
 
-```C#
+```csharp
 sub.Subscribe(channel, delegate {
     string work = db.ListRightPop(key);
     if (work != null) Process(work);
@@ -96,7 +96,7 @@ Concurrency
 
 It should be noted that the pipeline / multiplexer / future-value approach also plays very nicely with continuation-based asynchronous code; for example you could write:
 
-```C#
+```csharp
 string value = await db.StringGetAsync(key);
 if (value == null) {
     value = await ComputeValueFromDatabase(...);

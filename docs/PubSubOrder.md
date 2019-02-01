@@ -12,7 +12,7 @@ This works *particularly* well if messages are generally unrelated.
 
 For safety, **the default is sequential**; however, it is strongly recommended that you use concurrent processing whenever possible. This is a simple change:
 
-```C#
+```csharp
 multiplexer.PreserveAsyncOrder = false;
 ```
 
