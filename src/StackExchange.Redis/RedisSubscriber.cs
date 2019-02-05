@@ -127,7 +127,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal bool SubscriberConnected(RedisChannel channel = default(RedisChannel))
+        internal bool SubscriberConnected(in RedisChannel channel = default(RedisChannel))
         {
             var server = GetSubscribedServer(channel);
             if (server != null) return server.IsConnected;
@@ -149,7 +149,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private sealed class Subscription
+        internal sealed class Subscription
         {
             private Action<RedisChannel, RedisValue> _asyncHandler, _syncHandler;
             private ServerEndPoint owner;
@@ -195,25 +195,79 @@ namespace StackExchange.Redis
 
             public Task SubscribeToServer(ConnectionMultiplexer multiplexer, in RedisChannel channel, CommandFlags flags, object asyncState, bool internalCall)
             {
-                var cmd = channel.IsPatternBased ? RedisCommand.PSUBSCRIBE : RedisCommand.SUBSCRIBE;
-                var selected = multiplexer.SelectServer(cmd, flags, default(RedisKey));
+                var selected = multiplexer.SelectServer(RedisCommand.SUBSCRIBE, flags, default(RedisKey));
+                var bridge = selected?.GetBridge(ConnectionType.Subscription, true);
+                if (bridge == null) return null;
 
-                if (selected == null || Interlocked.CompareExchange(ref owner, selected, null) != null) return null;
+                // note: check we can create the message validly *before* we swap the owner over (Interlocked)
+                var state = PendingSubscriptionState.Create(channel, this, flags, true, internalCall, asyncState, selected.IsSlave);
 
-                var msg = Message.Create(-1, flags, cmd, channel);
-                if (internalCall) msg.SetInternalCall();
-                return selected.WriteDirectAsync(msg, ResultProcessor.TrackSubscriptions, asyncState);
+                if (Interlocked.CompareExchange(ref owner, selected, null) != null) return null;
+                try
+                {
+                    if (!bridge.TryEnqueueBackgroundSubscriptionWrite(state))
+                    {
+                        state.Abort();
+                        return null;
+                    }
+                    return state.Task;
+                }
+                catch
+                {
+                    // clear the owner if it is still us
+                    Interlocked.CompareExchange(ref owner, null, selected);
+                    throw;
+                }
             }
 
             public Task UnsubscribeFromServer(in RedisChannel channel, CommandFlags flags, object asyncState, bool internalCall)
             {
                 var oldOwner = Interlocked.Exchange(ref owner, null);
-                if (oldOwner == null) return null;
+                var bridge = oldOwner?.GetBridge(ConnectionType.Subscription, false);
+                if (bridge == null) return null;
 
-                var cmd = channel.IsPatternBased ? RedisCommand.PUNSUBSCRIBE : RedisCommand.UNSUBSCRIBE;
-                var msg = Message.Create(-1, flags, cmd, channel);
-                if (internalCall) msg.SetInternalCall();
-                return oldOwner.WriteDirectAsync(msg, ResultProcessor.TrackSubscriptions, asyncState);
+                var state = PendingSubscriptionState.Create(channel, this, flags, false, internalCall, asyncState, oldOwner.IsSlave);
+
+                if (!bridge.TryEnqueueBackgroundSubscriptionWrite(state))
+                {
+                    state.Abort();
+                    return null;
+                }
+                return state.Task;
+            }
+
+            internal readonly struct PendingSubscriptionState
+            {
+                public override string ToString() => Message.ToString();
+                public Subscription Subscription { get; }
+                public Message Message { get; }
+                public bool IsSlave { get; }
+                public Task Task => _taskSource.Task;
+                private readonly TaskCompletionSource<bool> _taskSource;
+
+                public static PendingSubscriptionState Create(RedisChannel channel, Subscription subscription, CommandFlags flags, bool subscribe, bool internalCall, object asyncState, bool isSlave)
+                    => new PendingSubscriptionState(asyncState, channel, subscription, flags, subscribe, internalCall, isSlave);
+
+                public void Abort() => _taskSource.TrySetCanceled();
+                public void Fail(Exception ex) => _taskSource.TrySetException(ex);
+
+                private PendingSubscriptionState(object asyncState, RedisChannel channel, Subscription subscription, CommandFlags flags, bool subscribe, bool internalCall, bool isSlave)
+                {
+                    
+                    var cmd = subscribe
+                        ? (channel.IsPatternBased ? RedisCommand.PSUBSCRIBE : RedisCommand.SUBSCRIBE)
+                        : (channel.IsPatternBased ? RedisCommand.PUNSUBSCRIBE : RedisCommand.UNSUBSCRIBE);
+                    var msg = Message.Create(-1, flags, cmd, channel);
+                    if (internalCall) msg.SetInternalCall();
+                    var taskSource = TaskSource.Create<bool>(asyncState);
+                    var source = ResultBox<bool>.Get(taskSource);
+                    msg.SetSource(ResultProcessor.TrackSubscriptions, source);
+
+                    Subscription = subscription;
+                    _taskSource = taskSource;
+                    Message = msg;
+                    IsSlave = isSlave;
+                }
             }
 
             internal ServerEndPoint GetOwner() => Volatile.Read(ref owner);
@@ -225,7 +279,9 @@ namespace StackExchange.Redis
                     var cmd = channel.IsPatternBased ? RedisCommand.PSUBSCRIBE : RedisCommand.SUBSCRIBE;
                     var msg = Message.Create(-1, CommandFlags.FireAndForget, cmd, channel);
                     msg.SetInternalCall();
-                    server.WriteDirectFireAndForget(msg, ResultProcessor.TrackSubscriptions);
+#pragma warning disable CS0618
+                    server.WriteDirectFireAndForgetSync(msg, ResultProcessor.TrackSubscriptions);
+#pragma warning restore CS0618
                 }
             }
 

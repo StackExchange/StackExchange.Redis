@@ -7,6 +7,8 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 
+#pragma warning disable RCS1231 // Make parameter ref read-only.
+
 namespace StackExchange.Redis
 {
     internal sealed class RedisServer : RedisBase, IServer
@@ -583,7 +585,7 @@ namespace StackExchange.Redis
             return base.ExecuteSync<T>(message, processor, server);
         }
 
-        internal override RedisFeatures GetFeatures(RedisKey key, CommandFlags flags, out ServerEndPoint server)
+        internal override RedisFeatures GetFeatures(in RedisKey key, CommandFlags flags, out ServerEndPoint server)
         {
             server = this.server;
             return new RedisFeatures(server.Version);
@@ -607,7 +609,9 @@ namespace StackExchange.Redis
             {
                 var del = Message.Create(0, CommandFlags.FireAndForget | CommandFlags.NoRedirect, RedisCommand.DEL, (RedisKey)configuration.TieBreaker);
                 del.SetInternalCall();
-                server.WriteDirectFireAndForget(del, ResultProcessor.Boolean);
+#pragma warning disable CS0618
+                server.WriteDirectFireAndForgetSync(del, ResultProcessor.Boolean);
+#pragma warning restore CS0618
             }
             ExecuteSync(slaveofMsg, ResultProcessor.DemandOK);
 
@@ -617,7 +621,9 @@ namespace StackExchange.Redis
             {
                 var pub = Message.Create(-1, CommandFlags.FireAndForget | CommandFlags.NoRedirect, RedisCommand.PUBLISH, (RedisValue)channel, RedisLiterals.Wildcard);
                 pub.SetInternalCall();
-                server.WriteDirectFireAndForget(pub, ResultProcessor.Int64);
+#pragma warning disable CS0618
+                server.WriteDirectFireAndForgetSync(pub, ResultProcessor.Int64);
+#pragma warning restore CS0618
             }
         }
 

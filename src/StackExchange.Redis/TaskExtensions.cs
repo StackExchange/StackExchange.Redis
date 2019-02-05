@@ -26,6 +26,7 @@ namespace StackExchange.Redis
         }
 
         public static ConfiguredTaskAwaitable ForAwait(this Task task) => task.ConfigureAwait(false);
+        public static ConfiguredValueTaskAwaitable ForAwait(this ValueTask task) => task.ConfigureAwait(false);
         public static ConfiguredTaskAwaitable<T> ForAwait<T>(this Task<T> task) => task.ConfigureAwait(false);
         public static ConfiguredValueTaskAwaitable<T> ForAwait<T>(this ValueTask<T> task) => task.ConfigureAwait(false);
 
@@ -37,10 +38,10 @@ namespace StackExchange.Redis
         public static async Task<bool> TimeoutAfter(this Task task, int timeoutMs)
         {
             var cts = new CancellationTokenSource();
-            if (task == await Task.WhenAny(task, Task.Delay(timeoutMs, cts.Token)).ConfigureAwait(false))
+            if (task == await Task.WhenAny(task, Task.Delay(timeoutMs, cts.Token)).ForAwait())
             {
                 cts.Cancel();
-                await task.ConfigureAwait(false);
+                await task.ForAwait();
                 return true;
             }
             else

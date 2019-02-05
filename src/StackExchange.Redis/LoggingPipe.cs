@@ -71,12 +71,12 @@ namespace StackExchange.Redis
                                 arr = new ArraySegment<byte>(tmp, 0, segment.Length);
                                 leased = true;
                             }
-                            await file.WriteAsync(arr.Array, arr.Offset, arr.Count);
-                            await file.FlushAsync();
+                            await file.WriteAsync(arr.Array, arr.Offset, arr.Count).ForAwait();
+                            await file.FlushAsync().ForAwait();
                             if (leased) ArrayPool<byte>.Shared.Return(arr.Array);
 
                             // and flush it upstream
-                            await to.WriteAsync(segment);
+                            await to.WriteAsync(segment).ForAwait();
                         }
                     }
                     from.AdvanceTo(buffer.End);

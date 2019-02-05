@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 
+#pragma warning disable RCS1231
+
 namespace StackExchange.Redis
 {
     /// <summary>
@@ -303,6 +305,8 @@ namespace StackExchange.Redis
         /// <param name="count">The number of members which sorted set must not have.</param>
         public static Condition SortedSetScoreNotExists(RedisKey key, RedisValue score, RedisValue count) => new SortedSetScoreCondition(key, score, false, count);
 
+#pragma warning restore RCS1231
+
         internal abstract void CheckCommands(CommandMap commandMap);
 
         internal abstract IEnumerable<Message> CreateMessages(int db, ResultBox resultBox);
@@ -314,12 +318,14 @@ namespace StackExchange.Redis
         {
             public static readonly ConditionProcessor Default = new ConditionProcessor();
 
-            public static Message CreateMessage(Condition condition, int db, CommandFlags flags, RedisCommand command, RedisKey key, RedisValue value = default(RedisValue))
+#pragma warning disable RCS1231 // Make parameter ref read-only.
+            public static Message CreateMessage(Condition condition, int db, CommandFlags flags, RedisCommand command, in RedisKey key, RedisValue value = default(RedisValue))
+#pragma warning restore RCS1231 // Make parameter ref read-only.
             {
                 return new ConditionMessage(condition, db, flags, command, key, value);
             }
 
-            public static Message CreateMessage(Condition condition, int db, CommandFlags flags, RedisCommand command, RedisKey key, RedisValue value, RedisValue value1)
+            public static Message CreateMessage(Condition condition, int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value, in RedisValue value1)
             {
                 return new ConditionMessage(condition, db, flags, command, key, value, value1);
             }
@@ -343,14 +349,14 @@ namespace StackExchange.Redis
                 private readonly RedisValue value;
                 private readonly RedisValue value1;
 
-                public ConditionMessage(Condition condition, int db, CommandFlags flags, RedisCommand command, RedisKey key, RedisValue value)
+                public ConditionMessage(Condition condition, int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value)
                     : base(db, flags, command, key)
                 {
                     Condition = condition;
                     this.value = value; // note no assert here
                 }
 
-                public ConditionMessage(Condition condition, int db, CommandFlags flags, RedisCommand command, RedisKey key, RedisValue value, RedisValue value1)
+                public ConditionMessage(Condition condition, int db, CommandFlags flags, RedisCommand command, in RedisKey key, in RedisValue value, in RedisValue value1)
                     : this(condition, db, flags, command, key, value)
                 {
                     this.value1 = value1; // note no assert here
@@ -391,7 +397,7 @@ namespace StackExchange.Redis
                 return new ExistsCondition(map(key), type, expectedValue, expectedResult);
             }
 
-            public ExistsCondition(RedisKey key, RedisType type, RedisValue expectedValue, bool expectedResult)
+            public ExistsCondition(in RedisKey key, RedisType type, in RedisValue expectedValue, bool expectedResult)
             {
                 if (key.IsNull) throw new ArgumentException("key");
                 this.key = key;
@@ -481,7 +487,7 @@ namespace StackExchange.Redis
             private readonly RedisType type;
             private readonly RedisCommand cmd;
 
-            public EqualsCondition(RedisKey key, RedisType type, RedisValue memberName, bool expectedEqual, RedisValue expectedValue)
+            public EqualsCondition(in RedisKey key, RedisType type, in RedisValue memberName, bool expectedEqual, in RedisValue expectedValue)
             {
                 if (key.IsNull) throw new ArgumentException("key");
                 this.key = key;
@@ -575,7 +581,7 @@ namespace StackExchange.Redis
             private readonly long index;
             private readonly RedisValue? expectedValue;
             private readonly RedisKey key;
-            public ListCondition(RedisKey key, long index, bool expectedResult, RedisValue? expectedValue)
+            public ListCondition(in RedisKey key, long index, bool expectedResult, in RedisValue? expectedValue)
             {
                 if (key.IsNull) throw new ArgumentException(nameof(key));
                 this.key = key;
@@ -645,7 +651,7 @@ namespace StackExchange.Redis
             private readonly RedisType type;
             private readonly RedisCommand cmd;
 
-            public LengthCondition(RedisKey key, RedisType type, int compareToResult, long expectedLength)
+            public LengthCondition(in RedisKey key, RedisType type, int compareToResult, long expectedLength)
             {
                 if (key.IsNull) throw new ArgumentException(nameof(key));
                 this.key = key;
@@ -737,7 +743,7 @@ namespace StackExchange.Redis
             private readonly RedisValue sortedSetScore, expectedValue;
             private readonly RedisKey key;
 
-            public SortedSetScoreCondition(RedisKey key, RedisValue sortedSetScore, bool expectedEqual, RedisValue expectedValue)
+            public SortedSetScoreCondition(in RedisKey key, in RedisValue sortedSetScore, bool expectedEqual, in RedisValue expectedValue)
             {
                 if (key.IsNull)
                 {

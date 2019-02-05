@@ -54,7 +54,7 @@ namespace StackExchange.Redis
             return multiplexer.ExecuteSyncImpl<T>(message, processor, server);
         }
 
-        internal virtual RedisFeatures GetFeatures(RedisKey key, CommandFlags flags, out ServerEndPoint server)
+        internal virtual RedisFeatures GetFeatures(in RedisKey key, CommandFlags flags, out ServerEndPoint server)
         {
             server = multiplexer.SelectServer(RedisCommand.PING, flags, key);
             var version = server == null ? multiplexer.RawConfig.DefaultVersion : server.Version;
@@ -116,7 +116,7 @@ namespace StackExchange.Redis
         internal static class CursorUtils
         {
             internal const int Origin = 0, DefaultPageSize = 10;
-            internal static bool IsNil(RedisValue pattern)
+            internal static bool IsNil(in RedisValue pattern)
             {
                 if (pattern.IsNullOrEmpty) return true;
                 if (pattern.IsInteger) return false;
@@ -231,7 +231,7 @@ namespace StackExchange.Redis
                     Disposed,
                 }
 
-                private void ProcessReply(ScanResult result)
+                private void ProcessReply(in ScanResult result)
                 {
                     currentCursor = nextCursor;
                     nextCursor = result.Cursor;

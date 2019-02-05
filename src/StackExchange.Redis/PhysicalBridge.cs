@@ -5,7 +5,9 @@ using System.IO;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
+using PendingSubscriptionState = global::StackExchange.Redis.ConnectionMultiplexer.Subscription.PendingSubscriptionState;
 
 namespace StackExchange.Redis
 {
@@ -92,6 +94,7 @@ namespace StackExchange.Redis
         public void Dispose()
         {
             isDisposed = true;
+            ShutdownSubscriptionQueue();
             using (var tmp = physical)
             {
                 physical = null;
@@ -123,45 +126,64 @@ namespace StackExchange.Redis
 
         public void TryConnect(TextWriter log) => GetConnection(log);
 
-        public WriteResult TryWrite(Message message, bool isSlave)
+        private WriteResult QueueOrFailMessage(Message message)
         {
-            if (isDisposed) throw new ObjectDisposedException(Name);
-            if (!IsConnected)
+            if (message.IsInternalCall && message.Command != RedisCommand.QUIT)
             {
-                if (message.IsInternalCall && message.Command != RedisCommand.QUIT)
+                // you can go in the queue, but we won't be starting
+                // a worker, because the handshake has not completed
+                var queue = _preconnectBacklog;
+                lock (queue)
                 {
-                    // you can go in the queue, but we won't be starting
-                    // a worker, because the handshake has not completed
-                    var queue = _preconnectBacklog;
-                    lock (queue)
-                    {
-                        queue.Enqueue(message);
-                    }
-                    message.SetEnqueued(null);
-                    return WriteResult.Success; // we'll take it...
+                    queue.Enqueue(message);
                 }
-                else
-                {
-                    // sorry, we're just not ready for you yet;
-                    message.Cancel();
-                    Multiplexer?.OnMessageFaulted(message, null);
-                    this.CompleteSyncOrAsync(message);
-                    return WriteResult.NoConnectionAvailable;
-                }
+                message.SetEnqueued(null);
+                return WriteResult.Success; // we'll take it...
             }
-
-            var physical = this.physical;
-            if (physical == null)
+            else
             {
+                // sorry, we're just not ready for you yet;
                 message.Cancel();
                 Multiplexer?.OnMessageFaulted(message, null);
                 this.CompleteSyncOrAsync(message);
                 return WriteResult.NoConnectionAvailable;
             }
+        }
 
-            var result = WriteMessageTakingWriteLock(physical, message);
+        private WriteResult FailDueToNoConnection(Message message)
+        {
+            message.Cancel();
+            Multiplexer?.OnMessageFaulted(message, null);
+            this.CompleteSyncOrAsync(message);
+            return WriteResult.NoConnectionAvailable;
+        }
+
+        [Obsolete("prefer async")]
+        public WriteResult TryWriteSync(Message message, bool isSlave)
+        {
+            if (isDisposed) throw new ObjectDisposedException(Name);
+            if (!IsConnected) return QueueOrFailMessage(message);
+
+            var physical = this.physical;
+            if (physical == null) return FailDueToNoConnection(message);
+
+#pragma warning disable CS0618
+            var result = WriteMessageTakingWriteLockSync(physical, message);
+#pragma warning restore CS0618
             LogNonPreferred(message.Flags, isSlave);
+            return result;
+        }
 
+        public ValueTask<WriteResult> TryWriteAsync(Message message, bool isSlave)
+        {
+            if (isDisposed) throw new ObjectDisposedException(Name);
+            if (!IsConnected) return new ValueTask<WriteResult>(QueueOrFailMessage(message));
+
+            var physical = this.physical;
+            if (physical == null) return new ValueTask<WriteResult>(FailDueToNoConnection(message));
+
+            var result = WriteMessageTakingWriteLockAsync(physical, message);
+            LogNonPreferred(message.Flags, isSlave);
             return result;
         }
 
@@ -200,6 +222,70 @@ namespace StackExchange.Redis
             physical?.GetCounters(counters);
         }
 
+        private Channel<PendingSubscriptionState> _subscriptionBackgroundQueue;
+        private static readonly UnboundedChannelOptions s_subscriptionQueueOptions = new UnboundedChannelOptions
+        {
+             AllowSynchronousContinuations = false, // we do *not* want the async work to end up on the caller's thread
+             SingleReader = true, // only one reader will be started per channel
+             SingleWriter = true, // writes will be synchronized, because order matters
+        };
+
+        private Channel<PendingSubscriptionState> GetSubscriptionQueue()
+        {
+            var queue = _subscriptionBackgroundQueue;
+            if (queue == null)
+            {
+                queue = Channel.CreateUnbounded<PendingSubscriptionState>(s_subscriptionQueueOptions);
+                var existing = Interlocked.CompareExchange(ref _subscriptionBackgroundQueue, queue, null);
+
+                if (existing != null) return existing; // we didn't win, but that's fine 
+
+                // we won (_subqueue is now queue)
+                // this means we have a new channel without a reader; let's fix that!
+                Task.Run(() => ExecuteSubscriptionLoop());
+            }
+            return queue;
+        }
+
+        private void ShutdownSubscriptionQueue()
+        {
+            try
+            {
+                Interlocked.CompareExchange(ref _subscriptionBackgroundQueue, null, null)?.Writer.TryComplete();
+            }
+            catch { }
+        }
+
+        private async Task ExecuteSubscriptionLoop() // pushes items that have been enqueued over the bridge
+        {
+            // note: this will execute on the default pool rather than our dedicated pool; I'm... OK with this
+            var queue = _subscriptionBackgroundQueue ?? Interlocked.CompareExchange(ref _subscriptionBackgroundQueue, null, null); // just to be sure we can read it!
+            try
+            {
+                while (await queue.Reader.WaitToReadAsync().ForAwait() && queue.Reader.TryRead(out var next))
+                {
+                    try
+                    {
+                        if ((await TryWriteAsync(next.Message, next.IsSlave).ForAwait()) != WriteResult.Success)
+                        {
+                            next.Abort();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        next.Fail(ex);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Multiplexer.OnInternalError(ex, ServerEndPoint?.EndPoint, ConnectionType);
+            }
+        }
+
+        internal bool TryEnqueueBackgroundSubscriptionWrite(PendingSubscriptionState state)
+            => isDisposed ? false : (_subscriptionBackgroundQueue ?? GetSubscriptionQueue()).Writer.TryWrite(state);
+    
         internal void GetOutstandingCount(out int inst, out int qs, out int @in)
         {// defined as: PendingUnsentItems + SentItemsAwaitingResponse + ResponsesAwaitingAsyncCompletion
             inst = (int)(Interlocked.Read(ref operationCount) - Interlocked.Read(ref profileLastLog));
@@ -267,7 +353,9 @@ namespace StackExchange.Redis
                 Multiplexer.Trace("Enqueue: " + msg);
                 Multiplexer.OnInfoMessage($"heartbeat ({physical?.LastWriteSecondsAgo}s >= {ServerEndPoint?.WriteEverySeconds}s, {physical?.GetSentAwaitingResponseCount()} waiting) '{msg.CommandAndKey}' on '{PhysicalName}' (v{features.Version})");
                 physical?.UpdateLastWriteTime(); // pre-emptively
-                var result = TryWrite(msg, ServerEndPoint.IsSlave);
+#pragma warning disable CS0618
+                var result = TryWriteSync(msg, ServerEndPoint.IsSlave);
+#pragma warning restore CS0618
 
                 if (result != WriteResult.Success)
                 {
@@ -350,7 +438,9 @@ namespace StackExchange.Redis
                 return _preconnectBacklog.Count == 0 ? null : _preconnectBacklog.Dequeue();
             }
         }
-        private void WritePendingBacklog(PhysicalConnection connection)
+
+        [Obsolete("prefer async")]
+        private void WritePendingBacklogSync(PhysicalConnection connection)
         {
             if (connection != null)
             {
@@ -358,7 +448,9 @@ namespace StackExchange.Redis
                 do
                 {
                     next = DequeueNextPendingBacklog();
-                    if (next != null) WriteMessageTakingWriteLock(connection, next);
+#pragma warning disable CS0618
+                    if (next != null) WriteMessageTakingWriteLockSync(connection, next);
+#pragma warning restore CS0618
                 } while (next != null);
             }
         }
@@ -385,7 +477,9 @@ namespace StackExchange.Redis
                 LastException = null;
                 Interlocked.Exchange(ref failConnectCount, 0);
                 ServerEndPoint.OnFullyEstablished(connection);
-                WritePendingBacklog(connection);
+#pragma warning disable CS0618
+                WritePendingBacklogSync(connection);
+#pragma warning restore CS0618
 
                 if (ConnectionType == ConnectionType.Interactive) ServerEndPoint.CheckInfoReplication();
             }
@@ -532,30 +626,69 @@ namespace StackExchange.Redis
             {   // deliberately not taking a single lock here; we don't care if
                 // other threads manage to interleave - in fact, it would be desirable
                 // (to avoid a batch monopolising the connection)
-                WriteMessageTakingWriteLock(physical, message);
+#pragma warning disable CS0618
+                WriteMessageTakingWriteLockSync(physical, message);
+#pragma warning restore CS0618
                 LogNonPreferred(message.Flags, isSlave);
             }
             return true;
         }
 
-        private readonly object SingleWriterLock = new object();
+        private readonly SemaphoreSlim _SingleWriterLock = new SemaphoreSlim(1);
 
         private Message _activeMesssage;
-        /// <summary>
-        /// This writes a message to the output stream
-        /// </summary>
-        /// <param name="physical">The phsyical connection to write to.</param>
-        /// <param name="message">The message to be written.</param>
-        internal WriteResult WriteMessageTakingWriteLock(PhysicalConnection physical, Message message)
-        {
-            Trace("Writing: " + message);
-            message.SetEnqueued(physical); // this also records the read/write stats at this point
 
+        private WriteResult WriteMessageInsideLock(PhysicalConnection physical, Message message)
+        {
             WriteResult result;
+            var existingMessage = Interlocked.CompareExchange(ref _activeMesssage, message, null);
+            if (existingMessage != null)
+            {
+                Multiplexer?.OnInfoMessage($"reentrant call to WriteMessageTakingWriteLock for {message.CommandAndKey}, {existingMessage.CommandAndKey} is still active");
+                return WriteResult.NoConnectionAvailable;
+            }
+            physical.SetWriting();
+            var messageIsSent = false;
+            if (message is IMultiMessage)
+            {
+                SelectDatabaseInsideWriteLock(physical, message); // need to switch database *before* the transaction
+                foreach (var subCommand in ((IMultiMessage)message).GetMessages(physical))
+                {
+                    result = WriteMessageToServerInsideWriteLock(physical, subCommand);
+                    if (result != WriteResult.Success)
+                    {
+                        // we screwed up; abort; note that WriteMessageToServer already
+                        // killed the underlying connection
+                        Trace("Unable to write to server");
+                        message.Fail(ConnectionFailureType.ProtocolFailure, null, "failure before write: " + result.ToString());
+                        this.CompleteSyncOrAsync(message);
+                        return result;
+                    }
+                    //The parent message (next) may be returned from GetMessages
+                    //and should not be marked as sent again below
+                    messageIsSent = messageIsSent || subCommand == message;
+                }
+                if (!messageIsSent)
+                {
+                    message.SetRequestSent(); // well, it was attempted, at least...
+                }
+
+                return WriteResult.Success;
+            }
+            else
+            {
+                return WriteMessageToServerInsideWriteLock(physical, message);
+            }
+        }
+
+        private async Task<WriteResult> WriteMessageTakingDelayedWriteLockAsync(PhysicalConnection physical, Message message)
+        {
             bool haveLock = false;
             try
             {
-                Monitor.TryEnter(SingleWriterLock, TimeoutMilliseconds, ref haveLock);
+                // WriteMessageTakingWriteLockAsync will have checked for immediate availability,
+                // so this is the fallback case - fine to go straight to "await"
+                haveLock = await _SingleWriterLock.WaitAsync(TimeoutMilliseconds).ForAwait();
                 if (!haveLock)
                 {
                     message.Cancel();
@@ -564,67 +697,110 @@ namespace StackExchange.Redis
                     return WriteResult.TimeoutBeforeWrite;
                 }
 
-                var existingMessage = Interlocked.CompareExchange(ref _activeMesssage, message, null);
-                if (existingMessage != null)
-                {
-                    Multiplexer?.OnInfoMessage($"reentrant call to WriteMessageTakingWriteLock for {message.CommandAndKey}, {existingMessage.CommandAndKey} is still active");
-                    return WriteResult.NoConnectionAvailable;
-                }
-                physical.SetWriting();
-                var messageIsSent = false;
-                if (message is IMultiMessage)
-                {
-                    SelectDatabaseInsideWriteLock(physical, message); // need to switch database *before* the transaction
-                    foreach (var subCommand in ((IMultiMessage)message).GetMessages(physical))
-                    {
-                        result = WriteMessageToServerInsideWriteLock(physical, subCommand);
-                        if (result != WriteResult.Success)
-                        {
-                            // we screwed up; abort; note that WriteMessageToServer already
-                            // killed the underlying connection
-                            Trace("Unable to write to server");
-                            message.Fail(ConnectionFailureType.ProtocolFailure, null, "failure before write: " + result.ToString());
-                            this.CompleteSyncOrAsync(message);
-                            return result;
-                        }
-                        //The parent message (next) may be returned from GetMessages
-                        //and should not be marked as sent again below
-                        messageIsSent = messageIsSent || subCommand == message;
-                    }
-                    if (!messageIsSent)
-                    {
-                        message.SetRequestSent(); // well, it was attempted, at least...
-                    }
-
-                    result = WriteResult.Success;
-                }
-                else
-                {
-                    result = WriteMessageToServerInsideWriteLock(physical, message);
-                }
+                var result = WriteMessageInsideLock(physical, message);
 
                 if (result == WriteResult.Success)
                 {
-                    result = physical.FlushSync();
+                    result = await physical.FlushAsync(false).ForAwait();
+                }
+
+                physical.SetIdle();
+                return result;
+            }
+            catch (Exception ex) { return HandleWriteException(message, ex); }
+            finally { if (haveLock) ReleaseSingleWriterLock(message); }
+        }
+
+        [Obsolete("prefer async")]
+        internal WriteResult WriteMessageTakingWriteLockSync(PhysicalConnection physical, Message message)
+        {
+            Trace("Writing: " + message);
+            message.SetEnqueued(physical); // this also records the read/write stats at this point
+
+            bool haveLock = false;
+            try
+            {
+                haveLock = _SingleWriterLock.Wait(TimeoutMilliseconds);
+                if (!haveLock)
+                {
+                    message.Cancel();
+                    Multiplexer?.OnMessageFaulted(message, null);
+                    this.CompleteSyncOrAsync(message);
+                    return WriteResult.TimeoutBeforeWrite;
+                }
+
+                var result = WriteMessageInsideLock(physical, message);
+
+                if (result == WriteResult.Success)
+                {
+#pragma warning disable CS0618
+                    result = physical.FlushSync(false, TimeoutMilliseconds);
+#pragma warning restore CS0618
+                }
+
+                physical.SetIdle();
+                return result;
+            }
+            catch (Exception ex) { return HandleWriteException(message, ex); }
+            finally { if (haveLock) ReleaseSingleWriterLock(message); }
+        }
+
+        /// <summary>
+        /// This writes a message to the output stream
+        /// </summary>
+        /// <param name="physical">The phsyical connection to write to.</param>
+        /// <param name="message">The message to be written.</param>
+        internal ValueTask<WriteResult> WriteMessageTakingWriteLockAsync(PhysicalConnection physical, Message message)
+        {
+            Trace("Writing: " + message);
+            message.SetEnqueued(physical); // this also records the read/write stats at this point
+
+            bool haveLock = false;
+            try
+            {
+                // try to acquire it synchronously
+                haveLock = _SingleWriterLock.Wait(0);
+                if (!haveLock) return new ValueTask<WriteResult>(WriteMessageTakingDelayedWriteLockAsync(physical, message));
+
+                var result = WriteMessageInsideLock(physical, message);
+
+                if (result == WriteResult.Success)
+                {
+                    var flush = physical.FlushAsync(false);
+                    if (!flush.IsCompletedSuccessfully)
+                    {
+                        haveLock = false; // so we don't release prematurely
+                        return new ValueTask<WriteResult>(CompleteWriteAndReleaseLockAsync(flush, message));
+                    }
+
+                    result = flush.Result; // we know it was completed, this is fine
                 }
                 physical.SetIdle();
-            }
-            catch (Exception ex)
-            {
-                var inner = new RedisConnectionException(ConnectionFailureType.InternalFailure, "Failed to write", ex);
-                message.SetExceptionAndComplete(inner, this);
-                result = WriteResult.WriteFailure;
-            }
-            finally
-            {
-                if (haveLock)
-                {
-                    Interlocked.CompareExchange(ref _activeMesssage, null, message); // remove if it is us
-                    Monitor.Exit(SingleWriterLock);
-                }
-            }
 
-            return result;
+                return new ValueTask<WriteResult>(result);
+            }
+            catch (Exception ex) { return new ValueTask<WriteResult>(HandleWriteException(message, ex)); }
+            finally { if (haveLock) ReleaseSingleWriterLock(message); }
+        }
+
+        private async Task<WriteResult> CompleteWriteAndReleaseLockAsync(ValueTask<WriteResult> flush, Message message)
+        {
+            try { return await flush.ForAwait(); }
+            catch (Exception ex) { return HandleWriteException(message, ex); }
+            finally { ReleaseSingleWriterLock(message); }
+        }
+
+        private WriteResult HandleWriteException(Message message, Exception ex)
+        {
+            var inner = new RedisConnectionException(ConnectionFailureType.InternalFailure, "Failed to write", ex);
+            message.SetExceptionAndComplete(inner, this);
+            return WriteResult.WriteFailure;
+        }
+
+        private void ReleaseSingleWriterLock(Message message)
+        {
+            Interlocked.CompareExchange(ref _activeMesssage, null, message); // remove if it is us
+            _SingleWriterLock.Release();
         }
 
         private State ChangeState(State newState)

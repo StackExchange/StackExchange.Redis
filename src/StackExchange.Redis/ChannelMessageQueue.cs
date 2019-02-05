@@ -164,7 +164,7 @@ namespace StackExchange.Redis
             while (!Completion.IsCompleted)
             {
                 ChannelMessage next;
-                try { if (!TryRead(out next)) next = await ReadAsync().ConfigureAwait(false); }
+                try { if (!TryRead(out next)) next = await ReadAsync().ForAwait(); }
                 catch (ChannelClosedException) { break; } // expected
                 catch (Exception ex)
                 {
@@ -195,7 +195,7 @@ namespace StackExchange.Redis
             while (!Completion.IsCompleted)
             {
                 ChannelMessage next;
-                try { if (!TryRead(out next)) next = await ReadAsync().ConfigureAwait(false); }
+                try { if (!TryRead(out next)) next = await ReadAsync().ForAwait(); }
                 catch (ChannelClosedException) { break; } // expected
                 catch (Exception ex)
                 {
@@ -206,7 +206,7 @@ namespace StackExchange.Redis
                 try
                 {
                     var task = handler(next);
-                    if (task != null && task.Status != TaskStatus.RanToCompletion) await task.ConfigureAwait(false);
+                    if (task != null && task.Status != TaskStatus.RanToCompletion) await task.ForAwait();
                 }
                 catch { } // matches MessageCompletable
             }
@@ -229,7 +229,7 @@ namespace StackExchange.Redis
             _parent = null;
             if (parent != null)
             {
-                await parent.UnsubscribeAsync(Channel, HandleMessage, flags).ConfigureAwait(false);
+                await parent.UnsubscribeAsync(Channel, HandleMessage, flags).ForAwait();
             }
             _queue.Writer.TryComplete(error);
         }

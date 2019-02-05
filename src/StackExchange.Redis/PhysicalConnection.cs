@@ -232,8 +232,6 @@ namespace StackExchange.Redis
 
         public bool TransactionActive { get; internal set; }
 
-        partial void ShouldIgnoreConnect(ref bool ignore);
-
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2202:Do not dispose objects multiple times")]
         internal void Shutdown()
         {
@@ -275,7 +273,7 @@ namespace StackExchange.Redis
 
         private async Task AwaitedFlush(ValueTask<FlushResult> flush)
         {
-            await flush;
+            await flush.ForAwait();
             _writeStatus = WriteStatus.Flushed;
             UpdateLastWriteTime();
         }
@@ -839,23 +837,50 @@ namespace StackExchange.Redis
             return WriteCrlf(span, offset);
         }
 
-        internal WriteResult FlushSync(bool throwOnFailure = false)
+        private static async ValueTask<WriteResult> FlushAsync_Awaited(PhysicalConnection connection, ValueTask<FlushResult> flush, bool throwOnFailure)
         {
-            var tmp = _ioPipe?.Output;
-            if (tmp == null) return WriteResult.NoConnectionAvailable;
             try
             {
-                _writeStatus = WriteStatus.Flushing;
-                var flush = tmp.FlushAsync();
-                if (!flush.IsCompletedSuccessfully) flush.AsTask().Wait();
-                _writeStatus = WriteStatus.Flushed;
-                UpdateLastWriteTime();
+                await flush.ForAwait();
+                connection._writeStatus = WriteStatus.Flushed;
+                connection.UpdateLastWriteTime();
                 return WriteResult.Success;
             }
             catch (ConnectionResetException ex) when (!throwOnFailure)
             {
-                RecordConnectionFailed(ConnectionFailureType.SocketClosed, ex);
+                connection.RecordConnectionFailed(ConnectionFailureType.SocketClosed, ex);
                 return WriteResult.WriteFailure;
+            }
+        }
+
+        [Obsolete("this is an anti-pattern; work to reduce reliance on this is in progress")]
+        internal WriteResult FlushSync(bool throwOnFailure, int millisecondsTimeout)
+        {
+            var flush = FlushAsync(throwOnFailure);
+            if (!flush.IsCompletedSuccessfully)
+            {
+                // here lies the evil
+                if (!flush.AsTask().Wait(millisecondsTimeout)) throw new TimeoutException("timeout while synchronously flushing");
+            }
+            return flush.Result;
+        }
+        internal ValueTask<WriteResult> FlushAsync(bool throwOnFailure)
+        {
+            var tmp = _ioPipe?.Output;
+            if (tmp == null) return new ValueTask<WriteResult>(WriteResult.NoConnectionAvailable);
+            try
+            {
+                _writeStatus = WriteStatus.Flushing;
+                var flush = tmp.FlushAsync();
+                if (!flush.IsCompletedSuccessfully) return FlushAsync_Awaited(this, flush, throwOnFailure);
+                _writeStatus = WriteStatus.Flushed;
+                UpdateLastWriteTime();
+                return new ValueTask<WriteResult>(WriteResult.Success);
+            }
+            catch (ConnectionResetException ex) when (!throwOnFailure)
+            {
+                RecordConnectionFailed(ConnectionFailureType.SocketClosed, ex);
+                return new ValueTask<WriteResult>(WriteResult.WriteFailure);
             }
         }
 
@@ -874,7 +899,9 @@ namespace StackExchange.Redis
             }
         }
 
+#pragma warning disable RCS1231 // Make parameter ref read-only.
         private static void WriteUnifiedSpan(PipeWriter writer, ReadOnlySpan<byte> value)
+#pragma warning restore RCS1231 // Make parameter ref read-only.
         {
             // ${len}\r\n           = 3 + MaxInt32TextLen
             // {value}\r\n          = 2 + value.Length
@@ -949,8 +976,8 @@ namespace StackExchange.Redis
                 for (int i = 0; i < value.Length; i++)
                 {
                     var b = value[i];
-                    span[offset++] = ToHexNibble(value[i] >> 4);
-                    span[offset++] = ToHexNibble(value[i] & 15);
+                    span[offset++] = ToHexNibble(b >> 4);
+                    span[offset++] = ToHexNibble(b & 15);
                 }
                 span[offset++] = (byte)'\r';
                 span[offset++] = (byte)'\n';
@@ -1556,7 +1583,9 @@ namespace StackExchange.Redis
             if (!line.HasValue) return RawResult.Nil; // incomplete line
 
             int count = 0;
-            foreach (var token in line.GetInlineTokenizer()) count++;
+#pragma warning disable IDE0059
+            foreach (var _ in line.GetInlineTokenizer()) count++;
+#pragma warning restore IDE0059
             var oversized = ArrayPool<RawResult>.Shared.Rent(count);
             count = 0;
             foreach (var token in line.GetInlineTokenizer())

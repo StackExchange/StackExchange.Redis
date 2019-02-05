@@ -21,8 +21,6 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed partial class ConnectionMultiplexer : IInternalConnectionMultiplexer // implies : IConnectionMultiplexer and : IDisposable
     {
-        private const string timeoutHelpLink = "https://stackexchange.github.io/StackExchange.Redis/Timeouts";
-
         private static TaskFactory _factory = null;
 
 #if DEBUG
@@ -105,7 +103,7 @@ namespace StackExchange.Redis
         /// </summary>
         internal static string TryGetAzureRoleInstanceIdNoThrow()
         {
-            string roleInstanceId = null;
+            string roleInstanceId;
             // TODO: CoreCLR port pending https://github.com/dotnet/coreclr/issues/919
             try
             {
@@ -379,7 +377,9 @@ namespace StackExchange.Redis
                     if (!node.IsConnected) continue;
                     LogLocked(log, "Attempting to set tie-breaker on {0}...", Format.ToString(node.EndPoint));
                     msg = Message.Create(0, flags, RedisCommand.SET, tieBreakerKey, newMaster);
-                    node.WriteDirectFireAndForget(msg, ResultProcessor.DemandOK);
+#pragma warning disable CS0618
+                    node.WriteDirectFireAndForgetSync(msg, ResultProcessor.DemandOK);
+#pragma warning restore CS0618
                 }
             }
 
@@ -400,7 +400,9 @@ namespace StackExchange.Redis
             {
                 LogLocked(log, "Resending tie-breaker to {0}...", Format.ToString(server.EndPoint));
                 msg = Message.Create(0, flags, RedisCommand.SET, tieBreakerKey, newMaster);
-                server.WriteDirectFireAndForget(msg, ResultProcessor.DemandOK);
+#pragma warning disable CS0618
+                server.WriteDirectFireAndForgetSync(msg, ResultProcessor.DemandOK);
+#pragma warning restore CS0618
             }
 
             // There's an inherent race here in zero-lantency environments (e.g. when Redis is on localhost) when a broadcast is specified
@@ -420,7 +422,9 @@ namespace StackExchange.Redis
                     if (!node.IsConnected) continue;
                     LogLocked(log, "Broadcasting via {0}...", Format.ToString(node.EndPoint));
                     msg = Message.Create(-1, flags, RedisCommand.PUBLISH, channel, newMaster);
-                    node.WriteDirectFireAndForget(msg, ResultProcessor.Int64);
+#pragma warning disable CS0618
+                    node.WriteDirectFireAndForgetSync(msg, ResultProcessor.Int64);
+#pragma warning restore CS0618
                 }
             }
 
@@ -432,7 +436,9 @@ namespace StackExchange.Redis
 
                     LogLocked(log, "Enslaving {0}...", Format.ToString(node.EndPoint));
                     msg = RedisServer.CreateSlaveOfMessage(server.EndPoint, flags);
-                    node.WriteDirectFireAndForget(msg, ResultProcessor.DemandOK);
+#pragma warning disable CS0618
+                    node.WriteDirectFireAndForgetSync(msg, ResultProcessor.DemandOK);
+#pragma warning restore CS0618
                 }
             }
 
@@ -690,20 +696,20 @@ namespace StackExchange.Redis
             }
 
             var watch = Stopwatch.StartNew();
-            LogLockedWithThreadPoolStats(log, "Awaiting task completion", out int busyWorkerCount);
+            LogLockedWithThreadPoolStats(log, "Awaiting task completion", out _);
             try
             {
                 // if none error, great
                 var remaining = timeoutMilliseconds - checked((int)watch.ElapsedMilliseconds);
                 if (remaining <= 0)
                 {
-                    LogLockedWithThreadPoolStats(log, "Timeout before awaiting for tasks", out busyWorkerCount);
+                    LogLockedWithThreadPoolStats(log, "Timeout before awaiting for tasks", out _);
                     return false;
                 }
 
                 var allTasks = Task.WhenAll(tasks).ObserveErrors();
                 bool all = await allTasks.TimeoutAfter(timeoutMs: remaining).ObserveErrors().ForAwait();
-                LogLockedWithThreadPoolStats(log, all ? "All tasks completed cleanly" : $"Not all tasks completed cleanly (from {caller}#{callerLineNumber}, timeout {timeoutMilliseconds}ms)", out busyWorkerCount);
+                LogLockedWithThreadPoolStats(log, all ? "All tasks completed cleanly" : $"Not all tasks completed cleanly (from {caller}#{callerLineNumber}, timeout {timeoutMilliseconds}ms)", out _);
                 return all;
             }
             catch
@@ -719,7 +725,7 @@ namespace StackExchange.Redis
                     var remaining = timeoutMilliseconds - checked((int)watch.ElapsedMilliseconds);
                     if (remaining <= 0)
                     {
-                        LogLockedWithThreadPoolStats(log, "Timeout awaiting tasks", out busyWorkerCount);
+                        LogLockedWithThreadPoolStats(log, "Timeout awaiting tasks", out _);
                         return false;
                     }
                     try
@@ -730,7 +736,7 @@ namespace StackExchange.Redis
                     { }
                 }
             }
-            LogLockedWithThreadPoolStats(log, "Finished awaiting tasks", out busyWorkerCount);
+            LogLockedWithThreadPoolStats(log, "Finished awaiting tasks", out _);
             return false;
         }
 
@@ -1724,7 +1730,10 @@ namespace StackExchange.Redis
             }
         }
 
+#pragma warning disable IDE0060
         partial void OnTraceLog(TextWriter log, [CallerMemberName] string caller = null);
+#pragma warning restore IDE0060
+
         private async Task<ServerEndPoint> NominatePreferredMaster(TextWriter log, ServerEndPoint[] servers, bool useTieBreakers, Task<string>[] tieBreakers, List<ServerEndPoint> masters)
         {
             Dictionary<string, int> uniques = null;
@@ -1901,7 +1910,7 @@ namespace StackExchange.Redis
             return ServerSelectionStrategy.Select(command, key, flags);
         }
 
-        private WriteResult TryPushMessageToBridge<T>(Message message, ResultProcessor<T> processor, ResultBox<T> resultBox, ref ServerEndPoint server)
+        private bool PrepareToPushMessageToBridge<T>(Message message, ResultProcessor<T> processor, ResultBox<T> resultBox, ref ServerEndPoint server)
         {
             message.SetSource(processor, resultBox);
 
@@ -1950,11 +1959,19 @@ namespace StackExchange.Redis
                 }
 
                 Trace("Queueing on server: " + message);
-                return server.TryWrite(message);
+                return true;
             }
             Trace("No server or server unavailable - aborting: " + message);
-            return WriteResult.NoConnectionAvailable;
+            return false;
         }
+        private ValueTask<WriteResult> TryPushMessageToBridgeAsync<T>(Message message, ResultProcessor<T> processor, ResultBox<T> resultBox, ref ServerEndPoint server)
+            => PrepareToPushMessageToBridge(message, processor, resultBox, ref server) ? server.TryWriteAsync(message) : new ValueTask<WriteResult>(WriteResult.NoConnectionAvailable);
+
+        [Obsolete("prefer async")]
+#pragma warning disable CS0618
+        private WriteResult TryPushMessageToBridgeSync<T>(Message message, ResultProcessor<T> processor, ResultBox<T> resultBox, ref ServerEndPoint server)
+            => PrepareToPushMessageToBridge(message, processor, resultBox, ref server) ? server.TryWriteSync(message) : WriteResult.NoConnectionAvailable;
+#pragma warning restore CS0618
 
         /// <summary>
         /// See Object.ToString()
@@ -2111,14 +2128,18 @@ namespace StackExchange.Redis
 
             if (message.IsFireAndForget)
             {
-                TryPushMessageToBridge(message, processor, null, ref server);
+                TryPushMessageToBridgeAsync(message, processor, null, ref server);
                 return CompletedTask<T>.Default(null); // F+F explicitly does not get async-state
             }
             else
             {
                 var tcs = TaskSource.Create<T>(state);
                 var source = ResultBox<T>.Get(tcs);
-                var result = TryPushMessageToBridge(message, processor, source, ref server);
+                var write = TryPushMessageToBridgeAsync(message, processor, source, ref server);
+
+                if (!write.IsCompletedSuccessfully) return ExecuteAsyncImpl_Awaited<T>(this, write, tcs, message, server);
+
+                var result = write.Result;
                 if (result != WriteResult.Success)
                 {
                     var ex = GetException(result, message, server);
@@ -2127,6 +2148,18 @@ namespace StackExchange.Redis
                 return tcs.Task;
             }
         }
+
+        private static async Task<T> ExecuteAsyncImpl_Awaited<T>(ConnectionMultiplexer @this, ValueTask<WriteResult> write, TaskCompletionSource<T> tcs, Message message, ServerEndPoint server)
+        {
+            var result = await write.ForAwait();
+            if (result != WriteResult.Success)
+            {
+                var ex = @this.GetException(result, message, server);
+                ThrowFailed(tcs, ex);
+            }
+            return await tcs.Task.ForAwait();
+        }
+
         internal Exception GetException(WriteResult result, Message message, ServerEndPoint server)
         {
             switch (result)
@@ -2187,7 +2220,9 @@ namespace StackExchange.Redis
 
             if (message.IsFireAndForget)
             {
-                TryPushMessageToBridge(message, processor, null, ref server);
+#pragma warning disable CS0618
+                TryPushMessageToBridgeSync(message, processor, null, ref server);
+#pragma warning restore CS0618
                 Interlocked.Increment(ref fireAndForgets);
                 return default(T);
             }
@@ -2197,7 +2232,9 @@ namespace StackExchange.Redis
 
                 lock (source)
                 {
-                    var result = TryPushMessageToBridge(message, processor, source, ref server);
+#pragma warning disable CS0618
+                    var result = TryPushMessageToBridgeSync(message, processor, source, ref server);
+#pragma warning restore CS0618
                     if (result != WriteResult.Success)
                     {
                         throw GetException(result, message, server);
