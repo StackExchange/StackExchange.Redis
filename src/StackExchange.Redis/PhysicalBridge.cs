@@ -681,6 +681,19 @@ namespace StackExchange.Redis
             }
         }
 
+#pragma warning disable CS0414, IDE0052
+        private LastWriteLockOwnerMethod _lastLockOwner; // used from windbg
+#pragma warning restore CS0414, IDE0052
+
+        enum LastWriteLockOwnerMethod : byte
+        {
+            None = 0,
+            WriteMessageTakingWriteLockSync = 1,
+            WriteMessageTakingWriteLockAsync = 2,
+            WriteMessageTakingDelayedWriteLockAsync = 3,
+            CompleteWriteAndReleaseLockAsync = 4,
+        }
+
         private async Task<WriteResult> WriteMessageTakingDelayedWriteLockAsync(PhysicalConnection physical, Message message)
         {
             bool haveLock = false;
@@ -696,6 +709,7 @@ namespace StackExchange.Redis
                     this.CompleteSyncOrAsync(message);
                     return WriteResult.TimeoutBeforeWrite;
                 }
+                _lastLockOwner = LastWriteLockOwnerMethod.WriteMessageTakingDelayedWriteLockAsync;
 
                 var result = WriteMessageInsideLock(physical, message);
 
@@ -728,6 +742,7 @@ namespace StackExchange.Redis
                     this.CompleteSyncOrAsync(message);
                     return WriteResult.TimeoutBeforeWrite;
                 }
+                _lastLockOwner = LastWriteLockOwnerMethod.WriteMessageTakingWriteLockSync;
 
                 var result = WriteMessageInsideLock(physical, message);
 
@@ -761,6 +776,7 @@ namespace StackExchange.Redis
                 // try to acquire it synchronously
                 haveLock = _SingleWriterLock.Wait(0);
                 if (!haveLock) return new ValueTask<WriteResult>(WriteMessageTakingDelayedWriteLockAsync(physical, message));
+                _lastLockOwner = LastWriteLockOwnerMethod.WriteMessageTakingWriteLockAsync;
 
                 var result = WriteMessageInsideLock(physical, message);
 
@@ -785,6 +801,7 @@ namespace StackExchange.Redis
 
         private async Task<WriteResult> CompleteWriteAndReleaseLockAsync(ValueTask<WriteResult> flush, Message message)
         {
+            _lastLockOwner = LastWriteLockOwnerMethod.CompleteWriteAndReleaseLockAsync;
             try { return await flush.ForAwait(); }
             catch (Exception ex) { return HandleWriteException(message, ex); }
             finally { ReleaseSingleWriterLock(message); }
