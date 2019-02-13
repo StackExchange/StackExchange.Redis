@@ -8,16 +8,16 @@ namespace TestConsole
 {
     internal static class Program
     {
-        public static async Task Main()
+        public static void Main()
         {
-            using (var muxer = await ConnectionMultiplexer.ConnectAsync("127.0.0.1"))
-            {
-                var db = muxer.GetDatabase();
-                var sub = muxer.GetSubscriber();
-                Console.WriteLine("subscribing");
-                ChannelMessageQueue queue = await sub.SubscribeAsync("yolo");
-                Console.WriteLine("subscribed");
-            }
+            //using (var muxer = await ConnectionMultiplexer.ConnectAsync("127.0.0.1"))
+            //{
+            //    var db = muxer.GetDatabase();
+            //    var sub = muxer.GetSubscriber();
+            //    Console.WriteLine("subscribing");
+            //    ChannelMessageQueue queue = await sub.SubscribeAsync("yolo");
+            //    Console.WriteLine("subscribed");
+            //}
         }
     }
 }
