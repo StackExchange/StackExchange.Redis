@@ -5,44 +5,51 @@ using System.IO.Pipelines;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
-using Pipelines.Sockets.Unofficial;
 
 namespace StackExchange.Redis
 {
-    internal sealed class WaitAwaitMutex
+    /// <summary>
+    /// A mutex primitive that can be waited or awaited, with support for schedulers
+    /// </summary>
+    public sealed class WaitAwaitMutex
     {
-        private readonly int _timeoutMilliseconds;
+        /*
+ * - must have single lock-token-holder (mutex)
+ * - must be waitable (sync)
+ * - must be awaitable (async)
+ * - must allow fully async consumer
+ *   ("wait" and "release" can be from different threads)
+ * - must not suck when using both sync+async callers
+ *   (I'm looking at you, SemaphoreSlim... you know what you did)
+ * - must be low allocation
+ * - should allow control of the threading model for async callback
+ * - fairness would be nice, but is not a hard demand
+ * - a "using"-style API is a nice-to-have, to avoid try/finally
+ * - for this application, timeout doesn't need to be per-call
+ */
+
         private readonly PipeScheduler _scheduler;
 
-        public int TimeoutMilliseconds => _timeoutMilliseconds;
+        /// <summary>
+        /// Time to wait, in milliseconds - or zero for immediate-only
+        /// </summary>
+        public int TimeoutMilliseconds { get; }
 
         /// <summary>
         /// Create a new WaitAwaitMutex instance
         /// </summary>
-        /// <param name = "timeoutMilliseconds" > Time to wait, in milliseconds - or non-positive for immediate-only</param>
-        /// <param name="scheduler">The scheduler to use for async continuations</param>
-        public WaitAwaitMutex(PipeScheduler scheduler, int timeoutMilliseconds)
+        /// <param name = "timeoutMilliseconds">Time to wait, in milliseconds - or zero for immediate-only</param>
+        /// <param name="scheduler">The scheduler to use for async continuations, or the thread-pool if omitted</param>
+        public WaitAwaitMutex(int timeoutMilliseconds, PipeScheduler scheduler = null)
         {
             if (timeoutMilliseconds < 0) throw new ArgumentOutOfRangeException(nameof(timeoutMilliseconds));
-            _timeoutMilliseconds = timeoutMilliseconds;
-            _scheduler = scheduler ?? DedicatedThreadPoolPipeScheduler.Default;
+            TimeoutMilliseconds = timeoutMilliseconds;
+            _scheduler = scheduler ?? PipeScheduler.ThreadPool;
         }
 
-        /*
-         * - must have single lock-token-holder (mutex)
-         * - must be waitable (sync)
-         * - must be awaitable (async)
-         * - must allow fully async consumer
-         *   ("wait" and "release" can be from different threads)
-         * - must not suck when using both sync+async callers
-         *   (I'm looking at you, SemaphoreSlim... you know what you did)
-         * - must be low allocation
-         * - should allow control of the threading model for async callback
-         * - fairness would be nice, but is not a hard demand
-         * - a "using"-style API is a nice-to-have, to avoid try/finally
-         * - for this application, timeout doesn't need to be per-call
-         */
-
+        /// <summary>
+        /// The result of a Wait/WaitAsync operation on WaitAwaitMutex; the caller *must* check Success to see whether the mutex was obtained
+        /// </summary>
         public readonly struct LockToken : IDisposable
         {
             private readonly WaitAwaitMutex _parent;
@@ -53,29 +60,25 @@ namespace StackExchange.Redis
             /// </summary>
             public bool Success => _token != 0;
 
-            /// <summary>
-            /// Indicates whether the mutex is still actually held; this is
-            /// more expensive than checking whether it was originally taken
-            /// </summary>
-            public bool IsValid() => (_token != 0 & _parent != null) // note deliberate unusual short-circuit
-                && _parent.IsValid(_token);
-
             internal LockToken(WaitAwaitMutex parent, int token)
             {
                 _parent = parent;
                 _token = token;
             }
+
+            /// <summary>
+            /// Release the mutex, if obtained
+            /// </summary>
             public void Dispose()
             {
                 if (_token != 0) _parent.Release(_token, demandMatch: true);
             }
         }
 
-        private bool IsValid(int token) => _currentToken == token;
-
-        static void ThrowInvalidLockHolder() => throw new InvalidOperationException("Attempt to release a WaitAwaitMutex that was not held");
         private void Release(int token, bool demandMatch = true)
         {
+            void ThrowInvalidLockHolder() => throw new InvalidOperationException("Attempt to release a WaitAwaitMutex that was not held");
+
             // we can check for wrongness without needing the lock, note
             if (token != _currentToken)
             {
@@ -98,8 +101,8 @@ namespace StackExchange.Redis
                 {
                     // generate a new token
                     _currentToken = 0;
-                    var newToken = TryTakeInsideLock();
-                    Debug.Assert(newToken.Success);
+                    bool success = TryTakeInsideLock(out var newToken);
+                    Debug.Assert(success); // should have worked: we have the lock and it was zero
 
                     do
                     {
@@ -121,7 +124,7 @@ namespace StackExchange.Redis
                 while (_queue.Count != 0)
                 {
                     var next = _queue.Peek();
-                    var remaining = UpdateTimeOut(next.Start, _timeoutMilliseconds);
+                    var remaining = UpdateTimeOut(next.Start, TimeoutMilliseconds);
                     if (remaining == 0)
                     {
                         // tell them that they failed
@@ -152,7 +155,7 @@ namespace StackExchange.Redis
             }
 
             _timeoutStart = nextItemStart;
-            var localTimeout = UpdateTimeOut(nextItemStart, _timeoutMilliseconds);
+            var localTimeout = UpdateTimeOut(nextItemStart, TimeoutMilliseconds);
             if (localTimeout == 0)
             {   // take a peek back right away (just... not on this thread)
                 _scheduler.Schedule(s => ((WaitAwaitMutex)s).DequeueExpired(), this);
@@ -161,7 +164,7 @@ namespace StackExchange.Redis
             {
                 // take a peek back in a little while, kthx
                 var cts = new CancellationTokenSource();
-                var timeout = Task.Delay(_timeoutMilliseconds, cts.Token);
+                var timeout = Task.Delay(TimeoutMilliseconds, cts.Token);
                 timeout.ContinueWith((_, state) =>
                 {
                     try { ((WaitAwaitMutex)state).DequeueExpired(); } catch { }
@@ -172,8 +175,23 @@ namespace StackExchange.Redis
         private volatile int _currentToken;
         private int _nextToken;
 
+        private bool TryTakeImmediately(ref bool queueLockTaken, out LockToken token)
+        {
+            Monitor.TryEnter(_queue, 0, ref queueLockTaken);
+            if (queueLockTaken & _currentToken == 0)
+            {
+                // increment the token and record it
+                int next = ++_nextToken;
+                if (next == 0) next++; // avoiding the zero sentinel
+                _currentToken = next;
+                token = new LockToken(this, next);
+                return true;
+            }
+            token = default;
+            return false;
+        }
 
-        private LockToken TryTakeInsideLock()
+        private bool TryTakeInsideLock(out LockToken token)
         {
             if (_currentToken == 0)
             {
@@ -181,43 +199,33 @@ namespace StackExchange.Redis
                 int next = ++_nextToken;
                 if (next == 0) next++; // avoiding the zero sentinel
                 _currentToken = next;
-                return new LockToken(this, next);
+                token = new LockToken(this, next);
+                return true;
             }
-            return default;
+            token = default;
+            return false;
         }
 
-        private LockToken TryTakeWithoutCompetition()
-        {
-            // see if it is immediately available without blocking
-            bool lockTaken = false;
-            try
-            {
-                Monitor.TryEnter(_queue, 0, ref lockTaken);
-                return lockTaken ? TryTakeInsideLock() : default;
-            }
-            finally
-            {
-                if (lockTaken) Monitor.Exit(_queue);
-            }
-        }
-
-        LockToken TryTakeBySpinning()
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        bool TryTakeBySpinning(ref bool queueLockTaken, out LockToken token)
         {
             // try a SpinWait to see if we can avoid the expensive bits
             SpinWait spin = new SpinWait();
-            while (!spin.NextSpinWillYield)
+            do
             {
-                spin.SpinOnce();
-                if (_currentToken == 0)
+                // release (if we hold it) and spin
+                if (queueLockTaken)
                 {
-                    var winner = TryTakeWithoutCompetition();
-                    if (winner.Success) return winner;
+                    Monitor.Exit(_queue);
+                    queueLockTaken = false;
                 }
-            }
-            return default;
-        }
+                spin.SpinOnce();
 
-        public bool IsTaken => _currentToken != 0;
+                if (TryTakeImmediately(ref queueLockTaken, out token)) return true;
+            } while (!spin.NextSpinWillYield);
+            token = default;
+            return false;
+        }
 
         private static uint GetTime() => (uint)Environment.TickCount;
         // borrowed from SpinWait
@@ -241,9 +249,15 @@ namespace StackExchange.Redis
             return currentWaitTimeout;
         }
 
-        LockToken TakeWithTimeout()
+        LockToken TakeWithTimeout(ref bool queueLockTaken)
         {
-            bool queueLockTaken = false, itemLockTaken = false;
+            // try and spin
+            if (TryTakeBySpinning(ref queueLockTaken, out var token)) return token;
+
+            // if "now or never", bail
+            if (TimeoutMilliseconds == 0) return default;
+
+            bool itemLockTaken = false;
             var start = GetTime();
 
             var item = GetPerThreadLockObject();
@@ -261,11 +275,14 @@ namespace StackExchange.Redis
                     if (!itemLockTaken) return default; // just give up!
                 }
 
-                // now lock the global queue; have a final stab at getting it cheaply,
-                Monitor.TryEnter(_queue, _timeoutMilliseconds, ref queueLockTaken);
-                if (!queueLockTaken) return default; // couldn't even get the lock, let alone the mutex
-                var token = TryTakeInsideLock();
-                if (token.Success) return token;
+                // now lock the global queue (if we don't already have it); and then have a final stab at getting it cheaply
+                if (!queueLockTaken)
+                {
+                    Monitor.TryEnter(_queue, TimeoutMilliseconds, ref queueLockTaken);
+                    if (!queueLockTaken) return default; // couldn't even get the lock, let alone the mutex
+
+                    if (TryTakeInsideLock(out token)) return token;
+                }
                 item.ResetInsideLock();
 
                 // otherwise enqueue the pending item, and release
@@ -281,46 +298,51 @@ namespace StackExchange.Redis
                 // because otherwise we could get a race condition where it
                 // gets a token *just after* the Wait times out, which
                 // could lead to a dropped token, and a blocked mux
-                Monitor.Wait(item, UpdateTimeOut(start, _timeoutMilliseconds));
+                Monitor.Wait(item, UpdateTimeOut(start, TimeoutMilliseconds));
 
                 // keep in mind that we have the item lock here
                 return item.GetResultInsideLock();
             }
             finally
             {
-                if (queueLockTaken) Monitor.Exit(_queue);
                 if (itemLockTaken) Monitor.Exit(item);
             }
         }
 
-        AwaitableLockToken TakeWithTimeoutAsync()
+        AwaitableLockToken TakeWithTimeoutAsync(ref bool queueLockTaken)
         {
-            bool queueLockTaken = false;
+            // try and spin
+            if (TryTakeBySpinning(ref queueLockTaken, out var token)) return new AwaitableLockToken(token);
+
+            // if "now or never", bail
+            if (TimeoutMilliseconds == 0) return default;
+
             var start = GetTime();
 
-            QueueItem asyncItem;
-            try
+            // lock the global queue; then have a final stab at getting it cheaply
+            if (!queueLockTaken)
             {
-                // lock the global queue; then have a final stab at getting it cheaply,
-                Monitor.TryEnter(_queue, _timeoutMilliseconds, ref queueLockTaken);
+                Monitor.TryEnter(_queue, TimeoutMilliseconds, ref queueLockTaken);
                 if (!queueLockTaken) return default; // couldn't even get the lock, let alone the mutex
-                var token = TryTakeInsideLock();
-                if (token.Success) return new AwaitableLockToken(token);
 
-                // otherwise enqueue the pending item, and release
-                // the global queue
-                asyncItem = QueueItem.CreateAsync(start);
-                _queue.Enqueue(asyncItem);
+                if (TryTakeInsideLock(out token)) return new AwaitableLockToken(token);
+            }
 
-                if (_queue.Count == 1) SetNextAsyncTimeoutInsideLock();
-            }
-            finally
-            {
-                if (queueLockTaken) Monitor.Exit(_queue);
-            }
+            // otherwise enqueue the pending item, and release
+            // the global queue
+            var asyncItem = QueueItem.CreateAsync(start);
+            _queue.Enqueue(asyncItem);
+            Monitor.Exit(_queue);
+            queueLockTaken = false;
+
+            if (_queue.Count == 1) SetNextAsyncTimeoutInsideLock();
+
             return asyncItem.ForAwait();
         }
 
+        /// <summary>
+        /// Custom awaitable result from WaitAsync on WaitAwaitMutex
+        /// </summary>
         public readonly struct AwaitableLockToken : INotifyCompletion, ICriticalNotifyCompletion
         {
             private readonly AsyncLockToken _pending;
@@ -335,10 +357,20 @@ namespace StackExchange.Redis
                 _token = default;
                 _pending = pending;
             }
+
+            /// <summary>
+            /// Obtain the LockToken after completion of this async operation
+            /// </summary>
             public LockToken GetResult() => _pending?.GetResult() ?? _token;
 
+            /// <summary>
+            /// Obtain the awaiter associated with this awaitable result
+            /// </summary>
             public AwaitableLockToken GetAwaiter() => this;
 
+            /// <summary>
+            /// Schedule a continuation to be invoked after completion of this async operation
+            /// </summary>
             public void OnCompleted(Action continuation)
             {
                 if (continuation != null)
@@ -348,9 +380,20 @@ namespace StackExchange.Redis
                 }
             }
 
+            /// <summary>
+            /// Schedule a continuation to be invoked after completion of this async operation
+            /// </summary>
             public void UnsafeOnCompleted(Action continuation) => OnCompleted(continuation);
 
+            /// <summary>
+            /// Indicates whether this awaitable result has completed
+            /// </summary>
             public bool IsCompleted => _pending?.IsCompleted() ?? true;
+
+            /// <summary>
+            /// Indicates whether this awaitable result completed without an asynchronous step
+            /// </summary>
+            public bool CompletedSynchronously => _pending == null;
         }
 
         internal abstract class PendingLockToken
@@ -415,45 +458,46 @@ namespace StackExchange.Redis
         /// <summary>
         /// Attempt to take the lock (Success should be checked by the caller)
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public AwaitableLockToken WaitAsync()
         {
-            LockToken token;
-            if (_currentToken == 0)
+            bool queueLockTaken = false;
+            try
             {
-                token = TryTakeWithoutCompetition();
-                if (token.Success) return new AwaitableLockToken(token);
+                // try to take as uncontested (zero timeout)
+                if (_currentToken == 0 && TryTakeImmediately(ref queueLockTaken, out var token)) return new AwaitableLockToken(token);
+
+                // otherwise, do things the hard way
+                return TakeWithTimeoutAsync(ref queueLockTaken);
             }
-
-            token = TryTakeBySpinning();
-            if (token.Success) return new AwaitableLockToken(token);
-
-            // if the caller is impatient (zero-timeout) and we haven't
-            // got it already: give up; else - wait!
-            return _timeoutMilliseconds == 0 ? default : TakeWithTimeoutAsync();
+            finally
+            {
+                if (queueLockTaken) Monitor.Exit(_queue);
+            }
         }
 
         /// <summary>
         /// Attempt to take the lock (Success should be checked by the caller)
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public LockToken Wait()
         {
-            LockToken token;
-            if (_currentToken == 0)
+            bool queueLockTaken = false;
+            try
             {
-                token = TryTakeWithoutCompetition();
-                if (token.Success) return token;
+                // try to take as uncontested (zero timeout)
+                if (_currentToken == 0 && TryTakeImmediately(ref queueLockTaken, out var token)) return token;
+
+                // otherwise, do things the hard way
+                return TakeWithTimeout(ref queueLockTaken);
             }
-
-            token = TryTakeBySpinning();
-            if (token.Success) return token;
-
-            // if the caller is impatient (zero-timeout) and we haven't
-            // got it already: give up; else - wait!
-            return _timeoutMilliseconds == 0 ? default : TakeWithTimeout();
+            finally
+            {
+                if (queueLockTaken) Monitor.Exit(_queue);
+            }
         }
 
         private readonly Queue<QueueItem> _queue = new Queue<QueueItem>();
-
 
         internal sealed class SyncLockToken : PendingLockToken
         {
