@@ -26,6 +26,8 @@ namespace StackExchange.Redis
  * - fairness would be nice, but is not a hard demand
  * - a "using"-style API is a nice-to-have, to avoid try/finally
  * - for this application, timeout doesn't need to be per-call
+ * - we won't even *attempt* to detect re-entrancy
+ *   (if you try and take a lock that you have, that's your fault)
  */
 
         private readonly PipeScheduler _scheduler;
@@ -108,6 +110,7 @@ namespace StackExchange.Redis
                     {
                         // try to hand that new lock to a recipient
                         var next = _queue.Dequeue();
+                        if (next.IsAsync) _pendingAsyncOperations--;
                         if (next.TrySetAndActivate(_scheduler, newToken)) return; // so we don't clear the token
                     }
                     while (_queue.Count != 0);
@@ -121,6 +124,7 @@ namespace StackExchange.Redis
         {
             lock (_queue)
             {
+                Debug.WriteLine($"before DequeueExpired: {_pendingAsyncOperations} async pending");
                 while (_queue.Count != 0)
                 {
                     var next = _queue.Peek();
@@ -128,14 +132,17 @@ namespace StackExchange.Redis
                     if (remaining == 0)
                     {
                         // tell them that they failed
-                        _queue.Dequeue().TrySetAndActivate(_scheduler, default);
+                        _queue.Dequeue();
+                        if (next.IsAsync) _pendingAsyncOperations--;
+                        next.TrySetAndActivate(_scheduler, default);
                     }
                     else
                     {
                         break;
                     }
                 }
-                if (_queue.Count != 0) SetNextAsyncTimeoutInsideLock();
+                Debug.WriteLine($"after DequeueExpired: {_pendingAsyncOperations} async pending");
+                if (_pendingAsyncOperations != 0) SetNextAsyncTimeoutInsideLock();
             }
         }
 
@@ -143,16 +150,27 @@ namespace StackExchange.Redis
         private CancellationTokenSource _timeoutCancel;
         private void SetNextAsyncTimeoutInsideLock()
         {
+            void CancelExistingTimeout()
+            {
+                if (_timeoutCancel != null)
+                {
+                    try { _timeoutCancel.Cancel(); } catch { }
+                    try { _timeoutCancel.Dispose(); } catch { }
+                    _timeoutCancel = null;
+                }
+            }
             uint nextItemStart;
-            if (_queue.Count != 0 || (nextItemStart = _queue.Peek().Start) == _timeoutStart)
-            {   // nothing more to do, or the timeout hasn't changed (so: don't change anything)
+            if (_pendingAsyncOperations == 0)
+            {   CancelExistingTimeout();
                 return;
             }
-            if (_timeoutCancel != null)
-            {
-                try { _timeoutCancel.Cancel(); } catch { }
-                _timeoutCancel = null;
+            if ((nextItemStart = _queue.Peek().Start) == _timeoutStart)
+            {   // timeout hasn't changed (so: don't change anything)
+                return;
             }
+
+            // something has changed
+            CancelExistingTimeout();
 
             _timeoutStart = nextItemStart;
             var localTimeout = UpdateTimeOut(nextItemStart, TimeoutMilliseconds);
@@ -164,11 +182,12 @@ namespace StackExchange.Redis
             {
                 // take a peek back in a little while, kthx
                 var cts = new CancellationTokenSource();
-                var timeout = Task.Delay(TimeoutMilliseconds, cts.Token);
+                var timeout = Task.Delay(localTimeout, cts.Token);
                 timeout.ContinueWith((_, state) =>
                 {
                     try { ((WaitAwaitMutex)state).DequeueExpired(); } catch { }
                 }, this);
+                _timeoutCancel = cts;
             }
         }
 
@@ -301,7 +320,36 @@ namespace StackExchange.Redis
                 Monitor.Wait(item, UpdateTimeOut(start, TimeoutMilliseconds));
 
                 // keep in mind that we have the item lock here
-                return item.GetResultInsideLock();
+                var result = item.GetResultInsideLock();
+                if (!result.Success) // timeout
+                {
+                    // if we *didn't* get the lock, we *could* still be in the queue;
+                    // since we're in the failure path, let's take a moment to see if we can
+                    // remove ourselves from the queue; otherwise we need to consider the
+                    // lock object tainted
+                    // (note the outer finally will release the queue lock either way)
+                    Monitor.TryEnter(_queue, 0, ref queueLockTaken);
+                    if (queueLockTaken)
+                    {
+                        if (_queue.Count == 0) { } // nothing to do; queue is empty
+                        else if (_queue.Peek().IsFor(item))
+                        {
+                            _queue.Dequeue(); // we were next and we cleaned up; nice!
+                        }
+                        else if (_queue.Count == 1) { } // only one item and it isn't us: nothing to do
+                        else
+                        {
+                            // we *might* be later in the queue, but we can't check or be sure,
+                            // and we don't want the sync object getting treated oddly; nuke it
+                            ResetPerThreadLockObject();
+                        }
+                    }
+                    else // we didn't get the queue lock; no idea whether we're still in the queue
+                    {
+                        ResetPerThreadLockObject();
+                    }
+                }
+                return result;
             }
             finally
             {
@@ -309,6 +357,7 @@ namespace StackExchange.Redis
             }
         }
 
+        int _pendingAsyncOperations;
         AwaitableLockToken TakeWithTimeoutAsync(ref bool queueLockTaken)
         {
             // try and spin
@@ -332,10 +381,9 @@ namespace StackExchange.Redis
             // the global queue
             var asyncItem = QueueItem.CreateAsync(start);
             _queue.Enqueue(asyncItem);
+            if (_pendingAsyncOperations++ == 0) SetNextAsyncTimeoutInsideLock(); // first async op
             Monitor.Exit(_queue);
             queueLockTaken = false;
-
-            if (_queue.Count == 1) SetNextAsyncTimeoutInsideLock();
 
             return asyncItem.ForAwait();
         }
@@ -535,6 +583,7 @@ namespace StackExchange.Redis
         static SyncLockToken _perThreadLockObject;
         private static SyncLockToken GetPerThreadLockObject() => _perThreadLockObject ?? GetNewPerThreadLockObject();
         private static SyncLockToken GetNewPerThreadLockObject() => _perThreadLockObject = new SyncLockToken();
+        private static void ResetPerThreadLockObject() => _perThreadLockObject = null;
 
 
         private readonly struct QueueItem
@@ -542,6 +591,7 @@ namespace StackExchange.Redis
             private readonly PendingLockToken _source;
 
             public uint Start { get; }
+            public bool IsAsync => _source is AsyncLockToken;
 
             public AwaitableLockToken ForAwait() => new AwaitableLockToken((AsyncLockToken)_source);
 
@@ -550,6 +600,8 @@ namespace StackExchange.Redis
             public static QueueItem CreateSync(uint start, SyncLockToken token) => new QueueItem(start, token);
 
             internal bool TrySetAndActivate(PipeScheduler scheduler, LockToken token) => _source.TrySetResult(scheduler, token);
+
+            internal bool IsFor(PendingLockToken item) => (object)item == (object)_source; // ref-check
 
             public QueueItem(uint start, PendingLockToken source)
             {
