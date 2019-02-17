@@ -87,6 +87,9 @@ or
             private readonly WaitAwaitMutex _parent;
             private readonly int _token;
 
+            internal WaitAwaitMutex Parent => _parent;
+            internal int Token => _token;
+
             /// <summary>
             /// Indicates whether the mutex was successfully taken
             /// </summary>
@@ -140,7 +143,7 @@ or
                     {
                         // try to hand that new lock to a recipient
                         var next = _queue.Dequeue();
-                        if (next.IsAsync) _pendingAsyncOperations--;
+                        if (next is AsyncPendingLockToken) _pendingAsyncOperations--;
                         if (next.TrySetResult(_scheduler, newToken)) return; // so we don't clear the token
                     }
                     while (_queue.Count != 0);
@@ -162,7 +165,7 @@ or
                     {
                         // tell them that they failed
                         _queue.Dequeue();
-                        if (next.IsAsync) _pendingAsyncOperations--;
+                        if (next is AsyncPendingLockToken) _pendingAsyncOperations--;
                         next.TrySetResult(_scheduler, default);
                     }
                     else
@@ -311,13 +314,14 @@ or
             try
             {
                 // we want to have the item-lock *before* we put anything in the queue
-                Monitor.TryEnter(item, 0, ref itemLockTaken);
+                // (and we only want to do that once we've checked we can reset it)
+                if (item.TryReset(start)) Monitor.TryEnter(item, 0, ref itemLockTaken);
                 if (!itemLockTaken)
                 {
                     // this should have been available immediately; if it isn't, something
                     // is very wrong; we can try again, though
                     item = GetNewPerThreadLockObject();
-                    Monitor.TryEnter(item, 0, ref itemLockTaken);
+                    if (item.TryReset(start)) Monitor.TryEnter(item, 0, ref itemLockTaken);
                     Debug.Assert(itemLockTaken);
                     if (!itemLockTaken) return default; // just give up!
                 }
@@ -330,11 +334,10 @@ or
 
                     if (TryTakeInsideLock(out token)) return token;
                 }
-                item.Reset();
 
                 // otherwise enqueue the pending item, and release
                 // the global queue *before* we wait
-                _queue.Enqueue(QueueItem.CreateSync(start, item));
+                _queue.Enqueue(item);
                 Monitor.Exit(_queue);
                 queueLockTaken = false;
 
@@ -346,43 +349,43 @@ or
                 // gets a token *just after* the Wait times out, which
                 // could lead to a dropped token, and a blocked mux
                 Monitor.Wait(item, UpdateTimeOut(start, TimeoutMilliseconds));
-
-                // keep in mind that we have the item lock here
-                var result = item.GetResult();
-                if (!result.Success) // timeout
-                {
-                    // if we *didn't* get the lock, we *could* still be in the queue;
-                    // since we're in the failure path, let's take a moment to see if we can
-                    // remove ourselves from the queue; otherwise we need to consider the
-                    // lock object tainted
-                    // (note the outer finally will release the queue lock either way)
-                    Monitor.TryEnter(_queue, 0, ref queueLockTaken);
-                    if (queueLockTaken)
-                    {
-                        if (_queue.Count == 0) { } // nothing to do; queue is empty
-                        else if (_queue.Peek().IsFor(item))
-                        {
-                            _queue.Dequeue(); // we were next and we cleaned up; nice!
-                        }
-                        else if (_queue.Count == 1) { } // only one item and it isn't us: nothing to do
-                        else
-                        {
-                            // we *might* be later in the queue, but we can't check or be sure,
-                            // and we don't want the sync object getting treated oddly; nuke it
-                            ResetPerThreadLockObject();
-                        }
-                    }
-                    else // we didn't get the queue lock; no idea whether we're still in the queue
-                    {
-                        ResetPerThreadLockObject();
-                    }
-                }
-                return result;
             }
             finally
             {
                 if (itemLockTaken) Monitor.Exit(item);
             }
+
+            // keep in mind that we have the item lock here
+            var result = item.GetResult();
+            if (!result.Success) // timeout
+            {
+                // if we *didn't* get the lock, we *could* still be in the queue;
+                // since we're in the failure path, let's take a moment to see if we can
+                // remove ourselves from the queue; otherwise we need to consider the
+                // lock object tainted
+                // (note the outer finally will release the queue lock either way)
+                Monitor.TryEnter(_queue, 0, ref queueLockTaken);
+                if (queueLockTaken)
+                {
+                    if (_queue.Count == 0) { } // nothing to do; queue is empty
+                    else if (_queue.Peek() == item)
+                    {
+                        _queue.Dequeue(); // we were next and we cleaned up; nice!
+                    }
+                    else if (_queue.Count == 1) { } // only one item and it isn't us: nothing to do
+                    else
+                    {
+                        // we *might* be later in the queue, but we can't check or be sure,
+                        // and we don't want the sync object getting treated oddly; nuke it
+                        ResetPerThreadLockObject();
+                    }
+                }
+                else // we didn't get the queue lock; no idea whether we're still in the queue
+                {
+                    ResetPerThreadLockObject();
+                }
+            }
+            return result;
         }
 
         int _pendingAsyncOperations;
@@ -407,11 +410,11 @@ or
 
             // otherwise enqueue the pending item, and release
             // the global queue
-            var asyncItem = QueueItem.CreateAsync(start);
+            var asyncItem = new AsyncPendingLockToken(start);
             _queue.Enqueue(asyncItem);
             if (_pendingAsyncOperations++ == 0) SetNextAsyncTimeoutInsideLock(); // first async op
 
-            return asyncItem.ForAwait();
+            return new AwaitableLockToken(asyncItem);
         }
 
         /// <summary>
@@ -419,14 +422,14 @@ or
         /// </summary>
         public readonly struct AwaitableLockToken : INotifyCompletion, ICriticalNotifyCompletion
         {
-            private readonly AsyncLockToken _pending;
+            private readonly AsyncPendingLockToken _pending;
             private readonly LockToken _token;
             internal AwaitableLockToken(LockToken token)
             {
                 _token = token;
                 _pending = default;
             }
-            internal AwaitableLockToken(AsyncLockToken pending)
+            internal AwaitableLockToken(AsyncPendingLockToken pending)
             {
                 _token = default;
                 _pending = pending;
@@ -472,34 +475,56 @@ or
 
         internal abstract class PendingLockToken
         {
-            public void Reset()
+            public bool TryReset(uint start)
             {
-                Interlocked.Exchange(ref _state, LockState.Pending);
-                _token = default;
+                Interlocked.Exchange(ref _state, LockState.Resetting);
+                v_parent = default;
+                v_token = default;
+                Start = start;
+                return Interlocked.CompareExchange(ref _state, LockState.Pending, LockState.Resetting) == LockState.Resetting;
+            }
+
+            protected PendingLockToken() { }
+            protected PendingLockToken(uint start)
+            {
+                Start = start;
+                _state = LockState.Pending;
             }
 
             public bool TrySetResult(PipeScheduler scheduler, LockToken token)
             {
                 if (Interlocked.CompareExchange(ref _state, LockState.Assigning, LockState.Pending) != LockState.Pending)
                     return false; // not pending
-                _token = token;
+                v_parent = token.Parent;
+                v_token = token.Token;
                 if (Interlocked.CompareExchange(ref _state, LockState.Completed, LockState.Assigning) != LockState.Assigning)
                 {
                     // it got completed or reset while we were assigning; that means we lose :(
-                    _token = default;
+                    v_parent = default;
+                    v_token = default;
                     return false;
                 }
                 OnAssigned(scheduler);
                 return true;
             }
 
-            private LockToken _token;
+
+            // the followint two fields can be *together* considered
+            // as a LockToken instance; however, atomicity and volatility
+            // come into play - we *must* read them in a very careful
+            // - volatile and sandwiched between checks, to ensure
+            // that we're reading a consistent pair
+            private volatile WaitAwaitMutex v_parent;
+            private volatile int v_token;
+
+            public uint Start { get; private set; }
             private int _state;
             private static class LockState
             {   // using this as a glorified enum; can't use enum directly because
                 // or Interlocked etc support
                 public const int
-                    Pending = 0, // incomplete operation is in progress
+                    Resetting = 0,
+                    Pending = 1, // incomplete operation is in progress
                     Assigning = 1, // we're in the process of assigning the token
                     Completed = 2; // token has been successfully assigned
             }
@@ -507,18 +532,22 @@ or
             // if already complete: returns the token; otherwise, dooms the operation
             public LockToken GetResult()
             {
-                // return the token *if the status is already completed*, either way changing it *to* completed
-                return Interlocked.Exchange(ref _state, LockState.Completed) == LockState.Completed
-                    ? _token : default;
+                // return the token *if the status is already completed*, either way changing it *to* completed (doom future writes)
+                if (Interlocked.Exchange(ref _state, LockState.Completed) != LockState.Completed) return default;
+                var result = new LockToken(v_parent, v_token);
+                // need to double-check to be sure nobody snuck in and reset things while we were reading that
+                return Volatile.Read(ref _state) == LockState.Completed ? result : default;
             }
 
             public bool IsCompleted() => Volatile.Read(ref _state) == LockState.Completed;
 
             protected abstract void OnAssigned(PipeScheduler scheduler);
         }
-        internal sealed class AsyncLockToken : PendingLockToken
+        internal sealed class AsyncPendingLockToken : PendingLockToken
         {
             private Action _continuation;
+
+            public AsyncPendingLockToken(uint start) : base(start) { }
 
             protected override void OnAssigned(PipeScheduler scheduler)
             {
@@ -588,9 +617,9 @@ or
             }
         }
 
-        private readonly Queue<QueueItem> _queue = new Queue<QueueItem>();
+        private readonly Queue<PendingLockToken> _queue = new Queue<PendingLockToken>();
 
-        internal sealed class SyncLockToken : PendingLockToken
+        internal sealed class SyncPendingLockToken : PendingLockToken
         {
             protected override void OnAssigned(PipeScheduler scheduler)
             {
@@ -601,36 +630,9 @@ or
             }
         }
         [ThreadStatic]
-        static SyncLockToken _perThreadLockObject;
-        private static SyncLockToken GetPerThreadLockObject() => _perThreadLockObject ?? GetNewPerThreadLockObject();
-        private static SyncLockToken GetNewPerThreadLockObject() => _perThreadLockObject = new SyncLockToken();
+        static SyncPendingLockToken _perThreadLockObject;
+        private static SyncPendingLockToken GetPerThreadLockObject() => _perThreadLockObject ?? GetNewPerThreadLockObject();
+        private static SyncPendingLockToken GetNewPerThreadLockObject() => _perThreadLockObject = new SyncPendingLockToken();
         private static void ResetPerThreadLockObject() => _perThreadLockObject = null;
-
-
-        private readonly struct QueueItem
-        {
-            private readonly PendingLockToken _source;
-
-            public uint Start { get; }
-            public bool IsAsync => _source is AsyncLockToken;
-
-            public AwaitableLockToken ForAwait() => new AwaitableLockToken((AsyncLockToken)_source);
-
-            public static QueueItem CreateAsync(uint start) => new QueueItem(start, new AsyncLockToken());
-
-            public static QueueItem CreateSync(uint start, SyncLockToken token) => new QueueItem(start, token);
-
-            internal bool TrySetResult(PipeScheduler scheduler, LockToken token) => _source.TrySetResult(scheduler, token);
-
-            internal bool IsFor(PendingLockToken item) => (object)item == (object)_source; // ref-check
-
-            public QueueItem(uint start, PendingLockToken source)
-            {
-                Start = start;
-                _source = source;
-            }
-
-        }
-
     }
 }
