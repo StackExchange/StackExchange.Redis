@@ -407,23 +407,6 @@ namespace StackExchange.Redis
             }
 
             /// <summary>
-            /// Attempt to cancel an incomplete async operation; if a token was obtained, it is disposed
-            /// </summary>
-            public void Cancel()
-            {
-                if (_pending != null)
-                {
-                    // moves the state to completed, and gets either a valid
-                    // token or a default - either way it can be disposed
-                    using (_pending.GetResult())
-                    {
-                        // and reset it
-                        _pending.Reset();
-                    }
-                }
-            }
-
-            /// <summary>
             /// Obtain the LockToken after completion of this async operation
             /// </summary>
             public LockToken GetResult() => _pending?.GetResult() ?? _token;
@@ -492,29 +475,18 @@ namespace StackExchange.Redis
                 public const int
                     Pending = 0, // incomplete operation is in progress
                     Assigning = 1, // we're in the process of assigning the token
-                    Completed = 2, // token has been successfully assigned and is not yet consumed
-                    Consumed = 3; // consumed
+                    Completed = 2; // token has been successfully assigned
             }
 
             // if already complete: returns the token; otherwise, dooms the operation
             public LockToken GetResult()
             {
                 // return the token *if the status is already completed*, either way changing it *to* completed
-                return Interlocked.Exchange(ref _state, LockState.Consumed) == LockState.Completed
+                return Interlocked.Exchange(ref _state, LockState.Completed) == LockState.Completed
                     ? _token : default;
             }
 
-            public bool IsCompleted()
-            {
-                switch (Volatile.Read(ref _state))
-                {
-                    case LockState.Completed:
-                    case LockState.Consumed:
-                        return true;
-                    default:
-                        return false;
-                }
-            }
+            public bool IsCompleted() => Volatile.Read(ref _state) == LockState.Completed;
 
             protected abstract void OnAssigned(PipeScheduler scheduler);
         }
