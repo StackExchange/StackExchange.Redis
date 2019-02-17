@@ -302,7 +302,7 @@ namespace StackExchange.Redis
 
                     if (TryTakeInsideLock(out token)) return token;
                 }
-                item.ResetInsideLock();
+                item.Reset();
 
                 // otherwise enqueue the pending item, and release
                 // the global queue *before* we wait
@@ -320,7 +320,7 @@ namespace StackExchange.Redis
                 Monitor.Wait(item, UpdateTimeOut(start, TimeoutMilliseconds));
 
                 // keep in mind that we have the item lock here
-                var result = item.GetResultInsideLock();
+                var result = item.GetResult();
                 if (!result.Success) // timeout
                 {
                     // if we *didn't* get the lock, we *could* still be in the queue;
@@ -446,60 +446,77 @@ namespace StackExchange.Redis
 
         internal abstract class PendingLockToken
         {
-            public abstract bool TrySetResult(PipeScheduler scheduler, LockToken token);
+            public void Reset()
+            {
+                Interlocked.Exchange(ref _state, LockState.Pending);
+                _token = default;
+            }
+
+            public bool TrySetResult(PipeScheduler scheduler, LockToken token)
+            {
+                if (Interlocked.CompareExchange(ref _state, LockState.Assigning, LockState.Pending) != LockState.Pending)
+                    return false; // not pending
+                _token = token;
+                if (Interlocked.CompareExchange(ref _state, LockState.Completed, LockState.Assigning) != LockState.Assigning)
+                {
+                    // it got completed or reset while we were assigning; that means we lose :(
+                    _token = default;
+                    return false;
+                }
+                OnAssigned(scheduler);
+                return true;
+            }
+
+            private LockToken _token;
+            private int _state;
+            private static class LockState
+            {   // using this as a glorified enum; can't use enum directly because
+                // or Interlocked etc support
+                public const int
+                    Pending = 0, // incomplete operation is in progress
+                    Assigning = 1, // we're in the process of assigning the token
+                    Completed = 2; // token has been successfully assigned, or cancelled
+            }
+
+            // if already complete: returns the token; otherwise, dooms the operation
+            public LockToken GetResult()
+            {
+                // return the token *if the status is already completed*, either way changing it *to* completed
+                return Interlocked.Exchange(ref _state, LockState.Completed) == LockState.Completed
+                    ? _token : default;
+            }
+
+            public bool IsCompleted() => Volatile.Read(ref _state) == LockState.Completed;
+
+            protected abstract void OnAssigned(PipeScheduler scheduler);
         }
         internal sealed class AsyncLockToken : PendingLockToken
         {
-            private LockToken _token;
             private Action _continuation;
-            private bool _isComplete;
 
-            public LockToken GetResult()
+            protected override void OnAssigned(PipeScheduler scheduler)
             {
-                lock (this)
-                {
-                    if (!_isComplete) ThrowIncomplete();
-                    return _token;
-                }
-                void ThrowIncomplete() => throw new InvalidOperationException("GetResult cannot be used until the operation has completed");
-            }
-
-            public bool IsCompleted()
-            {
-                lock (this) { return _isComplete; }
-            }
-
-            public override bool TrySetResult(PipeScheduler scheduler, LockToken token)
-            {
-                Action callback;
-                lock (this)
-                {
-                    if (_isComplete) return false;
-                    _token = token;
-                    callback = _continuation;
-                    _continuation = null;
-                    _isComplete = true;
-                }
+                var callback = Interlocked.Exchange(ref _continuation, null);
                 if (callback != null)
                 {
                     scheduler.Schedule(s => ((Action)s).Invoke(), callback);
                 }
-                return true;
             }
 
             internal void OnCompleted(Action continuation)
             {
                 if (continuation == null) return; // nothing to do
-                lock (this)
+
+                if (IsCompleted())
                 {
-                    if (!_isComplete)
-                    {
-                        _continuation += continuation;
-                        return;
-                    }
+                    continuation.Invoke();
+                    return;
                 }
-                // will only get here if was already complete, because of the return
-                continuation.Invoke();
+
+                if (Interlocked.CompareExchange(ref _continuation, continuation, null) != null)
+                {
+                    throw new NotSupportedException($"Only one pending continuation is permitted");
+                }
             }
         }
 
@@ -549,34 +566,12 @@ namespace StackExchange.Redis
 
         internal sealed class SyncLockToken : PendingLockToken
         {
-            private LockToken _token;
-
-            private bool _isWaiting;
-            public override bool TrySetResult(PipeScheduler scheduler, LockToken token)
+            protected override void OnAssigned(PipeScheduler scheduler)
             {
                 lock (this)
                 {
-                    if (_isWaiting)
-                    {
-                        _token = token;
-                        Monitor.Pulse(this);
-                        return true;
-                    }
-                    return false;
+                    Monitor.Pulse(this); // wake up a sleeper
                 }
-            }
-            internal void ResetInsideLock()
-            {
-                _token = default;
-                _isWaiting = true;
-            }
-
-            internal LockToken GetResultInsideLock()
-            {
-                var val = _token;
-                _token = default;
-                _isWaiting = false;
-                return val;
             }
         }
         [ThreadStatic]
