@@ -13,7 +13,7 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed class WaitAwaitMutex
     {
-        /*
+/*
  * - must have single lock-token-holder (mutex)
  * - must be waitable (sync)
  * - must be awaitable (async)
@@ -27,13 +27,27 @@ namespace StackExchange.Redis
  * - timeout support is required
  *   value can be per mutex - doesn't need to be per-Wait[Async]
  * - a "using"-style API is a nice-to-have, to avoid try/finally
- * - for this application, timeout doesn't need to be per-call
  * - we won't even *attempt* to detect re-entrancy
  *   (if you try and take a lock that you have, that's your fault)
- *   
+ *
  * - sync path uses per-thread ([ThreadStatic])/Monitor pulse for comms
  * - async path uses custom awaitable with zero-alloc on immediate win
  */
+
+/* usage:
+
+        using (var token = mutex.Wait())
+        {
+            if(token.Success) {...}
+        }
+
+        or
+
+        using (var token = await mutex.WaitAsync())
+        {
+            if(token.Success) {...}
+        }
+*/
 
         private readonly PipeScheduler _scheduler;
 
