@@ -38,14 +38,14 @@ namespace StackExchange.Redis
 
         using (var token = mutex.Wait())
         {
-            if(token.Success) {...}
+            if(token) {...}
         }
 
         or
 
         using (var token = await mutex.WaitAsync())
         {
-            if(token.Success) {...}
+            if(token) {...}
         }
 */
 
@@ -73,6 +73,15 @@ namespace StackExchange.Redis
         /// </summary>
         public readonly struct LockToken : IDisposable
         {
+            /// <summary>
+            /// Indicates whether the mutex was successfully taken
+            /// </summary>
+            public static bool operator true(LockToken token) => token._token != 0;
+            /// <summary>
+            /// Indicates whether the mutex was successfully taken
+            /// </summary>
+            public static bool operator false(LockToken token) => token._token == 0;
+
             private readonly WaitAwaitMutex _parent;
             private readonly int _token;
 

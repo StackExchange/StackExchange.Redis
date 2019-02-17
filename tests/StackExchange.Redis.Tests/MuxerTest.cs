@@ -106,7 +106,7 @@ namespace StackExchange.Redis.Tests
                                 {
                                     lock (allDone)
                                     {
-                                        if (inner.Success) success++;
+                                        if (inner) success++;
                                         if (++complete == COMPETITORS) Monitor.Pulse(allDone);
                                     }
                                     Thread.Sleep(10);
@@ -149,7 +149,7 @@ namespace StackExchange.Redis.Tests
                                 {
                                     lock (allDone)
                                     {
-                                        if (inner.Success) success++;
+                                        if (inner) success++;
                                         if (++complete == COMPETITORS) Monitor.Pulse(allDone);
                                     }
                                     Thread.Sleep(10);
@@ -192,7 +192,7 @@ namespace StackExchange.Redis.Tests
                             {
                                 lock (allDone)
                                 {
-                                    if (inner.Success) success++;
+                                    if (inner) success++;
                                     if (!awaitable.CompletedSynchronously) asyncOps++;
                                 }
                                 await Task.Delay(10);
@@ -242,7 +242,7 @@ namespace StackExchange.Redis.Tests
                                 lock (allDone)
                                 {
                                     Log($"{inner.Success}, {awaitable.CompletedSynchronously}");
-                                    if (inner.Success) success++;
+                                    if (inner) success++;
                                     if (!awaitable.CompletedSynchronously) asyncOps++;
                                 }
                                 await Task.Delay(10);
