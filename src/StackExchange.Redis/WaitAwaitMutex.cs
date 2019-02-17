@@ -24,10 +24,15 @@ namespace StackExchange.Redis
  * - must be low allocation
  * - should allow control of the threading model for async callback
  * - fairness would be nice, but is not a hard demand
+ * - timeout support is required
+ *   value can be per mutex - doesn't need to be per-Wait[Async]
  * - a "using"-style API is a nice-to-have, to avoid try/finally
  * - for this application, timeout doesn't need to be per-call
  * - we won't even *attempt* to detect re-entrancy
  *   (if you try and take a lock that you have, that's your fault)
+ *   
+ * - sync path uses per-thread ([ThreadStatic])/Monitor pulse for comms
+ * - async path uses custom awaitable with zero-alloc on immediate win
  */
 
         private readonly PipeScheduler _scheduler;
@@ -124,7 +129,6 @@ namespace StackExchange.Redis
         {
             lock (_queue)
             {
-                Debug.WriteLine($"before DequeueExpired: {_pendingAsyncOperations} async pending");
                 while (_queue.Count != 0)
                 {
                     var next = _queue.Peek();
@@ -141,7 +145,6 @@ namespace StackExchange.Redis
                         break;
                     }
                 }
-                Debug.WriteLine($"after DequeueExpired: {_pendingAsyncOperations} async pending");
                 if (_pendingAsyncOperations != 0) SetNextAsyncTimeoutInsideLock();
             }
         }
