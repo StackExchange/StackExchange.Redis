@@ -17,6 +17,8 @@ namespace StackExchange.Redis
  * - must have single lock-token-holder (mutex)
  * - must be waitable (sync)
  * - must be awaitable (async)
+ * - async context does not flow
+ *   (not required; think ConfigureAwait(false))
  * - must allow fully async consumer
  *   ("wait" and "release" can be from different threads)
  * - must not suck when using both sync+async callers
@@ -36,16 +38,16 @@ namespace StackExchange.Redis
 
 /* usage:
 
-        using (var token = mutex.Wait())
+        using (var token = mutex.TryWait())
         {
-            if(token) {...}
+            if (token) {...}
         }
 
-        or
+or
 
-        using (var token = await mutex.WaitAsync())
+        using (var token = await mutex.TryWaitAsync())
         {
-            if(token) {...}
+            if (token) {...}
         }
 */
 
@@ -548,7 +550,7 @@ namespace StackExchange.Redis
         /// Attempt to take the lock (Success should be checked by the caller)
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public AwaitableLockToken WaitAsync()
+        public AwaitableLockToken TryWaitAsync()
         {
             bool queueLockTaken = false;
             try
@@ -569,7 +571,7 @@ namespace StackExchange.Redis
         /// Attempt to take the lock (Success should be checked by the caller)
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public LockToken Wait()
+        public LockToken TryWait()
         {
             bool queueLockTaken = false;
             try

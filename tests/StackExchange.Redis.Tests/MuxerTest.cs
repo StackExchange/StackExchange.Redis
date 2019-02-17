@@ -20,10 +20,10 @@ namespace StackExchange.Redis.Tests
 
             for (int i = 0; i < 2; i++)
             {
-                using (var outer = _noTimeoutMux.Wait())
+                using (var outer = _noTimeoutMux.TryWait())
                 {
                     Assert.True(outer.Success);
-                    using (var inner = _noTimeoutMux.Wait())
+                    using (var inner = _noTimeoutMux.TryWait())
                     {
                         Assert.False(inner.Success);
                     }
@@ -32,7 +32,7 @@ namespace StackExchange.Redis.Tests
 
             for (int i = 0; i < 2; i++)
             {
-                using (var outer = _timeoutMux.Wait())
+                using (var outer = _timeoutMux.TryWait())
                 {
                     Assert.True(outer.Success);
                 }
@@ -50,14 +50,14 @@ namespace StackExchange.Redis.Tests
 
             for (int i = 0; i < 2; i++)
             {
-                var awaitable = _noTimeoutMux.WaitAsync();
+                var awaitable = _noTimeoutMux.TryWaitAsync();
                 Assert.True(awaitable.IsCompleted);
                 Assert.True(awaitable.CompletedSynchronously);
                 using (var outer = await awaitable)
                 {
                     Assert.True(outer.Success);
 
-                    awaitable = _noTimeoutMux.WaitAsync();
+                    awaitable = _noTimeoutMux.TryWaitAsync();
                     Assert.True(awaitable.IsCompleted);
                     Assert.True(awaitable.CompletedSynchronously);
                     using (var inner = await awaitable)
@@ -69,7 +69,7 @@ namespace StackExchange.Redis.Tests
 
             for (int i = 0; i < 2; i++)
             {
-                var awaitable = _timeoutMux.WaitAsync();
+                var awaitable = _timeoutMux.TryWaitAsync();
                 Assert.True(awaitable.IsCompleted);
                 Assert.True(awaitable.CompletedSynchronously);
                 using (var outer = await awaitable)
@@ -89,7 +89,7 @@ namespace StackExchange.Redis.Tests
             Assert.NotEqual(0, _timeoutMux.TimeoutMilliseconds);
             lock (allDone)
             {
-                using (var token = _timeoutMux.Wait())
+                using (var token = _timeoutMux.TryWait())
                 {
                     lock (allReady)
                     {
@@ -102,7 +102,7 @@ namespace StackExchange.Redis.Tests
                                     if (++active == COMPETITORS) Monitor.PulseAll(allReady);
                                     else Monitor.Wait(allReady);
                                 }
-                                using (var inner = _timeoutMux.Wait())
+                                using (var inner = _timeoutMux.TryWait())
                                 {
                                     lock (allDone)
                                     {
@@ -132,7 +132,7 @@ namespace StackExchange.Redis.Tests
             int active = 0, complete = 0, success = 0;
             lock (allDone)
             {
-                using (var token = _timeoutMux.Wait())
+                using (var token = _timeoutMux.TryWait())
                 {
                     lock (allReady)
                     {
@@ -145,7 +145,7 @@ namespace StackExchange.Redis.Tests
                                     if (++active == COMPETITORS) Monitor.PulseAll(allReady);
                                     else Monitor.Wait(allReady);
                                 }
-                                using (var inner = _timeoutMux.Wait())
+                                using (var inner = _timeoutMux.TryWait())
                                 {
                                     lock (allDone)
                                     {
@@ -174,7 +174,7 @@ namespace StackExchange.Redis.Tests
             int active = 0, success = 0, asyncOps = 0;
 
             var tasks = new Task[COMPETITORS];
-            using (var token = await _timeoutMux.WaitAsync())
+            using (var token = await _timeoutMux.TryWaitAsync())
             {
                 lock (allReady)
                 {
@@ -187,7 +187,7 @@ namespace StackExchange.Redis.Tests
                                 if (++active == COMPETITORS) Monitor.PulseAll(allReady);
                                 else Monitor.Wait(allReady);
                             }
-                            var awaitable = _timeoutMux.WaitAsync();
+                            var awaitable = _timeoutMux.TryWaitAsync();
                             using (var inner = await awaitable)
                             {
                                 lock (allDone)
@@ -223,7 +223,7 @@ namespace StackExchange.Redis.Tests
             int active = 0, success = 0, asyncOps = 0;
 
             var tasks = new Task[COMPETITORS];
-            using (var token = await _timeoutMux.WaitAsync())
+            using (var token = await _timeoutMux.TryWaitAsync())
             {
                 lock (allReady)
                 {
@@ -236,7 +236,7 @@ namespace StackExchange.Redis.Tests
                                 if (++active == COMPETITORS) Monitor.PulseAll(allReady);
                                 else Monitor.Wait(allReady);
                             }
-                            var awaitable = _timeoutMux.WaitAsync();
+                            var awaitable = _timeoutMux.TryWaitAsync();
                             using (var inner = await awaitable)
                             {
                                 lock (allDone)
