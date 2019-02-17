@@ -385,8 +385,6 @@ namespace StackExchange.Redis
             var asyncItem = QueueItem.CreateAsync(start);
             _queue.Enqueue(asyncItem);
             if (_pendingAsyncOperations++ == 0) SetNextAsyncTimeoutInsideLock(); // first async op
-            Monitor.Exit(_queue);
-            queueLockTaken = false;
 
             return asyncItem.ForAwait();
         }
