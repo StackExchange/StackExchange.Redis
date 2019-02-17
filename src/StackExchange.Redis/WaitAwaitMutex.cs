@@ -111,7 +111,7 @@ namespace StackExchange.Redis
                         // try to hand that new lock to a recipient
                         var next = _queue.Dequeue();
                         if (next.IsAsync) _pendingAsyncOperations--;
-                        if (next.TrySetAndActivate(_scheduler, newToken)) return; // so we don't clear the token
+                        if (next.TrySetResult(_scheduler, newToken)) return; // so we don't clear the token
                     }
                     while (_queue.Count != 0);
                 }
@@ -134,7 +134,7 @@ namespace StackExchange.Redis
                         // tell them that they failed
                         _queue.Dequeue();
                         if (next.IsAsync) _pendingAsyncOperations--;
-                        next.TrySetAndActivate(_scheduler, default);
+                        next.TrySetResult(_scheduler, default);
                     }
                     else
                     {
@@ -407,6 +407,23 @@ namespace StackExchange.Redis
             }
 
             /// <summary>
+            /// Attempt to cancel an incomplete async operation; if a token was obtained, it is disposed
+            /// </summary>
+            public void Cancel()
+            {
+                if (_pending != null)
+                {
+                    // moves the state to completed, and gets either a valid
+                    // token or a default - either way it can be disposed
+                    using (_pending.GetResult())
+                    {
+                        // and reset it
+                        _pending.Reset();
+                    }
+                }
+            }
+
+            /// <summary>
             /// Obtain the LockToken after completion of this async operation
             /// </summary>
             public LockToken GetResult() => _pending?.GetResult() ?? _token;
@@ -475,18 +492,29 @@ namespace StackExchange.Redis
                 public const int
                     Pending = 0, // incomplete operation is in progress
                     Assigning = 1, // we're in the process of assigning the token
-                    Completed = 2; // token has been successfully assigned, or cancelled
+                    Completed = 2, // token has been successfully assigned and is not yet consumed
+                    Consumed = 3; // consumed
             }
 
             // if already complete: returns the token; otherwise, dooms the operation
             public LockToken GetResult()
             {
                 // return the token *if the status is already completed*, either way changing it *to* completed
-                return Interlocked.Exchange(ref _state, LockState.Completed) == LockState.Completed
+                return Interlocked.Exchange(ref _state, LockState.Consumed) == LockState.Completed
                     ? _token : default;
             }
 
-            public bool IsCompleted() => Volatile.Read(ref _state) == LockState.Completed;
+            public bool IsCompleted()
+            {
+                switch (Volatile.Read(ref _state))
+                {
+                    case LockState.Completed:
+                    case LockState.Consumed:
+                        return true;
+                    default:
+                        return false;
+                }
+            }
 
             protected abstract void OnAssigned(PipeScheduler scheduler);
         }
@@ -594,7 +622,7 @@ namespace StackExchange.Redis
 
             public static QueueItem CreateSync(uint start, SyncLockToken token) => new QueueItem(start, token);
 
-            internal bool TrySetAndActivate(PipeScheduler scheduler, LockToken token) => _source.TrySetResult(scheduler, token);
+            internal bool TrySetResult(PipeScheduler scheduler, LockToken token) => _source.TrySetResult(scheduler, token);
 
             internal bool IsFor(PendingLockToken item) => (object)item == (object)_source; // ref-check
 
