@@ -2155,21 +2155,12 @@ namespace StackExchange.Redis
         private static async Task<T> ExecuteAsyncImpl_Awaited<T>(ConnectionMultiplexer @this, ValueTask<WriteResult> write, TaskCompletionSource<T> tcs, Message message, ServerEndPoint server)
         {
             var result = await write.ForAwait();
-
-            if (tcs == null)
+            if (result != WriteResult.Success)
             {
-                // TODO: should this throw because it failed to *write*? throw @this.GetException(result, message, server);
-                return default(T);
+                var ex = @this.GetException(result, message, server);
+                ThrowFailed(tcs, ex);
             }
-            else
-            {
-                if (result != WriteResult.Success)
-                {
-                    var ex = @this.GetException(result, message, server);
-                    ThrowFailed(tcs, ex);
-                }
-                return await tcs.Task.ForAwait();
-            }
+            return tcs == null ? default(T) : await tcs.Task.ForAwait();
         }
 
         internal Exception GetException(WriteResult result, Message message, ServerEndPoint server)

@@ -684,28 +684,6 @@ namespace StackExchange.Redis
             }
         }
 
-        [Conditional("DEBUG")]
-        private void SetLastLockOwner(LastWriteLockOwnerMethod lastOwner)
-        {
-#if DEBUG
-            _lastKnownLockOwner = lastOwner;
-#endif
-        }
-#if DEBUG
-#pragma warning disable CS0414, IDE0052
-        private LastWriteLockOwnerMethod _lastKnownLockOwner; // accessed from windbg
-#pragma warning restore CS0414, IDE0052
-#endif
-
-        enum LastWriteLockOwnerMethod : byte
-        {
-            None = 0,
-            WriteMessageTakingWriteLockSync = 1,
-            WriteMessageTakingWriteLockAsync = 2,
-            WriteMessageTakingDelayedWriteLockAsync = 3,
-            CompleteWriteAndReleaseLockAsync = 4,
-        }
-
         private async ValueTask<WriteResult> WriteMessageTakingDelayedWriteLockAsync(MutexSlim.AwaitableLockToken pendingLock, PhysicalConnection physical, Message message)
         {
             try
@@ -721,7 +699,6 @@ namespace StackExchange.Redis
                         this.CompleteSyncOrAsync(message);
                         return WriteResult.TimeoutBeforeWrite;
                     }
-                    SetLastLockOwner(LastWriteLockOwnerMethod.WriteMessageTakingDelayedWriteLockAsync);
 
                     var result = WriteMessageInsideLock(physical, message);
 
@@ -755,7 +732,6 @@ namespace StackExchange.Redis
                         this.CompleteSyncOrAsync(message);
                         return WriteResult.TimeoutBeforeWrite;
                     }
-                    SetLastLockOwner(LastWriteLockOwnerMethod.WriteMessageTakingWriteLockSync);
 
                     var result = WriteMessageInsideLock(physical, message);
 
@@ -801,7 +777,6 @@ namespace StackExchange.Redis
                     this.CompleteSyncOrAsync(message);
                     return new ValueTask<WriteResult>(WriteResult.TimeoutBeforeWrite);
                 }
-                SetLastLockOwner(LastWriteLockOwnerMethod.WriteMessageTakingWriteLockAsync);
 
                 var result = WriteMessageInsideLock(physical, message);
 
@@ -833,7 +808,6 @@ namespace StackExchange.Redis
         {
             using (lockToken)
             {
-                SetLastLockOwner(LastWriteLockOwnerMethod.CompleteWriteAndReleaseLockAsync);
                 try
                 {
                     var result = await flush.ForAwait();
