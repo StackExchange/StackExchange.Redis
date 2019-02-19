@@ -8,8 +8,8 @@ namespace StackExchange.Redis
     {
         public const int NoSlot = -1, MultipleSlots = -2;
         private const int RedisClusterSlotCount = 16384;
-        private static readonly ushort[] crc16tab =
-            {
+        private static ReadOnlySpan<ushort> s_crc16tab => new ushort[]
+            { // this syntax allows a special-case population implementation by the compiler/JIT
                 0x0000,0x1021,0x2042,0x3063,0x4084,0x50a5,0x60c6,0x70e7,
                 0x8108,0x9129,0xa14a,0xb16b,0xc18c,0xd1ad,0xe1ce,0xf1ef,
                 0x1231,0x0210,0x3273,0x2252,0x52b5,0x4294,0x72f7,0x62d6,
@@ -72,6 +72,7 @@ namespace StackExchange.Redis
             {
                 var blob = (byte[])key;
                 fixed (byte* ptr = blob)
+                fixed (ushort* crc16tab = s_crc16tab)
                 {
                     int offset = 0, count = blob.Length, start, end;
                     if ((start = IndexOf(ptr, (byte)'{', 0, count - 1)) >= 0
