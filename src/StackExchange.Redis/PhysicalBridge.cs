@@ -690,6 +690,8 @@ namespace StackExchange.Redis
             {
                 // WriteMessageTakingWriteLockAsync will have checked for immediate availability,
                 // so this is the fallback case - fine to go straight to "await"
+
+                // note: timeout is specified in mutex-constructor
                 using (var token = await pendingLock)
                 {
                     if (!token.Success)
@@ -765,6 +767,7 @@ namespace StackExchange.Redis
             try
             {
                 // try to acquire it synchronously
+                // note: timeout is specified in mutex-constructor
                 var pending = _singleWriterMutex.TryWaitAsync();
                 if (!pending.IsCompletedSuccessfully) return WriteMessageTakingDelayedWriteLockAsync(pending, physical, message);
 
