@@ -768,12 +768,12 @@ namespace StackExchange.Redis
             {
                 // try to acquire it synchronously
                 // note: timeout is specified in mutex-constructor
-                var pending = _singleWriterMutex.TryWaitAsync();
+                var pending = _singleWriterMutex.TryWaitAsync(options: MutexSlim.WaitOptions.DisableAsyncContext);
                 if (!pending.IsCompletedSuccessfully) return WriteMessageTakingDelayedWriteLockAsync(pending, physical, message);
 
                 releaseLock = true;
-                token = pending.GetResult();
-                if (!token.Success)
+                token = pending.GetResult(); // we can't use "using" for this, because we might not want to kill it yet
+                if (!token.Success) // (in particular, me might hand the lifetime to CompleteWriteAndReleaseLockAsync)
                 {
                     message.Cancel();
                     Multiplexer?.OnMessageFaulted(message, null);
