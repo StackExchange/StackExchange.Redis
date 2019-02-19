@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+using Pipelines.Sockets.Unofficial.Threading;
 using PendingSubscriptionState = global::StackExchange.Redis.ConnectionMultiplexer.Subscription.PendingSubscriptionState;
 
 namespace StackExchange.Redis
@@ -52,6 +53,8 @@ namespace StackExchange.Redis
             Name = Format.ToString(serverEndPoint.EndPoint) + "/" + ConnectionType.ToString();
             completionManager = new CompletionManager(Multiplexer, Name);
             TimeoutMilliseconds = timeoutMilliseconds;
+            _singleWriterMutex = new MutexSlim(timeoutMilliseconds: timeoutMilliseconds,
+                scheduler: Multiplexer?.SocketManager?.SchedulerPool);
         }
         private readonly int TimeoutMilliseconds;
 
@@ -634,7 +637,7 @@ namespace StackExchange.Redis
             return true;
         }
 
-        private readonly SemaphoreSlim _SingleWriterLock = new SemaphoreSlim(1);
+        private readonly MutexSlim _singleWriterMutex;
 
         private Message _activeMesssage;
 
@@ -681,34 +684,37 @@ namespace StackExchange.Redis
             }
         }
 
-        private async Task<WriteResult> WriteMessageTakingDelayedWriteLockAsync(PhysicalConnection physical, Message message)
+        private async ValueTask<WriteResult> WriteMessageTakingDelayedWriteLockAsync(MutexSlim.AwaitableLockToken pendingLock, PhysicalConnection physical, Message message)
         {
-            bool haveLock = false;
             try
             {
                 // WriteMessageTakingWriteLockAsync will have checked for immediate availability,
                 // so this is the fallback case - fine to go straight to "await"
-                haveLock = await _SingleWriterLock.WaitAsync(TimeoutMilliseconds).ForAwait();
-                if (!haveLock)
+
+                // note: timeout is specified in mutex-constructor
+                using (var token = await pendingLock)
                 {
-                    message.Cancel();
-                    Multiplexer?.OnMessageFaulted(message, null);
-                    this.CompleteSyncOrAsync(message);
-                    return WriteResult.TimeoutBeforeWrite;
+                    if (!token.Success)
+                    {
+                        message.Cancel();
+                        Multiplexer?.OnMessageFaulted(message, null);
+                        this.CompleteSyncOrAsync(message);
+                        return WriteResult.TimeoutBeforeWrite;
+                    }
+
+                    var result = WriteMessageInsideLock(physical, message);
+
+                    if (result == WriteResult.Success)
+                    {
+                        result = await physical.FlushAsync(false).ForAwait();
+                    }
+
+                    physical.SetIdle();
+                    UnmarkActiveMessage(message);
+                    return result;
                 }
-
-                var result = WriteMessageInsideLock(physical, message);
-
-                if (result == WriteResult.Success)
-                {
-                    result = await physical.FlushAsync(false).ForAwait();
-                }
-
-                physical.SetIdle();
-                return result;
             }
             catch (Exception ex) { return HandleWriteException(message, ex); }
-            finally { if (haveLock) ReleaseSingleWriterLock(message); }
         }
 
         [Obsolete("prefer async")]
@@ -717,32 +723,33 @@ namespace StackExchange.Redis
             Trace("Writing: " + message);
             message.SetEnqueued(physical); // this also records the read/write stats at this point
 
-            bool haveLock = false;
             try
             {
-                haveLock = _SingleWriterLock.Wait(TimeoutMilliseconds);
-                if (!haveLock)
+                using (var token = _singleWriterMutex.TryWait())
                 {
-                    message.Cancel();
-                    Multiplexer?.OnMessageFaulted(message, null);
-                    this.CompleteSyncOrAsync(message);
-                    return WriteResult.TimeoutBeforeWrite;
-                }
+                    if (!token.Success)
+                    {
+                        message.Cancel();
+                        Multiplexer?.OnMessageFaulted(message, null);
+                        this.CompleteSyncOrAsync(message);
+                        return WriteResult.TimeoutBeforeWrite;
+                    }
 
-                var result = WriteMessageInsideLock(physical, message);
+                    var result = WriteMessageInsideLock(physical, message);
 
-                if (result == WriteResult.Success)
-                {
+                    if (result == WriteResult.Success)
+                    {
 #pragma warning disable CS0618
-                    result = physical.FlushSync(false, TimeoutMilliseconds);
+                        result = physical.FlushSync(false, TimeoutMilliseconds);
 #pragma warning restore CS0618
-                }
+                    }
 
-                physical.SetIdle();
-                return result;
+                    UnmarkActiveMessage(message);
+                    physical.SetIdle();
+                    return result;
+                }
             }
             catch (Exception ex) { return HandleWriteException(message, ex); }
-            finally { if (haveLock) ReleaseSingleWriterLock(message); }
         }
 
         /// <summary>
@@ -755,12 +762,24 @@ namespace StackExchange.Redis
             Trace("Writing: " + message);
             message.SetEnqueued(physical); // this also records the read/write stats at this point
 
-            bool haveLock = false;
+            bool releaseLock = false;
+            MutexSlim.LockToken token = default;
             try
             {
                 // try to acquire it synchronously
-                haveLock = _SingleWriterLock.Wait(0);
-                if (!haveLock) return new ValueTask<WriteResult>(WriteMessageTakingDelayedWriteLockAsync(physical, message));
+                // note: timeout is specified in mutex-constructor
+                var pending = _singleWriterMutex.TryWaitAsync(options: MutexSlim.WaitOptions.DisableAsyncContext);
+                if (!pending.IsCompletedSuccessfully) return WriteMessageTakingDelayedWriteLockAsync(pending, physical, message);
+
+                releaseLock = true;
+                token = pending.GetResult(); // we can't use "using" for this, because we might not want to kill it yet
+                if (!token.Success) // (in particular, me might hand the lifetime to CompleteWriteAndReleaseLockAsync)
+                {
+                    message.Cancel();
+                    Multiplexer?.OnMessageFaulted(message, null);
+                    this.CompleteSyncOrAsync(message);
+                    return new ValueTask<WriteResult>(WriteResult.TimeoutBeforeWrite);
+                }
 
                 var result = WriteMessageInsideLock(physical, message);
 
@@ -769,25 +788,38 @@ namespace StackExchange.Redis
                     var flush = physical.FlushAsync(false);
                     if (!flush.IsCompletedSuccessfully)
                     {
-                        haveLock = false; // so we don't release prematurely
-                        return new ValueTask<WriteResult>(CompleteWriteAndReleaseLockAsync(flush, message));
+                        releaseLock = false; // so we don't release prematurely
+                        return CompleteWriteAndReleaseLockAsync(token, flush, message);
                     }
 
                     result = flush.Result; // we know it was completed, this is fine
                 }
+
+                UnmarkActiveMessage(message);
                 physical.SetIdle();
 
                 return new ValueTask<WriteResult>(result);
             }
             catch (Exception ex) { return new ValueTask<WriteResult>(HandleWriteException(message, ex)); }
-            finally { if (haveLock) ReleaseSingleWriterLock(message); }
+            finally
+            {
+                if (releaseLock) token.Dispose();
+            }
         }
 
-        private async Task<WriteResult> CompleteWriteAndReleaseLockAsync(ValueTask<WriteResult> flush, Message message)
+        private async ValueTask<WriteResult> CompleteWriteAndReleaseLockAsync(MutexSlim.LockToken lockToken, ValueTask<WriteResult> flush, Message message)
         {
-            try { return await flush.ForAwait(); }
-            catch (Exception ex) { return HandleWriteException(message, ex); }
-            finally { ReleaseSingleWriterLock(message); }
+            using (lockToken)
+            {
+                try
+                {
+                    var result = await flush.ForAwait();
+                    UnmarkActiveMessage(message);
+                    physical.SetIdle();
+                    return result;
+                }
+                catch (Exception ex) { return HandleWriteException(message, ex); }
+            }
         }
 
         private WriteResult HandleWriteException(Message message, Exception ex)
@@ -797,11 +829,9 @@ namespace StackExchange.Redis
             return WriteResult.WriteFailure;
         }
 
-        private void ReleaseSingleWriterLock(Message message)
-        {
-            Interlocked.CompareExchange(ref _activeMesssage, null, message); // remove if it is us
-            _SingleWriterLock.Release();
-        }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void UnmarkActiveMessage(Message message)
+            => Interlocked.CompareExchange(ref _activeMesssage, null, message); // remove if it is us
 
         private State ChangeState(State newState)
         {

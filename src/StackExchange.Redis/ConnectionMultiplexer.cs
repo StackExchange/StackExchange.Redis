@@ -2126,19 +2126,22 @@ namespace StackExchange.Redis
                 return CompletedTask<T>.Default(state);
             }
 
-            if (message.IsFireAndForget)
+            TaskCompletionSource<T> tcs = null;
+            ResultBox<T> source = null;
+            if (!message.IsFireAndForget)
             {
-                TryPushMessageToBridgeAsync(message, processor, null, ref server);
+                tcs = TaskSource.Create<T>(state);
+                source = ResultBox<T>.Get(tcs);
+            }
+            var write = TryPushMessageToBridgeAsync(message, processor, source, ref server);
+            if (!write.IsCompletedSuccessfully) return ExecuteAsyncImpl_Awaited<T>(this, write, tcs, message, server);
+
+            if (tcs == null)
+            {
                 return CompletedTask<T>.Default(null); // F+F explicitly does not get async-state
             }
             else
             {
-                var tcs = TaskSource.Create<T>(state);
-                var source = ResultBox<T>.Get(tcs);
-                var write = TryPushMessageToBridgeAsync(message, processor, source, ref server);
-
-                if (!write.IsCompletedSuccessfully) return ExecuteAsyncImpl_Awaited<T>(this, write, tcs, message, server);
-
                 var result = write.Result;
                 if (result != WriteResult.Success)
                 {
@@ -2157,7 +2160,7 @@ namespace StackExchange.Redis
                 var ex = @this.GetException(result, message, server);
                 ThrowFailed(tcs, ex);
             }
-            return await tcs.Task.ForAwait();
+            return tcs == null ? default(T) : await tcs.Task.ForAwait();
         }
 
         internal Exception GetException(WriteResult result, Message message, ServerEndPoint server)
