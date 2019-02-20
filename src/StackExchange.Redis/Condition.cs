@@ -309,7 +309,7 @@ namespace StackExchange.Redis
 
         internal abstract void CheckCommands(CommandMap commandMap);
 
-        internal abstract IEnumerable<Message> CreateMessages(int db, ResultBox resultBox);
+        internal abstract IEnumerable<Message> CreateMessages(int db, IResultBox resultBox);
 
         internal abstract int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy);
         internal abstract bool TryValidate(in RawResult result, out bool value);
@@ -439,7 +439,7 @@ namespace StackExchange.Redis
 
             internal override void CheckCommands(CommandMap commandMap) => commandMap.AssertAvailable(cmd);
 
-            internal override IEnumerable<Message> CreateMessages(int db, ResultBox resultBox)
+            internal override IEnumerable<Message> CreateMessages(int db, IResultBox resultBox)
             {
                 yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key);
 
@@ -519,7 +519,7 @@ namespace StackExchange.Redis
 
             internal override void CheckCommands(CommandMap commandMap) => commandMap.AssertAvailable(cmd);
 
-            internal sealed override IEnumerable<Message> CreateMessages(int db, ResultBox resultBox)
+            internal sealed override IEnumerable<Message> CreateMessages(int db, IResultBox resultBox)
             {
                 yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key);
 
@@ -601,7 +601,7 @@ namespace StackExchange.Redis
                 commandMap.AssertAvailable(RedisCommand.LINDEX);
             }
 
-            internal sealed override IEnumerable<Message> CreateMessages(int db, ResultBox resultBox)
+            internal sealed override IEnumerable<Message> CreateMessages(int db, IResultBox resultBox)
             {
                 yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key);
 
@@ -700,7 +700,7 @@ namespace StackExchange.Redis
                 commandMap.AssertAvailable(cmd);
             }
 
-            internal sealed override IEnumerable<Message> CreateMessages(int db, ResultBox resultBox)
+            internal sealed override IEnumerable<Message> CreateMessages(int db, IResultBox resultBox)
             {
                 yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key);
 
@@ -763,7 +763,7 @@ namespace StackExchange.Redis
 
             internal override void CheckCommands(CommandMap commandMap) => commandMap.AssertAvailable(RedisCommand.ZCOUNT);
 
-            internal sealed override IEnumerable<Message> CreateMessages(int db, ResultBox resultBox)
+            internal sealed override IEnumerable<Message> CreateMessages(int db, IResultBox resultBox)
             {
                 yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key);
 
@@ -799,14 +799,14 @@ namespace StackExchange.Redis
     {
         internal readonly Condition Condition;
 
-        private ResultBox<bool> resultBox;
+        private IResultBox<bool> resultBox;
 
         private volatile bool wasSatisfied;
 
         internal ConditionResult(Condition condition)
         {
             Condition = condition;
-            resultBox = ResultBox<bool>.Get(condition);
+            resultBox = SimpleResultBox<bool>.Create();
         }
 
         /// <summary>
@@ -816,12 +816,12 @@ namespace StackExchange.Redis
 
         internal IEnumerable<Message> CreateMessages(int db) => Condition.CreateMessages(db, resultBox);
 
-        internal ResultBox<bool> GetBox() { return resultBox; }
+        internal IResultBox<bool> GetBox() { return resultBox; }
         internal bool UnwrapBox()
         {
             if (resultBox != null)
             {
-                ResultBox<bool>.UnwrapAndRecycle(resultBox, false, out bool val, out Exception ex);
+                bool val = resultBox.GetResult(out var ex);
                 resultBox = null;
                 wasSatisfied = ex == null && val;
             }

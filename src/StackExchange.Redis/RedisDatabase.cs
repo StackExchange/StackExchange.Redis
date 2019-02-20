@@ -3714,7 +3714,7 @@ namespace StackExchange.Redis
         private class StringGetWithExpiryMessage : Message.CommandKeyBase, IMultiMessage
         {
             private readonly RedisCommand ttlCommand;
-            private ResultBox<TimeSpan?> box;
+            private IResultBox<TimeSpan?> box;
 
             public StringGetWithExpiryMessage(int db, CommandFlags flags, RedisCommand ttlCommand, in RedisKey key)
                 : base(db, flags, RedisCommand.GET, key)
@@ -3726,7 +3726,7 @@ namespace StackExchange.Redis
 
             public IEnumerable<Message> GetMessages(PhysicalConnection connection)
             {
-                box = ResultBox<TimeSpan?>.Get(null);
+                box = SimpleResultBox<TimeSpan?>.Create();
                 var ttl = Message.Create(Db, Flags, ttlCommand, Key);
                 var proc = ttlCommand == RedisCommand.PTTL ? ResultProcessor.TimeSpanFromMilliseconds : ResultProcessor.TimeSpanFromSeconds;
                 ttl.SetSource(proc, box);
@@ -3738,7 +3738,7 @@ namespace StackExchange.Redis
             {
                 if (box != null)
                 {
-                    ResultBox<TimeSpan?>.UnwrapAndRecycle(box, false, out value, out ex);
+                    value = box.GetResult(out ex);
                     box = null;
                     return ex == null;
                 }
