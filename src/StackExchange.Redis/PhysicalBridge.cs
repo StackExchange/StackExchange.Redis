@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using Pipelines.Sockets.Unofficial.Threading;
+using static Pipelines.Sockets.Unofficial.Threading.MutexSlim;
 using PendingSubscriptionState = global::StackExchange.Redis.ConnectionMultiplexer.Subscription.PendingSubscriptionState;
 
 namespace StackExchange.Redis
@@ -684,7 +685,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private async ValueTask<WriteResult> WriteMessageTakingDelayedWriteLockAsync(MutexSlim.AwaitableLockToken pendingLock, PhysicalConnection physical, Message message)
+        private async ValueTask<WriteResult> WriteMessageTakingDelayedWriteLockAsync(ValueTask<LockToken> pendingLock, PhysicalConnection physical, Message message)
         {
             try
             {
@@ -763,7 +764,7 @@ namespace StackExchange.Redis
             message.SetEnqueued(physical); // this also records the read/write stats at this point
 
             bool releaseLock = false;
-            MutexSlim.LockToken token = default;
+            LockToken token = default;
             try
             {
                 // try to acquire it synchronously
@@ -772,7 +773,7 @@ namespace StackExchange.Redis
                 if (!pending.IsCompletedSuccessfully) return WriteMessageTakingDelayedWriteLockAsync(pending, physical, message);
 
                 releaseLock = true;
-                token = pending.GetResult(); // we can't use "using" for this, because we might not want to kill it yet
+                token = pending.Result; // we can't use "using" for this, because we might not want to kill it yet
                 if (!token.Success) // (in particular, me might hand the lifetime to CompleteWriteAndReleaseLockAsync)
                 {
                     message.Cancel();
@@ -807,7 +808,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private async ValueTask<WriteResult> CompleteWriteAndReleaseLockAsync(MutexSlim.LockToken lockToken, ValueTask<WriteResult> flush, Message message)
+        private async ValueTask<WriteResult> CompleteWriteAndReleaseLockAsync(LockToken lockToken, ValueTask<WriteResult> flush, Message message)
         {
             using (lockToken)
             {
