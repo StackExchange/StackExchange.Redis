@@ -143,6 +143,11 @@ namespace StackExchange.Redis
 
         public static IResultBox<T> Create(out TaskCompletionSource<T> source, object asyncState, TaskCreationOptions creationOptions = TaskCreationOptions.None)
         {
+            // it might look a little odd to return the same object as two different things,
+            // but that's because it is serving two purposes, and I want to make it clear
+            // how it is being used in those 2 different ways; also, the *fact* that they
+            // are the same underlying object is an implementation detail that the rest of
+            // the code doesn't need to know about
             var obj = new TaskResultBox<T>(asyncState, creationOptions);
             source = obj;
             return obj;
