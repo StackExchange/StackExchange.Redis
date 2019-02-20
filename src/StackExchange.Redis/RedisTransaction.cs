@@ -73,15 +73,14 @@ namespace StackExchange.Redis
             }
             else
             {
-                var tcs = TaskSource.Create<T>(asyncState, TaskCreationOptions.RunContinuationsAsynchronously);
-                var source = ResultBox<T>.Get(tcs);
+                var source = TaskResultBox<T>.Create(out var tcs, asyncState, TaskCreationOptions.RunContinuationsAsynchronously);
                 message.SetSource(source, processor);
                 task = tcs.Task;
             }
 
             // prepare an outer-command that decorates that, but expects QUEUED
             var queued = new QueuedMessage(message);
-            var wasQueued = ResultBox<bool>.Get(null);
+            var wasQueued = SimpleResultBox<bool>.Create();
             queued.SetSource(wasQueued, QueuedProcessor.Default);
 
             // store it, and return the task of the *outer* command
@@ -100,7 +99,7 @@ namespace StackExchange.Redis
                         // think it should be!
                         var sel = PhysicalConnection.GetSelectDatabaseCommand(message.Db);
                         queued = new QueuedMessage(sel);
-                        wasQueued = ResultBox<bool>.Get(null);
+                        wasQueued = SimpleResultBox<bool>.Create();
                         queued.SetSource(wasQueued, QueuedProcessor.Default);
                         _pending.Add(queued);
                         break;
@@ -240,7 +239,7 @@ namespace StackExchange.Redis
 
             public IEnumerable<Message> GetMessages(PhysicalConnection connection)
             {
-                ResultBox lastBox = null;
+                IResultBox lastBox = null;
                 var bridge = connection.BridgeCouldBeNull;
                 if (bridge == null) throw new ObjectDisposedException(connection.ToString());
 
@@ -268,7 +267,7 @@ namespace StackExchange.Redis
                             {
                                 // need to have locked them before sending them
                                 // to guarantee that we see the pulse
-                                ResultBox latestBox = conditions[i].GetBox();
+                                IResultBox latestBox = conditions[i].GetBox();
                                 Monitor.Enter(latestBox);
                                 if (lastBox != null) Monitor.Exit(lastBox);
                                 lastBox = latestBox;
@@ -328,7 +327,7 @@ namespace StackExchange.Redis
                                 if (explicitCheckForQueued)
                                 {   // need to have locked them before sending them
                                     // to guarantee that we see the pulse
-                                    ResultBox thisBox = op.ResultBox;
+                                    IResultBox thisBox = op.ResultBox;
                                     if (thisBox != null)
                                     {
                                         Monitor.Enter(thisBox);

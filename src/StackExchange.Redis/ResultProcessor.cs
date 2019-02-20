@@ -2032,7 +2032,7 @@ The coordinates as a two items x,y array (longitude,latitude).
         protected void SetResult(Message message, T value)
         {
             if (message == null) return;
-            var box = message.ResultBox as ResultBox<T>;
+            var box = message.ResultBox as IResultBox<T>;
             message.SetResponseReceived();
 
             box?.SetResult(value);

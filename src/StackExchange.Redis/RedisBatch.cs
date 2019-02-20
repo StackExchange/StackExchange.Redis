@@ -76,10 +76,9 @@ namespace StackExchange.Redis
             }
             else
             {
-                var tcs = TaskSource.Create<T>(asyncState);
-                var source = ResultBox<T>.Get(tcs);
-                message.SetSource(source, processor);
+                var source = TaskResultBox<T>.Create(out var tcs, asyncState);
                 task = tcs.Task;
+                message.SetSource(source, processor);
             }
 
             // store it

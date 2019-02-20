@@ -259,12 +259,11 @@ namespace StackExchange.Redis
                         : (channel.IsPatternBased ? RedisCommand.PUNSUBSCRIBE : RedisCommand.UNSUBSCRIBE);
                     var msg = Message.Create(-1, flags, cmd, channel);
                     if (internalCall) msg.SetInternalCall();
-                    var taskSource = TaskSource.Create<bool>(asyncState);
-                    var source = ResultBox<bool>.Get(taskSource);
+
+                    var source = TaskResultBox<bool>.Create(out _taskSource, asyncState);
                     msg.SetSource(ResultProcessor.TrackSubscriptions, source);
 
                     Subscription = subscription;
-                    _taskSource = taskSource;
                     Message = msg;
                     IsSlave = isSlave;
                 }

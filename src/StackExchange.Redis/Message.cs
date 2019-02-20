@@ -75,7 +75,7 @@ namespace StackExchange.Redis
                                                        | CommandFlags.FireAndForget
                                                        | CommandFlags.NoRedirect
                                                        | CommandFlags.NoScriptCache;
-        private ResultBox resultBox;
+        private IResultBox resultBox;
 
         private ResultProcessor resultProcessor;
 
@@ -206,7 +206,7 @@ namespace StackExchange.Redis
         public bool IsFireAndForget => (Flags & CommandFlags.FireAndForget) != 0;
         public bool IsInternalCall => (Flags & InternalCallFlag) != 0;
 
-        public ResultBox ResultBox => resultBox;
+        public IResultBox ResultBox => resultBox;
 
         public abstract int ArgCount { get; } // note: over-estimate if necessary
 
@@ -617,7 +617,15 @@ namespace StackExchange.Redis
             bridge.CompleteSyncOrAsync(this);
         }
 
-        internal bool TrySetResult<T>(T value) => resultBox is ResultBox<T> typed && typed.TrySetResult(value);
+        internal bool TrySetResult<T>(T value)
+        {
+            if (resultBox is IResultBox<T> typed && !typed.IsFaulted)
+            {
+                typed.SetResult(value);
+                return true;
+            }
+            return false;
+        }
 
         internal void SetEnqueued(PhysicalConnection connection)
         {
@@ -711,14 +719,14 @@ namespace StackExchange.Redis
             Flags = (Flags & ~MaskMasterServerPreference) | CommandFlags.PreferSlave;
         }
 
-        internal void SetSource(ResultProcessor resultProcessor, ResultBox resultBox)
+        internal void SetSource(ResultProcessor resultProcessor, IResultBox resultBox)
         { // note order here reversed to prevent overload resolution errors
             if (resultBox != null && resultBox.IsAsync) SetNeedsTimeoutCheck();
             this.resultBox = resultBox;
             this.resultProcessor = resultProcessor;
         }
 
-        internal void SetSource<T>(ResultBox<T> resultBox, ResultProcessor<T> resultProcessor)
+        internal void SetSource<T>(IResultBox<T> resultBox, ResultProcessor<T> resultProcessor)
         {
             if (resultBox != null && resultBox.IsAsync) SetNeedsTimeoutCheck();
             this.resultBox = resultBox;

@@ -574,8 +574,7 @@ namespace StackExchange.Redis
 
         internal Task<T> WriteDirectAsync<T>(Message message, ResultProcessor<T> processor, object asyncState = null, PhysicalBridge bridge = null)
         {
-            var tcs = TaskSource.Create<T>(asyncState);
-            var source = ResultBox<T>.Get(tcs);
+            var source = TaskResultBox<T>.Create(out var tcs, asyncState);
             message.SetSource(processor, source);
             if (bridge == null) bridge = GetBridge(message.Command);
 

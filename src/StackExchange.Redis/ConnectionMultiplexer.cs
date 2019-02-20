@@ -1910,7 +1910,7 @@ namespace StackExchange.Redis
             return ServerSelectionStrategy.Select(command, key, flags);
         }
 
-        private bool PrepareToPushMessageToBridge<T>(Message message, ResultProcessor<T> processor, ResultBox<T> resultBox, ref ServerEndPoint server)
+        private bool PrepareToPushMessageToBridge<T>(Message message, ResultProcessor<T> processor, IResultBox<T> resultBox, ref ServerEndPoint server)
         {
             message.SetSource(processor, resultBox);
 
@@ -1964,12 +1964,12 @@ namespace StackExchange.Redis
             Trace("No server or server unavailable - aborting: " + message);
             return false;
         }
-        private ValueTask<WriteResult> TryPushMessageToBridgeAsync<T>(Message message, ResultProcessor<T> processor, ResultBox<T> resultBox, ref ServerEndPoint server)
+        private ValueTask<WriteResult> TryPushMessageToBridgeAsync<T>(Message message, ResultProcessor<T> processor, IResultBox<T> resultBox, ref ServerEndPoint server)
             => PrepareToPushMessageToBridge(message, processor, resultBox, ref server) ? server.TryWriteAsync(message) : new ValueTask<WriteResult>(WriteResult.NoConnectionAvailable);
 
         [Obsolete("prefer async")]
 #pragma warning disable CS0618
-        private WriteResult TryPushMessageToBridgeSync<T>(Message message, ResultProcessor<T> processor, ResultBox<T> resultBox, ref ServerEndPoint server)
+        private WriteResult TryPushMessageToBridgeSync<T>(Message message, ResultProcessor<T> processor, IResultBox<T> resultBox, ref ServerEndPoint server)
             => PrepareToPushMessageToBridge(message, processor, resultBox, ref server) ? server.TryWriteSync(message) : WriteResult.NoConnectionAvailable;
 #pragma warning restore CS0618
 
@@ -2127,11 +2127,10 @@ namespace StackExchange.Redis
             }
 
             TaskCompletionSource<T> tcs = null;
-            ResultBox<T> source = null;
+            IResultBox<T> source = null;
             if (!message.IsFireAndForget)
             {
-                tcs = TaskSource.Create<T>(state);
-                source = ResultBox<T>.Get(tcs);
+                source = TaskResultBox<T>.Create(out tcs, state);
             }
             var write = TryPushMessageToBridgeAsync(message, processor, source, ref server);
             if (!write.IsCompletedSuccessfully) return ExecuteAsyncImpl_Awaited<T>(this, write, tcs, message, server);
@@ -2231,7 +2230,7 @@ namespace StackExchange.Redis
             }
             else
             {
-                var source = ResultBox<T>.Get(null);
+                var source = SimpleResultBox<T>.Get();
 
                 lock (source)
                 {
@@ -2256,7 +2255,7 @@ namespace StackExchange.Redis
                     }
                 }
                 // snapshot these so that we can recycle the box
-                ResultBox<T>.UnwrapAndRecycle(source, true, out T val, out Exception ex); // now that we aren't locking it...
+                var  val = source.GetResult(out var ex, canRecycle: true); // now that we aren't locking it...
                 if (ex != null) throw ex;
                 Trace(message + " received " + val);
                 return val;

@@ -4,146 +4,148 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
-    internal abstract class ResultBox
+    internal interface IResultBox
     {
-        protected Exception _exception;
-        public abstract bool IsAsync { get; }
-        public bool IsFaulted => _exception != null;
+        bool IsAsync { get; }
+        bool IsFaulted { get; }
+        void SetException(Exception ex);
+        bool TryComplete(bool isAsync);
+        void Cancel();
+    }
+    internal interface IResultBox<T> : IResultBox
+    {
+        T GetResult(out Exception ex, bool canRecycle = false);
+        void SetResult(T value);
+    }
 
-        public void SetException(Exception exception) => _exception = exception ?? s_cancelled;
+    internal abstract class SimpleResultBox : IResultBox
+    {
+        private volatile Exception _exception;
 
-        public abstract bool TryComplete(bool isAsync);
+        bool IResultBox.IsAsync => false;
+        bool IResultBox.IsFaulted => _exception != null;
+        void IResultBox.SetException(Exception exception) => _exception = exception ?? CancelledException;
+        void IResultBox.Cancel() => _exception = CancelledException;
 
-        public void Cancel() => _exception = s_cancelled;
+        bool IResultBox.TryComplete(bool isAsync)
+        {
+            lock (this)
+            { // tell the waiting thread that we're done
+                Monitor.PulseAll(this);
+            }
+            ConnectionMultiplexer.TraceWithoutContext("Pulsed", "Result");
+            return true;
+        }
 
         // in theory nobody should directly observe this; the only things
         // that call Cancel are transactions etc - TCS-based, and we detect
         // that and use TrySetCanceled instead
         // about any confusion in stack-trace
-        private static readonly Exception s_cancelled = new TaskCanceledException();
+        internal static readonly Exception CancelledException = new TaskCanceledException();
+
+        protected Exception Exception
+        {
+            get => _exception;
+            set => _exception = value;
+        }
     }
 
-    internal sealed class ResultBox<T> : ResultBox
+    internal sealed class SimpleResultBox<T> : SimpleResultBox, IResultBox<T>
     {
-        private static readonly ResultBox<T>[] store = new ResultBox<T>[64];
-        private object stateOrCompletionSource;
-        private int _usageCount;
-        private T value;
+        private SimpleResultBox() { }
+        private T _value;
 
-        public ResultBox(object stateOrCompletionSource)
+        [ThreadStatic]
+        private static SimpleResultBox<T> _perThreadInstance;
+
+        public static IResultBox<T> Create() => new SimpleResultBox<T>();
+        public static IResultBox<T> Get() // includes recycled boxes; used from sync, so makes re-use easy
         {
-            this.stateOrCompletionSource = stateOrCompletionSource;
-            _usageCount = 1;
+            var obj = _perThreadInstance ?? new SimpleResultBox<T>();
+            _perThreadInstance = null; // in case of oddness; only set back when recycled
+            return obj;
         }
+        void IResultBox<T>.SetResult(T value) => _value = value;
 
-        public static ResultBox<T> Get(object stateOrCompletionSource)
+        T IResultBox<T>.GetResult(out Exception ex, bool canRecycle)
         {
-            ResultBox<T> found;
-            for (int i = 0; i < store.Length; i++)
+            var value = _value;
+            ex = Exception;
+            if (canRecycle)
             {
-                if ((found = Interlocked.Exchange(ref store[i], null)) != null)
-                {
-                    found.Reset(stateOrCompletionSource);
-                    return found;
-                }
+                Exception = null;
+                _value = default;
+                _perThreadInstance = this;
             }
+            return value;
+        }
+    }
 
-            return new ResultBox<T>(stateOrCompletionSource);
+    internal sealed class TaskResultBox<T> : TaskCompletionSource<T>, IResultBox<T>
+    {
+        // you might be asking "wait, doesn't the Task own these?", to which
+        // I say: no; we can't set *immediately* due to thread-theft etc, hence
+        // the fun TryComplete indirection - so we need somewhere to buffer them
+        private volatile Exception _exception;
+        private T _value;
+
+        private TaskResultBox(object asyncState, TaskCreationOptions creationOptions) : base(asyncState, creationOptions)
+        { }
+
+        bool IResultBox.IsAsync => true;
+
+        bool IResultBox.IsFaulted => _exception != null;
+
+        void IResultBox.Cancel() => _exception = SimpleResultBox.CancelledException;
+
+        void IResultBox.SetException(Exception ex) => _exception = ex ?? SimpleResultBox.CancelledException;
+
+        void IResultBox<T>.SetResult(T value) => _value = value;
+
+        T IResultBox<T>.GetResult(out Exception ex, bool _)
+        {
+            ex = _exception;
+            return _value;
+            // nothing to do re recycle: TaskCompletionSource<T> cannot be recycled
         }
 
-        public static void UnwrapAndRecycle(ResultBox<T> box, bool recycle, out T value, out Exception exception)
+        bool IResultBox.TryComplete(bool isAsync)
         {
-            if (box == null)
+            if (isAsync || (Task.CreationOptions & TaskCreationOptions.RunContinuationsAsynchronously) != 0)
             {
-                value = default(T);
-                exception = null;
-            }
-            else
-            {
-                value = box.value;
-                exception = box._exception;
-                box.value = default(T);
-                box._exception = null;
-                if (recycle)
+                // either on the async completion step, or the task is guarded
+                // againsts thread-stealing; complete it directly
+                // (note: RunContinuationsAsynchronously is only usable from NET46)
+                var val = _value;
+                var ex = _exception;
+
+                if (ex == null)
                 {
-                    var newCount = Interlocked.Decrement(ref box._usageCount);
-                    if (newCount != 0)
-                        throw new InvalidOperationException($"Result box count error: is {newCount} in UnwrapAndRecycle (should be 0)");
-
-                    // Clear state prior to recycling, so as not to root it
-                    box.stateOrCompletionSource = null;
-                    for (int i = 0; i < store.Length; i++)
-                    {
-                        if (Interlocked.CompareExchange(ref store[i], box, null) == null) return;
-                    }
-                }
-            }
-        }
-
-        public void SetResult(T value)
-        {
-            this.value = value;
-        }
-
-        internal bool TrySetResult(T value)
-        {
-            if (_exception != null) return false;
-            this.value = value;
-            return true;
-        }
-
-        public override bool IsAsync => stateOrCompletionSource is TaskCompletionSource<T>;
-
-        public override bool TryComplete(bool isAsync)
-        {
-            if (stateOrCompletionSource is TaskCompletionSource<T> tcs)
-            {
-                if (isAsync || (tcs.Task.CreationOptions & TaskCreationOptions.RunContinuationsAsynchronously) != 0)
-                {
-                    // either on the async completion step, or the task is guarded
-                    // againsts thread-stealing; complete it directly
-                    // (note: RunContinuationsAsynchronously is only usable from NET46)
-                    UnwrapAndRecycle(this, true, out T val, out Exception ex);
-
-                    if (ex == null)
-                    {
-                        tcs.TrySetResult(val);
-                    }
-                    else
-                    {
-                        if (ex is TaskCanceledException) tcs.TrySetCanceled();
-                        else tcs.TrySetException(ex);
-                        // mark it as observed
-                        GC.KeepAlive(tcs.Task.Exception);
-                        GC.SuppressFinalize(tcs.Task);
-                    }
-                    return true;
+                    TrySetResult(val);
                 }
                 else
                 {
-                    // could be thread-stealing continuations; push to async to preserve the reader thread
-                    return false;
+                    if (ex is TaskCanceledException) TrySetCanceled();
+                    else TrySetException(ex);
+                    // mark any exception as observed
+                    var task = Task;
+                    GC.KeepAlive(task.Exception);
+                    GC.SuppressFinalize(task);
                 }
+                return true;
             }
             else
             {
-                lock (this)
-                { // tell the waiting thread that we're done
-                    Monitor.PulseAll(this);
-                }
-                ConnectionMultiplexer.TraceWithoutContext("Pulsed", "Result");
-                return true;
+                // could be thread-stealing continuations; push to async to preserve the reader thread
+                return false;
             }
         }
 
-        private void Reset(object stateOrCompletionSource)
+        public static IResultBox<T> Create(out TaskCompletionSource<T> source, object asyncState, TaskCreationOptions creationOptions = TaskCreationOptions.None)
         {
-            var newCount = Interlocked.Increment(ref _usageCount);
-            if (newCount != 1) throw new InvalidOperationException($"Result box count error: is {newCount} in Reset (should be 1)");
-            value = default(T);
-            _exception = null;
-
-            this.stateOrCompletionSource = stateOrCompletionSource;
+            var obj = new TaskResultBox<T>(asyncState, creationOptions);
+            source = obj;
+            return obj;
         }
     }
 }
