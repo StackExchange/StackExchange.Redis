@@ -2170,8 +2170,8 @@ namespace StackExchange.Redis
                         if (bridge != null)
                         {
                             var active = bridge.GetActiveMessage();
-                            bridge.GetOutstandingCount(out var inst, out var qs, out var @in);
-                            bridgeCounters = $", inst={inst}, qs={qs}, in={@in}, active={active}";
+                            bridge.GetOutstandingCount(out var inst, out var qs, out var @in, out var qu);
+                            bridgeCounters = $", inst={inst}, qu={qu}, qs={qs}, in={@in}, active={active}";
                         }
                     }
                     catch { }

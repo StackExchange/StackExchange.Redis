@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -614,6 +615,7 @@ namespace StackExchange.Redis
 
         internal void SetEnqueued(PhysicalConnection connection)
         {
+            SetWriteTime();
             performance?.SetEnqueued();
             _enqueuedTo = connection;
             if (connection == null)
@@ -655,6 +657,7 @@ namespace StackExchange.Redis
         }
 
         // the time (ticks) at which this message was considered written
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal void SetWriteTime()
         {
             if ((Flags & NeedsAsyncTimeoutCheckFlag) != 0)

@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+using Pipelines.Sockets.Unofficial;
 using Pipelines.Sockets.Unofficial.Threading;
 using static Pipelines.Sockets.Unofficial.Threading.MutexSlim;
 using PendingSubscriptionState = global::StackExchange.Redis.ConnectionMultiplexer.Subscription.PendingSubscriptionState;
@@ -25,7 +26,7 @@ namespace StackExchange.Redis
 
         private readonly long[] profileLog = new long[ProfileLogSamples];
 
-        private readonly Queue<Message> _preconnectBacklog = new Queue<Message>();
+        private readonly Queue<Message> _backlog = new Queue<Message>();
 
         private int activeWriters = 0;
         private int beating;
@@ -133,10 +134,9 @@ namespace StackExchange.Redis
             {
                 // you can go in the queue, but we won't be starting
                 // a worker, because the handshake has not completed
-                var queue = _preconnectBacklog;
-                lock (queue)
+                lock (_backlog)
                 {
-                    queue.Enqueue(message);
+                    _backlog.Enqueue(message);
                 }
                 message.SetEnqueued(null);
                 return WriteResult.Success; // we'll take it...
@@ -286,9 +286,13 @@ namespace StackExchange.Redis
         internal bool TryEnqueueBackgroundSubscriptionWrite(PendingSubscriptionState state)
             => isDisposed ? false : (_subscriptionBackgroundQueue ?? GetSubscriptionQueue()).Writer.TryWrite(state);
     
-        internal void GetOutstandingCount(out int inst, out int qs, out int @in)
-        {// defined as: PendingUnsentItems + SentItemsAwaitingResponse + ResponsesAwaitingAsyncCompletion
+        internal void GetOutstandingCount(out int inst, out int qs, out int @in, out int qu)
+        {
             inst = (int)(Interlocked.Read(ref operationCount) - Interlocked.Read(ref profileLastLog));
+            lock(_backlog)
+            {
+                qu = _backlog.Count;
+            }
             var tmp = physical;
             if (tmp == null)
             {
@@ -431,35 +435,26 @@ namespace StackExchange.Redis
             }
         }
 
-        private Message DequeueNextPendingBacklog()
-        {
-            lock (_preconnectBacklog)
-            {
-                return _preconnectBacklog.Count == 0 ? null : _preconnectBacklog.Dequeue();
-            }
-        }
-
         [Obsolete("prefer async")]
         private void WritePendingBacklogSync(PhysicalConnection connection)
         {
-            if (connection != null)
+            bool createWorker;
+            lock(_backlog)
             {
-                Message next;
-                do
-                {
-                    next = DequeueNextPendingBacklog();
-#pragma warning disable CS0618
-                    if (next != null) WriteMessageTakingWriteLockSync(connection, next);
-#pragma warning restore CS0618
-                } while (next != null);
+                createWorker = _backlog.Count != 0;
             }
+            if (createWorker) StartBacklogProcessor();
         }
         private void AbandonPendingBacklog(Exception ex)
         {
             Message next;
             do
             {
-                next = DequeueNextPendingBacklog();
+                
+                lock (_backlog)
+                {
+                    next = _backlog.Count == 0 ? null : _backlog.Dequeue();
+                }
                 if (next != null)
                 {
                     Multiplexer?.OnMessageFaulted(next, ex);
@@ -681,39 +676,6 @@ namespace StackExchange.Redis
             }
         }
 
-        private async ValueTask<WriteResult> WriteMessageTakingDelayedWriteLockAsync(ValueTask<LockToken> pendingLock, PhysicalConnection physical, Message message)
-        {
-            try
-            {
-                // WriteMessageTakingWriteLockAsync will have checked for immediate availability,
-                // so this is the fallback case - fine to go straight to "await"
-
-                // note: timeout is specified in mutex-constructor
-                using (var token = await pendingLock)
-                {
-                    if (!token.Success)
-                    {
-                        message.Cancel();
-                        Multiplexer?.OnMessageFaulted(message, null);
-                        message.Complete();
-                        return WriteResult.TimeoutBeforeWrite;
-                    }
-
-                    var result = WriteMessageInsideLock(physical, message);
-
-                    if (result == WriteResult.Success)
-                    {
-                        result = await physical.FlushAsync(false).ForAwait();
-                    }
-
-                    physical.SetIdle();
-                    UnmarkActiveMessage(message);
-                    return result;
-                }
-            }
-            catch (Exception ex) { return HandleWriteException(message, ex); }
-        }
-
         [Obsolete("prefer async")]
         internal WriteResult WriteMessageTakingWriteLockSync(PhysicalConnection physical, Message message)
         {
@@ -749,6 +711,88 @@ namespace StackExchange.Redis
             catch (Exception ex) { return HandleWriteException(message, ex); }
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void PushToBacklog(Message message)
+        {
+            bool startWorker;
+            lock (_backlog)
+            {
+                startWorker = _backlog.Count == 0;
+                _backlog.Enqueue(message);
+            }
+            if (startWorker) StartBacklogProcessor();
+        }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void StartBacklogProcessor()
+        {
+            var sched = Multiplexer.SocketManager?.SchedulerPool ?? DedicatedThreadPoolPipeScheduler.Default;
+            sched.Schedule(s_ProcessBacklog, this);
+        }
+        static readonly Action<object> s_ProcessBacklog = s => ((PhysicalBridge)s).ProcessBacklog();
+
+        private void ProcessBacklog()
+        {
+            LockToken token = default;
+            try
+            {
+                while(true)
+                {
+                    // try and get the lock; if unsuccessful, check for termination
+                    token = _singleWriterMutex.TryWait();
+                    if (token) break; // got the lock
+                    lock (_backlog) { if (_backlog.Count == 0) return; }
+                }
+
+                // so now we are the writer; write some things!
+                Message message;
+                var timeout = TimeoutMilliseconds;
+                while(true)
+                {
+                    lock(_backlog)
+                    {
+                        if (_backlog.Count == 0) break; // all done
+                        message = _backlog.Dequeue();
+                    }
+
+                    try
+                    {
+                        if (message.HasAsyncTimedOut(Environment.TickCount, timeout, out var elapsed))
+                        {
+                            var ex = Multiplexer.GetException(WriteResult.TimeoutBeforeWrite, message, ServerEndPoint);
+                            message.SetExceptionAndComplete(ex, this);
+                        }
+                        else
+                        {
+                            var result = WriteMessageInsideLock(physical, message);
+
+                            if (result == WriteResult.Success)
+                            {
+#pragma warning disable CS0618
+                                result = physical.FlushSync(false, timeout);
+#pragma warning restore CS0618
+                            }
+
+                            UnmarkActiveMessage(message);
+                            if (result != WriteResult.Success)
+                            {
+                                var ex = Multiplexer.GetException(result, message, ServerEndPoint);
+                                HandleWriteException(message, ex);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        HandleWriteException(message, ex);
+                    }
+                }
+                physical.SetIdle();
+            }
+            finally
+            {
+                token.Dispose();
+            }
+        }
+
         /// <summary>
         /// This writes a message to the output stream
         /// </summary>
@@ -759,23 +803,22 @@ namespace StackExchange.Redis
             Trace("Writing: " + message);
             message.SetEnqueued(physical); // this also records the read/write stats at this point
 
-            bool releaseLock = false;
+            bool releaseLock = true;
             LockToken token = default;
             try
             {
                 // try to acquire it synchronously
                 // note: timeout is specified in mutex-constructor
-                var pending = _singleWriterMutex.TryWaitAsync(options: MutexSlim.WaitOptions.DisableAsyncContext);
-                if (!pending.IsCompletedSuccessfully) return WriteMessageTakingDelayedWriteLockAsync(pending, physical, message);
+                token = _singleWriterMutex.TryWait(options: WaitOptions.NoDelay);
 
-                releaseLock = true;
-                token = pending.Result; // we can't use "using" for this, because we might not want to kill it yet
                 if (!token.Success) // (in particular, me might hand the lifetime to CompleteWriteAndReleaseLockAsync)
                 {
-                    message.Cancel();
-                    Multiplexer?.OnMessageFaulted(message, null);
-                    message.Complete();
-                    return new ValueTask<WriteResult>(WriteResult.TimeoutBeforeWrite);
+                    PushToBacklog(message);
+                    return new ValueTask<WriteResult>(WriteResult.Success); // queued counts as success
+                    //message.Cancel();
+                    //Multiplexer?.OnMessageFaulted(message, null);
+                    //message.Complete();
+                    //return new ValueTask<WriteResult>(WriteResult.TimeoutBeforeWrite);
                 }
 
                 var result = WriteMessageInsideLock(physical, message);

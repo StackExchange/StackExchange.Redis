@@ -18,15 +18,22 @@ namespace TestConsole
             Show(client.GetCounters());
             var tasks = Enumerable.Range(0, 1000).Select(async i =>
             {
+                int timeoutCount = 0;
                 for (int t = 0; t < 1000; t++)
                 {
-                    await db.StringIncrementAsync(i.ToString(), 1);
-                    // db.StringIncrement(i.ToString(), 1);
+                    try
+                    {
+                        await db.StringIncrementAsync(i.ToString(), 1);
+                    }
+                    catch (TimeoutException) { timeoutCount++; }
                 }
-                await Task.Yield();
-            });
+                return timeoutCount;
+            }).ToArray();
 
             await Task.WhenAll(tasks);
+            int totalTimeouts = tasks.Sum(x => x.Result);
+            Console.WriteLine("Total timeouts: " + totalTimeouts);
+            Console.WriteLine();
             Show(client.GetCounters());
 
             var duration = DateTime.Now.Subtract(start).TotalMilliseconds;

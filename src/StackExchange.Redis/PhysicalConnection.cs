@@ -467,7 +467,6 @@ namespace StackExchange.Redis
 
         internal void EnqueueInsideWriteLock(Message next)
         {
-            next.SetWriteTime();
             lock (_writtenAwaitingResponse)
             {
                 _writtenAwaitingResponse.Enqueue(next);
@@ -860,9 +859,11 @@ namespace StackExchange.Redis
             if (!flush.IsCompletedSuccessfully)
             {
                 // here lies the evil
-                if (!flush.AsTask().Wait(millisecondsTimeout)) throw new TimeoutException("timeout while synchronously flushing");
+                if (!flush.AsTask().Wait(millisecondsTimeout)) ThrowTimeout();
             }
             return flush.Result;
+
+            void ThrowTimeout() => throw new TimeoutException("timeout while synchronously flushing");
         }
         internal ValueTask<WriteResult> FlushAsync(bool throwOnFailure)
         {

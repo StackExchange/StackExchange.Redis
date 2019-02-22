@@ -205,9 +205,11 @@ namespace StackExchange.Redis
 
             if (server != null)
             {
-                server.GetOutstandingCount(message.Command, out int inst, out int qs, out int @in);
+                server.GetOutstandingCount(message.Command, out int inst, out int qs, out int @in, out int qu);
                 add("Instantaneous", "inst", inst.ToString());
+                add("Queue-Awaiting-Write", "qu", qu.ToString());
                 add("Queue-Awaiting-Response", "qs", qs.ToString());
+
                 if (@in >= 0) add("Inbound-Bytes", "in", @in.ToString());
 
                 if (mutiplexer.StormLogThreshold >= 0 && qs >= mutiplexer.StormLogThreshold && Interlocked.CompareExchange(ref mutiplexer.haveStormLog, 1, 0) == 0)
