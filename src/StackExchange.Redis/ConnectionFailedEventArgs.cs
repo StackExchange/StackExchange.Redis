@@ -51,10 +51,7 @@ namespace StackExchange.Redis
             else sb.Append(Format.ToString(EndPoint));
         }
 
-        bool ICompletable.TryComplete(bool isAsync)
-        {
-            return ConnectionMultiplexer.TryCompleteHandler(handler, sender, this, isAsync);
-        }
+        bool ICompletable.TryComplete(bool isAsync) => ConnectionMultiplexer.TryCompleteHandler(handler, sender, this, isAsync);
 
         /// <summary>
         /// Returns the physical name of the connection.

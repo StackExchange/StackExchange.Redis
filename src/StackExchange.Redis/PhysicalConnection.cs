@@ -413,7 +413,7 @@ namespace StackExchange.Redis
                     if (next.Command == RedisCommand.QUIT && next.TrySetResult(true))
                     {
                         // fine, death of a socket is close enough
-                        bridge.CompleteSyncOrAsync(next);
+                        next.Complete();
                     }
                     else
                     {
@@ -1324,16 +1324,7 @@ namespace StackExchange.Redis
             Trace("Response to: " + msg);
             if (msg.ComputeResult(this, result))
             {
-                if (msg.TryComplete(false))
-                {
-                    BridgeCouldBeNull.IncrementSyncCount();
-                }
-                else
-                {
-                    // got a result, and we couldn't complete it synchronously;
-                    // note that we want to complete it async instead
-                    BridgeCouldBeNull.CompleteAsync(msg);
-                }
+                msg.Complete();
             }
         }
 

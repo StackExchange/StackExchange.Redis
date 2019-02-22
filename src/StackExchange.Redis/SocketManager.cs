@@ -55,9 +55,8 @@ namespace StackExchange.Redis
         public override string ToString()
         {
             var scheduler = SchedulerPool;
-            var comp = CompletionPool;
 
-            return $"scheduler - queue: {scheduler?.TotalServicedByQueue}, pool: {scheduler?.TotalServicedByPool}; completion - queue: {comp ?.TotalServicedByQueue}, pool: {comp?.TotalServicedByPool}";
+            return $"scheduler - queue: {scheduler?.TotalServicedByQueue}, pool: {scheduler?.TotalServicedByPool}";
         }
 
         private static SocketManager _shared;
@@ -100,16 +99,12 @@ namespace StackExchange.Redis
                 resumeWriterThreshold: Receive_ResumeWriterThreshold,
                 minimumSegmentSize: Math.Max(defaultPipeOptions.MinimumSegmentSize, MINIMUM_SEGMENT_SIZE),
                 useSynchronizationContext: false);
-
-            _completionPool = new DedicatedThreadPoolPipeScheduler(name + ":Completion",
-                workerCount: workerCount, useThreadPoolQueueLength: 1);
         }
 
-        private DedicatedThreadPoolPipeScheduler _schedulerPool, _completionPool;
+        private DedicatedThreadPoolPipeScheduler _schedulerPool;
         internal readonly PipeOptions SendPipeOptions, ReceivePipeOptions;
 
         internal DedicatedThreadPoolPipeScheduler SchedulerPool => _schedulerPool;
-        internal DedicatedThreadPoolPipeScheduler CompletionPool => _completionPool;
 
         private enum CallbackOperation
         {
@@ -128,9 +123,7 @@ namespace StackExchange.Redis
             // be threads, and those threads will be rooting the DedicatedThreadPool;
             // but: we can lend a hand! We need to do this even in the finalizer
             try { _schedulerPool?.Dispose(); } catch { }
-            try { _completionPool?.Dispose(); } catch { }
             _schedulerPool = null;
-            _completionPool = null;
             if (disposing)
             {
                 GC.SuppressFinalize(this);
@@ -165,8 +158,5 @@ namespace StackExchange.Redis
             var s = _schedulerPool;
             return s == null ? null : $"{s.AvailableCount} of {s.WorkerCount} available";
         }
-
-        internal void ScheduleTask(Action<object> action, object state)
-            => _completionPool.Schedule(action, state);
     }
 }

@@ -79,7 +79,6 @@ namespace StackExchange.Redis
             {
                 counters.Add(snapshot[i].GetCounters());
             }
-            UnprocessableCompletionManager.GetCounters(counters.Other);
             return counters;
         }
 
@@ -153,9 +152,8 @@ namespace StackExchange.Redis
             var handler = ConnectionFailed;
             if (handler != null)
             {
-                UnprocessableCompletionManager.CompleteSyncOrAsync(
-                    new ConnectionFailedEventArgs(handler, this, endpoint, connectionType, failureType, exception, physicalName)
-                );
+                ConnectionMultiplexer.CompleteAsWorker(
+                    new ConnectionFailedEventArgs(handler, this, endpoint, connectionType, failureType, exception, physicalName));
             }
             if (reconfigure)
             {
@@ -172,9 +170,8 @@ namespace StackExchange.Redis
                 var handler = InternalError;
                 if (handler != null)
                 {
-                    UnprocessableCompletionManager.CompleteSyncOrAsync(
-                        new InternalErrorEventArgs(handler, this, endpoint, connectionType, exception, origin)
-                    );
+                    ConnectionMultiplexer.CompleteAsWorker(
+                        new InternalErrorEventArgs(handler, this, endpoint, connectionType, exception, origin));
                 }
             }
             catch
@@ -188,9 +185,8 @@ namespace StackExchange.Redis
             var handler = ConnectionRestored;
             if (handler != null)
             {
-                UnprocessableCompletionManager.CompleteSyncOrAsync(
-                    new ConnectionFailedEventArgs(handler, this, endpoint, connectionType, ConnectionFailureType.None, null, physicalName)
-                );
+                ConnectionMultiplexer.CompleteAsWorker(
+                    new ConnectionFailedEventArgs(handler, this, endpoint, connectionType, ConnectionFailureType.None, null, physicalName));
             }
             ReconfigureIfNeeded(endpoint, false, "connection restored");
         }
@@ -200,9 +196,7 @@ namespace StackExchange.Redis
             if (_isDisposed) return;
             if (handler != null)
             {
-                UnprocessableCompletionManager.CompleteSyncOrAsync(
-                    new EndPointEventArgs(handler, this, endpoint)
-                );
+                ConnectionMultiplexer.CompleteAsWorker(new EndPointEventArgs(handler, this, endpoint));
             }
         }
 
@@ -219,7 +213,7 @@ namespace StackExchange.Redis
             var handler = ErrorMessage;
             if (handler != null)
             {
-                UnprocessableCompletionManager.CompleteSyncOrAsync(
+                ConnectionMultiplexer.CompleteAsWorker(
                     new RedisErrorEventArgs(handler, this, endpoint, message)
                 );
             }
@@ -748,12 +742,8 @@ namespace StackExchange.Redis
         internal void OnHashSlotMoved(int hashSlot, EndPoint old, EndPoint @new)
         {
             var handler = HashSlotMoved;
-            if (handler != null)
-            {
-                UnprocessableCompletionManager.CompleteSyncOrAsync(
-                    new HashSlotMovedEventArgs(handler, this, hashSlot, old, @new)
-                );
-            }
+            if (handler != null) ConnectionMultiplexer.CompleteAsWorker(
+                new HashSlotMovedEventArgs(handler, this, hashSlot, old, @new));
         }
 
         /// <summary>
@@ -1055,7 +1045,6 @@ namespace StackExchange.Redis
             AsyncTimeoutMilliseconds = configuration.AsyncTimeout;
 
             OnCreateReaderWriter(configuration);
-            UnprocessableCompletionManager = new CompletionManager(this, "multiplexer");
             ServerSelectionStrategy = new ServerSelectionStrategy(this);
 
             var configChannel = configuration.ConfigurationChannel;
@@ -1149,8 +1138,6 @@ namespace StackExchange.Redis
         internal Exception LastException { get; set; }
 
         internal static long LastGlobalHeartbeatSecondsAgo => unchecked(Environment.TickCount - Thread.VolatileRead(ref lastGlobalHeartbeatTicks)) / 1000;
-
-        internal CompletionManager UnprocessableCompletionManager { get; }
 
         /// <summary>
         /// Obtain a pub/sub subscriber connection to the specified server

@@ -23,7 +23,6 @@ namespace StackExchange.Redis
 
         private static readonly Message ReusableAskingCommand = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.ASKING);
 
-        internal readonly CompletionManager completionManager;
         private readonly long[] profileLog = new long[ProfileLogSamples];
 
         private readonly Queue<Message> _preconnectBacklog = new Queue<Message>();
@@ -52,7 +51,6 @@ namespace StackExchange.Redis
             ConnectionType = type;
             Multiplexer = serverEndPoint.Multiplexer;
             Name = Format.ToString(serverEndPoint.EndPoint) + "/" + ConnectionType.ToString();
-            completionManager = new CompletionManager(Multiplexer, Name);
             TimeoutMilliseconds = timeoutMilliseconds;
             _singleWriterMutex = new MutexSlim(timeoutMilliseconds: timeoutMilliseconds);
         }
@@ -148,7 +146,7 @@ namespace StackExchange.Redis
                 // sorry, we're just not ready for you yet;
                 message.Cancel();
                 Multiplexer?.OnMessageFaulted(message, null);
-                this.CompleteSyncOrAsync(message);
+                message.Complete();
                 return WriteResult.NoConnectionAvailable;
             }
         }
@@ -157,7 +155,7 @@ namespace StackExchange.Redis
         {
             message.Cancel();
             Multiplexer?.OnMessageFaulted(message, null);
-            this.CompleteSyncOrAsync(message);
+            message.Complete();
             return WriteResult.NoConnectionAvailable;
         }
 
@@ -221,7 +219,6 @@ namespace StackExchange.Redis
             counters.SocketCount = Interlocked.Read(ref socketCount);
             counters.WriterCount = Interlocked.CompareExchange(ref activeWriters, 0, 0);
             counters.NonPreferredEndpointCount = Interlocked.Read(ref nonPreferredEndpointCount);
-            completionManager.GetCounters(counters);
             physical?.GetCounters(counters);
         }
 
@@ -664,7 +661,7 @@ namespace StackExchange.Redis
                         // killed the underlying connection
                         Trace("Unable to write to server");
                         message.Fail(ConnectionFailureType.ProtocolFailure, null, "failure before write: " + result.ToString());
-                        this.CompleteSyncOrAsync(message);
+                        message.Complete();
                         return result;
                     }
                     //The parent message (next) may be returned from GetMessages
@@ -698,7 +695,7 @@ namespace StackExchange.Redis
                     {
                         message.Cancel();
                         Multiplexer?.OnMessageFaulted(message, null);
-                        this.CompleteSyncOrAsync(message);
+                        message.Complete();
                         return WriteResult.TimeoutBeforeWrite;
                     }
 
@@ -731,7 +728,7 @@ namespace StackExchange.Redis
                     {
                         message.Cancel();
                         Multiplexer?.OnMessageFaulted(message, null);
-                        this.CompleteSyncOrAsync(message);
+                        message.Complete();
                         return WriteResult.TimeoutBeforeWrite;
                     }
 
@@ -777,7 +774,7 @@ namespace StackExchange.Redis
                 {
                     message.Cancel();
                     Multiplexer?.OnMessageFaulted(message, null);
-                    this.CompleteSyncOrAsync(message);
+                    message.Complete();
                     return new ValueTask<WriteResult>(WriteResult.TimeoutBeforeWrite);
                 }
 
@@ -1020,7 +1017,7 @@ namespace StackExchange.Redis
             {
                 Trace("Write failed: " + ex.Message);
                 message.Fail(ConnectionFailureType.InternalFailure, ex, null);
-                this.CompleteSyncOrAsync(message);
+                message.Complete();
                 // this failed without actually writing; we're OK with that... unless there's a transaction
 
                 if (connection?.TransactionActive == true)
@@ -1035,7 +1032,7 @@ namespace StackExchange.Redis
             {
                 Trace("Write failed: " + ex.Message);
                 message.Fail(ConnectionFailureType.InternalFailure, ex, null);
-                this.CompleteSyncOrAsync(message);
+                message.Complete();
 
                 // we're not sure *what* happened here; probably an IOException; kill the connection
                 connection?.RecordConnectionFailed(ConnectionFailureType.InternalFailure, ex);

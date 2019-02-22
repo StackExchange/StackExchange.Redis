@@ -94,11 +94,10 @@ namespace StackExchange.Redis
         private void FailNoServer(List<Message> messages)
         {
             if (messages == null) return;
-            var completion = multiplexer.UnprocessableCompletionManager;
             foreach(var msg in messages)
             {
                 msg.Fail(ConnectionFailureType.UnableToResolvePhysicalConnection, null, "unable to write batch");
-                completion.CompleteSyncOrAsync(msg);
+                msg.Complete();
             }
         }
     }
