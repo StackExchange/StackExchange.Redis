@@ -435,16 +435,6 @@ namespace StackExchange.Redis
             }
         }
 
-        [Obsolete("prefer async")]
-        private void WritePendingBacklogSync(PhysicalConnection connection)
-        {
-            bool createWorker;
-            lock(_backlog)
-            {
-                createWorker = _backlog.Count != 0;
-            }
-            if (createWorker) StartBacklogProcessor();
-        }
         private void AbandonPendingBacklog(Exception ex)
         {
             Message next;
@@ -472,9 +462,13 @@ namespace StackExchange.Redis
                 LastException = null;
                 Interlocked.Exchange(ref failConnectCount, 0);
                 ServerEndPoint.OnFullyEstablished(connection);
-#pragma warning disable CS0618
-                WritePendingBacklogSync(connection);
-#pragma warning restore CS0618
+
+                bool createWorker;
+                lock (_backlog) // do we have pending system things to do?
+                {
+                    createWorker = _backlog.Count != 0;
+                }
+                if (createWorker) StartBacklogProcessor();
 
                 if (ConnectionType == ConnectionType.Interactive) ServerEndPoint.CheckInfoReplication();
             }

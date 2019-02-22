@@ -16,14 +16,16 @@ namespace TestConsole
             var start = DateTime.Now;
 
             Show(client.GetCounters());
+
             var tasks = Enumerable.Range(0, 1000).Select(async i =>
             {
                 int timeoutCount = 0;
+                RedisKey key = i.ToString();
                 for (int t = 0; t < 1000; t++)
                 {
                     try
                     {
-                        await db.StringIncrementAsync(i.ToString(), 1);
+                        await db.StringIncrementAsync(key, 1);
                     }
                     catch (TimeoutException) { timeoutCount++; }
                 }
