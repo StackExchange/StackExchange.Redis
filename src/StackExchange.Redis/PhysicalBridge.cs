@@ -54,8 +54,7 @@ namespace StackExchange.Redis
             Name = Format.ToString(serverEndPoint.EndPoint) + "/" + ConnectionType.ToString();
             completionManager = new CompletionManager(Multiplexer, Name);
             TimeoutMilliseconds = timeoutMilliseconds;
-            _singleWriterMutex = new MutexSlim(timeoutMilliseconds: timeoutMilliseconds,
-                scheduler: Multiplexer?.SocketManager?.SchedulerPool);
+            _singleWriterMutex = new MutexSlim(timeoutMilliseconds: timeoutMilliseconds);
         }
         private readonly int TimeoutMilliseconds;
 
