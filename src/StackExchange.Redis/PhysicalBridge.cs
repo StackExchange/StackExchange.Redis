@@ -682,10 +682,29 @@ namespace StackExchange.Redis
             Trace("Writing: " + message);
             message.SetEnqueued(physical); // this also records the read/write stats at this point
 
+            LockToken token = default;
             try
             {
-                using (var token = _singleWriterMutex.TryWait())
+                token = _singleWriterMutex.TryWait(WaitOptions.NoDelay);
+                if (!token.Success)
                 {
+                    // we can't get it *instantaneously*; is there
+                    // perhaps a backlog and active backlog processor?
+                    bool haveBacklog;
+                    lock (_backlog)
+                    {
+                        haveBacklog = _backlog.Count != 0;
+                    }
+                    if (haveBacklog)
+                    {
+                        PushToBacklog(message);
+                        return WriteResult.Success; // queued counts as success
+                    }
+
+                    // no backlog... try to wait with the timeout;
+                    // if we *still* can't get it: that counts as
+                    // an actual timeout
+                    token = _singleWriterMutex.TryWait();
                     if (!token.Success)
                     {
                         message.Cancel();
@@ -693,22 +712,24 @@ namespace StackExchange.Redis
                         message.Complete();
                         return WriteResult.TimeoutBeforeWrite;
                     }
-
-                    var result = WriteMessageInsideLock(physical, message);
-
-                    if (result == WriteResult.Success)
-                    {
-#pragma warning disable CS0618
-                        result = physical.FlushSync(false, TimeoutMilliseconds);
-#pragma warning restore CS0618
-                    }
-
-                    UnmarkActiveMessage(message);
-                    physical.SetIdle();
-                    return result;
                 }
+
+                var result = WriteMessageInsideLock(physical, message);
+
+                if (result == WriteResult.Success)
+                {
+#pragma warning disable CS0618
+                    result = physical.FlushSync(false, TimeoutMilliseconds);
+#pragma warning restore CS0618
+                }
+
+                UnmarkActiveMessage(message);
+                physical.SetIdle();
+                return result;
             }
             catch (Exception ex) { return HandleWriteException(message, ex); }
+            finally { token.Dispose(); }
+
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -815,10 +836,6 @@ namespace StackExchange.Redis
                 {
                     PushToBacklog(message);
                     return new ValueTask<WriteResult>(WriteResult.Success); // queued counts as success
-                    //message.Cancel();
-                    //Multiplexer?.OnMessageFaulted(message, null);
-                    //message.Complete();
-                    //return new ValueTask<WriteResult>(WriteResult.TimeoutBeforeWrite);
                 }
 
                 var result = WriteMessageInsideLock(physical, message);
