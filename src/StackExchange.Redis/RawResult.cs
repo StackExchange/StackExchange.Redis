@@ -9,7 +9,18 @@ namespace StackExchange.Redis
 {
     internal readonly struct RawResult
     {
-        internal RawResult this[int index] => GetItems().GetByIndex(index); // in principle this can be returned by ref, but compiler hates it
+        internal ref RawResult this[int index]
+        {
+            get
+            {
+                // this is the same as GetItems().GetByIndex, but the compiler is unhappy
+                // about allowing that directly, because of escape analysis
+                var allocation = GetItems();
+                var span = allocation.FirstSpan;
+                if (index < span.Length) return ref span[index];
+                return ref allocation.Slice(index).FirstSpan[0];
+            }
+        }
 
         internal int ItemsCount => (int)_items.Length;
         internal ReadOnlySequence<byte> Payload { get; }

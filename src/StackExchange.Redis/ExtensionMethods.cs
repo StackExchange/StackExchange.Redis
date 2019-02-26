@@ -280,7 +280,7 @@ namespace StackExchange.Redis
             // so if you have huge block sizes, or you're only indexing in a
             // little way, this will be fine
             var span = allocation.FirstSpan;
-            if (span.Length < index) return ref span[index];
+            if (index < span.Length) return ref span[index];
             return ref allocation.Slice(index).FirstSpan[0];
         }
 
