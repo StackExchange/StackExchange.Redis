@@ -1,28 +1,24 @@
 ﻿using System;
 using System.Buffers;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
+using Pipelines.Sockets.Unofficial.Arenas;
 
 namespace StackExchange.Redis
 {
     internal readonly struct RawResult
     {
-        internal RawResult this[int index]
-        {
-            get
-            {
-                if (index >= ItemsCount) throw new IndexOutOfRangeException();
-                return _itemsOversized[index];
-            }
-        }
-        internal int ItemsCount { get; }
+        internal RawResult this[int index] => GetItems().GetByIndex(index); // in principle this can be returned by ref, but compiler hates it
+
+        internal int ItemsCount => (int)_items.Length;
         internal ReadOnlySequence<byte> Payload { get; }
 
-        internal static readonly RawResult NullMultiBulk = new RawResult(null, 0);
-        internal static readonly RawResult EmptyMultiBulk = new RawResult(Array.Empty<RawResult>(), 0);
+        internal static readonly RawResult NullMultiBulk = new RawResult(default(Allocation<RawResult>), isNull: true);
+        internal static readonly RawResult EmptyMultiBulk = new RawResult(default(Allocation<RawResult>), isNull: false);
         internal static readonly RawResult Nil = default;
         // note: can't use Memory<RawResult> here - struct recursion breaks runtimr
-        private readonly RawResult[] _itemsOversized;
+        private readonly Allocation _items;
         private readonly ResultType _type;
 
         private const ResultType NonNullFlag = (ResultType)128;
@@ -42,17 +38,14 @@ namespace StackExchange.Redis
             if (!isNull) resultType |= NonNullFlag;
             _type = resultType;
             Payload = payload;
-            _itemsOversized = default;
-            ItemsCount = default;
+            _items = default;
         }
 
-        public RawResult(RawResult[] itemsOversized, int itemCount)
+        public RawResult(Allocation<RawResult> items, bool isNull)
         {
-            _type = ResultType.MultiBulk;
-            if (itemsOversized != null) _type |= NonNullFlag;
+            _type = isNull ? ResultType.MultiBulk : (ResultType.MultiBulk | NonNullFlag);
             Payload = default;
-            _itemsOversized = itemsOversized;
-            ItemsCount = itemCount;
+            _items = items.Untyped();
         }
 
         public bool IsError => Type == ResultType.Error;
@@ -195,20 +188,6 @@ namespace StackExchange.Redis
             throw new InvalidCastException("Cannot convert to Lease: " + Type);
         }
 
-        internal void Recycle(int limit = -1)
-        {
-            var arr = _itemsOversized;
-            if (arr != null)
-            {
-                if (limit < 0) limit = ItemsCount;
-                for (int i = 0; i < limit; i++)
-                {
-                    arr[i].Recycle();
-                }
-                ArrayPool<RawResult>.Shared.Return(arr, clearArray: false);
-            }
-        }
-
         internal bool IsEqual(in CommandBytes expected)
         {
             if (expected.Length != Payload.Length) return false;
@@ -284,83 +263,17 @@ namespace StackExchange.Redis
             }
         }
 
-        internal ReadOnlySpan<RawResult> GetItems()
-        {
-            if (Type == ResultType.MultiBulk)
-                return new ReadOnlySpan<RawResult>(_itemsOversized, 0, ItemsCount);
-            throw new InvalidOperationException();
-        }
-        internal ReadOnlyMemory<RawResult> GetItemsMemory()
-        {
-            if (Type == ResultType.MultiBulk)
-                return new ReadOnlyMemory<RawResult>(_itemsOversized, 0, ItemsCount);
-            throw new InvalidOperationException();
-        }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal Allocation<RawResult> GetItems() => _items.Cast<RawResult>();
 
-        internal RedisKey[] GetItemsAsKeys()
-        {
-            var items = GetItems();
-            if (IsNull)
-            {
-                return null;
-            }
-            else if (items.Length == 0)
-            {
-                return Array.Empty<RedisKey>();
-            }
-            else
-            {
-                var arr = new RedisKey[items.Length];
-                for (int i = 0; i < arr.Length; i++)
-                {
-                    arr[i] = items[i].AsRedisKey();
-                }
-                return arr;
-            }
-        }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal RedisKey[] GetItemsAsKeys() => this.ToArray<RedisKey>((in RawResult x) => x.AsRedisKey());
 
-        internal RedisValue[] GetItemsAsValues()
-        {
-            var items = GetItems();
-            if (IsNull)
-            {
-                return null;
-            }
-            else if (items.Length == 0)
-            {
-                return RedisValue.EmptyArray;
-            }
-            else
-            {
-                var arr = new RedisValue[items.Length];
-                for (int i = 0; i < arr.Length; i++)
-                {
-                    arr[i] = items[i].AsRedisValue();
-                }
-                return arr;
-            }
-        }
-        internal string[] GetItemsAsStrings()
-        {
-            var items = GetItems();
-            if (IsNull)
-            {
-                return null;
-            }
-            else if (items.Length == 0)
-            {
-                return Array.Empty<string>();
-            }
-            else
-            {
-                var arr = new string[items.Length];
-                for (int i = 0; i < arr.Length; i++)
-                {
-                    arr[i] = (string)(items[i].AsRedisValue());
-                }
-                return arr;
-            }
-        }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal RedisValue[] GetItemsAsValues() => this.ToArray<RedisValue>((in RawResult x) => x.AsRedisValue());
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal string[] GetItemsAsStrings() => this.ToArray<string>((in RawResult x) => (string)x.AsRedisValue());
 
         internal GeoPosition? GetItemsAsGeoPosition()
         {
@@ -370,43 +283,36 @@ namespace StackExchange.Redis
                 return null;
             }
 
-            var coords = items[0].GetItems();
-            if (items[0].IsNull)
+            var root = items.FirstSpan[0];
+            if (root.IsNull)
             {
                 return null;
             }
-            return new GeoPosition((double)coords[0].AsRedisValue(), (double)coords[1].AsRedisValue());
+            return AsGeoPosition(root.GetItems());
         }
 
-        internal GeoPosition?[] GetItemsAsGeoPositionArray()
+        static GeoPosition AsGeoPosition(Allocation<RawResult> coords)
         {
-            var items = GetItems();
-            if (IsNull)
+            double longitude, latitude;
+            if (coords.IsSingleSegment)
             {
-                return null;
-            }
-            else if (items.Length == 0)
-            {
-                return Array.Empty<GeoPosition?>();
+                var span = coords.FirstSpan;
+                longitude = (double)span[0].AsRedisValue();
+                latitude = (double)span[1].AsRedisValue();
             }
             else
             {
-                var arr = new GeoPosition?[items.Length];
-                for (int i = 0; i < arr.Length; i++)
-                {
-                    var item = items[i].GetItems();
-                    if (items[i].IsNull)
-                    {
-                        arr[i] = null;
-                    }
-                    else
-                    {
-                        arr[i] = new GeoPosition((double)item[0].AsRedisValue(), (double)item[1].AsRedisValue());
-                    }
-                }
-                return arr;
+                var iter = coords.GetEnumerator();
+                longitude = (double)iter.GetNext().AsRedisValue();
+                latitude = (double)iter.GetNext().AsRedisValue();
             }
+
+            return new GeoPosition(longitude, latitude);
         }
+
+        internal GeoPosition?[] GetItemsAsGeoPositionArray()
+            => this.ToArray<GeoPosition?>((in RawResult item) => item.IsNull ? (GeoPosition?)null : AsGeoPosition(item.GetItems()));
+
         internal unsafe string GetString()
         {
             if (IsNull) return null;

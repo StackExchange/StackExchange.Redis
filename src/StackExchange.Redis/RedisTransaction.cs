@@ -503,11 +503,14 @@ namespace StackExchange.Redis
                                 {
                                     connection.Trace("Server committed; processing nested replies");
                                     connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"processing {arr.Length} wrapped messages");
-                                    for (int i = 0; i < arr.Length; i++)
+
+                                    int i = 0;
+                                    var iter = arr.GetEnumerator();
+                                    while(iter.MoveNext())
                                     {
-                                        var inner = wrapped[i].Wrapped;
-                                        connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"> got {arr[i]} for {inner.CommandAndKey}");
-                                        if (inner.ComputeResult(connection, arr[i]))
+                                        var inner = wrapped[i++].Wrapped;
+                                        connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"> got {iter.Current} for {inner.CommandAndKey}");
+                                        if (inner.ComputeResult(connection, iter.Current))
                                         {
                                             inner.Complete();
                                         }

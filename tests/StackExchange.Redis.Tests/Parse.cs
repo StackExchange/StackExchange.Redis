@@ -2,6 +2,7 @@
 using System.Buffers;
 using System.Collections.Generic;
 using System.Text;
+using Pipelines.Sockets.Unofficial.Arenas;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -34,7 +35,10 @@ namespace StackExchange.Redis.Tests
         public void ParseAsSingleChunk(string ascii, int expected)
         {
             var buffer = new ReadOnlySequence<byte>(Encoding.ASCII.GetBytes(ascii));
-            ProcessMessages(buffer, expected);
+            using (var arena = new Arena<RawResult>())
+            {
+                ProcessMessages(arena, buffer, expected);
+            }
         }
 
         [Theory]
@@ -58,16 +62,19 @@ namespace StackExchange.Redis.Tests
             }
             var buffer = new ReadOnlySequence<byte>(chain, 0, tail, 1);
             Assert.Equal(bytes.Length, buffer.Length);
-            ProcessMessages(buffer, expected);
+            using (var arena = new Arena<RawResult>())
+            {
+                ProcessMessages(arena, buffer, expected);
+            }
         }
 
-        private void ProcessMessages(ReadOnlySequence<byte> buffer, int expected)
+        private void ProcessMessages(Arena<RawResult> arena, ReadOnlySequence<byte> buffer, int expected)
         {
             Writer.WriteLine($"chain: {buffer.Length}");
             var reader = new BufferReader(buffer);
             RawResult result;
             int found = 0;
-            while (!(result = PhysicalConnection.TryParseResult(buffer, ref reader, false, null, false)).IsNull)
+            while (!(result = PhysicalConnection.TryParseResult(arena, buffer, ref reader, false, null, false)).IsNull)
             {
                 Writer.WriteLine($"{result} - {result.GetString()}");
                 found++;

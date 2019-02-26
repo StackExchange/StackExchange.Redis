@@ -755,9 +755,10 @@ namespace StackExchange.Redis
                         case ResultType.MultiBulk:
                             var arr = result.GetItems();
                             long i64;
-                            if (arr.Length == 2 && arr[1].Type == ResultType.MultiBulk && arr[0].TryGetInt64(out i64))
+                            RawResult inner;
+                            if (arr.Length == 2 && (inner = arr.GetByIndex(1)).Type == ResultType.MultiBulk && arr.FirstSpan[0].TryGetInt64(out i64))
                             {
-                                var keysResult = new ScanResult(i64, arr[1].GetItemsAsKeys());
+                                var keysResult = new ScanResult(i64, inner.GetItemsAsKeys());
                                 SetResult(message, keysResult);
                                 return true;
                             }

@@ -34,8 +34,6 @@ namespace StackExchange.Redis.Server
             Count = result.ItemsCount;
         }
 
-        internal void Recycle() => _inner.Recycle();
-
         public RedisValue GetValue(int index)
             => _inner[index].AsRedisValue();
 
