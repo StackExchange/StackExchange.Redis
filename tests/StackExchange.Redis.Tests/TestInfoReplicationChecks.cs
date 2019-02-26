@@ -14,6 +14,8 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task Exec()
         {
+            Skip.Inconclusive("need to think about CompletedSynchronously");
+
             using(var conn = Create())
             {
                 var parsed = ConfigurationOptions.Parse(conn.Configuration);

@@ -8,9 +8,9 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    public class Parse : TestBase
+    public class ParseTests : TestBase
     {
-        public Parse(ITestOutputHelper output) : base(output) { }
+        public ParseTests(ITestOutputHelper output) : base(output) { }
 
         public static IEnumerable<object[]> GetTestData()
         {
