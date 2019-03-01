@@ -56,7 +56,7 @@ namespace StackExchange.Redis
 
         internal void GetBytes(out long sent, out long received)
         {
-            if(_ioPipe is IMeasuredDuplexPipe sc)
+            if (_ioPipe is IMeasuredDuplexPipe sc)
             {
                 sent = sc.TotalBytesSent;
                 received = sc.TotalBytesReceived;
@@ -1413,7 +1413,12 @@ namespace StackExchange.Redis
             }
         }
 
-        private readonly Arena<RawResult> _arena = new Arena<RawResult>();
+        private static readonly ArenaOptions s_arenaOptions = new ArenaOptions(
+#if DEBUG
+            blockSizeBytes: Unsafe.SizeOf<RawResult>() * 8 // force an absurdly small page size to trigger bugs
+#endif
+        );
+        private readonly Arena<RawResult> _arena = new Arena<RawResult>(s_arenaOptions);
         private int ProcessBuffer(ref ReadOnlySequence<byte> buffer)
         {
             int messageCount = 0;
