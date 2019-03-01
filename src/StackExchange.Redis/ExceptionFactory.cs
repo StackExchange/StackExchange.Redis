@@ -181,7 +181,7 @@ namespace StackExchange.Redis
             }
             return _libVersion;
         }
-        internal static Exception Timeout(ConnectionMultiplexer mutiplexer, string baseErrorMessage, Message message, ServerEndPoint server)
+        internal static Exception Timeout(ConnectionMultiplexer mutiplexer, string baseErrorMessage, Message message, ServerEndPoint server, WriteResult? result = null)
         {
             List<Tuple<string, string>> data = new List<Tuple<string, string>> { Tuple.Create("Message", message.CommandAndKey) };
             var sb = new StringBuilder();
@@ -203,12 +203,38 @@ namespace StackExchange.Redis
                 }
             }
 
+            // Add timeout data, if we have it
+            if (result == WriteResult.TimeoutBeforeWrite)
+            {
+                add("Timeout", "timeout", Format.ToString(mutiplexer.TimeoutMilliseconds));
+                try
+                {
+                    if (message.TryGetPhysicalState(out var state, out var sentDelta, out var receivedDelta))
+                    {
+                        add("PhysicalState", "phys", state.ToString());
+                        // these might not always be available
+                        if (sentDelta >= 0)
+                        {
+                            add("OutboundDeltaKB", "outbound", $"{sentDelta >> 10}KiB");
+                        }
+                        if (receivedDelta >= 0)
+                        {
+                            add("InboundDeltaKB", "inbound", $"{receivedDelta >> 10}KiB");
+                        }
+                    }
+                }
+                catch { }
+            }
+
+            // Add server data, if we have it
             if (server != null)
             {
-                server.GetOutstandingCount(message.Command, out int inst, out int qs, out int @in);
-                add("Instantaneous", "inst", inst.ToString());
+                server.GetOutstandingCount(message.Command, out int inst, out int qs, out int @in, out int qu);
+                add("OpsSinceLastHeartbeat", "inst", inst.ToString());
+                add("Queue-Awaiting-Write", "qu", qu.ToString());
                 add("Queue-Awaiting-Response", "qs", qs.ToString());
-                if (@in >= 0) add("Inbound-Bytes", "in", @in.ToString());
+
+                if (@in >= 0) add("Socket-Inbound-Bytes", "in", @in.ToString());
 
                 if (mutiplexer.StormLogThreshold >= 0 && qs >= mutiplexer.StormLogThreshold && Interlocked.CompareExchange(ref mutiplexer.haveStormLog, 1, 0) == 0)
                 {

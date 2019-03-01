@@ -73,7 +73,7 @@ namespace StackExchange.Redis
             }
             else
             {
-                var source = TaskResultBox<T>.Create(out var tcs, asyncState, TaskCreationOptions.RunContinuationsAsynchronously);
+                var source = TaskResultBox<T>.Create(out var tcs, asyncState);
                 message.SetSource(source, processor);
                 task = tcs.Task;
             }
@@ -391,8 +391,9 @@ namespace StackExchange.Redis
                         connection.Trace("Aborting: canceling wrapped messages");
                         foreach (var op in InnerOperations)
                         {
-                            op.Wrapped.Cancel();
-                            bridge.CompleteSyncOrAsync(op.Wrapped);
+                            var inner = op.Wrapped;
+                            inner.Cancel();
+                            inner.Complete();
                         }
                     }
                     connection.Trace("End of transaction: " + Command);
@@ -440,11 +441,11 @@ namespace StackExchange.Redis
                 if (result.IsError && message is TransactionMessage tran)
                 {
                     string error = result.GetString();
-                    var bridge = connection.BridgeCouldBeNull;
                     foreach (var op in tran.InnerOperations)
                     {
-                        ServerFail(op.Wrapped, error);
-                        bridge.CompleteSyncOrAsync(op.Wrapped);
+                        var inner = op.Wrapped;
+                        ServerFail(inner, error);
+                        inner.Complete();
                     }
                 }
                 return base.SetResult(connection, message, result);
@@ -473,8 +474,9 @@ namespace StackExchange.Redis
                                 //cancel the commands in the transaction and mark them as complete with the completion manager
                                 foreach (var op in wrapped)
                                 {
-                                    op.Wrapped.Cancel();
-                                    bridge.CompleteSyncOrAsync(op.Wrapped);
+                                    var inner = op.Wrapped;
+                                    inner.Cancel();
+                                    inner.Complete();
                                 }
                                 SetResult(message, false);
                                 return true;
@@ -490,8 +492,9 @@ namespace StackExchange.Redis
                                     connection.Trace("Server aborted due to failed WATCH");
                                     foreach (var op in wrapped)
                                     {
-                                        op.Wrapped.Cancel();
-                                        bridge.CompleteSyncOrAsync(op.Wrapped);
+                                        var inner = op.Wrapped;
+                                        inner.Cancel();
+                                        inner.Complete();
                                     }
                                     SetResult(message, false);
                                     return true;
@@ -502,10 +505,11 @@ namespace StackExchange.Redis
                                     connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"processing {arr.Length} wrapped messages");
                                     for (int i = 0; i < arr.Length; i++)
                                     {
-                                        connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"> got {arr[i]} for {wrapped[i].Wrapped.CommandAndKey}");
-                                        if (wrapped[i].Wrapped.ComputeResult(connection, arr[i]))
+                                        var inner = wrapped[i].Wrapped;
+                                        connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"> got {arr[i]} for {inner.CommandAndKey}");
+                                        if (inner.ComputeResult(connection, arr[i]))
                                         {
-                                            bridge.CompleteSyncOrAsync(wrapped[i].Wrapped);
+                                            inner.Complete();
                                         }
                                     }
                                     SetResult(message, true);
@@ -522,7 +526,7 @@ namespace StackExchange.Redis
                         if(inner != null)
                         {
                             inner.Fail(ConnectionFailureType.ProtocolFailure, null, "transaction failure");
-                            bridge.CompleteSyncOrAsync(inner);
+                            inner.Complete();
                         }
                     }
                 }
