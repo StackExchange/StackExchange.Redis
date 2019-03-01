@@ -12,21 +12,29 @@ namespace StackExchange.Redis
     {
         private readonly Dictionary<RedisChannel, Subscription> subscriptions = new Dictionary<RedisChannel, Subscription>();
 
-        internal static bool TryCompleteHandler<T>(EventHandler<T> handler, object sender, T args, bool isAsync) where T : EventArgs
+        internal static void CompleteAsWorker(ICompletable completable)
+        {
+            if (completable != null) ThreadPool.QueueUserWorkItem(s_CompleteAsWorker, completable);
+        }
+
+        static readonly WaitCallback s_CompleteAsWorker = s => ((ICompletable)s).TryComplete(true);
+
+        internal static bool TryCompleteHandler<T>(EventHandler<T> handler, object sender, T args, bool isAsync) where T : EventArgs, ICompletable
         {
             if (handler == null) return true;
             if (isAsync)
             {
                 foreach (EventHandler<T> sub in handler.GetInvocationList())
                 {
-                    try
-                    { sub.Invoke(sender, args); }
-                    catch
-                    { }
+                    try { sub.Invoke(sender, args); }
+                    catch { }
                 }
                 return true;
             }
-            return false;
+            else
+            {
+                return false;
+            }
         }
 
         internal Task AddSubscription(in RedisChannel channel, Action<RedisChannel, RedisValue> handler, CommandFlags flags, object asyncState)
@@ -77,7 +85,7 @@ namespace StackExchange.Redis
                     completable = sub.ForInvoke(channel, payload);
                 }
             }
-            if (completable != null) UnprocessableCompletionManager.CompleteSyncOrAsync(completable);
+            if (completable != null && !completable.TryComplete(false)) ConnectionMultiplexer.CompleteAsWorker(completable);
         }
 
         internal Task RemoveAllSubscriptions(CommandFlags flags, object asyncState)
@@ -88,7 +96,7 @@ namespace StackExchange.Redis
                 foreach (var pair in subscriptions)
                 {
                     var msg = pair.Value.ForSyncShutdown();
-                    if (msg != null) UnprocessableCompletionManager.CompleteSyncOrAsync(msg);
+                    if (msg != null && !msg.TryComplete(false)) ConnectionMultiplexer.CompleteAsWorker(msg);
                     pair.Value.Remove(true, null);
                     pair.Value.Remove(false, null);
 

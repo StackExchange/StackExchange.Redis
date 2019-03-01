@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -441,32 +442,17 @@ namespace StackExchange.Redis
 
         public void SetResponseReceived() => performance?.SetResponseReceived();
 
-        public bool TryComplete(bool isAsync)
+        bool ICompletable.TryComplete(bool isAsync) { Complete(); return true; }
+
+        public void Complete()
         {
-            //Ensure we can never call TryComplete on the same resultBox from two threads by grabbing it now
+            //Ensure we can never call Complete on the same resultBox from two threads by grabbing it now
             var currBox = Interlocked.Exchange(ref resultBox, null);
 
-            if (!isAsync)
-            {   // set the performance completion the first chance we get (sync comes first)
-                performance?.SetCompleted();
-            }
-            if (currBox != null)
-            {
-                var ret = currBox.TryComplete(isAsync);
+            // set the completion/performance data
+            performance?.SetCompleted();
 
-                //in async mode TryComplete will have unwrapped and recycled resultBox
-                if (!(ret || isAsync))
-                {
-                    //put result box back if it was not already recycled
-                    Interlocked.Exchange(ref resultBox, currBox);
-                }
-                return ret;
-            }
-            else
-            {
-                ConnectionMultiplexer.TraceWithoutContext("No result-box to complete for " + Command, "Message");
-                return true;
-            }
+            currBox?.ActivateContinuations();
         }
 
         internal static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key, RedisKey[] keys)
@@ -614,7 +600,7 @@ namespace StackExchange.Redis
         internal virtual void SetExceptionAndComplete(Exception exception, PhysicalBridge bridge)
         {
             resultBox?.SetException(exception);
-            bridge.CompleteSyncOrAsync(this);
+            Complete();
         }
 
         internal bool TrySetResult<T>(T value)
@@ -629,6 +615,7 @@ namespace StackExchange.Redis
 
         internal void SetEnqueued(PhysicalConnection connection)
         {
+            SetWriteTime();
             performance?.SetEnqueued();
             _enqueuedTo = connection;
             if (connection == null)
@@ -670,6 +657,7 @@ namespace StackExchange.Redis
         }
 
         // the time (ticks) at which this message was considered written
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal void SetWriteTime()
         {
             if ((Flags & NeedsAsyncTimeoutCheckFlag) != 0)

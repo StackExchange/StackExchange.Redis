@@ -37,10 +37,7 @@ namespace StackExchange.Redis
             NewEndPoint = @new;
         }
 
-        bool ICompletable.TryComplete(bool isAsync)
-        {
-            return ConnectionMultiplexer.TryCompleteHandler(handler, sender, this, isAsync);
-        }
+        bool ICompletable.TryComplete(bool isAsync) => ConnectionMultiplexer.TryCompleteHandler(handler, sender, this, isAsync);
 
         void ICompletable.AppendStormLog(StringBuilder sb)
         {
