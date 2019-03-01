@@ -510,7 +510,7 @@ namespace StackExchange.Redis
                                     {
                                         var inner = wrapped[i++].Wrapped;
                                         connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"> got {iter.Current} for {inner.CommandAndKey}");
-                                        if (inner.ComputeResult(connection, iter.Current))
+                                        if (inner.ComputeResult(connection, iter.CurrentReference))
                                         {
                                             inner.Complete();
                                         }
