@@ -9,27 +9,16 @@ namespace StackExchange.Redis
 {
     internal readonly struct RawResult
     {
-        internal ref RawResult this[int index]
-        {
-            get
-            {
-                // this is the same as GetItems().GetByIndex, but the compiler is unhappy
-                // about allowing that directly, because of escape analysis
-                var allocation = GetItems();
-                var span = allocation.FirstSpan;
-                if (index < span.Length) return ref span[index];
-                return ref allocation.Slice(index).FirstSpan[0];
-            }
-        }
+        internal ref RawResult this[int index] => ref GetItems()[index];
 
         internal int ItemsCount => (int)_items.Length;
         internal ReadOnlySequence<byte> Payload { get; }
 
-        internal static readonly RawResult NullMultiBulk = new RawResult(default(Allocation<RawResult>), isNull: true);
-        internal static readonly RawResult EmptyMultiBulk = new RawResult(default(Allocation<RawResult>), isNull: false);
+        internal static readonly RawResult NullMultiBulk = new RawResult(default(Sequence<RawResult>), isNull: true);
+        internal static readonly RawResult EmptyMultiBulk = new RawResult(default(Sequence<RawResult>), isNull: false);
         internal static readonly RawResult Nil = default;
         // note: can't use Memory<RawResult> here - struct recursion breaks runtimr
-        private readonly Allocation _items;
+        private readonly Sequence _items;
         private readonly ResultType _type;
 
         private const ResultType NonNullFlag = (ResultType)128;
@@ -52,7 +41,7 @@ namespace StackExchange.Redis
             _items = default;
         }
 
-        public RawResult(Allocation<RawResult> items, bool isNull)
+        public RawResult(Sequence<RawResult> items, bool isNull)
         {
             _type = isNull ? ResultType.MultiBulk : (ResultType.MultiBulk | NonNullFlag);
             Payload = default;
@@ -275,7 +264,7 @@ namespace StackExchange.Redis
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal Allocation<RawResult> GetItems() => _items.Cast<RawResult>();
+        internal Sequence<RawResult> GetItems() => _items.Cast<RawResult>();
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal RedisKey[] GetItemsAsKeys() => this.ToArray<RedisKey>((in RawResult x) => x.AsRedisKey());
@@ -294,7 +283,7 @@ namespace StackExchange.Redis
                 return null;
             }
 
-            var root = items.FirstSpan[0];
+            ref RawResult root = ref items[0];
             if (root.IsNull)
             {
                 return null;
@@ -302,7 +291,7 @@ namespace StackExchange.Redis
             return AsGeoPosition(root.GetItems());
         }
 
-        static GeoPosition AsGeoPosition(Allocation<RawResult> coords)
+        static GeoPosition AsGeoPosition(Sequence<RawResult> coords)
         {
             double longitude, latitude;
             if (coords.IsSingleSegment)

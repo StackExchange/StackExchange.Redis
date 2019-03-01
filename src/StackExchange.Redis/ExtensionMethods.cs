@@ -274,17 +274,6 @@ namespace StackExchange.Redis
 #endif
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static ref RawResult GetByIndex(in this Allocation<RawResult> allocation, int index)
-        {   // note: this shouldn't be used aggressively, but... it'll work;
-            // in particular, recall that slicing *far* is O(NumberOfBlocks)
-            // so if you have huge block sizes, or you're only indexing in a
-            // little way, this will be fine
-            var span = allocation.FirstSpan;
-            if (index < span.Length) return ref span[index];
-            return ref allocation.Slice(index).FirstSpan[0];
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static T[] ToArray<T>(in this RawResult result, Projection<RawResult, T> selector)
             => result.IsNull ? null : result.GetItems().ToArray(selector);
 

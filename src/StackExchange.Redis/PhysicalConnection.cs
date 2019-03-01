@@ -1272,19 +1272,19 @@ namespace StackExchange.Redis
 
                 // out of band message does not match to a queued message
                 var items = result.GetItems();
-                if (items.Length >= 3 && items.FirstSpan[0].IsEqual(message))
+                if (items.Length >= 3 && items[0].IsEqual(message))
                 {
                     // special-case the configuration change broadcasts (we don't keep that in the usual pub/sub registry)
 
                     var configChanged = muxer.ConfigurationChangedChannel;
-                    if (configChanged != null && items.GetByIndex(1).IsEqual(configChanged))
+                    if (configChanged != null && items[1].IsEqual(configChanged))
                     {
                         EndPoint blame = null;
                         try
                         {
-                            if (!items.GetByIndex(2).IsEqual(CommonReplies.wildcard))
+                            if (!items[2].IsEqual(CommonReplies.wildcard))
                             {
-                                blame = Format.TryParseEndPoint(items.GetByIndex(2).GetString());
+                                blame = Format.TryParseEndPoint(items[2].GetString());
                             }
                         }
                         catch { /* no biggie */ }
@@ -1293,22 +1293,22 @@ namespace StackExchange.Redis
                     }
 
                     // invoke the handlers
-                    var channel = items.GetByIndex(1).AsRedisChannel(ChannelPrefix, RedisChannel.PatternMode.Literal);
+                    var channel = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.PatternMode.Literal);
                     Trace("MESSAGE: " + channel);
                     if (!channel.IsNull)
                     {
-                        muxer.OnMessage(channel, channel, items.GetByIndex(2).AsRedisValue());
+                        muxer.OnMessage(channel, channel, items[2].AsRedisValue());
                     }
                     return; // AND STOP PROCESSING!
                 }
-                else if (items.Length >= 4 && items.FirstSpan[0].IsEqual(pmessage))
+                else if (items.Length >= 4 && items[0].IsEqual(pmessage))
                 {
-                    var channel = items.GetByIndex(2).AsRedisChannel(ChannelPrefix, RedisChannel.PatternMode.Literal);
+                    var channel = items[2].AsRedisChannel(ChannelPrefix, RedisChannel.PatternMode.Literal);
                     Trace("PMESSAGE: " + channel);
                     if (!channel.IsNull)
                     {
-                        var sub = items.GetByIndex(1).AsRedisChannel(ChannelPrefix, RedisChannel.PatternMode.Pattern);
-                        muxer.OnMessage(sub, channel, items.GetByIndex(3).AsRedisValue());
+                        var sub = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.PatternMode.Pattern);
+                        muxer.OnMessage(sub, channel, items[3].AsRedisValue());
                     }
                     return; // AND STOP PROCESSING!
                 }

@@ -385,7 +385,7 @@ namespace StackExchange.Redis
                 if (result.Type == ResultType.MultiBulk)
                 {
                     var items = result.GetItems();
-                    if (items.Length >= 3 && items.GetByIndex(2).TryGetInt64(out long count))
+                    if (items.Length >= 3 && items[2].TryGetInt64(out long count))
                     {
                         connection.SubscriptionCount = count;
                         return true;
@@ -514,15 +514,7 @@ namespace StackExchange.Redis
                         }
                         else
                         {
-                            var span = arr.FirstSpan;
-                            if (span.Length >= 2)
-                            {
-                                entry = new SortedSetEntry(span[0].AsRedisValue(), span[1].TryGetDouble(out double val) ? val : double.NaN);
-                            }
-                            else
-                            {
-                                entry = new SortedSetEntry(arr.FirstSpan[0].AsRedisValue(), arr.GetByIndex(1).TryGetDouble(out double val) ? val : double.NaN);
-                            }
+                            entry = new SortedSetEntry(arr[0].AsRedisValue(), arr[1].TryGetDouble(out double val) ? val : double.NaN);
                         }
                         return true;
                     default:
@@ -812,7 +804,7 @@ namespace StackExchange.Redis
                         var items = result.GetItems();
                         if (items.Length == 1)
                         { // treat an array of 1 like a single reply (for example, SCRIPT EXISTS)
-                            SetResult(message, items.FirstSpan[0].GetBoolean());
+                            SetResult(message, items[0].GetBoolean());
                             return true;
                         }
                         break;
@@ -921,7 +913,7 @@ namespace StackExchange.Redis
                                 }
                                 break;
                             case 2:
-                                if (arr.FirstSpan[0].TryGetInt64(out unixTime) && arr.GetByIndex(1).TryGetInt64(out long micros))
+                                if (arr[0].TryGetInt64(out unixTime) && arr[1].TryGetInt64(out long micros))
                                 {
                                     var time = RedisBase.UnixEpoch.AddSeconds(unixTime).AddTicks(micros * 10); // datetime ticks are 100ns
                                     SetResult(message, time);
@@ -1052,7 +1044,7 @@ namespace StackExchange.Redis
                 if (result.Type == ResultType.MultiBulk)
                 {
                     var arr = result.GetItems();
-                    if (arr.Length == 2 && arr.GetByIndex(1).TryGetInt64(out long val))
+                    if (arr.Length == 2 && arr[1].TryGetInt64(out long val))
                     {
                         SetResult(message, val);
                         return true;
@@ -1328,7 +1320,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 if ((options & GeoRadiusOptions.WithCoordinates) != 0)
                 {
                     var coords = iter.GetNext().GetItems();
-                    double longitude = (double)coords.FirstSpan[0].AsRedisValue(), latitude = (double)coords.GetByIndex(1).AsRedisValue();
+                    double longitude = (double)coords[0].AsRedisValue(), latitude = (double)coords[1].AsRedisValue();
                     position = new GeoPosition(longitude, latitude);
                 }
                 return new GeoRadiusResult(member, distance, hash, position);
@@ -1440,7 +1432,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                     // Within that single element, GetItems will return an array of
                     // 2 elements: the stream name and the stream entries.
                     // Skip the stream name (index 0) and only process the stream entries (index 1).
-                    entries = ParseRedisStreamEntries(readResult.FirstSpan[0].GetItems().GetByIndex(1));
+                    entries = ParseRedisStreamEntries(readResult[0].GetItems()[1]);
                 }
                 else
                 {
@@ -1538,9 +1530,9 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                 var arr = result.GetItems();
 
-                return new StreamConsumerInfo(name: arr.GetByIndex(1).AsRedisValue(),
-                            pendingMessageCount: (int)arr.GetByIndex(3).AsRedisValue(),
-                            idleTimeInMilliseconds: (long)arr.GetByIndex(5).AsRedisValue());
+                return new StreamConsumerInfo(name: arr[1].AsRedisValue(),
+                            pendingMessageCount: (int)arr[3].AsRedisValue(),
+                            idleTimeInMilliseconds: (long)arr[5].AsRedisValue());
             }
         }
 
@@ -1567,9 +1559,9 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                 var arr = result.GetItems();
 
-                return new StreamGroupInfo(name: arr.GetByIndex(1).AsRedisValue(),
-                    consumerCount: (int)arr.GetByIndex(3).AsRedisValue(),
-                    pendingMessageCount: (int)arr.GetByIndex(5).AsRedisValue());
+                return new StreamGroupInfo(name: arr[1].AsRedisValue(),
+                    consumerCount: (int)arr[3].AsRedisValue(),
+                    pendingMessageCount: (int)arr[5].AsRedisValue());
             }
         }
 
@@ -1708,7 +1700,7 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                 // If there are no consumers as of yet for the given group, the last
                 // item in the response array will be null.
-                ref RawResult third = ref arr.GetByIndex(3);
+                ref RawResult third = ref arr[3];
                 if (!third.IsNull)
                 {
                     consumers = third.ToArray((in RawResult item) =>
@@ -1721,9 +1713,9 @@ The coordinates as a two items x,y array (longitude,latitude).
                     });
                 }
 
-                var pendingInfo = new StreamPendingInfo(pendingMessageCount: (int)arr.FirstSpan[0].AsRedisValue(),
-                    lowestId: arr.GetByIndex(1).AsRedisValue(),
-                    highestId: arr.GetByIndex(2).AsRedisValue(),
+                var pendingInfo = new StreamPendingInfo(pendingMessageCount: (int)arr[0].AsRedisValue(),
+                    lowestId: arr[1].AsRedisValue(),
+                    highestId: arr[2].AsRedisValue(),
                     consumers: consumers ?? Array.Empty<StreamConsumer>());
                     // ^^^^^
                     // Should we bother allocating an empty array only to prevent the need for a null check?
@@ -1772,8 +1764,8 @@ The coordinates as a two items x,y array (longitude,latitude).
                 //  [1] = Multibulk array of the name/value pairs of the stream entry's data
                 var entryDetails = item.GetItems();
 
-                return new StreamEntry(id: entryDetails.FirstSpan[0].AsRedisValue(),
-                    values: ParseStreamEntryValues(entryDetails.GetByIndex(1)));
+                return new StreamEntry(id: entryDetails[0].AsRedisValue(),
+                    values: ParseStreamEntryValues(entryDetails[1]));
             }
             protected StreamEntry[] ParseRedisStreamEntries(in RawResult result)
             {
@@ -1851,7 +1843,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                         var arr = result.GetItems();
                         if (arr.Length == 1)
                         {
-                            SetResult(message, arr.FirstSpan[0].GetString());
+                            SetResult(message, arr[0].GetString());
                             return true;
                         }
                         break;
@@ -1911,7 +1903,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                                 if (result.ItemsCount == 2)
                                 {
                                     var items = result.GetItems();
-                                    happy = items.FirstSpan[0].IsEqual(CommonReplies.PONG) && items.GetByIndex(1).Payload.IsEmpty;
+                                    happy = items[0].IsEqual(CommonReplies.PONG) && items[1].Payload.IsEmpty;
                                 }
                                 else
                                 {

@@ -82,9 +82,9 @@ namespace StackExchange.Redis
                         foreach(var item in parts)
                         {
                             var subParts = item.GetItems();
-                            if (!subParts.FirstSpan[0].TryGetInt64(out long uniqueid) || !subParts.GetByIndex(1).TryGetInt64(out long time) || !subParts.GetByIndex(2).TryGetInt64(out long duration))
+                            if (!subParts[0].TryGetInt64(out long uniqueid) || !subParts[1].TryGetInt64(out long time) || !subParts[2].TryGetInt64(out long duration))
                                 return false;
-                            arr[i] = new CommandTrace(uniqueid, time, duration, subParts.GetByIndex(3).GetItemsAsValues());
+                            arr[i] = new CommandTrace(uniqueid, time, duration, subParts[3].GetItemsAsValues());
                         }
                         SetResult(message, arr);
                         return true;
