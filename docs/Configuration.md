@@ -82,7 +82,7 @@ The `ConfigurationOptions` object has a wide range of properties, all of which a
 | ssl={bool}             | `Ssl`                  | `false`                      | Specifies that SSL encryption should be used                                                              |
 | sslHost={string}       | `SslHost`              | `null`                       | Enforces a particular SSL host identity on the server's certificate                                       |
 | sslProtocols={enum}    | `SslProtocols`         | `null`			             | Ssl/Tls versions supported when using an encrypted connection.  Use '\|' to provide multiple values.      |
-| syncTimeout={int}      | `SyncTimeout`          | `1000`                       | Time (ms) to allow for synchronous operations                                                             |
+| syncTimeout={int}      | `SyncTimeout`          | `5000`                       | Time (ms) to allow for synchronous operations                                                             |
 | tiebreaker={string}    | `TieBreaker`           | `__Booksleeve_TieBreak`      | Key to use for selecting a server in an ambiguous master scenario                                         |
 | version={string}       | `DefaultVersion`       | (`3.0` in Azure, else `2.0`) | Redis version level (useful when the server does not make this available)                                 |
 | writeBuffer={int}      | `WriteBuffer`          | `4096`                       | Size of the output buffer                                                                                 |

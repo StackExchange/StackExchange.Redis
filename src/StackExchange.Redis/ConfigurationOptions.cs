@@ -365,7 +365,7 @@ namespace StackExchange.Redis
         public SslProtocols? SslProtocols { get; set; }
 
         /// <summary>
-        /// Specifies the time in milliseconds that the system should allow for synchronous operations (defaults to 1 second)
+        /// Specifies the time in milliseconds that the system should allow for synchronous operations (defaults to 5 seconds)
         /// </summary>
 #pragma warning disable RCS1128
         public int SyncTimeout { get { return syncTimeout.GetValueOrDefault(5000); } set { syncTimeout = value; } }
