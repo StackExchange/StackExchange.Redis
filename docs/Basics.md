@@ -82,7 +82,7 @@ sub.Subscribe("messages", (channel, message) => {
     Console.WriteLine((string)message);
 });
 ```
-<sub>Note: exceptions are caught and discarded by StackExchange.Redis here, to prevent cascading failures. To handle failues, use a `try`/`catch` inside your handler to do as you wish with any exceptions.</sub>
+<sub>Note: exceptions are caught and discarded by StackExchange.Redis here, to prevent cascading failures. To handle failures, use a `try`/`catch` inside your handler to do as you wish with any exceptions.</sub>
 
 Separately (and often in a separate process on a separate machine) you can publish to this channel:
 
