@@ -60,11 +60,13 @@ namespace StackExchange.Redis
                         var items = result.GetItems();
                         if (items.Length == 0) return EmptyArray;
                         var arr = new RedisResult[items.Length];
-                        for (int i = 0; i < arr.Length; i++)
+                        int i = 0;
+                        var iter = items.GetEnumerator();
+                        while (iter.MoveNext())
                         {
-                            var next = TryCreate(connection, items[i]);
+                            var next = TryCreate(connection, in iter.CurrentReference);
                             if (next == null) return null; // means we didn't understand
-                            arr[i] = next;
+                            arr[i++] = next;
                         }
                         return new ArrayRedisResult(arr);
                     case ResultType.Error:

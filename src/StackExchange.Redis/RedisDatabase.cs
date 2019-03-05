@@ -3494,12 +3494,15 @@ namespace StackExchange.Redis
                 {
                     case ResultType.MultiBulk:
                         var arr = result.GetItems();
-                        long i64;
-                        if (arr.Length == 2 && arr[1].Type == ResultType.MultiBulk && arr[0].TryGetInt64(out i64))
+                        if (arr.Length == 2)
                         {
-                            var sscanResult = new ScanIterator<T>.ScanResult(i64, Parse(arr[1]));
-                            SetResult(message, sscanResult);
-                            return true;
+                            ref RawResult inner = ref arr[1];
+                            if (inner.Type == ResultType.MultiBulk && arr[0].TryGetInt64(out var i64))
+                            {
+                                var sscanResult = new ScanIterator<T>.ScanResult(i64, Parse(inner));
+                                SetResult(message, sscanResult);
+                                return true;
+                            }
                         }
                         break;
                 }

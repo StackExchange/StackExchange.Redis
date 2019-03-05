@@ -17,6 +17,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Pipelines.Sockets.Unofficial;
+using Pipelines.Sockets.Unofficial.Arenas;
 
 namespace StackExchange.Redis
 {
@@ -55,7 +56,7 @@ namespace StackExchange.Redis
 
         internal void GetBytes(out long sent, out long received)
         {
-            if(_ioPipe is IMeasuredDuplexPipe sc)
+            if (_ioPipe is IMeasuredDuplexPipe sc)
             {
                 sent = sc.TotalBytesSent;
                 received = sc.TotalBytesReceived;
@@ -268,6 +269,7 @@ namespace StackExchange.Redis
                 RecordConnectionFailed(ConnectionFailureType.ConnectionDisposed);
             }
             OnCloseEcho();
+            _arena.Dispose();
             GC.SuppressFinalize(this);
         }
 
@@ -1411,6 +1413,12 @@ namespace StackExchange.Redis
             }
         }
 
+        private static readonly ArenaOptions s_arenaOptions = new ArenaOptions(
+#if DEBUG
+            blockSizeBytes: Unsafe.SizeOf<RawResult>() * 8 // force an absurdly small page size to trigger bugs
+#endif
+        );
+        private readonly Arena<RawResult> _arena = new Arena<RawResult>(s_arenaOptions);
         private int ProcessBuffer(ref ReadOnlySequence<byte> buffer)
         {
             int messageCount = 0;
@@ -1418,7 +1426,7 @@ namespace StackExchange.Redis
             while (!buffer.IsEmpty)
             {
                 var reader = new BufferReader(buffer);
-                var result = TryParseResult(in buffer, ref reader, IncludeDetailInExceptions, BridgeCouldBeNull?.ServerEndPoint);
+                var result = TryParseResult(_arena, in buffer, ref reader, IncludeDetailInExceptions, BridgeCouldBeNull?.ServerEndPoint);
                 try
                 {
                     if (result.HasValue)
@@ -1436,7 +1444,7 @@ namespace StackExchange.Redis
                 }
                 finally
                 {
-                    result.Recycle();
+                    _arena.Reset();
                 }
             }
             return messageCount;
@@ -1466,7 +1474,7 @@ namespace StackExchange.Redis
         //    }
         //}
 
-        private static RawResult ReadArray(in ReadOnlySequence<byte> buffer, ref BufferReader reader, bool includeDetailInExceptions, ServerEndPoint server)
+        private static RawResult ReadArray(Arena<RawResult> arena, in ReadOnlySequence<byte> buffer, ref BufferReader reader, bool includeDetailInExceptions, ServerEndPoint server)
         {
             var itemCount = ReadLineTerminatedString(ResultType.Integer, ref reader);
             if (itemCount.HasValue)
@@ -1485,14 +1493,31 @@ namespace StackExchange.Redis
                     return RawResult.EmptyMultiBulk;
                 }
 
-                var oversized = ArrayPool<RawResult>.Shared.Rent(itemCountActual);
-                var result = new RawResult(oversized, itemCountActual);
-                for (int i = 0; i < itemCountActual; i++)
+                var oversized = arena.Allocate(itemCountActual);
+                var result = new RawResult(oversized, false);
+
+                if (oversized.IsSingleSegment)
                 {
-                    if (!(oversized[i] = TryParseResult(in buffer, ref reader, includeDetailInExceptions, server)).HasValue)
+                    var span = oversized.FirstSpan;
+                    for(int i = 0; i < span.Length; i++)
                     {
-                        result.Recycle(i); // passing index here means we don't need to "Array.Clear" before-hand
-                        return RawResult.Nil;
+                        if (!(span[i] = TryParseResult(arena, in buffer, ref reader, includeDetailInExceptions, server)).HasValue)
+                        {
+                            return RawResult.Nil;
+                        }
+                    }
+                }
+                else
+                {
+                    foreach(var span in oversized.Spans)
+                    {
+                        for (int i = 0; i < span.Length; i++)
+                        {
+                            if (!(span[i] = TryParseResult(arena, in buffer, ref reader, includeDetailInExceptions, server)).HasValue)
+                            {
+                                return RawResult.Nil;
+                            }
+                        }
                     }
                 }
                 return result;
@@ -1541,7 +1566,7 @@ namespace StackExchange.Redis
 
         internal void StartReading() => ReadFromPipe().RedisFireAndForget();
 
-        internal static RawResult TryParseResult(in ReadOnlySequence<byte> buffer, ref BufferReader reader,
+        internal static RawResult TryParseResult(Arena<RawResult> arena, in ReadOnlySequence<byte> buffer, ref BufferReader reader,
             bool includeDetilInExceptions, ServerEndPoint server, bool allowInlineProtocol = false)
         {
             var prefix = reader.PeekByte();
@@ -1562,15 +1587,15 @@ namespace StackExchange.Redis
                     return ReadBulkString(ref reader, includeDetilInExceptions, server);
                 case '*': // array
                     reader.Consume(1);
-                    return ReadArray(in buffer, ref reader, includeDetilInExceptions, server);
+                    return ReadArray(arena, in buffer, ref reader, includeDetilInExceptions, server);
                 default:
                     // string s = Format.GetString(buffer);
-                    if (allowInlineProtocol) return ParseInlineProtocol(ReadLineTerminatedString(ResultType.SimpleString, ref reader));
+                    if (allowInlineProtocol) return ParseInlineProtocol(arena, ReadLineTerminatedString(ResultType.SimpleString, ref reader));
                     throw new InvalidOperationException("Unexpected response prefix: " + (char)prefix);
             }
         }
 
-        private static RawResult ParseInlineProtocol(in RawResult line)
+        private static RawResult ParseInlineProtocol(Arena<RawResult> arena, in RawResult line)
         {
             if (!line.HasValue) return RawResult.Nil; // incomplete line
 
@@ -1578,13 +1603,14 @@ namespace StackExchange.Redis
 #pragma warning disable IDE0059
             foreach (var _ in line.GetInlineTokenizer()) count++;
 #pragma warning restore IDE0059
-            var oversized = ArrayPool<RawResult>.Shared.Rent(count);
-            count = 0;
+            var block = arena.Allocate(count);
+
+            var iter = block.GetEnumerator();
             foreach (var token in line.GetInlineTokenizer())
-            {
-                oversized[count++] = new RawResult(line.Type, token, false);
+            {   // this assigns *via a reference*, returned via the iterator; just... sweet
+                iter.GetNext() = new RawResult(line.Type, token, false);
             }
-            return new RawResult(oversized, count);
+            return new RawResult(block, false);
         }
     }
 }
