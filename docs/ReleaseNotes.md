@@ -1,5 +1,13 @@
 # Release Notes
 
+## (pending)
+
+- performance: use new [arena allocation API](https://mgravell.github.io/Pipelines.Sockets.Unofficial/docs/arenas) to avoid `RawResult[]` overhead
+- performance: massively simplified how `ResultBox<T>` is implemented, in particular to reduce `TaskCompletionSource<T>` allocations
+- performance: fix sync-over-async issue with async call paths, and fix the [SemaphoreSlim](https://blog.marcgravell.com/2019/02/fun-with-spiral-of-death.html) problems that this uncovered
+- performance: re-introduce the unsent backlog queue, in particular to improve async performance
+- performance: simplify how completions are reactivated, so that external callers use their originating pool, not the dedicated IO pools (prevent thread stealing)
+
 ## 2.0.519
 
 - adapt to late changes in the RC streams API (#983, #1007)
