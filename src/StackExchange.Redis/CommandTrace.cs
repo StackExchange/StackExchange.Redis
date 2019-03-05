@@ -84,7 +84,7 @@ namespace StackExchange.Redis
                             var subParts = item.GetItems();
                             if (!subParts[0].TryGetInt64(out long uniqueid) || !subParts[1].TryGetInt64(out long time) || !subParts[2].TryGetInt64(out long duration))
                                 return false;
-                            arr[i] = new CommandTrace(uniqueid, time, duration, subParts[3].GetItemsAsValues());
+                             arr[i++] = new CommandTrace(uniqueid, time, duration, subParts[3].GetItemsAsValues());
                         }
                         SetResult(message, arr);
                         return true;
