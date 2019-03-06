@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -49,6 +50,21 @@ namespace StackExchange.Redis
         {
             var obj = _objectOrSentinel;
             if (obj is null || obj is string || obj is byte[]) return obj;
+            if (obj == Sentinel_Integer)
+            {
+                var l = _overlappedValue64;
+                if (l >= -1 && l <= 20) return s_CommonInt32[((int)l) + 1];
+                return l;
+            }
+            if (obj == Sentinel_Double)
+            {
+                var d = OverlappedValueDouble;
+                if (double.IsPositiveInfinity(d)) return s_DoublePosInf;
+                if (double.IsNegativeInfinity(d)) return s_DoubleNegInf;
+                if (double.IsNaN(d)) return s_DoubleNAN;
+                return d;
+            }
+            if (obj == Sentinel_Raw && _memory.IsEmpty) return s_EmptyString;
             return this;
         }
 
@@ -61,13 +77,26 @@ namespace StackExchange.Redis
             if (value == null) return RedisValue.Null;
             if (value is string s) return s;
             if (value is byte[] b) return b;
-            return (RedisValue)value;
+            if (value is int i) return i;
+            if (value is long l) return l;
+            if (value is double d) return d;
+            if (value is float f) return f;
+            if (value is bool bo) return bo;
+            if (value is Memory<byte> mem) return mem;
+            if (value is ReadOnlyMemory<byte> rom) return rom;
+            if (value is RedisValue val) return val;
+            throw new ArgumentException(nameof(value));
         }
 
         /// <summary>
         /// Represents the string <c>""</c>
         /// </summary>
         public static RedisValue EmptyString { get; } = new RedisValue(0, default, Sentinel_Raw);
+
+        // note: it is *really important* that this s_EmptyString assignment happens *after* the EmptyString initializer above!
+        static readonly object s_DoubleNAN = double.NaN, s_DoublePosInf = double.PositiveInfinity, s_DoubleNegInf = double.NegativeInfinity,
+            s_EmptyString = RedisValue.EmptyString;
+        static readonly object[] s_CommonInt32 = Enumerable.Range(-1, 22).Select(i => (object)i).ToArray(); // [-1,20] = 22 values
 
         /// <summary>
         /// A null value
@@ -92,7 +121,7 @@ namespace StackExchange.Redis
             get
             {
                 if (IsNull) return true;
-                if (_objectOrSentinel == Sentinel_Raw && _memory.Length == 0) return true;
+                if (_objectOrSentinel == Sentinel_Raw && _memory.IsEmpty) return true;
                 if (_objectOrSentinel is string s && s.Length == 0) return true;
                 if (_objectOrSentinel is byte[] arr && arr.Length == 0) return true;
                 return false;
