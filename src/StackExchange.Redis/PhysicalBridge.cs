@@ -54,7 +54,10 @@ namespace StackExchange.Redis
             Name = Format.ToString(serverEndPoint.EndPoint) + "/" + ConnectionType.ToString();
             TimeoutMilliseconds = timeoutMilliseconds;
             _singleWriterMutex = new MutexSlim(timeoutMilliseconds: timeoutMilliseconds);
+            _weakRefThis = new WeakReference(this);
         }
+        private readonly WeakReference _weakRefThis;
+
         private readonly int TimeoutMilliseconds;
 
         public enum State : byte
@@ -741,9 +744,15 @@ namespace StackExchange.Redis
         private void StartBacklogProcessor()
         {
             var sched = Multiplexer.SocketManager?.SchedulerPool ?? DedicatedThreadPoolPipeScheduler.Default;
-            sched.Schedule(s_ProcessBacklog, this);
+            sched.Schedule(s_ProcessBacklog, _weakRefThis);
         }
-        static readonly Action<object> s_ProcessBacklog = s => ((PhysicalBridge)s).ProcessBacklog();
+
+        static readonly Action<object> s_ProcessBacklog = s =>
+        {
+            var wr = (WeakReference)s;
+            var bridge = wr.Target as PhysicalBridge;
+            if (bridge != null) bridge.ProcessBacklog();
+        };
 
         private void ProcessBacklog()
         {
