@@ -489,6 +489,8 @@ namespace StackExchange.Redis
             bool runThisTime = false;
             try
             {
+                CheckBacklogForTimeouts();
+
                 runThisTime = !isDisposed && Interlocked.CompareExchange(ref beating, 1, 0) == 0;
                 if (!runThisTime) return;
 
@@ -687,28 +689,13 @@ namespace StackExchange.Redis
                 {
                     // we can't get it *instantaneously*; is there
                     // perhaps a backlog and active backlog processor?
-                    bool haveBacklog;
-                    lock (_backlog)
-                    {
-                        haveBacklog = _backlog.Count != 0;
-                    }
-                    if (haveBacklog)
-                    {
-                        PushToBacklog(message);
-                        return WriteResult.Success; // queued counts as success
-                    }
+                    if (PushToBacklog(message, onlyIfExists: true)) return WriteResult.Success; // queued counts as success
 
                     // no backlog... try to wait with the timeout;
                     // if we *still* can't get it: that counts as
                     // an actual timeout
                     token = _singleWriterMutex.TryWait();
-                    if (!token.Success)
-                    {
-                        message.Cancel();
-                        Multiplexer?.OnMessageFaulted(message, null);
-                        message.Complete();
-                        return WriteResult.TimeoutBeforeWrite;
-                    }
+                    if (!token.Success) return TimedOutBeforeWrite(message);
                 }
 
                 var result = WriteMessageInsideLock(physical, message);
@@ -730,15 +717,18 @@ namespace StackExchange.Redis
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void PushToBacklog(Message message)
+        private bool PushToBacklog(Message message, bool onlyIfExists)
         {
-            bool startWorker;
+            bool wasEmpty;
             lock (_backlog)
             {
-                startWorker = _backlog.Count == 0;
+                wasEmpty = _backlog.Count == 0;
+                if (wasEmpty & onlyIfExists) return false;
+
                 _backlog.Enqueue(message);
             }
-            if (startWorker) StartBacklogProcessor();
+            if (wasEmpty) StartBacklogProcessor();
+            return true;
         }
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void StartBacklogProcessor()
@@ -753,6 +743,27 @@ namespace StackExchange.Redis
             var bridge = wr.Target as PhysicalBridge;
             if (bridge != null) bridge.ProcessBacklog();
         };
+
+        private void CheckBacklogForTimeouts() // check the head of the backlog queue, consuming anything that looks dead
+        {
+            lock (_backlog)
+            {
+                var now = Environment.TickCount;
+                var timeout = TimeoutMilliseconds;
+                while (_backlog.Count != 0)
+                {
+                    var message = _backlog.Peek();
+                    if (message.IsInternalCall) break; // don't stomp these (not that they should have the async timeout flag, but...)
+
+                    if (!message.HasAsyncTimedOut(now, timeout, out var _)) break; // not a timeout - we can stop looking
+                    _backlog.Dequeue(); // consume it for real
+
+                    // tell the message that it failed
+                    var ex = Multiplexer.GetException(WriteResult.TimeoutBeforeWrite, message, ServerEndPoint);
+                    message.SetExceptionAndComplete(ex, this);
+                }
+            }
+        }
 
         private void ProcessBacklog()
         {
@@ -780,7 +791,7 @@ namespace StackExchange.Redis
 
                     try
                     {
-                        if (message.HasAsyncTimedOut(Environment.TickCount, timeout, out var elapsed))
+                        if (message.HasAsyncTimedOut(Environment.TickCount, timeout, out var _))
                         {
                             var ex = Multiplexer.GetException(WriteResult.TimeoutBeforeWrite, message, ServerEndPoint);
                             message.SetExceptionAndComplete(ex, this);
@@ -817,6 +828,14 @@ namespace StackExchange.Redis
             }
         }
 
+        private WriteResult TimedOutBeforeWrite(Message message)
+        {
+            message.Cancel();
+            Multiplexer?.OnMessageFaulted(message, null);
+            message.Complete();
+            return WriteResult.TimeoutBeforeWrite;
+        }
+
         /// <summary>
         /// This writes a message to the output stream
         /// </summary>
@@ -824,10 +843,22 @@ namespace StackExchange.Redis
         /// <param name="message">The message to be written.</param>
         internal ValueTask<WriteResult> WriteMessageTakingWriteLockAsync(PhysicalConnection physical, Message message)
         {
+            /* design decision/choice; the code works fine either way, but if this is
+             * set to *true*, then when we can't take the writer-lock *right away*,
+             * we push the message to the backlog (starting a worker if needed)
+             *
+             * otherwise, we go for a TryWaitAsync and rely on the await machinery
+             *
+             * "true" seems to give faster times *when under heavy contention*, based on profiling
+             * but it involves the backlog concept; "false" works well under low contention, and
+             * makes more use of async
+             */
+            const bool ALWAYS_USE_BACKLOG_IF_CANNOT_GET_SYNC_LOCK = true;
+
             Trace("Writing: " + message);
             message.SetEnqueued(physical); // this also records the read/write stats at this point
 
-            bool releaseLock = true;
+            bool releaseLock = true; // fine to default to true, as it doesn't matter until token is a "success"
             LockToken token = default;
             try
             {
@@ -835,10 +866,21 @@ namespace StackExchange.Redis
                 // note: timeout is specified in mutex-constructor
                 token = _singleWriterMutex.TryWait(options: WaitOptions.NoDelay);
 
-                if (!token.Success) // (in particular, me might hand the lifetime to CompleteWriteAndReleaseLockAsync)
+                if (!token.Success)
                 {
-                    PushToBacklog(message);
-                    return new ValueTask<WriteResult>(WriteResult.Success); // queued counts as success
+                    // we can't get it *instantaneously*; is there
+                    // perhaps a backlog and active backlog processor?
+                    if (PushToBacklog(message, onlyIfExists: !ALWAYS_USE_BACKLOG_IF_CANNOT_GET_SYNC_LOCK))
+                        return new ValueTask<WriteResult>(WriteResult.Success); // queued counts as success
+
+                    // no backlog... try to wait with the timeout;
+                    // if we *still* can't get it: that counts as
+                    // an actual timeout
+                    var pending = _singleWriterMutex.TryWaitAsync(options: WaitOptions.DisableAsyncContext);
+                    if (!pending.IsCompletedSuccessfully) return WriteMessageTakingWriteLockAsync_Awaited(pending, physical, message);
+
+                    token = pending.Result; // fine since we know we got a result
+                    if (!token.Success) return new ValueTask<WriteResult>(TimedOutBeforeWrite(message));
                 }
 
                 var result = WriteMessageInsideLock(physical, message);
@@ -864,6 +906,33 @@ namespace StackExchange.Redis
             finally
             {
                 if (releaseLock) token.Dispose();
+            }
+        }
+
+        private async ValueTask<WriteResult> WriteMessageTakingWriteLockAsync_Awaited(ValueTask<LockToken> pending, PhysicalConnection physical, Message message)
+        {
+            try
+            {
+                using (var token = await pending)
+                {
+                    if (!token.Success) return TimedOutBeforeWrite(message);
+
+                    var result = WriteMessageInsideLock(physical, message);
+
+                    if (result == WriteResult.Success)
+                    {
+                        result = await physical.FlushAsync(false);
+                    }
+
+                    UnmarkActiveMessage(message);
+                    physical.SetIdle();
+
+                    return result;
+                }
+            }
+            catch (Exception ex)
+            {
+                return HandleWriteException(message, ex);
             }
         }
 
