@@ -301,6 +301,19 @@ namespace StackExchange.Redis
         Task<long> HashLengthAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// The HSCAN command is used to incrementally iterate over a hash; note: to resume an iteration via <i>cursor</i>, cast the original enumerable or enumerator to <i>IScanningCursor</i>.
+        /// </summary>
+        /// <param name="key">The key of the hash.</param>
+        /// <param name="pattern">The pattern of keys to get entries for.</param>
+        /// <param name="pageSize">The page size to iterate by.</param>
+        /// <param name="cursor">The cursor position to start at.</param>
+        /// <param name="pageOffset">The page offset to start at.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>Yields all elements of the hash matching the pattern.</returns>
+        /// <remarks>https://redis.io/commands/hscan</remarks>
+        CursorEnumerable<HashEntry> HashScanAsync(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = RedisBase.CursorUtils.DefaultPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Sets the specified fields to their respective values in the hash stored at key. This command overwrites any specified fields that already exist in the hash, leaving other unspecified fields untouched. If key does not exist, a new key holding a hash is created.
         /// </summary>
         /// <param name="key">The key of the hash.</param>
