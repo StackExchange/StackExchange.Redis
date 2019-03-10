@@ -1366,6 +1366,32 @@ namespace StackExchange.Redis
         Task<long> SortedSetRemoveRangeByValueAsync(RedisKey key, RedisValue min, RedisValue max, Exclude exclude = Exclude.None, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// The SSCAN command is used to incrementally iterate over set; note: to resume an iteration via <i>cursor</i>, cast the original enumerable or enumerator to <i>IScanningCursor</i>.
+        /// </summary>
+        /// <param name="key">The key of the set.</param>
+        /// <param name="pattern">The pattern to match.</param>
+        /// <param name="pageSize">The page size to iterate by.</param>
+        /// <param name="cursor">The cursor position to start at.</param>
+        /// <param name="pageOffset">The page offset to start at.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>Yields all matching elements of the set.</returns>
+        /// <remarks>https://redis.io/commands/sscan</remarks>
+        CursorEnumerable<RedisValue> SetScanAsync(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = RedisBase.CursorUtils.DefaultPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// The ZSCAN command is used to incrementally iterate over a sorted set
+        /// </summary>
+        /// <param name="key">The key of the sorted set.</param>
+        /// <param name="pattern">The pattern to match.</param>
+        /// <param name="pageSize">The page size to iterate by.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <param name="cursor">The cursor position to start at.</param>
+        /// <param name="pageOffset">The page offset to start at.</param>
+        /// <returns>Yields all matching elements of the sorted set.</returns>
+        /// <remarks>https://redis.io/commands/zscan</remarks>
+        CursorEnumerable<SortedSetEntry> SortedSetScanAsync(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = RedisBase.CursorUtils.DefaultPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Returns the score of member in the sorted set at key; If member does not exist in the sorted set, or key does not exist, nil is returned.
         /// </summary>
         /// <param name="key">The key of the sorted set.</param>

@@ -464,6 +464,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.SetRemoveAsync(ToInner(key), values, flags);
         }
 
+        public CursorEnumerable<RedisValue> SetScanAsync(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
+            => Inner.SetScanAsync(ToInner(key), pattern, pageSize, cursor, pageOffset, flags);
+
         public Task<bool> SetRemoveAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
         {
             return Inner.SetRemoveAsync(ToInner(key), value, flags);
@@ -593,6 +596,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         {
             return Inner.SortedSetScoreAsync(ToInner(key), member, flags);
         }
+
+        public CursorEnumerable<SortedSetEntry> SortedSetScanAsync(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
+            => Inner.SortedSetScanAsync(ToInner(key), pattern, pageSize, cursor, pageOffset, flags);
 
         public Task<SortedSetEntry?> SortedSetPopAsync(RedisKey key, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
         {
