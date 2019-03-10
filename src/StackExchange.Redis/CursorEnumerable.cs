@@ -60,14 +60,14 @@ namespace StackExchange.Redis
 
         private protected abstract ResultProcessor<ScanResult> Processor { get; }
 
-        private protected Task<ScanResult> GetNextPageAsync(IScanningCursor obj, long cursor, out Message message)
+        private protected virtual Task<ScanResult> GetNextPageAsync(IScanningCursor obj, long cursor, out Message message)
         {
             activeCursor = obj;
             message = CreateMessage(cursor);
             return redis.ExecuteAsync(message, Processor, server);
         }
 
-        private protected ScanResult Wait(Task<ScanResult> pending, Message message) {
+        private protected TResult Wait<TResult>(Task<TResult> pending, Message message) {
             if(!redis.TryWait(pending))
                 throw ExceptionFactory.Timeout(redis.multiplexer, null, message, server);
             return pending.Result;
@@ -133,7 +133,7 @@ namespace StackExchange.Redis
                 Recycle(ref _pageOversized); // recycle any existing data
                 _pageOversized = result.ValuesOversized;
                 _pageCount = result.Count;
-                if (_nextCursor == 0)
+                if (_nextCursor == RedisBase.CursorUtils.Origin)
                 {   // eof
                     _pending = null;
                     _pendingMessage = null;
@@ -148,14 +148,29 @@ namespace StackExchange.Redis
             /// <summary>
             /// Try to move to the next item in the sequence
             /// </summary>
-            public bool MoveNext() => SimpleNext() || SlowNext();
+            public bool MoveNext() => SimpleNext() || SlowNextSync();
 
-            private bool SlowNext()
+            bool SlowNextSync()
+            {
+                var pending = SlowNextAsync();
+                if (pending.IsCompletedSuccessfully) return pending.Result;
+                return parent.Wait(pending.AsTask(), _pendingMessage);
+            }
+
+            /// <summary>
+            /// Try to move to the next item in the sequence
+            /// </summary>
+            public ValueTask<bool> MoveNextAsync()
+            {
+                if(SimpleNext()) return new ValueTask<bool>(true);
+                return SlowNextAsync();
+            }
+
+            private async ValueTask<bool> SlowNextAsync()
             {
                 switch (state)
                 {
-                    case State.Complete:
-                        return false;
+                    case State.Complete: return false;
                     case State.Initial:
                         _pending = parent.GetNextPageAsync(this, _nextCursor, out _pendingMessage);
                         state = State.Running;
@@ -163,7 +178,7 @@ namespace StackExchange.Redis
                     case State.Running:
                         while (_pending != null)
                         {
-                            ProcessReply(parent.Wait(_pending, _pendingMessage));
+                            ProcessReply(await _pending);
                             if (SimpleNext()) return true;
                         }
                         // we're exhausted
@@ -226,8 +241,18 @@ namespace StackExchange.Redis
             public SingleBlockEnumerable(RedisBase redis, ServerEndPoint server, 
                 Task<T[]> pending) : base(redis, server, 0, int.MaxValue, 0, 0, default)
             {
-                Wait
                 _pending = pending;
+            }
+
+            private protected override Task<ScanResult> GetNextPageAsync(IScanningCursor obj, long cursor, out Message message)
+            {
+                message = null;
+                return AwaitedGetNextPageAsync();
+            }
+            private async Task<ScanResult> AwaitedGetNextPageAsync()
+            {
+                var arr = (await _pending) ?? Array.Empty<T>();
+                return new ScanResult(RedisBase.CursorUtils.Origin, arr, arr.Length);
             }
             private protected override ResultProcessor<ScanResult> Processor => null;
             private protected override Message CreateMessage(long cursor) => null;
