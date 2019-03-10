@@ -1,9 +1,10 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
-using System.Linq;
 using System.Net;
 using System.Text;
 using System.Threading.Tasks;
+using Pipelines.Sockets.Unofficial.Arenas;
 
 namespace StackExchange.Redis
 {
@@ -408,17 +409,18 @@ namespace StackExchange.Redis
         }
 
         IEnumerable<HashEntry> IDatabase.HashScan(RedisKey key, RedisValue pattern, int pageSize, CommandFlags flags)
-        {
-            return HashScan(key, pattern, pageSize, CursorUtils.Origin, 0, flags);
-        }
+            => HashScanAsync(key, pattern, pageSize, CursorUtils.Origin, 0, flags);
 
         public IEnumerable<HashEntry> HashScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = CursorUtils.DefaultPageSize, long cursor = CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
+            => HashScanAsync(key, pattern, pageSize, cursor, pageOffset, flags);
+
+        public CursorEnumerable<HashEntry> HashScanAsync(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = CursorUtils.DefaultPageSize, long cursor = CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
         {
             var scan = TryScan<HashEntry>(key, pattern, pageSize, cursor, pageOffset, flags, RedisCommand.HSCAN, HashScanResultProcessor.Default);
             if (scan != null) return scan;
 
             if (cursor != 0 || pageOffset != 0) throw ExceptionFactory.NoCursor(RedisCommand.HGETALL);
-            if (pattern.IsNull) return HashGetAll(key, flags);
+            if (pattern.IsNull) return CursorEnumerable<HashEntry>.From(HashGetAllAsync(key, flags));
             throw ExceptionFactory.NotSupported(true, RedisCommand.HSCAN);
         }
 
@@ -3327,7 +3329,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private IEnumerable<T> TryScan<T>(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags, RedisCommand command, ResultProcessor<ScanIterator<T>.ScanResult> processor)
+        private CursorEnumerable<T> TryScan<T>(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags, RedisCommand command, ResultProcessor<ScanIterator<T>.ScanResult> processor)
         {
             if (pageSize <= 0) throw new ArgumentOutOfRangeException(nameof(pageSize));
             if (!multiplexer.CommandMap.IsAvailable(command)) return null;
@@ -3426,9 +3428,9 @@ namespace StackExchange.Redis
                 Processor = processor;
             }
 
-            protected override ResultProcessor<CursorEnumerable<T>.ScanResult> Processor { get; }
+            private protected override ResultProcessor<CursorEnumerable<T>.ScanResult> Processor { get; }
 
-            protected override Message CreateMessage(long cursor)
+            private protected override Message CreateMessage(long cursor)
             {
                 if (CursorUtils.IsNil(pattern))
                 {
@@ -3477,16 +3479,13 @@ namespace StackExchange.Redis
         {
             public static readonly ResultProcessor<ScanIterator<HashEntry>.ScanResult> Default = new HashScanResultProcessor();
             private HashScanResultProcessor() { }
-            protected override HashEntry[] Parse(in RawResult result)
-            {
-                if (!HashEntryArray.TryParse(result, out HashEntry[] pairs)) pairs = null;
-                return pairs;
-            }
+            protected override HashEntry[] Parse(in RawResult result, out int count)
+                => HashEntryArray.TryParse(result, out HashEntry[] pairs, true, out count) ? pairs : null;
         }
 
         private abstract class ScanResultProcessor<T> : ResultProcessor<ScanIterator<T>.ScanResult>
         {
-            protected abstract T[] Parse(in RawResult result);
+            protected abstract T[] Parse(in RawResult result, out int count);
 
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
@@ -3499,7 +3498,8 @@ namespace StackExchange.Redis
                             ref RawResult inner = ref arr[1];
                             if (inner.Type == ResultType.MultiBulk && arr[0].TryGetInt64(out var i64))
                             {
-                                var sscanResult = new ScanIterator<T>.ScanResult(i64, Parse(inner));
+                                T[] oversized = Parse(inner, out int count);
+                                var sscanResult = new ScanIterator<T>.ScanResult(i64, oversized, count);
                                 SetResult(message, sscanResult);
                                 return true;
                             }
@@ -3661,9 +3661,18 @@ namespace StackExchange.Redis
         {
             public static readonly ResultProcessor<ScanIterator<RedisValue>.ScanResult> Default = new SetScanResultProcessor();
             private SetScanResultProcessor() { }
-            protected override RedisValue[] Parse(in RawResult result)
+            protected override RedisValue[] Parse(in RawResult result, out int count)
             {
-                return result.GetItemsAsValues();
+                var items = result.GetItems();
+                if (items.IsEmpty)
+                {
+                    count = 0;
+                    return Array.Empty<RedisValue>();
+                }
+                count = (int)items.Length;
+                RedisValue[] arr = ArrayPool<RedisValue>.Shared.Rent(count);
+                items.CopyTo(arr, (in RawResult r) => r.AsRedisValue());
+                return arr;
             }
         }
 
@@ -3707,11 +3716,8 @@ namespace StackExchange.Redis
         {
             public static readonly ResultProcessor<ScanIterator<SortedSetEntry>.ScanResult> Default = new SortedSetScanResultProcessor();
             private SortedSetScanResultProcessor() { }
-            protected override SortedSetEntry[] Parse(in RawResult result)
-            {
-                if (!SortedSetWithScores.TryParse(result, out SortedSetEntry[] pairs)) pairs = null;
-                return pairs;
-            }
+            protected override SortedSetEntry[] Parse(in RawResult result, out int count)
+                => SortedSetWithScores.TryParse(result, out SortedSetEntry[] pairs, true, out count) ? pairs : null;
         }
 
         private class StringGetWithExpiryMessage : Message.CommandKeyBase, IMultiMessage

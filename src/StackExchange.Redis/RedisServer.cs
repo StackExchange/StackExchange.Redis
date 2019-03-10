@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -6,6 +7,7 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+using Pipelines.Sockets.Unofficial.Arenas;
 
 #pragma warning disable RCS1231 // Make parameter ref read-only.
 
@@ -717,7 +719,7 @@ namespace StackExchange.Redis
                 this.pattern = pattern;
             }
 
-            protected override Message CreateMessage(long cursor)
+            private protected override Message CreateMessage(long cursor)
             {
                 if (CursorUtils.IsNil(pattern))
                 {
@@ -743,7 +745,7 @@ namespace StackExchange.Redis
                 }
             }
 
-            protected override ResultProcessor<ScanResult> Processor => processor;
+            private protected override ResultProcessor<ScanResult> Processor => processor;
 
             public static readonly ResultProcessor<ScanResult> processor = new KeysResultProcessor();
             private class KeysResultProcessor : ResultProcessor<ScanResult>
@@ -758,7 +760,21 @@ namespace StackExchange.Redis
                             RawResult inner;
                             if (arr.Length == 2 && (inner = arr[1]).Type == ResultType.MultiBulk && arr[0].TryGetInt64(out i64))
                             {
-                                var keysResult = new ScanResult(i64, inner.GetItemsAsKeys());
+                                var items = inner.GetItems();
+                                RedisKey[] keys;
+                                int count;
+                                if (items.IsEmpty)
+                                {
+                                    keys = Array.Empty<RedisKey>();
+                                    count = 0;
+                                }
+                                else
+                                {
+                                    count = (int)items.Length;
+                                    keys = ArrayPool<RedisKey>.Shared.Rent(count);
+                                    items.CopyTo(keys, (in RawResult r) => r.AsRedisKey());
+                                }
+                                var keysResult = new ScanResult(i64, keys, count);
                                 SetResult(message, keysResult);
                                 return true;
                             }

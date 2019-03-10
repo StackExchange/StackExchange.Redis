@@ -553,7 +553,11 @@ namespace StackExchange.Redis
         internal abstract class ValuePairInterleavedProcessorBase<T> : ResultProcessor<T[]>
         {
             public bool TryParse(in RawResult result, out T[] pairs)
+                => TryParse(result, out pairs, false, out _);
+
+            public bool TryParse(in RawResult result, out T[] pairs, bool allowOversized, out int count)
             {
+                count = 0;
                 switch (result.Type)
                 {
                     case ResultType.MultiBulk:
@@ -564,14 +568,14 @@ namespace StackExchange.Redis
                         }
                         else
                         {
-                            int count = (int)arr.Length / 2;
+                            count = (int)arr.Length / 2;
                             if (count == 0)
                             {
                                 pairs = Array.Empty<T>();
                             }
                             else
                             {
-                                pairs = new T[count];
+                                pairs = allowOversized ? ArrayPool<T>.Shared.Rent(count) : new T[count];
                                 if (arr.IsSingleSegment)
                                 {
                                     var span = arr.FirstSpan;
