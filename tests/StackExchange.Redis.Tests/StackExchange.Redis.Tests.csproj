@@ -8,7 +8,7 @@
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <SignAssembly>true</SignAssembly>
     <DebugType>full</DebugType>
-    <LangVersion>preview</LangVersion>
+    <LangVersion>8.0</LangVersion>
   </PropertyGroup>
 
   <ItemGroup>
