@@ -115,7 +115,10 @@ namespace StackExchange.Redis
 
         internal static class CursorUtils
         {
-            internal const int Origin = 0, DefaultPageSize = 10;
+            internal const int
+                Origin = 0,
+                DefaultRedisPageSize = 10,
+                DefaultLibraryPageSize = 250;
             internal static bool IsNil(in RedisValue pattern)
             {
                 if (pattern.IsNullOrEmpty) return true;

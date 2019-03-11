@@ -847,33 +847,21 @@ namespace StackExchange.Redis.KeyspaceIsolation
         }
 
         IEnumerable<HashEntry> IDatabase.HashScan(RedisKey key, RedisValue pattern, int pageSize, CommandFlags flags)
-        {
-            return HashScan(key, pattern, pageSize, RedisBase.CursorUtils.Origin, 0, flags);
-        }
+            => Inner.HashScan(ToInner(key), pattern, pageSize, flags);
 
-        public IEnumerable<HashEntry> HashScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = RedisBase.CursorUtils.DefaultPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
-        {
-            return Inner.HashScan(ToInner(key), pattern, pageSize, cursor, pageOffset, flags);
-        }
+        IEnumerable<HashEntry> IDatabase.HashScan(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
+            => Inner.HashScan(ToInner(key), pattern, pageSize, cursor, pageOffset, flags);
 
         IEnumerable<RedisValue> IDatabase.SetScan(RedisKey key, RedisValue pattern, int pageSize, CommandFlags flags)
-        {
-            return SetScan(key, pattern, pageSize, RedisBase.CursorUtils.Origin, 0, flags);
-        }
+            =>  Inner.SetScan(ToInner(key), pattern, pageSize, flags);
 
-        public IEnumerable<RedisValue> SetScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = RedisBase.CursorUtils.DefaultPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
-        {
-            return Inner.SetScan(ToInner(key), pattern, pageSize, cursor, pageOffset, flags);
-        }
+        IEnumerable<RedisValue> IDatabase.SetScan(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
+            => Inner.SetScan(ToInner(key), pattern, pageSize, cursor, pageOffset, flags);
 
         IEnumerable<SortedSetEntry> IDatabase.SortedSetScan(RedisKey key, RedisValue pattern, int pageSize, CommandFlags flags)
-        {
-            return SortedSetScan(key, pattern, pageSize, RedisBase.CursorUtils.Origin, 0, flags);
-        }
+            => Inner.SortedSetScan(ToInner(key), pattern, pageSize, flags);
 
-        public IEnumerable<SortedSetEntry> SortedSetScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = RedisBase.CursorUtils.DefaultPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
-        {
-            return Inner.SortedSetScan(ToInner(key), pattern, pageSize, cursor, pageOffset, flags);
-        }
+        IEnumerable<SortedSetEntry> IDatabase.SortedSetScan(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
+            => Inner.SortedSetScan(ToInner(key), pattern, pageSize, cursor, pageOffset, flags);
     }
 }

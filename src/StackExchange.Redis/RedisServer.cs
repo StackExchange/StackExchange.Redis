@@ -287,11 +287,15 @@ namespace StackExchange.Redis
         }
 
         IEnumerable<RedisKey> IServer.Keys(int database, RedisValue pattern, int pageSize, CommandFlags flags)
-        {
-            return Keys(database, pattern, pageSize, CursorUtils.Origin, 0, flags);
-        }
+            => KeysAsync(database, pattern, pageSize, CursorUtils.Origin, 0, flags);
 
-        public IEnumerable<RedisKey> Keys(int database = 0, RedisValue pattern = default(RedisValue), int pageSize = CursorUtils.DefaultPageSize, long cursor = CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
+        IEnumerable<RedisKey> IServer.Keys(int database, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
+            => KeysAsync(database, pattern, pageSize, cursor, pageOffset, flags);
+
+        IDummyAsyncEnumerable<RedisKey> IServer.KeysAsync(int database, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
+            => KeysAsync(database, pattern, pageSize, cursor, pageOffset, flags);
+
+        private CursorEnumerable<RedisKey> KeysAsync(int database, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
         {
             if (pageSize <= 0) throw new ArgumentOutOfRangeException(nameof(pageSize));
             if (CursorUtils.IsNil(pattern)) pattern = RedisLiterals.Wildcard;
@@ -303,9 +307,9 @@ namespace StackExchange.Redis
                 if (features.Scan) return new KeysScanEnumerable(this, database, pattern, pageSize, cursor, pageOffset, flags);
             }
 
-            if (cursor != 0 || pageOffset != 0) throw ExceptionFactory.NoCursor(RedisCommand.KEYS);
+            if (cursor != 0) throw ExceptionFactory.NoCursor(RedisCommand.KEYS);
             Message msg = Message.Create(database, flags, RedisCommand.KEYS, pattern);
-            return ExecuteSync(msg, ResultProcessor.RedisKeyArray);
+            return CursorEnumerable<RedisKey>.From(this, server, ExecuteAsync(msg, ResultProcessor.RedisKeyArray), pageOffset);
         }
 
         public DateTime LastSave(CommandFlags flags = CommandFlags.None)
@@ -723,7 +727,7 @@ namespace StackExchange.Redis
             {
                 if (CursorUtils.IsNil(pattern))
                 {
-                    if (pageSize == CursorUtils.DefaultPageSize)
+                    if (pageSize == CursorUtils.DefaultRedisPageSize)
                     {
                         return Message.Create(db, flags, RedisCommand.SCAN, cursor);
                     }
@@ -734,7 +738,7 @@ namespace StackExchange.Redis
                 }
                 else
                 {
-                    if (pageSize == CursorUtils.DefaultPageSize)
+                    if (pageSize == CursorUtils.DefaultRedisPageSize)
                     {
                         return Message.Create(db, flags, RedisCommand.SCAN, cursor, RedisLiterals.MATCH, pattern);
                     }

@@ -7,9 +7,35 @@ using System.Threading.Tasks;
 namespace StackExchange.Redis
 {
     /// <summary>
+    /// Replace with IAsyncEnumerable
+    /// </summary>
+    public interface IDummyAsyncEnumerable<T>
+    {
+        /// <summary>
+        /// Do the thing
+        /// </summary>
+        IDummyAsyncEnumerator<T> GetAsyncEnumerator();
+    }
+
+    /// <summary>
+    /// Replace with IAsyncEnumerator
+    /// </summary>
+    public interface IDummyAsyncEnumerator<T>
+    {
+        /// <summary>
+        /// Do the thing
+        /// </summary>
+        ValueTask<bool> MoveNextAsync();
+        /// <summary>
+        /// Do the thing
+        /// </summary>
+        T Current { get; }
+    }
+
+    /// <summary>
     /// Provides the ability to iterate over a cursor-based sequence of redis data, synchronously or asynchronously
     /// </summary>
-    public abstract class CursorEnumerable<T> : IEnumerable<T>, IScanningCursor
+    internal abstract class CursorEnumerable<T> : IEnumerable<T>, IScanningCursor, IDummyAsyncEnumerable<T>
     {
         private readonly RedisBase redis;
         private readonly ServerEndPoint server;
@@ -42,6 +68,7 @@ namespace StackExchange.Redis
 
         IEnumerator<T> IEnumerable<T>.GetEnumerator() => GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+        IDummyAsyncEnumerator<T> IDummyAsyncEnumerable<T>.GetAsyncEnumerator() => GetEnumerator();
 
         internal readonly struct ScanResult
         {
@@ -76,7 +103,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Provides the ability to iterate over a cursor-based sequence of redis data, synchronously or asynchronously
         /// </summary>
-        public class Enumerator : IEnumerator<T>, IScanningCursor
+        public class Enumerator : IEnumerator<T>, IScanningCursor, IDummyAsyncEnumerator<T>
         {
             private CursorEnumerable<T> parent;
             internal Enumerator(CursorEnumerable<T> parent)
@@ -90,12 +117,25 @@ namespace StackExchange.Redis
             /// </summary>
             public T Current => _pageOversized[_pageIndex];
 
-            void IDisposable.Dispose()
+            /// <summary>
+            /// Release all resources associated with this enumerator
+            /// </summary>
+            public void Dispose()
             {
-                state = State.Disposed;
+                _state = State.Disposed;
                 Recycle(ref _pageOversized);
-                parent = null; 
+                parent = null;
             }
+
+            /// <summary>
+            /// Release all resources associated with this enumerator
+            /// </summary>
+            public ValueTask DisposeAsync()
+            {
+                Dispose();
+                return default;
+            }
+            
 
             object IEnumerator.Current => _pageOversized[_pageIndex];
 
@@ -116,7 +156,7 @@ namespace StackExchange.Redis
             private int _pageIndex;
             private long _currentCursor, _nextCursor;
 
-            private State state;
+            private volatile State _state;
             private enum State : byte
             {
                 Initial,
@@ -129,7 +169,7 @@ namespace StackExchange.Redis
             {
                 _currentCursor = _nextCursor;
                 _nextCursor = result.Cursor;
-                _pageIndex = state == State.Initial ? parent.initialOffset - 1 :  -1;
+                _pageIndex = _state == State.Initial ? parent.initialOffset - 1 :  -1;
                 Recycle(ref _pageOversized); // recycle any existing data
                 _pageOversized = result.ValuesOversized;
                 _pageCount = result.Count;
@@ -166,28 +206,43 @@ namespace StackExchange.Redis
                 return SlowNextAsync();
             }
 
-            private async ValueTask<bool> SlowNextAsync()
+            private ValueTask<bool> SlowNextAsync()
             {
-                switch (state)
+                switch (_state)
                 {
-                    case State.Complete: return false;
                     case State.Initial:
                         _pending = parent.GetNextPageAsync(this, _nextCursor, out _pendingMessage);
-                        state = State.Running;
+                        _state = State.Running;
                         goto case State.Running;
                     case State.Running:
-                        while (_pending != null)
+                        Task<ScanResult> pending;
+                        while ((pending = _pending) != null & _state == State.Running)
                         {
-                            ProcessReply(await _pending);
-                            if (SimpleNext()) return true;
+                            if (!pending.IsCompleted) return AwaitedNextAsync();
+                            ProcessReply(pending.Result);
+                            if (SimpleNext()) return new ValueTask<bool>(true);
                         }
                         // we're exhausted
-                        state = State.Complete;
-                        return false;
+                        if (_state == State.Running) _state = State.Complete;
+                        return default;
+                    case State.Complete:
                     case State.Disposed:
                     default:
-                        throw new ObjectDisposedException(GetType().Name);
+                        return default;
                 }
+            }
+
+            private async ValueTask<bool> AwaitedNextAsync()
+            {
+                Task<ScanResult> pending;
+                while ((pending = _pending) != null & _state == State.Running)
+                {
+                    ProcessReply(await pending);
+                    if (SimpleNext()) return true;
+                }
+                // we're exhausted
+                if (_state == State.Running) _state = State.Complete;
+                return false;
             }
 
             static void Recycle(ref T[] array)
@@ -203,10 +258,10 @@ namespace StackExchange.Redis
             /// </summary>
             public void Reset()
             {
-                if (state == State.Disposed) throw new ObjectDisposedException(GetType().Name);
+                if (_state == State.Disposed) throw new ObjectDisposedException(GetType().Name);
                 _nextCursor = _currentCursor = parent.initialCursor;
                 _pageIndex = parent.initialOffset; // don't -1 here; this makes it look "right" before incremented
-                state = State.Initial;
+                _state = State.Initial;
                 Recycle(ref _pageOversized);
                 _pageCount = 0;
                 _pending = null;
@@ -232,14 +287,14 @@ namespace StackExchange.Redis
             get { var tmp = activeCursor; return tmp?.PageOffset ?? initialOffset; }
         }
 
-        internal static CursorEnumerable<T> From(RedisBase redis, ServerEndPoint server, Task<T[]> pending)
-            => new SingleBlockEnumerable(redis, server, pending);
+        internal static CursorEnumerable<T> From(RedisBase redis, ServerEndPoint server, Task<T[]> pending, int pageOffset)
+            => new SingleBlockEnumerable(redis, server, pending, pageOffset);
 
         class SingleBlockEnumerable : CursorEnumerable<T>
         {
             private readonly Task<T[]> _pending;
             public SingleBlockEnumerable(RedisBase redis, ServerEndPoint server, 
-                Task<T[]> pending) : base(redis, server, 0, int.MaxValue, 0, 0, default)
+                Task<T[]> pending, int pageOffset) : base(redis, server, 0, int.MaxValue, 0, pageOffset, default)
             {
                 _pending = pending;
             }
