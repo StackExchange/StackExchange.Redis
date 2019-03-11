@@ -237,7 +237,7 @@ namespace StackExchange.Redis
                 Task<ScanResult> pending;
                 while ((pending = _pending) != null & _state == State.Running)
                 {
-                    ProcessReply(await pending);
+                    ProcessReply(await pending.ForAwait());
                     if (SimpleNext()) return true;
                 }
                 // we're exhausted
@@ -306,7 +306,7 @@ namespace StackExchange.Redis
             }
             private async Task<ScanResult> AwaitedGetNextPageAsync()
             {
-                var arr = (await _pending) ?? Array.Empty<T>();
+                var arr = (await _pending.ForAwait()) ?? Array.Empty<T>();
                 return new ScanResult(RedisBase.CursorUtils.Origin, arr, arr.Length);
             }
             private protected override ResultProcessor<ScanResult> Processor => null;
