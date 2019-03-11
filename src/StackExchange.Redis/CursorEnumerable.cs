@@ -2,6 +2,8 @@
 using System.Buffers;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 
 namespace StackExchange.Redis
@@ -9,7 +11,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// Replace with IAsyncEnumerable
     /// </summary>
-    public interface IDummyAsyncEnumerable<T>
+    public interface IDummyAsyncEnumerable<out T>
     {
         /// <summary>
         /// Do the thing
@@ -20,7 +22,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// Replace with IAsyncEnumerator
     /// </summary>
-    public interface IDummyAsyncEnumerator<T>
+    public interface IDummyAsyncEnumerator<out T>
     {
         /// <summary>
         /// Do the thing
@@ -115,7 +117,14 @@ namespace StackExchange.Redis
             /// <summary>
             /// Gets the current value of the enumerator
             /// </summary>
-            public T Current => _pageOversized[_pageIndex];
+            public T Current {
+                [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                get
+                {
+                    Debug.Assert(_pageIndex >= 0 & _pageIndex < _pageCount & _pageOversized.Length >= _pageCount);
+                    return _pageOversized[_pageIndex];
+                }
+            }
 
             /// <summary>
             /// Release all resources associated with this enumerator
@@ -123,8 +132,21 @@ namespace StackExchange.Redis
             public void Dispose()
             {
                 _state = State.Disposed;
-                Recycle(ref _pageOversized);
+                SetComplete();
                 parent = null;
+            }
+
+            private void SetComplete()
+            {
+                _pageIndex = _pageCount = 0;
+                Recycle(ref _pageOversized);
+                switch (_state)
+                {
+                    case State.Initial:
+                    case State.Running:
+                        _state = State.Complete;
+                        break;
+                }
             }
 
             /// <summary>
@@ -171,7 +193,7 @@ namespace StackExchange.Redis
                 _nextCursor = result.Cursor;
                 _pageIndex = _state == State.Initial ? parent.initialOffset - 1 :  -1;
                 Recycle(ref _pageOversized); // recycle any existing data
-                _pageOversized = result.ValuesOversized;
+                _pageOversized = result.ValuesOversized ?? Array.Empty<T>();
                 _pageCount = result.Count;
                 if (_nextCursor == RedisBase.CursorUtils.Origin)
                 {   // eof
@@ -222,8 +244,7 @@ namespace StackExchange.Redis
                             ProcessReply(pending.Result);
                             if (SimpleNext()) return new ValueTask<bool>(true);
                         }
-                        // we're exhausted
-                        if (_state == State.Running) _state = State.Complete;
+                        SetComplete();
                         return default;
                     case State.Complete:
                     case State.Disposed:
@@ -240,8 +261,7 @@ namespace StackExchange.Redis
                     ProcessReply(await pending.ForAwait());
                     if (SimpleNext()) return true;
                 }
-                // we're exhausted
-                if (_state == State.Running) _state = State.Complete;
+                SetComplete();
                 return false;
             }
 
@@ -263,6 +283,7 @@ namespace StackExchange.Redis
                 _pageIndex = parent.initialOffset; // don't -1 here; this makes it look "right" before incremented
                 _state = State.Initial;
                 Recycle(ref _pageOversized);
+                _pageOversized = Array.Empty<T>();
                 _pageCount = 0;
                 _pending = null;
                 _pendingMessage = null;

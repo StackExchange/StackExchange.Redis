@@ -55,15 +55,31 @@ namespace StackExchange.Redis.Tests
 
                 int count = 0;
                 // works for async
-                await foreach(var item in conn.HashScanAsync(key))
+                await foreach(var item in conn.HashScanAsync(key, pageSize: 20))
                 {
                     count++;
                 }
                 Assert.Equal(200, count);
 
-                // and sync
+                // and sync=>async (via cast)
                 count = 0;
-                foreach (var item in conn.HashScanAsync(key))
+                await foreach (var item in (IDummyAsyncEnumerable<HashEntry>)conn.HashScan(key, pageSize: 20))
+                {
+                    count++;
+                }
+                Assert.Equal(200, count);
+
+                // and sync (native)
+                count = 0;
+                foreach (var item in conn.HashScan(key, pageSize: 20))
+                {
+                    count++;
+                }
+                Assert.Equal(200, count);
+
+                // and async=>sync (via cast)
+                count = 0;
+                foreach (var item in (IEnumerable<HashEntry>)conn.HashScanAsync(key, pageSize: 20))
                 {
                     count++;
                 }

@@ -12,7 +12,7 @@ namespace StackExchange.Redis.Tests
     public sealed class DatabaseWrapperTests
     {
         private readonly Mock<IDatabase> mock;
-        private readonly DatabaseWrapper wrapper;
+        private readonly IDatabase wrapper;
 
         public DatabaseWrapperTests()
         {

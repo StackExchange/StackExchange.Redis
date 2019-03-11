@@ -588,7 +588,7 @@ namespace StackExchange.Redis
                                 else
                                 {
                                     var iter = arr.GetEnumerator(); // simplest way of getting successive values
-                                    for (int i = 0; i < pairs.Length; i++)
+                                    for (int i = 0; i < count; i++)
                                     {
                                         pairs[i] = Parse(iter.GetNext(), iter.GetNext());
                                     }
