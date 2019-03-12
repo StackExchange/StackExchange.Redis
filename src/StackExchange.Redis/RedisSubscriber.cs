@@ -17,7 +17,7 @@ namespace StackExchange.Redis
             if (completable != null) ThreadPool.QueueUserWorkItem(s_CompleteAsWorker, completable);
         }
 
-        static readonly WaitCallback s_CompleteAsWorker = s => ((ICompletable)s).TryComplete(true);
+        private static readonly WaitCallback s_CompleteAsWorker = s => ((ICompletable)s).TryComplete(true);
 
         internal static bool TryCompleteHandler<T>(EventHandler<T> handler, object sender, T args, bool isAsync) where T : EventArgs, ICompletable
         {
@@ -261,7 +261,6 @@ namespace StackExchange.Redis
 
                 private PendingSubscriptionState(object asyncState, RedisChannel channel, Subscription subscription, CommandFlags flags, bool subscribe, bool internalCall, bool isSlave)
                 {
-                    
                     var cmd = subscribe
                         ? (channel.IsPatternBased ? RedisCommand.PSUBSCRIBE : RedisCommand.SUBSCRIBE)
                         : (channel.IsPatternBased ? RedisCommand.PUNSUBSCRIBE : RedisCommand.UNSUBSCRIBE);

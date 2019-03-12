@@ -52,7 +52,6 @@ namespace StackExchange.Redis
         private int failureReported;
 
         private int lastWriteTickCount, lastReadTickCount, lastBeatTickCount;
-        private int firstUnansweredWriteTickCount;
 
         internal void GetBytes(out long sent, out long received)
         {
@@ -88,7 +87,6 @@ namespace StackExchange.Redis
 
         internal async Task BeginConnectAsync(TextWriter log)
         {
-            Thread.VolatileWrite(ref firstUnansweredWriteTickCount, 0);
             var bridge = BridgeCouldBeNull;
             var endpoint = bridge?.ServerEndPoint?.EndPoint;
             if (endpoint == null)
@@ -324,7 +322,17 @@ namespace StackExchange.Redis
                 {
                     int now = Environment.TickCount, lastRead = Thread.VolatileRead(ref lastReadTickCount), lastWrite = Thread.VolatileRead(ref lastWriteTickCount),
                         lastBeat = Thread.VolatileRead(ref lastBeatTickCount);
-                    int unansweredRead = Thread.VolatileRead(ref firstUnansweredWriteTickCount);
+
+                    int unansweredWriteTime = 0;
+                    lock (_writtenAwaitingResponse)
+                    {
+                        // find oldest message awaiting a response
+                        if (_writtenAwaitingResponse.Count != 0)
+                        {
+                            var next = _writtenAwaitingResponse.Peek();
+                            unansweredWriteTime = next.GetWriteTime();
+                        }
+                    }
 
                     var exMessage = new StringBuilder(failureType.ToString());
 
@@ -371,7 +379,7 @@ namespace StackExchange.Redis
                             add("Outstanding-Responses", "outstanding", GetSentAwaitingResponseCount().ToString());
                             add("Last-Read", "last-read", (unchecked(now - lastRead) / 1000) + "s ago");
                             add("Last-Write", "last-write", (unchecked(now - lastWrite) / 1000) + "s ago");
-                            add("Unanswered-Write", "unanswered-write", (unchecked(now - unansweredRead) / 1000) + "s ago");
+                            if(unansweredWriteTime != 0) add("Unanswered-Write", "unanswered-write", (unchecked(now - unansweredWriteTime) / 1000) + "s ago");
                             add("Keep-Alive", "keep-alive", bridge.ServerEndPoint?.WriteEverySeconds + "s");
                             add("Previous-Physical-State", "state", oldState.ToString());
                             add("Manager", "mgr", bridge.Multiplexer.SocketManager?.GetState());
@@ -695,9 +703,6 @@ namespace StackExchange.Redis
             // in theory we should never see this; CheckMessage dealt with "regular" messages, and
             // ExecuteMessage should have dealt with everything else
             if (commandBytes.IsEmpty) throw ExceptionFactory.CommandDisabled(command);
-
-            // remember the time of the first write that still not followed by read
-            Interlocked.CompareExchange(ref firstUnansweredWriteTickCount, Environment.TickCount, 0);
 
             // *{argCount}\r\n      = 3 + MaxInt32TextLen
             // ${cmd-len}\r\n       = 3 + MaxInt32TextLen

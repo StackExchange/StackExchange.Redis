@@ -286,9 +286,9 @@ namespace StackExchange.Redis
             }
         }
 
-        internal bool TryEnqueueBackgroundSubscriptionWrite(PendingSubscriptionState state)
+        internal bool TryEnqueueBackgroundSubscriptionWrite(in PendingSubscriptionState state)
             => isDisposed ? false : (_subscriptionBackgroundQueue ?? GetSubscriptionQueue()).Writer.TryWrite(state);
-    
+
         internal void GetOutstandingCount(out int inst, out int qs, out int @in, out int qu)
         {
             inst = (int)(Interlocked.Read(ref operationCount) - Interlocked.Read(ref profileLastLog));
@@ -443,7 +443,6 @@ namespace StackExchange.Redis
             Message next;
             do
             {
-                
                 lock (_backlog)
                 {
                     next = _backlog.Count == 0 ? null : _backlog.Dequeue();
@@ -737,11 +736,10 @@ namespace StackExchange.Redis
             sched.Schedule(s_ProcessBacklog, _weakRefThis);
         }
 
-        static readonly Action<object> s_ProcessBacklog = s =>
+        private static readonly Action<object> s_ProcessBacklog = s =>
         {
             var wr = (WeakReference)s;
-            var bridge = wr.Target as PhysicalBridge;
-            if (bridge != null) bridge.ProcessBacklog();
+            if (wr.Target is PhysicalBridge bridge) bridge.ProcessBacklog();
         };
 
         private void CheckBacklogForTimeouts() // check the head of the backlog queue, consuming anything that looks dead

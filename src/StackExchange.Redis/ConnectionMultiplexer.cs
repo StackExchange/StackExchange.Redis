@@ -742,8 +742,11 @@ namespace StackExchange.Redis
         internal void OnHashSlotMoved(int hashSlot, EndPoint old, EndPoint @new)
         {
             var handler = HashSlotMoved;
-            if (handler != null) ConnectionMultiplexer.CompleteAsWorker(
-                new HashSlotMovedEventArgs(handler, this, hashSlot, old, @new));
+            if (handler != null)
+            {
+                ConnectionMultiplexer.CompleteAsWorker(
+                  new HashSlotMovedEventArgs(handler, this, hashSlot, old, @new));
+            }
         }
 
         /// <summary>

@@ -1114,7 +1114,7 @@ namespace StackExchange.Redis
                 this.mode = mode;
             }
 
-            readonly struct ChannelState // I would use a value-tuple here, but that is binding hell
+            private readonly struct ChannelState // I would use a value-tuple here, but that is binding hell
             {
                 public readonly byte[] Prefix;
                 public readonly RedisChannel.PatternMode Mode;

@@ -291,7 +291,7 @@ namespace StackExchange.Redis
             return AsGeoPosition(root.GetItems());
         }
 
-        static GeoPosition AsGeoPosition(Sequence<RawResult> coords)
+        private static GeoPosition AsGeoPosition(in Sequence<RawResult> coords)
         {
             double longitude, latitude;
             if (coords.IsSingleSegment)
