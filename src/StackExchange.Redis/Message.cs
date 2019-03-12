@@ -666,6 +666,7 @@ namespace StackExchange.Redis
             }
         }
         private int _writeTickCount;
+        public int GetWriteTime() => Volatile.Read(ref _writeTickCount);
 
         private void SetNeedsTimeoutCheck() => Flags |= NeedsAsyncTimeoutCheckFlag;
         internal bool HasAsyncTimedOut(int now, int timeoutMilliseconds, out int millisecondsTaken)

@@ -8,7 +8,9 @@ namespace StackExchange.Redis
     {
         public const int NoSlot = -1, MultipleSlots = -2;
         private const int RedisClusterSlotCount = 16384;
+#pragma warning disable IDE1006 // Naming Styles
         private static ReadOnlySpan<ushort> s_crc16tab => new ushort[]
+#pragma warning restore IDE1006 // Naming Styles
             { // this syntax allows a special-case population implementation by the compiler/JIT
                 0x0000,0x1021,0x2042,0x3063,0x4084,0x50a5,0x60c6,0x70e7,
                 0x8108,0x9129,0xa14a,0xb16b,0xc18c,0xd1ad,0xe1ce,0xf1ef,
@@ -72,21 +74,23 @@ namespace StackExchange.Redis
             {
                 var blob = (byte[])key;
                 fixed (byte* ptr = blob)
-                fixed (ushort* crc16tab = s_crc16tab)
                 {
-                    int offset = 0, count = blob.Length, start, end;
-                    if ((start = IndexOf(ptr, (byte)'{', 0, count - 1)) >= 0
-                        && (end = IndexOf(ptr, (byte)'}', start + 1, count)) >= 0
-                        && --end != start)
+                    fixed (ushort* crc16tab = s_crc16tab)
                     {
-                        offset = start + 1;
-                        count = end - start; // note we already subtracted one via --end
-                    }
+                        int offset = 0, count = blob.Length, start, end;
+                        if ((start = IndexOf(ptr, (byte)'{', 0, count - 1)) >= 0
+                            && (end = IndexOf(ptr, (byte)'}', start + 1, count)) >= 0
+                            && --end != start)
+                        {
+                            offset = start + 1;
+                            count = end - start; // note we already subtracted one via --end
+                        }
 
-                    uint crc = 0;
-                    for (int i = 0; i < count; i++)
-                        crc = ((crc << 8) ^ crc16tab[((crc >> 8) ^ ptr[offset++]) & 0x00FF]) & 0x0000FFFF;
-                    return (int)(crc % RedisClusterSlotCount);
+                        uint crc = 0;
+                        for (int i = 0; i < count; i++)
+                            crc = ((crc << 8) ^ crc16tab[((crc >> 8) ^ ptr[offset++]) & 0x00FF]) & 0x0000FFFF;
+                        return (int)(crc % RedisClusterSlotCount);
+                    }
                 }
             }
         }
