@@ -61,10 +61,9 @@ namespace StackExchange.Redis
                         if (items.Length == 0) return EmptyArray;
                         var arr = new RedisResult[items.Length];
                         int i = 0;
-                        var iter = items.GetEnumerator();
-                        while (iter.MoveNext())
+                        foreach(ref RawResult item in items)
                         {
-                            var next = TryCreate(connection, in iter.CurrentReference);
+                            var next = TryCreate(connection, in item);
                             if (next == null) return null; // means we didn't understand
                             arr[i++] = next;
                         }

@@ -302,9 +302,8 @@ namespace StackExchange.Redis
             }
             else
             {
-                var iter = coords.GetEnumerator();
-                longitude = (double)iter.GetNext().AsRedisValue();
-                latitude = (double)iter.GetNext().AsRedisValue();
+                longitude = (double)coords[0].AsRedisValue();
+                latitude = (double)coords[1].AsRedisValue();
             }
 
             return new GeoPosition(longitude, latitude);

@@ -505,12 +505,11 @@ namespace StackExchange.Redis
                                     connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"processing {arr.Length} wrapped messages");
 
                                     int i = 0;
-                                    var iter = arr.GetEnumerator();
-                                    while(iter.MoveNext())
+                                    foreach(ref RawResult item in arr)
                                     {
                                         var inner = wrapped[i++].Wrapped;
-                                        connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"> got {iter.Current} for {inner.CommandAndKey}");
-                                        if (inner.ComputeResult(connection, iter.CurrentReference))
+                                        connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"> got {item} for {inner.CommandAndKey}");
+                                        if (inner.ComputeResult(connection, in item))
                                         {
                                             inner.Complete();
                                         }
