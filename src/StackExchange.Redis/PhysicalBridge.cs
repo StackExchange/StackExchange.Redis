@@ -913,7 +913,7 @@ namespace StackExchange.Redis
         {
             try
             {
-                using (var token = await pending)
+                using (var token = await pending.ForAwait())
                 {
                     if (!token.Success) return TimedOutBeforeWrite(message);
 
@@ -921,7 +921,7 @@ namespace StackExchange.Redis
 
                     if (result == WriteResult.Success)
                     {
-                        result = await physical.FlushAsync(false);
+                        result = await physical.FlushAsync(false).ForAwait();
                     }
 
                     UnmarkActiveMessage(message);
