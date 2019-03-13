@@ -7,6 +7,7 @@
 - performance: fix sync-over-async issue with async call paths, and fix the [SemaphoreSlim](https://blog.marcgravell.com/2019/02/fun-with-spiral-of-death.html) problems that this uncovered
 - performance: re-introduce the unsent backlog queue, in particular to improve async performance
 - performance: simplify how completions are reactivated, so that external callers use their originating pool, not the dedicated IO pools (prevent thread stealing)
+- bugfix: update Pipelines.Sockets.Unofficial to prevent issue with incorrect buffer re-use in corner-case
 
 ## 2.0.519
 
