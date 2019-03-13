@@ -1,13 +1,16 @@
 # Release Notes
 
-## (pending)
+## 2.0.571
 
 - performance: use new [arena allocation API](https://mgravell.github.io/Pipelines.Sockets.Unofficial/docs/arenas) to avoid `RawResult[]` overhead
 - performance: massively simplified how `ResultBox<T>` is implemented, in particular to reduce `TaskCompletionSource<T>` allocations
 - performance: fix sync-over-async issue with async call paths, and fix the [SemaphoreSlim](https://blog.marcgravell.com/2019/02/fun-with-spiral-of-death.html) problems that this uncovered
 - performance: re-introduce the unsent backlog queue, in particular to improve async performance
 - performance: simplify how completions are reactivated, so that external callers use their originating pool, not the dedicated IO pools (prevent thread stealing)
-- bugfix: update Pipelines.Sockets.Unofficial to prevent issue with incorrect buffer re-use in corner-case
+- fix: update Pipelines.Sockets.Unofficial to prevent issue with incorrect buffer re-use in corner-case
+- fix: `KeyDeleteAsync` could, in some cases, always use `DEL` (instead of `UNLINK`)
+- fix: last unanswered write time was incorrect
+- change: use higher `Pipe` thresholds when sending
 
 ## 2.0.519
 
