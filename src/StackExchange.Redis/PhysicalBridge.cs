@@ -289,13 +289,14 @@ namespace StackExchange.Redis
         internal bool TryEnqueueBackgroundSubscriptionWrite(in PendingSubscriptionState state)
             => isDisposed ? false : (_subscriptionBackgroundQueue ?? GetSubscriptionQueue()).Writer.TryWrite(state);
 
-        internal void GetOutstandingCount(out int inst, out int qs, out long @in, out int qu, out long toRead, out long toWrite)
+        internal void GetOutstandingCount(out int inst, out int qs, out long @in, out int qu, out bool aw, out long toRead, out long toWrite)
         {
             inst = (int)(Interlocked.Read(ref operationCount) - Interlocked.Read(ref profileLastLog));
             lock(_backlog)
             {
                 qu = _backlog.Count;
             }
+            aw = !_singleWriterMutex.IsAvailable;
             var tmp = physical;
             if (tmp == null)
             {

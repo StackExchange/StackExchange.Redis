@@ -229,10 +229,11 @@ namespace StackExchange.Redis
             // Add server data, if we have it
             if (server != null)
             {
-                server.GetOutstandingCount(message.Command, out int inst, out int qs, out long @in, out int qu, out long toRead, out long toWrite);
+                server.GetOutstandingCount(message.Command, out int inst, out int qs, out long @in, out int qu, out bool aw, out long toRead, out long toWrite);
                 add("OpsSinceLastHeartbeat", "inst", inst.ToString());
                 add("Queue-Awaiting-Write", "qu", qu.ToString());
                 add("Queue-Awaiting-Response", "qs", qs.ToString());
+                add("Active-Writer", "aw", aw.ToString());
 
                 if (@in >= 0) add("Inbound-Bytes", "in", @in.ToString());
                 if (toRead >= 0) add("Inbound-Pipe-Bytes", "in-pipe", toRead.ToString());
