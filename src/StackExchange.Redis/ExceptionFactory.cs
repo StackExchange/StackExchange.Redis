@@ -229,12 +229,14 @@ namespace StackExchange.Redis
             // Add server data, if we have it
             if (server != null)
             {
-                server.GetOutstandingCount(message.Command, out int inst, out int qs, out int @in, out int qu);
+                server.GetOutstandingCount(message.Command, out int inst, out int qs, out long @in, out int qu, out long toRead, out long toWrite);
                 add("OpsSinceLastHeartbeat", "inst", inst.ToString());
                 add("Queue-Awaiting-Write", "qu", qu.ToString());
                 add("Queue-Awaiting-Response", "qs", qs.ToString());
 
-                if (@in >= 0) add("Socket-Inbound-Bytes", "in", @in.ToString());
+                if (@in >= 0) add("Inbound-Bytes", "in", @in.ToString());
+                if (toRead >= 0) add("Inbound-Pipe-Bytes", "in-pipe", toRead.ToString());
+                if (toWrite >= 0) add("Outbound-Pipe-Bytes", "out-pipe", toWrite.ToString());
 
                 if (mutiplexer.StormLogThreshold >= 0 && qs >= mutiplexer.StormLogThreshold && Interlocked.CompareExchange(ref mutiplexer.haveStormLog, 1, 0) == 0)
                 {

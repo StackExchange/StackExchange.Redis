@@ -375,16 +375,17 @@ namespace StackExchange.Redis
             return counters;
         }
 
-        internal void GetOutstandingCount(RedisCommand command, out int inst, out int qs, out int @in, out int qu)
+        internal void GetOutstandingCount(RedisCommand command, out int inst, out int qs, out long @in, out int qu, out long toRead, out long toWrite)
         {
             var bridge = GetBridge(command, false);
             if (bridge == null)
             {
-                inst = qs = @in = qu = 0;
+                inst = qs = qu = 0;
+                @in = toRead = toWrite = 0;
             }
             else
             {
-                bridge.GetOutstandingCount(out inst, out qs, out @in, out qu);
+                bridge.GetOutstandingCount(out inst, out qs, out @in, out qu, out toRead, out toWrite);
             }
         }
 

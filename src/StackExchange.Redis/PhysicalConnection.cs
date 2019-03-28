@@ -305,7 +305,7 @@ namespace StackExchange.Redis
 
                 // stop anything new coming in...
                 bridge?.Trace("Failed: " + failureType);
-                int @in = -1;
+                long @in = -1, @toRead = -1, @toWrite = -1;
                 PhysicalBridge.State oldState = PhysicalBridge.State.Disconnected;
                 bool isCurrent = false;
                 bridge?.OnDisconnected(failureType, this, out isCurrent, out oldState);
@@ -313,7 +313,7 @@ namespace StackExchange.Redis
                 {
                     try
                     {
-                        @in = GetAvailableInboundBytes();
+                        @in = GetSocketBytes(out toRead, out toWrite);
                     }
                     catch { /* best effort only */ }
                 }
@@ -383,10 +383,9 @@ namespace StackExchange.Redis
                             add("Keep-Alive", "keep-alive", bridge.ServerEndPoint?.WriteEverySeconds + "s");
                             add("Previous-Physical-State", "state", oldState.ToString());
                             add("Manager", "mgr", bridge.Multiplexer.SocketManager?.GetState());
-                            if (@in >= 0)
-                            {
-                                add("Inbound-Bytes", "in", @in.ToString());
-                            }
+                            if (@in >= 0) add("Inbound-Bytes", "in", @in.ToString());
+                            if (toRead >= 0) add("Inbound-Pipe-Bytes", "in-pipe", toRead.ToString());
+                            if (toWrite >= 0) add("Outbound-Pipe-Bytes", "out-pipe", toWrite.ToString());
 
                             add("Last-Heartbeat", "last-heartbeat", (lastBeat == 0 ? "never" : ((unchecked(now - lastBeat) / 1000) + "s ago")) + (BridgeCouldBeNull.IsBeating ? " (mid-beat)" : ""));
                             var mbeat = bridge.Multiplexer.LastHeartbeatSecondsAgo;
@@ -1156,7 +1155,18 @@ namespace StackExchange.Redis
             writer.Advance(bytes);
         }
 
-        internal int GetAvailableInboundBytes() => VolatileSocket?.Available ?? -1;
+        internal long GetSocketBytes(out long readCount, out long writeCount)
+        {
+            if (_ioPipe is SocketConnection conn)
+            {
+                var counters = conn.GetCounters();
+                readCount = counters.BytesWaitingToBeRead;
+                writeCount = counters.BytesWaitingToBeSent;
+                return counters.BytesAvailableOnSocket;
+            }
+            readCount = writeCount = -1;
+            return VolatileSocket?.Available ?? -1;
+        }
 
         private RemoteCertificateValidationCallback GetAmbientIssuerCertificateCallback()
         {
