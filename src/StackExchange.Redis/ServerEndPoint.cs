@@ -9,6 +9,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using static StackExchange.Redis.PhysicalBridge;
 
 namespace StackExchange.Redis
 {
@@ -375,7 +376,7 @@ namespace StackExchange.Redis
             return counters;
         }
 
-        internal void GetOutstandingCount(RedisCommand command, out int inst, out int qs, out long @in, out int qu, out bool aw, out long toRead, out long toWrite)
+        internal void GetOutstandingCount(RedisCommand command, out int inst, out int qs, out long @in, out int qu, out bool aw, out long toRead, out long toWrite, out BacklogStatus bs)
         {
             var bridge = GetBridge(command, false);
             if (bridge == null)
@@ -383,10 +384,11 @@ namespace StackExchange.Redis
                 inst = qs = qu = 0;
                 @in = toRead = toWrite = 0;
                 aw = false;
+                bs = BacklogStatus.Inactive;
             }
             else
             {
-                bridge.GetOutstandingCount(out inst, out qs, out @in, out qu, out aw, out toRead, out toWrite);
+                bridge.GetOutstandingCount(out inst, out qs, out @in, out qu, out aw, out toRead, out toWrite, out bs);
             }
         }
 

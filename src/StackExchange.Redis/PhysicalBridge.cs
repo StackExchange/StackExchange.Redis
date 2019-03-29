@@ -289,7 +289,7 @@ namespace StackExchange.Redis
         internal bool TryEnqueueBackgroundSubscriptionWrite(in PendingSubscriptionState state)
             => isDisposed ? false : (_subscriptionBackgroundQueue ?? GetSubscriptionQueue()).Writer.TryWrite(state);
 
-        internal void GetOutstandingCount(out int inst, out int qs, out long @in, out int qu, out bool aw, out long toRead, out long toWrite)
+        internal void GetOutstandingCount(out int inst, out int qs, out long @in, out int qu, out bool aw, out long toRead, out long toWrite, out BacklogStatus bs)
         {
             inst = (int)(Interlocked.Read(ref operationCount) - Interlocked.Read(ref profileLastLog));
             lock(_backlog)
@@ -297,6 +297,7 @@ namespace StackExchange.Redis
                 qu = _backlog.Count;
             }
             aw = !_singleWriterMutex.IsAvailable;
+            bs = _backlogStatus;
             var tmp = physical;
             if (tmp == null)
             {
@@ -763,7 +764,22 @@ namespace StackExchange.Redis
                 }
             }
         }
-
+        internal enum BacklogStatus : byte
+        {
+            Inactive,
+            Started,
+            CheckingForWork,
+            CheckingForTimeout,
+            RecordingTimeout,
+            WritingMessage,
+            Flushing,
+            MarkingInactive,
+            RecordingWriteFailure,
+            RecordingFault,
+            SettingIdle,
+            Faulted,
+        }
+        private volatile BacklogStatus _backlogStatus;
         private void ProcessBacklog()
         {
             LockToken token = default;
@@ -776,13 +792,15 @@ namespace StackExchange.Redis
                     if (token) break; // got the lock
                     lock (_backlog) { if (_backlog.Count == 0) return; }
                 }
+                _backlogStatus = BacklogStatus.Started;
 
                 // so now we are the writer; write some things!
                 Message message;
                 var timeout = TimeoutMilliseconds;
                 while(true)
                 {
-                    lock(_backlog)
+                    _backlogStatus = BacklogStatus.CheckingForWork;
+                    lock (_backlog)
                     {
                         if (_backlog.Count == 0) break; // all done
                         message = _backlog.Dequeue();
@@ -790,25 +808,31 @@ namespace StackExchange.Redis
 
                     try
                     {
+                        _backlogStatus = BacklogStatus.CheckingForTimeout;
                         if (message.HasAsyncTimedOut(Environment.TickCount, timeout, out var _))
                         {
+                            _backlogStatus = BacklogStatus.RecordingTimeout;
                             var ex = Multiplexer.GetException(WriteResult.TimeoutBeforeWrite, message, ServerEndPoint);
                             message.SetExceptionAndComplete(ex, this);
                         }
                         else
                         {
+                            _backlogStatus = BacklogStatus.WritingMessage;
                             var result = WriteMessageInsideLock(physical, message);
 
                             if (result == WriteResult.Success)
                             {
+                                _backlogStatus = BacklogStatus.Flushing;
 #pragma warning disable CS0618
                                 result = physical.FlushSync(false, timeout);
 #pragma warning restore CS0618
                             }
 
+                            _backlogStatus = BacklogStatus.MarkingInactive;
                             UnmarkActiveMessage(message);
                             if (result != WriteResult.Success)
                             {
+                                _backlogStatus = BacklogStatus.RecordingWriteFailure;
                                 var ex = Multiplexer.GetException(result, message, ServerEndPoint);
                                 HandleWriteException(message, ex);
                             }
@@ -816,13 +840,20 @@ namespace StackExchange.Redis
                     }
                     catch (Exception ex)
                     {
+                        _backlogStatus = BacklogStatus.RecordingFault;
                         HandleWriteException(message, ex);
                     }
                 }
+                _backlogStatus = BacklogStatus.SettingIdle;
                 physical.SetIdle();
+                _backlogStatus = BacklogStatus.Inactive;
+            }
+            catch
+            {
+                _backlogStatus = BacklogStatus.Faulted;
             }
             finally
-            {
+            {   
                 token.Dispose();
             }
         }
