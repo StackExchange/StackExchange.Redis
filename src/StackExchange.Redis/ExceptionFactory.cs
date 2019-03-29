@@ -181,7 +181,7 @@ namespace StackExchange.Redis
             }
             return _libVersion;
         }
-        internal static Exception Timeout(ConnectionMultiplexer mutiplexer, string baseErrorMessage, Message message, ServerEndPoint server, WriteResult? result = null)
+        internal static Exception Timeout(ConnectionMultiplexer mutiplexer, string baseErrorMessage, Message message, ServerEndPoint server, WriteResult? result = null, string origin = null)
         {
             List<Tuple<string, string>> data = new List<Tuple<string, string>> { Tuple.Create("Message", message.CommandAndKey) };
             var sb = new StringBuilder();
@@ -198,10 +198,12 @@ namespace StackExchange.Redis
             {
                 if (v != null)
                 {
-                    data.Add(Tuple.Create(lk, v));
-                    sb.Append(", ").Append(sk).Append(": ").Append(v);
+                    if (lk != null) data.Add(Tuple.Create(lk, v));
+                    if (sk != null) sb.Append(", ").Append(sk).Append(": ").Append(v);
                 }
             }
+
+            if (!string.IsNullOrWhiteSpace(origin)) add("Origin", null, origin);
 
             // Add timeout data, if we have it
             if (result == WriteResult.TimeoutBeforeWrite)
