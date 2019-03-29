@@ -319,11 +319,7 @@ namespace StackExchange.Redis
 
             if (Payload.IsSingleSegment)
             {
-                var span = Payload.First.Span;
-                fixed (byte* ptr = &MemoryMarshal.GetReference(span))
-                {
-                    return Encoding.UTF8.GetString(ptr, span.Length);
-                }
+                return Format.GetString(Payload.First.Span);
             }
             var decoder = Encoding.UTF8.GetDecoder();
             int charCount = 0;
@@ -332,7 +328,7 @@ namespace StackExchange.Redis
                 var span = segment.Span;
                 if (span.IsEmpty) continue;
 
-                fixed(byte* bPtr = &MemoryMarshal.GetReference(span))
+                fixed(byte* bPtr = span)
                 {
                     charCount += decoder.GetCharCount(bPtr, span.Length, false);
                 }
@@ -349,7 +345,7 @@ namespace StackExchange.Redis
                     var span = segment.Span;
                     if (span.IsEmpty) continue;
 
-                    fixed (byte* bPtr = &MemoryMarshal.GetReference(span))
+                    fixed (byte* bPtr = span)
                     {
                         var written = decoder.GetChars(bPtr, span.Length, cPtr, charCount, false);
                         cPtr += written;
@@ -383,11 +379,11 @@ namespace StackExchange.Redis
                 return false;
             }
 
-            if (Payload.IsSingleSegment) return RedisValue.TryParseInt64(Payload.First.Span, out value);
+            if (Payload.IsSingleSegment) return Format.TryParseInt64(Payload.First.Span, out value);
 
             Span<byte> span = stackalloc byte[(int)Payload.Length]; // we already checked the length was <= MaxInt64TextLen
             Payload.CopyTo(span);
-            return RedisValue.TryParseInt64(span, out value);
+            return Format.TryParseInt64(span, out value);
         }
     }
 }

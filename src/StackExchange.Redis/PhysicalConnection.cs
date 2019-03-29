@@ -664,7 +664,10 @@ namespace StackExchange.Redis
                     WriteUnifiedBlob(output, (byte[])null);
                     break;
                 case RedisValue.StorageType.Int64:
-                    WriteUnifiedInt64(output, (long)value);
+                    WriteUnifiedInt64(output, value.OverlappedValueInt64);
+                    break;
+                case RedisValue.StorageType.UInt64:
+                    WriteUnifiedUInt64(output, value.OverlappedValueUInt64);
                     break;
                 case RedisValue.StorageType.Double: // use string
                 case RedisValue.StorageType.String:
@@ -748,6 +751,7 @@ namespace StackExchange.Redis
             span[1] = (byte)'\n';
             writer.Advance(2);
         }
+
 
         internal static int WriteRaw(Span<byte> span, long value, bool withLengthPrefix = false, int offset = 0)
         {
@@ -1063,7 +1067,7 @@ namespace StackExchange.Redis
                 {
                     // encode directly in one hit
                     var span = writer.GetSpan(expectedLength);
-                    fixed (byte* bPtr = &MemoryMarshal.GetReference(span))
+                    fixed (byte* bPtr = span)
                     {
                         totalBytes = Encoding.UTF8.GetBytes(cPtr, value.Length, bPtr, expectedLength);
                     }
@@ -1083,7 +1087,7 @@ namespace StackExchange.Redis
 
                         int charsUsed, bytesUsed;
                         bool completed;
-                        fixed (byte* bPtr = &MemoryMarshal.GetReference(span))
+                        fixed (byte* bPtr = span)
                         {
                             encoder.Convert(cPtr + charOffset, charsRemaining, bPtr, span.Length, final, out charsUsed, out bytesUsed, out completed);
                         }
@@ -1142,6 +1146,26 @@ namespace StackExchange.Redis
             span[0] = (byte)'$';
             var bytes = WriteRaw(span, value, withLengthPrefix: true, offset: 1);
             writer.Advance(bytes);
+        }
+
+        private static void WriteUnifiedUInt64(PipeWriter writer, ulong value)
+        {
+            // note from specification: A client sends to the Redis server a RESP Array consisting of just Bulk Strings.
+            // (i.e. we can't just send ":123\r\n", we need to send "$3\r\n123\r\n"
+
+            // ${asc-len}\r\n           = 3 + MaxInt32TextLen
+            // {asc}\r\n                = MaxInt64TextLen + 2
+            var span = writer.GetSpan(5 + MaxInt32TextLen + MaxInt64TextLen);
+
+            Span<byte> valueSpan = stackalloc byte[MaxInt64TextLen];
+            if (!Utf8Formatter.TryFormat(value, valueSpan, out var len))
+                throw new InvalidOperationException("TryFormat failed");
+            span[0] = (byte)'$';
+            int offset = WriteRaw(span, len, withLengthPrefix: false, offset: 1);
+            valueSpan.Slice(0, len).CopyTo(span.Slice(offset));
+            offset += len;
+            offset = WriteCrlf(span, offset);
+            writer.Advance(offset);
         }
         internal static void WriteInteger(PipeWriter writer, long value)
         {
