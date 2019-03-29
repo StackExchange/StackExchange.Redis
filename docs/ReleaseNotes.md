@@ -1,5 +1,10 @@
 # Release Notes
 
+## (unreleased)
+
+- add `ulong` support to `RedisValue` and `RedisResult`
+- fix: remove odd equality: `"-" != 0` (we do, however, still allow `"-0"`, as that is at least semantically valid, and is logically `== 0`)
+
 ## 2.0.571
 
 - performance: use new [arena allocation API](https://mgravell.github.io/Pipelines.Sockets.Unofficial/docs/arenas) to avoid `RawResult[]` overhead

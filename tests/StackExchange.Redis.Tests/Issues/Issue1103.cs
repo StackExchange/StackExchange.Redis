@@ -41,5 +41,21 @@ namespace StackExchange.Redis.Tests.Issues
                 Assert.Equal(value.ToString(CultureInfo.InvariantCulture), fromRedis.ToString());
             }
         }
+
+        [Fact]
+        public void UnusualRedisValueOddities() // things we found while doing this
+        {
+            RedisValue x = 0, y = "0";
+            Assert.Equal(x, y);
+            Assert.Equal(y, x);
+
+            y = "-0";
+            Assert.Equal(x, y);
+            Assert.Equal(y, x);
+
+            y = "-"; // this is the oddness; this used to return true
+            Assert.NotEqual(x, y);
+            Assert.NotEqual(y, x);
+        }
     }
 }
