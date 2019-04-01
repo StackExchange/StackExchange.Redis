@@ -51,6 +51,7 @@ namespace StackExchange.Redis
     internal abstract class Message : ICompletable
     {
         public readonly int Db;
+        internal int QueuePosition { get; set; }
 
         internal const CommandFlags InternalCallFlag = (CommandFlags)128;
 
@@ -615,6 +616,7 @@ namespace StackExchange.Redis
 
         internal void SetEnqueued(PhysicalConnection connection)
         {
+            QueuePosition = -1;
             SetWriteTime();
             performance?.SetEnqueued();
             _enqueuedTo = connection;

@@ -137,11 +137,12 @@ namespace StackExchange.Redis
             {
                 // you can go in the queue, but we won't be starting
                 // a worker, because the handshake has not completed
+                message.SetEnqueued(null);
                 lock (_backlog)
                 {
+                    message.QueuePosition = _backlog.Count;
                     _backlog.Enqueue(message);
                 }
-                message.SetEnqueued(null);
                 return WriteResult.Success; // we'll take it...
             }
             else
@@ -723,9 +724,11 @@ namespace StackExchange.Redis
             bool wasEmpty;
             lock (_backlog)
             {
-                wasEmpty = _backlog.Count == 0;
+                int count = _backlog.Count;
+                wasEmpty = count == 0;
                 if (wasEmpty & onlyIfExists) return false;
 
+                message.QueuePosition = count;
                 _backlog.Enqueue(message);
             }
             if (wasEmpty) StartBacklogProcessor();
