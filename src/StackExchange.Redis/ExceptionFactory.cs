@@ -212,6 +212,7 @@ namespace StackExchange.Redis
                 try
                 {
                     if (message.QueuePosition >= 0) add("QueuePosition", null, message.QueuePosition.ToString()); // the position the item was when added to the queue
+                    if ((int)message.ConnectionWriteState >= 0) add("WriteState", null, message.ConnectionWriteState.ToString()); // what the physical was doing when it was added to the queue
                     if (message.TryGetPhysicalState(out var state, out var sentDelta, out var receivedDelta))
                     {
                         add("PhysicalState", "phys", state.ToString());

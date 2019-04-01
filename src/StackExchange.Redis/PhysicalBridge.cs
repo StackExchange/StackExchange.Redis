@@ -140,7 +140,7 @@ namespace StackExchange.Redis
                 message.SetEnqueued(null);
                 lock (_backlog)
                 {
-                    message.QueuePosition = _backlog.Count;
+                    message.SetBacklogState(_backlog.Count, null);
                     _backlog.Enqueue(message);
                 }
                 return WriteResult.Success; // we'll take it...
@@ -728,7 +728,7 @@ namespace StackExchange.Redis
                 wasEmpty = count == 0;
                 if (wasEmpty & onlyIfExists) return false;
 
-                message.QueuePosition = count;
+                message.SetBacklogState(count, physical);
                 _backlog.Enqueue(message);
             }
             if (wasEmpty) StartBacklogProcessor();
