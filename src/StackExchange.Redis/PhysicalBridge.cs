@@ -738,8 +738,10 @@ namespace StackExchange.Redis
         private void StartBacklogProcessor()
         {
             var sched = Multiplexer.SocketManager?.SchedulerPool ?? DedicatedThreadPoolPipeScheduler.Default;
+            _backlogProcessorRequestedTime = Environment.TickCount;
             sched.Schedule(s_ProcessBacklog, _weakRefThis);
         }
+        private volatile int _backlogProcessorRequestedTime;
 
         private static readonly Action<object> s_ProcessBacklog = s =>
         {
@@ -788,6 +790,8 @@ namespace StackExchange.Redis
             LockToken token = default;
             try
             {
+                int tryToAcquireTime = Environment.TickCount;
+                var msToStartWorker = unchecked(tryToAcquireTime - _backlogProcessorRequestedTime);
                 while(true)
                 {
                     // try and get the lock; if unsuccessful, check for termination
@@ -796,6 +800,8 @@ namespace StackExchange.Redis
                     lock (_backlog) { if (_backlog.Count == 0) return; }
                 }
                 _backlogStatus = BacklogStatus.Started;
+                int acquiredTime = Environment.TickCount;
+                var msToGetLock = unchecked(acquiredTime - tryToAcquireTime);
 
                 // so now we are the writer; write some things!
                 Message message;
@@ -816,6 +822,8 @@ namespace StackExchange.Redis
                         {
                             _backlogStatus = BacklogStatus.RecordingTimeout;
                             var ex = Multiplexer.GetException(WriteResult.TimeoutBeforeWrite, message, ServerEndPoint);
+                            ex.Data["Redis-BacklogStartDelay"] = msToStartWorker;
+                            ex.Data["Redis-BacklogGetLocDelay"] = msToGetLock;
                             message.SetExceptionAndComplete(ex, this);
                         }
                         else

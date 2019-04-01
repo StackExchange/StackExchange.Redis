@@ -283,9 +283,10 @@ namespace StackExchange.Redis
             };
             if (data != null)
             {
+                var exData = ex.Data;
                 foreach (var kv in data)
                 {
-                    ex.Data["Redis-" + kv.Item1] = kv.Item2;
+                    exData["Redis-" + kv.Item1] = kv.Item2;
                 }
             }
 
