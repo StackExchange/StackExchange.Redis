@@ -809,12 +809,14 @@ namespace StackExchange.Redis
             {
                 int tryToAcquireTime = Environment.TickCount;
                 var msToStartWorker = unchecked(tryToAcquireTime - _backlogProcessorRequestedTime);
+                int failureCount = 0;
                 while(true)
                 {
                     // try and get the lock; if unsuccessful, check for termination
                     token = _singleWriterMutex.TryWait();
                     if (token) break; // got the lock
                     lock (_backlog) { if (_backlog.Count == 0) return; }
+                    failureCount++;
                 }
                 _backlogStatus = BacklogStatus.Started;
                 int acquiredTime = Environment.TickCount;
@@ -841,6 +843,7 @@ namespace StackExchange.Redis
                             var ex = Multiplexer.GetException(WriteResult.TimeoutBeforeWrite, message, ServerEndPoint);
                             ex.Data["Redis-BacklogStartDelay"] = msToStartWorker;
                             ex.Data["Redis-BacklogGetLockDelay"] = msToGetLock;
+                            if (failureCount != 0) ex.Data["Redis-BacklogFailCount"] = failureCount;
                             if (_maxWriteTime >= 0) ex.Data["Redis-MaxWrite"] = _maxWriteTime.ToString() + "ms, " + _maxWriteCommand.ToString();
                             var maxFlush = physical?.MaxFlushTime ?? -1;
                             if (maxFlush >= 0) ex.Data["Redis-MaxFlush"] = maxFlush.ToString() + "ms, " + (physical?.MaxFlushBytes ?? -1).ToString();
