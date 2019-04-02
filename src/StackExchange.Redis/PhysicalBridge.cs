@@ -643,8 +643,10 @@ namespace StackExchange.Redis
                 Multiplexer?.OnInfoMessage($"reentrant call to WriteMessageTakingWriteLock for {message.CommandAndKey}, {existingMessage.CommandAndKey} is still active");
                 return WriteResult.NoConnectionAvailable;
             }
+#if DEBUG
             int startWriteTime = Environment.TickCount;
             try
+#endif
             {
                 physical.SetWriting();
                 var messageIsSent = false;
@@ -679,6 +681,7 @@ namespace StackExchange.Redis
                     return WriteMessageToServerInsideWriteLock(physical, message);
                 }
             }
+#if DEBUG
             finally
             {
                 int endWriteTime = Environment.TickCount;
@@ -689,10 +692,12 @@ namespace StackExchange.Redis
                     _maxWriteCommand = message?.Command ?? default;
                 }
             }
+#endif
         }
-
+#if DEBUG
         private volatile int _maxWriteTime = -1;
         private RedisCommand _maxWriteCommand;
+#endif
 
         [Obsolete("prefer async")]
         internal WriteResult WriteMessageTakingWriteLockSync(PhysicalConnection physical, Message message)
@@ -755,10 +760,14 @@ namespace StackExchange.Redis
         private void StartBacklogProcessor()
         {
             var sched = Multiplexer.SocketManager?.SchedulerPool ?? DedicatedThreadPoolPipeScheduler.Default;
+#if DEBUG
             _backlogProcessorRequestedTime = Environment.TickCount;
+#endif
             sched.Schedule(s_ProcessBacklog, _weakRefThis);
         }
+#if DEBUG
         private volatile int _backlogProcessorRequestedTime;
+#endif
 
         private static readonly Action<object> s_ProcessBacklog = s =>
         {
@@ -807,20 +816,26 @@ namespace StackExchange.Redis
             LockToken token = default;
             try
             {
+#if DEBUG
                 int tryToAcquireTime = Environment.TickCount;
                 var msToStartWorker = unchecked(tryToAcquireTime - _backlogProcessorRequestedTime);
                 int failureCount = 0;
+#endif
                 while(true)
                 {
                     // try and get the lock; if unsuccessful, check for termination
                     token = _singleWriterMutex.TryWait();
                     if (token) break; // got the lock
                     lock (_backlog) { if (_backlog.Count == 0) return; }
+#if DEBUG
                     failureCount++;
+#endif
                 }
                 _backlogStatus = BacklogStatus.Started;
+#if DEBUG
                 int acquiredTime = Environment.TickCount;
                 var msToGetLock = unchecked(acquiredTime - tryToAcquireTime);
+#endif
 
                 // so now we are the writer; write some things!
                 Message message;
@@ -841,6 +856,7 @@ namespace StackExchange.Redis
                         {
                             _backlogStatus = BacklogStatus.RecordingTimeout;
                             var ex = Multiplexer.GetException(WriteResult.TimeoutBeforeWrite, message, ServerEndPoint);
+#if DEBUG // additional tracking
                             ex.Data["Redis-BacklogStartDelay"] = msToStartWorker;
                             ex.Data["Redis-BacklogGetLockDelay"] = msToGetLock;
                             if (failureCount != 0) ex.Data["Redis-BacklogFailCount"] = failureCount;
@@ -848,7 +864,7 @@ namespace StackExchange.Redis
                             var maxFlush = physical?.MaxFlushTime ?? -1;
                             if (maxFlush >= 0) ex.Data["Redis-MaxFlush"] = maxFlush.ToString() + "ms, " + (physical?.MaxFlushBytes ?? -1).ToString();
                             if (_maxLockDuration >= 0) ex.Data["Redis-MaxLockDuration"] = _maxLockDuration;
-
+#endif
                             message.SetExceptionAndComplete(ex, this);
                         }
                         else
@@ -974,26 +990,33 @@ namespace StackExchange.Redis
             {
                 if (releaseLock & token.Success)
                 {
+#if DEBUG
                     RecordLockDuration(lockTaken);
+#endif
                     token.Dispose();
                 }
             }
         }
+#if DEBUG
         private void RecordLockDuration(int lockTaken)
         {
+
             var lockDuration = unchecked(Environment.TickCount - lockTaken);
             if (lockDuration > _maxLockDuration) _maxLockDuration = lockDuration;
         }
         volatile int _maxLockDuration = -1;
+#endif
 
-        private async ValueTask<WriteResult> WriteMessageTakingWriteLockAsync_Awaited(ValueTask<LockToken> pending, PhysicalConnection physical, Message message)
+    private async ValueTask<WriteResult> WriteMessageTakingWriteLockAsync_Awaited(ValueTask<LockToken> pending, PhysicalConnection physical, Message message)
         {
             try
             {
                 using (var token = await pending.ForAwait())
                 {
                     if (!token.Success) return TimedOutBeforeWrite(message);
+#if DEBUG
                     int lockTaken = Environment.TickCount;
+#endif
                     var result = WriteMessageInsideLock(physical, message);
 
                     if (result == WriteResult.Success)
@@ -1004,7 +1027,9 @@ namespace StackExchange.Redis
                     UnmarkActiveMessage(message);
                     physical.SetIdle();
 
+#if DEBUG
                     RecordLockDuration(lockTaken);
+#endif
                     return result;
                 }
             }
@@ -1026,7 +1051,9 @@ namespace StackExchange.Redis
                     return result;
                 }
                 catch (Exception ex) { return HandleWriteException(message, ex); }
+#if DEBUG
                 finally { RecordLockDuration(lockTaken); }
+#endif
             }
         }
 

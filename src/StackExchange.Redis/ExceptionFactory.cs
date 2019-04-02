@@ -181,7 +181,7 @@ namespace StackExchange.Redis
             }
             return _libVersion;
         }
-        internal static Exception Timeout(ConnectionMultiplexer mutiplexer, string baseErrorMessage, Message message, ServerEndPoint server, WriteResult? result = null, string origin = null)
+        internal static Exception Timeout(ConnectionMultiplexer mutiplexer, string baseErrorMessage, Message message, ServerEndPoint server, WriteResult? result = null)
         {
             List<Tuple<string, string>> data = new List<Tuple<string, string>> { Tuple.Create("Message", message.CommandAndKey) };
             var sb = new StringBuilder();
@@ -203,16 +203,16 @@ namespace StackExchange.Redis
                 }
             }
 
-            if (!string.IsNullOrWhiteSpace(origin)) add("Origin", null, origin);
-
             // Add timeout data, if we have it
             if (result == WriteResult.TimeoutBeforeWrite)
             {
                 add("Timeout", "timeout", Format.ToString(mutiplexer.TimeoutMilliseconds));
                 try
                 {
+#if DEBUG
                     if (message.QueuePosition >= 0) add("QueuePosition", null, message.QueuePosition.ToString()); // the position the item was when added to the queue
                     if ((int)message.ConnectionWriteState >= 0) add("WriteState", null, message.ConnectionWriteState.ToString()); // what the physical was doing when it was added to the queue
+#endif
                     if (message.TryGetPhysicalState(out var state, out var sentDelta, out var receivedDelta))
                     {
                         add("PhysicalState", "phys", state.ToString());

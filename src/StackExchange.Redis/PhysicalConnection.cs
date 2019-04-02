@@ -842,12 +842,18 @@ namespace StackExchange.Redis
             return WriteCrlf(span, offset);
         }
 
-        private async ValueTask<WriteResult> FlushAsync_Awaited(PhysicalConnection connection, ValueTask<FlushResult> flush, bool throwOnFailure, int startFlush, long flushBytes)
+        private async ValueTask<WriteResult> FlushAsync_Awaited(PhysicalConnection connection, ValueTask<FlushResult> flush, bool throwOnFailure
+#if DEBUG
+            , int startFlush, long flushBytes
+#endif
+            )
         {
             try
             {
                 await flush.ForAwait();
+#if DEBUG
                 RecordEndFlush(startFlush, flushBytes);
+#endif
                 connection._writeStatus = WriteStatus.Flushed;
                 connection.UpdateLastWriteTime();
                 return WriteResult.Success;
@@ -872,7 +878,9 @@ namespace StackExchange.Redis
 
             void ThrowTimeout()
             {
+#if DEBUG
                 if (millisecondsTimeout > _maxFlushTime) _maxFlushTime = millisecondsTimeout; // a fair bet even if we didn't measure
+#endif
                 throw new TimeoutException("timeout while synchronously flushing");
             }
         }
@@ -883,12 +891,20 @@ namespace StackExchange.Redis
             try
             {
                 _writeStatus = WriteStatus.Flushing;
+#if DEBUG
                 int startFlush = Environment.TickCount;
                 long flushBytes = -1;
                 if (_ioPipe is SocketConnection sc) flushBytes = sc.GetCounters().BytesWaitingToBeSent;
+#endif
                 var flush = tmp.FlushAsync();
-                if (!flush.IsCompletedSuccessfully) return FlushAsync_Awaited(this, flush, throwOnFailure, startFlush, flushBytes);
+                if (!flush.IsCompletedSuccessfully) return FlushAsync_Awaited(this, flush, throwOnFailure
+#if DEBUG
+                    , startFlush, flushBytes
+#endif
+                );
+#if DEBUG
                 RecordEndFlush(startFlush, flushBytes);
+#endif
                 _writeStatus = WriteStatus.Flushed;
                 UpdateLastWriteTime();
                 return new ValueTask<WriteResult>(WriteResult.Success);
@@ -899,8 +915,10 @@ namespace StackExchange.Redis
                 return new ValueTask<WriteResult>(WriteResult.WriteFailure);
             }
         }
+#if DEBUG
         private void RecordEndFlush(int start, long bytes)
         {
+
             var end = Environment.TickCount;
             int taken = unchecked(end - start);
             if (taken > _maxFlushTime)
@@ -913,8 +931,9 @@ namespace StackExchange.Redis
         private long _maxFlushBytes = -1;
         internal int MaxFlushTime => _maxFlushTime;
         internal long MaxFlushBytes => _maxFlushBytes;
+#endif
 
-        private static readonly ReadOnlyMemory<byte> NullBulkString = Encoding.ASCII.GetBytes("$-1\r\n"), EmptyBulkString = Encoding.ASCII.GetBytes("$0\r\n\r\n");
+    private static readonly ReadOnlyMemory<byte> NullBulkString = Encoding.ASCII.GetBytes("$-1\r\n"), EmptyBulkString = Encoding.ASCII.GetBytes("$0\r\n\r\n");
 
         private static void WriteUnifiedBlob(PipeWriter writer, byte[] value)
         {

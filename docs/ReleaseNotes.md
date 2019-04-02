@@ -1,5 +1,9 @@
 # Release Notes
 
+## (unreleased)
+
+- performance: resolve intermittent stall in the write-lock that could lead to unexpected timeouts even when at low/reasonable (but concurrent) load
+
 ## 2.0.571
 
 - performance: use new [arena allocation API](https://mgravell.github.io/Pipelines.Sockets.Unofficial/docs/arenas) to avoid `RawResult[]` overhead

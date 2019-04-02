@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -51,13 +52,18 @@ namespace StackExchange.Redis
     internal abstract class Message : ICompletable
     {
         public readonly int Db;
+
+#if DEBUG
         internal int QueuePosition { get; private set; }
         internal PhysicalConnection.WriteStatus ConnectionWriteState { get; private set; }
-
+#endif
+        [Conditional("DEBUG")]
         internal void SetBacklogState(int position, PhysicalConnection physical)
         {
+#if DEBUG
             QueuePosition = position;
             ConnectionWriteState = physical?.Status ?? (PhysicalConnection.WriteStatus)(-1);
+#endif
         }
 
         internal const CommandFlags InternalCallFlag = (CommandFlags)128;
@@ -623,8 +629,10 @@ namespace StackExchange.Redis
 
         internal void SetEnqueued(PhysicalConnection connection)
         {
+#if DEBUG
             QueuePosition = -1;
             ConnectionWriteState = (PhysicalConnection.WriteStatus)(-1);
+#endif
             SetWriteTime();
             performance?.SetEnqueued();
             _enqueuedTo = connection;
