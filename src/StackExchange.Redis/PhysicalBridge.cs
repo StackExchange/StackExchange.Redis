@@ -847,6 +847,7 @@ namespace StackExchange.Redis
                             if (_maxWriteTime >= 0) ex.Data["Redis-MaxWrite"] = _maxWriteTime.ToString() + "ms, " + _maxWriteCommand.ToString();
                             var maxFlush = physical?.MaxFlushTime ?? -1;
                             if (maxFlush >= 0) ex.Data["Redis-MaxFlush"] = maxFlush.ToString() + "ms, " + (physical?.MaxFlushBytes ?? -1).ToString();
+                            if (_maxLockDuration >= 0) ex.Data["Redis-MaxLockDuration"] = _maxLockDuration;
 
                             message.SetExceptionAndComplete(ex, this);
                         }
@@ -924,13 +925,13 @@ namespace StackExchange.Redis
             message.SetEnqueued(physical); // this also records the read/write stats at this point
 
             bool releaseLock = true; // fine to default to true, as it doesn't matter until token is a "success"
+            int lockTaken = 0;
             LockToken token = default;
             try
             {
                 // try to acquire it synchronously
                 // note: timeout is specified in mutex-constructor
                 token = _singleWriterMutex.TryWait(options: WaitOptions.NoDelay);
-
                 if (!token.Success)
                 {
                     // we can't get it *instantaneously*; is there
@@ -947,6 +948,7 @@ namespace StackExchange.Redis
                     token = pending.Result; // fine since we know we got a result
                     if (!token.Success) return new ValueTask<WriteResult>(TimedOutBeforeWrite(message));
                 }
+                lockTaken = Environment.TickCount;
 
                 var result = WriteMessageInsideLock(physical, message);
 
@@ -956,7 +958,7 @@ namespace StackExchange.Redis
                     if (!flush.IsCompletedSuccessfully)
                     {
                         releaseLock = false; // so we don't release prematurely
-                        return CompleteWriteAndReleaseLockAsync(token, flush, message);
+                        return CompleteWriteAndReleaseLockAsync(token, flush, message, lockTaken);
                     }
 
                     result = flush.Result; // we know it was completed, this is fine
@@ -970,9 +972,19 @@ namespace StackExchange.Redis
             catch (Exception ex) { return new ValueTask<WriteResult>(HandleWriteException(message, ex)); }
             finally
             {
-                if (releaseLock) token.Dispose();
+                if (releaseLock & token.Success)
+                {
+                    RecordLockDuration(lockTaken);
+                    token.Dispose();
+                }
             }
         }
+        private void RecordLockDuration(int lockTaken)
+        {
+            var lockDuration = unchecked(Environment.TickCount - lockTaken);
+            if (lockDuration > _maxLockDuration) _maxLockDuration = lockDuration;
+        }
+        volatile int _maxLockDuration = -1;
 
         private async ValueTask<WriteResult> WriteMessageTakingWriteLockAsync_Awaited(ValueTask<LockToken> pending, PhysicalConnection physical, Message message)
         {
@@ -981,7 +993,7 @@ namespace StackExchange.Redis
                 using (var token = await pending.ForAwait())
                 {
                     if (!token.Success) return TimedOutBeforeWrite(message);
-
+                    int lockTaken = Environment.TickCount;
                     var result = WriteMessageInsideLock(physical, message);
 
                     if (result == WriteResult.Success)
@@ -992,6 +1004,7 @@ namespace StackExchange.Redis
                     UnmarkActiveMessage(message);
                     physical.SetIdle();
 
+                    RecordLockDuration(lockTaken);
                     return result;
                 }
             }
@@ -1001,7 +1014,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private async ValueTask<WriteResult> CompleteWriteAndReleaseLockAsync(LockToken lockToken, ValueTask<WriteResult> flush, Message message)
+        private async ValueTask<WriteResult> CompleteWriteAndReleaseLockAsync(LockToken lockToken, ValueTask<WriteResult> flush, Message message, int lockTaken)
         {
             using (lockToken)
             {
@@ -1013,6 +1026,7 @@ namespace StackExchange.Redis
                     return result;
                 }
                 catch (Exception ex) { return HandleWriteException(message, ex); }
+                finally { RecordLockDuration(lockTaken); }
             }
         }
 
