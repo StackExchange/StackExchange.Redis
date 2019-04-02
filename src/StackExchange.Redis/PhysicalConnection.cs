@@ -842,11 +842,12 @@ namespace StackExchange.Redis
             return WriteCrlf(span, offset);
         }
 
-        private static async ValueTask<WriteResult> FlushAsync_Awaited(PhysicalConnection connection, ValueTask<FlushResult> flush, bool throwOnFailure)
+        private async ValueTask<WriteResult> FlushAsync_Awaited(PhysicalConnection connection, ValueTask<FlushResult> flush, bool throwOnFailure, int startFlush)
         {
             try
             {
                 await flush.ForAwait();
+                RecordEndFlush(startFlush);
                 connection._writeStatus = WriteStatus.Flushed;
                 connection.UpdateLastWriteTime();
                 return WriteResult.Success;
@@ -869,7 +870,11 @@ namespace StackExchange.Redis
             }
             return flush.Result;
 
-            void ThrowTimeout() => throw new TimeoutException("timeout while synchronously flushing");
+            void ThrowTimeout()
+            {
+                if (millisecondsTimeout > _maxFlushTime) _maxFlushTime = millisecondsTimeout; // a fair bet even if we didn't measure
+                throw new TimeoutException("timeout while synchronously flushing");
+            }
         }
         internal ValueTask<WriteResult> FlushAsync(bool throwOnFailure)
         {
@@ -878,8 +883,10 @@ namespace StackExchange.Redis
             try
             {
                 _writeStatus = WriteStatus.Flushing;
+                int startFlush = Environment.TickCount;
                 var flush = tmp.FlushAsync();
-                if (!flush.IsCompletedSuccessfully) return FlushAsync_Awaited(this, flush, throwOnFailure);
+                if (!flush.IsCompletedSuccessfully) return FlushAsync_Awaited(this, flush, throwOnFailure, startFlush);
+                RecordEndFlush(startFlush);
                 _writeStatus = WriteStatus.Flushed;
                 UpdateLastWriteTime();
                 return new ValueTask<WriteResult>(WriteResult.Success);
@@ -890,6 +897,14 @@ namespace StackExchange.Redis
                 return new ValueTask<WriteResult>(WriteResult.WriteFailure);
             }
         }
+        private void RecordEndFlush(int start)
+        {
+            var end = Environment.TickCount;
+            int taken = unchecked(end - start);
+            if (taken > _maxFlushTime) _maxFlushTime = taken;
+        }
+        private volatile int _maxFlushTime = -1;
+        internal int MaxFlushTime => _maxFlushTime;
 
         private static readonly ReadOnlyMemory<byte> NullBulkString = Encoding.ASCII.GetBytes("$-1\r\n"), EmptyBulkString = Encoding.ASCII.GetBytes("$0\r\n\r\n");
 

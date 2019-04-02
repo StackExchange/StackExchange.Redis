@@ -643,39 +643,56 @@ namespace StackExchange.Redis
                 Multiplexer?.OnInfoMessage($"reentrant call to WriteMessageTakingWriteLock for {message.CommandAndKey}, {existingMessage.CommandAndKey} is still active");
                 return WriteResult.NoConnectionAvailable;
             }
-            physical.SetWriting();
-            var messageIsSent = false;
-            if (message is IMultiMessage)
+            int startWriteTime = Environment.TickCount;
+            try
             {
-                SelectDatabaseInsideWriteLock(physical, message); // need to switch database *before* the transaction
-                foreach (var subCommand in ((IMultiMessage)message).GetMessages(physical))
+                physical.SetWriting();
+                var messageIsSent = false;
+                if (message is IMultiMessage)
                 {
-                    result = WriteMessageToServerInsideWriteLock(physical, subCommand);
-                    if (result != WriteResult.Success)
+                    SelectDatabaseInsideWriteLock(physical, message); // need to switch database *before* the transaction
+                    foreach (var subCommand in ((IMultiMessage)message).GetMessages(physical))
                     {
-                        // we screwed up; abort; note that WriteMessageToServer already
-                        // killed the underlying connection
-                        Trace("Unable to write to server");
-                        message.Fail(ConnectionFailureType.ProtocolFailure, null, "failure before write: " + result.ToString());
-                        message.Complete();
-                        return result;
+                        result = WriteMessageToServerInsideWriteLock(physical, subCommand);
+                        if (result != WriteResult.Success)
+                        {
+                            // we screwed up; abort; note that WriteMessageToServer already
+                            // killed the underlying connection
+                            Trace("Unable to write to server");
+                            message.Fail(ConnectionFailureType.ProtocolFailure, null, "failure before write: " + result.ToString());
+                            message.Complete();
+                            return result;
+                        }
+                        //The parent message (next) may be returned from GetMessages
+                        //and should not be marked as sent again below
+                        messageIsSent = messageIsSent || subCommand == message;
                     }
-                    //The parent message (next) may be returned from GetMessages
-                    //and should not be marked as sent again below
-                    messageIsSent = messageIsSent || subCommand == message;
-                }
-                if (!messageIsSent)
-                {
-                    message.SetRequestSent(); // well, it was attempted, at least...
-                }
+                    if (!messageIsSent)
+                    {
+                        message.SetRequestSent(); // well, it was attempted, at least...
+                    }
 
-                return WriteResult.Success;
+                    return WriteResult.Success;
+                }
+                else
+                {
+                    return WriteMessageToServerInsideWriteLock(physical, message);
+                }
             }
-            else
+            finally
             {
-                return WriteMessageToServerInsideWriteLock(physical, message);
+                int endWriteTime = Environment.TickCount;
+                int writeDuration = unchecked(endWriteTime - startWriteTime);
+                if (writeDuration > _maxWriteTime)
+                {
+                    _maxWriteTime = writeDuration;
+                    _maxWriteCommand = message?.Command ?? default;
+                }
             }
         }
+
+        private volatile int _maxWriteTime = -1;
+        private RedisCommand _maxWriteCommand;
 
         [Obsolete("prefer async")]
         internal WriteResult WriteMessageTakingWriteLockSync(PhysicalConnection physical, Message message)
@@ -823,7 +840,11 @@ namespace StackExchange.Redis
                             _backlogStatus = BacklogStatus.RecordingTimeout;
                             var ex = Multiplexer.GetException(WriteResult.TimeoutBeforeWrite, message, ServerEndPoint);
                             ex.Data["Redis-BacklogStartDelay"] = msToStartWorker;
-                            ex.Data["Redis-BacklogGetLocDelay"] = msToGetLock;
+                            ex.Data["Redis-BacklogGetLockDelay"] = msToGetLock;
+                            if (_maxWriteTime >= 0) ex.Data["Redis-MaxWrite"] = _maxWriteTime.ToString() + ", " + _maxWriteCommand.ToString();
+                            var maxFlush = physical?.MaxFlushTime ?? -1;
+                            if (maxFlush >= 0) ex.Data["Redis-MaxFlush"] = maxFlush;
+
                             message.SetExceptionAndComplete(ex, this);
                         }
                         else
