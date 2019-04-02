@@ -841,9 +841,9 @@ namespace StackExchange.Redis
                             var ex = Multiplexer.GetException(WriteResult.TimeoutBeforeWrite, message, ServerEndPoint);
                             ex.Data["Redis-BacklogStartDelay"] = msToStartWorker;
                             ex.Data["Redis-BacklogGetLockDelay"] = msToGetLock;
-                            if (_maxWriteTime >= 0) ex.Data["Redis-MaxWrite"] = _maxWriteTime.ToString() + ", " + _maxWriteCommand.ToString();
+                            if (_maxWriteTime >= 0) ex.Data["Redis-MaxWrite"] = _maxWriteTime.ToString() + "ms, " + _maxWriteCommand.ToString();
                             var maxFlush = physical?.MaxFlushTime ?? -1;
-                            if (maxFlush >= 0) ex.Data["Redis-MaxFlush"] = maxFlush;
+                            if (maxFlush >= 0) ex.Data["Redis-MaxFlush"] = maxFlush.ToString() + "ms, " + (physical?.MaxFlushBytes ?? -1).ToString();
 
                             message.SetExceptionAndComplete(ex, this);
                         }

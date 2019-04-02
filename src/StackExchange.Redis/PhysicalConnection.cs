@@ -842,12 +842,12 @@ namespace StackExchange.Redis
             return WriteCrlf(span, offset);
         }
 
-        private async ValueTask<WriteResult> FlushAsync_Awaited(PhysicalConnection connection, ValueTask<FlushResult> flush, bool throwOnFailure, int startFlush)
+        private async ValueTask<WriteResult> FlushAsync_Awaited(PhysicalConnection connection, ValueTask<FlushResult> flush, bool throwOnFailure, int startFlush, long flushBytes)
         {
             try
             {
                 await flush.ForAwait();
-                RecordEndFlush(startFlush);
+                RecordEndFlush(startFlush, flushBytes);
                 connection._writeStatus = WriteStatus.Flushed;
                 connection.UpdateLastWriteTime();
                 return WriteResult.Success;
@@ -884,9 +884,11 @@ namespace StackExchange.Redis
             {
                 _writeStatus = WriteStatus.Flushing;
                 int startFlush = Environment.TickCount;
+                long flushBytes = -1;
+                if (_ioPipe is SocketConnection sc) flushBytes = sc.GetCounters().BytesWaitingToBeSent;
                 var flush = tmp.FlushAsync();
-                if (!flush.IsCompletedSuccessfully) return FlushAsync_Awaited(this, flush, throwOnFailure, startFlush);
-                RecordEndFlush(startFlush);
+                if (!flush.IsCompletedSuccessfully) return FlushAsync_Awaited(this, flush, throwOnFailure, startFlush, flushBytes);
+                RecordEndFlush(startFlush, flushBytes);
                 _writeStatus = WriteStatus.Flushed;
                 UpdateLastWriteTime();
                 return new ValueTask<WriteResult>(WriteResult.Success);
@@ -897,14 +899,20 @@ namespace StackExchange.Redis
                 return new ValueTask<WriteResult>(WriteResult.WriteFailure);
             }
         }
-        private void RecordEndFlush(int start)
+        private void RecordEndFlush(int start, long bytes)
         {
             var end = Environment.TickCount;
             int taken = unchecked(end - start);
-            if (taken > _maxFlushTime) _maxFlushTime = taken;
+            if (taken > _maxFlushTime)
+            {
+                _maxFlushTime = taken;
+                if (bytes >= 0) _maxFlushBytes = bytes;
+            }
         }
         private volatile int _maxFlushTime = -1;
+        private long _maxFlushBytes = -1;
         internal int MaxFlushTime => _maxFlushTime;
+        internal long MaxFlushBytes => _maxFlushBytes;
 
         private static readonly ReadOnlyMemory<byte> NullBulkString = Encoding.ASCII.GetBytes("$-1\r\n"), EmptyBulkString = Encoding.ASCII.GetBytes("$0\r\n\r\n");
 
