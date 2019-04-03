@@ -1,8 +1,8 @@
 # Release Notes
 
-## 2.0.586
+## 2.0.588
 
-- performance: resolve intermittent stall in the write-lock that could lead to unexpected timeouts even when at low/reasonable (but concurrent) load
+- stability and performance: resolve intermittent stall in the write-lock that could lead to unexpected timeouts even when at low/reasonable (but concurrent) load
 
 ## 2.0.571
 
