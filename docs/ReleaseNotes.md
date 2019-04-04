@@ -1,5 +1,10 @@
 # Release Notes
 
+## 2.0.593
+
+- performance: unify spin-wait usage on sync/async paths to one competitor
+- fix #1101 - when a `ChannelMessageQueue` is involved, unsubscribing *via any route* should still unsubscribe and mark the queue-writer as complete
+
 ## 2.0.588
 
 - stability and performance: resolve intermittent stall in the write-lock that could lead to unexpected timeouts even when at low/reasonable (but concurrent) load
