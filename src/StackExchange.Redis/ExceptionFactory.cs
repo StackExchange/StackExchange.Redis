@@ -238,7 +238,7 @@ namespace StackExchange.Redis
                 add("Queue-Awaiting-Write", "qu", qu.ToString());
                 add("Queue-Awaiting-Response", "qs", qs.ToString());
                 add("Active-Writer", "aw", aw.ToString());
-                add("Backlog-Writer", "bs", bs.ToString());
+                if (qu != 0) add("Backlog-Writer", "bw", bs.ToString());
 
                 if (@in >= 0) add("Inbound-Bytes", "in", @in.ToString());
                 if (toRead >= 0) add("Inbound-Pipe-Bytes", "in-pipe", toRead.ToString());
