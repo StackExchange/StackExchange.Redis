@@ -290,7 +290,8 @@ namespace StackExchange.Redis
         internal bool TryEnqueueBackgroundSubscriptionWrite(in PendingSubscriptionState state)
             => isDisposed ? false : (_subscriptionBackgroundQueue ?? GetSubscriptionQueue()).Writer.TryWrite(state);
 
-        internal void GetOutstandingCount(out int inst, out int qs, out long @in, out int qu, out bool aw, out long toRead, out long toWrite, out BacklogStatus bs)
+        internal void GetOutstandingCount(out int inst, out int qs, out long @in, out int qu, out bool aw, out long toRead, out long toWrite,
+            out BacklogStatus bs, out PhysicalConnection.ReadStatus rs, out PhysicalConnection.WriteStatus ws)
         {
             inst = (int)(Interlocked.Read(ref operationCount) - Interlocked.Read(ref profileLastLog));
             lock(_backlog)
@@ -304,11 +305,15 @@ namespace StackExchange.Redis
             {
                 qs = 0;
                 toRead = toWrite = @in = -1;
+                rs = PhysicalConnection.ReadStatus.NA;
+                ws = PhysicalConnection.WriteStatus.NA;
             }
             else
             {
                 qs = tmp.GetSentAwaitingResponseCount();
                 @in = tmp.GetSocketBytes(out toRead, out toWrite);
+                rs = tmp.GetReadStatus();
+                ws = tmp.GetWriteStatus();
             }
         }
 

@@ -62,7 +62,7 @@ namespace StackExchange.Redis
         {
 #if DEBUG
             QueuePosition = position;
-            ConnectionWriteState = physical?.Status ?? (PhysicalConnection.WriteStatus)(-1);
+            ConnectionWriteState = physical?.GetWriteStatus() ?? PhysicalConnection.WriteStatus.NA;
 #endif
         }
 
@@ -631,7 +631,7 @@ namespace StackExchange.Redis
         {
 #if DEBUG
             QueuePosition = -1;
-            ConnectionWriteState = (PhysicalConnection.WriteStatus)(-1);
+            ConnectionWriteState = PhysicalConnection.WriteStatus.NA;
 #endif
             SetWriteTime();
             performance?.SetEnqueued();
@@ -646,13 +646,14 @@ namespace StackExchange.Redis
             }
         }
 
-        internal bool TryGetPhysicalState(out PhysicalConnection.WriteStatus status, out long sentDelta, out long receivedDelta)
+        internal bool TryGetPhysicalState(out PhysicalConnection.WriteStatus ws, out PhysicalConnection.ReadStatus rs, out long sentDelta, out long receivedDelta)
         {
             var connection = _enqueuedTo;
             sentDelta = receivedDelta = -1;
             if (connection != null)
             {
-                status = connection.Status;
+                ws = connection.GetWriteStatus();
+                rs = connection.GetReadStatus();
                 connection.GetBytes(out var sent, out var received);
                 if (sent >= 0 && _queuedStampSent >= 0) sentDelta = sent - _queuedStampSent;
                 if (received >= 0 && _queuedStampReceived >= 0) receivedDelta = received - _queuedStampReceived;
@@ -660,7 +661,8 @@ namespace StackExchange.Redis
             }
             else
             {
-                status = default;
+                ws = PhysicalConnection.WriteStatus.NA;
+                rs = PhysicalConnection.ReadStatus.NA;
                 return false;
             }
         }

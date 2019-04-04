@@ -368,7 +368,7 @@ namespace StackExchange.Redis
                         if (bridge != null)
                         {
                             exMessage.Append(" on ").Append(Format.ToString(bridge.ServerEndPoint?.EndPoint)).Append("/").Append(connectionType)
-                                .Append(", ").Append(_writeStatus)
+                                .Append(", ").Append(_writeStatus).Append("/").Append(_readStatus)
                                 .Append(", last: ").Append(bridge.LastCommand);
 
                             data.Add(Tuple.Create("FailureType", failureType.ToString()));
@@ -447,7 +447,7 @@ namespace StackExchange.Redis
 
         private volatile WriteStatus _writeStatus;
 
-        internal WriteStatus Status => _writeStatus;
+        internal WriteStatus GetWriteStatus() => _writeStatus;
 
         internal enum WriteStatus
         {
@@ -456,6 +456,8 @@ namespace StackExchange.Redis
             Writing,
             Flushing,
             Flushed,
+
+            NA = -1,
         }
 
         /// <summary>Returns a string that represents the current object.</summary>
@@ -607,7 +609,7 @@ namespace StackExchange.Redis
                     {
                         if (msg.HasAsyncTimedOut(now, timeout, out var elapsed))
                         {
-                            bool haveDeltas = msg.TryGetPhysicalState(out _, out long sentDelta, out var receivedDelta) && sentDelta >= 0 && receivedDelta >= 0;
+                            bool haveDeltas = msg.TryGetPhysicalState(out _, out _, out long sentDelta, out var receivedDelta) && sentDelta >= 0 && receivedDelta >= 0;
                             var timeoutEx = ExceptionFactory.Timeout(bridge.Multiplexer, haveDeltas
                                 ? $"Timeout awaiting response (outbound={sentDelta >> 10}KiB, inbound={receivedDelta >> 10}KiB, {elapsed}ms elapsed, timeout is {timeout}ms)"
                                 : $"Timeout awaiting response ({elapsed}ms elapsed, timeout is {timeout}ms)", msg, server);
@@ -1331,8 +1333,9 @@ namespace StackExchange.Redis
                 var items = result.GetItems();
                 if (items.Length >= 3 && items[0].IsEqual(message))
                 {
-                    // special-case the configuration change broadcasts (we don't keep that in the usual pub/sub registry)
+                    _readStatus = ReadStatus.PubSubMessage;
 
+                    // special-case the configuration change broadcasts (we don't keep that in the usual pub/sub registry)
                     var configChanged = muxer.ConfigurationChangedChannel;
                     if (configChanged != null && items[1].IsEqual(configChanged))
                     {
@@ -1346,6 +1349,7 @@ namespace StackExchange.Redis
                         }
                         catch { /* no biggie */ }
                         Trace("Configuration changed: " + Format.ToString(blame));
+                        _readStatus = ReadStatus.Reconfigure;
                         muxer.ReconfigureIfNeeded(blame, true, "broadcast");
                     }
 
@@ -1354,17 +1358,21 @@ namespace StackExchange.Redis
                     Trace("MESSAGE: " + channel);
                     if (!channel.IsNull)
                     {
+                        _readStatus = ReadStatus.InvokePubSub;
                         muxer.OnMessage(channel, channel, items[2].AsRedisValue());
                     }
                     return; // AND STOP PROCESSING!
                 }
                 else if (items.Length >= 4 && items[0].IsEqual(pmessage))
                 {
+                    _readStatus = ReadStatus.PubSubPMessage;
+
                     var channel = items[2].AsRedisChannel(ChannelPrefix, RedisChannel.PatternMode.Literal);
                     Trace("PMESSAGE: " + channel);
                     if (!channel.IsNull)
                     {
                         var sub = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.PatternMode.Pattern);
+                        _readStatus = ReadStatus.InvokePubSub;
                         muxer.OnMessage(sub, channel, items[3].AsRedisValue());
                     }
                     return; // AND STOP PROCESSING!
@@ -1374,6 +1382,7 @@ namespace StackExchange.Redis
             }
             Trace("Matching result...");
             Message msg;
+            _readStatus = ReadStatus.DequeueResult;
             lock (_writtenAwaitingResponse)
             {
                 if (_writtenAwaitingResponse.Count == 0)
@@ -1382,8 +1391,10 @@ namespace StackExchange.Redis
             }
 
             Trace("Response to: " + msg);
+            _readStatus = ReadStatus.ComputeResult;
             if (msg.ComputeResult(this, result))
             {
+                _readStatus = ReadStatus.CompletePendingMessage;
                 msg.Complete();
             }
         }
@@ -1409,6 +1420,7 @@ namespace StackExchange.Redis
             bool allowSyncRead = true, isReading = false;
             try
             {
+                _readStatus = ReadStatus.Init;
                 while (true)
                 {
                     var input = _ioPipe?.Input;
@@ -1417,13 +1429,17 @@ namespace StackExchange.Redis
                     // note: TryRead will give us back the same buffer in a tight loop
                     // - so: only use that if we're making progress
                     isReading = true;
+                    _readStatus = ReadStatus.ReadSync;
                     if (!(allowSyncRead && input.TryRead(out var readResult)))
                     {
+                        _readStatus = ReadStatus.ReadAsync;
                         readResult = await input.ReadAsync().ForAwait();
                     }
                     isReading = false;
+                    _readStatus = ReadStatus.UpdateWriteTime;
                     UpdateLastReadTime();
 
+                    _readStatus = ReadStatus.ProcessBuffer;
                     var buffer = readResult.Buffer;
                     int handled = 0;
                     if (!buffer.IsEmpty)
@@ -1433,6 +1449,7 @@ namespace StackExchange.Redis
 
                     allowSyncRead = handled != 0;
 
+                    _readStatus = ReadStatus.MarkProcessed;
                     Trace($"Processed {handled} messages");
                     input.AdvanceTo(buffer.Start, buffer.End);
 
@@ -1443,9 +1460,11 @@ namespace StackExchange.Redis
                 }
                 Trace("EOF");
                 RecordConnectionFailed(ConnectionFailureType.SocketClosed);
+                _readStatus = ReadStatus.RanToCompletion;
             }
             catch (Exception ex)
             {
+                _readStatus = ReadStatus.Faulted;
                 // this CEX is just a hardcore "seriously, read the actual value" - there's no
                 // convenient "Thread.VolatileRead<T>(ref T field) where T : class", and I don't
                 // want to make the field volatile just for this one place that needs it
@@ -1482,6 +1501,7 @@ namespace StackExchange.Redis
 
             while (!buffer.IsEmpty)
             {
+                _readStatus = ReadStatus.TryParseResult;
                 var reader = new BufferReader(buffer);
                 var result = TryParseResult(_arena, in buffer, ref reader, IncludeDetailInExceptions, BridgeCouldBeNull?.ServerEndPoint);
                 try
@@ -1492,6 +1512,7 @@ namespace StackExchange.Redis
 
                         messageCount++;
                         Trace(result.ToString());
+                        _readStatus = ReadStatus.MatchResult;
                         MatchResult(result);
                     }
                     else
@@ -1620,6 +1641,32 @@ namespace StackExchange.Redis
 
             return new RawResult(type, payload, false);
         }
+
+        internal enum ReadStatus
+        {
+            NotStarted,
+            Init,
+            RanToCompletion,
+            Faulted,
+            ReadSync,
+            ReadAsync,
+            UpdateWriteTime,
+            ProcessBuffer,
+            MarkProcessed,
+            TryParseResult,
+            MatchResult,
+            PubSubMessage,
+            PubSubPMessage,
+            Reconfigure,
+            InvokePubSub,
+            DequeueResult,
+            ComputeResult,
+            CompletePendingMessage,
+
+            NA = -1,
+        }
+        private volatile ReadStatus _readStatus;
+        internal ReadStatus GetReadStatus() => _readStatus;
 
         internal void StartReading() => ReadFromPipe().RedisFireAndForget();
 
