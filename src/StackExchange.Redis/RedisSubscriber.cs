@@ -90,36 +90,46 @@ namespace StackExchange.Redis
 
         internal Task RemoveAllSubscriptions(CommandFlags flags, object asyncState)
         {
-            Task last = CompletedTask<bool>.Default(asyncState);
+            Task last = null;
             lock (subscriptions)
             {
                 foreach (var pair in subscriptions)
                 {
-                    var msg = pair.Value.ForSyncShutdown();
-                    if (msg != null && !msg.TryComplete(false)) ConnectionMultiplexer.CompleteAsWorker(msg);
-                    pair.Value.Remove(default, null); // when passing null, it wipes both sync+async
-
+                    pair.Value.MarkCompleted();
                     var task = pair.Value.UnsubscribeFromServer(pair.Key, flags, asyncState, false);
                     if (task != null) last = task;
                 }
                 subscriptions.Clear();
             }
-            return last;
+            return last ?? CompletedTask<bool>.Default(asyncState);
         }
 
         internal Task RemoveSubscription(in RedisChannel channel, Action<RedisChannel, RedisValue> handler, CommandFlags flags, object asyncState)
         {
+            Task task = null;
             lock (subscriptions)
             {
-                bool asAsync = !ChannelMessageQueue.IsOneOf(handler);
-                if (subscriptions.TryGetValue(channel, out Subscription sub) && sub.Remove(asAsync, handler))
+                if (subscriptions.TryGetValue(channel, out Subscription sub))
                 {
-                    subscriptions.Remove(channel);
-                    var task = sub.UnsubscribeFromServer(channel, flags, asyncState, false);
-                    if (task != null) return task;
+                    bool remove;
+                    if (handler == null) // blanket wipe
+                    {
+                        sub.MarkCompleted();
+                        remove = true;
+                    }
+                    else
+                    {
+                        bool asAsync = !ChannelMessageQueue.IsOneOf(handler);
+                        remove = sub.Remove(asAsync, handler);
+                    }
+                    if (remove)
+                    {
+                        subscriptions.Remove(channel);
+                        task = sub.UnsubscribeFromServer(channel, flags, asyncState, false);
+                    }
                 }
             }
-            return CompletedTask<bool>.Default(asyncState);
+            return task ?? CompletedTask<bool>.Default(asyncState);
         }
 
         internal void ResendSubscriptions(ServerEndPoint server)
@@ -173,11 +183,6 @@ namespace StackExchange.Redis
                 else _syncHandler += value;
             }
 
-            public ICompletable ForSyncShutdown()
-            {
-                var syncHandler = _syncHandler;
-                return syncHandler == null ? null : new MessageCompletable(default, default, syncHandler, null);
-            }
             public ICompletable ForInvoke(in RedisChannel channel, in RedisValue message)
             {
                 var syncHandler = _syncHandler;
@@ -185,14 +190,17 @@ namespace StackExchange.Redis
                 return (syncHandler == null && asyncHandler == null) ? null : new MessageCompletable(channel, message, syncHandler, asyncHandler);
             }
 
+            internal void MarkCompleted()
+            {
+                _asyncHandler = null;
+                var oldSync = _syncHandler;
+                _syncHandler = null;
+                ChannelMessageQueue.MarkCompleted(oldSync);
+            }
+
             public bool Remove(bool asAsync, Action<RedisChannel, RedisValue> value)
             {
-                if (value == null)
-                { // treat as blanket wipe
-                    _asyncHandler = null;
-                    _syncHandler = null;
-                }
-                else
+                if (value != null)
                 {
                     if (asAsync) _asyncHandler -= value;
                     else _syncHandler -= value;

@@ -359,8 +359,8 @@ namespace StackExchange.Redis
                     var data = new List<Tuple<string, string>>();
                     void add(string lk, string sk, string v)
                     {
-                        data.Add(Tuple.Create(lk, v));
-                        exMessage.Append(", ").Append(sk).Append(": ").Append(v);
+                        if (lk != null) data.Add(Tuple.Create(lk, v));
+                        if (sk != null) exMessage.Append(", ").Append(sk).Append(": ").Append(v);
                     }
 
                     if (IncludeDetailInExceptions)

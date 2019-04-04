@@ -94,14 +94,7 @@ namespace StackExchange.Redis
 #pragma warning restore RCS1231 // Make parameter ref read-only.
         {
             var writer = _queue.Writer;
-            if (channel.IsNull && value.IsNull) // see ForSyncShutdown
-            {
-                writer.TryComplete();
-            }
-            else
-            {
-                writer.TryWrite(new ChannelMessage(this, channel, value));
-            }
+            writer.TryWrite(new ChannelMessage(this, channel, value));
         }
 
         /// <summary>
@@ -210,6 +203,23 @@ namespace StackExchange.Redis
                 }
                 catch { } // matches MessageCompletable
             }
+        }
+
+        internal static void MarkCompleted(Action<RedisChannel, RedisValue> handler)
+        {
+            if (handler != null)
+            {
+                foreach (Action<RedisChannel, RedisValue> sub in handler.GetInvocationList())
+                {
+                    if (sub.Target is ChannelMessageQueue queue) queue.MarkCompleted();
+                }
+            }
+        }
+
+        private void MarkCompleted(Exception error = null)
+        {
+            _parent = null;
+            _queue.Writer.TryComplete(error);
         }
 
         internal void UnsubscribeImpl(Exception error = null, CommandFlags flags = CommandFlags.None)
