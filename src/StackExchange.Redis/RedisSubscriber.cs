@@ -97,8 +97,7 @@ namespace StackExchange.Redis
                 {
                     var msg = pair.Value.ForSyncShutdown();
                     if (msg != null && !msg.TryComplete(false)) ConnectionMultiplexer.CompleteAsWorker(msg);
-                    pair.Value.Remove(true, null);
-                    pair.Value.Remove(false, null);
+                    pair.Value.Remove(default, null); // when passing null, it wipes both sync+async
 
                     var task = pair.Value.UnsubscribeFromServer(pair.Key, flags, asyncState, false);
                     if (task != null) last = task;
@@ -190,8 +189,8 @@ namespace StackExchange.Redis
             {
                 if (value == null)
                 { // treat as blanket wipe
-                    if (asAsync) _asyncHandler = null;
-                    else _syncHandler = null;
+                    _asyncHandler = null;
+                    _syncHandler = null;
                 }
                 else
                 {
