@@ -97,13 +97,16 @@ namespace StackExchange.Redis
         internal void OnMessage(in RedisChannel subscription, in RedisChannel channel, in RedisValue payload)
         {
             ICompletable completable = null;
+            ChannelMessageQueue queues = null;
+            Subscription sub;
             lock (subscriptions)
             {
-                if (subscriptions.TryGetValue(subscription, out Subscription sub))
+                if (subscriptions.TryGetValue(subscription, out sub))
                 {
-                    completable = sub.ForInvoke(channel, payload);
+                    completable = sub.ForInvoke(channel, payload, out queues);
                 }
             }
+            if (queues != null) ChannelMessageQueue.WriteAll(ref queues, channel, payload);
             if (completable != null && !completable.TryComplete(false)) ConnectionMultiplexer.CompleteAsWorker(completable);
         }
 
@@ -196,11 +199,10 @@ namespace StackExchange.Redis
                 if (queue != null) ChannelMessageQueue.Combine(ref _queues, queue);
             }
 
-            public ICompletable ForInvoke(in RedisChannel channel, in RedisValue message)
+            public ICompletable ForInvoke(in RedisChannel channel, in RedisValue message, out ChannelMessageQueue queues)
             {
                 var handlers = _handlers;
-                ChannelMessageQueue.WriteAll(ref _queues, channel, message);
-
+                queues = Volatile.Read(ref _queues);
                 return handlers == null ? null : new MessageCompletable(channel, message, handlers);
             }
 
