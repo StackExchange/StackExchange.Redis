@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Text;
+using Pipelines.Sockets.Unofficial;
 
 namespace StackExchange.Redis
 {
@@ -7,15 +8,14 @@ namespace StackExchange.Redis
     {
         private readonly RedisChannel channel;
 
-        private readonly Action<RedisChannel, RedisValue> syncHandler, asyncHandler;
+        private readonly Action<RedisChannel, RedisValue> handler;
 
         private readonly RedisValue message;
-        public MessageCompletable(RedisChannel channel, RedisValue message, Action<RedisChannel, RedisValue> syncHandler, Action<RedisChannel, RedisValue> asyncHandler)
+        public MessageCompletable(RedisChannel channel, RedisValue message, Action<RedisChannel, RedisValue> handler)
         {
             this.channel = channel;
             this.message = message;
-            this.syncHandler = syncHandler;
-            this.asyncHandler = asyncHandler;
+            this.handler = handler;
         }
 
         public override string ToString() => (string)channel;
@@ -24,13 +24,19 @@ namespace StackExchange.Redis
         {
             if (isAsync)
             {
-                if (asyncHandler != null)
+                if (handler != null)
                 {
                     ConnectionMultiplexer.TraceWithoutContext("Invoking (async)...: " + (string)channel, "Subscription");
-                    foreach (Action<RedisChannel, RedisValue> sub in asyncHandler.GetInvocationList())
+                    if (handler.IsSingle())
                     {
-                        try { sub.Invoke(channel, message); }
-                        catch { }
+                        try { handler(channel, message); } catch { }
+                    }
+                    else
+                    {
+                        foreach (var sub in handler.AsEnumerable())
+                        {
+                            try { sub.Invoke(channel, message); } catch { }
+                        }
                     }
                     ConnectionMultiplexer.TraceWithoutContext("Invoke complete (async)", "Subscription");
                 }
@@ -38,17 +44,7 @@ namespace StackExchange.Redis
             }
             else
             {
-                if (syncHandler != null)
-                {
-                    ConnectionMultiplexer.TraceWithoutContext("Invoking (sync)...: " + (string)channel, "Subscription");
-                    foreach (Action<RedisChannel, RedisValue> sub in syncHandler.GetInvocationList())
-                    {
-                        try { sub.Invoke(channel, message); }
-                        catch { }
-                    }
-                    ConnectionMultiplexer.TraceWithoutContext("Invoke complete (sync)", "Subscription");
-                }
-                return asyncHandler == null; // anything async to do?
+                return handler == null; // anything async to do?
             }
         }
 
