@@ -86,11 +86,9 @@ namespace StackExchange.Redis
             SingleReader = false,
             AllowSynchronousContinuations = false,
         };
-        internal void Subscribe(CommandFlags flags) => _parent.Subscribe(Channel, HandleMessage, flags);
-        internal Task SubscribeAsync(CommandFlags flags) => _parent.SubscribeAsync(Channel, HandleMessage, flags);
 
 #pragma warning disable RCS1231 // Make parameter ref read-only. - uses as a delegate for Action<RedisChannel, RedisValue>
-        private void HandleMessage(RedisChannel channel, RedisValue value)
+        private void Write(in RedisChannel channel, in RedisValue value)
 #pragma warning restore RCS1231 // Make parameter ref read-only.
         {
             var writer = _queue.Writer;
@@ -170,6 +168,20 @@ namespace StackExchange.Redis
             }
         }
 
+        internal static void Combine(ref ChannelMessageQueue head, ChannelMessageQueue queue)
+        {
+            if (queue != null)
+            {
+                // insert at the start of the linked-list
+                ChannelMessageQueue old;
+                do
+                {
+                    old = Volatile.Read(ref head);
+                    queue._next = old;
+                } while (Interlocked.CompareExchange(ref head, queue, old) != old);
+            }
+        }
+
         /// <summary>
         /// Create a message loop that processes messages sequentially.
         /// </summary>
@@ -181,6 +193,75 @@ namespace StackExchange.Redis
             ThreadPool.QueueUserWorkItem(
                 state => ((ChannelMessageQueue)state).OnMessageAsyncImpl().RedisFireAndForget(), this);
         }
+
+        internal static void Remove(ref ChannelMessageQueue head, ChannelMessageQueue queue)
+        {
+            if (queue == null) return;
+
+            bool found;
+            do // if we fail due to a conflict, re-do from start
+            {
+                var current = Volatile.Read(ref head);
+                if (current == null) return; // no queue? nothing to do
+                if (current == queue)
+                {
+                    found = true;
+                    // found at the head - then we need to change the head
+                    if (Interlocked.CompareExchange(ref head, Volatile.Read(ref current._next), current) == current)
+                    {
+                        return; // success
+                    }
+                }
+                else
+                {
+                    ChannelMessageQueue previous = current;
+                    current = Volatile.Read(ref previous._next);
+                    found = false;
+                    do
+                    {
+                        if (current == queue)
+                        {
+                            found = true;
+                            // found it, not at the head; remove the node
+                            if (Interlocked.CompareExchange(ref previous._next, Volatile.Read(ref current._next), current) == current)
+                            {
+                                return; // success
+                            }
+                            else
+                            {
+                                break; // exit the inner loop, and repeat the outer loop
+                            }
+                        }
+                        previous = current;
+                        current = Volatile.Read(ref previous._next);
+                    } while (current != null);
+                }
+            } while (found);
+        }
+
+        internal static int Count(ref ChannelMessageQueue head)
+        {
+            var current = Volatile.Read(ref head);
+            int count = 0;
+            while (current != null)
+            {
+                count++;
+                current = Volatile.Read(ref current._next);
+            }
+            return count;
+        }
+
+        internal static void WriteAll(ref ChannelMessageQueue head, in RedisChannel channel, in RedisValue message)
+        {
+            var current = Volatile.Read(ref head);
+            while (current != null)
+            {
+                current.Write(channel, message);
+                current = Volatile.Read(ref current._next);
+            }
+        }
+
+        private ChannelMessageQueue _next;
 
         private async Task OnMessageAsyncImpl()
         {
@@ -205,14 +286,13 @@ namespace StackExchange.Redis
             }
         }
 
-        internal static void MarkCompleted(Action<RedisChannel, RedisValue> handler)
+        internal static void MarkAllCompleted(ref ChannelMessageQueue head)
         {
-            if (handler != null)
+            var current = Interlocked.Exchange(ref head, null);
+            while (current != null)
             {
-                foreach (Action<RedisChannel, RedisValue> sub in handler.GetInvocationList())
-                {
-                    if (sub.Target is ChannelMessageQueue queue) queue.MarkCompleted();
-                }
+                current.MarkCompleted();
+                current = Volatile.Read(ref current._next);
             }
         }
 
@@ -228,7 +308,7 @@ namespace StackExchange.Redis
             _parent = null;
             if (parent != null)
             {
-                parent.UnsubscribeAsync(Channel, HandleMessage, flags);
+                parent.UnsubscribeAsync(Channel, null, this, flags);
             }
             _queue.Writer.TryComplete(error);
         }
@@ -239,22 +319,9 @@ namespace StackExchange.Redis
             _parent = null;
             if (parent != null)
             {
-                await parent.UnsubscribeAsync(Channel, HandleMessage, flags).ForAwait();
+                await parent.UnsubscribeAsync(Channel, null, this, flags).ForAwait();
             }
             _queue.Writer.TryComplete(error);
-        }
-
-        internal static bool IsOneOf(Action<RedisChannel, RedisValue> handler)
-        {
-            try
-            {
-                return handler?.Target is ChannelMessageQueue
-                    && handler.Method.Name == nameof(HandleMessage);
-            }
-            catch
-            {
-                return false;
-            }
         }
 
         /// <summary>
