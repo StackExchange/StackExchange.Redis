@@ -27,6 +27,22 @@ namespace StackExchange.Redis
             : this(name, false, DEFAULT_WORKERS) { }
 
         /// <summary>
+        /// Creates a new (optionally named) <see cref="SocketManager"/> instance
+        /// </summary>
+        /// <param name="name">The name for this <see cref="SocketManager"/>.</param>
+        /// <param name="workerCount">the number of dedicated workers for this <see cref="SocketManager"/>.</param>
+        public SocketManager(string name = null, int workerCount = DEFAULT_WORKERS)
+            : this(name, false, workerCount) { }
+
+        /// <summary>
+        /// Creates a new <see cref="SocketManager"/> instance
+        /// </summary>
+        /// <param name="name">The name for this <see cref="SocketManager"/>.</param>
+        /// <param name="useHighPrioritySocketThreads">Whether this <see cref="SocketManager"/> should use high priority sockets.</param>
+        public SocketManager(string name, bool useHighPrioritySocketThreads)
+            : this(name, useHighPrioritySocketThreads, DEFAULT_WORKERS) { }
+
+        /// <summary>
         /// Default / shared socket manager
         /// </summary>
         public static SocketManager Shared
@@ -57,14 +73,6 @@ namespace StackExchange.Redis
         }
 
         private static SocketManager _shared;
-
-        /// <summary>
-        /// Creates a new <see cref="SocketManager"/> instance
-        /// </summary>
-        /// <param name="name">The name for this <see cref="SocketManager"/>.</param>
-        /// <param name="useHighPrioritySocketThreads">Whether this <see cref="SocketManager"/> should use high priority sockets.</param>
-        public SocketManager(string name, bool useHighPrioritySocketThreads)
-            : this(name, useHighPrioritySocketThreads, DEFAULT_WORKERS) { }
 
         private const int DEFAULT_WORKERS = 5, MINIMUM_SEGMENT_SIZE = 8 * 1024;
 
