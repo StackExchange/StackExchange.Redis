@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Buffers;
+using System.Buffers.Text;
 using System.Globalization;
 using System.Net;
 using System.Runtime.InteropServices;
@@ -51,6 +52,8 @@ namespace StackExchange.Redis
         }
 
         internal static string ToString(long value) => value.ToString(NumberFormatInfo.InvariantInfo);
+
+        internal static string ToString(ulong value) => value.ToString(NumberFormatInfo.InvariantInfo);
 
         internal static string ToString(double value)
         {
@@ -149,6 +152,41 @@ namespace StackExchange.Redis
             return double.TryParse(s, NumberStyles.Any, NumberFormatInfo.InvariantInfo, out value);
         }
 
+        internal static bool TryParseUInt64(string s, out ulong value)
+                    => ulong.TryParse(s, NumberStyles.Integer, NumberFormatInfo.InvariantInfo, out value);
+
+        internal static bool TryParseUInt64(ReadOnlySpan<byte> s, out ulong value)
+            => Utf8Parser.TryParse(s, out value, out int bytes, standardFormat: 'D') & bytes == s.Length;
+
+        internal static bool TryParseInt64(ReadOnlySpan<byte> s, out long value)
+            => Utf8Parser.TryParse(s, out value, out int bytes, standardFormat: 'D') & bytes == s.Length;
+
+        internal static bool CouldBeInteger(string s)
+        {
+            if (string.IsNullOrEmpty(s) || s.Length > PhysicalConnection.MaxInt64TextLen) return false;
+            bool isSigned = s[0] == '-';
+            for (int i = isSigned ? 1 : 0; i < s.Length; i++)
+            {
+                char c = s[i];
+                if (c < '0' | c > '9') return false;
+            }
+            return true;
+        }
+        internal static bool CouldBeInteger(ReadOnlySpan<byte> s)
+        {
+            if (s.IsEmpty | s.Length > PhysicalConnection.MaxInt64TextLen) return false;
+            bool isSigned = s[0] == '-';
+            for (int i = isSigned ? 1 : 0; i < s.Length; i++)
+            {
+                byte c = s[i];
+                if (c < (byte)'0' | c > (byte)'9') return false;
+            }
+            return true;
+        }
+
+        internal static bool TryParseInt64(string s, out long value)
+            => long.TryParse(s, NumberStyles.Integer, NumberFormatInfo.InvariantInfo, out value);
+
         internal static bool TryParseDouble(ReadOnlySpan<byte> s, out double value)
         {
             if (s.IsEmpty)
@@ -172,21 +210,13 @@ namespace StackExchange.Redis
                 value = double.NegativeInfinity;
                 return true;
             }
-            var ss = DecodeUtf8(s);
-            return double.TryParse(ss, NumberStyles.Any, NumberFormatInfo.InvariantInfo, out value);
+            return Utf8Parser.TryParse(s, out value, out int bytes) & bytes == s.Length;
         }
-        internal static unsafe string DecodeUtf8(ReadOnlySpan<byte> span)
-        {
-            if (span.IsEmpty) return "";
-            fixed(byte* ptr = &MemoryMarshal.GetReference(span))
-            {
-                return Encoding.UTF8.GetString(ptr, span.Length);
-            }
-        }
+
         private static bool CaseInsensitiveASCIIEqual(string xLowerCase, ReadOnlySpan<byte> y)
         {
             if (y.Length != xLowerCase.Length) return false;
-            for(int i = 0; i < y.Length; i++)
+            for (int i = 0; i < y.Length; i++)
             {
                 if (char.ToLower((char)y[i]) != xLowerCase[i]) return false;
             }
@@ -275,7 +305,8 @@ namespace StackExchange.Redis
         }
         internal static unsafe string GetString(ReadOnlySpan<byte> span)
         {
-            fixed (byte* ptr = &MemoryMarshal.GetReference(span))
+            if (span.IsEmpty) return "";
+            fixed (byte* ptr = span)
             {
                 return Encoding.UTF8.GetString(ptr, span.Length);
             }
