@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using Pipelines.Sockets.Unofficial;
 using Pipelines.Sockets.Unofficial.Threading;
 using static Pipelines.Sockets.Unofficial.Threading.MutexSlim;
+using static StackExchange.Redis.ConnectionMultiplexer;
 using PendingSubscriptionState = global::StackExchange.Redis.ConnectionMultiplexer.Subscription.PendingSubscriptionState;
 
 namespace StackExchange.Redis
@@ -129,7 +130,7 @@ namespace StackExchange.Redis
 
         public override string ToString() => ConnectionType + "/" + Format.ToString(ServerEndPoint.EndPoint);
 
-        public void TryConnect(TextWriter log) => GetConnection(log);
+        public void TryConnect(LogProxy log) => GetConnection(log);
 
         private WriteResult QueueOrFailMessage(Message message)
         {
@@ -380,7 +381,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal async Task OnConnectedAsync(PhysicalConnection connection, TextWriter log)
+        internal async Task OnConnectedAsync(PhysicalConnection connection, LogProxy log)
         {
             Trace("OnConnected");
             if (physical == connection && !isDisposed && ChangeState(State.Connecting, State.ConnectedEstablishing))
@@ -1097,7 +1098,7 @@ namespace StackExchange.Redis
             return result;
         }
 
-        private PhysicalConnection GetConnection(TextWriter log)
+        private PhysicalConnection GetConnection(LogProxy log)
         {
             if (state == (int)State.Disconnected)
             {
@@ -1105,7 +1106,7 @@ namespace StackExchange.Redis
                 {
                     if (!Multiplexer.IsDisposed)
                     {
-                        Multiplexer.LogLocked(log, "Connecting {0}...", Name);
+                        log?.WriteLine($"Connecting {Name}...");
                         Multiplexer.Trace("Connecting...", Name);
                         if (ChangeState(State.Disconnected, State.Connecting))
                         {
@@ -1122,7 +1123,7 @@ namespace StackExchange.Redis
                 }
                 catch (Exception ex)
                 {
-                    Multiplexer.LogLocked(log, "Connect {0} failed: {1}", Name, ex.Message);
+                    log?.WriteLine($"Connect {Name} failed: {ex.Message}");
                     Multiplexer.Trace("Connect failed: " + ex.Message, Name);
                     ChangeState(State.Disconnected);
                     OnInternalError(ex);

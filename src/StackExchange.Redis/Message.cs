@@ -8,20 +8,21 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using StackExchange.Redis.Profiling;
+using static StackExchange.Redis.ConnectionMultiplexer;
 
 namespace StackExchange.Redis
 {
     internal sealed class LoggingMessage : Message
     {
-        public readonly TextWriter log;
+        public readonly LogProxy log;
         private readonly Message tail;
 
-        public static Message Create(TextWriter log, Message tail)
+        public static Message Create(LogProxy log, Message tail)
         {
             return log == null ? tail : new LoggingMessage(log, tail);
         }
 
-        private LoggingMessage(TextWriter log, Message tail) : base(tail.Db, tail.Flags, tail.Command)
+        private LoggingMessage(LogProxy log, Message tail) : base(tail.Db, tail.Flags, tail.Command)
         {
             this.log = log;
             this.tail = tail;
@@ -39,14 +40,14 @@ namespace StackExchange.Redis
             try
             {
                 var bridge = physical.BridgeCouldBeNull;
-                bridge?.Multiplexer?.LogLocked(log, "Writing to {0}: {1}", bridge, tail.CommandAndKey);
+                log?.WriteLine($"Writing to {bridge}: {tail.CommandAndKey}");
             }
             catch { }
             tail.WriteTo(physical);
         }
         public override int ArgCount => tail.ArgCount;
 
-        public TextWriter Log => log;
+        public LogProxy Log => log;
     }
 
     internal abstract class Message : ICompletable
