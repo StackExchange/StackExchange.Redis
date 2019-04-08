@@ -18,6 +18,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Pipelines.Sockets.Unofficial;
 using Pipelines.Sockets.Unofficial.Arenas;
+using static StackExchange.Redis.ConnectionMultiplexer;
 
 namespace StackExchange.Redis
 {
@@ -85,7 +86,7 @@ namespace StackExchange.Redis
             OnCreateEcho();
         }
 
-        internal async Task BeginConnectAsync(TextWriter log)
+        internal async Task BeginConnectAsync(LogProxy log)
         {
             var bridge = BridgeCouldBeNull;
             var endpoint = bridge?.ServerEndPoint?.EndPoint;
@@ -97,7 +98,7 @@ namespace StackExchange.Redis
             Trace("Connecting...");
             _socket = SocketManager.CreateSocket(endpoint);
             bridge.Multiplexer.OnConnecting(endpoint, bridge.ConnectionType);
-            bridge.Multiplexer.LogLocked(log, "BeginConnect: {0}", Format.ToString(endpoint));
+            log?.WriteLine($"BeginConnect: {Format.ToString(endpoint)}");
 
             CancellationTokenSource timeoutSource = null;
             try
@@ -141,7 +142,7 @@ namespace StackExchange.Redis
                         }
                         else if (await ConnectedAsync(x, log, bridge.Multiplexer.SocketManager).ForAwait())
                         {
-                            bridge.Multiplexer.LogLocked(log, "Starting read");
+                            log?.WriteLine("Starting read");
                             try
                             {
                                 StartReading();
@@ -161,7 +162,7 @@ namespace StackExchange.Redis
                     }
                     catch (ObjectDisposedException)
                     {
-                        bridge.Multiplexer.LogLocked(log, "(socket shutdown)");
+                        log?.WriteLine("(socket shutdown)");
                         try { RecordConnectionFailed(ConnectionFailureType.UnableToConnect, isInitialConnect: true); }
                         catch (Exception inner)
                         {
@@ -1251,7 +1252,7 @@ namespace StackExchange.Redis
             return null;
         }
 
-        internal async ValueTask<bool> ConnectedAsync(Socket socket, TextWriter log, SocketManager manager)
+        internal async ValueTask<bool> ConnectedAsync(Socket socket, LogProxy log, SocketManager manager)
         {
             var bridge = BridgeCouldBeNull;
             if (bridge == null) return false;
@@ -1270,7 +1271,7 @@ namespace StackExchange.Redis
 
                 if (config.Ssl)
                 {
-                    bridge.Multiplexer.LogLocked(log, "Configuring SSL");
+                    log?.WriteLine("Configuring TLS");
                     var host = config.SslHost;
                     if (string.IsNullOrWhiteSpace(host)) host = Format.ToStringHostOnly(bridge.ServerEndPoint.EndPoint);
 
@@ -1290,7 +1291,7 @@ namespace StackExchange.Redis
                             bridge.Multiplexer?.SetAuthSuspect();
                             throw;
                         }
-                        bridge.Multiplexer.LogLocked(log, $"SSL connection established successfully using protocol: {ssl.SslProtocol}");
+                        log?.WriteLine($"TLS connection established successfully using protocol: {ssl.SslProtocol}");
                     }
                     catch (AuthenticationException authexception)
                     {
@@ -1308,7 +1309,7 @@ namespace StackExchange.Redis
 
                 _ioPipe = pipe;
 
-                bridge.Multiplexer.LogLocked(log, "Connected {0}", bridge);
+                log?.WriteLine($"Connected {bridge}");
 
                 await bridge.OnConnectedAsync(this, log).ForAwait();
                 return true;

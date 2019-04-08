@@ -175,7 +175,7 @@ namespace StackExchange.Redis
             {
                 try
                 {
-                    bridge?.Multiplexer?.LogLocked(logging.Log, "Response from {0} / {1}: {2}", bridge, message.CommandAndKey, result);
+                    logging.Log?.WriteLine($"Response from {bridge} / {message.CommandAndKey}: {result}");
                 }
                 catch { }
             }

@@ -6,6 +6,7 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+using static StackExchange.Redis.ConnectionMultiplexer;
 
 #pragma warning disable RCS1231 // Make parameter ref read-only.
 
@@ -320,7 +321,10 @@ namespace StackExchange.Redis
 
         public void MakeMaster(ReplicationChangeOptions options, TextWriter log = null)
         {
-            multiplexer.MakeMaster(server, options, log);
+            using (var proxy = LogProxy.TryCreate(log))
+            {
+                multiplexer.MakeMaster(server, options, proxy);
+            }
         }
 
         public void Save(SaveType type, CommandFlags flags = CommandFlags.None)
