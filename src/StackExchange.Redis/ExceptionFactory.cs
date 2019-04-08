@@ -188,10 +188,14 @@ namespace StackExchange.Redis
             if (!string.IsNullOrEmpty(baseErrorMessage))
             {
                 sb.Append(baseErrorMessage);
+                if (message != null)
+                {
+                    sb.Append(", command=").Append(message.Command); // no key here, note
+                }
             }
             else
             {
-                sb.Append("Timeout performing ").Append(message.CommandAndKey).Append(" (").Append(Format.ToString(mutiplexer.TimeoutMilliseconds)).Append("ms)");
+                sb.Append("Timeout performing ").Append(message.Command).Append(" (").Append(Format.ToString(mutiplexer.TimeoutMilliseconds)).Append("ms)");
             }
 
             void add(string lk, string sk, string v)
