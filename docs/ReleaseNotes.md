@@ -1,9 +1,11 @@
 # Release Notes
 
-## (unreleased)
+## 2.0.600
 
-- add `ulong` support to `RedisValue` and `RedisResult`
-- fix: remove odd equality: `"-" != 0` (we do, however, still allow `"-0"`, as that is at least semantically valid, and is logically `== 0`)
+- add `ulong` support to `RedisValue` and `RedisResult` (#1103)
+- fix: remove odd equality: `"-" != 0` (we do, however, still allow `"-0"`, as that is at least semantically valid, and is logically `== 0`) (related to #1103)
+- performance: rework how pub/sub queues are stored - reduces delegate overheads (related to #1101)
+- fix #1108 - ensure that we don't try appending log data to the `TextWriter` once we've returned from a method that accepted one
 
 ## 2.0.593
 
