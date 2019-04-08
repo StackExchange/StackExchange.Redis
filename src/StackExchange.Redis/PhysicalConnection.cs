@@ -18,6 +18,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Pipelines.Sockets.Unofficial;
 using Pipelines.Sockets.Unofficial.Arenas;
+using static StackExchange.Redis.ConnectionMultiplexer;
 
 namespace StackExchange.Redis
 {
@@ -85,7 +86,7 @@ namespace StackExchange.Redis
             OnCreateEcho();
         }
 
-        internal async Task BeginConnectAsync(TextWriter log)
+        internal async Task BeginConnectAsync(LogProxy log)
         {
             var bridge = BridgeCouldBeNull;
             var endpoint = bridge?.ServerEndPoint?.EndPoint;
@@ -97,7 +98,7 @@ namespace StackExchange.Redis
             Trace("Connecting...");
             _socket = SocketManager.CreateSocket(endpoint);
             bridge.Multiplexer.OnConnecting(endpoint, bridge.ConnectionType);
-            bridge.Multiplexer.LogLocked(log, "BeginConnect: {0}", Format.ToString(endpoint));
+            log?.WriteLine($"BeginConnect: {Format.ToString(endpoint)}");
 
             CancellationTokenSource timeoutSource = null;
             try
@@ -141,7 +142,7 @@ namespace StackExchange.Redis
                         }
                         else if (await ConnectedAsync(x, log, bridge.Multiplexer.SocketManager).ForAwait())
                         {
-                            bridge.Multiplexer.LogLocked(log, "Starting read");
+                            log?.WriteLine("Starting read");
                             try
                             {
                                 StartReading();
@@ -161,7 +162,7 @@ namespace StackExchange.Redis
                     }
                     catch (ObjectDisposedException)
                     {
-                        bridge.Multiplexer.LogLocked(log, "(socket shutdown)");
+                        log?.WriteLine("(socket shutdown)");
                         try { RecordConnectionFailed(ConnectionFailureType.UnableToConnect, isInitialConnect: true); }
                         catch (Exception inner)
                         {
@@ -359,8 +360,8 @@ namespace StackExchange.Redis
                     var data = new List<Tuple<string, string>>();
                     void add(string lk, string sk, string v)
                     {
-                        data.Add(Tuple.Create(lk, v));
-                        exMessage.Append(", ").Append(sk).Append(": ").Append(v);
+                        if (lk != null) data.Add(Tuple.Create(lk, v));
+                        if (sk != null) exMessage.Append(", ").Append(sk).Append(": ").Append(v);
                     }
 
                     if (IncludeDetailInExceptions)
@@ -368,7 +369,7 @@ namespace StackExchange.Redis
                         if (bridge != null)
                         {
                             exMessage.Append(" on ").Append(Format.ToString(bridge.ServerEndPoint?.EndPoint)).Append("/").Append(connectionType)
-                                .Append(", ").Append(_writeStatus)
+                                .Append(", ").Append(_writeStatus).Append("/").Append(_readStatus)
                                 .Append(", last: ").Append(bridge.LastCommand);
 
                             data.Add(Tuple.Create("FailureType", failureType.ToString()));
@@ -447,7 +448,7 @@ namespace StackExchange.Redis
 
         private volatile WriteStatus _writeStatus;
 
-        internal WriteStatus Status => _writeStatus;
+        internal WriteStatus GetWriteStatus() => _writeStatus;
 
         internal enum WriteStatus
         {
@@ -456,6 +457,8 @@ namespace StackExchange.Redis
             Writing,
             Flushing,
             Flushed,
+
+            NA = -1,
         }
 
         /// <summary>Returns a string that represents the current object.</summary>
@@ -607,7 +610,7 @@ namespace StackExchange.Redis
                     {
                         if (msg.HasAsyncTimedOut(now, timeout, out var elapsed))
                         {
-                            bool haveDeltas = msg.TryGetPhysicalState(out _, out long sentDelta, out var receivedDelta) && sentDelta >= 0 && receivedDelta >= 0;
+                            bool haveDeltas = msg.TryGetPhysicalState(out _, out _, out long sentDelta, out var receivedDelta) && sentDelta >= 0 && receivedDelta >= 0;
                             var timeoutEx = ExceptionFactory.Timeout(bridge.Multiplexer, haveDeltas
                                 ? $"Timeout awaiting response (outbound={sentDelta >> 10}KiB, inbound={receivedDelta >> 10}KiB, {elapsed}ms elapsed, timeout is {timeout}ms)"
                                 : $"Timeout awaiting response ({elapsed}ms elapsed, timeout is {timeout}ms)", msg, server);
@@ -846,11 +849,18 @@ namespace StackExchange.Redis
             return WriteCrlf(span, offset);
         }
 
-        private static async ValueTask<WriteResult> FlushAsync_Awaited(PhysicalConnection connection, ValueTask<FlushResult> flush, bool throwOnFailure)
+        private async ValueTask<WriteResult> FlushAsync_Awaited(PhysicalConnection connection, ValueTask<FlushResult> flush, bool throwOnFailure
+#if DEBUG
+            , int startFlush, long flushBytes
+#endif
+            )
         {
             try
             {
                 await flush.ForAwait();
+#if DEBUG
+                RecordEndFlush(startFlush, flushBytes);
+#endif
                 connection._writeStatus = WriteStatus.Flushed;
                 connection.UpdateLastWriteTime();
                 return WriteResult.Success;
@@ -873,7 +883,13 @@ namespace StackExchange.Redis
             }
             return flush.Result;
 
-            void ThrowTimeout() => throw new TimeoutException("timeout while synchronously flushing");
+            void ThrowTimeout()
+            {
+#if DEBUG
+                if (millisecondsTimeout > _maxFlushTime) _maxFlushTime = millisecondsTimeout; // a fair bet even if we didn't measure
+#endif
+                throw new TimeoutException("timeout while synchronously flushing");
+            }
         }
         internal ValueTask<WriteResult> FlushAsync(bool throwOnFailure)
         {
@@ -882,8 +898,20 @@ namespace StackExchange.Redis
             try
             {
                 _writeStatus = WriteStatus.Flushing;
+#if DEBUG
+                int startFlush = Environment.TickCount;
+                long flushBytes = -1;
+                if (_ioPipe is SocketConnection sc) flushBytes = sc.GetCounters().BytesWaitingToBeSent;
+#endif
                 var flush = tmp.FlushAsync();
-                if (!flush.IsCompletedSuccessfully) return FlushAsync_Awaited(this, flush, throwOnFailure);
+                if (!flush.IsCompletedSuccessfully) return FlushAsync_Awaited(this, flush, throwOnFailure
+#if DEBUG
+                    , startFlush, flushBytes
+#endif
+                );
+#if DEBUG
+                RecordEndFlush(startFlush, flushBytes);
+#endif
                 _writeStatus = WriteStatus.Flushed;
                 UpdateLastWriteTime();
                 return new ValueTask<WriteResult>(WriteResult.Success);
@@ -894,8 +922,25 @@ namespace StackExchange.Redis
                 return new ValueTask<WriteResult>(WriteResult.WriteFailure);
             }
         }
+#if DEBUG
+        private void RecordEndFlush(int start, long bytes)
+        {
 
-        private static readonly ReadOnlyMemory<byte> NullBulkString = Encoding.ASCII.GetBytes("$-1\r\n"), EmptyBulkString = Encoding.ASCII.GetBytes("$0\r\n\r\n");
+            var end = Environment.TickCount;
+            int taken = unchecked(end - start);
+            if (taken > _maxFlushTime)
+            {
+                _maxFlushTime = taken;
+                if (bytes >= 0) _maxFlushBytes = bytes;
+            }
+        }
+        private volatile int _maxFlushTime = -1;
+        private long _maxFlushBytes = -1;
+        internal int MaxFlushTime => _maxFlushTime;
+        internal long MaxFlushBytes => _maxFlushBytes;
+#endif
+
+    private static readonly ReadOnlyMemory<byte> NullBulkString = Encoding.ASCII.GetBytes("$-1\r\n"), EmptyBulkString = Encoding.ASCII.GetBytes("$0\r\n\r\n");
 
         private static void WriteUnifiedBlob(PipeWriter writer, byte[] value)
         {
@@ -1231,7 +1276,7 @@ namespace StackExchange.Redis
             return null;
         }
 
-        internal async ValueTask<bool> ConnectedAsync(Socket socket, TextWriter log, SocketManager manager)
+        internal async ValueTask<bool> ConnectedAsync(Socket socket, LogProxy log, SocketManager manager)
         {
             var bridge = BridgeCouldBeNull;
             if (bridge == null) return false;
@@ -1250,7 +1295,7 @@ namespace StackExchange.Redis
 
                 if (config.Ssl)
                 {
-                    bridge.Multiplexer.LogLocked(log, "Configuring SSL");
+                    log?.WriteLine("Configuring TLS");
                     var host = config.SslHost;
                     if (string.IsNullOrWhiteSpace(host)) host = Format.ToStringHostOnly(bridge.ServerEndPoint.EndPoint);
 
@@ -1270,7 +1315,7 @@ namespace StackExchange.Redis
                             bridge.Multiplexer?.SetAuthSuspect();
                             throw;
                         }
-                        bridge.Multiplexer.LogLocked(log, $"SSL connection established successfully using protocol: {ssl.SslProtocol}");
+                        log?.WriteLine($"TLS connection established successfully using protocol: {ssl.SslProtocol}");
                     }
                     catch (AuthenticationException authexception)
                     {
@@ -1288,7 +1333,7 @@ namespace StackExchange.Redis
 
                 _ioPipe = pipe;
 
-                bridge.Multiplexer.LogLocked(log, "Connected {0}", bridge);
+                log?.WriteLine($"Connected {bridge}");
 
                 await bridge.OnConnectedAsync(this, log).ForAwait();
                 return true;
@@ -1313,8 +1358,9 @@ namespace StackExchange.Redis
                 var items = result.GetItems();
                 if (items.Length >= 3 && items[0].IsEqual(message))
                 {
-                    // special-case the configuration change broadcasts (we don't keep that in the usual pub/sub registry)
+                    _readStatus = ReadStatus.PubSubMessage;
 
+                    // special-case the configuration change broadcasts (we don't keep that in the usual pub/sub registry)
                     var configChanged = muxer.ConfigurationChangedChannel;
                     if (configChanged != null && items[1].IsEqual(configChanged))
                     {
@@ -1328,6 +1374,7 @@ namespace StackExchange.Redis
                         }
                         catch { /* no biggie */ }
                         Trace("Configuration changed: " + Format.ToString(blame));
+                        _readStatus = ReadStatus.Reconfigure;
                         muxer.ReconfigureIfNeeded(blame, true, "broadcast");
                     }
 
@@ -1336,17 +1383,21 @@ namespace StackExchange.Redis
                     Trace("MESSAGE: " + channel);
                     if (!channel.IsNull)
                     {
+                        _readStatus = ReadStatus.InvokePubSub;
                         muxer.OnMessage(channel, channel, items[2].AsRedisValue());
                     }
                     return; // AND STOP PROCESSING!
                 }
                 else if (items.Length >= 4 && items[0].IsEqual(pmessage))
                 {
+                    _readStatus = ReadStatus.PubSubPMessage;
+
                     var channel = items[2].AsRedisChannel(ChannelPrefix, RedisChannel.PatternMode.Literal);
                     Trace("PMESSAGE: " + channel);
                     if (!channel.IsNull)
                     {
                         var sub = items[1].AsRedisChannel(ChannelPrefix, RedisChannel.PatternMode.Pattern);
+                        _readStatus = ReadStatus.InvokePubSub;
                         muxer.OnMessage(sub, channel, items[3].AsRedisValue());
                     }
                     return; // AND STOP PROCESSING!
@@ -1356,6 +1407,7 @@ namespace StackExchange.Redis
             }
             Trace("Matching result...");
             Message msg;
+            _readStatus = ReadStatus.DequeueResult;
             lock (_writtenAwaitingResponse)
             {
                 if (_writtenAwaitingResponse.Count == 0)
@@ -1364,8 +1416,10 @@ namespace StackExchange.Redis
             }
 
             Trace("Response to: " + msg);
+            _readStatus = ReadStatus.ComputeResult;
             if (msg.ComputeResult(this, result))
             {
+                _readStatus = ReadStatus.CompletePendingMessage;
                 msg.Complete();
             }
         }
@@ -1391,6 +1445,7 @@ namespace StackExchange.Redis
             bool allowSyncRead = true, isReading = false;
             try
             {
+                _readStatus = ReadStatus.Init;
                 while (true)
                 {
                     var input = _ioPipe?.Input;
@@ -1399,13 +1454,17 @@ namespace StackExchange.Redis
                     // note: TryRead will give us back the same buffer in a tight loop
                     // - so: only use that if we're making progress
                     isReading = true;
+                    _readStatus = ReadStatus.ReadSync;
                     if (!(allowSyncRead && input.TryRead(out var readResult)))
                     {
+                        _readStatus = ReadStatus.ReadAsync;
                         readResult = await input.ReadAsync().ForAwait();
                     }
                     isReading = false;
+                    _readStatus = ReadStatus.UpdateWriteTime;
                     UpdateLastReadTime();
 
+                    _readStatus = ReadStatus.ProcessBuffer;
                     var buffer = readResult.Buffer;
                     int handled = 0;
                     if (!buffer.IsEmpty)
@@ -1415,6 +1474,7 @@ namespace StackExchange.Redis
 
                     allowSyncRead = handled != 0;
 
+                    _readStatus = ReadStatus.MarkProcessed;
                     Trace($"Processed {handled} messages");
                     input.AdvanceTo(buffer.Start, buffer.End);
 
@@ -1425,9 +1485,11 @@ namespace StackExchange.Redis
                 }
                 Trace("EOF");
                 RecordConnectionFailed(ConnectionFailureType.SocketClosed);
+                _readStatus = ReadStatus.RanToCompletion;
             }
             catch (Exception ex)
             {
+                _readStatus = ReadStatus.Faulted;
                 // this CEX is just a hardcore "seriously, read the actual value" - there's no
                 // convenient "Thread.VolatileRead<T>(ref T field) where T : class", and I don't
                 // want to make the field volatile just for this one place that needs it
@@ -1464,6 +1526,7 @@ namespace StackExchange.Redis
 
             while (!buffer.IsEmpty)
             {
+                _readStatus = ReadStatus.TryParseResult;
                 var reader = new BufferReader(buffer);
                 var result = TryParseResult(_arena, in buffer, ref reader, IncludeDetailInExceptions, BridgeCouldBeNull?.ServerEndPoint);
                 try
@@ -1474,6 +1537,7 @@ namespace StackExchange.Redis
 
                         messageCount++;
                         Trace(result.ToString());
+                        _readStatus = ReadStatus.MatchResult;
                         MatchResult(result);
                     }
                     else
@@ -1602,6 +1666,32 @@ namespace StackExchange.Redis
 
             return new RawResult(type, payload, false);
         }
+
+        internal enum ReadStatus
+        {
+            NotStarted,
+            Init,
+            RanToCompletion,
+            Faulted,
+            ReadSync,
+            ReadAsync,
+            UpdateWriteTime,
+            ProcessBuffer,
+            MarkProcessed,
+            TryParseResult,
+            MatchResult,
+            PubSubMessage,
+            PubSubPMessage,
+            Reconfigure,
+            InvokePubSub,
+            DequeueResult,
+            ComputeResult,
+            CompletePendingMessage,
+
+            NA = -1,
+        }
+        private volatile ReadStatus _readStatus;
+        internal ReadStatus GetReadStatus() => _readStatus;
 
         internal void StartReading() => ReadFromPipe().RedisFireAndForget();
 

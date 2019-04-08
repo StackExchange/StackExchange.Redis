@@ -5,6 +5,15 @@
 - add `ulong` support to `RedisValue` and `RedisResult`
 - fix: remove odd equality: `"-" != 0` (we do, however, still allow `"-0"`, as that is at least semantically valid, and is logically `== 0`)
 
+## 2.0.593
+
+- performance: unify spin-wait usage on sync/async paths to one competitor
+- fix #1101 - when a `ChannelMessageQueue` is involved, unsubscribing *via any route* should still unsubscribe and mark the queue-writer as complete
+
+## 2.0.588
+
+- stability and performance: resolve intermittent stall in the write-lock that could lead to unexpected timeouts even when at low/reasonable (but concurrent) load
+
 ## 2.0.571
 
 - performance: use new [arena allocation API](https://mgravell.github.io/Pipelines.Sockets.Unofficial/docs/arenas) to avoid `RawResult[]` overhead

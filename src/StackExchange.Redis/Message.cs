@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -7,20 +8,21 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using StackExchange.Redis.Profiling;
+using static StackExchange.Redis.ConnectionMultiplexer;
 
 namespace StackExchange.Redis
 {
     internal sealed class LoggingMessage : Message
     {
-        public readonly TextWriter log;
+        public readonly LogProxy log;
         private readonly Message tail;
 
-        public static Message Create(TextWriter log, Message tail)
+        public static Message Create(LogProxy log, Message tail)
         {
             return log == null ? tail : new LoggingMessage(log, tail);
         }
 
-        private LoggingMessage(TextWriter log, Message tail) : base(tail.Db, tail.Flags, tail.Command)
+        private LoggingMessage(LogProxy log, Message tail) : base(tail.Db, tail.Flags, tail.Command)
         {
             this.log = log;
             this.tail = tail;
@@ -38,19 +40,32 @@ namespace StackExchange.Redis
             try
             {
                 var bridge = physical.BridgeCouldBeNull;
-                bridge?.Multiplexer?.LogLocked(log, "Writing to {0}: {1}", bridge, tail.CommandAndKey);
+                log?.WriteLine($"Writing to {bridge}: {tail.CommandAndKey}");
             }
             catch { }
             tail.WriteTo(physical);
         }
         public override int ArgCount => tail.ArgCount;
 
-        public TextWriter Log => log;
+        public LogProxy Log => log;
     }
 
     internal abstract class Message : ICompletable
     {
         public readonly int Db;
+
+#if DEBUG
+        internal int QueuePosition { get; private set; }
+        internal PhysicalConnection.WriteStatus ConnectionWriteState { get; private set; }
+#endif
+        [Conditional("DEBUG")]
+        internal void SetBacklogState(int position, PhysicalConnection physical)
+        {
+#if DEBUG
+            QueuePosition = position;
+            ConnectionWriteState = physical?.GetWriteStatus() ?? PhysicalConnection.WriteStatus.NA;
+#endif
+        }
 
         internal const CommandFlags InternalCallFlag = (CommandFlags)128;
 
@@ -615,6 +630,10 @@ namespace StackExchange.Redis
 
         internal void SetEnqueued(PhysicalConnection connection)
         {
+#if DEBUG
+            QueuePosition = -1;
+            ConnectionWriteState = PhysicalConnection.WriteStatus.NA;
+#endif
             SetWriteTime();
             performance?.SetEnqueued();
             _enqueuedTo = connection;
@@ -628,13 +647,14 @@ namespace StackExchange.Redis
             }
         }
 
-        internal bool TryGetPhysicalState(out PhysicalConnection.WriteStatus status, out long sentDelta, out long receivedDelta)
+        internal bool TryGetPhysicalState(out PhysicalConnection.WriteStatus ws, out PhysicalConnection.ReadStatus rs, out long sentDelta, out long receivedDelta)
         {
             var connection = _enqueuedTo;
             sentDelta = receivedDelta = -1;
             if (connection != null)
             {
-                status = connection.Status;
+                ws = connection.GetWriteStatus();
+                rs = connection.GetReadStatus();
                 connection.GetBytes(out var sent, out var received);
                 if (sent >= 0 && _queuedStampSent >= 0) sentDelta = sent - _queuedStampSent;
                 if (received >= 0 && _queuedStampReceived >= 0) receivedDelta = received - _queuedStampReceived;
@@ -642,7 +662,8 @@ namespace StackExchange.Redis
             }
             else
             {
-                status = default;
+                ws = PhysicalConnection.WriteStatus.NA;
+                rs = PhysicalConnection.ReadStatus.NA;
                 return false;
             }
         }

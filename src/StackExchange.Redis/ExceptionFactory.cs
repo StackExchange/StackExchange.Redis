@@ -198,8 +198,8 @@ namespace StackExchange.Redis
             {
                 if (v != null)
                 {
-                    data.Add(Tuple.Create(lk, v));
-                    sb.Append(", ").Append(sk).Append(": ").Append(v);
+                    if (lk != null) data.Add(Tuple.Create(lk, v));
+                    if (sk != null) sb.Append(", ").Append(sk).Append(": ").Append(v);
                 }
             }
 
@@ -209,9 +209,14 @@ namespace StackExchange.Redis
                 add("Timeout", "timeout", Format.ToString(mutiplexer.TimeoutMilliseconds));
                 try
                 {
-                    if (message.TryGetPhysicalState(out var state, out var sentDelta, out var receivedDelta))
+#if DEBUG
+                    if (message.QueuePosition >= 0) add("QueuePosition", null, message.QueuePosition.ToString()); // the position the item was when added to the queue
+                    if ((int)message.ConnectionWriteState >= 0) add("WriteState", null, message.ConnectionWriteState.ToString()); // what the physical was doing when it was added to the queue
+#endif
+                    if (message.TryGetPhysicalState(out var ws, out var rs, out var sentDelta, out var receivedDelta))
                     {
-                        add("PhysicalState", "phys", state.ToString());
+                        add("Write-State", null, ws.ToString());
+                        add("Read-State", null, rs.ToString());
                         // these might not always be available
                         if (sentDelta >= 0)
                         {
@@ -229,12 +234,14 @@ namespace StackExchange.Redis
             // Add server data, if we have it
             if (server != null)
             {
-                server.GetOutstandingCount(message.Command, out int inst, out int qs, out long @in, out int qu, out bool aw, out long toRead, out long toWrite, out var bs);
+                server.GetOutstandingCount(message.Command, out int inst, out int qs, out long @in, out int qu, out bool aw, out long toRead, out long toWrite, out var bs, out var rs, out var ws);
                 add("OpsSinceLastHeartbeat", "inst", inst.ToString());
                 add("Queue-Awaiting-Write", "qu", qu.ToString());
                 add("Queue-Awaiting-Response", "qs", qs.ToString());
                 add("Active-Writer", "aw", aw.ToString());
-                add("Backlog-Writer", "bs", bs.ToString());
+                if (qu != 0) add("Backlog-Writer", "bw", bs.ToString());
+                if (rs != PhysicalConnection.ReadStatus.NA) add("Read-State", "rs", rs.ToString());
+                if (ws != PhysicalConnection.WriteStatus.NA) add("Write-State", "ws", ws.ToString());
 
                 if (@in >= 0) add("Inbound-Bytes", "in", @in.ToString());
                 if (toRead >= 0) add("Inbound-Pipe-Bytes", "in-pipe", toRead.ToString());
@@ -279,9 +286,10 @@ namespace StackExchange.Redis
             };
             if (data != null)
             {
+                var exData = ex.Data;
                 foreach (var kv in data)
                 {
-                    ex.Data["Redis-" + kv.Item1] = kv.Item2;
+                    exData["Redis-" + kv.Item1] = kv.Item2;
                 }
             }
 

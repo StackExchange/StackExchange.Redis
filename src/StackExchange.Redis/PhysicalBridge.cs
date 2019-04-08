@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using Pipelines.Sockets.Unofficial;
 using Pipelines.Sockets.Unofficial.Threading;
 using static Pipelines.Sockets.Unofficial.Threading.MutexSlim;
+using static StackExchange.Redis.ConnectionMultiplexer;
 using PendingSubscriptionState = global::StackExchange.Redis.ConnectionMultiplexer.Subscription.PendingSubscriptionState;
 
 namespace StackExchange.Redis
@@ -129,7 +130,7 @@ namespace StackExchange.Redis
 
         public override string ToString() => ConnectionType + "/" + Format.ToString(ServerEndPoint.EndPoint);
 
-        public void TryConnect(TextWriter log) => GetConnection(log);
+        public void TryConnect(LogProxy log) => GetConnection(log);
 
         private WriteResult QueueOrFailMessage(Message message)
         {
@@ -137,11 +138,12 @@ namespace StackExchange.Redis
             {
                 // you can go in the queue, but we won't be starting
                 // a worker, because the handshake has not completed
+                message.SetEnqueued(null);
                 lock (_backlog)
                 {
+                    message.SetBacklogState(_backlog.Count, null);
                     _backlog.Enqueue(message);
                 }
-                message.SetEnqueued(null);
                 return WriteResult.Success; // we'll take it...
             }
             else
@@ -289,7 +291,8 @@ namespace StackExchange.Redis
         internal bool TryEnqueueBackgroundSubscriptionWrite(in PendingSubscriptionState state)
             => isDisposed ? false : (_subscriptionBackgroundQueue ?? GetSubscriptionQueue()).Writer.TryWrite(state);
 
-        internal void GetOutstandingCount(out int inst, out int qs, out long @in, out int qu, out bool aw, out long toRead, out long toWrite, out BacklogStatus bs)
+        internal void GetOutstandingCount(out int inst, out int qs, out long @in, out int qu, out bool aw, out long toRead, out long toWrite,
+            out BacklogStatus bs, out PhysicalConnection.ReadStatus rs, out PhysicalConnection.WriteStatus ws)
         {
             inst = (int)(Interlocked.Read(ref operationCount) - Interlocked.Read(ref profileLastLog));
             lock(_backlog)
@@ -303,11 +306,15 @@ namespace StackExchange.Redis
             {
                 qs = 0;
                 toRead = toWrite = @in = -1;
+                rs = PhysicalConnection.ReadStatus.NA;
+                ws = PhysicalConnection.WriteStatus.NA;
             }
             else
             {
                 qs = tmp.GetSentAwaitingResponseCount();
                 @in = tmp.GetSocketBytes(out toRead, out toWrite);
+                rs = tmp.GetReadStatus();
+                ws = tmp.GetWriteStatus();
             }
         }
 
@@ -374,7 +381,7 @@ namespace StackExchange.Redis
             }
         }
 
-        internal async Task OnConnectedAsync(PhysicalConnection connection, TextWriter log)
+        internal async Task OnConnectedAsync(PhysicalConnection connection, LogProxy log)
         {
             Trace("OnConnected");
             if (physical == connection && !isDisposed && ChangeState(State.Connecting, State.ConnectedEstablishing))
@@ -642,39 +649,61 @@ namespace StackExchange.Redis
                 Multiplexer?.OnInfoMessage($"reentrant call to WriteMessageTakingWriteLock for {message.CommandAndKey}, {existingMessage.CommandAndKey} is still active");
                 return WriteResult.NoConnectionAvailable;
             }
-            physical.SetWriting();
-            var messageIsSent = false;
-            if (message is IMultiMessage)
+#if DEBUG
+            int startWriteTime = Environment.TickCount;
+            try
+#endif
             {
-                SelectDatabaseInsideWriteLock(physical, message); // need to switch database *before* the transaction
-                foreach (var subCommand in ((IMultiMessage)message).GetMessages(physical))
+                physical.SetWriting();
+                var messageIsSent = false;
+                if (message is IMultiMessage)
                 {
-                    result = WriteMessageToServerInsideWriteLock(physical, subCommand);
-                    if (result != WriteResult.Success)
+                    SelectDatabaseInsideWriteLock(physical, message); // need to switch database *before* the transaction
+                    foreach (var subCommand in ((IMultiMessage)message).GetMessages(physical))
                     {
-                        // we screwed up; abort; note that WriteMessageToServer already
-                        // killed the underlying connection
-                        Trace("Unable to write to server");
-                        message.Fail(ConnectionFailureType.ProtocolFailure, null, "failure before write: " + result.ToString());
-                        message.Complete();
-                        return result;
+                        result = WriteMessageToServerInsideWriteLock(physical, subCommand);
+                        if (result != WriteResult.Success)
+                        {
+                            // we screwed up; abort; note that WriteMessageToServer already
+                            // killed the underlying connection
+                            Trace("Unable to write to server");
+                            message.Fail(ConnectionFailureType.ProtocolFailure, null, "failure before write: " + result.ToString());
+                            message.Complete();
+                            return result;
+                        }
+                        //The parent message (next) may be returned from GetMessages
+                        //and should not be marked as sent again below
+                        messageIsSent = messageIsSent || subCommand == message;
                     }
-                    //The parent message (next) may be returned from GetMessages
-                    //and should not be marked as sent again below
-                    messageIsSent = messageIsSent || subCommand == message;
-                }
-                if (!messageIsSent)
-                {
-                    message.SetRequestSent(); // well, it was attempted, at least...
-                }
+                    if (!messageIsSent)
+                    {
+                        message.SetRequestSent(); // well, it was attempted, at least...
+                    }
 
-                return WriteResult.Success;
+                    return WriteResult.Success;
+                }
+                else
+                {
+                    return WriteMessageToServerInsideWriteLock(physical, message);
+                }
             }
-            else
+#if DEBUG
+            finally
             {
-                return WriteMessageToServerInsideWriteLock(physical, message);
+                int endWriteTime = Environment.TickCount;
+                int writeDuration = unchecked(endWriteTime - startWriteTime);
+                if (writeDuration > _maxWriteTime)
+                {
+                    _maxWriteTime = writeDuration;
+                    _maxWriteCommand = message?.Command ?? default;
+                }
             }
+#endif
         }
+#if DEBUG
+        private volatile int _maxWriteTime = -1;
+        private RedisCommand _maxWriteCommand;
+#endif
 
         [Obsolete("prefer async")]
         internal WriteResult WriteMessageTakingWriteLockSync(PhysicalConnection physical, Message message)
@@ -723,9 +752,11 @@ namespace StackExchange.Redis
             bool wasEmpty;
             lock (_backlog)
             {
-                wasEmpty = _backlog.Count == 0;
+                int count = _backlog.Count;
+                wasEmpty = count == 0;
                 if (wasEmpty & onlyIfExists) return false;
 
+                message.SetBacklogState(count, physical);
                 _backlog.Enqueue(message);
             }
             if (wasEmpty) StartBacklogProcessor();
@@ -735,8 +766,14 @@ namespace StackExchange.Redis
         private void StartBacklogProcessor()
         {
             var sched = Multiplexer.SocketManager?.SchedulerPool ?? DedicatedThreadPoolPipeScheduler.Default;
+#if DEBUG
+            _backlogProcessorRequestedTime = Environment.TickCount;
+#endif
             sched.Schedule(s_ProcessBacklog, _weakRefThis);
         }
+#if DEBUG
+        private volatile int _backlogProcessorRequestedTime;
+#endif
 
         private static readonly Action<object> s_ProcessBacklog = s =>
         {
@@ -785,14 +822,26 @@ namespace StackExchange.Redis
             LockToken token = default;
             try
             {
+#if DEBUG
+                int tryToAcquireTime = Environment.TickCount;
+                var msToStartWorker = unchecked(tryToAcquireTime - _backlogProcessorRequestedTime);
+                int failureCount = 0;
+#endif
                 while(true)
                 {
                     // try and get the lock; if unsuccessful, check for termination
                     token = _singleWriterMutex.TryWait();
                     if (token) break; // got the lock
                     lock (_backlog) { if (_backlog.Count == 0) return; }
+#if DEBUG
+                    failureCount++;
+#endif
                 }
                 _backlogStatus = BacklogStatus.Started;
+#if DEBUG
+                int acquiredTime = Environment.TickCount;
+                var msToGetLock = unchecked(acquiredTime - tryToAcquireTime);
+#endif
 
                 // so now we are the writer; write some things!
                 Message message;
@@ -813,6 +862,15 @@ namespace StackExchange.Redis
                         {
                             _backlogStatus = BacklogStatus.RecordingTimeout;
                             var ex = Multiplexer.GetException(WriteResult.TimeoutBeforeWrite, message, ServerEndPoint);
+#if DEBUG // additional tracking
+                            ex.Data["Redis-BacklogStartDelay"] = msToStartWorker;
+                            ex.Data["Redis-BacklogGetLockDelay"] = msToGetLock;
+                            if (failureCount != 0) ex.Data["Redis-BacklogFailCount"] = failureCount;
+                            if (_maxWriteTime >= 0) ex.Data["Redis-MaxWrite"] = _maxWriteTime.ToString() + "ms, " + _maxWriteCommand.ToString();
+                            var maxFlush = physical?.MaxFlushTime ?? -1;
+                            if (maxFlush >= 0) ex.Data["Redis-MaxFlush"] = maxFlush.ToString() + "ms, " + (physical?.MaxFlushBytes ?? -1).ToString();
+                            if (_maxLockDuration >= 0) ex.Data["Redis-MaxLockDuration"] = _maxLockDuration;
+#endif
                             message.SetExceptionAndComplete(ex, this);
                         }
                         else
@@ -889,13 +947,13 @@ namespace StackExchange.Redis
             message.SetEnqueued(physical); // this also records the read/write stats at this point
 
             bool releaseLock = true; // fine to default to true, as it doesn't matter until token is a "success"
+            int lockTaken = 0;
             LockToken token = default;
             try
             {
                 // try to acquire it synchronously
                 // note: timeout is specified in mutex-constructor
                 token = _singleWriterMutex.TryWait(options: WaitOptions.NoDelay);
-
                 if (!token.Success)
                 {
                     // we can't get it *instantaneously*; is there
@@ -912,6 +970,7 @@ namespace StackExchange.Redis
                     token = pending.Result; // fine since we know we got a result
                     if (!token.Success) return new ValueTask<WriteResult>(TimedOutBeforeWrite(message));
                 }
+                lockTaken = Environment.TickCount;
 
                 var result = WriteMessageInsideLock(physical, message);
 
@@ -921,7 +980,7 @@ namespace StackExchange.Redis
                     if (!flush.IsCompletedSuccessfully)
                     {
                         releaseLock = false; // so we don't release prematurely
-                        return CompleteWriteAndReleaseLockAsync(token, flush, message);
+                        return CompleteWriteAndReleaseLockAsync(token, flush, message, lockTaken);
                     }
 
                     result = flush.Result; // we know it was completed, this is fine
@@ -935,18 +994,35 @@ namespace StackExchange.Redis
             catch (Exception ex) { return new ValueTask<WriteResult>(HandleWriteException(message, ex)); }
             finally
             {
-                if (releaseLock) token.Dispose();
+                if (releaseLock & token.Success)
+                {
+#if DEBUG
+                    RecordLockDuration(lockTaken);
+#endif
+                    token.Dispose();
+                }
             }
         }
+#if DEBUG
+        private void RecordLockDuration(int lockTaken)
+        {
 
-        private async ValueTask<WriteResult> WriteMessageTakingWriteLockAsync_Awaited(ValueTask<LockToken> pending, PhysicalConnection physical, Message message)
+            var lockDuration = unchecked(Environment.TickCount - lockTaken);
+            if (lockDuration > _maxLockDuration) _maxLockDuration = lockDuration;
+        }
+        volatile int _maxLockDuration = -1;
+#endif
+
+    private async ValueTask<WriteResult> WriteMessageTakingWriteLockAsync_Awaited(ValueTask<LockToken> pending, PhysicalConnection physical, Message message)
         {
             try
             {
                 using (var token = await pending.ForAwait())
                 {
                     if (!token.Success) return TimedOutBeforeWrite(message);
-
+#if DEBUG
+                    int lockTaken = Environment.TickCount;
+#endif
                     var result = WriteMessageInsideLock(physical, message);
 
                     if (result == WriteResult.Success)
@@ -957,6 +1033,9 @@ namespace StackExchange.Redis
                     UnmarkActiveMessage(message);
                     physical.SetIdle();
 
+#if DEBUG
+                    RecordLockDuration(lockTaken);
+#endif
                     return result;
                 }
             }
@@ -966,7 +1045,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private async ValueTask<WriteResult> CompleteWriteAndReleaseLockAsync(LockToken lockToken, ValueTask<WriteResult> flush, Message message)
+        private async ValueTask<WriteResult> CompleteWriteAndReleaseLockAsync(LockToken lockToken, ValueTask<WriteResult> flush, Message message, int lockTaken)
         {
             using (lockToken)
             {
@@ -978,6 +1057,9 @@ namespace StackExchange.Redis
                     return result;
                 }
                 catch (Exception ex) { return HandleWriteException(message, ex); }
+#if DEBUG
+                finally { RecordLockDuration(lockTaken); }
+#endif
             }
         }
 
@@ -1016,7 +1098,7 @@ namespace StackExchange.Redis
             return result;
         }
 
-        private PhysicalConnection GetConnection(TextWriter log)
+        private PhysicalConnection GetConnection(LogProxy log)
         {
             if (state == (int)State.Disconnected)
             {
@@ -1024,7 +1106,7 @@ namespace StackExchange.Redis
                 {
                     if (!Multiplexer.IsDisposed)
                     {
-                        Multiplexer.LogLocked(log, "Connecting {0}...", Name);
+                        log?.WriteLine($"Connecting {Name}...");
                         Multiplexer.Trace("Connecting...", Name);
                         if (ChangeState(State.Disconnected, State.Connecting))
                         {
@@ -1041,7 +1123,7 @@ namespace StackExchange.Redis
                 }
                 catch (Exception ex)
                 {
-                    Multiplexer.LogLocked(log, "Connect {0} failed: {1}", Name, ex.Message);
+                    log?.WriteLine($"Connect {Name} failed: {ex.Message}");
                     Multiplexer.Trace("Connect failed: " + ex.Message, Name);
                     ChangeState(State.Disconnected);
                     OnInternalError(ex);
