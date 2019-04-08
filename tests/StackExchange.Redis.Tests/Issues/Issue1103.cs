@@ -56,6 +56,14 @@ namespace StackExchange.Redis.Tests.Issues
             y = "-"; // this is the oddness; this used to return true
             Assert.NotEqual(x, y);
             Assert.NotEqual(y, x);
+
+            y = "+";
+            Assert.NotEqual(x, y);
+            Assert.NotEqual(y, x);
+
+            y = ".";
+            Assert.NotEqual(x, y);
+            Assert.NotEqual(y, x);
         }
     }
 }
