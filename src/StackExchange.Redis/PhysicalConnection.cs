@@ -1414,6 +1414,7 @@ namespace StackExchange.Redis
                     throw new InvalidOperationException("Received response with no message waiting: " + result.ToString());
                 msg = _writtenAwaitingResponse.Dequeue();
             }
+            _activeMessage = msg;
 
             Trace("Response to: " + msg);
             _readStatus = ReadStatus.ComputeResult;
@@ -1421,6 +1422,19 @@ namespace StackExchange.Redis
             {
                 _readStatus = ReadStatus.CompletePendingMessage;
                 msg.Complete();
+            }
+
+            _activeMessage = null;
+        }
+
+        private volatile Message _activeMessage;
+
+        internal void GetHeadMessages(out Message now, out Message next)
+        {
+            now = _activeMessage;
+            lock(_writtenAwaitingResponse)
+            {
+                next = _writtenAwaitingResponse.Count == 0 ? null : _writtenAwaitingResponse.Peek();
             }
         }
 

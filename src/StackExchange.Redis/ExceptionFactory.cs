@@ -217,7 +217,7 @@ namespace StackExchange.Redis
                     if (message.QueuePosition >= 0) add("QueuePosition", null, message.QueuePosition.ToString()); // the position the item was when added to the queue
                     if ((int)message.ConnectionWriteState >= 0) add("WriteState", null, message.ConnectionWriteState.ToString()); // what the physical was doing when it was added to the queue
 #endif
-                    if (message.TryGetPhysicalState(out var ws, out var rs, out var sentDelta, out var receivedDelta))
+                    if (message != null && message.TryGetPhysicalState(out var ws, out var rs, out var sentDelta, out var receivedDelta))
                     {
                         add("Write-State", null, ws.ToString());
                         add("Read-State", null, rs.ToString());
@@ -233,6 +233,13 @@ namespace StackExchange.Redis
                     }
                 }
                 catch { }
+            }
+
+            if (message != null)
+            {
+                message.TryGetHeadMessages(out var now, out var next);
+                if (now != null) add("Message-Current", "active", mutiplexer.IncludeDetailInExceptions ? now.CommandAndKey : now.Command.ToString());
+                if (next != null) add("Message-Next", "next", mutiplexer.IncludeDetailInExceptions ? next.CommandAndKey : next.Command.ToString());
             }
 
             // Add server data, if we have it

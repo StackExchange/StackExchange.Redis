@@ -647,7 +647,15 @@ namespace StackExchange.Redis
             }
         }
 
-        internal bool TryGetPhysicalState(out PhysicalConnection.WriteStatus ws, out PhysicalConnection.ReadStatus rs, out long sentDelta, out long receivedDelta)
+        internal void TryGetHeadMessages(out Message now, out Message next)
+        {
+            var connection = _enqueuedTo;
+            now = next = null;
+            if (connection != null) connection.GetHeadMessages(out now, out next);
+        }
+
+        internal bool TryGetPhysicalState(out PhysicalConnection.WriteStatus ws, out PhysicalConnection.ReadStatus rs,
+            out long sentDelta, out long receivedDelta)
         {
             var connection = _enqueuedTo;
             sentDelta = receivedDelta = -1;
