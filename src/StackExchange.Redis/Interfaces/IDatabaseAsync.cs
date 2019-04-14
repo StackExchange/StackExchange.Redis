@@ -1592,22 +1592,24 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the stream.</param>
         /// <param name="position">The position from which to read the stream.</param>
         /// <param name="count">The maximum number of messages to return.</param>
+        /// <param name="timeout">Optionally wait for the specified number of msec for data to be read.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>Returns an instance of <see cref="StreamEntry"/> for each message returned.</returns>
         /// <remarks>Equivalent of calling XREAD COUNT num STREAMS key id.</remarks>
         /// <remarks>https://redis.io/commands/xread</remarks>
-        Task<StreamEntry[]> StreamReadAsync(RedisKey key, RedisValue position, int? count = null, CommandFlags flags = CommandFlags.None);
+        Task<StreamEntry[]> StreamReadAsync(RedisKey key, RedisValue position, int? count = null, int? timeout = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Read from multiple streams.
         /// </summary>
         /// <param name="streamPositions">Array of streams and the positions from which to begin reading for each stream.</param>
         /// <param name="countPerStream">The maximum number of messages to return from each stream.</param>
+        /// <param name="timeout">Optionally wait for the specified number of msec for data to be read.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>A value of <see cref="RedisStream"/> for each stream.</returns>
         /// <remarks>Equivalent of calling XREAD COUNT num STREAMS key1 key2 id1 id2.</remarks>
         /// <remarks>https://redis.io/commands/xread</remarks>
-        Task<RedisStream[]> StreamReadAsync(StreamPosition[] streamPositions, int? countPerStream = null, CommandFlags flags = CommandFlags.None);
+        Task<RedisStream[]> StreamReadAsync(StreamPosition[] streamPositions, int? countPerStream = null, int? timeout = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Read messages from a stream into an associated consumer group.
@@ -1617,10 +1619,11 @@ namespace StackExchange.Redis
         /// <param name="consumerName">The consumer name.</param>
         /// <param name="position">The position from which to read the stream. Defaults to <see cref="StreamPosition.NewMessages"/> when null.</param>
         /// <param name="count">The maximum number of messages to return.</param>
+        /// <param name="timeout">Optionally wait for the specified number of msec for data to be read.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>Returns a value of <see cref="StreamEntry"/> for each message returned.</returns>
         /// <remarks>https://redis.io/commands/xreadgroup</remarks>
-        Task<StreamEntry[]> StreamReadGroupAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, CommandFlags flags = CommandFlags.None);
+        Task<StreamEntry[]> StreamReadGroupAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, int? timeout = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Read from multiple streams into the given consumer group. The consumer group with the given <paramref name="groupName"/>
@@ -1630,11 +1633,12 @@ namespace StackExchange.Redis
         /// <param name="groupName">The name of the consumer group.</param>
         /// <param name="consumerName"></param>
         /// <param name="countPerStream">The maximum number of messages to return from each stream.</param>
+        /// <param name="timeout">Optionally wait for the specified number of msec for data to be read.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>A value of <see cref="RedisStream"/> for each stream.</returns>
         /// <remarks>Equivalent of calling XREADGROUP GROUP groupName consumerName COUNT countPerStream STREAMS stream1 stream2 id1 id2</remarks>
         /// <remarks>https://redis.io/commands/xreadgroup</remarks>
-        Task<RedisStream[]> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, CommandFlags flags = CommandFlags.None);
+        Task<RedisStream[]> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, int? timeout = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Trim the stream to a specified maximum length.

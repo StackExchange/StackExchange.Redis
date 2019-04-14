@@ -43,6 +43,8 @@ namespace StackExchange.Redis
 
         internal static readonly RedisValue Consumers = "CONSUMERS";
 
+        internal static readonly RedisValue Block = "BLOCK";
+		
         internal static readonly RedisValue Count = "COUNT";
 
         internal static readonly RedisValue Create = "CREATE";
