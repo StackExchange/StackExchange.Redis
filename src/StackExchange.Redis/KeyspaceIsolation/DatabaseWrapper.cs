@@ -656,9 +656,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StreamConsumerGroupSetPosition(ToInner(key), groupName, position, flags);
         }
 
-        public bool StreamCreateConsumerGroup(RedisKey key, RedisValue groupName, RedisValue? position = null, CommandFlags flags = CommandFlags.None)
+        public bool StreamCreateConsumerGroup(RedisKey key, RedisValue groupName, RedisValue? position = null, bool createStream = true, CommandFlags flags = CommandFlags.None)
         {
-            return Inner.StreamCreateConsumerGroup(ToInner(key), groupName, position, flags);
+            return Inner.StreamCreateConsumerGroup(ToInner(key), groupName, position, createStream, flags);
         }
 
         public StreamInfo StreamInfo(RedisKey key, CommandFlags flags = CommandFlags.None)

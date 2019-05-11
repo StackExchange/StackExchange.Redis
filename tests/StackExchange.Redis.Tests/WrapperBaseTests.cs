@@ -820,8 +820,8 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamCreateConsumerGroupAsync()
         {
-            wrapper.StreamCreateConsumerGroupAsync("key", "group", "0-0", CommandFlags.None);
-            mock.Verify(_ => _.StreamCreateConsumerGroupAsync("prefix:key", "group", "0-0", CommandFlags.None));
+            wrapper.StreamCreateConsumerGroupAsync("key", "group", "0-0", false, CommandFlags.None);
+            mock.Verify(_ => _.StreamCreateConsumerGroupAsync("prefix:key", "group", "0-0", false, CommandFlags.None));
         }
 
         [Fact]

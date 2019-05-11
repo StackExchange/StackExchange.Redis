@@ -1863,38 +1863,26 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Boolean);
         }
 
-        public bool StreamCreateConsumerGroup(RedisKey key, RedisValue groupName, RedisValue? position = null, CommandFlags flags = CommandFlags.None)
+        public bool StreamCreateConsumerGroup(RedisKey key, RedisValue groupName, RedisValue? position = null, bool createStream = true, CommandFlags flags = CommandFlags.None)
         {
-            var actualPosition = position ?? StreamConstants.NewMessages;
-
-            var msg = Message.Create(Database,
-                flags,
-                RedisCommand.XGROUP,
-                new RedisValue[]
-                {
-                    StreamConstants.Create,
-                    key.AsRedisValue(),
-                    groupName,
-                    StreamPosition.Resolve(actualPosition, RedisCommand.XGROUP)
-                });
+            var msg = GetStreamCreateConsumerGroupMessage(
+                key,
+                groupName,
+                position,
+                createStream,
+                flags);
 
             return ExecuteSync(msg, ResultProcessor.Boolean);
         }
 
-        public Task<bool> StreamCreateConsumerGroupAsync(RedisKey key, RedisValue groupName, RedisValue? position = null, CommandFlags flags = CommandFlags.None)
+        public Task<bool> StreamCreateConsumerGroupAsync(RedisKey key, RedisValue groupName, RedisValue? position = null, bool createStream = true, CommandFlags flags = CommandFlags.None)
         {
-            var actualPosition = position ?? StreamPosition.NewMessages;
-
-            var msg = Message.Create(Database,
-                flags,
-                RedisCommand.XGROUP,
-                new RedisValue[]
-                {
-                    StreamConstants.Create,
-                    key.AsRedisValue(),
-                    groupName,
-                    StreamPosition.Resolve(actualPosition, RedisCommand.XGROUP)
-                });
+            var msg = GetStreamCreateConsumerGroupMessage(
+                key,
+                groupName,
+                position,
+                createStream,
+                flags);
 
             return ExecuteAsync(msg, ResultProcessor.Boolean);
         }
@@ -3031,6 +3019,28 @@ namespace StackExchange.Redis
             }
 
             return Message.Create(Database, flags, RedisCommand.XCLAIM, values);
+        }
+
+        private Message GetStreamCreateConsumerGroupMessage(RedisKey key, RedisValue groupName, RedisValue? position = null, bool createStream = true, CommandFlags flags = CommandFlags.None)
+        {
+            var actualPosition = position ?? StreamConstants.NewMessages;
+
+            var values = new RedisValue[createStream ? 5 : 4];
+
+            values[0] = StreamConstants.Create;
+            values[1] = key.AsRedisValue();
+            values[2] = groupName;
+            values[3] = StreamPosition.Resolve(actualPosition, RedisCommand.XGROUP);
+
+            if (createStream)
+            {
+                values[4] = StreamConstants.MkStream;
+            }
+
+            return Message.Create(Database,
+                flags,
+                RedisCommand.XGROUP,
+                values);
         }
 
         private Message GetStreamPendingMessagesMessage(RedisKey key, RedisValue groupName, RedisValue? minId, RedisValue? maxId, int count, RedisValue consumerName, CommandFlags flags)
