@@ -97,9 +97,7 @@ Consumer Groups
 
 Using Consumer Groups allows you scale the processing of a stream across multiple workers or consumers. Please read the ["Introduction to Redis Streams"](https://redis.io/topics/streams-intro) article for detailed information on consumer groups.
 
-Currently, a **consumer group** can only be created for streams that already exist. In the examples below, the `"events_stream"` stream will have needed to be created prior to creating the consumer group by calling the `StreamAdd` method. 
-
-The following creates a consumer group and tells Redis from which position within the stream to begin reading. 
+The following creates a consumer group and tells Redis from which position within the stream to begin reading. If you call the method prior to first creating the stream, the `StreamCreateConsumerGroup` method will create the stream for you by default. You can override this default behavior by passing `false` for the `createStream` optional parameter.
 
 ```csharp
 // Returns true if created, otherwise false.
