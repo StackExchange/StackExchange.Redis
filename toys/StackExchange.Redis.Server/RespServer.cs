@@ -10,6 +10,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Pipelines.Sockets.Unofficial;
+using Pipelines.Sockets.Unofficial.Arenas;
 
 namespace StackExchange.Redis.Server
 {
@@ -241,6 +242,7 @@ namespace StackExchange.Redis.Server
         public void Dispose() => Dispose(true);
         protected virtual void Dispose(bool disposing)
         {
+            _arena.Dispose();
             DoShutdown(ShutdownReason.ServerDisposed);
         }
 
@@ -363,10 +365,11 @@ namespace StackExchange.Redis.Server
             }
             await output.FlushAsync().ConfigureAwait(false);
         }
-        public static bool TryParseRequest(ref ReadOnlySequence<byte> buffer, out RedisRequest request)
+
+        private static bool TryParseRequest(Arena<RawResult> arena, ref ReadOnlySequence<byte> buffer, out RedisRequest request)
         {
             var reader = new BufferReader(buffer);
-            var raw = PhysicalConnection.TryParseResult(in buffer, ref reader, false, null, true);
+            var raw = PhysicalConnection.TryParseResult(arena, in buffer, ref reader, false, null, true);
             if (raw.HasValue)
             {
                 buffer = reader.SliceFromCurrent();
@@ -377,6 +380,9 @@ namespace StackExchange.Redis.Server
 
             return false;
         }
+
+        private readonly Arena<RawResult> _arena = new Arena<RawResult>();
+
         public ValueTask<bool> TryProcessRequestAsync(ref ReadOnlySequence<byte> buffer, RedisClient client, PipeWriter output)
         {
             async ValueTask<bool> Awaited(ValueTask wwrite, TypedRedisValue rresponse)
@@ -385,11 +391,11 @@ namespace StackExchange.Redis.Server
                 rresponse.Recycle();
                 return true;
             }
-            if (!buffer.IsEmpty && TryParseRequest(ref buffer, out var request))
+            if (!buffer.IsEmpty && TryParseRequest(_arena, ref buffer, out var request))
             {
                 TypedRedisValue response;
                 try { response = Execute(client, request); }
-                finally { request.Recycle(); }
+                finally { _arena.Reset(); }
 
                 var write = WriteResponseAsync(client, output, response);
                 if (!write.IsCompletedSuccessfully) return Awaited(write, response);

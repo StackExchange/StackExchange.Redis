@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Net;
 using System.Text;
 
@@ -30,9 +30,6 @@ namespace StackExchange.Redis
             else sb.Append(Format.ToString(EndPoint));
         }
 
-        bool ICompletable.TryComplete(bool isAsync)
-        {
-            return ConnectionMultiplexer.TryCompleteHandler(handler, sender, this, isAsync);
-        }
+        bool ICompletable.TryComplete(bool isAsync) => ConnectionMultiplexer.TryCompleteHandler(handler, sender, this, isAsync);
     }
 }

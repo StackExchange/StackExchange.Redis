@@ -1,11 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.IO;
 using System.IO.Pipelines;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
-using System.Threading.Tasks;
 using Pipelines.Sockets.Unofficial;
 
 namespace StackExchange.Redis
@@ -55,9 +52,8 @@ namespace StackExchange.Redis
         public override string ToString()
         {
             var scheduler = SchedulerPool;
-            var comp = CompletionPool;
 
-            return $"scheduler - queue: {scheduler?.TotalServicedByQueue}, pool: {scheduler?.TotalServicedByPool}; completion - queue: {comp ?.TotalServicedByQueue}, pool: {comp?.TotalServicedByPool}";
+            return $"scheduler - queue: {scheduler?.TotalServicedByQueue}, pool: {scheduler?.TotalServicedByPool}";
         }
 
         private static SocketManager _shared;
@@ -77,10 +73,18 @@ namespace StackExchange.Redis
             if (string.IsNullOrWhiteSpace(name)) name = GetType().Name;
             Name = name;
 
-            const long Receive_PauseWriterThreshold = 4L * 1024 * 1024 * 1024; // let's give it up to 4GiB of buffer for now
-            const long Receive_ResumeWriterThreshold = 3L * 1024 * 1024 * 1024;
+            const long Receive_PauseWriterThreshold = 4L * 1024 * 1024 * 1024; // receive: let's give it up to 4GiB of buffer for now
+            const long Receive_ResumeWriterThreshold = 3L * 1024 * 1024 * 1024; // (large replies get crazy big)
 
             var defaultPipeOptions = PipeOptions.Default;
+
+            long Send_PauseWriterThreshold = Math.Max(
+                512 * 1024,// send: let's give it up to 0.5MiB
+                defaultPipeOptions.PauseWriterThreshold); // or the default, whichever is bigger
+            long Send_ResumeWriterThreshold = Math.Max(
+                Send_PauseWriterThreshold / 2,
+                defaultPipeOptions.ResumeWriterThreshold);
+
             _schedulerPool = new DedicatedThreadPoolPipeScheduler(name + ":IO",
                 workerCount: workerCount,
                 priority: useHighPrioritySocketThreads ? ThreadPriority.AboveNormal : ThreadPriority.Normal);
@@ -88,8 +92,8 @@ namespace StackExchange.Redis
                 pool: defaultPipeOptions.Pool,
                 readerScheduler: _schedulerPool,
                 writerScheduler: _schedulerPool,
-                pauseWriterThreshold: defaultPipeOptions.PauseWriterThreshold,
-                resumeWriterThreshold: defaultPipeOptions.ResumeWriterThreshold,
+                pauseWriterThreshold: Send_PauseWriterThreshold,
+                resumeWriterThreshold: Send_ResumeWriterThreshold,
                 minimumSegmentSize: Math.Max(defaultPipeOptions.MinimumSegmentSize, MINIMUM_SEGMENT_SIZE),
                 useSynchronizationContext: false);
             ReceivePipeOptions = new PipeOptions(
@@ -100,16 +104,12 @@ namespace StackExchange.Redis
                 resumeWriterThreshold: Receive_ResumeWriterThreshold,
                 minimumSegmentSize: Math.Max(defaultPipeOptions.MinimumSegmentSize, MINIMUM_SEGMENT_SIZE),
                 useSynchronizationContext: false);
-
-            _completionPool = new DedicatedThreadPoolPipeScheduler(name + ":Completion",
-                workerCount: workerCount, useThreadPoolQueueLength: 1);
         }
 
-        private DedicatedThreadPoolPipeScheduler _schedulerPool, _completionPool;
+        private DedicatedThreadPoolPipeScheduler _schedulerPool;
         internal readonly PipeOptions SendPipeOptions, ReceivePipeOptions;
 
         internal DedicatedThreadPoolPipeScheduler SchedulerPool => _schedulerPool;
-        internal DedicatedThreadPoolPipeScheduler CompletionPool => _completionPool;
 
         private enum CallbackOperation
         {
@@ -128,9 +128,7 @@ namespace StackExchange.Redis
             // be threads, and those threads will be rooting the DedicatedThreadPool;
             // but: we can lend a hand! We need to do this even in the finalizer
             try { _schedulerPool?.Dispose(); } catch { }
-            try { _completionPool?.Dispose(); } catch { }
             _schedulerPool = null;
-            _completionPool = null;
             if (disposing)
             {
                 GC.SuppressFinalize(this);
@@ -165,8 +163,5 @@ namespace StackExchange.Redis
             var s = _schedulerPool;
             return s == null ? null : $"{s.AvailableCount} of {s.WorkerCount} available";
         }
-
-        internal void ScheduleTask(Action<object> action, object state)
-            => _completionPool.Schedule(action, state);
     }
 }

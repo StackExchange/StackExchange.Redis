@@ -88,7 +88,7 @@ namespace StackExchange.Redis
                 if (Type != ResultType.MultiBulk) return default;
                 var arr = (TypedRedisValue[])_value.DirectObject;
                 if (arr == null) return default;
-                var length = (int)_value.DirectInt64;
+                var length = (int)_value.DirectOverlappedBits64;
                 return new ReadOnlySpan<TypedRedisValue>(arr, 0, length);
             }
         }
@@ -99,7 +99,7 @@ namespace StackExchange.Redis
                 if (Type != ResultType.MultiBulk) return default;
                 var arr = (TypedRedisValue[])_value.DirectObject;
                 if (arr == null) return default;
-                var length = (int)_value.DirectInt64;
+                var length = (int)_value.DirectOverlappedBits64;
                 return new ArraySegment<TypedRedisValue>(arr, 0, length);
             }
         }
@@ -163,7 +163,7 @@ namespace StackExchange.Redis
         {
             if (_value.DirectObject is TypedRedisValue[] arr)
             {
-                if (limit < 0) limit = (int)_value.DirectInt64;
+                if (limit < 0) limit = (int)_value.DirectOverlappedBits64;
                 for (int i = 0; i < limit; i++)
                 {
                     arr[i].Recycle();

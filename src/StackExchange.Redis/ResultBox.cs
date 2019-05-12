@@ -9,7 +9,7 @@ namespace StackExchange.Redis
         bool IsAsync { get; }
         bool IsFaulted { get; }
         void SetException(Exception ex);
-        bool TryComplete(bool isAsync);
+        void ActivateContinuations();
         void Cancel();
     }
     internal interface IResultBox<T> : IResultBox
@@ -27,14 +27,13 @@ namespace StackExchange.Redis
         void IResultBox.SetException(Exception exception) => _exception = exception ?? CancelledException;
         void IResultBox.Cancel() => _exception = CancelledException;
 
-        bool IResultBox.TryComplete(bool isAsync)
+        void IResultBox.ActivateContinuations()
         {
             lock (this)
             { // tell the waiting thread that we're done
                 Monitor.PulseAll(this);
             }
             ConnectionMultiplexer.TraceWithoutContext("Pulsed", "Result");
-            return true;
         }
 
         // in theory nobody should directly observe this; the only things
@@ -109,46 +108,36 @@ namespace StackExchange.Redis
             // nothing to do re recycle: TaskCompletionSource<T> cannot be recycled
         }
 
-        bool IResultBox.TryComplete(bool isAsync)
+        void IResultBox.ActivateContinuations()
         {
-            if (isAsync || (Task.CreationOptions & TaskCreationOptions.RunContinuationsAsynchronously) != 0)
-            {
-                // either on the async completion step, or the task is guarded
-                // againsts thread-stealing; complete it directly
-                // (note: RunContinuationsAsynchronously is only usable from NET46)
-                var val = _value;
-                var ex = _exception;
+            var val = _value;
+            var ex = _exception;
 
-                if (ex == null)
-                {
-                    TrySetResult(val);
-                }
-                else
-                {
-                    if (ex is TaskCanceledException) TrySetCanceled();
-                    else TrySetException(ex);
-                    // mark any exception as observed
-                    var task = Task;
-                    GC.KeepAlive(task.Exception);
-                    GC.SuppressFinalize(task);
-                }
-                return true;
+            if (ex == null)
+            {
+                TrySetResult(val);
             }
             else
             {
-                // could be thread-stealing continuations; push to async to preserve the reader thread
-                return false;
+                if (ex is TaskCanceledException) TrySetCanceled();
+                else TrySetException(ex);
+                var task = Task;
+                GC.KeepAlive(task.Exception); // mark any exception as observed
+                GC.SuppressFinalize(task); // finalizer only exists for unobserved-exception purposes
             }
         }
 
-        public static IResultBox<T> Create(out TaskCompletionSource<T> source, object asyncState, TaskCreationOptions creationOptions = TaskCreationOptions.None)
+        public static IResultBox<T> Create(out TaskCompletionSource<T> source, object asyncState)
         {
+            // since 2.0, we only support platforms where this is correctly implemented
+            const TaskCreationOptions CreationOptions = TaskCreationOptions.RunContinuationsAsynchronously;
+
             // it might look a little odd to return the same object as two different things,
             // but that's because it is serving two purposes, and I want to make it clear
             // how it is being used in those 2 different ways; also, the *fact* that they
             // are the same underlying object is an implementation detail that the rest of
             // the code doesn't need to know about
-            var obj = new TaskResultBox<T>(asyncState, creationOptions);
+            var obj = new TaskResultBox<T>(asyncState, CreationOptions);
             source = obj;
             return obj;
         }

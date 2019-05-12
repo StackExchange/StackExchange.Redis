@@ -9,6 +9,8 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using static StackExchange.Redis.ConnectionMultiplexer;
+using static StackExchange.Redis.PhysicalBridge;
 
 namespace StackExchange.Redis
 {
@@ -154,7 +156,7 @@ namespace StackExchange.Redis
             tmp?.Dispose();
         }
 
-        public PhysicalBridge GetBridge(ConnectionType type, bool create = true, TextWriter log = null)
+        public PhysicalBridge GetBridge(ConnectionType type, bool create = true, LogProxy log = null)
         {
             if (isDisposed) return null;
             switch (type)
@@ -236,7 +238,7 @@ namespace StackExchange.Redis
 
         public ValueTask<WriteResult> TryWriteAsync(Message message) => GetBridge(message.Command)?.TryWriteAsync(message, isSlave) ?? new ValueTask<WriteResult>(WriteResult.NoConnectionAvailable);
 
-        internal void Activate(ConnectionType type, TextWriter log)
+        internal void Activate(ConnectionType type, LogProxy log)
         {
             GetBridge(type, true, log);
         }
@@ -375,16 +377,22 @@ namespace StackExchange.Redis
             return counters;
         }
 
-        internal void GetOutstandingCount(RedisCommand command, out int inst, out int qs, out int @in)
+        internal void GetOutstandingCount(RedisCommand command, out int inst, out int qs, out long @in, out int qu, out bool aw, out long toRead, out long toWrite,
+            out BacklogStatus bs, out PhysicalConnection.ReadStatus rs, out PhysicalConnection.WriteStatus ws)
         {
             var bridge = GetBridge(command, false);
             if (bridge == null)
             {
-                inst = qs = @in = 0;
+                inst = qs = qu = 0;
+                @in = toRead = toWrite = 0;
+                aw = false;
+                bs = BacklogStatus.Inactive;
+                rs = PhysicalConnection.ReadStatus.NA;
+                ws = PhysicalConnection.WriteStatus.NA;
             }
             else
             {
-                bridge.GetOutstandingCount(out inst, out qs, out @in);
+                bridge.GetOutstandingCount(out inst, out qs, out @in, out qu, out aw, out toRead, out toWrite, out bs, out rs, out ws);
             }
         }
 
@@ -460,7 +468,7 @@ namespace StackExchange.Redis
             return bridge != null && (allowDisconnected || bridge.IsConnected);
         }
 
-        internal Task OnEstablishingAsync(PhysicalConnection connection, TextWriter log)
+        internal Task OnEstablishingAsync(PhysicalConnection connection, LogProxy log)
         {
             try
             {
@@ -617,7 +625,7 @@ namespace StackExchange.Redis
             subscription?.ReportNextFailure();
         }
 
-        internal Task<bool> SendTracer(TextWriter log = null)
+        internal Task<bool> SendTracer(LogProxy log = null)
         {
             var msg = GetTracerMessage(false);
             msg = LoggingMessage.Create(log, msg);
@@ -720,7 +728,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private PhysicalBridge CreateBridge(ConnectionType type, TextWriter log)
+        private PhysicalBridge CreateBridge(ConnectionType type, LogProxy log)
         {
             if (Multiplexer.IsDisposed) return null;
             Multiplexer.Trace(type.ToString());
@@ -729,9 +737,9 @@ namespace StackExchange.Redis
             return bridge;
         }
 
-        private async Task HandshakeAsync(PhysicalConnection connection, TextWriter log)
+        private async Task HandshakeAsync(PhysicalConnection connection, LogProxy log)
         {
-            Multiplexer.LogLocked(log, "Server handshake");
+            log?.WriteLine("Server handshake");
             if (connection == null)
             {
                 Multiplexer.Trace("No connection!?");
@@ -741,7 +749,7 @@ namespace StackExchange.Redis
             string password = Multiplexer.RawConfig.Password;
             if (!string.IsNullOrWhiteSpace(password))
             {
-                Multiplexer.LogLocked(log, "Authenticating (password)");
+                log?.WriteLine("Authenticating (password)");
                 msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.AUTH, (RedisValue)password);
                 msg.SetInternalCall();
                 await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
@@ -755,7 +763,7 @@ namespace StackExchange.Redis
                     name = nameSanitizer.Replace(name, "");
                     if (!string.IsNullOrWhiteSpace(name))
                     {
-                        Multiplexer.LogLocked(log, "Setting client name: {0}", name);
+                        log?.WriteLine($"Setting client name: {name}");
                         msg = Message.Create(-1, CommandFlags.FireAndForget, RedisCommand.CLIENT, RedisLiterals.SETNAME, (RedisValue)name);
                         msg.SetInternalCall();
                         await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.DemandOK).ForAwait();
@@ -772,10 +780,10 @@ namespace StackExchange.Redis
 
             if (connType == ConnectionType.Interactive)
             {
-                Multiplexer.LogLocked(log, "Auto-configure...");
+                log?.WriteLine("Auto-configure...");
                 AutoConfigure(connection);
             }
-            Multiplexer.LogLocked(log, "Sending critical tracer: {0}", bridge);
+            log?.WriteLine($"Sending critical tracer: {bridge}");
             var tracer = GetTracerMessage(true);
             tracer = LoggingMessage.Create(log, tracer);
             await WriteDirectOrQueueFireAndForgetAsync(connection, tracer, ResultProcessor.EstablishConnection).ForAwait();
@@ -791,7 +799,7 @@ namespace StackExchange.Redis
                     await WriteDirectOrQueueFireAndForgetAsync(connection, msg, ResultProcessor.TrackSubscriptions).ForAwait();
                 }
             }
-            Multiplexer.LogLocked(log, "Flushing outbound buffer");
+            log?.WriteLine("Flushing outbound buffer");
             await connection.FlushAsync().ForAwait();
         }
 

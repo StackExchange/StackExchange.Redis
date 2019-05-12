@@ -39,6 +39,9 @@ namespace StackExchange.Redis.Tests
 //#endif
             var wr = new WeakReference(muxer);
             muxer = null;
+
+            ForceGC();
+            Thread.Sleep(2000); // GC is twitchy
             ForceGC();
 
             // should be collectable

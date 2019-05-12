@@ -5,8 +5,9 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
-using System.Text;
+using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
+using Pipelines.Sockets.Unofficial.Arenas;
 
 namespace StackExchange.Redis
 {
@@ -177,7 +178,7 @@ namespace StackExchange.Redis
             {
                 try
                 {
-                    bridge?.Multiplexer?.LogLocked(logging.Log, "Response from {0} / {1}: {2}", bridge, message.CommandAndKey, result);
+                    logging.Log?.WriteLine($"Response from {bridge} / {message.CommandAndKey}: {result}");
                 }
                 catch { }
             }
@@ -566,7 +567,7 @@ namespace StackExchange.Redis
                         }
                         else
                         {
-                            int count = arr.Length / 2;
+                            int count = (int)arr.Length / 2;
                             if (count == 0)
                             {
                                 pairs = Array.Empty<T>();
@@ -574,10 +575,22 @@ namespace StackExchange.Redis
                             else
                             {
                                 pairs = new T[count];
-                                int offset = 0;
-                                for (int i = 0; i < pairs.Length; i++)
+                                if (arr.IsSingleSegment)
                                 {
-                                    pairs[i] = Parse(arr[offset++], arr[offset++]);
+                                    var span = arr.FirstSpan;
+                                    int offset = 0;
+                                    for (int i = 0; i < pairs.Length; i++)
+                                    {
+                                        pairs[i] = Parse(span[offset++], span[offset++]);
+                                    }
+                                }
+                                else
+                                {
+                                    var iter = arr.GetEnumerator(); // simplest way of getting successive values
+                                    for (int i = 0; i < pairs.Length; i++)
+                                    {
+                                        pairs[i] = Parse(iter.GetNext(), iter.GetNext());
+                                    }
                                 }
                             }
                         }
@@ -706,13 +719,14 @@ namespace StackExchange.Redis
                     case ResultType.MultiBulk:
                         if (message?.Command == RedisCommand.CONFIG)
                         {
-                            var arr = result.GetItems();
-                            int count = arr.Length / 2;
-
-                            for (int i = 0; i < count; i++)
+                            var iter = result.GetItems().GetEnumerator();
+                            while(iter.MoveNext())
                             {
-                                var key = arr[i * 2];
-                                if (key.IsEqual(CommonReplies.timeout) && arr[(i * 2) + 1].TryGetInt64(out long i64))
+                                ref RawResult key = ref iter.Current;
+                                if (!iter.MoveNext()) break;
+                                ref RawResult val = ref iter.Current;
+
+                                if (key.IsEqual(CommonReplies.timeout) && val.TryGetInt64(out long i64))
                                 {
                                     // note the configuration is in seconds
                                     int timeoutSeconds = checked((int)i64), targetSeconds;
@@ -730,7 +744,7 @@ namespace StackExchange.Redis
                                         server.WriteEverySeconds = targetSeconds;
                                     }
                                 }
-                                else if (key.IsEqual(CommonReplies.databases) && arr[(i * 2) + 1].TryGetInt64(out i64))
+                                else if (key.IsEqual(CommonReplies.databases) && val.TryGetInt64(out i64))
                                 {
                                     int dbCount = checked((int)i64);
                                     server.Multiplexer.Trace("Auto-configured databases: " + dbCount);
@@ -738,7 +752,6 @@ namespace StackExchange.Redis
                                 }
                                 else if (key.IsEqual(CommonReplies.slave_read_only))
                                 {
-                                    var val = arr[(i * 2) + 1];
                                     if (val.IsEqual(CommonReplies.yes))
                                     {
                                         server.SlaveReadOnly = true;
@@ -895,7 +908,7 @@ namespace StackExchange.Redis
                         switch (arr.Length)
                         {
                             case 1:
-                                if (arr[0].TryGetInt64(out unixTime))
+                                if (arr.FirstSpan[0].TryGetInt64(out unixTime))
                                 {
                                     var time = RedisBase.UnixEpoch.AddSeconds(unixTime);
                                     SetResult(message, time);
@@ -1104,26 +1117,25 @@ namespace StackExchange.Redis
                 this.mode = mode;
             }
 
+            private readonly struct ChannelState // I would use a value-tuple here, but that is binding hell
+            {
+                public readonly byte[] Prefix;
+                public readonly RedisChannel.PatternMode Mode;
+                public ChannelState(byte[] prefix, RedisChannel.PatternMode mode)
+                {
+                    Prefix = prefix;
+                    Mode = mode;
+                }
+            }
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
                 switch (result.Type)
                 {
                     case ResultType.MultiBulk:
-                        var arr = result.GetItems();
-                        RedisChannel[] final;
-                        if (arr.Length == 0)
-                        {
-                            final = Array.Empty<RedisChannel>();
-                        }
-                        else
-                        {
-                            final = new RedisChannel[arr.Length];
-                            byte[] channelPrefix = connection.ChannelPrefix;
-                            for (int i = 0; i < final.Length; i++)
-                            {
-                                final[i] = arr[i].AsRedisChannel(channelPrefix, mode);
-                            }
-                        }
+                        var final = result.ToArray(
+                                (in RawResult item, in ChannelState state) => item.AsRedisChannel(state.Prefix, state.Mode),
+                                new ChannelState(connection.ChannelPrefix, mode));
+
                         SetResult(message, final);
                         return true;
                 }
@@ -1277,29 +1289,15 @@ namespace StackExchange.Redis
                 switch (result.Type)
                 {
                     case ResultType.MultiBulk:
-                        var arr = result.GetItems();
-
-                        GeoRadiusResult[] typed;
-                        if (result.IsNull)
-                        {
-                            typed = null;
-                        }
-                        else
-                        {
-                            var options = this.options;
-                            typed = new GeoRadiusResult[arr.Length];
-                            for (int i = 0; i < arr.Length; i++)
-                            {
-                                typed[i] = Parse(options, arr[i]);
-                            }
-                        }
+                        var typed = result.ToArray(
+                            (in RawResult item, in GeoRadiusOptions options) => Parse(item, options), this.options);
                         SetResult(message, typed);
                         return true;
                 }
                 return false;
             }
 
-            private static GeoRadiusResult Parse(GeoRadiusOptions options, in RawResult item)
+            private static GeoRadiusResult Parse(in RawResult item, GeoRadiusOptions options)
             {
                 if (options == GeoRadiusOptions.None)
                 {
@@ -1307,11 +1305,10 @@ namespace StackExchange.Redis
                     return new GeoRadiusResult(item.AsRedisValue(), null, null, null);
                 }
                 // If WITHCOORD, WITHDIST or WITHHASH options are specified, the command returns an array of arrays, where each sub-array represents a single item.
-                var arr = item.GetItems();
+                var iter = item.GetItems().GetEnumerator();
 
-                int index = 0;
                 // the first item in the sub-array is always the name of the returned item.
-                var member = arr[index++].AsRedisValue();
+                var member = iter.GetNext().AsRedisValue();
 
                 /*  The other information is returned in the following order as successive elements of the sub-array.
 The distance from the center as a floating point number, in the same unit specified in the radius.
@@ -1321,11 +1318,11 @@ The coordinates as a two items x,y array (longitude,latitude).
                 double? distance = null;
                 GeoPosition? position = null;
                 long? hash = null;
-                if ((options & GeoRadiusOptions.WithDistance) != 0) { distance = (double?)arr[index++].AsRedisValue(); }
-                if ((options & GeoRadiusOptions.WithGeoHash) != 0) { hash = (long?)arr[index++].AsRedisValue(); }
+                if ((options & GeoRadiusOptions.WithDistance) != 0) { distance = (double?)iter.GetNext().AsRedisValue(); }
+                if ((options & GeoRadiusOptions.WithGeoHash) != 0) { hash = (long?)iter.GetNext().AsRedisValue(); }
                 if ((options & GeoRadiusOptions.WithCoordinates) != 0)
                 {
-                    var coords = arr[index++].GetItems();
+                    var coords = iter.GetNext().GetItems();
                     double longitude = (double)coords[0].AsRedisValue(), latitude = (double)coords[1].AsRedisValue();
                     position = new GeoPosition(longitude, latitude);
                 }
@@ -1498,33 +1495,21 @@ The coordinates as a two items x,y array (longitude,latitude).
                     return false;
                 }
 
-                var arr = result.GetItems();
-
-                var streams = ConvertAll(arr, item =>
+                var streams = result.GetItems().ToArray((in RawResult item, in MultiStreamProcessor obj) =>
                 {
                     var details = item.GetItems();
 
                     // details[0] = Name of the Stream
                     // details[1] = Multibulk Array of Stream Entries
-
                     return new RedisStream(key: details[0].AsRedisKey(),
-                        entries: ParseRedisStreamEntries(details[1]));
-                });
+                        entries: obj.ParseRedisStreamEntries(details[1]));
+                }, this);
 
                 SetResult(message, streams);
                 return true;
             }
         }
-        private static T[] ConvertAll<T>(ReadOnlySpan<RawResult> items, Func<RawResult, T> converter)
-        {
-            if (items.Length == 0) return Array.Empty<T>();
-            T[] arr = new T[items.Length];
-            for (int i = 0; i < arr.Length; i++)
-            {
-                arr[i] = converter(items[i]);
-            }
-            return arr;
-        }
+
         internal sealed class StreamConsumerInfoProcessor : InterleavedStreamInfoProcessorBase<StreamConsumerInfo>
         {
             protected override StreamConsumerInfo ParseItem(in RawResult result)
@@ -1595,7 +1580,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 }
 
                 var arr = result.GetItems();
-                var parsedItems = ConvertAll(arr, item => ParseItem(item));
+                var parsedItems = arr.ToArray((in RawResult item, in InterleavedStreamInfoProcessorBase<T> obj) => obj.ParseItem(item), this);
 
                 SetResult(message, parsedItems);
                 return true;
@@ -1637,9 +1622,10 @@ The coordinates as a two items x,y array (longitude,latitude).
                 long length = -1, radixTreeKeys = -1, radixTreeNodes = -1, groups = -1;
                 var lastGeneratedId = Redis.RedisValue.Null;
                 StreamEntry firstEntry = StreamEntry.Null, lastEntry = StreamEntry.Null;
-                for(int index = 0, i = 0; i < max; i++)
+                var iter = arr.GetEnumerator();
+                for(int i = 0; i < max; i++)
                 {
-                    RawResult key = arr[index++], value = arr[index++];
+                    ref RawResult key = ref iter.GetNext(), value = ref iter.GetNext();
                     if (key.Payload.Length > CommandBytes.MaxLength) continue;
 
                     var keyBytes = new CommandBytes(key.Payload);
@@ -1717,12 +1703,12 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                 // If there are no consumers as of yet for the given group, the last
                 // item in the response array will be null.
-                if (!arr[3].IsNull)
+                ref RawResult third = ref arr[3];
+                if (!third.IsNull)
                 {
-                    consumers = ConvertAll(arr[3].GetItems(), item =>
+                    consumers = third.ToArray((in RawResult item) =>
                     {
                         var details = item.GetItems();
-
                         return new StreamConsumer(
                             name: details[0].AsRedisValue(),
                             pendingMessageCount: (int)details[1].AsRedisValue());
@@ -1750,16 +1736,14 @@ The coordinates as a two items x,y array (longitude,latitude).
                     return false;
                 }
 
-                var arr = result.GetItems();
-
-                var messageInfoArray = ConvertAll(arr, item =>
+                var messageInfoArray = result.GetItems().ToArray((in RawResult item) =>
                 {
-                    var details = item.GetItems();
+                    var details = item.GetItems().GetEnumerator();
 
-                    return new StreamPendingMessageInfo(messageId: details[0].AsRedisValue(),
-                        consumerName: details[1].AsRedisValue(),
-                        idleTimeInMs: (long)details[2].AsRedisValue(),
-                        deliveryCount: (int)details[3].AsRedisValue());
+                    return new StreamPendingMessageInfo(messageId: details.GetNext().AsRedisValue(),
+                        consumerName: details.GetNext().AsRedisValue(),
+                        idleTimeInMs: (long)details.GetNext().AsRedisValue(),
+                        deliveryCount: (int)details.GetNext().AsRedisValue());
                 });
 
                 SetResult(message, messageInfoArray);
@@ -1792,9 +1776,8 @@ The coordinates as a two items x,y array (longitude,latitude).
                     return null;
                 }
 
-                var arr = result.GetItems();
-
-                return ConvertAll(arr, item => ParseRedisStreamEntry(item));
+                return result.GetItems().ToArray(
+                    (in RawResult item, in StreamProcessorBase<T> obj) => obj.ParseRedisStreamEntry(item), this);
             }
 
             protected NameValueEntry[] ParseStreamEntryValues(in RawResult result)
@@ -1822,17 +1805,17 @@ The coordinates as a two items x,y array (longitude,latitude).
                 var arr = result.GetItems();
 
                 // Calculate how many name/value pairs are in the stream entry.
-                int count = arr.Length / 2;
+                int count = (int)arr.Length / 2;
 
                 if (count == 0) return Array.Empty<NameValueEntry>();
 
                 var pairs = new NameValueEntry[count];
-                int offset = 0;
 
+                var iter = arr.GetEnumerator();
                 for (int i = 0; i < pairs.Length; i++)
                 {
-                    pairs[i] = new NameValueEntry(arr[offset++].AsRedisValue(),
-                                                  arr[offset++].AsRedisValue());
+                    pairs[i] = new NameValueEntry(iter.GetNext().AsRedisValue(),
+                                                  iter.GetNext().AsRedisValue());
                 }
 
                 return pairs;
@@ -2069,14 +2052,12 @@ The coordinates as a two items x,y array (longitude,latitude).
                     case ResultType.MultiBulk:
                         var arrayOfArrays = result.GetItems();
 
-                        var returnArray = new KeyValuePair<string, string>[arrayOfArrays.Length][];
-
-                        for (int i = 0; i < arrayOfArrays.Length; i++)
-                        {
-                            var rawInnerArray = arrayOfArrays[i];
-                            innerProcessor.TryParse(rawInnerArray, out KeyValuePair<string, string>[] kvpArray);
-                            returnArray[i] = kvpArray;
-                        }
+                        var returnArray = result.ToArray<KeyValuePair<string, string>[], StringPairInterleavedProcessor>(
+                            (in RawResult rawInnerArray, in StringPairInterleavedProcessor proc) =>
+                            {
+                                proc.TryParse(rawInnerArray, out KeyValuePair<string, string>[] kvpArray);
+                                return kvpArray;
+                            }, innerProcessor);
 
                         SetResult(message, returnArray);
                         return true;
