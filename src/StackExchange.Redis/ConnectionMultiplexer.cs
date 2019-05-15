@@ -959,21 +959,22 @@ namespace StackExchange.Redis
                             muxer.LastException = ExceptionFactory.UnableToConnect(muxer, "ConnectTimeout");
                         }
                     }
-                 
-                if (!task.Result) throw ExceptionFactory.UnableToConnect(muxer, muxer.failureMessage);
-                killMe = null;
 
-                if(muxer.ServerSelectionStrategy.ServerType == ServerType.Sentinel)
-                {
-                    // Initialize the Sentinel handlers
-                    muxer.InitializeSentinel(log);
+                    if (!task.Result) throw ExceptionFactory.UnableToConnect(muxer, muxer.failureMessage);
+                    killMe = null;
+
+                    if (muxer.ServerSelectionStrategy.ServerType == ServerType.Sentinel)
+                    {
+                        // Initialize the Sentinel handlers
+                        muxer.InitializeSentinel(logProxy);
+                    }
+                    return muxer;
                 }
-                return muxer;
-            }
-            finally
-            {
-                if (connectHandler != null) muxer.ConnectionFailed -= connectHandler;
-                if (killMe != null) try { killMe.Dispose(); } catch { }
+                finally
+                {
+                    if (connectHandler != null) muxer.ConnectionFailed -= connectHandler;
+                    if (killMe != null) try { killMe.Dispose(); } catch { }
+                }
             }
         }
 
@@ -2060,8 +2061,8 @@ namespace StackExchange.Redis
         /// the necessary event handlers to track changes to the managed
         /// masters.
         /// </summary>
-        /// <param name="log"></param>
-        internal void InitializeSentinel(TextWriter log)
+        /// <param name="logProxy"></param>
+        internal void InitializeSentinel(LogProxy logProxy)
         {
             if(ServerSelectionStrategy.ServerType != ServerType.Sentinel)
                 return;        
@@ -2104,7 +2105,7 @@ namespace StackExchange.Redis
             // a subscription to the +switch-master channel.
             this.ConnectionFailed += (sender, e) => {
                 // Reconfigure to get subscriptions back online
-                ReconfigureAsync(false, true, log, e.EndPoint, "Lost sentinel connection", false).Wait();
+                ReconfigureAsync(false, true, logProxy, e.EndPoint, "Lost sentinel connection", false).Wait();
             };
 
             // Subscribe to new sentinels being added
@@ -2287,32 +2288,35 @@ namespace StackExchange.Redis
         internal void SwitchMaster(EndPoint switchBlame, ConnectionMultiplexer connection, TextWriter log = null)
         {            
             if(log == null) log = TextWriter.Null;
-            
-            String serviceName = connection.RawConfig.ServiceName;
 
-            // Get new master
-            var msg = string.Format(FAILED_CONFIGURE_MASTER_FOR_SERVICE_MSG, serviceName, 5, 10);
-            EndPoint masterEndPoint = Retry<EndPoint>(5, 10, () => { return GetConfiguredMasterForService(serviceName); }, msg);
-
-            //Shadi: do 
-            //{
-            //    masterEndPoint = GetConfiguredMasterForService(serviceName);
-            //} while(masterEndPoint == null);
-
-            connection.currentSentinelMasterEndPoint = masterEndPoint;
-
-            if (!connection.servers.Contains(masterEndPoint))
+            using (var logProxy = LogProxy.TryCreate(log))
             {
-                connection.RawConfig.EndPoints.Clear();
-                connection.servers.Clear();
-                //connection._serverSnapshot = new ServerEndPoint[0];
-                connection.RawConfig.EndPoints.Add(masterEndPoint);
-                Trace(string.Format("Switching master to {0}", masterEndPoint));
-                // Trigger a reconfigure                            
-                connection.ReconfigureAsync(false, false, log, switchBlame, string.Format("master switch {0}", serviceName), false, CommandFlags.PreferMaster).Wait();
+                String serviceName = connection.RawConfig.ServiceName;
+
+                // Get new master
+                var msg = string.Format(FAILED_CONFIGURE_MASTER_FOR_SERVICE_MSG, serviceName, 5, 10);
+                EndPoint masterEndPoint = Retry<EndPoint>(5, 10, () => { return GetConfiguredMasterForService(serviceName); }, msg);
+
+                //Shadi: do 
+                //{
+                //    masterEndPoint = GetConfiguredMasterForService(serviceName);
+                //} while(masterEndPoint == null);
+
+                connection.currentSentinelMasterEndPoint = masterEndPoint;
+
+                if (!connection.servers.Contains(masterEndPoint))
+                {
+                    connection.RawConfig.EndPoints.Clear();
+                    connection.servers.Clear();
+                    //connection._serverSnapshot = new ServerEndPoint[0];
+                    connection.RawConfig.EndPoints.Add(masterEndPoint);
+                    Trace(string.Format("Switching master to {0}", masterEndPoint));
+                    // Trigger a reconfigure                            
+                    connection.ReconfigureAsync(false, false, logProxy, switchBlame, string.Format("master switch {0}", serviceName), false, CommandFlags.PreferMaster).Wait();
+                }
+
+                UpdateSentinelAddressList(serviceName);
             }
-            
-            UpdateSentinelAddressList(serviceName);
         }
         /// <summary>
         /// retry mechanism that executing func t times to get a non-null result within a constant interval between retries.
