@@ -721,14 +721,14 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StreamRead(streamPositions, countPerStream, flags);
         }
 
-        public StreamEntry[] StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, CommandFlags flags = CommandFlags.None)
+        public StreamEntry[] StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, bool noAck = false, CommandFlags flags = CommandFlags.None)
         {
-            return Inner.StreamReadGroup(ToInner(key), groupName, consumerName, position, count, flags);
+            return Inner.StreamReadGroup(ToInner(key), groupName, consumerName, position, count, noAck, flags);
         }
 
-        public RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, CommandFlags flags = CommandFlags.None)
+        public RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, CommandFlags flags = CommandFlags.None)
         {
-            return Inner.StreamReadGroup(streamPositions, groupName, consumerName, countPerStream, flags);
+            return Inner.StreamReadGroup(streamPositions, groupName, consumerName, countPerStream, noAck, flags);
         }
 
         public long StreamTrim(RedisKey key, int maxLength, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None)

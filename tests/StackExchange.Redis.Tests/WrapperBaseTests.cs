@@ -906,16 +906,16 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamReadGroupAsync_1()
         {
-            wrapper.StreamReadGroupAsync("key", "group", "consumer", StreamPosition.Beginning, 10, CommandFlags.None);
-            mock.Verify(_ => _.StreamReadGroupAsync("prefix:key", "group", "consumer", StreamPosition.Beginning, 10, CommandFlags.None));
+            wrapper.StreamReadGroupAsync("key", "group", "consumer", StreamPosition.Beginning, 10, false, CommandFlags.None);
+            mock.Verify(_ => _.StreamReadGroupAsync("prefix:key", "group", "consumer", StreamPosition.Beginning, 10, false, CommandFlags.None));
         }
 
         [Fact]
         public void StreamStreamReadGroupAsync_2()
         {
             var streamPositions = new StreamPosition[0] { };
-            wrapper.StreamReadGroupAsync(streamPositions, "group", "consumer", 10, CommandFlags.None);
-            mock.Verify(_ => _.StreamReadGroupAsync(streamPositions, "group", "consumer", 10, CommandFlags.None));
+            wrapper.StreamReadGroupAsync(streamPositions, "group", "consumer", 10, false, CommandFlags.None);
+            mock.Verify(_ => _.StreamReadGroupAsync(streamPositions, "group", "consumer", 10, false, CommandFlags.None));
         }
 
         [Fact]

@@ -1706,10 +1706,11 @@ namespace StackExchange.Redis
         /// <param name="consumerName">The consumer name.</param>
         /// <param name="position">The position from which to read the stream. Defaults to <see cref="StreamPosition.NewMessages"/> when null.</param>
         /// <param name="count">The maximum number of messages to return.</param>
+        /// <param name="noAck">When true, the message will not be added to the pending message list.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>Returns a value of <see cref="StreamEntry"/> for each message returned.</returns>
         /// <remarks>https://redis.io/commands/xreadgroup</remarks>
-        StreamEntry[] StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, CommandFlags flags = CommandFlags.None);
+        StreamEntry[] StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, bool noAck = false, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Read from multiple streams into the given consumer group. The consumer group with the given <paramref name="groupName"/>
@@ -1719,11 +1720,12 @@ namespace StackExchange.Redis
         /// <param name="groupName">The name of the consumer group.</param>
         /// <param name="consumerName"></param>
         /// <param name="countPerStream">The maximum number of messages to return from each stream.</param>
+        /// <param name="noAck">When true, the message will not be added to the pending message list.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>A value of <see cref="RedisStream"/> for each stream.</returns>
         /// <remarks>Equivalent of calling XREADGROUP GROUP groupName consumerName COUNT countPerStream STREAMS stream1 stream2 id1 id2</remarks>
         /// <remarks>https://redis.io/commands/xreadgroup</remarks>
-        RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, CommandFlags flags = CommandFlags.None);
+        RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Trim the stream to a specified maximum length.

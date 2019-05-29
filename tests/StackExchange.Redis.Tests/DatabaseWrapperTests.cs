@@ -948,16 +948,16 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamStreamReadGroup_1()
         {
-            wrapper.StreamReadGroup("key", "group", "consumer", "0-0", 10, CommandFlags.None);
-            mock.Verify(_ => _.StreamReadGroup("prefix:key", "group", "consumer", "0-0", 10, CommandFlags.None));
+            wrapper.StreamReadGroup("key", "group", "consumer", "0-0", 10, false, CommandFlags.None);
+            mock.Verify(_ => _.StreamReadGroup("prefix:key", "group", "consumer", "0-0", 10, false, CommandFlags.None));
         }
 
         [Fact]
         public void StreamStreamReadGroup_2()
         {
             var streamPositions = new StreamPosition[0] { };
-            wrapper.StreamReadGroup(streamPositions, "group", "consumer", 10, CommandFlags.None);
-            mock.Verify(_ => _.StreamReadGroup(streamPositions, "group", "consumer", 10, CommandFlags.None));
+            wrapper.StreamReadGroup(streamPositions, "group", "consumer", 10, false, CommandFlags.None);
+            mock.Verify(_ => _.StreamReadGroup(streamPositions, "group", "consumer", 10, false, CommandFlags.None));
         }
 
         [Fact]
