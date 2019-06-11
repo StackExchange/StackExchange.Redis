@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using StackExchange.Redis.KeyspaceIsolation;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -879,6 +880,65 @@ return timeTaken
 
                 var val3 = db.StringGet(key);
                 Assert.True(val3.IsNull);
+            }
+        }
+
+        [Fact]
+        public void ScriptWithKeyPrefixViaTokens()
+        {
+            using (var conn = Create())
+            {
+                var p = conn.GetDatabase().WithKeyPrefix("prefix/");
+
+                var args = new { x = "abc", y = (RedisKey)"def", z = 123 };
+                var script = LuaScript.Prepare(@"
+local arr = {};
+arr[1] = @x;
+arr[2] = @y;
+arr[3] = @z;
+return arr;
+");
+                var result = (RedisValue[])p.ScriptEvaluate(script, args);
+                Assert.Equal("abc", (string)result[0]);
+                Assert.Equal("prefix/def", (string)result[1]);
+                Assert.Equal("123", (string)result[2]);
+            }
+        }
+
+        [Fact]
+        public void ScriptWithKeyPrefixViaArrays()
+        {
+            using (var conn = Create())
+            {
+                var p = conn.GetDatabase().WithKeyPrefix("prefix/");
+
+                var args = new { x = "abc", y = (RedisKey)"def", z = 123 };
+                const string script = @"
+local arr = {};
+arr[1] = ARGV[1];
+arr[2] = KEYS[1];
+arr[3] = ARGV[2];
+return arr;
+";
+                var result = (RedisValue[])p.ScriptEvaluate(script, new RedisKey[] { "def" }, new RedisValue[] { "abc", 123 });
+                Assert.Equal("abc", (string)result[0]);
+                Assert.Equal("prefix/def", (string)result[1]);
+                Assert.Equal("123", (string)result[2]);
+            }
+        }
+
+        [Fact]
+        public void ScriptWithKeyPrefixCompare()
+        {
+            using (var conn = Create())
+            {
+                var p = conn.GetDatabase().WithKeyPrefix("prefix/");
+                var args = new { k = (RedisKey)"key", s = "str", v = 123 };
+                LuaScript lua = LuaScript.Prepare(@"return {@k, @s, @v}");
+                var viaArgs = (RedisValue[])p.ScriptEvaluate(lua, args);
+
+                var viaArr = (RedisValue[])p.ScriptEvaluate(@"return {KEYS[1], ARGV[1], ARGV[2]}", new[] { args.k }, new RedisValue[] { args.s, args.v });
+                Assert.Equal(string.Join(",", viaArr), string.Join(",", viaArgs));
             }
         }
     }
