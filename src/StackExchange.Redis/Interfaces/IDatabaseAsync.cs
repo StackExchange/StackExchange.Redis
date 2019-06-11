@@ -787,6 +787,18 @@ namespace StackExchange.Redis
         Task<RedisResult> ExecuteAsync(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Execute an arbitrary command against the server; this is primarily intended for
+        /// executing modules, but may also be used to provide access to new features that lack
+        /// a direct API.
+        /// </summary>
+        /// <param name="command">The command to run.</param>
+        /// <param name="args">The arguments to pass for the command.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <remarks>This API should be considered an advanced feature; inappropriate use can be harmful</remarks>
+        /// <returns>A dynamic representation of the command's result</returns>
+        Task<RedisResult> ExecuteAsync(string command, ReadOnlyMemory<object> args, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Execute a Lua script against the server.
         /// </summary>
         /// <param name="script">The script to execute.</param>
@@ -799,6 +811,18 @@ namespace StackExchange.Redis
         Task<RedisResult> ScriptEvaluateAsync(string script, RedisKey[] keys = null, RedisValue[] values = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Execute a Lua script against the server.
+        /// </summary>
+        /// <param name="script">The script to execute.</param>
+        /// <param name="keys">The keys to execute against.</param>
+        /// <param name="values">The values to execute against.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>A dynamic representation of the script's result</returns>
+        /// <remarks>https://redis.io/commands/eval</remarks>
+        /// <remarks>https://redis.io/commands/evalsha</remarks>
+        Task<RedisResult> ScriptEvaluateAsync(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Execute a Lua script against the server using just the SHA1 hash
         /// </summary>
         /// <param name="hash">The hash of the script to execute.</param>
@@ -808,6 +832,17 @@ namespace StackExchange.Redis
         /// <returns>A dynamic representation of the script's result</returns>
         /// <remarks>https://redis.io/commands/evalsha</remarks>
         Task<RedisResult> ScriptEvaluateAsync(byte[] hash, RedisKey[] keys = null, RedisValue[] values = null, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Execute a Lua script against the server using just the SHA1 hash
+        /// </summary>
+        /// <param name="hash">The hash of the script to execute.</param>
+        /// <param name="keys">The keys to execute against.</param>
+        /// <param name="values">The values to execute against.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>A dynamic representation of the script's result</returns>
+        /// <remarks>https://redis.io/commands/evalsha</remarks>
+        Task<RedisResult> ScriptEvaluateAsync(byte[] hash, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Execute a lua script against the server, using previously prepared script.

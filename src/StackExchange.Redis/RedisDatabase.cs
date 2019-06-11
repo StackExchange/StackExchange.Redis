@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -1127,6 +1128,9 @@ namespace StackExchange.Redis
         }
 
         public RedisResult ScriptEvaluate(string script, RedisKey[] keys = null, RedisValue[] values = null, CommandFlags flags = CommandFlags.None)
+            => ScriptEvaluate(script, (ReadOnlyMemory<RedisKey>)keys, (ReadOnlyMemory<RedisValue>)values, flags);
+
+        public RedisResult ScriptEvaluate(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
         {
             var msg = new ScriptEvalMessage(Database, flags, script, keys, values);
             try
@@ -1141,23 +1145,49 @@ namespace StackExchange.Redis
             }
         }
 
+        internal static ReadOnlyMemory<object> LeasedCopy(ICollection<object> args, ref CommandFlags flags)
+        {
+            if (args == null) return default;
+            if (args is object[] arr) return arr; // leave original flags
+
+            int count = args.Count;
+            if (count == 0) return default;
+            arr = ArrayPool<object>.Shared.Rent(count);
+            args.CopyTo(arr, 0);
+            flags |= Message.AutoRecycleMemories;
+            return new ReadOnlyMemory<object>(arr, 0, count);
+        }
+
         public RedisResult Execute(string command, params object[] args)
-            => Execute(command, args, CommandFlags.None);
+            => Execute(command, (ReadOnlyMemory<object>)args, CommandFlags.None);
         public RedisResult Execute(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
+        {
+            var cpy = LeasedCopy(args, ref flags);
+            return Execute(command, cpy, flags);
+        }
+        public RedisResult Execute(string command, ReadOnlyMemory<object> args, CommandFlags flags = CommandFlags.None)
         {
             var msg = new ExecuteMessage(multiplexer?.CommandMap, Database, flags, command, args);
             return ExecuteSync(msg, ResultProcessor.ScriptResult);
         }
 
         public Task<RedisResult> ExecuteAsync(string command, params object[] args)
-            => ExecuteAsync(command, args, CommandFlags.None);
+            => ExecuteAsync(command, (ReadOnlyMemory<object>)args, CommandFlags.None);
         public Task<RedisResult> ExecuteAsync(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
+        {
+            var cpy = LeasedCopy(args, ref flags);
+            return ExecuteAsync(command, cpy, flags);
+        }
+        public Task<RedisResult> ExecuteAsync(string command, ReadOnlyMemory<object> args, CommandFlags flags = CommandFlags.None)
         {
             var msg = new ExecuteMessage(multiplexer?.CommandMap, Database, flags, command, args);
             return ExecuteAsync(msg, ResultProcessor.ScriptResult);
         }
 
         public RedisResult ScriptEvaluate(byte[] hash, RedisKey[] keys = null, RedisValue[] values = null, CommandFlags flags = CommandFlags.None)
+            => ScriptEvaluate(hash, (ReadOnlyMemory<RedisKey>)keys, (ReadOnlyMemory<RedisValue>)values, flags);
+
+        public RedisResult ScriptEvaluate(byte[] hash, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
         {
             var msg = new ScriptEvalMessage(Database, flags, hash, keys, values);
             return ExecuteSync(msg, ResultProcessor.ScriptResult);
@@ -1174,12 +1204,18 @@ namespace StackExchange.Redis
         }
 
         public Task<RedisResult> ScriptEvaluateAsync(string script, RedisKey[] keys = null, RedisValue[] values = null, CommandFlags flags = CommandFlags.None)
+            => ScriptEvaluateAsync(script, (ReadOnlyMemory<RedisKey>)keys, (ReadOnlyMemory<RedisValue>)values, flags);
+
+        public Task<RedisResult> ScriptEvaluateAsync(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
         {
             var msg = new ScriptEvalMessage(Database, flags, script, keys, values);
             return ExecuteAsync(msg, ResultProcessor.ScriptResult);
         }
 
         public Task<RedisResult> ScriptEvaluateAsync(byte[] hash, RedisKey[] keys = null, RedisValue[] values = null, CommandFlags flags = CommandFlags.None)
+            => ScriptEvaluateAsync(hash, (ReadOnlyMemory<RedisKey>)keys, (ReadOnlyMemory<RedisValue>)values, flags);
+
+        public Task<RedisResult> ScriptEvaluateAsync(byte[] hash, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
         {
             var msg = new ScriptEvalMessage(Database, flags, hash, keys, values);
             return ExecuteAsync(msg, ResultProcessor.ScriptResult);
@@ -3512,24 +3548,29 @@ namespace StackExchange.Redis
 
         internal sealed class ExecuteMessage : Message
         {
-            private readonly ICollection<object> _args;
+            private readonly ReadOnlyMemory<object> _args;
             public new CommandBytes Command { get; }
 
-            public ExecuteMessage(CommandMap map, int db, CommandFlags flags, string command, ICollection<object> args) : base(db, flags, RedisCommand.UNKNOWN)
+            public override void RecycleMemories()
             {
-                if (args != null && args.Count >= PhysicalConnection.REDIS_MAX_ARGS) // using >= here because we will be adding 1 for the command itself (which is an arg for the purposes of the multi-bulk protocol)
+                Recycle(_args);
+            }
+
+            public ExecuteMessage(CommandMap map, int db, CommandFlags flags, string command, ReadOnlyMemory<object> args) : base(db, flags, RedisCommand.UNKNOWN)
+            {
+                if (args.Length >= PhysicalConnection.REDIS_MAX_ARGS) // using >= here because we will be adding 1 for the command itself (which is an arg for the purposes of the multi-bulk protocol)
                 {
-                    throw ExceptionFactory.TooManyArgs(command, args.Count);
+                    throw ExceptionFactory.TooManyArgs(command, args.Length);
                 }
                 Command = map?.GetBytes(command) ?? default;
                 if (Command.IsEmpty) throw ExceptionFactory.CommandDisabled(command);
-                _args = args ?? Array.Empty<object>();
+                _args = args;
             }
 
             protected override void WriteImpl(PhysicalConnection physical)
             {
-                physical.WriteHeader(RedisCommand.UNKNOWN, _args.Count, Command);
-                foreach (object arg in _args)
+                physical.WriteHeader(RedisCommand.UNKNOWN, _args.Length, Command);
+                foreach (object arg in _args.Span)
                 {
                     if (arg is RedisKey key)
                     {
@@ -3553,7 +3594,7 @@ namespace StackExchange.Redis
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
             {
                 int slot = ServerSelectionStrategy.NoSlot;
-                foreach (object arg in _args)
+                foreach (object arg in _args.Span)
                 {
                     if (arg is RedisKey key)
                     {
@@ -3562,51 +3603,54 @@ namespace StackExchange.Redis
                 }
                 return slot;
             }
-            public override int ArgCount => _args.Count;
+            public override int ArgCount => _args.Length;
         }
 
         private sealed class ScriptEvalMessage : Message, IMultiMessage
         {
-            private readonly RedisKey[] keys;
+            private readonly ReadOnlyMemory<RedisKey> keys;
             private readonly string script;
-            private readonly RedisValue[] values;
+            private readonly ReadOnlyMemory<RedisValue> values;
             private byte[] asciiHash;
             private readonly byte[] hexHash;
 
-            public ScriptEvalMessage(int db, CommandFlags flags, string script, RedisKey[] keys, RedisValue[] values)
+            public override void RecycleMemories()
+            {
+                Recycle(keys);
+                Recycle(values);
+            }
+            public ScriptEvalMessage(int db, CommandFlags flags, string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values)
                 : this(db, flags, ResultProcessor.ScriptLoadProcessor.IsSHA1(script) ? RedisCommand.EVALSHA : RedisCommand.EVAL, script, null, keys, values)
             {
                 if (script == null) throw new ArgumentNullException(nameof(script));
             }
 
-            public ScriptEvalMessage(int db, CommandFlags flags, byte[] hash, RedisKey[] keys, RedisValue[] values)
+            public ScriptEvalMessage(int db, CommandFlags flags, byte[] hash, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values)
                 : this(db, flags, RedisCommand.EVAL, null, hash, keys, values)
             {
                 if (hash == null) throw new ArgumentNullException(nameof(hash));
                 if (hash.Length != ResultProcessor.ScriptLoadProcessor.Sha1HashLength) throw new ArgumentOutOfRangeException(nameof(hash), "Invalid hash length");
             }
 
-            private ScriptEvalMessage(int db, CommandFlags flags, RedisCommand command, string script, byte[] hexHash, RedisKey[] keys, RedisValue[] values)
+            private ScriptEvalMessage(int db, CommandFlags flags, RedisCommand command, string script, byte[] hexHash, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values)
                 : base(db, flags, command)
             {
                 this.script = script;
                 this.hexHash = hexHash;
 
-                if (keys == null) keys = Array.Empty<RedisKey>();
-                if (values == null) values = Array.Empty<RedisValue>();
-                for (int i = 0; i < keys.Length; i++)
-                    keys[i].AssertNotNull();
+                foreach(ref readonly RedisKey key in keys.Span)
+                    key.AssertNotNull();
                 this.keys = keys;
-                for (int i = 0; i < values.Length; i++)
-                    values[i].AssertNotNull();
+                foreach(ref readonly RedisValue value in values.Span)
+                    value.AssertNotNull();
                 this.values = values;
             }
 
             public override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
             {
                 int slot = ServerSelectionStrategy.NoSlot;
-                for (int i = 0; i < keys.Length; i++)
-                    slot = serverSelectionStrategy.CombineSlot(slot, keys[i]);
+                foreach(ref readonly RedisKey key in keys.Span)
+                    slot = serverSelectionStrategy.CombineSlot(slot, key);
                 return slot;
             }
 
@@ -3649,10 +3693,10 @@ namespace StackExchange.Redis
                     physical.WriteBulkString((RedisValue)script);
                 }
                 physical.WriteBulkString(keys.Length);
-                for (int i = 0; i < keys.Length; i++)
-                    physical.Write(keys[i]);
-                for (int i = 0; i < values.Length; i++)
-                    physical.WriteBulkString(values[i]);
+                foreach (ref readonly RedisKey key in keys.Span)
+                    physical.Write(key);
+                foreach (ref readonly RedisValue value in values.Span)
+                    physical.WriteBulkString(value);
             }
             public override int ArgCount => 2 + keys.Length + values.Length;
         }

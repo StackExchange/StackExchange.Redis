@@ -849,17 +849,26 @@ namespace StackExchange.Redis
 
         #endregion
 
-        public RedisResult Execute(string command, params object[] args) => Execute(command, args, CommandFlags.None);
+        public RedisResult Execute(string command, params object[] args) => Execute(command, (ReadOnlyMemory<object>)args, CommandFlags.None);
 
         public RedisResult Execute(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
+        {
+            var cpy = RedisDatabase.LeasedCopy(args, ref flags);
+            return Execute(command, cpy, flags);
+        }
+        public RedisResult Execute(string command, ReadOnlyMemory<object> args, CommandFlags flags = CommandFlags.None)
         {
             var msg = new RedisDatabase.ExecuteMessage(multiplexer?.CommandMap, -1, flags, command, args);
             return ExecuteSync(msg, ResultProcessor.ScriptResult);
         }
 
-        public Task<RedisResult> ExecuteAsync(string command, params object[] args) => ExecuteAsync(command, args, CommandFlags.None);
-
+        public Task<RedisResult> ExecuteAsync(string command, params object[] args) => ExecuteAsync(command, (ReadOnlyMemory<object>)args, CommandFlags.None);
         public Task<RedisResult> ExecuteAsync(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
+        {
+            var cpy = RedisDatabase.LeasedCopy(args, ref flags);
+            return ExecuteAsync(command, cpy, flags);
+        }
+        public Task<RedisResult> ExecuteAsync(string command, ReadOnlyMemory<object> args, CommandFlags flags = CommandFlags.None)
         {
             var msg = new RedisDatabase.ExecuteMessage(multiplexer?.CommandMap, -1, flags, command, args);
             return ExecuteAsync(msg, ResultProcessor.ScriptResult);

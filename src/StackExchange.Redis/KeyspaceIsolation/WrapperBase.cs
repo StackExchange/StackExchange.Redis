@@ -1,7 +1,10 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Net;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 
 namespace StackExchange.Redis.KeyspaceIsolation
@@ -359,21 +362,48 @@ namespace StackExchange.Redis.KeyspaceIsolation
         }
 
         public Task<RedisResult> ExecuteAsync(string command, params object[] args)
-            => Inner.ExecuteAsync(command, ToInner(args), CommandFlags.None);
+            => Inner.ExecuteAsync(command, LeaseInner(args), CommandFlags.None | Message.AutoRecycleMemories);
 
         public Task<RedisResult> ExecuteAsync(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
-            => Inner.ExecuteAsync(command, ToInner(args), flags);
+            => Inner.ExecuteAsync(command, LeaseInnerCol(args), flags | Message.AutoRecycleMemories);
 
-        public Task<RedisResult> ScriptEvaluateAsync(byte[] hash, RedisKey[] keys = null, RedisValue[] values = null, CommandFlags flags = CommandFlags.None)
+        public Task<RedisResult> ExecuteAsync(string command, ReadOnlyMemory<object> args, CommandFlags flags = CommandFlags.None)
+            => Inner.ExecuteAsync(command, LeaseInner(args.Span), flags | Message.AutoRecycleMemories);
+
+        public async Task<RedisResult> ScriptEvaluateAsync(byte[] hash, RedisKey[] keys = null, RedisValue[] values = null, CommandFlags flags = CommandFlags.None)
         {
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
-            return Inner.ScriptEvaluateAsync(hash, ToInner(keys), values, flags);
+            using (var inner = LeaseInner(keys))
+            {
+                return await Inner.ScriptEvaluateAsync(hash, inner, values, flags);
+            }
         }
 
-        public Task<RedisResult> ScriptEvaluateAsync(string script, RedisKey[] keys = null, RedisValue[] values = null, CommandFlags flags = CommandFlags.None)
+        public async Task<RedisResult> ScriptEvaluateAsync(string script, RedisKey[] keys = null, RedisValue[] values = null, CommandFlags flags = CommandFlags.None)
+        {
+            using (var inner = LeaseInner(keys))
+            {
+                // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
+                return await Inner.ScriptEvaluateAsync(script, inner, values, flags);
+            }
+        }
+
+        public async Task<RedisResult> ScriptEvaluateAsync(byte[] hash, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
         {
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
-            return Inner.ScriptEvaluateAsync(script, ToInner(keys), values, flags);
+            using (var inner = LeaseInner(keys.Span))
+            {
+                return await Inner.ScriptEvaluateAsync(hash, inner, values, flags);
+            }
+        }
+
+        public async Task<RedisResult> ScriptEvaluateAsync(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
+        {
+            using (var inner = LeaseInner(keys.Span))
+            {
+                // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
+                return await Inner.ScriptEvaluateAsync(script, inner, values, flags);
+            }
         }
 
         public Task<RedisResult> ScriptEvaluateAsync(LuaScript script, object parameters = null, CommandFlags flags = CommandFlags.None)
@@ -862,32 +892,127 @@ namespace StackExchange.Redis.KeyspaceIsolation
             }
         }
 
+        internal readonly struct ValueLease<T> : IDisposable
+        {
+            private readonly T[] _array;
+            private readonly int _length;
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            internal ValueLease(T[] array, int length)
+            {
+                _array = array;
+                _length = length;
+                Debug.Assert(array != null);
+                Debug.Assert(length >= array.Length);
+            }
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            internal static ValueLease<T> Rent(int size)
+                => new ValueLease<T>(ArrayPool<T>.Shared.Rent(size), size);
+
+            public Memory<T> Memory
+            {
+                [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                get => new Memory<T>(_array, 0, _length);
+            }
+            public Span<T> Span
+            {
+                [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                get => new Span<T>(_array, 0, _length);
+            }
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static implicit operator Memory<T> (ValueLease<T> lease) => lease.Memory;
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static implicit operator ReadOnlyMemory<T>(ValueLease<T> lease) => lease.Memory;
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static implicit operator Span<T>(ValueLease<T> lease) => lease.Span;
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static implicit operator ReadOnlySpan<T>(ValueLease<T> lease) => lease.Span;
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public void Dispose()
+            {
+                if (_length != 0)
+                    ArrayPool<T>.Shared.Return(_array);
+            }
+        }
+
+        protected ValueLease<object> LeaseInnerCol(ICollection<object> args)
+        {
+            if (args == null || args.Count == 0) return default;
+            var withPrefix = ArrayPool<object>.Shared.Rent(args.Count);
+            AddPrefix(args, withPrefix);
+            return new ValueLease<object>(withPrefix, args.Count);
+        }
+
+        protected ValueLease<object> LeaseInner(ReadOnlySpan<object> args)
+        {
+            if (args.IsEmpty) return default;
+            var withPrefix = ArrayPool<object>.Shared.Rent(args.Length);
+            AddPrefix(args, withPrefix);
+            return new ValueLease<object>(withPrefix, args.Length);
+        }
+
+        protected ValueLease<RedisKey> LeaseInner(ReadOnlySpan<RedisKey> args)
+        {
+            if (args.IsEmpty) return default;
+            var withPrefix = ArrayPool<RedisKey>.Shared.Rent(args.Length);
+            for(int i = 0; i < args.Length; i++)
+            {
+                withPrefix[i] = ToInner(args[i]);
+            }
+            return new ValueLease<RedisKey>(withPrefix, args.Length);
+        }
+
         protected ICollection<object> ToInner(ICollection<object> args)
         {
             if (args?.Any(x => x is RedisKey || x is RedisChannel) == true)
             {
                 var withPrefix = new object[args.Count];
-                int i = 0;
-                foreach(var oldArg in args)
-                {
-                    object newArg;
-                    if (oldArg is RedisKey key)
-                    {
-                        newArg    = ToInner(key);
-                    }
-                    else if (oldArg is RedisChannel channel)
-                    {
-                        newArg = ToInner(channel);
-                    }
-                    else
-                    {
-                        newArg = oldArg;
-                    }
-                    withPrefix[i++] = newArg;
-                }
+                AddPrefix(args, withPrefix);
                 args = withPrefix;
             }
             return args;
+        }
+
+        private void AddPrefix(ReadOnlySpan<object> from, object[] to)
+        {
+            int i = 0;
+            foreach (var oldArg in from)
+            {
+                object newArg;
+                if (oldArg is RedisKey key)
+                {
+                    newArg = ToInner(key);
+                }
+                else if (oldArg is RedisChannel channel)
+                {
+                    newArg = ToInner(channel);
+                }
+                else
+                {
+                    newArg = oldArg;
+                }
+                to[i++] = newArg;
+            }
+        }
+        private void AddPrefix(ICollection<object> from, object[] to)
+        {
+            int i = 0;
+            foreach (var oldArg in from)
+            {
+                object newArg;
+                if (oldArg is RedisKey key)
+                {
+                    newArg = ToInner(key);
+                }
+                else if (oldArg is RedisChannel channel)
+                {
+                    newArg = ToInner(channel);
+                }
+                else
+                {
+                    newArg = oldArg;
+                }
+                to[i++] = newArg;
+            }
         }
 
         protected RedisKey[] ToInner(RedisKey[] outer)

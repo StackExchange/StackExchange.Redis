@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -12,15 +14,21 @@ namespace StackExchange.Redis
     {
         public readonly struct ScriptParameters
         {
-            public readonly RedisKey[] Keys;
-            public readonly RedisValue[] Arguments;
+            public readonly RedisKey[] KeyArray;
+            public readonly RedisValue[] ArgArray;
+            public readonly int KeyCount;
+            public readonly int ArgCount;
 
-            public static readonly ConstructorInfo Cons = typeof(ScriptParameters).GetConstructor(new[] { typeof(RedisKey[]), typeof(RedisValue[]) });
-            public ScriptParameters(RedisKey[] keys, RedisValue[] args)
+            public static readonly ConstructorInfo Constructor = typeof(ScriptParameters).GetConstructor(new[] { typeof(int), typeof(int) });
+            public ScriptParameters(int keyCount, int argCount)
             {
-                Keys = keys;
-                Arguments = args;
+                KeyCount = keyCount;
+                KeyArray = keyCount == 0 ? Array.Empty<RedisKey>() : ArrayPool<RedisKey>.Shared.Rent(keyCount);
+                ArgCount = argCount;
+                ArgArray = argCount == 0 ? Array.Empty<RedisValue>() : ArrayPool<RedisValue>.Shared.Rent(argCount);
             }
+            public ReadOnlyMemory<RedisKey> Keys => new ReadOnlyMemory<RedisKey>(KeyArray, 0, KeyCount);
+            public ReadOnlyMemory<RedisValue> Args => new ReadOnlyMemory<RedisValue>(ArgArray, 0, ArgCount);
         }
 
         private static readonly Regex ParameterExtractor = new Regex(@"@(?<paramName> ([a-z]|_) ([a-z]|_|\d)*)", RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace);
@@ -187,6 +195,9 @@ namespace StackExchange.Redis
             return true;
         }
 
+        private static readonly MethodInfo s_prepend = typeof(RedisKey).GetMethod(nameof(RedisKey.Prepend), BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+        private static readonly MethodInfo s_asRedisValue = typeof(RedisKey).GetMethod(nameof(RedisKey.AsRedisValue), BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+
         /// <summary>
         /// <para>Creates a Func that extracts parameters from the given type for use by a LuaScript.</para>
         /// <para>
@@ -241,65 +252,89 @@ namespace StackExchange.Redis
                 args.Add(member);
             }
 
+            // parameters
             var objUntyped = Expression.Parameter(typeof(object), "obj");
-            var objTyped = Expression.Convert(objUntyped, t);
             var keyPrefix = Expression.Parameter(typeof(RedisKey?), "keyPrefix");
 
-            Expression keysResult, valuesResult;
-            MethodInfo asRedisValue = null;
-            Expression[] keysResultArr = null;
-            if (keys.Count == 0)
+            // locals
+            var operations = new List<Expression>();
+            var objTyped = Expression.Variable(t);
+            var result = Expression.Variable(typeof(ScriptParameters));
+            var keyArr = Expression.Variable(typeof(RedisKey[]));
+            var argArr = Expression.Variable(typeof(RedisValue[]));
+            var needsPrefix = Expression.Variable(typeof(bool));
+            var prefixValue = Expression.Variable(typeof(RedisKey));
+
+            // objTyped = (t)objUntyped
+            operations.Add(Expression.Assign(objTyped, Expression.Convert(objUntyped, t)));
+
+            // result = new ScriptParameters(keys.Count, args.Count)
+            operations.Add(Expression.Assign(result, Expression.New(ScriptParameters.Constructor, Expression.Constant(keys.Count), Expression.Constant(args.Count))));
+
+            if (keys.Count != 0)
             {
-                // if there are no keys, don't allocate
-                keysResult = Expression.Constant(null, typeof(RedisKey[]));
-            }
-            else
-            {
+                // keyArr = result.KeyArray;
+                operations.Add(Expression.Assign(keyArr, Expression.PropertyOrField(result, nameof(ScriptParameters.KeyArray))));
+
+                // needsPrefix = keyPrefix.HasValue
+                // prefixValue = prefixValue.GetValueOrDefault()
+                operations.Add(Expression.Assign(needsPrefix, Expression.PropertyOrField(keyPrefix, nameof(Nullable<RedisKey>.HasValue))));
+                operations.Add(Expression.Assign(prefixValue, Expression.Call(keyPrefix, nameof(Nullable<RedisKey>.GetValueOrDefault), null, null)));
+
                 var needsKeyPrefix = Expression.Property(keyPrefix, nameof(Nullable<RedisKey>.HasValue));
-                var keyPrefixValueArr = new[] { Expression.Call(keyPrefix,
-                    nameof(Nullable<RedisKey>.GetValueOrDefault), null, null) };
-                var prepend = typeof(RedisKey).GetMethod(nameof(RedisKey.Prepend),
-                    BindingFlags.Public | BindingFlags.Instance);
-                asRedisValue = typeof(RedisKey).GetMethod(nameof(RedisKey.AsRedisValue),
-                    BindingFlags.NonPublic | BindingFlags.Instance);
+                var prefixValueAsArgs = new[] { prefixValue };
 
-                keysResultArr = new Expression[keys.Count];
-                for (int i = 0; i < keysResultArr.Length; i++)
+                int i = 0;
+                foreach(var key in keys)
                 {
-                    var member = GetMember(objTyped, keys[i]);
-                    keysResultArr[i] = Expression.Condition(needsKeyPrefix,
-                        Expression.Call(member, prepend, keyPrefixValueArr),
-                        member);
+                    // keyArr[i++] = needsKeyPrefix ? objTyped.{member} : objTyped.{Member}.Prepend(prefixValue)
+                    var member = GetMember(objTyped, key);
+                    operations.Add(Expression.Assign(Expression.ArrayAccess(keyArr, Expression.Constant(i++)),
+                        Expression.Condition(needsKeyPrefix, Expression.Call(member, s_prepend, prefixValueAsArgs), member)));
                 }
-                keysResult = Expression.NewArrayInit(typeof(RedisKey), keysResultArr);
             }
 
-            if (args.Count == 0)
+
+            if (args.Count != 0)
             {
-                // if there are no args, don't allocate
-                valuesResult = Expression.Constant(null, typeof(RedisValue[]));
-            }
-            else
-            {
-                valuesResult = Expression.NewArrayInit(typeof(RedisValue), args.Select(arg =>
+                // argArr = result.ArgsArray;
+                operations.Add(Expression.Assign(argArr, Expression.PropertyOrField(result, nameof(ScriptParameters.ArgArray))));
+
+                int i = 0;
+                foreach (var arg in args)
                 {
+                    Expression rhs;
                     var member = GetMember(objTyped, arg);
-                    if (member.Type == typeof(RedisValue)) return member; // pass-thru
-                    if (member.Type == typeof(RedisKey))
-                    { // need to apply prefix (note we can re-use the body from earlier)
-                        var val = keysResultArr[keys.IndexOf(arg)];
-                        return Expression.Call(val, asRedisValue);
+                    if (member.Type == typeof(RedisValue))
+                    {
+                        // ... = objTyped.{member}
+                        rhs = member; // pass-thru
                     }
-
-                    // otherwise: use the conversion operator
-                    var conversion = _conversionOperators[member.Type];
-                    return Expression.Call(conversion, member);
-                }));
+                    else if (member.Type == typeof(RedisKey))
+                    {
+                        int keyIndex = keys.IndexOf(arg);
+                        Debug.Assert(keyIndex >= 0);
+                        // ... = keys[{index}].AsRedisValue()
+                        rhs = Expression.Call(Expression.ArrayAccess(keyArr, Expression.Constant(keyIndex)), s_asRedisValue);
+                    }
+                    else
+                    {
+                        // ... = (SomeConversion)objTyped.{member}
+                        var conversion = _conversionOperators[member.Type];
+                        rhs = Expression.Call(conversion, member);
+                    }
+                    // argArr[i++] = ...
+                    operations.Add(Expression.Assign(Expression.ArrayAccess(argArr, Expression.Constant(i++)), rhs));
+                }
             }
 
+            operations.Add(result); // final operation: return result
             var body = Expression.Lambda<Func<object, RedisKey?, ScriptParameters>>(
-                Expression.New(ScriptParameters.Cons, keysResult, valuesResult),
-                objUntyped, keyPrefix);
+                Expression.Block(
+                    typeof(ScriptParameters), // return type of the block
+                    new ParameterExpression[] { objTyped, result, keyArr, argArr, needsPrefix, prefixValue }, // locals scoped by the block
+                    operations), // the operations to perform
+                objUntyped, keyPrefix); // parameters to the lambda
             return body.Compile();
         }
     }

@@ -164,7 +164,7 @@ namespace StackExchange.Redis.Tests
         public void IntentionalWrongServer()
         {
             string StringGet(IServer server, RedisKey key, CommandFlags flags = CommandFlags.None)
-                => (string)server.Execute("GET", new object[] { key }, flags);
+                => (string)server.Execute("GET", (ReadOnlyMemory<object>)new object[] { key }, flags);
 
             using (var conn = Create())
             {

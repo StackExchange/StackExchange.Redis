@@ -603,10 +603,9 @@ return timeTaken
                 Assert.Equal(123, (int)val);
 
                 // no super clean way to extract this; so just abuse InternalsVisibleTo
-                script.ExtractParameters(p, null, out RedisKey[] keys, out RedisValue[] args);
-                Assert.NotNull(keys);
-                Assert.Single(keys);
-                Assert.Equal(key, keys[0]);
+                script.ExtractParameters(p, null, out var keys, out var args);
+                Assert.Equal(1, keys.Length);
+                Assert.Equal(key, keys.Span[0]);
             }
         }
 
@@ -718,10 +717,9 @@ return timeTaken
                 Assert.Equal(123, (int)val);
 
                 // no super clean way to extract this; so just abuse InternalsVisibleTo
-                prepared.Original.ExtractParameters(p, null, out RedisKey[] keys, out RedisValue[] args);
-                Assert.NotNull(keys);
-                Assert.Single(keys);
-                Assert.Equal(key, keys[0]);
+                prepared.Original.ExtractParameters(p, null, out var keys, out var args);
+                Assert.Equal(1, keys.Length);
+                Assert.Equal(key, keys.Span[0]);
             }
         }
 
@@ -821,13 +819,12 @@ return timeTaken
             var p = new { key = (RedisKey)key, value = "hello" };
 
             // no super clean way to extract this; so just abuse InternalsVisibleTo
-            prepared.ExtractParameters(p, "prefix-", out RedisKey[] keys, out RedisValue[] args);
-            Assert.NotNull(keys);
-            Assert.Single(keys);
-            Assert.Equal("prefix-" + key, keys[0]);
+            prepared.ExtractParameters(p, "prefix-", out var keys, out var args);
+            Assert.Equal(1, keys.Length);
+            Assert.Equal("prefix-" + key, keys.Span[0]);
             Assert.Equal(2, args.Length);
-            Assert.Equal("prefix-" +  key, args[0]);
-            Assert.Equal("hello", args[1]);
+            Assert.Equal("prefix-" +  key, args.Span[0]);
+            Assert.Equal("hello", args.Span[1]);
         }
 
         [Fact]

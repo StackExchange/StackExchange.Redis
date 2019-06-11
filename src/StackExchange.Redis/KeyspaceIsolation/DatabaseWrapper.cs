@@ -377,21 +377,48 @@ namespace StackExchange.Redis.KeyspaceIsolation
         }
 
         public RedisResult Execute(string command, params object[] args)
-            => Inner.Execute(command, ToInner(args), CommandFlags.None);
+            => Inner.Execute(command, LeaseInner(args), CommandFlags.None | Message.AutoRecycleMemories);
 
         public RedisResult Execute(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None)
-            => Inner.Execute(command, ToInner(args), flags);
+            => Inner.Execute(command, LeaseInnerCol(args), flags | Message.AutoRecycleMemories);
+
+        public RedisResult Execute(string command, ReadOnlyMemory<object> args, CommandFlags flags = CommandFlags.None)
+            => Inner.Execute(command, LeaseInner(args.Span), flags | Message.AutoRecycleMemories);
 
         public RedisResult ScriptEvaluate(byte[] hash, RedisKey[] keys = null, RedisValue[] values = null, CommandFlags flags = CommandFlags.None)
         {
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
-            return Inner.ScriptEvaluate(hash, ToInner(keys), values, flags);
+            using (var inner = LeaseInner(keys))
+            {
+                return Inner.ScriptEvaluate(hash, inner, values, flags);
+            }
         }
 
         public RedisResult ScriptEvaluate(string script, RedisKey[] keys = null, RedisValue[] values = null, CommandFlags flags = CommandFlags.None)
         {
             // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
-            return Inner.ScriptEvaluate(script, ToInner(keys), values, flags);
+            using (var inner = LeaseInner(keys))
+            {
+                return Inner.ScriptEvaluate(script, inner, values, flags);
+            }
+        }
+
+        public RedisResult ScriptEvaluate(string script, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
+        {
+            // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
+            using (var inner = LeaseInner(keys.Span))
+            {
+                return Inner.ScriptEvaluate(script, inner, values, flags);
+            }
+        }
+
+        public RedisResult ScriptEvaluate(byte[] hash, ReadOnlyMemory<RedisKey> keys, ReadOnlyMemory<RedisValue> values, CommandFlags flags = CommandFlags.None)
+        {
+            // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
+            using (var inner = LeaseInner(keys.Span))
+            {
+                return Inner.ScriptEvaluate(hash, inner, values, flags);
+            }
         }
 
         public RedisResult ScriptEvaluate(LuaScript script, object parameters = null, CommandFlags flags = CommandFlags.None)

@@ -1,9 +1,11 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -52,6 +54,12 @@ namespace StackExchange.Redis
 
     internal abstract class Message : ICompletable
     {
+        protected static void Recycle<T>(in ReadOnlyMemory<T> memory)
+        {
+            if (!memory.IsEmpty && MemoryMarshal.TryGetArray(memory, out var segment))
+                ArrayPool<T>.Shared.Return(segment.Array);
+        }
+        public virtual void RecycleMemories() { }
         public readonly int Db;
 
 #if DEBUG
@@ -67,7 +75,9 @@ namespace StackExchange.Redis
 #endif
         }
 
-        internal const CommandFlags InternalCallFlag = (CommandFlags)128;
+        internal const CommandFlags
+            InternalCallFlag = (CommandFlags)128,
+            AutoRecycleMemories = (CommandFlags)2048;
 
         protected RedisCommand command;
 

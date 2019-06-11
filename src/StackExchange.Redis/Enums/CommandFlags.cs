@@ -65,5 +65,6 @@ namespace StackExchange.Redis
         NoScriptCache = 512,
 
         // 1024: used for timed-out; never user-specified, so not visible on the public API
+        // 2048: used to indicate to auto-recycle arrays; we may add this to the public API later
     }
 }

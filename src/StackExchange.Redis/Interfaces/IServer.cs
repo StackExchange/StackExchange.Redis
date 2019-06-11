@@ -265,6 +265,18 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="command">The command to run.</param>
         /// <param name="args">The arguments to pass for the command.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <remarks>This API should be considered an advanced feature; inappropriate use can be harmful</remarks>
+        /// <returns>A dynamic representation of the command's result</returns>
+        RedisResult Execute(string command, ReadOnlyMemory<object> args, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Execute an arbitrary command against the server; this is primarily intended for
+        /// executing modules, but may also be used to provide access to new features that lack
+        /// a direct API.
+        /// </summary>
+        /// <param name="command">The command to run.</param>
+        /// <param name="args">The arguments to pass for the command.</param>
         /// <remarks>This API should be considered an advanced feature; inappropriate use can be harmful</remarks>
         /// <returns>A dynamic representation of the command's result</returns>
         Task<RedisResult> ExecuteAsync(string command, params object[] args);
@@ -280,6 +292,18 @@ namespace StackExchange.Redis
         /// <remarks>This API should be considered an advanced feature; inappropriate use can be harmful</remarks>
         /// <returns>A dynamic representation of the command's result</returns>
         Task<RedisResult> ExecuteAsync(string command, ICollection<object> args, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Execute an arbitrary command against the server; this is primarily intended for
+        /// executing modules, but may also be used to provide access to new features that lack
+        /// a direct API.
+        /// </summary>
+        /// <param name="command">The command to run.</param>
+        /// <param name="args">The arguments to pass for the command.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <remarks>This API should be considered an advanced feature; inappropriate use can be harmful</remarks>
+        /// <returns>A dynamic representation of the command's result</returns>
+        Task<RedisResult> ExecuteAsync(string command, ReadOnlyMemory<object> args, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Delete all the keys of all databases on the server.

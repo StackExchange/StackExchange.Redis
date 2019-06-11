@@ -95,7 +95,7 @@ namespace StackExchange.Redis
             return ret;
         }
 
-        internal void ExtractParameters(object ps, RedisKey? keyPrefix, out RedisKey[] keys, out RedisValue[] args)
+        internal void ExtractParameters(object ps, RedisKey? keyPrefix, out ReadOnlyMemory<RedisKey> keys, out ReadOnlyMemory<RedisValue> args)
         {
             if (HasArguments)
             {
@@ -127,12 +127,12 @@ namespace StackExchange.Redis
 
                 var mapped = mapper(ps, keyPrefix);
                 keys = mapped.Keys;
-                args = mapped.Arguments;
+                args = mapped.Args;
             }
             else
             {
-                keys = null;
-                args = null;
+                keys = default;
+                args = default;
             }
         }
 
@@ -145,8 +145,8 @@ namespace StackExchange.Redis
         /// <param name="flags">The command flags to use.</param>
         public RedisResult Evaluate(IDatabase db, object ps = null, RedisKey? withKeyPrefix = null, CommandFlags flags = CommandFlags.None)
         {
-            ExtractParameters(ps, withKeyPrefix, out RedisKey[] keys, out RedisValue[] args);
-            return db.ScriptEvaluate(ExecutableScript, keys, args, flags);
+            ExtractParameters(ps, withKeyPrefix, out var keys, out var args);
+            return db.ScriptEvaluate(ExecutableScript, keys, args, flags | Message.AutoRecycleMemories);
         }
 
         /// <summary>
@@ -158,8 +158,8 @@ namespace StackExchange.Redis
         /// <param name="flags">The command flags to use.</param>
         public Task<RedisResult> EvaluateAsync(IDatabaseAsync db, object ps = null, RedisKey? withKeyPrefix = null, CommandFlags flags = CommandFlags.None)
         {
-            ExtractParameters(ps, withKeyPrefix, out RedisKey[] keys, out RedisValue[] args);
-            return db.ScriptEvaluateAsync(ExecutableScript, keys, args, flags);
+            ExtractParameters(ps, withKeyPrefix, out var keys, out var args);
+            return db.ScriptEvaluateAsync(ExecutableScript, keys, args, flags | Message.AutoRecycleMemories);
         }
 
         /// <summary>
@@ -263,7 +263,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The command flags to use.</param>
         public RedisResult Evaluate(IDatabase db, object ps = null, RedisKey? withKeyPrefix = null, CommandFlags flags = CommandFlags.None)
         {
-            Original.ExtractParameters(ps, withKeyPrefix, out RedisKey[] keys, out RedisValue[] args);
+            Original.ExtractParameters(ps, withKeyPrefix, out var keys, out var args);
             return db.ScriptEvaluate(Hash, keys, args, flags);
         }
 
@@ -280,7 +280,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The command flags to use.</param>
         public Task<RedisResult> EvaluateAsync(IDatabaseAsync db, object ps = null, RedisKey? withKeyPrefix = null, CommandFlags flags = CommandFlags.None)
         {
-            Original.ExtractParameters(ps, withKeyPrefix, out RedisKey[] keys, out RedisValue[] args);
+            Original.ExtractParameters(ps, withKeyPrefix, out var keys, out var args);
             return db.ScriptEvaluateAsync(Hash, keys, args, flags);
         }
     }
