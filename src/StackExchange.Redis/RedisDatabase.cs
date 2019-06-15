@@ -1863,6 +1863,16 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Boolean);
         }
 
+        public bool StreamCreateConsumerGroup(RedisKey key, RedisValue groupName, RedisValue? position, CommandFlags flags)
+        {
+            return StreamCreateConsumerGroup(
+                key,
+                groupName,
+                position,
+                true, 
+                flags);
+        }
+
         public bool StreamCreateConsumerGroup(RedisKey key, RedisValue groupName, RedisValue? position = null, bool createStream = true, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetStreamCreateConsumerGroupMessage(
@@ -1873,6 +1883,16 @@ namespace StackExchange.Redis
                 flags);
 
             return ExecuteSync(msg, ResultProcessor.Boolean);
+        }
+
+        public Task<bool> StreamCreateConsumerGroupAsync(RedisKey key, RedisValue groupName, RedisValue? position, CommandFlags flags)
+        {
+            return Task.FromResult(StreamCreateConsumerGroup(
+                key,
+                groupName,
+                position,
+                true,
+                flags));
         }
 
         public Task<bool> StreamCreateConsumerGroupAsync(RedisKey key, RedisValue groupName, RedisValue? position = null, bool createStream = true, CommandFlags flags = CommandFlags.None)
