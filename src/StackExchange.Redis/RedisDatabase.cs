@@ -1887,12 +1887,12 @@ namespace StackExchange.Redis
 
         public Task<bool> StreamCreateConsumerGroupAsync(RedisKey key, RedisValue groupName, RedisValue? position, CommandFlags flags)
         {
-            return Task.FromResult(StreamCreateConsumerGroup(
+            return StreamCreateConsumerGroupAsync(
                 key,
                 groupName,
                 position,
                 true,
-                flags));
+                flags);
         }
 
         public Task<bool> StreamCreateConsumerGroupAsync(RedisKey key, RedisValue groupName, RedisValue? position = null, bool createStream = true, CommandFlags flags = CommandFlags.None)
