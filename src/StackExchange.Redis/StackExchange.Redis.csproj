@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <!-- extend the default lib targets for the main lib; mostly because of "vectors" -->
-    <LibTargetFrameworks Condition="'$(OS)' == 'Windows_NT'">net461;netstandard2.0;net472</LibTargetFrameworks>
+    <LibTargetFrameworks Condition="'$(OS)' == 'Windows_NT'">net461;netcoreapp2.2;net472</LibTargetFrameworks>
     <TargetFrameworks>$(LibTargetFrameworks)</TargetFrameworks>
     <Description>High performance Redis client, incorporating both synchronous and asynchronous usage.</Description>
     <AssemblyName>StackExchange.Redis</AssemblyName>

@@ -28,11 +28,11 @@
 - fix: last unanswered write time was incorrect
 - change: use higher `Pipe` thresholds when sending
 
-## 2.0.519
+## 2.2
 
 - adapt to late changes in the RC streams API (#983, #1007)
 - documentation fixes (#997, #1005)
-- build: switch to SDK 2.1.500
+- build: switch to SDK 2.2
 
 ## 2.0.513
 

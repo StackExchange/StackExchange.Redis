@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <Description>StackExchange.Redis.BasicTest .NET Core</Description>
-    <TargetFrameworks>netcoreapp2.0;netcoreapp2.1;net472</TargetFrameworks>
+    <TargetFrameworks>netcoreapp2.2;net472</TargetFrameworks>
     <AssemblyName>BasicTestBaseline</AssemblyName>
     <OutputType>Exe</OutputType>
     <PackageId>BasicTestBaseline</PackageId>
@@ -18,7 +18,7 @@
 
   <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" Version="0.11.4" />
-    <PackageReference Include="StackExchange.Redis" Version="[2.0.519]" />
+    <PackageReference Include="StackExchange.Redis" Version="2.0.558" />
   </ItemGroup>
 
 </Project>

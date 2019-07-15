@@ -54,8 +54,8 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void ConfigurationOptionsForAzureWhenSpecified()
         {
-            var options = ConfigurationOptions.Parse("contoso.redis.cache.windows.net,abortConnect=true, version=2.1.1");
-            Assert.True(options.DefaultVersion.Equals(new Version(2, 1, 1)));
+            var options = ConfigurationOptions.Parse("contoso.redis.cache.windows.net,abortConnect=true, version=2.2.0");
+            Assert.True(options.DefaultVersion.Equals(new Version(2, 2, 0)));
             Assert.True(options.AbortOnConnectFail);
         }
 

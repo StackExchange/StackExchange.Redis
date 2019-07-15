@@ -11,9 +11,9 @@ namespace StackExchange.Redis.Tests.Helpers
         static Extensions()
         {
 #if NET462
-            VersionInfo = "Compiled under .NET 4.6.2";
-#elif NETCOREAPP2_1
-            VersionInfo = "Compiled under .NETCoreApp2.1";
+            VersionInfo = "Compiled under .NET 4.6.1";
+#elif NETCOREAPP2_2
+            VersionInfo = "Compiled under .NETCoreApp2.2";
 #else
             VersionInfo = "Compiled under <unknown framework>";
 #endif

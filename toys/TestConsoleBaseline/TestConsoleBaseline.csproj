@@ -2,8 +2,10 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFrameworks>netcoreapp2.1;net461;net462;net47;net472</TargetFrameworks>
+    <TargetFrameworks>netcoreapp2.2;net461;net472</TargetFrameworks>
     <LangVersion>latest</LangVersion>
+    <DefineConstants>SEV2</DefineConstants>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Computername)'=='OCHO' or '$(Computername)'=='SKINK'">
@@ -13,8 +15,12 @@
   <ItemGroup>
     <Compile Include="..\TestConsole\Program.cs" Link="Program.cs" />
   </ItemGroup>
-  
+
   <ItemGroup>
-    <PackageReference Include="StackExchange.Redis" Version="[2.0.558]" /> <!-- [1.2.6] for previous major -->
+    <ProjectReference Include="..\..\src\StackExchange.Redis\StackExchange.Redis.csproj" />
   </ItemGroup>
+  
+  <!--<ItemGroup>
+    <PackageReference Include="StackExchange.Redis" Version="[2.0.558]" /> --><!-- [1.2.6] for previous major --><!--
+  </ItemGroup>-->
 </Project>

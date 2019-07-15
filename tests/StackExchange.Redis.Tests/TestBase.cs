@@ -348,8 +348,8 @@ namespace StackExchange.Redis.Tests
         public static string Me([CallerFilePath] string filePath = null, [CallerMemberName] string caller = null) =>
 #if NET462
             "net462-" + Path.GetFileNameWithoutExtension(filePath) + "-" + caller;
-#elif NETCOREAPP2_0
-            "netcoreapp2.0-" + Path.GetFileNameWithoutExtension(filePath) + "-" + caller;
+#elif NETCOREAPP2_2
+            "netcoreapp2.2-" + Path.GetFileNameWithoutExtension(filePath) + "-" + caller;
 #else
             "unknown-" + Path.GetFileNameWithoutExtension(filePath) + "-" + caller;
 #endif
