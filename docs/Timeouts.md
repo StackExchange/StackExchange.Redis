@@ -72,3 +72,27 @@ How to configure this setting:
  - Outside of ASP.NET, use the [ThreadPool.SetMinThreads(…)](https://docs.microsoft.com/en-us/dotnet/api/system.threading.threadpool.setminthreads?view=netcore-2.0#System_Threading_ThreadPool_SetMinThreads_System_Int32_System_Int32_) API.
 
 - In .Net Core, add Environment Variable COMPlus_ThreadPool_ForceMinWorkerThreads to overwrite default MinThreads setting, according to [Environment/Registry Configuration Knobs](https://github.com/dotnet/coreclr/blob/master/Documentation/project-docs/clr-configuration-knobs.md) - You can also use the same ThreadPool.SetMinThreads() Method as described above.
+
+Abbrivations used in exception messages:
+Sample Information in Exception
+inst -> OpsSinceLastHeartbeat: 20, 
+qu -> Queue-Awaiting-Write: 0, 
+qs -> Queue-Awaiting-Response: 136, 
+aw -> Active-Writer: False, 
+rs -> Read-State: ReadAsync, 
+ws -> Write-State: Idle, 
+in -> Inbound-Bytes: 4071, 
+in-pipe -> Inbound-Pipe-Bytes: 403, 
+out-pipe -> Outbound-Pipe-Bytes: 1711, 
+serverEndpoint: endpoint, 
+mgr -> Redis Internal Dedicated Thread Pool State: 8 of 10 available, 
+clientName: SAMPERF, 
+IOCP -> Runtime Global Thread Pool IO Threads: (Busy=0,Free=500,Min=248,Max=500), 
+WORKER -> Runtime Global Thread Pool Worker Threads: (Busy=170,Free=330,Min=248,Max=500), 
+v -> Redis Version: 2.0.600.65315
+- Enable flag on multiplexer, IncludeDetailInExceptions=True
+active -> Message-Current
+next -> Message-Next
+Turn on this flag IncludePerformanceCountersInExceptions=True to get CPU counters in Exception on MultiPlexer
+Local-CPU -> %CPU
+
