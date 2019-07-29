@@ -142,7 +142,8 @@ namespace NRediSearch
         /// Set the query language, for stemming purposes; see http://redisearch.io for documentation on languages and stemming
         /// </summary>
         public string Language { get; set; }
-        internal string[] _fields = null;
+        internal string[] _queryFields = null;
+        internal string[] _returnFields = null;
         /// <summary>
         /// Set the query payload to be evaluated by the scoring function
         /// </summary>
@@ -204,11 +205,17 @@ namespace NRediSearch
                 args.Add("LANGUAGE".Literal());
                 args.Add(Language);
             }
-            if (_fields?.Length > 0)
+            if (_queryFields?.Length > 0)
             {
                 args.Add("INFIELDS".Literal());
-                args.Add(_fields.Length.Boxed());
-                args.AddRange(_fields);
+                args.Add(_queryFields.Length.Boxed());
+                args.AddRange(_queryFields);
+            }
+            if (_returnFields?.Length > 0)
+            {
+                args.Add("RETURN".Literal());
+                args.Add(_returnFields.Length.Boxed());
+                args.AddRange(_returnFields);
             }
 
             if (SortBy != null)
@@ -317,9 +324,20 @@ namespace NRediSearch
         /// </summary>
         /// <param name="fields">a list of TEXT fields in the schemas</param>
         /// <returns>the query object itself</returns>
-        public Query LimitFields(params string[] fields)
+        public Query LimitQueryFields(params string[] fields)
         {
-            _fields = fields;
+            _queryFields = fields;
+            return this;
+        }
+
+        /// <summary>
+        /// Limit the returned fields in the query results.
+        /// </summary>
+        /// <param name="fields"></param>
+        /// <returns></returns>
+        public Query LimitReturnFields(params string[] fields)
+        {
+            _returnFields = fields;
             return this;
         }
 
