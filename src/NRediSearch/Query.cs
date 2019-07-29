@@ -142,7 +142,8 @@ namespace NRediSearch
         /// Set the query language, for stemming purposes; see http://redisearch.io for documentation on languages and stemming
         /// </summary>
         public string Language { get; set; }
-        internal string[] _queryFields = null;
+        internal string[] _fields = null;
+        internal string[] _keys = null;
         internal string[] _returnFields = null;
         /// <summary>
         /// Set the query payload to be evaluated by the scoring function
@@ -205,11 +206,17 @@ namespace NRediSearch
                 args.Add("LANGUAGE".Literal());
                 args.Add(Language);
             }
-            if (_queryFields?.Length > 0)
+            if (_fields?.Length > 0)
             {
                 args.Add("INFIELDS".Literal());
-                args.Add(_queryFields.Length.Boxed());
-                args.AddRange(_queryFields);
+                args.Add(_fields.Length.Boxed());
+                args.AddRange(_fields);
+            }
+            if (_keys?.Length > 0)
+            {
+                args.Add("INKEYS".Literal());
+                args.Add(_keys.Length.Boxed());
+                args.AddRange(_keys);
             }
             if (_returnFields?.Length > 0)
             {
@@ -324,18 +331,29 @@ namespace NRediSearch
         /// </summary>
         /// <param name="fields">a list of TEXT fields in the schemas</param>
         /// <returns>the query object itself</returns>
-        public Query LimitQueryFields(params string[] fields)
+        public Query LimitFields(params string[] fields)
         {
-            _queryFields = fields;
+            _fields = fields;
             return this;
         }
 
         /// <summary>
-        /// Limit the returned fields in the query results.
+        /// Limit the query to results that are limited to a specific set of keys
         /// </summary>
-        /// <param name="fields"></param>
-        /// <returns></returns>
-        public Query LimitReturnFields(params string[] fields)
+        /// <param name="fields">fields a list of TEXT fields in the schemas</param>
+        /// <returns>the query object itself</returns>
+        public Query LimitKeys(params string[] keys)
+        {
+            _keys = keys;
+            return this;
+        }
+
+        /// <summary>
+        /// Result's projection - the fields to return by the query
+        /// </summary>
+        /// <param name="fields">fields a list of TEXT fields in the schemas</param>
+        /// <returns>the query object itself</returns>
+        public Query ReturnFields(params string[] fields)
         {
             _returnFields = fields;
             return this;
