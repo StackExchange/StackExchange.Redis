@@ -75,6 +75,7 @@
         KEYS,
 
         LASTSAVE,
+        LATENCY,
         LINDEX,
         LINSERT,
         LLEN,
