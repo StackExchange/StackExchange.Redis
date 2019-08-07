@@ -634,12 +634,12 @@ namespace StackExchange.Redis
         string LatencyDoctor(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Resets all the events, discarding the currently logged latency spike events, and resetting the maximum event time register.
+        /// Resets the given events (or all if none are specified), discarding the currently logged latency spike events, and resetting the maximum event time register.
         /// </summary>
         /// <remarks>https://redis.io/topics/latency-monitor</remarks>
         Task<long> LatencyResetAsync(string[] eventNames = null, CommandFlags flags = CommandFlags.None);
         /// <summary>
-        /// Resets all the events, discarding the currently logged latency spike events, and resetting the maximum event time register.
+        /// Resets the given events (or all if none are specified), discarding the currently logged latency spike events, and resetting the maximum event time register.
         /// </summary>
         /// <remarks>https://redis.io/topics/latency-monitor</remarks>
         long LatencyReset(string[] eventNames = null, CommandFlags flags = CommandFlags.None);
@@ -665,6 +665,54 @@ namespace StackExchange.Redis
         /// </summary>
         /// <remarks>https://redis.io/topics/latency-monitor</remarks>
         LatencyLatestEntry[] LatencyLatest(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Reports about different memory-related issues that the Redis server experiences, and advises about possible remedies.
+        /// </summary>
+        /// <remarks>https://redis.io/commands/memory-doctor</remarks>
+        Task<string> MemoryDoctorAsync(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Reports about different memory-related issues that the Redis server experiences, and advises about possible remedies.
+        /// </summary>
+        /// <remarks>https://redis.io/commands/memory-doctor</remarks>
+        string MemoryDoctor(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Attempts to purge dirty pages so these can be reclaimed by the allocator.
+        /// </summary>
+        /// <remarks>https://redis.io/commands/memory-purge</remarks>
+        Task MemoryPurgeAsync(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Attempts to purge dirty pages so these can be reclaimed by the allocator.
+        /// </summary>
+        /// <remarks>https://redis.io/commands/memory-purge</remarks>
+        void MemoryPurge(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns an array reply about the memory usage of the server.
+        /// </summary>
+        /// <remarks>https://redis.io/commands/memory-stats</remarks>
+        Task<RedisResult> MemoryStatsAsync(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns an array reply about the memory usage of the server.
+        /// </summary>
+        /// <remarks>https://redis.io/commands/memory-stats</remarks>
+        RedisResult MemoryStats(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Provides an internal statistics report from the memory allocator.
+        /// </summary>
+        /// <remarks>https://redis.io/commands/memory-malloc-stats</remarks>
+        Task<string> MemoryAllocatorStatsAsync(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Provides an internal statistics report from the memory allocator.
+        /// </summary>
+        /// <remarks>https://redis.io/commands/memory-malloc-stats</remarks>
+        string MemoryAllocatorStats(CommandFlags flags = CommandFlags.None);
 
         #region Sentinel
 
@@ -779,7 +827,7 @@ namespace StackExchange.Redis
     }
 
     /// <summary>
-    /// A latency entry as reported by the inbuild LATENCY HISTORY command
+    /// A latency entry as reported by the built-in LATENCY HISTORY command
     /// </summary>
     public readonly struct LatencyHistoryEntry
     {
@@ -823,7 +871,7 @@ namespace StackExchange.Redis
     }
 
     /// <summary>
-    /// A latency entry as reported by the inbuild LATENCY LATEST command
+    /// A latency entry as reported by the built-in LATENCY LATEST command
     /// </summary>
     public readonly struct LatencyLatestEntry
     {

@@ -87,6 +87,7 @@
         LSET,
         LTRIM,
 
+        MEMORY,
         MGET,
         MIGRATE,
         MONITOR,

@@ -550,6 +550,7 @@ namespace StackExchange.Redis
                 case RedisCommand.INFO:
                 case RedisCommand.LASTSAVE:
                 case RedisCommand.LATENCY:
+                case RedisCommand.MEMORY:
                 case RedisCommand.MONITOR:
                 case RedisCommand.MULTI:
                 case RedisCommand.PING:

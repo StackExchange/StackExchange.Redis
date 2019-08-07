@@ -935,5 +935,53 @@ namespace StackExchange.Redis
             var msg = Message.Create(-1, flags, RedisCommand.LATENCY, RedisLiterals.LATEST);
             return ExecuteSync(msg, LatencyLatestEntry.ToArray);
         }
+
+        public Task<string> MemoryDoctorAsync(CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.MEMORY, RedisLiterals.DOCTOR);
+            return ExecuteAsync(msg, ResultProcessor.String);
+        }
+
+        public string MemoryDoctor(CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.MEMORY, RedisLiterals.DOCTOR);
+            return ExecuteSync(msg, ResultProcessor.String);
+        }
+
+        public Task MemoryPurgeAsync(CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.MEMORY, RedisLiterals.PURGE);
+            return ExecuteAsync(msg, ResultProcessor.DemandOK);
+        }
+
+        public void MemoryPurge(CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.MEMORY, RedisLiterals.PURGE);
+            ExecuteSync(msg, ResultProcessor.DemandOK);
+        }
+
+        public Task<string> MemoryAllocatorStatsAsync(CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.MEMORY, RedisLiterals.MALLOC_STATS);
+            return ExecuteAsync(msg, ResultProcessor.String);
+        }
+
+        public string MemoryAllocatorStats(CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.MEMORY, RedisLiterals.MALLOC_STATS);
+            return ExecuteSync(msg, ResultProcessor.String);
+        }
+
+        public Task<RedisResult> MemoryStatsAsync(CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.MEMORY, RedisLiterals.STATS);
+            return ExecuteAsync(msg, ResultProcessor.ScriptResult);
+        }
+
+        public RedisResult MemoryStats(CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.MEMORY, RedisLiterals.STATS);
+            return ExecuteSync(msg, ResultProcessor.ScriptResult);
+        }
     }
 }
