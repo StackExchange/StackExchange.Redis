@@ -1246,6 +1246,41 @@ namespace StackExchange.Redis
             return new RedisServer(this, server, asyncState);
         }
 
+        /// <summary>
+        /// returns connection stats for a endpoint
+        /// <param name="hostAndPort">The "host:port" string to get a stats for.</param>
+        /// <param name="connectionType">ConnectionType of the connection to get stats for.</param>
+        /// </summary>
+        public EndPointStats GetConnectionStats(string hostAndPort, ConnectionType connectionType) => GetConnectionStats(Format.TryParseEndPoint(hostAndPort), connectionType);
+
+        /// <summary>
+        /// returns connection stats for a endpoint
+        /// <param name="host">The host to get a stats for.</param>
+        /// <param name="port">The port for <paramref name="host"/> to get a stats for.</param>
+        /// <param name="connectionType">ConnectionType of the connection to get stats for.</param>
+        /// </summary>
+        public EndPointStats GetConnectionStats(IPAddress host, int port, ConnectionType connectionType) => GetConnectionStats(new IPEndPoint(host, port), connectionType);
+
+        /// <summary>
+        /// returns connection stats for a endpoint
+        /// <param name="endpoint">The endpoint to get the connections stats for.</param>
+        /// <param name="connectionType">ConnectionType of the connection to get stats for.</param>
+        /// </summary>
+        public EndPointStats GetConnectionStats(EndPoint endpoint, ConnectionType connectionType)
+        {
+            if (endpoint == null) throw new ArgumentNullException(nameof(endpoint));
+            if (connectionType == ConnectionType.None) throw new ArgumentException($"invalid {nameof(connectionType)}");
+            if (RawConfig.Proxy == Proxy.Twemproxy) throw new NotSupportedException("The server API is not available via twemproxy");
+            var server = (ServerEndPoint)servers[endpoint];
+            if (server == null) throw new ArgumentException("The specified endpoint is not defined", nameof(endpoint));
+            server.GetOutstandingCount(server.GetBridge(connectionType, create: false), out int inst, out int qs, out long @in, out int qu, out bool aw, out long toRead, out long toWrite, out var bs, out var rs, out var ws);
+            return new EndPointStats(
+                queuedAwaitingWrite: qu,
+                queuedAwaitingResponse: qs
+            );
+
+        }
+
         [Conditional("VERBOSE")]
         internal void Trace(string message, [CallerMemberName] string category = null)
         {
@@ -1922,7 +1957,7 @@ namespace StackExchange.Redis
             return ServerSelectionStrategy.Select(message);
         }
 
-        internal ServerEndPoint SelectServer(RedisCommand command, CommandFlags flags, in RedisKey key)
+        internal ServerEndPoint SelectServer(RedisCommand command, CommandFlags flags, RedisKey key)
         {
             return ServerSelectionStrategy.Select(command, key, flags);
         }

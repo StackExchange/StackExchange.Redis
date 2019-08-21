@@ -378,9 +378,16 @@ namespace StackExchange.Redis
         }
 
         internal void GetOutstandingCount(RedisCommand command, out int inst, out int qs, out long @in, out int qu, out bool aw, out long toRead, out long toWrite,
-            out BacklogStatus bs, out PhysicalConnection.ReadStatus rs, out PhysicalConnection.WriteStatus ws)
+           out BacklogStatus bs, out PhysicalConnection.ReadStatus rs, out PhysicalConnection.WriteStatus ws)
         {
             var bridge = GetBridge(command, false);
+            GetOutstandingCount(bridge, out inst, out qs, out @in, out qu, out aw, out toRead, out toWrite,
+            out bs, out rs, out ws);
+        }
+
+        internal void GetOutstandingCount(PhysicalBridge bridge, out int inst, out int qs, out long @in, out int qu, out bool aw, out long toRead, out long toWrite,
+            out BacklogStatus bs, out PhysicalConnection.ReadStatus rs, out PhysicalConnection.WriteStatus ws)
+        {
             if (bridge == null)
             {
                 inst = qs = qu = 0;
