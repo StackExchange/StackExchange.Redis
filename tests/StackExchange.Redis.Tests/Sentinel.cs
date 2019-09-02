@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Threading;
@@ -147,74 +148,99 @@ namespace StackExchange.Redis.Tests
         public void SentinelSentinelsTest()
         {
             var sentinels = Server26379.SentinelSentinels(ServiceName);
-            var expected = new string[] {
+            var expected = new List<string> {
                 Server26380.EndPoint.ToString(),
                 Server26381.EndPoint.ToString()
             };
 
+            var actual = new List<string>();
+            foreach(var kv in sentinels)
+            {
+                actual.Add(kv.ToDictionary()["name"]);
+            }
+            
+
             Assert.All(expected, ep => Assert.NotEqual(ep, Server26379.EndPoint.ToString()));
             Assert.True(sentinels.Length == 2);
-            Assert.Equal(Server26381.EndPoint.ToString(), sentinels[0].ToDictionary()["name"]);
-            Assert.Equal(Server26380.EndPoint.ToString(), sentinels[1].ToDictionary()["name"]);
+            Assert.All(expected, ep => Assert.Contains(ep, actual));
 
             sentinels = Server26380.SentinelSentinels(ServiceName);
-            expected = new string[] {
+            foreach (var kv in sentinels)
+            {
+                actual.Add(kv.ToDictionary()["name"]);
+            }
+            expected = new List<string> {
                 Server26379.EndPoint.ToString(),
                 Server26381.EndPoint.ToString()
             };
 
             Assert.All(expected, ep => Assert.NotEqual(ep, Server26380.EndPoint.ToString()));
             Assert.True(sentinels.Length == 2);
-            Assert.Equal(Server26381.EndPoint.ToString(), sentinels[0].ToDictionary()["name"]);
-            Assert.Equal(Server26379.EndPoint.ToString(), sentinels[1].ToDictionary()["name"]);
-
+            Assert.All(expected, ep => Assert.Contains(ep, actual));
+            
             sentinels = Server26381.SentinelSentinels(ServiceName);
-            expected = new string[] {
+            foreach (var kv in sentinels)
+            {
+                actual.Add(kv.ToDictionary()["name"]);
+            }
+            expected = new List<string> {
                 Server26379.EndPoint.ToString(),
                 Server26380.EndPoint.ToString()
             };
 
             Assert.All(expected, ep => Assert.NotEqual(ep, Server26381.EndPoint.ToString()));
             Assert.True(sentinels.Length == 2);
-            Assert.Equal(Server26379.EndPoint.ToString(), sentinels[0].ToDictionary()["name"]);
-            Assert.Equal(Server26380.EndPoint.ToString(), sentinels[1].ToDictionary()["name"]);
+            Assert.All(expected, ep => Assert.Contains(ep, actual));
         }
 
         [Fact]
         public async Task SentinelSentinelsAsyncTest()
         {
             var sentinels = await Server26379.SentinelSentinelsAsync(ServiceName).ForAwait();
-            var expected = new string[] {
+            var expected = new List<string> {
                 Server26380.EndPoint.ToString(),
                 Server26381.EndPoint.ToString()
             };
 
+            var actual = new List<string>();
+            foreach (var kv in sentinels)
+            {
+                actual.Add(kv.ToDictionary()["name"]);
+            }
             Assert.All(expected, ep => Assert.NotEqual(ep, Server26379.EndPoint.ToString()));
             Assert.True(sentinels.Length == 2);
-            Assert.Equal(Server26381.EndPoint.ToString(), sentinels[0].ToDictionary()["name"]);
-            Assert.Equal(Server26380.EndPoint.ToString(), sentinels[1].ToDictionary()["name"]);
+            Assert.All(expected, ep => Assert.Contains(ep, actual));
+            
 
             sentinels = await Server26380.SentinelSentinelsAsync(ServiceName).ForAwait();
-            expected = new string[] {
+
+            expected = new List<string> {
                 Server26379.EndPoint.ToString(),
                 Server26381.EndPoint.ToString()
             };
 
+            actual = new List<string>();
+            foreach (var kv in sentinels)
+            {
+                actual.Add(kv.ToDictionary()["name"]);
+            }
             Assert.All(expected, ep => Assert.NotEqual(ep, Server26380.EndPoint.ToString()));
             Assert.True(sentinels.Length == 2);
-            Assert.Equal(Server26381.EndPoint.ToString(), sentinels[0].ToDictionary()["name"]);
-            Assert.Equal(Server26379.EndPoint.ToString(), sentinels[1].ToDictionary()["name"]);
+            Assert.All(expected, ep => Assert.Contains(ep, actual));
 
             sentinels = await Server26381.SentinelSentinelsAsync(ServiceName).ForAwait();
-            expected = new string[] {
+            expected = new List<string> {
                 Server26379.EndPoint.ToString(),
                 Server26380.EndPoint.ToString()
             };
-
+            actual = new List<string>();
+            foreach (var kv in sentinels)
+            {
+                actual.Add(kv.ToDictionary()["name"]);
+            }
             Assert.All(expected, ep => Assert.NotEqual(ep, Server26381.EndPoint.ToString()));
             Assert.True(sentinels.Length == 2);
-            Assert.Equal(Server26379.EndPoint.ToString(), sentinels[0].ToDictionary()["name"]);
-            Assert.Equal(Server26380.EndPoint.ToString(), sentinels[1].ToDictionary()["name"]);
+            Assert.All(expected, ep => Assert.Contains(ep, actual));
         }
 
         [Fact]
@@ -343,7 +369,7 @@ namespace StackExchange.Redis.Tests
             var endpoint = conn.currentSentinelMasterEndPoint.ToString();
 
             await Server26379.SentinelFailoverAsync(ServiceName).ForAwait();
-            Thread.Sleep(3000);
+            Thread.Sleep(5000);
             var conn1 = Conn.GetSentinelMasterConnection(new ConfigurationOptions { ServiceName = ServiceName });
             var endpoint1 = conn1.currentSentinelMasterEndPoint.ToString();
 
@@ -374,6 +400,7 @@ namespace StackExchange.Redis.Tests
             Assert.NotEqual(s, s1);
             Assert.Equal(expected, actual);
         }
+
         [Fact]
         public async Task SentinelGetSentinelAddressesTest()
         {
