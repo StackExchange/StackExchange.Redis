@@ -38,6 +38,8 @@ install:
     redis-server.exe --service-install --service-name "redis-26379" "..\Sentinel\sentinel-26379.conf" --sentinel
 
     redis-server.exe --service-install --service-name "redis-26380" "..\Sentinel\sentinel-26380.conf" --sentinel
+    
+    redis-server.exe --service-install --service-name "redis-26380" "..\Sentinel\sentinel-26381.conf" --sentinel
 
     cd ..\..\..
 - sh: >-
