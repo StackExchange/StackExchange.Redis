@@ -434,7 +434,7 @@ namespace StackExchange.Redis.Tests
             }
 
             var readonlyConn = ConnectionMultiplexer.Connect(config);
-            
+
             Thread.Sleep(5000);
             Assert.True(readonlyConn.IsConnected);
             var db = readonlyConn.GetDatabase();
@@ -442,6 +442,7 @@ namespace StackExchange.Redis.Tests
             Assert.True(s.IsNullOrEmpty);            
             //var ex = Assert.Throws<RedisConnectionException>(() => db.StringSet("test", "try write to read only instance"));
             //Assert.StartsWith("No connection is available to service this operation", ex.Message);
+
         }
     }
 }
