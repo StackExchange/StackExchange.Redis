@@ -63,7 +63,7 @@ namespace StackExchange.Redis.Tests
 
                 // and sync=>async (via cast)
                 count = 0;
-                await foreach (var item in (IDummyAsyncEnumerable<HashEntry>)conn.HashScan(key, pageSize: 20))
+                await foreach (var item in (IAsyncEnumerable<HashEntry>)conn.HashScan(key, pageSize: 20))
                 {
                     count++;
                 }

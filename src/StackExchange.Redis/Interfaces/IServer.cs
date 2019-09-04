@@ -385,7 +385,7 @@ namespace StackExchange.Redis
         /// <remarks>Warning: consider KEYS as a command that should only be used in production environments with extreme care.</remarks>
         /// <remarks>https://redis.io/commands/keys</remarks>
         /// <remarks>https://redis.io/commands/scan</remarks>
-        IDummyAsyncEnumerable<RedisKey> KeysAsync(int database = 0, RedisValue pattern = default(RedisValue), int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None);
+        IAsyncEnumerable<RedisKey> KeysAsync(int database = 0, RedisValue pattern = default(RedisValue), int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Return the time of the last DB save executed with success. A client may check if a BGSAVE command succeeded reading the LASTSAVE value, then issuing a BGSAVE command and checking at regular intervals every N seconds if LASTSAVE changed.

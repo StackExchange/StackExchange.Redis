@@ -4,40 +4,15 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace StackExchange.Redis
 {
     /// <summary>
-    /// Replace with IAsyncEnumerable
-    /// </summary>
-    public interface IDummyAsyncEnumerable<out T>
-    {
-        /// <summary>
-        /// Do the thing
-        /// </summary>
-        IDummyAsyncEnumerator<T> GetAsyncEnumerator();
-    }
-
-    /// <summary>
-    /// Replace with IAsyncEnumerator
-    /// </summary>
-    public interface IDummyAsyncEnumerator<out T>
-    {
-        /// <summary>
-        /// Do the thing
-        /// </summary>
-        ValueTask<bool> MoveNextAsync();
-        /// <summary>
-        /// Do the thing
-        /// </summary>
-        T Current { get; }
-    }
-
-    /// <summary>
     /// Provides the ability to iterate over a cursor-based sequence of redis data, synchronously or asynchronously
     /// </summary>
-    internal abstract class CursorEnumerable<T> : IEnumerable<T>, IScanningCursor, IDummyAsyncEnumerable<T>
+    internal abstract class CursorEnumerable<T> : IEnumerable<T>, IScanningCursor, IAsyncEnumerable<T>
     {
         private readonly RedisBase redis;
         private readonly ServerEndPoint server;
@@ -62,15 +37,15 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets an enumerator for the sequence
         /// </summary>
-        public Enumerator GetEnumerator() => new Enumerator(this);
+        public Enumerator GetEnumerator() => new Enumerator(this, default);
         /// <summary>
         /// Gets an enumerator for the sequence
         /// </summary>
-        public Enumerator GetAsyncEnumerator() => new Enumerator(this);
+        public Enumerator GetAsyncEnumerator(CancellationToken cancellationToken) => new Enumerator(this, cancellationToken);
 
         IEnumerator<T> IEnumerable<T>.GetEnumerator() => GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
-        IDummyAsyncEnumerator<T> IDummyAsyncEnumerable<T>.GetAsyncEnumerator() => GetEnumerator();
+        IAsyncEnumerator<T> IAsyncEnumerable<T>.GetAsyncEnumerator(CancellationToken cancellationToken) => GetAsyncEnumerator(cancellationToken);
 
         internal readonly struct ScanResult
         {
@@ -105,12 +80,14 @@ namespace StackExchange.Redis
         /// <summary>
         /// Provides the ability to iterate over a cursor-based sequence of redis data, synchronously or asynchronously
         /// </summary>
-        public class Enumerator : IEnumerator<T>, IScanningCursor, IDummyAsyncEnumerator<T>
+        public class Enumerator : IEnumerator<T>, IScanningCursor, IAsyncEnumerator<T>
         {
             private CursorEnumerable<T> parent;
-            internal Enumerator(CursorEnumerable<T> parent)
+            private readonly CancellationToken cancellationToken;
+            internal Enumerator(CursorEnumerable<T> parent, CancellationToken cancellationToken)
             {
                 this.parent = parent ?? throw new ArgumentNullException(nameof(parent));
+                this.cancellationToken = cancellationToken;
                 Reset();
             }
 
@@ -230,6 +207,7 @@ namespace StackExchange.Redis
 
             private ValueTask<bool> SlowNextAsync()
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 switch (_state)
                 {
                     case State.Initial:
