@@ -611,7 +611,7 @@ namespace StackExchange.Redis
         public Task<bool> KeyDeleteAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             var cmd = GetDeleteCommand(key, flags, out var server);
-            var msg = Message.Create(Database, flags, RedisCommand.DEL, key);
+            var msg = Message.Create(Database, flags, cmd, key);
             return ExecuteAsync(msg, ResultProcessor.DemandZeroOrOne, server);
         }
 
@@ -3554,8 +3554,8 @@ namespace StackExchange.Redis
                     }
                     else
                     {   // recognises well-known types
-                        var val = RedisValue.TryParse(arg);
-                        if (val.IsNull && arg != null) throw new InvalidCastException($"Unable to parse value: '{arg}'");
+                        var val = RedisValue.TryParse(arg, out var valid);
+                        if (!valid) throw new InvalidCastException($"Unable to parse value: '{arg}'");
                         physical.WriteBulkString(val);
                     }
                 }
@@ -3789,10 +3789,7 @@ namespace StackExchange.Redis
                     case ResultType.SimpleString:
                     case ResultType.BulkString:
                         RedisValue value = result.AsRedisValue();
-                        var sgwem = message as StringGetWithExpiryMessage;
-                        TimeSpan? expiry;
-                        Exception ex;
-                        if (sgwem != null && sgwem.UnwrapValue(out expiry, out ex))
+                        if (message is StringGetWithExpiryMessage sgwem && sgwem.UnwrapValue(out var expiry, out var ex))
                         {
                             if (ex == null)
                             {

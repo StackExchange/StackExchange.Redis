@@ -9,6 +9,7 @@ using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;
+using static StackExchange.Redis.ConnectionMultiplexer;
 
 namespace StackExchange.Redis
 {
@@ -523,7 +524,7 @@ namespace StackExchange.Redis
             return false;
         }
 
-        internal async Task ResolveEndPointsAsync(ConnectionMultiplexer multiplexer, TextWriter log)
+        internal async Task ResolveEndPointsAsync(ConnectionMultiplexer multiplexer, LogProxy log)
         {
             var cache = new Dictionary<string, IPAddress>(StringComparer.OrdinalIgnoreCase);
             for (int i = 0; i < EndPoints.Count; i++)
@@ -542,12 +543,12 @@ namespace StackExchange.Redis
                         }
                         else
                         {
-                            multiplexer.LogLocked(log, "Using DNS to resolve '{0}'...", dns.Host);
+                            log?.WriteLine($"Using DNS to resolve '{dns.Host}'...");
                             var ips = await Dns.GetHostAddressesAsync(dns.Host).ObserveErrors().ForAwait();
                             if (ips.Length == 1)
                             {
                                 ip = ips[0];
-                                multiplexer.LogLocked(log, "'{0}' => {1}", dns.Host, ip);
+                                log?.WriteLine($"'{dns.Host}' => {ip}");
                                 cache[dns.Host] = ip;
                                 EndPoints[i] = new IPEndPoint(ip, dns.Port);
                             }
@@ -556,7 +557,7 @@ namespace StackExchange.Redis
                     catch (Exception ex)
                     {
                         multiplexer.OnInternalError(ex);
-                        multiplexer.LogLocked(log, ex.Message);
+                        log?.WriteLine(ex.Message);
                     }
                 }
             }

@@ -6,6 +6,7 @@ init:
   - git config --global core.autocrlf input
 
 install:
+- cmd: choco install dotnetcore-sdk --version 2.2.401
 - cmd: >-
     cd tests\RedisConfigs\3.0.503
 
@@ -68,10 +69,6 @@ nuget:
   disable_publish_on_pr: true
 
 build_script:
-- ps: >-
-    if ($env:OS -eq "Windows_NT") {
-      .\build\dotnet-install.ps1 -Version 2.1.500
-    }
 - ps: .\build.ps1 -PullRequestNumber "$env:APPVEYOR_PULL_REQUEST_NUMBER" -CreatePackages ($env:OS -eq "Windows_NT")
 
 test: off

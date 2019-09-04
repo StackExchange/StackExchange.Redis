@@ -1063,10 +1063,9 @@ namespace StackExchange.Redis.Tests
         public void StreamPositionDefaultValueIsBeginning()
         {
             RedisValue position = StreamPosition.Beginning;
-
-            Assert.Equal(StreamConstants.ReadMinValue, StreamPosition.Resolve(position, RedisCommand.XREAD));
-            Assert.Equal(StreamConstants.ReadMinValue, StreamPosition.Resolve(position, RedisCommand.XREADGROUP));
-            Assert.Equal(StreamConstants.ReadMinValue, StreamPosition.Resolve(position, RedisCommand.XGROUP));
+            Assert.Equal(StreamConstants.AllMessages, StreamPosition.Resolve(position, RedisCommand.XREAD));
+            Assert.Equal(StreamConstants.AllMessages, StreamPosition.Resolve(position, RedisCommand.XREADGROUP));
+            Assert.Equal(StreamConstants.AllMessages, StreamPosition.Resolve(position, RedisCommand.XGROUP));
         }
 
         [Fact]
@@ -1074,7 +1073,7 @@ namespace StackExchange.Redis.Tests
         {
             var position = StreamPosition.Beginning;
 
-            Assert.Equal(StreamConstants.ReadMinValue, StreamPosition.Resolve(position, RedisCommand.XREAD));
+            Assert.Equal(StreamConstants.AllMessages, StreamPosition.Resolve(position, RedisCommand.XREAD));
         }
 
         [Fact]

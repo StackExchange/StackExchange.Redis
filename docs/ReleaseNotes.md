@@ -1,12 +1,32 @@
 # Release Notes
 
-## (pending)
+## 2.0.600
+
+- add `ulong` support to `RedisValue` and `RedisResult` (#1103)
+- fix: remove odd equality: `"-" != 0` (we do, however, still allow `"-0"`, as that is at least semantically valid, and is logically `== 0`) (related to #1103)
+- performance: rework how pub/sub queues are stored - reduces delegate overheads (related to #1101)
+- fix #1108 - ensure that we don't try appending log data to the `TextWriter` once we've returned from a method that accepted one
+
+## 2.0.593
+
+- performance: unify spin-wait usage on sync/async paths to one competitor
+- fix #1101 - when a `ChannelMessageQueue` is involved, unsubscribing *via any route* should still unsubscribe and mark the queue-writer as complete
+
+## 2.0.588
+
+- stability and performance: resolve intermittent stall in the write-lock that could lead to unexpected timeouts even when at low/reasonable (but concurrent) load
+
+## 2.0.571
 
 - performance: use new [arena allocation API](https://mgravell.github.io/Pipelines.Sockets.Unofficial/docs/arenas) to avoid `RawResult[]` overhead
 - performance: massively simplified how `ResultBox<T>` is implemented, in particular to reduce `TaskCompletionSource<T>` allocations
 - performance: fix sync-over-async issue with async call paths, and fix the [SemaphoreSlim](https://blog.marcgravell.com/2019/02/fun-with-spiral-of-death.html) problems that this uncovered
 - performance: re-introduce the unsent backlog queue, in particular to improve async performance
 - performance: simplify how completions are reactivated, so that external callers use their originating pool, not the dedicated IO pools (prevent thread stealing)
+- fix: update Pipelines.Sockets.Unofficial to prevent issue with incorrect buffer re-use in corner-case
+- fix: `KeyDeleteAsync` could, in some cases, always use `DEL` (instead of `UNLINK`)
+- fix: last unanswered write time was incorrect
+- change: use higher `Pipe` thresholds when sending
 
 ## 2.0.519
 
@@ -44,7 +64,7 @@ The key focus of this release is stability and reliability.
 - removed: the `HighPriority` (queue-jumping) flag is now deprecated
 - internal: most buffers internally now make use of pooled memory; `RedisValue` no longer pre-emptively allocates buffers
 - internal: added new custom thread-pool for handling async continuations to avoid thread-pool starvation issues
-- intenal: all IL generation has been removed; the library should now work on platforms that do not allow runtime-emit
+- internal: all IL generation has been removed; the library should now work on platforms that do not allow runtime-emit
 - added: asynchronous operations now have full support for reporting timeouts
 - added: new APIs now exist to work with pooled memory without allocations - `RedisValue.CreateFrom(MemoryStream)` and `operator` support for `Memory<byte>` and `ReadOnlyMemory<byte>`; and `IDatabase.StringGetLease[Async](...)`, `IDatabase.HashGetLease[Async](...)`, `Lease<byte>.AsStream()`)
 - added: ["streams"](https://redis.io/topics/streams-intro) support (thanks to [ttingen](https://github.com/ttingen) for their contribution)

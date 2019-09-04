@@ -175,7 +175,7 @@ namespace StackExchange.Redis
             {
                 try
                 {
-                    bridge?.Multiplexer?.LogLocked(logging.Log, "Response from {0} / {1}: {2}", bridge, message.CommandAndKey, result);
+                    logging.Log?.WriteLine($"Response from {bridge} / {message.CommandAndKey}: {result}");
                 }
                 catch { }
             }
@@ -723,9 +723,9 @@ namespace StackExchange.Redis
                             var iter = result.GetItems().GetEnumerator();
                             while(iter.MoveNext())
                             {
-                                ref RawResult key = ref iter.CurrentReference;
+                                ref RawResult key = ref iter.Current;
                                 if (!iter.MoveNext()) break;
-                                ref RawResult val = ref iter.CurrentReference;
+                                ref RawResult val = ref iter.Current;
 
                                 if (key.IsEqual(CommonReplies.timeout) && val.TryGetInt64(out long i64))
                                 {
@@ -1118,7 +1118,7 @@ namespace StackExchange.Redis
                 this.mode = mode;
             }
 
-            readonly struct ChannelState // I would use a value-tuple here, but that is binding hell
+            private readonly struct ChannelState // I would use a value-tuple here, but that is binding hell
             {
                 public readonly byte[] Prefix;
                 public readonly RedisChannel.PatternMode Mode;
@@ -1498,12 +1498,12 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                 var streams = result.GetItems().ToArray((in RawResult item, in MultiStreamProcessor obj) =>
                 {
-                    var details = item.GetItems().GetEnumerator();
+                    var details = item.GetItems();
 
                     // details[0] = Name of the Stream
                     // details[1] = Multibulk Array of Stream Entries
-                    return new RedisStream(key: details.GetNext().AsRedisKey(),
-                        entries: obj.ParseRedisStreamEntries(details.GetNext()));
+                    return new RedisStream(key: details[0].AsRedisKey(),
+                        entries: obj.ParseRedisStreamEntries(details[1]));
                 }, this);
 
                 SetResult(message, streams);
@@ -1709,11 +1709,10 @@ The coordinates as a two items x,y array (longitude,latitude).
                 {
                     consumers = third.ToArray((in RawResult item) =>
                     {
-                        var details = item.GetItems().GetEnumerator();
-
+                        var details = item.GetItems();
                         return new StreamConsumer(
-                            name: details.GetNext().AsRedisValue(),
-                            pendingMessageCount: (int)details.GetNext().AsRedisValue());
+                            name: details[0].AsRedisValue(),
+                            pendingMessageCount: (int)details[1].AsRedisValue());
                     });
                 }
 

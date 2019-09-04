@@ -61,10 +61,9 @@ namespace StackExchange.Redis
                         if (items.Length == 0) return EmptyArray;
                         var arr = new RedisResult[items.Length];
                         int i = 0;
-                        var iter = items.GetEnumerator();
-                        while (iter.MoveNext())
+                        foreach(ref RawResult item in items)
                         {
-                            var next = TryCreate(connection, in iter.CurrentReference);
+                            var next = TryCreate(connection, in item);
                             if (next == null) return null; // means we didn't understand
                             arr[i++] = next;
                         }
@@ -113,6 +112,12 @@ namespace StackExchange.Redis
         /// <param name="result">The result to convert to a <see cref="long"/>.</param>
         public static explicit operator long(RedisResult result) => result.AsInt64();
         /// <summary>
+        /// Interprets the result as an <see cref="ulong"/>.
+        /// </summary>
+        /// <param name="result">The result to convert to a <see cref="ulong"/>.</param>
+        [CLSCompliant(false)]
+        public static explicit operator ulong(RedisResult result) => result.AsUInt64();
+        /// <summary>
         /// Interprets the result as an <see cref="int"/>.
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="int"/>.</param>
@@ -143,6 +148,12 @@ namespace StackExchange.Redis
         /// <param name="result">The result to convert to a <see cref="T:Nullable{long}"/>.</param>
         public static explicit operator long? (RedisResult result) => result.AsNullableInt64();
         /// <summary>
+        /// Interprets the result as a <see cref="T:Nullable{ulong}"/>.
+        /// </summary>
+        /// <param name="result">The result to convert to a <see cref="T:Nullable{ulong}"/>.</param>
+        [CLSCompliant(false)]
+        public static explicit operator ulong? (RedisResult result) => result.AsNullableUInt64();
+        /// <summary>
         /// Interprets the result as a <see cref="T:Nullable{int}"/>.
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="T:Nullable{int}"/>.</param>
@@ -172,6 +183,12 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="T:long[]"/>.</param>
         public static explicit operator long[] (RedisResult result) => result.AsInt64Array();
+        /// <summary>
+        /// Interprets the result as a <see cref="T:ulong[]"/>.
+        /// </summary>
+        /// <param name="result">The result to convert to a <see cref="T:ulong[]"/>.</param>
+        [CLSCompliant(false)]
+        public static explicit operator ulong[] (RedisResult result) => result.AsUInt64Array();
         /// <summary>
         /// Interprets the result as a <see cref="T:int[]"/>.
         /// </summary>
@@ -207,11 +224,14 @@ namespace StackExchange.Redis
         internal abstract int AsInt32();
         internal abstract int[] AsInt32Array();
         internal abstract long AsInt64();
+        internal abstract ulong AsUInt64();
         internal abstract long[] AsInt64Array();
+        internal abstract ulong[] AsUInt64Array();
         internal abstract bool? AsNullableBoolean();
         internal abstract double? AsNullableDouble();
         internal abstract int? AsNullableInt32();
         internal abstract long? AsNullableInt64();
+        internal abstract ulong? AsNullableUInt64();
         internal abstract RedisKey AsRedisKey();
         internal abstract RedisKey[] AsRedisKeyArray();
         internal abstract RedisResult[] AsRedisResultArray();
@@ -280,11 +300,21 @@ namespace StackExchange.Redis
                 if (IsSingleton) return _value[0].AsInt64();
                 throw new InvalidCastException();
             }
+            internal override ulong AsUInt64()
+            {
+                if (IsSingleton) return _value[0].AsUInt64();
+                throw new InvalidCastException();
+            }
 
             internal override long[] AsInt64Array()
                 => IsNull ? null
                 : IsEmpty ? Array.Empty<long>()
                 : Array.ConvertAll(_value, x => x.AsInt64());
+
+            internal override ulong[] AsUInt64Array()
+                => IsNull ? null
+                : IsEmpty ? Array.Empty<ulong>()
+                : Array.ConvertAll(_value, x => x.AsUInt64());
 
             internal override bool? AsNullableBoolean()
             {
@@ -307,6 +337,11 @@ namespace StackExchange.Redis
             internal override long? AsNullableInt64()
             {
                 if (IsSingleton) return _value[0].AsNullableInt64();
+                throw new InvalidCastException();
+            }
+            internal override ulong? AsNullableUInt64()
+            {
+                if (IsSingleton) return _value[0].AsNullableUInt64();
                 throw new InvalidCastException();
             }
 
@@ -379,11 +414,14 @@ namespace StackExchange.Redis
             internal override int AsInt32() => throw new RedisServerException(value);
             internal override int[] AsInt32Array() => throw new RedisServerException(value);
             internal override long AsInt64() => throw new RedisServerException(value);
+            internal override ulong AsUInt64() => throw new RedisServerException(value);
             internal override long[] AsInt64Array() => throw new RedisServerException(value);
+            internal override ulong[] AsUInt64Array() => throw new RedisServerException(value);
             internal override bool? AsNullableBoolean() => throw new RedisServerException(value);
             internal override double? AsNullableDouble() => throw new RedisServerException(value);
             internal override int? AsNullableInt32() => throw new RedisServerException(value);
             internal override long? AsNullableInt64() => throw new RedisServerException(value);
+            internal override ulong? AsNullableUInt64() => throw new RedisServerException(value);
             internal override RedisKey AsRedisKey() => throw new RedisServerException(value);
             internal override RedisKey[] AsRedisKeyArray() => throw new RedisServerException(value);
             internal override RedisResult[] AsRedisResultArray() => throw new RedisServerException(value);
@@ -416,11 +454,14 @@ namespace StackExchange.Redis
             internal override int AsInt32() => (int)_value;
             internal override int[] AsInt32Array() => new[] { AsInt32() };
             internal override long AsInt64() => (long)_value;
+            internal override ulong AsUInt64() => (ulong)_value;
             internal override long[] AsInt64Array() => new[] { AsInt64() };
+            internal override ulong[] AsUInt64Array() => new[] { AsUInt64() };
             internal override bool? AsNullableBoolean() => (bool?)_value;
             internal override double? AsNullableDouble() => (double?)_value;
             internal override int? AsNullableInt32() => (int?)_value;
             internal override long? AsNullableInt64() => (long?)_value;
+            internal override ulong? AsNullableUInt64() => (ulong?)_value;
             internal override RedisKey AsRedisKey() => (byte[])_value;
             internal override RedisKey[] AsRedisKeyArray() => new[] { AsRedisKey() };
             internal override RedisResult[] AsRedisResultArray() => throw new InvalidCastException();
