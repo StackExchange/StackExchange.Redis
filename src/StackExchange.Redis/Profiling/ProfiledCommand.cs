@@ -19,15 +19,15 @@ namespace StackExchange.Redis.Profiling
 
         public DateTime CommandCreated => MessageCreatedDateTime;
 
-        public TimeSpan CreationToEnqueued => TimeSpan.FromTicks(EnqueuedTimeStamp - MessageCreatedTimeStamp);
+        public TimeSpan CreationToEnqueued => TimeSpanHelper.FromStopwatchTicks(EnqueuedTimeStamp - MessageCreatedTimeStamp);
 
-        public TimeSpan EnqueuedToSending => TimeSpan.FromTicks(RequestSentTimeStamp - EnqueuedTimeStamp);
+        public TimeSpan EnqueuedToSending => TimeSpanHelper.FromStopwatchTicks(RequestSentTimeStamp - EnqueuedTimeStamp);
 
-        public TimeSpan SentToResponse => TimeSpan.FromTicks(ResponseReceivedTimeStamp - RequestSentTimeStamp);
+        public TimeSpan SentToResponse => TimeSpanHelper.FromStopwatchTicks(ResponseReceivedTimeStamp - RequestSentTimeStamp);
 
-        public TimeSpan ResponseToCompletion => TimeSpan.FromTicks(CompletedTimeStamp - ResponseReceivedTimeStamp);
+        public TimeSpan ResponseToCompletion => TimeSpanHelper.FromStopwatchTicks(CompletedTimeStamp - ResponseReceivedTimeStamp);
 
-        public TimeSpan ElapsedTime => TimeSpan.FromTicks(CompletedTimeStamp - MessageCreatedTimeStamp);
+        public TimeSpan ElapsedTime => TimeSpanHelper.FromStopwatchTicks(CompletedTimeStamp - MessageCreatedTimeStamp);
 
         public IProfiledCommand RetransmissionOf => OriginalProfiling;
 
