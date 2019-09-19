@@ -6,14 +6,14 @@ namespace StackExchange.Redis.Profiling
     /// <summary>
     /// A helper class for dealing with Low/High Resolution Stopwatches and their ticks
     /// </summary>
-    public class TimeSpanHelper
+    internal static class TimeSpanHelper
     {
         /// <summary>
-        ///
+        /// Used to construct a timespan from ticks obtained using Stopwatch.GetTimestamp()
         /// </summary>
         /// <param name="ticks"></param>
-        /// <returns>A TimeSpan represented from the ticks</returns>
-        public static TimeSpan FromStopwatchTicks(long ticks)
+        /// <returns>A TimeSpan constructed from the ticks</returns>
+        internal static TimeSpan FromStopwatchTicks(long ticks)
         {
             return Stopwatch.IsHighResolution ? TimeSpan.FromMilliseconds(ticks / ((double) Stopwatch.Frequency / 1000)) : TimeSpan.FromTicks(ticks);
         }
