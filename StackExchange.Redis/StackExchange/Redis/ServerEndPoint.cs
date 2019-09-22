@@ -281,6 +281,12 @@ namespace StackExchange.Redis
                 msg.SetInternalCall();
                 WriteDirectOrQueueFireAndForget(connection, msg, ResultProcessor.AutoConfigure);
             }
+            if(commandMap.IsAvailable(RedisCommand.SENTINEL))
+			{
+                msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.MASTERS);
+                msg.SetInternalCall();
+                WriteDirectOrQueueFireAndForget(connection, msg, ResultProcessor.AutoConfigure);              
+			}
             if (commandMap.IsAvailable(RedisCommand.INFO))
             {
                 lastInfoReplicationCheckTicks = Environment.TickCount;
