@@ -714,6 +714,11 @@ namespace StackExchange.Redis
                                 }
                             }
                         }
+                        else if (message?.Command == RedisCommand.SENTINEL)
+                        {
+                            server.ServerType = ServerType.Sentinel;
+                            server.Multiplexer.Trace("Auto-configured server-type: sentinel");
+                        }
                         SetResult(message, true);
                         return true;
                     case ResultType.MultiBulk:
@@ -764,6 +769,11 @@ namespace StackExchange.Redis
                                     }
                                 }
                             }
+                        }
+                        else if (message?.Command == RedisCommand.SENTINEL)
+                        {
+                            server.ServerType = ServerType.Sentinel;
+                            server.Multiplexer.Trace("Auto-configured server-type: sentinel");
                         }
                         SetResult(message, true);
                         return true;
