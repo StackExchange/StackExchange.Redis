@@ -1307,7 +1307,7 @@ namespace StackExchange.Redis
                     {
                         try
                         {
-                            ssl.AuthenticateAsClient(host, config.SslProtocols);
+                            ssl.AuthenticateAsClient(host, config.SslProtocols, config.CheckCertificateRevocation);
                         }
                         catch (Exception ex)
                         {

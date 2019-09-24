@@ -148,7 +148,7 @@ namespace StackExchange.Redis
             return Array.ConvertAll(values, x => (string)x);
         }
 
-        internal static void AuthenticateAsClient(this SslStream ssl, string host, SslProtocols? allowedProtocols)
+        internal static void AuthenticateAsClient(this SslStream ssl, string host, SslProtocols? allowedProtocols, bool checkCertificateRevocation)
         {
             if (!allowedProtocols.HasValue)
             {
@@ -158,8 +158,7 @@ namespace StackExchange.Redis
             }
 
             var certificateCollection = new X509CertificateCollection();
-            const bool checkCertRevocation = true;
-            ssl.AuthenticateAsClient(host, certificateCollection, allowedProtocols.Value, checkCertRevocation);
+            ssl.AuthenticateAsClient(host, certificateCollection, allowedProtocols.Value, checkCertificateRevocation);
         }
 
         private static void AuthenticateAsClientUsingDefaultProtocols(SslStream ssl, string host)
