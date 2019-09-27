@@ -359,7 +359,7 @@ namespace StackExchange.Redis
         bool HashSet(RedisKey key, RedisValue hashField, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Returns the length of the string stored at the field of the hash with key.
+        /// Returns the string length of the value associated with field in the hash stored at key.
         /// </summary>
         /// <param name="key">The key of the hash.</param>
         /// <param name="hashField">The field containing the string</param>
