@@ -323,6 +323,16 @@ namespace StackExchange.Redis
         Task<bool> HashSetAsync(RedisKey key, RedisValue hashField, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Returns the length of the string stored at the field of the hash with key.
+        /// </summary>
+        /// <param name="key">The key of the hash.</param>
+        /// <param name="hashField">The field containing the string</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>the length of the string at field, or 0 when key does not exist.</returns>
+        /// <remarks>https://redis.io/commands/hstrlen</remarks>
+        Task<long> HashStringLengthAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None);
+        
+        /// <summary>
         /// Returns all values in the hash stored at key.
         /// </summary>
         /// <param name="key">The key of the hash.</param>

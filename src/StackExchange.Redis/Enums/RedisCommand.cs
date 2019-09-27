@@ -65,6 +65,7 @@
         HSCAN,
         HSET,
         HSETNX,
+        HSTRLEN,
         HVALS,
 
         INCR,

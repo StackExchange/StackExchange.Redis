@@ -304,6 +304,21 @@ namespace StackExchange.Redis.Tests
             }
         }
 
+        [Fact]
+        public void HashStringLength()
+        {
+            using (var muxer = Create())
+            {
+                var conn = muxer.GetDatabase();
+                var key = Me();
+                var value = "hello world";
+                conn.HashSet(key, "field", value);
+                
+                Assert.Equal(value.Length, conn.HashStringLength(key, "field"));
+                Assert.Equal(0, conn.HashStringLength(key, "non-existing-field"));
+            }
+        }
+
         private static byte[] Encode(string value) => Encoding.UTF8.GetBytes(value);
         private static string Decode(byte[] value) => Encoding.UTF8.GetString(value);
     }
