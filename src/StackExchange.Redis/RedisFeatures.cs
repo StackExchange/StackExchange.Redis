@@ -66,6 +66,11 @@ namespace StackExchange.Redis
         public bool ExpireOverwrite => Version >= v2_1_3;
 
         /// <summary>
+        /// Is HSTRLEN available?
+        /// </summary>
+        public bool HashStringLength => Version >= v3_2_0;
+
+        /// <summary>
         /// Does HDEL support varadic usage?
         /// </summary>
         public bool HashVaradicDelete => Version >= v2_4_0;
@@ -139,7 +144,7 @@ namespace StackExchange.Redis
         /// Is STRLEN available?
         /// </summary>
         public bool StringLength => Version >= v2_1_2;
-
+        
         /// <summary>
         /// Is SETRANGE available?
         /// </summary>

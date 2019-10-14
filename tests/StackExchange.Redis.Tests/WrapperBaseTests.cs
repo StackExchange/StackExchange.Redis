@@ -134,6 +134,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void HashStringLengthAsync()
         {
+            Skip.IfMissingFeature(wrapper.Multiplexer, nameof(RedisFeatures.HashStringLength), r => r.HashStringLength);
             wrapper.HashStringLengthAsync("key","field", CommandFlags.None);
             mock.Verify(_ => _.HashStringLengthAsync("prefix:key", "field", CommandFlags.None));
         }

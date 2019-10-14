@@ -307,15 +307,16 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void HashStringLength()
         {
-            using (var muxer = Create())
+            using (var conn = Create())
             {
-                var conn = muxer.GetDatabase();
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.HashStringLength), r => r.HashStringLength);
+                var database = conn.GetDatabase();
                 var key = Me();
                 var value = "hello world";
-                conn.HashSet(key, "field", value);
+                database.HashSet(key, "field", value);
                 
-                Assert.Equal(value.Length, conn.HashStringLength(key, "field"));
-                Assert.Equal(0, conn.HashStringLength(key, "non-existing-field"));
+                Assert.Equal(value.Length, database.HashStringLength(key, "field"));
+                Assert.Equal(0, database.HashStringLength(key, "non-existing-field"));
             }
         }
 
