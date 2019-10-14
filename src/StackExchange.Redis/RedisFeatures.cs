@@ -144,7 +144,7 @@ namespace StackExchange.Redis
         /// Is STRLEN available?
         /// </summary>
         public bool StringLength => Version >= v2_1_2;
-        
+
         /// <summary>
         /// Is SETRANGE available?
         /// </summary>
