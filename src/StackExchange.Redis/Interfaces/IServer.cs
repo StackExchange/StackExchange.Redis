@@ -622,6 +622,98 @@ namespace StackExchange.Redis
         /// <remarks>https://redis.io/commands/time</remarks>
         Task<DateTime> TimeAsync(CommandFlags flags = CommandFlags.None);
 
+        /// <summary>
+        /// Gets a text-based latency diagnostic
+        /// </summary>
+        /// <remarks>https://redis.io/topics/latency-monitor</remarks>
+        Task<string> LatencyDoctorAsync(CommandFlags flags = CommandFlags.None);
+        /// <summary>
+        /// Gets a text-based latency diagnostic
+        /// </summary>
+        /// <remarks>https://redis.io/topics/latency-monitor</remarks>
+        string LatencyDoctor(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Resets the given events (or all if none are specified), discarding the currently logged latency spike events, and resetting the maximum event time register.
+        /// </summary>
+        /// <remarks>https://redis.io/topics/latency-monitor</remarks>
+        Task<long> LatencyResetAsync(string[] eventNames = null, CommandFlags flags = CommandFlags.None);
+        /// <summary>
+        /// Resets the given events (or all if none are specified), discarding the currently logged latency spike events, and resetting the maximum event time register.
+        /// </summary>
+        /// <remarks>https://redis.io/topics/latency-monitor</remarks>
+        long LatencyReset(string[] eventNames = null, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Fetch raw latency data from the event time series, as timestamp-latency pairs
+        /// </summary>
+        /// <remarks>https://redis.io/topics/latency-monitor</remarks>
+        Task<LatencyHistoryEntry[]> LatencyHistoryAsync(string eventName, CommandFlags flags = CommandFlags.None);
+        /// <summary>
+        /// Fetch raw latency data from the event time series, as timestamp-latency pairs
+        /// </summary>
+        /// <remarks>https://redis.io/topics/latency-monitor</remarks>
+        LatencyHistoryEntry[] LatencyHistory(string eventName, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Fetch raw latency data from the event time series, as timestamp-latency pairs
+        /// </summary>
+        /// <remarks>https://redis.io/topics/latency-monitor</remarks>
+        Task<LatencyLatestEntry[]> LatencyLatestAsync(CommandFlags flags = CommandFlags.None);
+        /// <summary>
+        /// Fetch raw latency data from the event time series, as timestamp-latency pairs
+        /// </summary>
+        /// <remarks>https://redis.io/topics/latency-monitor</remarks>
+        LatencyLatestEntry[] LatencyLatest(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Reports about different memory-related issues that the Redis server experiences, and advises about possible remedies.
+        /// </summary>
+        /// <remarks>https://redis.io/commands/memory-doctor</remarks>
+        Task<string> MemoryDoctorAsync(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Reports about different memory-related issues that the Redis server experiences, and advises about possible remedies.
+        /// </summary>
+        /// <remarks>https://redis.io/commands/memory-doctor</remarks>
+        string MemoryDoctor(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Attempts to purge dirty pages so these can be reclaimed by the allocator.
+        /// </summary>
+        /// <remarks>https://redis.io/commands/memory-purge</remarks>
+        Task MemoryPurgeAsync(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Attempts to purge dirty pages so these can be reclaimed by the allocator.
+        /// </summary>
+        /// <remarks>https://redis.io/commands/memory-purge</remarks>
+        void MemoryPurge(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns an array reply about the memory usage of the server.
+        /// </summary>
+        /// <remarks>https://redis.io/commands/memory-stats</remarks>
+        Task<RedisResult> MemoryStatsAsync(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns an array reply about the memory usage of the server.
+        /// </summary>
+        /// <remarks>https://redis.io/commands/memory-stats</remarks>
+        RedisResult MemoryStats(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Provides an internal statistics report from the memory allocator.
+        /// </summary>
+        /// <remarks>https://redis.io/commands/memory-malloc-stats</remarks>
+        Task<string> MemoryAllocatorStatsAsync(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Provides an internal statistics report from the memory allocator.
+        /// </summary>
+        /// <remarks>https://redis.io/commands/memory-malloc-stats</remarks>
+        string MemoryAllocatorStats(CommandFlags flags = CommandFlags.None);
+
         #region Sentinel
 
         /// <summary>
@@ -732,6 +824,107 @@ namespace StackExchange.Redis
         Task<KeyValuePair<string, string>[][]> SentinelSentinelsAsync(string serviceName, CommandFlags flags = CommandFlags.None);
 
         #endregion
+    }
+
+    /// <summary>
+    /// A latency entry as reported by the built-in LATENCY HISTORY command
+    /// </summary>
+    public readonly struct LatencyHistoryEntry
+    {
+        internal static readonly ResultProcessor<LatencyHistoryEntry[]> ToArray = new Processor();
+
+        private sealed class Processor : ArrayResultProcessor<LatencyHistoryEntry>
+        {
+            protected override bool TryParse(in RawResult raw, out LatencyHistoryEntry parsed)
+            {
+                if (raw.Type == ResultType.MultiBulk)
+                {
+                    var items = raw.GetItems();
+                    if (items.Length >= 2
+                        && items[0].TryGetInt64(out var timestamp)
+                        && items[1].TryGetInt64(out var duration))
+                    {
+                        parsed = new LatencyHistoryEntry(timestamp, duration);
+                        return true;
+                    }
+                }
+                parsed = default;
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// The time at which this entry was recorded
+        /// </summary>
+        public DateTime Timestamp { get; }
+
+        /// <summary>
+        /// The latency recorded for this event
+        /// </summary>
+        public int DurationMilliseconds { get; }
+
+        internal LatencyHistoryEntry(long timestamp, long duration)
+        {
+            Timestamp = RedisBase.UnixEpoch.AddSeconds(timestamp);
+            DurationMilliseconds = checked((int)duration);
+        }
+    }
+
+    /// <summary>
+    /// A latency entry as reported by the built-in LATENCY LATEST command
+    /// </summary>
+    public readonly struct LatencyLatestEntry
+    {
+        internal static readonly ResultProcessor<LatencyLatestEntry[]> ToArray = new Processor();
+
+        private sealed class Processor : ArrayResultProcessor<LatencyLatestEntry>
+        {
+            protected override bool TryParse(in RawResult raw, out LatencyLatestEntry parsed)
+            {
+                if (raw.Type == ResultType.MultiBulk)
+                {
+                    var items = raw.GetItems();
+                    if (items.Length >= 4
+                        && items[1].TryGetInt64(out var timestamp)
+                        && items[2].TryGetInt64(out var duration)
+                        && items[3].TryGetInt64(out var maxDuration))
+                    {
+                        parsed = new LatencyLatestEntry(items[0].GetString(), timestamp, duration, maxDuration);
+                        return true;
+                    }
+                }
+                parsed = default;
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// The name of this event
+        /// </summary>
+        public string EventName { get; }
+
+        /// <summary>
+        /// The time at which this entry was recorded
+        /// </summary>
+        public DateTime Timestamp { get; }
+
+        /// <summary>
+        /// The latency recorded for this event
+        /// </summary>
+        public int DurationMilliseconds { get; }
+
+        /// <summary>
+        /// The max latency recorded for all events
+        /// </summary>
+        public int MaxDurationMilliseconds { get; }
+
+        internal LatencyLatestEntry(string eventName, long timestamp, long duration, long maxDuration)
+        {
+            EventName = eventName;
+            Timestamp = RedisBase.UnixEpoch.AddSeconds(timestamp);
+            DurationMilliseconds = checked((int)duration);
+            MaxDurationMilliseconds = checked((int)maxDuration);
+        }
     }
 
     internal static class IServerExtensions

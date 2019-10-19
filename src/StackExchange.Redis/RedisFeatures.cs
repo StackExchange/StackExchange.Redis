@@ -91,6 +91,11 @@ namespace StackExchange.Redis
         public bool ListInsert => Version >= v2_1_1;
 
         /// <summary>
+        /// Is MEMORY available?
+        /// </summary>
+        public bool Memory => Version >= v4_0_0;
+
+        /// <summary>
         /// Indicates whether PEXPIRE and PTTL are supported
         /// </summary>
         public bool MillisecondExpiry => Version >= v2_6_0;
