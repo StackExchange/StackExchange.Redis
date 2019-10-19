@@ -7,7 +7,6 @@ namespace StackExchange.Redis.Tests
     [Collection(SharedConnectionFixture.Key)]
     public class Memory : TestBase
     {
-
         public Memory(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
         [Fact]
@@ -15,6 +14,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Memory), r => r.Streams);
                 var server = conn.GetServer(conn.GetEndPoints()[0]);
                 string doctor = server.MemoryDoctor();
                 Assert.NotNull(doctor);
@@ -31,6 +31,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Memory), r => r.Streams);
                 var server = conn.GetServer(conn.GetEndPoints()[0]);
                 server.MemoryPurge();
                 await server.MemoryPurgeAsync();
@@ -44,6 +45,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Memory), r => r.Streams);
                 var server = conn.GetServer(conn.GetEndPoints()[0]);
 
                 var stats = server.MemoryAllocatorStats();
@@ -59,6 +61,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = Create())
             {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Memory), r => r.Streams);
                 var server = conn.GetServer(conn.GetEndPoints()[0]);
                 var stats = server.MemoryStats();
                 Assert.Equal(ResultType.MultiBulk, stats.Type);
