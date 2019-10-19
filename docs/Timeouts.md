@@ -39,7 +39,7 @@ If we look at an example error message from StackExchange.Redis 2.0, you will se
 	IOCP: (Busy=6,Free=994,Min=4,Max=1000), 
 	WORKER: (Busy=3,Free=997,Min=4,Max=1000)
 
-In the above example, there are 6 operations currently awaiting replies from redis ("`qs`"), there are 0 bytes waiting to be read from the input stream from redis ("`in`"), and the dedicate thread-pool is almost fully available to service asynchronous completions ("`mgr`"). You can also see that for IOCP thread there are 6 busy threads and the system is configured to allow 4 minimum threads. 
+In the above example, there are 6 operations currently awaiting replies from redis ("`qs`"), there are 0 bytes waiting to be read from the input stream from redis ("`in`"), and the dedicated thread-pool is almost fully available to service asynchronous completions ("`mgr`"). You can also see that for IOCP thread there are 6 busy threads and the system is configured to allow 4 minimum threads. 
 
 In 1.*, the information is similar but slightly different:
 
