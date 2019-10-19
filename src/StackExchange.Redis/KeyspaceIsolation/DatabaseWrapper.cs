@@ -152,6 +152,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.HashSet(ToInner(key), hashField, value, when, flags);
         }
 
+        public long HashStringLength(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.HashStringLength(ToInner(key), hashField, flags);
+        }
+
         public void HashSet(RedisKey key, HashEntry[] hashFields, CommandFlags flags = CommandFlags.None)
         {
             Inner.HashSet(ToInner(key), hashFields, flags);
