@@ -44,9 +44,10 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task GetLatest()
         {
-            using (var conn = Create())
+            using (var conn = Create(allowAdmin: true))
             {
                 var server = conn.GetServer(conn.GetEndPoints()[0]);
+                server.ConfigSet("latency-monitor-threshold", 100);
                 server.LatencyReset();
                 var arr = server.LatencyLatest();
                 Assert.Empty(arr);
@@ -66,9 +67,10 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task GetHistory()
         {
-            using (var conn = Create())
+            using (var conn = Create(allowAdmin: true))
             {
                 var server = conn.GetServer(conn.GetEndPoints()[0]);
+                server.ConfigSet("latency-monitor-threshold", 100);
                 server.LatencyReset();
                 var arr = server.LatencyHistory("command");
                 Assert.Empty(arr);
