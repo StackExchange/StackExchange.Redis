@@ -305,7 +305,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public async Task HashStringLength()
+        public async Task HashStringLengthAsync()
         {
             using (var conn = Create())
             {
@@ -316,12 +316,23 @@ namespace StackExchange.Redis.Tests
                 database.HashSet(key, "field", value);
                 var resAsync = database.HashStringLengthAsync(key, "field");
                 var resNonExistingAsync = database.HashStringLengthAsync(key, "non-existing-field");
-                var res = database.HashStringLength(key, "field");
-                var resNonExisting = database.HashStringLength(key, "non-existing-field");
-                Assert.Equal(value.Length, res);
                 Assert.Equal(value.Length, await resAsync);
-                Assert.Equal(0, resNonExisting);
                 Assert.Equal(0, await resNonExistingAsync);
+            }
+        }
+
+        [Fact]
+        public void HashStringLength()
+        {
+            using (var conn = Create())
+            {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.HashStringLength), r => r.HashStringLength);
+                var database = conn.GetDatabase();
+                var key = Me();
+                var value = "hello world";
+                database.HashSet(key, "field", value);
+                Assert.Equal(value.Length, database.HashStringLength(key, "field"));
+                Assert.Equal(0, database.HashStringLength(key, "non-existing-field"));
             }
         }
 
