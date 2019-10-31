@@ -494,7 +494,7 @@ namespace NRediSearch.Test.ClientTests
             cl.DeleteDocument(d.Id);
 
             var ex = Assert.Throws<RedisServerException>(() => cl.AddDocument(d, options));
-            Assert.Equal("Unsupported Language", ex.Message);
+            Assert.Equal("Unsupported language", ex.Message);
         }
 
         [Fact]
