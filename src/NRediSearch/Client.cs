@@ -487,22 +487,6 @@ namespace NRediSearch
         }
 
         /// <summary>
-        /// Optimize memory consumption of the index by removing extra saved capacity. This does not affect speed
-        /// </summary>
-        public long OptimizeIndex()
-        {
-            return (long)DbSync.Execute("FT.OPTIMIZE", _boxedIndexName);
-        }
-
-        /// <summary>
-        /// Optimize memory consumption of the index by removing extra saved capacity. This does not affect speed
-        /// </summary>
-        public async Task<long> OptimizeIndexAsync()
-        {
-            return (long)await _db.ExecuteAsync("FT.OPTIMIZE", _boxedIndexName).ConfigureAwait(false);
-        }
-
-        /// <summary>
         /// Get the size of an autoc-complete suggestion dictionary
         /// </summary>
         public long CountSuggestions()
