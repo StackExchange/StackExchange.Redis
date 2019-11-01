@@ -11,6 +11,8 @@ namespace NRediSearch.Aggregation
 
         public bool IsWithCursor { get; private set; }
 
+        public string ArgsString => string.Join(" ", _args.ToArray());
+
         public AggregationBuilder() : this("*")
         {
         }
