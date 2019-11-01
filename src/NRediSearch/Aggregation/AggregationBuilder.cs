@@ -134,6 +134,14 @@ namespace NRediSearch.Aggregation
             return this;
         }
 
+        internal void SerializeRedisArgs(List<object> args)
+        {
+            foreach(var arg in _args)
+            {
+                args.Add(arg);
+            }
+        }
+
         private static void AddCommandLength(List<object> list, string command, int length)
         {
             list.Add(command);
