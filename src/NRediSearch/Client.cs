@@ -1,10 +1,10 @@
 ﻿// .NET port of https://github.com/RedisLabs/JRediSearch/
 
-using NRediSearch.Aggregation;
-using StackExchange.Redis;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using NRediSearch.Aggregation;
+using StackExchange.Redis;
 
 namespace NRediSearch
 {
@@ -616,6 +616,42 @@ namespace NRediSearch
         }
 
         /// <summary>
+        /// Perform an aggregate query
+        /// </summary>
+        /// <param name="query">The query to watch</param>
+        public AggregationResult Aggregate(AggregationBuilder query)
+        {
+            var args = new List<object>
+            {
+                _boxedIndexName
+            };
+
+            query.SerializeRedisArgs(args);
+
+            var resp = DbSync.Execute("FT.AGGREGATE", args);
+
+            return new AggregationResult(resp);
+        }
+
+        /// <summary>
+        /// Perform an aggregate query
+        /// </summary>
+        /// <param name="query">The query to watch</param>
+        public async Task<AggregationResult> AggregateAsync(AggregationBuilder query)
+        {
+            var args = new List<object>
+            {
+                _boxedIndexName
+            };
+
+            query.SerializeRedisArgs(args);
+
+            var resp = await _db.ExecuteAsync("FT.AGGREGATE", args).ConfigureAwait(false);
+
+            return new AggregationResult(resp);
+        }
+
+        /// <summary>
         /// Generate an explanatory textual query tree for this query string
         /// </summary>
         /// <param name="q">The query to explain</param>
@@ -686,7 +722,7 @@ namespace NRediSearch
         public async Task<bool> UpdateDocumentAsync(string docId, Dictionary<string, RedisValue> fields, double score = 1.0)
         {
             var args = BuildAddDocumentArgs(docId, fields, score, false, AddOptions.ReplacementPolicy.Partial, null, null);
-            return  (string)await _db.ExecuteAsync("FT.ADD", args).ConfigureAwait(false) == "OK";
+            return (string)await _db.ExecuteAsync("FT.ADD", args).ConfigureAwait(false) == "OK";
         }
     }
 }

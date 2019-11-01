@@ -1,4 +1,5 @@
-﻿using NRediSearch.Aggregation;
+﻿using System;
+using NRediSearch.Aggregation;
 using NRediSearch.Aggregation.Reducers;
 using Xunit;
 using Xunit.Abstractions;
@@ -10,6 +11,7 @@ namespace NRediSearch.Test.ClientTests
         public AggregationTest(ITestOutputHelper output) : base(output) { }
 
         [Fact]
+        [Obsolete]
         public void TestAggregations()
         {
             /**
