@@ -60,13 +60,122 @@ namespace NRediSearch.Test.Aggregation
         [Fact]
         public void TestApplyAndFilterAggregations()
         {
+            /**
+                 127.0.0.1:6379> FT.CREATE test_index SCHEMA name TEXT SORTABLE subj1 NUMERIC SORTABLE subj2 NUMERIC SORTABLE
+                 OK
+                 127.0.0.1:6379> FT.ADD test_index data1 1.0 FIELDS name abc subj1 20 subj2 70
+                 OK
+                 127.0.0.1:6379> FT.ADD test_index data2 1.0 FIELDS name def subj1 60 subj2 40
+                 OK
+                 127.0.0.1:6379> FT.ADD test_index data3 1.0 FIELDS name ghi subj1 50 subj2 80
+                 OK
+                 127.0.0.1:6379> FT.ADD test_index data1 1.0 FIELDS name abc subj1 30 subj2 20
+                 OK
+                 127.0.0.1:6379> FT.ADD test_index data2 1.0 FIELDS name def subj1 65 subj2 45
+                 OK
+                 127.0.0.1:6379> FT.ADD test_index data3 1.0 FIELDS name ghi subj1 70 subj2 70
+                 OK
+             */
 
+            Client cl = GetClient();
+            Schema sc = new Schema();
+
+            sc.AddSortableTextField("name", 1.0);
+            sc.AddSortableNumericField("subj1");
+            sc.AddSortableNumericField("subj2");
+            cl.CreateIndex(sc, Client.IndexOptions.Default);
+            cl.AddDocument(new Document("data1").Set("name", "abc").Set("subj1", 20).Set("subj2", 70));
+            cl.AddDocument(new Document("data2").Set("name", "def").Set("subj1", 60).Set("subj2", 40));
+            cl.AddDocument(new Document("data3").Set("name", "ghi").Set("subj1", 50).Set("subj2", 80));
+            cl.AddDocument(new Document("data4").Set("name", "abc").Set("subj1", 30).Set("subj2", 20));
+            cl.AddDocument(new Document("data5").Set("name", "def").Set("subj1", 65).Set("subj2", 45));
+            cl.AddDocument(new Document("data6").Set("name", "ghi").Set("subj1", 70).Set("subj2", 70));
+
+            AggregationBuilder r = new AggregationBuilder().Apply("(@subj1+@subj2)/2", "attemptavg")
+                .GroupBy("@name", Reducers.Avg("@attemptavg").As("avgscore"))
+                .Filter("@avgscore>=50")
+                .SortBy(10, SortedField.Ascending("@name"));
+
+            // actual search
+            AggregationResult res = cl.Aggregate(r);
+            Row? r1 = res.GetRow(0);
+            Assert.NotNull(r1);
+            Assert.Equal("def", r1.Value.GetString("name"));
+            Assert.Equal(52.5, r1.Value.GetDouble("avgscore"));
+
+            Row? r2 = res.GetRow(1);
+            Assert.NotNull(r2);
+            Assert.Equal("ghi", r2.Value.GetString("name"));
+            Assert.Equal(67.5, r2.Value.GetDouble("avgscore"));
         }
 
         [Fact]
         public void TestCursor()
         {
+            /**
+                 127.0.0.1:6379> FT.CREATE test_index SCHEMA name TEXT SORTABLE count NUMERIC SORTABLE
+                 OK
+                 127.0.0.1:6379> FT.ADD test_index data1 1.0 FIELDS name abc count 10
+                 OK
+                 127.0.0.1:6379> FT.ADD test_index data2 1.0 FIELDS name def count 5
+                 OK
+                 127.0.0.1:6379> FT.ADD test_index data3 1.0 FIELDS name def count 25
+             */
 
+            Client cl = getClient();
+            Schema sc = new Schema();
+            sc.addSortableTextField("name", 1.0);
+            sc.addSortableNumericField("count");
+            cl.createIndex(sc, Client.IndexOptions.defaultOptions());
+            cl.addDocument(new Document("data1").set("name", "abc").set("count", 10));
+            cl.addDocument(new Document("data2").set("name", "def").set("count", 5));
+            cl.addDocument(new Document("data3").set("name", "def").set("count", 25));
+
+            AggregationBuilder r = new AggregationBuilder()
+                .groupBy("@name", Reducers.sum("@count").as ("sum"))
+        .sortBy(10, SortedField.desc("@sum"))
+        .cursor(1, 3000);
+
+            // actual search
+            AggregationResult res = cl.aggregate(r);
+            Row row = res.getRow(0);
+            assertNotNull(row);
+            assertEquals("def", row.getString("name"));
+            assertEquals(30, row.getLong("sum"));
+            assertEquals(30., row.getDouble("sum"));
+
+            assertEquals(0L, row.getLong("nosuchcol"));
+            assertEquals(0.0, row.getDouble("nosuchcol"));
+            assertEquals("", row.getString("nosuchcol"));
+
+            res = cl.cursorRead(res.getCursorId(), 1);
+            Row row2 = res.getRow(0);
+            assertNotNull(row2);
+            assertEquals("abc", row2.getString("name"));
+            assertEquals(10, row2.getLong("sum"));
+
+            assertTrue(cl.cursorDelete(res.getCursorId()));
+
+            try
+            {
+                cl.cursorRead(res.getCursorId(), 1);
+                assertTrue(false);
+            }
+            catch (JedisDataException e) { }
+
+            AggregationBuilder r2 = new AggregationBuilder()
+                .groupBy("@name", Reducers.sum("@count").as ("sum"))
+        .sortBy(10, SortedField.desc("@sum"))
+        .cursor(1, 1000);
+
+            Thread.sleep(1000);
+
+            try
+            {
+                cl.cursorRead(res.getCursorId(), 1);
+                assertTrue(false);
+            }
+            catch (JedisDataException e) { }
         }
     }
 }
