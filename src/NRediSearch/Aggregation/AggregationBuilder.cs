@@ -99,7 +99,13 @@ namespace NRediSearch.Aggregation
             return this;
         }
 
-        // TODO: filter(string expression)
+        public AggregationBuilder Filter(string expression)
+        {
+            args.Add("FILTER");
+            args.Add(expression);
+
+            return this;
+        }
 
         // TODO: cursor(int count, long maxIdle)
 
