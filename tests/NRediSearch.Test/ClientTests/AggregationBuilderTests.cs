@@ -5,7 +5,7 @@ using StackExchange.Redis;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace NRediSearch.Test.Aggregation
+namespace NRediSearch.Test.ClientTests
 {
     public class AggregationBuilderTests : RediSearchTestBase
     {
