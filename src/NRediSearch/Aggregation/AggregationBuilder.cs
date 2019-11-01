@@ -1,23 +1,24 @@
 ﻿// .NET port of https://github.com/RedisLabs/JRediSearch/
-using System.Linq;
 using System.Collections.Generic;
+using System.Linq;
 using NRediSearch.Aggregation.Reducers;
 
 namespace NRediSearch.Aggregation
 {
     public class AggregationBuilder
     {
-        private readonly List<object> args = new List<object>();
+        private readonly List<object> _args = new List<object>();
+        private bool _isWithCursor = false;
 
         public AggregationBuilder() : this("*")
         {
         }
 
-        public AggregationBuilder(string query) => args.Add(query);
+        public AggregationBuilder(string query) => _args.Add(query);
 
         public AggregationBuilder Load(params string[] fields)
         {
-            AddCommandArguments(args, "LOAD", fields);
+            AddCommandArguments(_args, "LOAD", fields);
 
             return this;
         }
@@ -26,7 +27,7 @@ namespace NRediSearch.Aggregation
         {
             var limit = new Limit(offset, count);
 
-            limit.SerializeRedisArgs(args);
+            limit.SerializeRedisArgs(_args);
 
             return this;
         }
@@ -35,13 +36,13 @@ namespace NRediSearch.Aggregation
 
         public AggregationBuilder SortBy(params SortedField[] fields)
         {
-            args.Add("SORTBY");
-            args.Add((fields.Length * 2).ToString());
+            _args.Add("SORTBY");
+            _args.Add((fields.Length * 2).ToString());
 
             foreach (var field in fields)
             {
-                args.Add(field.Field);
-                args.Add(field.Order);
+                _args.Add(field.Field);
+                _args.Add(field.Order);
             }
 
             return this;
@@ -53,8 +54,8 @@ namespace NRediSearch.Aggregation
 
             if (max > 0)
             {
-                args.Add("MAX");
-                args.Add(max.ToString());
+                _args.Add("MAX");
+                _args.Add(max.ToString());
             }
 
             return this;
@@ -66,10 +67,10 @@ namespace NRediSearch.Aggregation
 
         public AggregationBuilder Apply(string projection, string alias)
         {
-            args.Add("APPLY");
-            args.Add(projection);
-            args.Add("AS");
-            args.Add(alias);
+            _args.Add("APPLY");
+            _args.Add(projection);
+            _args.Add("AS");
+            _args.Add(alias);
 
             return this;
         }
@@ -78,7 +79,7 @@ namespace NRediSearch.Aggregation
         {
             var group = new Group(fields.ToArray());
 
-            foreach(var r in reducers)
+            foreach (var r in reducers)
             {
                 group.Reduce(r);
             }
@@ -92,22 +93,40 @@ namespace NRediSearch.Aggregation
 
         public AggregationBuilder GroupBy(Group group)
         {
-            args.Add("GROUPBY");
+            _args.Add("GROUPBY");
 
-            group.SerializeRedisArgs(args);
+            group.SerializeRedisArgs(_args);
 
             return this;
         }
 
         public AggregationBuilder Filter(string expression)
         {
-            args.Add("FILTER");
-            args.Add(expression);
+            _args.Add("FILTER");
+            _args.Add(expression);
 
             return this;
         }
 
-        // TODO: cursor(int count, long maxIdle)
+        public AggregationBuilder Cursor(int count, long maxIdle)
+        {
+            _isWithCursor = true;
+
+            if (count > 0)
+            {
+                _args.Add("WITHCURSOR");
+                _args.Add("COUNT");
+                _args.Add(count.ToString());
+
+                if (maxIdle < long.MaxValue && maxIdle >= 0)
+                {
+                    _args.Add("MAXIDLE");
+                    _args.Add(maxIdle.ToString());
+                }
+            }
+
+            return this;
+        }
 
         private static void AddCommandLength(List<object> list, string command, int length)
         {
