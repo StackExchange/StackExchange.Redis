@@ -1,6 +1,7 @@
 ﻿// .NET port of https://github.com/RedisLabs/JRediSearch/
-
+using System.Linq;
 using System.Collections.Generic;
+using NRediSearch.Aggregation.Reducers;
 
 namespace NRediSearch.Aggregation
 {
@@ -62,6 +63,45 @@ namespace NRediSearch.Aggregation
         public AggregationBuilder SortByAscending(string field) => SortBy(SortedField.Ascending(field));
 
         public AggregationBuilder SortByDescending(string field) => SortBy(SortedField.Descending(field));
+
+        public AggregationBuilder Apply(string projection, string alias)
+        {
+            args.Add("APPLY");
+            args.Add(projection);
+            args.Add("AS");
+            args.Add(alias);
+
+            return this;
+        }
+
+        public AggregationBuilder GroupBy(IReadOnlyCollection<string> fields, IReadOnlyCollection<Reducer> reducers)
+        {
+            var group = new Group(fields.ToArray());
+
+            foreach(var r in reducers)
+            {
+                group.Reduce(r);
+            }
+
+            GroupBy(group);
+
+            return this;
+        }
+
+        public AggregationBuilder GroupBy(string field, params Reducer[] reducers) => GroupBy(new[] { field }, reducers);
+
+        public AggregationBuilder GroupBy(Group group)
+        {
+            args.Add("GROUPBY");
+
+            group.SerializeRedisArgs(args);
+
+            return this;
+        }
+
+        // TODO: filter(string expression)
+
+        // TODO: cursor(int count, long maxIdle)
 
         private static void AddCommandLength(List<object> list, string command, int length)
         {
