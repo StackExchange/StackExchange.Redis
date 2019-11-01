@@ -50,7 +50,7 @@ namespace NRediSearch.Test.Aggregation
 
             Assert.Equal(0L, r1.Value.GetInt64("nosuchcol"));
             Assert.Equal(0.0, r1.Value.GetDouble("nosuchcol"));
-            Assert.Equal("", r1.Value.GetString("nosuchcol"));
+            Assert.Null(r1.Value.GetString("nosuchcol"));
 
             Row? r2 = res.GetRow(1);
 
@@ -148,7 +148,7 @@ namespace NRediSearch.Test.Aggregation
 
             Assert.Equal(0L, row.Value.GetInt64("nosuchcol"));
             Assert.Equal(0.0, row.Value.GetDouble("nosuchcol"));
-            Assert.Equal("", row.Value.GetString("nosuchcol"));
+            Assert.Null(row.Value.GetString("nosuchcol"));
 
             res = cl.CursorRead(res.CursorId, 1);
             Row? row2 = res.GetRow(0);

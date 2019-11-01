@@ -48,7 +48,7 @@ namespace NRediSearch.Aggregation
             foreach (var field in fields)
             {
                 _args.Add(field.Field);
-                _args.Add(field.Order);
+                _args.Add(field.OrderAsArg());
             }
 
             return this;
