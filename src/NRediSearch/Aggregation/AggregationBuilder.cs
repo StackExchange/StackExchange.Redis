@@ -8,7 +8,8 @@ namespace NRediSearch.Aggregation
     public class AggregationBuilder
     {
         private readonly List<object> _args = new List<object>();
-        private bool _isWithCursor = false;
+
+        public bool IsWithCursor { get; private set; }
 
         public AggregationBuilder() : this("*")
         {
@@ -110,7 +111,7 @@ namespace NRediSearch.Aggregation
 
         public AggregationBuilder Cursor(int count, long maxIdle)
         {
-            _isWithCursor = true;
+            IsWithCursor = true;
 
             if (count > 0)
             {
