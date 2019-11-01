@@ -630,7 +630,16 @@ namespace NRediSearch
 
             var resp = DbSync.Execute("FT.AGGREGATE", args);
 
-            return new AggregationResult(resp);
+            if (query.IsWithCursor)
+            {
+                var respArray = (RedisResult[])resp;
+
+                return new AggregationResult(respArray[0], (long)respArray[1]);
+            }
+            else
+            {
+                return new AggregationResult(resp);
+            }
         }
 
         /// <summary>
@@ -648,7 +657,58 @@ namespace NRediSearch
 
             var resp = await _db.ExecuteAsync("FT.AGGREGATE", args).ConfigureAwait(false);
 
-            return new AggregationResult(resp);
+            if (query.IsWithCursor)
+            {
+                var respArray = (RedisResult[])resp;
+
+                return new AggregationResult(respArray[0], (long)respArray[1]);
+            }
+            else
+            {
+                return new AggregationResult(resp);
+            }
+        }
+
+        /// <summary>
+        /// Read from an existing aggregate cursor.
+        /// </summary>
+        /// <param name="cursorId">The cursor's ID.</param>
+        /// <param name="count">Limit the amount of returned results.</param>
+        /// <returns>A AggregationResult object with the results</returns>
+        public AggregationResult CursorRead(long cursorId, int count)
+        {
+            return default;
+        }
+
+        /// <summary>
+        /// Read from an existing aggregate cursor.
+        /// </summary>
+        /// <param name="cursorId">The cursor's ID.</param>
+        /// <param name="count">Limit the amount of returned results.</param>
+        /// <returns>A AggregationResult object with the results</returns>
+        public Task<AggregationResult> CursorReadAsync(long cursorId, int count)
+        {
+            return default;
+        }
+
+        /// <summary>
+        /// Delete a cursor from the index.
+        /// </summary>
+        /// <param name="cursorId">The cursor's ID.</param>
+        /// <returns>`true` if it has been deleted, `false` if it did not exist.</returns>
+        public bool CursorDelete(long cursorId)
+        {
+            return default;
+        }
+
+        /// <summary>
+        /// Delete a cursor from the index.
+        /// </summary>
+        /// <param name="cursorId">The cursor's ID.</param>
+        /// <returns>`true` if it has been deleted, `false` if it did not exist.</returns>
+        public Task<bool> CursorDeleteAsync(long cursorId)
+        {
+            return default;
         }
 
         /// <summary>

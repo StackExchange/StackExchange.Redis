@@ -1,5 +1,7 @@
-﻿using NRediSearch.Aggregation;
+﻿using System.Threading;
+using NRediSearch.Aggregation;
 using NRediSearch.Aggregation.Reducers;
+using StackExchange.Redis;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -122,60 +124,61 @@ namespace NRediSearch.Test.Aggregation
                  127.0.0.1:6379> FT.ADD test_index data3 1.0 FIELDS name def count 25
              */
 
-            Client cl = getClient();
+            Client cl = GetClient();
             Schema sc = new Schema();
-            sc.addSortableTextField("name", 1.0);
-            sc.addSortableNumericField("count");
-            cl.createIndex(sc, Client.IndexOptions.defaultOptions());
-            cl.addDocument(new Document("data1").set("name", "abc").set("count", 10));
-            cl.addDocument(new Document("data2").set("name", "def").set("count", 5));
-            cl.addDocument(new Document("data3").set("name", "def").set("count", 25));
+            sc.AddSortableTextField("name", 1.0);
+            sc.AddSortableNumericField("count");
+            cl.CreateIndex(sc, Client.IndexOptions.Default);
+            cl.AddDocument(new Document("data1").Set("name", "abc").Set("count", 10));
+            cl.AddDocument(new Document("data2").Set("name", "def").Set("count", 5));
+            cl.AddDocument(new Document("data3").Set("name", "def").Set("count", 25));
 
             AggregationBuilder r = new AggregationBuilder()
-                .groupBy("@name", Reducers.sum("@count").as ("sum"))
-        .sortBy(10, SortedField.desc("@sum"))
-        .cursor(1, 3000);
+                .GroupBy("@name", Reducers.Sum("@count").As("sum"))
+                .SortBy(10, SortedField.Descending("@sum"))
+                .Cursor(1, 3000);
 
             // actual search
-            AggregationResult res = cl.aggregate(r);
-            Row row = res.getRow(0);
-            assertNotNull(row);
-            assertEquals("def", row.getString("name"));
-            assertEquals(30, row.getLong("sum"));
-            assertEquals(30., row.getDouble("sum"));
+            AggregationResult res = cl.Aggregate(r);
+            Row? row = res.GetRow(0);
+            Assert.NotNull(row);
+            Assert.Equal("def", row.Value.GetString("name"));
+            Assert.Equal(30, row.Value.GetInt64("sum"));
+            Assert.Equal(30.0, row.Value.GetDouble("sum"));
 
-            assertEquals(0L, row.getLong("nosuchcol"));
-            assertEquals(0.0, row.getDouble("nosuchcol"));
-            assertEquals("", row.getString("nosuchcol"));
+            Assert.Equal(0L, row.Value.GetInt64("nosuchcol"));
+            Assert.Equal(0.0, row.Value.GetDouble("nosuchcol"));
+            Assert.Equal("", row.Value.GetString("nosuchcol"));
 
-            res = cl.cursorRead(res.getCursorId(), 1);
-            Row row2 = res.getRow(0);
-            assertNotNull(row2);
-            assertEquals("abc", row2.getString("name"));
-            assertEquals(10, row2.getLong("sum"));
+            res = cl.CursorRead(res.CursorId, 1);
+            Row? row2 = res.GetRow(0);
 
-            assertTrue(cl.cursorDelete(res.getCursorId()));
+            Assert.NotNull(row2);
+            Assert.Equal("abc", row2.Value.GetString("name"));
+            Assert.Equal(10, row2.Value.GetInt64("sum"));
+
+            Assert.True(cl.CursorDelete(res.CursorId));
 
             try
             {
-                cl.cursorRead(res.getCursorId(), 1);
-                assertTrue(false);
+                cl.CursorRead(res.CursorId, 1);
+                Assert.True(false);
             }
-            catch (JedisDataException e) { }
+            catch (RedisException) { }
 
             AggregationBuilder r2 = new AggregationBuilder()
-                .groupBy("@name", Reducers.sum("@count").as ("sum"))
-        .sortBy(10, SortedField.desc("@sum"))
-        .cursor(1, 1000);
+                .GroupBy("@name", Reducers.Sum("@count").As("sum"))
+                .SortBy(10, SortedField.Descending("@sum"))
+                .Cursor(1, 1000);
 
-            Thread.sleep(1000);
+            Thread.Sleep(1000);
 
             try
             {
-                cl.cursorRead(res.getCursorId(), 1);
-                assertTrue(false);
+                cl.CursorRead(res.CursorId, 1);
+                Assert.True(false);
             }
-            catch (JedisDataException e) { }
+            catch (RedisException) { }
         }
     }
 }

@@ -9,6 +9,12 @@ namespace NRediSearch
     public sealed class AggregationResult
     {
         private readonly Dictionary<string, RedisValue>[] _results;
+
+        internal AggregationResult(RedisResult result, long cursorId) : this(result)
+        {
+            CursorId = cursorId;
+        }
+
         internal AggregationResult(RedisResult result)
         {
             var arr = (RedisResult[])result;
@@ -38,5 +44,7 @@ namespace NRediSearch
             if (index >= _results.Length) return null;
             return new Row(_results[index]);
         }
+
+        public long CursorId { get; } = -1;
     }
 }
