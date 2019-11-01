@@ -143,6 +143,7 @@ namespace NRediSearch
         /// </summary>
         public string Language { get; set; }
         internal string[] _fields = null;
+        internal string[] _returnFields = null;
         /// <summary>
         /// Set the query payload to be evaluated by the scoring function
         /// </summary>
@@ -287,6 +288,17 @@ namespace NRediSearch
                     args.Add(_summarizeSeparator);
                 }
             }
+
+            if (_returnFields != null && _returnFields.Length > 0)
+            {
+                args.Add("RETURN".Literal());
+                args.Add(_returnFields.Length.Boxed());
+
+                foreach(var returnField in _returnFields)
+                {
+                    args.Add(returnField);
+                }
+            }
         }
 
         /// <summary>
@@ -320,6 +332,13 @@ namespace NRediSearch
         public Query LimitFields(params string[] fields)
         {
             _fields = fields;
+            return this;
+        }
+
+        public Query ReturnFields(params string[] fields)
+        {
+            _returnFields = fields;
+
             return this;
         }
 
