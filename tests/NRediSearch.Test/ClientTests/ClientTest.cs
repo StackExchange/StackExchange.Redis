@@ -3,6 +3,7 @@ using System.Text;
 using StackExchange.Redis;
 using Xunit;
 using Xunit.Abstractions;
+using static NRediSearch.Schema;
 
 namespace NRediSearch.Test.ClientTests
 {
@@ -332,6 +333,42 @@ namespace NRediSearch.Test.ClientTests
 
             key = (string)Db.KeyRandom();
             Assert.Null(key);
+        }
+
+        [Fact]
+        public void TestAlterAdd()
+        {
+            Client cl = GetClient();
+            Db.Execute("FLUSHDB"); // YEAH, this is still horrible and I'm still dealing with it.
+
+            Schema sc = new Schema().AddTextField("title", 1.0);
+
+            Assert.True(cl.CreateIndex(sc, Client.IndexOptions.Default));
+            var fields = new Dictionary<string, RedisValue>();
+            fields.Add("title", "hello world");
+            for (int i = 0; i < 100; i++)
+            {
+                Assert.True(cl.AddDocument($"doc{i}", fields));
+            }
+
+            SearchResult res = cl.Search(new Query("hello world"));
+            Assert.Equal(100, res.TotalResults);
+
+            Assert.True(cl.AlterIndex(new TagField("tags", ","), new TextField("name", 0.5)));
+            for (int i = 0; i < 100; i++)
+            {
+                var fields2 = new Dictionary<string, RedisValue>();
+                fields2.Add("name", $"name{i}");
+                fields2.Add("tags", $"tagA,tagB,tag{i}");
+                Assert.True(cl.UpdateDocument($"doc{i}", fields2, 1.0));
+            }
+            SearchResult res2 = cl.Search(new Query("@tags:{tagA}"));
+            Assert.Equal(100, res2.TotalResults);
+
+            var info = cl.GetInfo();
+            Assert.Equal(cl.IndexName, info["index_name"]);
+            Assert.Equal("tags", info["fields"]);
+            Assert.Equal("TAG", info["fields"]);
         }
 
         [Fact]
