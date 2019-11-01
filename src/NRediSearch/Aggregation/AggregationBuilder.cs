@@ -1,5 +1,6 @@
 ﻿// .NET port of https://github.com/RedisLabs/JRediSearch/
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using NRediSearch.Aggregation.Reducers;
 
@@ -10,6 +11,8 @@ namespace NRediSearch.Aggregation
         private readonly List<object> _args = new List<object>();
 
         public bool IsWithCursor { get; private set; }
+
+        public ReadOnlyCollection<object> Args => new ReadOnlyCollection<object>(_args);
 
         public string ArgsString => string.Join(" ", _args.ToArray());
 
