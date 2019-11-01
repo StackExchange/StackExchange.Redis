@@ -698,7 +698,14 @@ namespace NRediSearch
         /// <returns>`true` if it has been deleted, `false` if it did not exist.</returns>
         public bool CursorDelete(long cursorId)
         {
-            return default;
+            var args = new List<object>
+            {
+                "DEL",
+                _boxedIndexName,
+                cursorId
+            };
+
+            return (string)DbSync.Execute("FT.CURSOR", args) == "OK";
         }
 
         /// <summary>
@@ -706,9 +713,16 @@ namespace NRediSearch
         /// </summary>
         /// <param name="cursorId">The cursor's ID.</param>
         /// <returns>`true` if it has been deleted, `false` if it did not exist.</returns>
-        public Task<bool> CursorDeleteAsync(long cursorId)
+        public async Task<bool> CursorDeleteAsync(long cursorId)
         {
-            return default;
+            var args = new List<object>
+            {
+                "DEL",
+                _boxedIndexName,
+                cursorId
+            };
+
+            return (string)(await _db.ExecuteAsync("FT.CURSOR", args)) == "OK";
         }
 
         /// <summary>
