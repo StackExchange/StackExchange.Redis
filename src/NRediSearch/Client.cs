@@ -583,6 +583,7 @@ namespace NRediSearch
         /// Perform an aggregate query
         /// </summary>
         /// <param name="query">The query to watch</param>
+        [Obsolete("Use `Aggregate` method that takes an `AggregationBuilder`.")]
         public AggregationResult Aggregate(AggregationRequest query)
         {
             var args = new List<object>
@@ -595,10 +596,12 @@ namespace NRediSearch
 
             return new AggregationResult(resp);
         }
+
         /// <summary>
         /// Perform an aggregate query
         /// </summary>
         /// <param name="query">The query to watch</param>
+        [Obsolete("Use `AggregateAsync` method that takes an `AggregationBuilder`.")]
         public async Task<AggregationResult> AggregateAsync(AggregationRequest query)
         {
             var args = new List<object>
