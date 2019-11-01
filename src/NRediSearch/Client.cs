@@ -675,9 +675,25 @@ namespace NRediSearch
         /// <param name="cursorId">The cursor's ID.</param>
         /// <param name="count">Limit the amount of returned results.</param>
         /// <returns>A AggregationResult object with the results</returns>
-        public AggregationResult CursorRead(long cursorId, int count)
+        public AggregationResult CursorRead(long cursorId, int count = -1)
         {
-            return default;
+            var args = new List<object>
+            {
+                "READ",
+                _boxedIndexName,
+                cursorId
+
+            };
+
+            if (count > -1)
+            {
+                args.Add("COUNT");
+                args.Add(count);
+            }
+
+            RedisResult[] resp = (RedisResult[])DbSync.Execute("FT.CURSOR", args);
+
+            return new AggregationResult(resp[0], (long)resp[1]);
         }
 
         /// <summary>
@@ -686,9 +702,25 @@ namespace NRediSearch
         /// <param name="cursorId">The cursor's ID.</param>
         /// <param name="count">Limit the amount of returned results.</param>
         /// <returns>A AggregationResult object with the results</returns>
-        public Task<AggregationResult> CursorReadAsync(long cursorId, int count)
+        public async Task<AggregationResult> CursorReadAsync(long cursorId, int count)
         {
-            return default;
+            var args = new List<object>
+            {
+                "READ",
+                _boxedIndexName,
+                cursorId
+
+            };
+
+            if (count > -1)
+            {
+                args.Add("COUNT");
+                args.Add(count);
+            }
+
+            RedisResult[] resp = (RedisResult[])(await _db.ExecuteAsync("FT.CURSOR", args).ConfigureAwait(false));
+
+            return new AggregationResult(resp[0], (long)resp[1]);
         }
 
         /// <summary>
@@ -722,7 +754,7 @@ namespace NRediSearch
                 cursorId
             };
 
-            return (string)(await _db.ExecuteAsync("FT.CURSOR", args)) == "OK";
+            return (string)(await _db.ExecuteAsync("FT.CURSOR", args).ConfigureAwait(false)) == "OK";
         }
 
         /// <summary>
