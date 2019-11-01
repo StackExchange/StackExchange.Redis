@@ -46,6 +46,23 @@ namespace NRediSearch.Aggregation
             return this;
         }
 
+        public AggregationBuilder SortBy(int max, params SortedField[] fields)
+        {
+            SortBy(fields);
+
+            if (max > 0)
+            {
+                args.Add("MAX");
+                args.Add(max.ToString());
+            }
+
+            return this;
+        }
+
+        public AggregationBuilder SortByAscending(string field) => SortBy(SortedField.Ascending(field));
+
+        public AggregationBuilder SortByDescending(string field) => SortBy(SortedField.Descending(field));
+
         private static void AddCommandLength(List<object> list, string command, int length)
         {
             list.Add(command);
