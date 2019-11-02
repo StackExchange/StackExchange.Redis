@@ -619,6 +619,11 @@ namespace NRediSearch
                 args.Add("FUZZY".Literal());
             }
 
+            if (options.GetWith() != null)
+            {
+                args.AddRange(options.GetWith().Flags);
+            }
+
             var results = (RedisResult[])DbSync.Execute("FT.SUGGET", args);
 
             if (options.GetWith() == null)
@@ -663,6 +668,11 @@ namespace NRediSearch
             if (options.Fuzzy)
             {
                 args.Add("FUZZY".Literal());
+            }
+
+            if (options.GetWith() != null)
+            {
+                args.AddRange(options.GetWith().Flags);
             }
 
             var results = (RedisResult[])await _db.ExecuteAsync("FT.SUGGET", args).ConfigureAwait(false);
@@ -1044,7 +1054,7 @@ namespace NRediSearch
         {
             var suggestions = new Suggestion[results.Length / 3];
 
-            for (var i = 3; i < results.Length; i += 3)
+            for (var i = 3; i <= results.Length; i += 3)
             {
                 var suggestion = Suggestion.GetBuilder();
 
@@ -1062,7 +1072,7 @@ namespace NRediSearch
         {
             var suggestions = new Suggestion[results.Length / 2];
 
-            for (var i = 2; i < results.Length; i += 2)
+            for (var i = 2; i <= results.Length; i += 2)
             {
                 var suggestion = Suggestion.GetBuilder();
 
@@ -1079,7 +1089,7 @@ namespace NRediSearch
         {
             var suggestions = new Suggestion[results.Length / 2];
 
-            for (var i = 2; i < results.Length; i += 2)
+            for (var i = 2; i <= results.Length; i += 2)
             {
                 var suggestion = Suggestion.GetBuilder();
 
