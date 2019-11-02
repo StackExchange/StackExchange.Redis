@@ -561,5 +561,26 @@ namespace NRediSearch.Test.ClientTests
             // Get something that does not exist. Shouldn't explode
             Assert.Null(cl.GetDocument("nonexist"));
         }
+
+        [Fact]
+        public void TestMGet()
+        {
+            Client cl = GetClient();
+            Db.Execute("FLUSHDB"); // YEAH, this is still horrible and I'm still dealing with it.
+
+            cl.CreateIndex(new Schema().AddTextField("txt1", 1.0), Client.IndexOptions.Default);
+            cl.AddDocument(new Document("doc1").Set("txt1", "Hello World!1"), new AddOptions());
+            cl.AddDocument(new Document("doc2").Set("txt1", "Hello World!2"), new AddOptions());
+            cl.AddDocument(new Document("doc3").Set("txt1", "Hello World!3"), new AddOptions());
+
+            var docs = cl.GetDocuments();
+            Assert.Empty(docs);
+
+            docs = cl.GetDocuments("doc1", "doc3", "doc4");
+            Assert.Equal(3, docs.Length);
+            Assert.Equal("Hello World!1", docs[0]["txt1"]);
+            Assert.Equal("Hello World!3", docs[1]["txt1"]);
+            Assert.Null(docs[2]);
+        }
     }
 }

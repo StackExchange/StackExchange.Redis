@@ -832,6 +832,92 @@ namespace NRediSearch
             => Document.Parse(docId, await _db.ExecuteAsync("FT.GET", _boxedIndexName, docId).ConfigureAwait(false));
 
         /// <summary>
+        /// Gets a series of documents from the index.
+        /// </summary>
+        /// <param name="docIds">The document IDs to retrieve.</param>
+        /// <returns>The documents stored in the index. If the document does not exist, null is returned in the list.</returns>
+        public Document[] GetDocuments(params string[] docIds)
+        {
+            if (docIds.Length == 0)
+            {
+                return new Document[] { };
+            }
+
+            var args = new List<object>
+            {
+                _boxedIndexName
+            };
+
+            foreach (var docId in docIds)
+            {
+                args.Add(docId);
+            }
+
+            var queryResults = (RedisResult[])DbSync.Execute("FT.MGET", args);
+
+            var result = new Document[docIds.Length];
+
+            for (var i = 0; i < docIds.Length; i++)
+            {
+                var queryResult = queryResults[i];
+
+                if (queryResult.IsNull)
+                {
+                    result[i] = null;
+                }
+                else
+                {
+                    result[i] = Document.Parse(docIds[i], queryResult);
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Gets a series of documents from the index.
+        /// </summary>
+        /// <param name="docIds">The document IDs to retrieve.</param>
+        /// <returns>The documents stored in the index. If the document does not exist, null is returned in the list.</returns>
+        public async Task<Document[]> GetDocumentsAsync(params string[] docIds)
+        {
+            if (docIds.Length == 0)
+            {
+                return new Document[] { };
+            }
+
+            var args = new List<object>
+            {
+                _boxedIndexName
+            };
+
+            foreach (var docId in docIds)
+            {
+                args.Add(docId);
+            }
+
+            var queryResults = (RedisResult[])await _db.ExecuteAsync("FT.MGET", args).ConfigureAwait(false);
+
+            var result = new Document[docIds.Length];
+
+            for (var i = 0; i < docIds.Length; i++)
+            {
+                var queryResult = queryResults[i];
+
+                if (queryResult.IsNull)
+                {
+                    result[i] = null;
+                }
+                else
+                {
+                    result[i] = Document.Parse(docIds[i], queryResult);
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
         /// Replace specific fields in a document. Unlike #replaceDocument(), fields not present in the field list
         /// are not erased, but retained. This avoids reindexing the entire document if the new values are not
         /// indexed (though a reindex will happen).
