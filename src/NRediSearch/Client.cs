@@ -529,30 +529,58 @@ namespace NRediSearch
         /// <summary>
         /// Add a suggestion string to an auto-complete suggestion dictionary. This is disconnected from the index definitions, and leaves creating and updating suggestino dictionaries to the user.
         /// </summary>
-        /// <param name="value">the suggestion string we index</param>
-        /// <param name="score">a floating point number of the suggestion string's weight</param>
+        /// <param name="suggestion">the Suggestion to be added</param>
         /// <param name="increment">if set, we increment the existing entry of the suggestion by the given score, instead of replacing the score. This is useful for updating the dictionary based on user queries in real time</param>
         /// <returns>the current size of the suggestion dictionary.</returns>
-        public long AddSuggestion(string value, double score, bool increment = false)
+        public long AddSuggestion(Suggestion suggestion, bool increment = false)
         {
-            object[] args = increment
-                ? new object[] { _boxedIndexName, value, score, "INCR".Literal() }
-                : new object[] { _boxedIndexName, value, score };
+            var args = new List<object>
+            {
+                _boxedIndexName,
+                suggestion.String,
+                suggestion.Score
+            };
+
+            if (increment)
+            {
+                args.Add("INCR".Literal());
+            }
+
+            if (suggestion.Payload != null)
+            {
+                args.Add("PAYLOAD".Literal());
+                args.Add(suggestion.Payload);
+            }
+
             return (long)DbSync.Execute("FT.SUGADD", args);
         }
 
         /// <summary>
         /// Add a suggestion string to an auto-complete suggestion dictionary. This is disconnected from the index definitions, and leaves creating and updating suggestino dictionaries to the user.
         /// </summary>
-        /// <param name="value">the suggestion string we index</param>
-        /// <param name="score">a floating point number of the suggestion string's weight</param>
+        /// <param name="suggestion">the Suggestion to be added</param>
         /// <param name="increment">if set, we increment the existing entry of the suggestion by the given score, instead of replacing the score. This is useful for updating the dictionary based on user queries in real time</param>
         /// <returns>the current size of the suggestion dictionary.</returns>
-        public async Task<long> AddSuggestionAsync(string value, double score, bool increment = false)
+        public async Task<long> AddSuggestionAsync(Suggestion suggestion, bool increment = false)
         {
-            object[] args = increment
-                ? new object[] { _boxedIndexName, value, score, "INCR".Literal() }
-                : new object[] { _boxedIndexName, value, score };
+            var args = new List<object>
+            {
+                _boxedIndexName,
+                suggestion.String,
+                suggestion.Score
+            };
+
+            if (increment)
+            {
+                args.Add("INCR".Literal());
+            }
+
+            if (suggestion.Payload != null)
+            {
+                args.Add("PAYLOAD".Literal());
+                args.Add(suggestion.Payload);
+            }
+
             return (long)await _db.ExecuteAsync("FT.SUGADD", args).ConfigureAwait(false);
         }
 
@@ -574,37 +602,92 @@ namespace NRediSearch
         /// Get completion suggestions for a prefix
         /// </summary>
         /// <param name="prefix">the prefix to complete on</param>
-        /// <param name="fuzzy"> if set,we do a fuzzy prefix search, including prefixes at levenshtein distance of 1 from the prefix sent</param>
-        /// <param name="max">If set, we limit the results to a maximum of num. (Note: The default is 5, and the number cannot be greater than 10).</param>
+        /// <param name="suggestionOptions"> the options on what you need returned and other usage</param>
         /// <returns>a list of the top suggestions matching the prefix</returns>
-        public string[] GetSuggestions(string prefix, bool fuzzy = false, int max = 5)
+        public Suggestion[] GetSuggestions(string prefix, SuggestionOptions options)
         {
-            var args = new List<object> { _boxedIndexName, prefix };
-            if (fuzzy) args.Add("FUZZY".Literal());
-            if (max != 5)
+            var args = new List<object>
             {
-                args.Add("MAX".Literal());
-                args.Add(max.Boxed());
+                _boxedIndexName,
+                prefix,
+                "MAX".Literal(),
+                options.Max.Boxed()
+            };
+
+            if (options.Fuzzy)
+            {
+                args.Add("FUZZY".Literal());
             }
-            return (string[])DbSync.Execute("FT.SUGGET", args);
+
+            var results = (RedisResult[])DbSync.Execute("FT.SUGGET", args);
+
+            if (options.GetWith() == null)
+            {
+                return GetSuggestionsNoOptions(results);
+            }
+
+            if (options.GetWith().IsPayloadAndScores)
+            {
+                return GetSuggestionsWithPayloadAndScores(results);
+            }
+
+            if (options.GetWith().IsPayload)
+            {
+                return GetSuggestionsWithPayload(results);
+            }
+
+            if (options.GetWith().IsScores)
+            {
+                return GetSuggestionsWithScores(results);
+            }
+
+            return default;
         }
+
         /// <summary>
         /// Get completion suggestions for a prefix
         /// </summary>
         /// <param name="prefix">the prefix to complete on</param>
-        /// <param name="fuzzy"> if set,we do a fuzzy prefix search, including prefixes at levenshtein distance of 1 from the prefix sent</param>
-        /// <param name="max">If set, we limit the results to a maximum of num. (Note: The default is 5, and the number cannot be greater than 10).</param>
+        /// <param name="suggestionOptions"> the options on what you need returned and other usage</param>
         /// <returns>a list of the top suggestions matching the prefix</returns>
-        public async Task<string[]> GetSuggestionsAsync(string prefix, bool fuzzy = false, int max = 5)
+        public async Task<Suggestion[]> GetSuggestionsAsync(string prefix, SuggestionOptions options)
         {
-            var args = new List<object> { _boxedIndexName, prefix };
-            if (fuzzy) args.Add("FUZZY".Literal());
-            if (max != 5)
+            var args = new List<object>
             {
-                args.Add("MAX".Literal());
-                args.Add(max.Boxed());
+                _boxedIndexName,
+                prefix,
+                "MAX".Literal(),
+                options.Max.Boxed()
+            };
+
+            if (options.Fuzzy)
+            {
+                args.Add("FUZZY".Literal());
             }
-            return (string[])await _db.ExecuteAsync("FT.SUGGET", args).ConfigureAwait(false);
+
+            var results = (RedisResult[])await _db.ExecuteAsync("FT.SUGGET", args).ConfigureAwait(false);
+
+            if (options.GetWith() == null)
+            {
+                return GetSuggestionsNoOptions(results);
+            }
+
+            if (options.GetWith().IsPayloadAndScores)
+            {
+                return GetSuggestionsWithPayloadAndScores(results);
+            }
+
+            if (options.GetWith().IsPayload)
+            {
+                return GetSuggestionsWithPayload(results);
+            }
+
+            if (options.GetWith().IsScores)
+            {
+                return GetSuggestionsWithScores(results);
+            }
+
+            return default;
         }
 
         /// <summary>
@@ -943,6 +1026,70 @@ namespace NRediSearch
         {
             var args = BuildAddDocumentArgs(docId, fields, score, false, AddOptions.ReplacementPolicy.Partial, null, null);
             return (string)await _db.ExecuteAsync("FT.ADD", args).ConfigureAwait(false) == "OK";
+        }
+
+        private static Suggestion[] GetSuggestionsNoOptions(RedisResult[] results)
+        {
+            var suggestions = new Suggestion[results.Length];
+
+            for (var i = 0; i < results.Length; i++)
+            {
+                suggestions[i] = Suggestion.GetBuilder().String((string)results[i]).Build();
+            }
+
+            return suggestions;
+        }
+
+        private static Suggestion[] GetSuggestionsWithPayloadAndScores(RedisResult[] results)
+        {
+            var suggestions = new Suggestion[results.Length / 3];
+
+            for (var i = 3; i < results.Length; i += 3)
+            {
+                var suggestion = Suggestion.GetBuilder();
+
+                suggestion.String((string)results[i - 3]);
+                suggestion.Score((double)results[i - 2]);
+                suggestion.Payload((string)results[i - 1]);
+
+                suggestions[(i / 3) - 1] = suggestion.Build();
+            }
+
+            return suggestions;
+        }
+
+        private static Suggestion[] GetSuggestionsWithPayload(RedisResult[] results)
+        {
+            var suggestions = new Suggestion[results.Length / 2];
+
+            for (var i = 2; i < results.Length; i += 2)
+            {
+                var suggestion = Suggestion.GetBuilder();
+
+                suggestion.String((string)results[i - 2]);
+                suggestion.Payload((string)results[i - 1]);
+
+                suggestions[(i / 2) - 1] = suggestion.Build();
+            }
+
+            return suggestions;
+        }
+
+        private static Suggestion[] GetSuggestionsWithScores(RedisResult[] results)
+        {
+            var suggestions = new Suggestion[results.Length / 2];
+
+            for (var i = 2; i < results.Length; i += 2)
+            {
+                var suggestion = Suggestion.GetBuilder();
+
+                suggestion.String((string)results[i - 2]);
+                suggestion.Score((double)results[i - 1]);
+
+                suggestions[(i / 2) - 1] = suggestion.Build();
+            }
+
+            return suggestions;
         }
     }
 }
