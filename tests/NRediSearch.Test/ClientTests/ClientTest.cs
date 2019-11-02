@@ -627,7 +627,7 @@ namespace NRediSearch.Test.ClientTests
 
             Suggestion noScoreOrPayload = Suggestion.GetBuilder().String("COUNT NO PAYLOAD OR COUNT").Build();
             Assert.True(cl.AddSuggestion(noScoreOrPayload, true) > 1, "Count single added should return more than 1");
-            
+
             var payloads = cl.GetSuggestions(suggestion.String.Substring(0, 3), SuggestionOptions.GetBuilder().With(SuggestionOptions.With.PAYLOAD_AND_SCORES).Build());
             Assert.Equal(4, payloads.Length);
             Assert.True(payloads[2].Payload.Length > 0);
@@ -645,6 +645,43 @@ namespace NRediSearch.Test.ClientTests
             // test that with a partial part of that string will have the entire word returned
             var payloads = cl.GetSuggestions("COU", SuggestionOptions.GetBuilder().Max(3).Fuzzy().With(SuggestionOptions.With.PAYLOAD).Build());
             Assert.Equal(3, payloads.Length);
+        }
+
+        [Fact]
+        public void TestGetSuggestionNoPayloadTwoOnly()
+        {
+            Client cl = GetClient();
+
+            cl.AddSuggestion(Suggestion.GetBuilder().String("DIFF_WORD").Score(0.4).Payload("PAYLOADS ROCK ").Build(), false);
+            cl.AddSuggestion(Suggestion.GetBuilder().String("DIFF wording").Score(0.5).Payload("ANOTHER PAYLOAD ").Build(), false);
+            cl.AddSuggestion(Suggestion.GetBuilder().String("DIFFERENT").Score(0.7).Payload("I am a payload").Build(), false);
+
+            var payloads = cl.GetSuggestions("DIF", SuggestionOptions.GetBuilder().Max(2).Build());
+            Assert.Equal(2, payloads.Length);
+
+            var three = cl.GetSuggestions("DIF", SuggestionOptions.GetBuilder().Max(3).Build());
+            Assert.Equal(3, three.Length);
+        }
+
+        [Fact]
+        public void TestGetSuggestionWithScore()
+        {
+            Client cl = GetClient();
+
+            cl.AddSuggestion(Suggestion.GetBuilder().String("DIFF_WORD").Score(0.4).Payload("PAYLOADS ROCK ").Build(), true);
+            var list = cl.GetSuggestions("DIF", SuggestionOptions.GetBuilder().Max(2).With(SuggestionOptions.With.SCORES).Build());
+            Assert.True(list[0].Score <= .2);
+        }
+
+        [Fact]
+        public void TestGetSuggestionAllNoHit()
+        {
+            Client cl = GetClient();
+
+            cl.AddSuggestion(Suggestion.GetBuilder().String("NO WORD").Score(0.4).Build(), false);
+
+            var none = cl.GetSuggestions("DIF", SuggestionOptions.GetBuilder().Max(3).With(SuggestionOptions.With.SCORES).Build());
+            Assert.Empty(none);
         }
     }
 }
