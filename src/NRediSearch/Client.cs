@@ -466,33 +466,16 @@ namespace NRediSearch
         /// <summary>
         /// Get the index info, including memory consumption and other statistics.
         /// </summary>
-        /// <remarks>TODO: Make a class for easier access to the index properties</remarks>
         /// <returns>a map of key/value pairs</returns>
-        public Dictionary<string, RedisValue> GetInfo() =>
-            ParseGetInfo(DbSync.Execute("FT.INFO", _boxedIndexName));
+        public InfoResult GetInfo() =>
+            new InfoResult(DbSync.Execute("FT.INFO", _boxedIndexName));
 
         /// <summary>
         /// Get the index info, including memory consumption and other statistics.
         /// </summary>
-        /// <remarks>TODO: Make a class for easier access to the index properties</remarks>
         /// <returns>a map of key/value pairs</returns>
-        public async Task<Dictionary<string, RedisValue>> GetInfoAsync() =>
-            ParseGetInfo(await _db.ExecuteAsync("FT.INFO", _boxedIndexName).ConfigureAwait(false));
-
-        private static Dictionary<string, RedisValue> ParseGetInfo(RedisResult value)
-        {
-            var res = (RedisResult[])value;
-            var info = new Dictionary<string, RedisValue>();
-            for (int i = 0; i < res.Length; i += 2)
-            {
-                var val = res[i + 1];
-                if (val.Type != ResultType.MultiBulk)
-                {
-                    info.Add((string)res[i], (RedisValue)val);
-                }
-            }
-            return info;
-        }
+        public async Task<InfoResult> GetInfoAsync() =>
+            new InfoResult(await _db.ExecuteAsync("FT.INFO", _boxedIndexName).ConfigureAwait(false));
 
         /// <summary>
         /// Delete a document from the index.

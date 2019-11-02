@@ -366,10 +366,10 @@ namespace NRediSearch.Test.ClientTests
             Assert.Equal(100, res2.TotalResults);
 
             var info = cl.GetInfo();
-            Assert.Equal(cl.IndexName, info["index_name"]);
+            Assert.Equal(cl.IndexName, info.IndexName);
 
-            Assert.Equal("tags", info["fields"]);
-            Assert.Equal("TAG", info["fields"]);
+            //Assert.Equal("tags", info.Fields);
+            //Assert.Equal("TAG", info["fields"]);
         }
 
         [Fact]
@@ -405,7 +405,7 @@ namespace NRediSearch.Test.ClientTests
             Assert.True(cl.CreateIndex(sc, Client.IndexOptions.Default));
 
             var info = cl.GetInfo();
-            Assert.Equal((string)cl.IndexName, (string)info["index_name"]);
+            Assert.Equal(cl.IndexName, info.IndexName);
         }
 
         [Fact]
