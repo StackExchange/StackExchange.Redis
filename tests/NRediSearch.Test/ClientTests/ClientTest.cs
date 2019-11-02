@@ -582,5 +582,18 @@ namespace NRediSearch.Test.ClientTests
             Assert.Equal("Hello World!3", docs[1]["txt1"]);
             Assert.Null(docs[2]);
         }
+
+        [Fact]
+        public void TestAddSuggestionGetSuggestionFuzzy()
+        {
+            Client cl = GetClient();
+            Suggestion suggestion = Suggestion.GetBuilder().String("TOPIC OF WORDS").Score(1).Build();
+            // test can add a suggestion string
+            Assert.True(cl.AddSuggestion(suggestion, true) > 0, $"{suggestion} insert should of returned at least 1");
+            // test that the partial part of that string will be returned using fuzzy
+
+            //Assert.Equal(suggestion.ToString() + " suppose to be returned", suggestion, cl.GetSuggestion(suggestion.String.Substring(0, 3), SuggestionOptions.GetBuilder().Build()).get(0));
+            Assert.Equal(suggestion.ToString(), cl.GetSuggestions(suggestion.String.Substring(0, 3), SuggestionOptions.GetBuilder().Build())[0].ToString());
+        }
     }
 }
