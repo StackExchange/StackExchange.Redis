@@ -514,6 +514,12 @@ namespace NRediSearch.Test.ClientTests
 
             Assert.Equal("is often referred as a <b>data</b> structures server. What this means is that Redis provides... What this means is that Redis provides access to mutable <b>data</b> structures via a set of commands, which are sent using a... So different processes can query and modify the same <b>data</b> structures in a shared... ",
                     res.Documents[0]["text"]);
+
+            q = new Query("data").HighlightFields(new Query.HighlightTags("<u>", "</u>")).SummarizeFields();
+            res = cl.Search(q);
+
+            Assert.Equal("is often referred as a <u>data</u> structures server. What this means is that Redis provides... What this means is that Redis provides access to mutable <u>data</u> structures via a set of commands, which are sent using a... So different processes can query and modify the same <u>data</u> structures in a shared... ",
+                res.Documents[0]["text"]);
         }
 
         [Fact]
