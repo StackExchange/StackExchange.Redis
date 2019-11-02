@@ -367,6 +367,7 @@ namespace NRediSearch.Test.ClientTests
 
             var info = cl.GetInfo();
             Assert.Equal(cl.IndexName, info["index_name"]);
+
             Assert.Equal("tags", info["fields"]);
             Assert.Equal("TAG", info["fields"]);
         }

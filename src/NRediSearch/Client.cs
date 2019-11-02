@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using NRediSearch.Aggregation;
 using StackExchange.Redis;
+using static NRediSearch.Schema;
 
 namespace NRediSearch
 {
@@ -202,6 +203,50 @@ namespace NRediSearch
             }
 
             return (string)await _db.ExecuteAsync("FT.CREATE", args).ConfigureAwait(false) == "OK";
+        }
+
+        /// <summary>
+        /// Alter index add fields
+        /// </summary>
+        /// <param name="fields">list of fields</param>
+        /// <returns>`true` is successful</returns>
+        public bool AlterIndex(params Field[] fields)
+        {
+            var args = new List<object>
+            {
+                _boxedIndexName,
+                "SCHEMA".Literal(),
+                "ADD".Literal()
+            };
+
+            foreach (var field in fields)
+            {
+                field.SerializeRedisArgs(args);
+            }
+
+            return (string)DbSync.Execute("FT.ALTER", args) == "OK";
+        }
+
+        /// <summary>
+        /// Alter index add fields
+        /// </summary>
+        /// <param name="fields">list of fields</param>
+        /// <returns>`true` is successful</returns>
+        public async Task<bool> AlterIndexAsync(params Field[] fields)
+        {
+            var args = new List<object>
+            {
+                _boxedIndexName,
+                "SCHEMA".Literal(),
+                "ADD".Literal()
+            };
+
+            foreach (var field in fields)
+            {
+                field.SerializeRedisArgs(args);
+            }
+
+            return (string)(await _db.ExecuteAsync("FT.ALTER", args).ConfigureAwait(false)) == "OK";
         }
 
         /// <summary>
