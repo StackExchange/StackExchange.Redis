@@ -21,26 +21,37 @@ namespace NRediSearch
 
         public bool Fuzzy { get; }
 
-        public int Max { get; }
+        public int Max { get; } = 5;
 
         public Builder ToBuilder() => new Builder(this);
 
         public class With
         {
-            public static With PAYLOAD = new With(WITHPAYLOADS_FLAG);
-            public static With SCORES = new With(WITHSCORES_FLAG);
-            public static With PAYLOAD_AND_SCORES = new With(WITHPAYLOADS_FLAG, WITHSCORES_FLAG);
+            internal bool IsPayload { get; } = false;
+            public static With PAYLOAD = new With(true, false, false, WITHPAYLOADS_FLAG.Literal());
 
-            public string[] Flags { get; }
+            internal bool IsScores { get; } = false;
+            public static With SCORES = new With(false, true, false, WITHSCORES_FLAG.Literal());
 
-            private With(params string[] flags) => Flags = flags;
+            internal bool IsPayloadAndScores { get; } = false;
+            public static With PAYLOAD_AND_SCORES = new With(false, false, true, WITHPAYLOADS_FLAG.Literal(), WITHSCORES_FLAG.Literal());
+
+            public object[] Flags { get; }
+
+            private With(bool isPayload, bool isScores, bool isPayloadAndScores, params object[] flags)
+            {
+                Flags = flags;
+                IsPayload = isPayload;
+                IsScores = isScores;
+                IsPayloadAndScores = isPayloadAndScores;
+            }
         }
 
         public sealed class Builder
         {
             internal With _with;
             internal bool _fuzzy;
-            internal int _max;
+            internal int _max = 5;
 
             public Builder() { }
 
@@ -53,11 +64,22 @@ namespace NRediSearch
 
             public Builder Fuzzy()
             {
+                _fuzzy = true;
+
                 return this;
             }
 
             public Builder Max(int max)
             {
+                _max = max;
+
+                return this;
+            }
+
+            public Builder With(SuggestionOptions.With with)
+            {
+                _with = with;
+
                 return this;
             }
 
