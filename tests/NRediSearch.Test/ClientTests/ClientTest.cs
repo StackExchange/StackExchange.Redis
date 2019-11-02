@@ -368,8 +368,8 @@ namespace NRediSearch.Test.ClientTests
             var info = cl.GetInfo();
             Assert.Equal(cl.IndexName, info.IndexName);
 
-            //Assert.Equal("tags", info.Fields);
-            //Assert.Equal("TAG", info["fields"]);
+            Assert.True(info.Fields.ContainsKey("tags"));
+            Assert.Equal("TAG", (string)info.Fields["tags"][2]);
         }
 
         [Fact]
