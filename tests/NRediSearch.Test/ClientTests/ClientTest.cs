@@ -683,5 +683,152 @@ namespace NRediSearch.Test.ClientTests
             var none = cl.GetSuggestions("DIF", SuggestionOptions.GetBuilder().Max(3).With(SuggestionOptions.With.SCORES).Build());
             Assert.Empty(none);
         }
+
+        [Fact]
+        public void TestGetTagField()
+        {
+            Client cl = GetClient();
+            Schema sc = new Schema()
+                    .AddTextField("title", 1.0)
+                    .AddTagField("category");
+
+            Assert.True(cl.CreateIndex(sc, Client.IndexOptions.Default));
+
+            var fields1 = new Dictionary<string, RedisValue>();
+            fields1.Add("title", "hello world");
+            fields1.Add("category", "red");
+            Assert.True(cl.AddDocument("foo", fields1));
+            var fields2 = new Dictionary<string, RedisValue>();
+            fields2.Add("title", "hello world");
+            fields2.Add("category", "blue");
+            Assert.True(cl.AddDocument("bar", fields2));
+            var fields3 = new Dictionary<string, RedisValue>();
+            fields3.Add("title", "hello world");
+            fields3.Add("category", "green,yellow");
+            Assert.True(cl.AddDocument("baz", fields3));
+            var fields4 = new Dictionary<string, RedisValue>();
+            fields4.Add("title", "hello world");
+            fields4.Add("category", "orange;purple");
+            Assert.True(cl.AddDocument("qux", fields4));
+
+            Assert.Equal(1, cl.Search(new Query("@category:{red}")).TotalResults);
+            Assert.Equal(1, cl.Search(new Query("@category:{blue}")).TotalResults);
+            Assert.Equal(1, cl.Search(new Query("hello @category:{red}")).TotalResults);
+            Assert.Equal(1, cl.Search(new Query("hello @category:{blue}")).TotalResults);
+            Assert.Equal(1, cl.Search(new Query("@category:{yellow}")).TotalResults);
+            Assert.Equal(0, cl.Search(new Query("@category:{purple}")).TotalResults);
+            Assert.Equal(1, cl.Search(new Query("@category:{orange\\;purple}")).TotalResults);
+            Assert.Equal(4, cl.Search(new Query("hello")).TotalResults);
+        }
+
+        [Fact]
+        public void TestGetTagFieldWithNonDefaultSeparator()
+        {
+            Client cl = GetClient();
+            Schema sc = new Schema()
+                    .AddTextField("title", 1.0)
+                    .AddTagField("category", ";");
+
+            Assert.True(cl.CreateIndex(sc, Client.IndexOptions.Default));
+            var fields1 = new Dictionary<string, RedisValue>();
+            fields1.Add("title", "hello world");
+            fields1.Add("category", "red");
+            Assert.True(cl.AddDocument("foo", fields1));
+            var fields2 = new Dictionary<string, RedisValue>();
+            fields2.Add("title", "hello world");
+            fields2.Add("category", "blue");
+            Assert.True(cl.AddDocument("bar", fields2));
+            var fields3 = new Dictionary<string, RedisValue>();
+            fields3.Add("title", "hello world");
+            fields3.Add("category", "green;yellow");
+            Assert.True(cl.AddDocument("baz", fields3));
+            var fields4 = new Dictionary<string, RedisValue>();
+            fields4.Add("title", "hello world");
+            fields4.Add("category", "orange,purple");
+            Assert.True(cl.AddDocument("qux", fields4));
+
+            Assert.Equal(1, cl.Search(new Query("@category:{red}")).TotalResults);
+            Assert.Equal(1, cl.Search(new Query("@category:{blue}")).TotalResults);
+            Assert.Equal(1, cl.Search(new Query("hello @category:{red}")).TotalResults);
+            Assert.Equal(1, cl.Search(new Query("hello @category:{blue}")).TotalResults);
+            Assert.Equal(1, cl.Search(new Query("hello @category:{yellow}")).TotalResults);
+            Assert.Equal(0, cl.Search(new Query("@category:{purple}")).TotalResults);
+            Assert.Equal(1, cl.Search(new Query("@category:{orange\\,purple}")).TotalResults);
+            Assert.Equal(4, cl.Search(new Query("hello")).TotalResults);
+        }
+
+        // TODO
+        //[Fact]
+        //public void TestMultiDocuments()
+        //{
+        //    Client cl = GetClient();
+        //    Schema sc = new Schema().AddTextField("title", 1.0).AddTextField("body", 1.0);
+
+        //    Assert.True(cl.CreateIndex(sc, Client.IndexOptions.Default));
+
+        //    var fields = new Dictionary<string, RedisValue>();
+        //    fields.Add("title", "hello world");
+        //    fields.Add("body", "lorem ipsum");
+
+        //    var results = cl.AddDocuments(new Document("doc1", fields), new Document("doc2", fields), new Document("doc3", fields));
+
+        //    Assert.assertArrayEquals(new boolean[] { true, true, true }, results);
+
+        //    assertEquals(3, cl.search(new Query("hello world")).totalResults);
+
+        //    results = cl.addDocuments(new Document("doc4", fields), new Document("doc2", fields), new Document("doc5", fields));
+        //    Assert.assertArrayEquals(new boolean[] { true, false, true }, results);
+
+        //    results = cl.deleteDocuments(true, "doc1", "doc2", "doc36");
+        //    Assert.assertArrayEquals(new boolean[] { true, true, false }, results);
+        //}
+
+        [Fact]
+        public void TestReturnFields()
+        {
+            Client cl = GetClient();
+            Db.Execute("FLUSHDB");
+
+            Schema sc = new Schema().AddTextField("field1", 1.0).AddTextField("field2", 1.0);
+            Assert.True(cl.CreateIndex(sc, Client.IndexOptions.Default));
+
+
+            var doc = new Dictionary<string, RedisValue>();
+            doc.Add("field1", "value1");
+            doc.Add("field2", "value2");
+            // Store it
+            Assert.True(cl.AddDocument("doc", doc));
+
+            // Query
+            SearchResult res = cl.Search(new Query("*").ReturnFields("field1"));
+            Assert.Equal(1, res.TotalResults);
+            Assert.Equal("value1", res.Documents[0]["field1"]);
+            Assert.Null((string)res.Documents[0]["field2"]);
+        }
+
+        // TODO
+        //[Fact]
+        //public void TestInKeys()
+        //{
+        //    Client cl = GetClient();
+        //    Db.Execute("FLUSHDB");
+        //    Schema sc = new Schema().AddTextField("field1", 1.0).AddTextField("field2", 1.0);
+        //    Assert.True(cl.CreateIndex(sc, Client.IndexOptions.Default));
+
+        //    var doc = new Dictionary<string, RedisValue>();
+        //    doc.Add("field1", "value");
+        //    doc.Add("field2", "not");
+
+        //    // Store it
+        //    Assert.True(cl.AddDocument("doc1", doc));
+        //    Assert.True(cl.AddDocument("doc2", doc));
+
+        //    // Query
+        //    SearchResult res = cl.Search(new Query("value").LimitKeys("doc1"));
+        //    Assert.Equal(1, res.TotalResults);
+        //    Assert.Equal("doc1", res.Documents[0].Id);
+        //    Assert.Equal("value", res.Documents[0]["field1"]);
+        //    Assert.Null((string)res.Documents[0]["value"]);
+        //}
     }
 }
