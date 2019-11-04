@@ -353,6 +353,58 @@ namespace NRediSearch
             return (string)await _db.ExecuteAsync("FT.ADD", args).ConfigureAwait(false) == "OK";
         }
 
+        /// <summary>
+        /// Add a batch of documents to the index.
+        /// </summary>
+        /// <param name="documents">The documents to add</param>
+        /// <returns>`true` on success for each document</returns>
+        public bool[] AddDocuments(params Document[] documents) =>
+            AddDocuments(new AddOptions(), documents);
+
+        /// <summary>
+        /// Add a batch of documents to the index
+        /// </summary>
+        /// <param name="options">Options for the operation</param>
+        /// <param name="documents">The documents to add</param>
+        /// <returns>`true` on success for each document</returns>
+        public bool[] AddDocuments(AddOptions options, params Document[] documents)
+        {
+            var result = new bool[documents.Length];
+
+            for(var i = 0; i < documents.Length; i++)
+            {
+                result[i] = AddDocument(documents[i], options);
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Add a batch of documents to the index.
+        /// </summary>
+        /// <param name="documents">The documents to add</param>
+        /// <returns>`true` on success for each document</returns>
+        public Task<bool[]> AddDocumentsAsync(params Document[] documents) =>
+            AddDocumentsAsync(new AddOptions(), documents);
+
+        /// <summary>
+        /// Add a batch of documents to the index
+        /// </summary>
+        /// <param name="options">Options for the operation</param>
+        /// <param name="documents">The documents to add</param>
+        /// <returns>`true` on success for each document</returns>
+        public async Task<bool[]> AddDocumentsAsync(AddOptions options, params Document[] documents)
+        {
+            var result = new bool[documents.Length];
+
+            for (var i = 0; i < documents.Length; i++)
+            {
+                result[i] = await AddDocumentAsync(documents[i], options);
+            }
+
+            return result;
+        }
+
         private List<object> BuildAddDocumentArgs(string docId, Dictionary<string, RedisValue> fields, double score, bool noSave, bool replace, byte[] payload)
             => BuildAddDocumentArgs(docId, fields, score, noSave, replace ? AddOptions.ReplacementPolicy.Full : AddOptions.ReplacementPolicy.None, payload, null);
         private List<object> BuildAddDocumentArgs(string docId, Dictionary<string, RedisValue> fields, double score, bool noSave, AddOptions.ReplacementPolicy replacementPolicy, byte[] payload, string language)
@@ -481,20 +533,54 @@ namespace NRediSearch
         /// Delete a document from the index.
         /// </summary>
         /// <param name="docId">the document's id</param>
+        /// <param name="deleteDocument">if <code>true</code> also deletes the actual document if it is in the index</param>
         /// <returns>true if it has been deleted, false if it did not exist</returns>
-        public bool DeleteDocument(string docId)
+        public bool DeleteDocument(string docId, bool deleteDocument = false)
         {
-            return (long)DbSync.Execute("FT.DEL", _boxedIndexName, docId) == 1;
+            var args = new List<object>
+            {
+                _boxedIndexName,
+                docId
+            };
+
+            if (deleteDocument)
+            {
+                args.Add("DD".Literal());
+            }
+
+            return (long)DbSync.Execute("FT.DEL", args) == 1;
         }
 
         /// <summary>
         /// Delete a document from the index.
         /// </summary>
         /// <param name="docId">the document's id</param>
+        /// <param name="docId">the document's id</param>
         /// <returns>true if it has been deleted, false if it did not exist</returns>
-        public async Task<bool> DeleteDocumentAsync(string docId)
+        public async Task<bool> DeleteDocumentAsync(string docId, bool deleteDocument = false)
         {
-            return (long)await _db.ExecuteAsync("FT.DEL", _boxedIndexName, docId).ConfigureAwait(false) == 1;
+            var args = new List<object>
+            {
+                _boxedIndexName,
+                docId
+            };
+
+            if (deleteDocument)
+            {
+                args.Add("DD".Literal());
+            }
+
+            return (long)await _db.ExecuteAsync("FT.DEL", args).ConfigureAwait(false) == 1;
+        }
+
+        public bool[] DeleteDocuments(bool deleteActualDocuments, params string[] docIds)
+        {
+
+        }
+
+        public async Task<bool[]> DeleteDocumentsAsync(bool deleteActualDocuments, params string[] docIds)
+        {
+
         }
 
         /// <summary>

@@ -757,31 +757,30 @@ namespace NRediSearch.Test.ClientTests
             Assert.Equal(4, cl.Search(new Query("hello")).TotalResults);
         }
 
-        // TODO
-        //[Fact]
-        //public void TestMultiDocuments()
-        //{
-        //    Client cl = GetClient();
-        //    Schema sc = new Schema().AddTextField("title", 1.0).AddTextField("body", 1.0);
+        [Fact]
+        public void TestMultiDocuments()
+        {
+            Client cl = GetClient();
+            Schema sc = new Schema().AddTextField("title", 1.0).AddTextField("body", 1.0);
 
-        //    Assert.True(cl.CreateIndex(sc, Client.IndexOptions.Default));
+            Assert.True(cl.CreateIndex(sc, Client.IndexOptions.Default));
 
-        //    var fields = new Dictionary<string, RedisValue>();
-        //    fields.Add("title", "hello world");
-        //    fields.Add("body", "lorem ipsum");
+            var fields = new Dictionary<string, RedisValue>();
+            fields.Add("title", "hello world");
+            fields.Add("body", "lorem ipsum");
 
-        //    var results = cl.AddDocuments(new Document("doc1", fields), new Document("doc2", fields), new Document("doc3", fields));
+            var results = cl.AddDocuments(new Document("doc1", fields), new Document("doc2", fields), new Document("doc3", fields));
 
-        //    Assert.assertArrayEquals(new boolean[] { true, true, true }, results);
+            Assert.Equal(new[] { true, true, true }, results);
 
-        //    assertEquals(3, cl.search(new Query("hello world")).totalResults);
+            Assert.Equal(3, cl.Search(new Query("hello world")).TotalResults);
 
-        //    results = cl.addDocuments(new Document("doc4", fields), new Document("doc2", fields), new Document("doc5", fields));
-        //    Assert.assertArrayEquals(new boolean[] { true, false, true }, results);
+            results = cl.AddDocuments(new Document("doc4", fields), new Document("doc2", fields), new Document("doc5", fields));
+            Assert.Equal(new[] { true, false, true }, results);
 
-        //    results = cl.deleteDocuments(true, "doc1", "doc2", "doc36");
-        //    Assert.assertArrayEquals(new boolean[] { true, true, false }, results);
-        //}
+            results = cl.DeleteDocuments(true, "doc1", "doc2", "doc36");
+            Assert.Equal(new[] { true, true, false }, results);
+        }
 
         [Fact]
         public void TestReturnFields()

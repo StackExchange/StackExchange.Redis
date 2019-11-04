@@ -18,6 +18,8 @@ namespace NRediSearch
         public Document(string id, double score, byte[] payload) : this(id, null, score, payload) { }
         public Document(string id) : this(id, null, 1.0, null) { }
 
+        public Document(string id, Dictionary<string, RedisValue> fields) : this(id, fields, 1.0) { }
+
         public Document(string id, Dictionary<string, RedisValue> fields, double score) : this(id, fields, score, null) { }
 
         public Document(string id, Dictionary<string, RedisValue> fields, double score, byte[] payload)
