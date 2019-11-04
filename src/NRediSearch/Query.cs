@@ -1,6 +1,5 @@
 ﻿// .NET port of https://github.com/RedisLabs/JRediSearch/
 
-using System;
 using System.Collections.Generic;
 using System.Globalization;
 using StackExchange.Redis;
@@ -143,6 +142,7 @@ namespace NRediSearch
         /// </summary>
         public string Language { get; set; }
         internal string[] _fields = null;
+        internal string[] _keys = null;
         internal string[] _returnFields = null;
         /// <summary>
         /// Set the query payload to be evaluated by the scoring function
@@ -289,12 +289,23 @@ namespace NRediSearch
                 }
             }
 
+            if (_keys != null && _keys.Length > 0)
+            {
+                args.Add("INKEYS".Literal());
+                args.Add(_keys.Length.Boxed());
+
+                foreach (var key in _keys)
+                {
+                    args.Add(key);
+                }
+            }
+
             if (_returnFields != null && _returnFields.Length > 0)
             {
                 args.Add("RETURN".Literal());
                 args.Add(_returnFields.Length.Boxed());
 
-                foreach(var returnField in _returnFields)
+                foreach (var returnField in _returnFields)
                 {
                     args.Add(returnField);
                 }
@@ -332,6 +343,17 @@ namespace NRediSearch
         public Query LimitFields(params string[] fields)
         {
             _fields = fields;
+            return this;
+        }
+
+        /// <summary>
+        /// Limit the query to results that are limited to a specific set of keys
+        /// </summary>
+        /// <param name="keys">a list of the TEXT fields in the schemas</param>
+        /// <returns>the query object itself</returns>
+        public Query LimitKeys(params string[] keys)
+        {
+            _keys = keys;
             return this;
         }
 

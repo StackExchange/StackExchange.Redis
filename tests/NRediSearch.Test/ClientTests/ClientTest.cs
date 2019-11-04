@@ -805,29 +805,28 @@ namespace NRediSearch.Test.ClientTests
             Assert.Null((string)res.Documents[0]["field2"]);
         }
 
-        // TODO
-        //[Fact]
-        //public void TestInKeys()
-        //{
-        //    Client cl = GetClient();
-        //    Db.Execute("FLUSHDB");
-        //    Schema sc = new Schema().AddTextField("field1", 1.0).AddTextField("field2", 1.0);
-        //    Assert.True(cl.CreateIndex(sc, Client.IndexOptions.Default));
+        [Fact]
+        public void TestInKeys()
+        {
+            Client cl = GetClient();
+            Db.Execute("FLUSHDB");
+            Schema sc = new Schema().AddTextField("field1", 1.0).AddTextField("field2", 1.0);
+            Assert.True(cl.CreateIndex(sc, Client.IndexOptions.Default));
 
-        //    var doc = new Dictionary<string, RedisValue>();
-        //    doc.Add("field1", "value");
-        //    doc.Add("field2", "not");
+            var doc = new Dictionary<string, RedisValue>();
+            doc.Add("field1", "value");
+            doc.Add("field2", "not");
 
-        //    // Store it
-        //    Assert.True(cl.AddDocument("doc1", doc));
-        //    Assert.True(cl.AddDocument("doc2", doc));
+            // Store it
+            Assert.True(cl.AddDocument("doc1", doc));
+            Assert.True(cl.AddDocument("doc2", doc));
 
-        //    // Query
-        //    SearchResult res = cl.Search(new Query("value").LimitKeys("doc1"));
-        //    Assert.Equal(1, res.TotalResults);
-        //    Assert.Equal("doc1", res.Documents[0].Id);
-        //    Assert.Equal("value", res.Documents[0]["field1"]);
-        //    Assert.Null((string)res.Documents[0]["value"]);
-        //}
+            // Query
+            SearchResult res = cl.Search(new Query("value").LimitKeys("doc1"));
+            Assert.Equal(1, res.TotalResults);
+            Assert.Equal("doc1", res.Documents[0].Id);
+            Assert.Equal("value", res.Documents[0]["field1"]);
+            Assert.Null((string)res.Documents[0]["value"]);
+        }
     }
 }
