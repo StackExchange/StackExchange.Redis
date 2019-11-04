@@ -1174,7 +1174,7 @@ namespace NRediSearch
 
             for (var i = 0; i < results.Length; i++)
             {
-                suggestions[i] = Suggestion.GetBuilder().String((string)results[i]).Build();
+                suggestions[i] = Suggestion.Builder.String((string)results[i]).Build();
             }
 
             return suggestions;
@@ -1186,7 +1186,7 @@ namespace NRediSearch
 
             for (var i = 3; i <= results.Length; i += 3)
             {
-                var suggestion = Suggestion.GetBuilder();
+                var suggestion = Suggestion.Builder;
 
                 suggestion.String((string)results[i - 3]);
                 suggestion.Score((double)results[i - 2]);
@@ -1204,7 +1204,7 @@ namespace NRediSearch
 
             for (var i = 2; i <= results.Length; i += 2)
             {
-                var suggestion = Suggestion.GetBuilder();
+                var suggestion = Suggestion.Builder;
 
                 suggestion.String((string)results[i - 2]);
                 suggestion.Payload((string)results[i - 1]);
@@ -1221,7 +1221,7 @@ namespace NRediSearch
 
             for (var i = 2; i <= results.Length; i += 2)
             {
-                var suggestion = Suggestion.GetBuilder();
+                var suggestion = Suggestion.Builder;
 
                 suggestion.String((string)results[i - 2]);
                 suggestion.Score((double)results[i - 1]);

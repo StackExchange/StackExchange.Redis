@@ -10,7 +10,7 @@ namespace NRediSearch
         public double Score { get; }
         public string Payload { get; }
 
-        private Suggestion(Builder builder)
+        private Suggestion(SuggestionBuilder builder)
         {
             String = builder._string;
             Score = builder._score;
@@ -51,40 +51,40 @@ namespace NRediSearch
         public override string ToString() =>
             $"Suggestion{{string='{String}', score={Score}, payload='{Payload}'}}";
 
-        public Builder ToBuilder() => new Builder(this);
+        public SuggestionBuilder ToBuilder() => new SuggestionBuilder(this);
 
-        public static Builder GetBuilder() => new Builder();
+        public static SuggestionBuilder Builder => new SuggestionBuilder();
 
-        public sealed class Builder
+        public sealed class SuggestionBuilder
         {
             internal string _string;
             internal double _score = 1.0;
             internal string _payload;
 
-            public Builder() { }
+            public SuggestionBuilder() { }
 
-            public Builder(Suggestion suggestion)
+            public SuggestionBuilder(Suggestion suggestion)
             {
                 _string = suggestion.String;
                 _score = suggestion.Score;
                 _payload = suggestion.Payload;
             }
 
-            public Builder String(string @string)
+            public SuggestionBuilder String(string @string)
             {
                 _string = @string;
 
                 return this;
             }
 
-            public Builder Score(double score)
+            public SuggestionBuilder Score(double score)
             {
                 _score = score;
 
                 return this;
             }
 
-            public Builder Payload(string payload)
+            public SuggestionBuilder Payload(string payload)
             {
                 _payload = payload;
 

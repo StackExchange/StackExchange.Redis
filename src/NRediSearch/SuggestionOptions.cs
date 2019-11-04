@@ -7,14 +7,14 @@ namespace NRediSearch
         private const string WITHPAYLOADS_FLAG = "WITHPAYLOADS";
         private const string WITHSCORES_FLAG = "WITHSCORES";
 
-        public SuggestionOptions(Builder builder)
+        public SuggestionOptions(SuggestionOptionsBuilder builder)
         {
             _with = builder._with;
             Fuzzy = builder._fuzzy;
             Max = builder._max;
         }
 
-        public static Builder GetBuilder() => new Builder();
+        public static SuggestionOptionsBuilder Builder => new SuggestionOptionsBuilder();
 
         private With _with;
         public With GetWith() => _with;
@@ -23,7 +23,7 @@ namespace NRediSearch
 
         public int Max { get; } = 5;
 
-        public Builder ToBuilder() => new Builder(this);
+        public SuggestionOptionsBuilder ToBuilder() => new SuggestionOptionsBuilder(this);
 
         public class With
         {
@@ -47,36 +47,36 @@ namespace NRediSearch
             }
         }
 
-        public sealed class Builder
+        public sealed class SuggestionOptionsBuilder
         {
             internal With _with;
             internal bool _fuzzy;
             internal int _max = 5;
 
-            public Builder() { }
+            public SuggestionOptionsBuilder() { }
 
-            public Builder(SuggestionOptions options)
+            public SuggestionOptionsBuilder(SuggestionOptions options)
             {
                 _with = options.GetWith();
                 _fuzzy = options.Fuzzy;
                 _max = options.Max;
             }
 
-            public Builder Fuzzy()
+            public SuggestionOptionsBuilder Fuzzy()
             {
                 _fuzzy = true;
 
                 return this;
             }
 
-            public Builder Max(int max)
+            public SuggestionOptionsBuilder Max(int max)
             {
                 _max = max;
 
                 return this;
             }
 
-            public Builder With(SuggestionOptions.With with)
+            public SuggestionOptionsBuilder With(SuggestionOptions.With with)
             {
                 _with = with;
 
