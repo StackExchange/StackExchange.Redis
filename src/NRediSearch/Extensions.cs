@@ -3,20 +3,11 @@
 using System;
 using System.Globalization;
 using StackExchange.Redis;
-using static NRediSearch.Client;
 
 namespace NRediSearch
 {
     public static class Extensions
     {
-        /// <summary>
-        /// Set a custom stopword list
-        /// </summary>
-        /// <param name="options">The <see cref="IndexOptions"/> to set stopwords on.</param>
-        /// <param name="stopwords">The stopwords to set.</param>
-        public static ConfiguredIndexOptions SetStopwords(this IndexOptions options, params string[] stopwords)
-            => new ConfiguredIndexOptions(options).SetStopwords(stopwords);
-
         internal static string AsRedisString(this double value, bool forceDecimal = false)
         {
             if (double.IsNegativeInfinity(value))

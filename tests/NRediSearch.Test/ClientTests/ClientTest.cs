@@ -3,6 +3,7 @@ using System.Text;
 using StackExchange.Redis;
 using Xunit;
 using Xunit.Abstractions;
+using static NRediSearch.Client;
 using static NRediSearch.Schema;
 
 namespace NRediSearch.Test.ClientTests
@@ -18,7 +19,7 @@ namespace NRediSearch.Test.ClientTests
 
             Schema sc = new Schema().AddTextField("title", 1.0).AddTextField("body", 1.0);
 
-            Assert.True(cl.CreateIndex(sc, Client.IndexOptions.Default));
+            Assert.True(cl.CreateIndex(sc, IndexOptions.Default));
             var fields = new Dictionary<string, RedisValue>
             {
                 { "title", "hello world" },
@@ -58,7 +59,7 @@ namespace NRediSearch.Test.ClientTests
 
             Schema sc = new Schema().AddTextField("title", 1.0).AddNumericField("price");
 
-            Assert.True(cl.CreateIndex(sc, Client.IndexOptions.Default));
+            Assert.True(cl.CreateIndex(sc, IndexOptions.Default));
 
             for (int i = 0; i < 100; i++)
             {
@@ -120,8 +121,7 @@ namespace NRediSearch.Test.ClientTests
 
             Schema sc = new Schema().AddTextField("title", 1.0);
 
-            Assert.True(cl.CreateIndex(sc,
-                    Client.IndexOptions.Default.SetStopwords("foo", "bar", "baz")));
+            Assert.True(cl.CreateIndex(sc, IndexOptions.Default.SetStopwords("foo", "bar", "baz")));
 
             var fields = new Dictionary<string, RedisValue>
             {
@@ -135,8 +135,7 @@ namespace NRediSearch.Test.ClientTests
 
             Reset(cl);
 
-            Assert.True(cl.CreateIndex(sc,
-                    Client.IndexOptions.Default | Client.IndexOptions.DisableStopWords));
+            Assert.True(cl.CreateIndex(sc, IndexOptions.Default));
             fields = new Dictionary<string, RedisValue>
             {
                 { "title", "hello world foo bar to be or not to be" }
@@ -155,7 +154,7 @@ namespace NRediSearch.Test.ClientTests
 
             Schema sc = new Schema().AddTextField("title", 1.0).AddGeoField("loc");
 
-            Assert.True(cl.CreateIndex(sc, Client.IndexOptions.Default));
+            Assert.True(cl.CreateIndex(sc, IndexOptions.Default));
             var fields = new Dictionary<string, RedisValue>
             {
                 { "title", "hello world" },
@@ -188,7 +187,7 @@ namespace NRediSearch.Test.ClientTests
 
             Schema sc = new Schema().AddTextField("title", 1.0);
 
-            Assert.True(cl.CreateIndex(sc, Client.IndexOptions.Default));
+            Assert.True(cl.CreateIndex(sc, IndexOptions.Default));
 
             var fields = new Dictionary<string, RedisValue>
             {
@@ -210,7 +209,7 @@ namespace NRediSearch.Test.ClientTests
 
             Schema sc = new Schema().AddTextField("title", 1.0);
 
-            Assert.True(cl.CreateIndex(sc, Client.IndexOptions.Default));
+            Assert.True(cl.CreateIndex(sc, IndexOptions.Default));
             var fields = new Dictionary<string, RedisValue>();
 
             for (int i = 0; i < 100; i++)
@@ -261,7 +260,7 @@ namespace NRediSearch.Test.ClientTests
             Client cl = GetClient();
             Schema sc = new Schema().AddSortableTextField("title", 1.0);
 
-            Assert.True(cl.CreateIndex(sc, Client.IndexOptions.Default));
+            Assert.True(cl.CreateIndex(sc, IndexOptions.Default));
             var fields = new Dictionary<string, RedisValue>
             {
                 ["title"] = "b title"
@@ -294,7 +293,7 @@ namespace NRediSearch.Test.ClientTests
             Client cl = GetClient();
 
             Schema sc = new Schema().AddTextField("title", 1.0);
-            Assert.True(cl.CreateIndex(sc, Client.IndexOptions.Default));
+            Assert.True(cl.CreateIndex(sc, IndexOptions.Default));
             RedisKey hashKey = (string)cl.IndexName + ":foo";
             Db.KeyDelete(hashKey);
             Db.HashSet(hashKey, "title", "hello world");
@@ -313,7 +312,7 @@ namespace NRediSearch.Test.ClientTests
 
             Schema sc = new Schema().AddTextField("title", 1.0);
 
-            Assert.True(cl.CreateIndex(sc, Client.IndexOptions.Default));
+            Assert.True(cl.CreateIndex(sc, IndexOptions.Default));
             var fields = new Dictionary<string, RedisValue>
             {
                 { "title", "hello world" }
@@ -343,7 +342,7 @@ namespace NRediSearch.Test.ClientTests
 
             Schema sc = new Schema().AddTextField("title", 1.0);
 
-            Assert.True(cl.CreateIndex(sc, Client.IndexOptions.Default));
+            Assert.True(cl.CreateIndex(sc, IndexOptions.Default));
             var fields = new Dictionary<string, RedisValue>();
             fields.Add("title", "hello world");
             for (int i = 0; i < 100; i++)
@@ -377,8 +376,8 @@ namespace NRediSearch.Test.ClientTests
         {
             Client cl = GetClient();
 
-            Schema sc = new Schema().AddTextField("stemmed", 1.0).AddField(new Schema.TextField("notStemmed", 1.0, false, true));
-            Assert.True(cl.CreateIndex(sc, Client.IndexOptions.Default));
+            Schema sc = new Schema().AddTextField("stemmed", 1.0).AddField(new TextField("notStemmed", 1.0, false, true));
+            Assert.True(cl.CreateIndex(sc, IndexOptions.Default));
 
             var doc = new Dictionary<string, RedisValue>
             {
@@ -402,7 +401,7 @@ namespace NRediSearch.Test.ClientTests
             Client cl = GetClient();
 
             Schema sc = new Schema().AddTextField("title", 1.0);
-            Assert.True(cl.CreateIndex(sc, Client.IndexOptions.Default));
+            Assert.True(cl.CreateIndex(sc, IndexOptions.Default));
 
             var info = cl.GetInfo();
             Assert.Equal(cl.IndexName, info.IndexName);
@@ -414,9 +413,9 @@ namespace NRediSearch.Test.ClientTests
             Client cl = GetClient();
 
             Schema sc = new Schema()
-                        .AddField(new Schema.TextField("f1", 1.0, true, false, true))
-                        .AddField(new Schema.TextField("f2", 1.0));
-            cl.CreateIndex(sc, Client.IndexOptions.Default);
+                        .AddField(new TextField("f1", 1.0, true, false, true))
+                        .AddField(new TextField("f2", 1.0));
+            cl.CreateIndex(sc, IndexOptions.Default);
 
             var mm = new Dictionary<string, RedisValue>
             {
@@ -454,7 +453,7 @@ namespace NRediSearch.Test.ClientTests
                         .AddTextField("f1", 1.0)
                         .AddTextField("f2", 1.0)
                         .AddTextField("f3", 1.0);
-            cl.CreateIndex(sc, Client.IndexOptions.Default);
+            cl.CreateIndex(sc, IndexOptions.Default);
 
             var mm = new Dictionary<string, RedisValue>
             {
@@ -488,7 +487,7 @@ namespace NRediSearch.Test.ClientTests
                         .AddTextField("f1", 1.0)
                         .AddTextField("f2", 1.0)
                         .AddTextField("f3", 1.0);
-            cl.CreateIndex(sc, Client.IndexOptions.Default);
+            cl.CreateIndex(sc, IndexOptions.Default);
 
             var res = cl.Explain(new Query("@f3:f3_val @f2:f2_val @f1:f1_val"));
             Assert.NotNull(res);
@@ -501,7 +500,7 @@ namespace NRediSearch.Test.ClientTests
         {
             Client cl = GetClient();
             Schema sc = new Schema().AddTextField("text", 1.0);
-            cl.CreateIndex(sc, Client.IndexOptions.Default);
+            cl.CreateIndex(sc, IndexOptions.Default);
 
             var doc = new Dictionary<string, RedisValue>
             {
@@ -527,7 +526,7 @@ namespace NRediSearch.Test.ClientTests
         {
             Client cl = GetClient();
             Schema sc = new Schema().AddTextField("text", 1.0);
-            cl.CreateIndex(sc, Client.IndexOptions.Default);
+            cl.CreateIndex(sc, IndexOptions.Default);
 
             Document d = new Document("doc1").Set("text", "hello");
             AddOptions options = new AddOptions().SetLanguage("spanish");
@@ -552,7 +551,7 @@ namespace NRediSearch.Test.ClientTests
         public void TestGet()
         {
             Client cl = GetClient();
-            cl.CreateIndex(new Schema().AddTextField("txt1", 1.0), Client.IndexOptions.Default);
+            cl.CreateIndex(new Schema().AddTextField("txt1", 1.0), IndexOptions.Default);
             cl.AddDocument(new Document("doc1").Set("txt1", "Hello World!"), new AddOptions());
             Document d = cl.GetDocument("doc1");
             Assert.NotNull(d);
@@ -568,7 +567,7 @@ namespace NRediSearch.Test.ClientTests
             Client cl = GetClient();
             Db.Execute("FLUSHDB"); // YEAH, this is still horrible and I'm still dealing with it.
 
-            cl.CreateIndex(new Schema().AddTextField("txt1", 1.0), Client.IndexOptions.Default);
+            cl.CreateIndex(new Schema().AddTextField("txt1", 1.0), IndexOptions.Default);
             cl.AddDocument(new Document("doc1").Set("txt1", "Hello World!1"), new AddOptions());
             cl.AddDocument(new Document("doc2").Set("txt1", "Hello World!2"), new AddOptions());
             cl.AddDocument(new Document("doc3").Set("txt1", "Hello World!3"), new AddOptions());
@@ -692,7 +691,7 @@ namespace NRediSearch.Test.ClientTests
                     .AddTextField("title", 1.0)
                     .AddTagField("category");
 
-            Assert.True(cl.CreateIndex(sc, Client.IndexOptions.Default));
+            Assert.True(cl.CreateIndex(sc, IndexOptions.Default));
 
             var fields1 = new Dictionary<string, RedisValue>();
             fields1.Add("title", "hello world");
@@ -729,7 +728,7 @@ namespace NRediSearch.Test.ClientTests
                     .AddTextField("title", 1.0)
                     .AddTagField("category", ";");
 
-            Assert.True(cl.CreateIndex(sc, Client.IndexOptions.Default));
+            Assert.True(cl.CreateIndex(sc, IndexOptions.Default));
             var fields1 = new Dictionary<string, RedisValue>();
             fields1.Add("title", "hello world");
             fields1.Add("category", "red");
@@ -763,7 +762,7 @@ namespace NRediSearch.Test.ClientTests
             Client cl = GetClient();
             Schema sc = new Schema().AddTextField("title", 1.0).AddTextField("body", 1.0);
 
-            Assert.True(cl.CreateIndex(sc, Client.IndexOptions.Default));
+            Assert.True(cl.CreateIndex(sc, IndexOptions.Default));
 
             var fields = new Dictionary<string, RedisValue>();
             fields.Add("title", "hello world");
@@ -789,7 +788,7 @@ namespace NRediSearch.Test.ClientTests
             Db.Execute("FLUSHDB");
 
             Schema sc = new Schema().AddTextField("field1", 1.0).AddTextField("field2", 1.0);
-            Assert.True(cl.CreateIndex(sc, Client.IndexOptions.Default));
+            Assert.True(cl.CreateIndex(sc, IndexOptions.Default));
 
 
             var doc = new Dictionary<string, RedisValue>();
@@ -811,7 +810,7 @@ namespace NRediSearch.Test.ClientTests
             Client cl = GetClient();
             Db.Execute("FLUSHDB");
             Schema sc = new Schema().AddTextField("field1", 1.0).AddTextField("field2", 1.0);
-            Assert.True(cl.CreateIndex(sc, Client.IndexOptions.Default));
+            Assert.True(cl.CreateIndex(sc, IndexOptions.Default));
 
             var doc = new Dictionary<string, RedisValue>();
             doc.Add("field1", "value");

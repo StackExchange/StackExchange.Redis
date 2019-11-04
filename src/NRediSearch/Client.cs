@@ -12,7 +12,7 @@ namespace NRediSearch
     public sealed class Client
     {
         [Flags]
-        public enum IndexOptions
+        public enum IndexOption
         {
             /// <summary>
             /// All options disabled
@@ -31,23 +31,21 @@ namespace NRediSearch
             /// <summary>
             /// The default indexing options - use term offsets and keep fields flags
             /// </summary>
-            Default = UseTermOffsets | KeepFieldFlags,
+            Default = UseTermOffsets | KeepFieldFlags | KeepTermFrequencies,
             /// <summary>
             /// If set, we keep an index of the top entries per term, allowing extremely fast single word queries
             /// regardless of index size, at the cost of more memory
             /// </summary>
-            UseScoreIndexes = 4,
-            /// <summary>
-            /// If set, we will disable the Stop-Words completely
-            /// </summary>
-            DisableStopWords = 8
+            KeepTermFrequencies = 4,
         }
 
-        public sealed class ConfiguredIndexOptions
+        public sealed class IndexOptions
         {
-            private IndexOptions _options;
+            public static IndexOptions Default => new IndexOptions();
+
+            private IndexOption _options;
             private string[] _stopwords;
-            public ConfiguredIndexOptions(IndexOptions options)
+            public IndexOptions(IndexOption options = IndexOption.Default)
             {
                 _options = options;
             }
@@ -56,45 +54,36 @@ namespace NRediSearch
             /// Set a custom stopword list.
             /// </summary>
             /// <param name="stopwords">The new stopwords to use.</param>
-            public ConfiguredIndexOptions SetStopwords(params string[] stopwords)
+            public IndexOptions SetStopwords(params string[] stopwords)
             {
-                _stopwords = stopwords ?? throw new ArgumentNullException(nameof(stopwords));
-                if (stopwords.Length == 0) _options |= IndexOptions.DisableStopWords;
-                else _options &= ~IndexOptions.DisableStopWords;
+                _stopwords = stopwords;
+
                 return this;
             }
 
             internal void SerializeRedisArgs(List<object> args)
             {
-                SerializeRedisArgs(_options, args);
-                if (_stopwords != null && _stopwords.Length != 0)
-                {
-                    // note that DisableStopWords will not be set in this case
-                    args.Add("STOPWORDS".Literal());
-                    args.Add(_stopwords.Length.Boxed());
-                    foreach (var word in _stopwords)
-                        args.Add(word);
-                }
-            }
-
-            internal static void SerializeRedisArgs(IndexOptions flags, List<object> args)
-            {
-                if ((flags & IndexOptions.UseTermOffsets) == 0)
+                if (!_options.HasFlag(IndexOption.UseTermOffsets))
                 {
                     args.Add("NOOFFSETS".Literal());
                 }
-                if ((flags & IndexOptions.KeepFieldFlags) == 0)
+                if (!_options.HasFlag(IndexOption.KeepFieldFlags))
                 {
                     args.Add("NOFIELDS".Literal());
                 }
-                if ((flags & IndexOptions.UseScoreIndexes) == 0)
+                if (!_options.HasFlag(IndexOption.KeepTermFrequencies))
                 {
-                    args.Add("NOSCOREIDX".Literal());
+                    args.Add("NOFREQS".Literal());
                 }
-                if ((flags & IndexOptions.DisableStopWords) == IndexOptions.DisableStopWords)
+
+                if (_stopwords != null && _stopwords.Length != 0)
                 {
                     args.Add("STOPWORDS".Literal());
-                    args.Add(0.Boxed());
+                    args.Add(_stopwords.Length.Boxed());
+                    if (_stopwords.Length > 0)
+                    {
+                        args.AddRange(_stopwords);
+                    }
                 }
             }
         }
@@ -125,29 +114,6 @@ namespace NRediSearch
             {
                 _boxedIndexName
             };
-            ConfiguredIndexOptions.SerializeRedisArgs(options, args);
-            args.Add("SCHEMA".Literal());
-
-            foreach (var f in schema.Fields)
-            {
-                f.SerializeRedisArgs(args);
-            }
-
-            return (string)DbSync.Execute("FT.CREATE", args) == "OK";
-        }
-
-        /// <summary>
-        /// Create the index definition in redis
-        /// </summary>
-        /// <param name="schema">a schema definition <seealso cref="Schema"/></param>
-        /// <param name="options">index option flags <seealso cref="IndexOptions"/></param>
-        /// <returns>true if successful</returns>
-        public bool CreateIndex(Schema schema, ConfiguredIndexOptions options)
-        {
-            var args = new List<object>
-            {
-                _boxedIndexName
-            };
             options.SerializeRedisArgs(args);
             args.Add("SCHEMA".Literal());
 
@@ -166,29 +132,6 @@ namespace NRediSearch
         /// <param name="options">index option flags <seealso cref="IndexOptions"/></param>
         /// <returns>true if successful</returns>
         public async Task<bool> CreateIndexAsync(Schema schema, IndexOptions options)
-        {
-            var args = new List<object>
-            {
-                _boxedIndexName
-            };
-            ConfiguredIndexOptions.SerializeRedisArgs(options, args);
-            args.Add("SCHEMA".Literal());
-
-            foreach (var f in schema.Fields)
-            {
-                f.SerializeRedisArgs(args);
-            }
-
-            return (string)await _db.ExecuteAsync("FT.CREATE", args).ConfigureAwait(false) == "OK";
-        }
-
-        /// <summary>
-        /// Create the index definition in redis
-        /// </summary>
-        /// <param name="schema">a schema definition <seealso cref="Schema"/></param>
-        /// <param name="options">index option flags <seealso cref="IndexOptions"/></param>
-        /// <returns>true if successful</returns>
-        public async Task<bool> CreateIndexAsync(Schema schema, ConfiguredIndexOptions options)
         {
             var args = new List<object>
             {
