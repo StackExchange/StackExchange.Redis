@@ -323,10 +323,19 @@ namespace NRediSearch
         /// <param name="noSave">if set, we only index the document and do not save its contents. This allows fetching just doc ids</param>
         /// <param name="replace">if set, and the document already exists, we reindex and update it</param>
         /// <param name="payload">if set, we can save a payload in the index to be retrieved or evaluated by scoring functions on the server</param>
+        /// <returns>true if the operation succeeded, false otherwise</returns>
         public async Task<bool> AddDocumentAsync(string docId, Dictionary<string, RedisValue> fields, double score = 1.0, bool noSave = false, bool replace = false, byte[] payload = null)
         {
             var args = BuildAddDocumentArgs(docId, fields, score, noSave, replace, payload);
-            return (string)await _db.ExecuteAsync("FT.ADD", args).ConfigureAwait(false) == "OK";
+
+            try
+            {
+                return (string)await _db.ExecuteAsync("FT.ADD", args).ConfigureAwait(false) == "OK";
+            }
+            catch (RedisServerException ex) when (ex.Message == "Document already in index")
+            {
+                return false;
+            }
         }
 
         /// <summary>
@@ -334,11 +343,20 @@ namespace NRediSearch
         /// </summary>
         /// <param name="doc">The document to add</param>
         /// <param name="options">Options for the operation</param>
-        /// <returns>true if the operation succeeded, false otherwise. Note that if the operation fails, an exception will be thrown</returns>
+        /// <returns>true if the operation succeeded, false otherwise</returns>
         public bool AddDocument(Document doc, AddOptions options = null)
         {
             var args = BuildAddDocumentArgs(doc.Id, doc._properties, doc.Score, options?.NoSave ?? false, options?.ReplacePolicy ?? AddOptions.ReplacementPolicy.None, doc.Payload, options?.Language);
-            return (string)DbSync.Execute("FT.ADD", args) == "OK";
+
+            try
+            {
+                return (string)DbSync.Execute("FT.ADD", args) == "OK";
+            }
+            catch (RedisServerException ex) when (ex.Message == "Document already in index")
+            {
+                return false;
+            }
+
         }
 
         /// <summary>
@@ -371,7 +389,7 @@ namespace NRediSearch
         {
             var result = new bool[documents.Length];
 
-            for(var i = 0; i < documents.Length; i++)
+            for (var i = 0; i < documents.Length; i++)
             {
                 result[i] = AddDocument(documents[i], options);
             }
@@ -573,14 +591,40 @@ namespace NRediSearch
             return (long)await _db.ExecuteAsync("FT.DEL", args).ConfigureAwait(false) == 1;
         }
 
-        public bool[] DeleteDocuments(bool deleteActualDocuments, params string[] docIds)
+        /// <summary>
+        /// Delete multiple documents from an index. 
+        /// </summary>
+        /// <param name="deleteDocuments">if <code>true</code> also deletes the actual document ifs it is in the index</param>
+        /// <param name="docIds">the document ids to delete</param>
+        /// <returns>true on success for each document if it has been deleted, false if it did not exist</returns>
+        public bool[] DeleteDocuments(bool deleteDocuments, params string[] docIds)
         {
+            var result = new bool[docIds.Length];
 
+            for (var i = 0; i < docIds.Length; i++)
+            {
+                result[i] = DeleteDocument(docIds[i], deleteDocuments);
+            }
+
+            return result;
         }
 
-        public async Task<bool[]> DeleteDocumentsAsync(bool deleteActualDocuments, params string[] docIds)
+        /// <summary>
+        /// Delete multiple documents from an index. 
+        /// </summary>
+        /// <param name="deleteDocuments">if <code>true</code> also deletes the actual document ifs it is in the index</param>
+        /// <param name="docIds">the document ids to delete</param>
+        /// <returns>true on success for each document if it has been deleted, false if it did not exist</returns>
+        public async Task<bool[]> DeleteDocumentsAsync(bool deleteDocuments, params string[] docIds)
         {
+            var result = new bool[docIds.Length];
 
+            for (var i = 0; i < docIds.Length; i++)
+            {
+                result[i] = await DeleteDocumentAsync(docIds[i], deleteDocuments);
+            }
+
+            return result;
         }
 
         /// <summary>
