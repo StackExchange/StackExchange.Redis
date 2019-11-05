@@ -36,7 +36,7 @@ namespace NRediSearch.Aggregation
         public AggregationBuilder SortBy(params SortedField[] fields)
         {
             _args.Add("SORTBY");
-            _args.Add((fields.Length * 2).ToString());
+            _args.Add(fields.Length * 2);
 
             foreach (var field in fields)
             {
@@ -115,12 +115,12 @@ namespace NRediSearch.Aggregation
             {
                 _args.Add("WITHCURSOR");
                 _args.Add("COUNT");
-                _args.Add(count.ToString());
+                _args.Add(count);
 
                 if (maxIdle < long.MaxValue && maxIdle >= 0)
                 {
                     _args.Add("MAXIDLE");
-                    _args.Add(maxIdle.ToString());
+                    _args.Add(maxIdle);
                 }
             }
 
@@ -138,7 +138,7 @@ namespace NRediSearch.Aggregation
         private static void AddCommandLength(List<object> list, string command, int length)
         {
             list.Add(command);
-            list.Add(length.ToString());
+            list.Add(length);
         }
 
         private static void AddCommandArguments(List<object> destination, string command, IReadOnlyCollection<object> source)
