@@ -13,11 +13,7 @@ namespace NRediSearch.Aggregation
 
         internal string GetArgsString() => string.Join(" ", _args);
 
-        public AggregationBuilder() : this("*")
-        {
-        }
-
-        public AggregationBuilder(string query) => _args.Add(query);
+        public AggregationBuilder(string query = "*") => _args.Add(query);
 
         public AggregationBuilder Load(params string[] fields)
         {
