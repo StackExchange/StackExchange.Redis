@@ -1,20 +1,17 @@
 ﻿// .NET port of https://github.com/RedisLabs/JRediSearch/
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.Linq;
 using NRediSearch.Aggregation.Reducers;
 
 namespace NRediSearch.Aggregation
 {
-    public class AggregationBuilder
+    public sealed class AggregationBuilder
     {
         private readonly List<object> _args = new List<object>();
 
         public bool IsWithCursor { get; private set; }
 
-        public ReadOnlyCollection<object> Args => new ReadOnlyCollection<object>(_args);
-
-        public string ArgsString => string.Join(" ", _args.ToArray());
+        internal string GetArgsString() => string.Join(" ", _args);
 
         public AggregationBuilder() : this("*")
         {
@@ -61,7 +58,7 @@ namespace NRediSearch.Aggregation
             if (max > 0)
             {
                 _args.Add("MAX");
-                _args.Add(max.ToString());
+                _args.Add(max);
             }
 
             return this;
@@ -136,7 +133,7 @@ namespace NRediSearch.Aggregation
 
         internal void SerializeRedisArgs(List<object> args)
         {
-            foreach(var arg in _args)
+            foreach (var arg in _args)
             {
                 args.Add(arg);
             }
