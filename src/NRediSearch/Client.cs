@@ -588,6 +588,24 @@ namespace NRediSearch
         }
 
         /// <summary>
+        /// [Deprecated] Optimize memory consumption of the index by removing extra saved capacity. This does not affect speed
+        /// </summary>
+        [Obsolete("Index optimizations are done by the internal garbage collector in the background.")]
+        public long OptimizeIndex()
+        {
+            return default;
+        }
+
+        /// <summary>
+        /// [Deprecated] Optimize memory consumption of the index by removing extra saved capacity. This does not affect speed
+        /// </summary>
+        [Obsolete("Index optimizations are done by the internal garbage collector in the background.")]
+        public Task<long> OptimizeIndexAsync()
+        {
+            return Task.FromResult(default(long));
+        }
+
+        /// <summary>
         /// Get the size of an autoc-complete suggestion dictionary
         /// </summary>
         public long CountSuggestions()
