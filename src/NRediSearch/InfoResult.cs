@@ -5,47 +5,49 @@ namespace NRediSearch
 {
     public class InfoResult
     {
-        public string IndexName { get; }
+        private readonly Dictionary<string, RedisResult> _all = new Dictionary<string, RedisResult>();
 
-        public Dictionary<string, RedisResult[]> Fields { get; } = new Dictionary<string, RedisResult[]>();
+        public string IndexName => GetString("index_name");
 
-        public long NumDocs { get; }
+        public Dictionary<string, RedisResult[]> Fields => GetRedisResultsDictionary("fields");
 
-        public long NumTerms { get; }
+        public long NumDocs => GetLong("num_docs");
 
-        public long NumRecords { get; }
+        public long NumTerms => GetLong("num_terms");
 
-        public double InvertedSzMb { get; }
+        public long NumRecords => GetLong("num_records");
 
-        public double InvertedCapMb { get; }
+        public double InvertedSzMebibytes => GetDouble("inverted_sz_mb");
 
-        public double InvertedCapOvh { get; }
+        public double InvertedCapMebibytes => GetDouble("inverted_cap_mb");
 
-        public double OffsetVectorsSzMb { get; }
+        public double InvertedCapOvh => GetDouble("inverted_cap_ovh");
 
-        public double SkipIndexSizeMb { get; }
+        public double OffsetVectorsSzMebibytes => GetDouble("offset_vectors_sz_mb");
 
-        public double ScoreIndexSizeMb { get; }
+        public double SkipIndexSizeMebibytes => GetDouble("skip_index_size_mb");
 
-        public double RecordsPerDocAvg { get; }
+        public double ScoreIndexSizeMebibytes => GetDouble("score_index_size_mb");
 
-        public double BytesPerRecordAvg { get; }
+        public double RecordsPerDocAvg => GetDouble("records_per_doc_avg");
 
-        public double OffsetsPerTermAvg { get; }
+        public double BytesPerRecordAvg => GetDouble("bytes_per_record_avg");
 
-        public double OffsetBitsPerRecordAvg { get; }
+        public double OffsetsPerTermAvg => GetDouble("offsets_per_term_avg");
 
-        public string MaxDocId { get; }
+        public double OffsetBitsPerRecordAvg => GetDouble("offset_bits_per_record_avg");
 
-        public double DocTableSizeMb { get; }
+        public string MaxDocId => GetString("max_doc_id");
 
-        public double SortableValueSizeMb { get; }
+        public double DocTableSizeMebibytes => GetDouble("doc_table_size_mb");
 
-        public double KeyTableSizeMb { get; }
+        public double SortableValueSizeMebibytes => GetDouble("sortable_value_size_mb");
 
-        public Dictionary<string, RedisResult> GcStats { get; } = new Dictionary<string, RedisResult>();
+        public double KeyTableSizeMebibytes => GetDouble("key_table_size_mb");
 
-        public Dictionary<string, RedisResult> CursorStats { get; } = new Dictionary<string, RedisResult>();
+        public Dictionary<string, RedisResult> GcStats => GetRedisResultDictionary("gc_stats");
+
+        public Dictionary<string, RedisResult> CursorStats => GetRedisResultDictionary("cursor_stats");
 
         public InfoResult(RedisResult result)
         {
@@ -56,97 +58,69 @@ namespace NRediSearch
                 var key = (string)results[i];
                 var value = results[i + 1];
 
-                if (value.IsNull)
+                _all.Add(key, value);
+            }
+        }
+
+        private string GetString(string key) => _all.TryGetValue(key, out var value) ? (string)value : default;
+
+        private long GetLong(string key) => _all.TryGetValue(key, out var value) ? (long)value : default;
+
+        private double GetDouble(string key)
+        {
+            if (_all.TryGetValue(key, out var value))
+            {
+                if ((string)value == "-nan")
                 {
-                    continue;
+                    return default;
+                }
+                else
+                {
+                    return (double)value;
+                }
+            }
+            else
+            {
+                return default;
+            }
+        }
+
+        private Dictionary<string, RedisResult> GetRedisResultDictionary(string key)
+        {
+            if (_all.TryGetValue(key, out var value))
+            {
+                var values = (RedisResult[])value;
+                var result = new Dictionary<string, RedisResult>();
+
+                for (var ii = 0; ii < values.Length; ii += 2)
+                {
+                    result.Add((string)values[ii], values[ii + 1]);
                 }
 
-                switch (key)
+                return result;
+            }
+            else
+            {
+                return default;
+            }
+        }
+
+        private Dictionary<string, RedisResult[]> GetRedisResultsDictionary(string key)
+        {
+            if (_all.TryGetValue(key, out var value))
+            {
+                var result = new Dictionary<string, RedisResult[]>();
+
+                foreach (RedisResult[] fv in (RedisResult[])value)
                 {
-                    case "index_name":
-                        IndexName = (string)value;
-                        break;
-                    case "fields":
-                        var fieldVals = (RedisResult[])value;
-
-                        foreach (RedisResult[] fv in fieldVals)
-                        {
-                            Fields.Add((string)fv[0], fv);
-                        }
-
-                        break;
-                    case "num_docs":
-                        NumDocs = (long)value;
-                        break;
-                    case "max_doc_id":
-                        MaxDocId = (string)value;
-                        break;
-                    case "num_terms":
-                        NumTerms = (long)value;
-                        break;
-                    case "num_records":
-                        NumRecords = (long)value;
-                        break;
-                    case "inverted_sz_mb":
-                        InvertedSzMb = (double)value;
-                        break;
-                    case "offset_vectors_sz_mb":
-                        OffsetVectorsSzMb = (double)value;
-                        break;
-                    case "doc_table_size_mb":
-                        DocTableSizeMb = (double)value;
-                        break;
-                    case "sortable_values_size_mb":
-                        SortableValueSizeMb = (double)value;
-                        break;
-                    case "key_table_size_mb":
-                        KeyTableSizeMb = (double)value;
-                        break;
-                    case "records_per_doc_avg":
-                        if ((string)value == "-nan")
-                        {
-                            continue;
-                        }
-                        RecordsPerDocAvg = (double)value;
-                        break;
-                    case "bytes_per_record_avg":
-                        if ((string)value == "-nan")
-                        {
-                            continue;
-                        }
-                        BytesPerRecordAvg = (double)value;
-                        break;
-                    case "offset_per_term_avg":
-                        if ((string)value == "-nan")
-                        {
-                            continue;
-                        }
-                        OffsetsPerTermAvg = (double)value;
-                        break;
-                    case "offset_bits_per_record_avg":
-                        if ((string)value == "-nan")
-                        {
-                            continue;
-                        }
-                        OffsetBitsPerRecordAvg = (double)value;
-                        break;
-                    case "gc_stats":
-                        var gcStatsValues = (RedisResult[])value;
-                        for(var ii = 0; ii < gcStatsValues.Length; ii += 2)
-                        {
-                            GcStats.Add((string)gcStatsValues[ii], gcStatsValues[ii + 1]);
-                        }
-                        break;
-                    case "cursor_stats":
-                        var csValues = (RedisResult[])value;
-                        for (var ii = 0; ii < csValues.Length; ii += 2)
-                        {
-                            CursorStats.Add((string)csValues[ii], csValues[ii + 1]);
-                        }
-                        break;
-                    default:
-                        break;
+                    result.Add((string)fv[0], fv);
                 }
+
+                return result;
+            }
+            else
+            {
+                return default;
             }
         }
     }
