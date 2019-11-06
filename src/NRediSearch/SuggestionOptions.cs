@@ -1,55 +1,70 @@
 ﻿// .NET port of https://github.com/RedisLabs/JRediSearch/
+using System;
 
 namespace NRediSearch
 {
     public class SuggestionOptions
     {
-        private const string WITHPAYLOADS_FLAG = "WITHPAYLOADS";
-        private const string WITHSCORES_FLAG = "WITHSCORES";
+        private readonly object WITHPAYLOADS_FLAG = "WITHPAYLOADS".Literal();
+        private readonly object WITHSCORES_FLAG = "WITHSCORES".Literal();
 
         public SuggestionOptions(SuggestionOptionsBuilder builder)
         {
-            _with = builder._with;
+            With = builder._with;
             Fuzzy = builder._fuzzy;
             Max = builder._max;
         }
 
         public static SuggestionOptionsBuilder Builder => new SuggestionOptionsBuilder();
 
-        private With _with;
-        public With GetWith() => _with;
+        public WithOptions With { get; }
 
         public bool Fuzzy { get; }
 
         public int Max { get; } = 5;
 
+        public object[] GetFlags()
+        {
+            if (HasOption(WithOptions.PayloadsAndScores))
+            {
+                return new[] { WITHPAYLOADS_FLAG, WITHSCORES_FLAG };
+            }
+
+            if (HasOption(WithOptions.Payloads))
+            {
+                return new[] { WITHPAYLOADS_FLAG };
+            }
+
+            if (HasOption(WithOptions.Scores))
+            {
+                return new[] { WITHSCORES_FLAG };
+            }
+
+            return default;
+        }
+
         public SuggestionOptionsBuilder ToBuilder() => new SuggestionOptionsBuilder(this);
 
-        public class With
+        internal bool GetIsPayloadAndScores() => HasOption(WithOptions.PayloadsAndScores);
+
+        internal bool GetIsPayload() => HasOption(WithOptions.Payloads);
+
+        internal bool GetIsScores() => HasOption(WithOptions.Scores);
+
+        [Flags]
+        public enum WithOptions
         {
-            internal bool IsPayload { get; } = false;
-            public static With PAYLOAD = new With(true, false, false, WITHPAYLOADS_FLAG.Literal());
-
-            internal bool IsScores { get; } = false;
-            public static With SCORES = new With(false, true, false, WITHSCORES_FLAG.Literal());
-
-            internal bool IsPayloadAndScores { get; } = false;
-            public static With PAYLOAD_AND_SCORES = new With(false, false, true, WITHPAYLOADS_FLAG.Literal(), WITHSCORES_FLAG.Literal());
-
-            public object[] Flags { get; }
-
-            private With(bool isPayload, bool isScores, bool isPayloadAndScores, params object[] flags)
-            {
-                Flags = flags;
-                IsPayload = isPayload;
-                IsScores = isScores;
-                IsPayloadAndScores = isPayloadAndScores;
-            }
+            None = 0,
+            Payloads = 1,
+            Scores = 2,
+            PayloadsAndScores = Payloads | Scores
         }
+
+        internal bool HasOption(WithOptions option) => (With & option) != 0;
 
         public sealed class SuggestionOptionsBuilder
         {
-            internal With _with;
+            internal WithOptions _with;
             internal bool _fuzzy;
             internal int _max = 5;
 
@@ -57,7 +72,7 @@ namespace NRediSearch
 
             public SuggestionOptionsBuilder(SuggestionOptions options)
             {
-                _with = options.GetWith();
+                _with = options.With;
                 _fuzzy = options.Fuzzy;
                 _max = options.Max;
             }
@@ -76,7 +91,7 @@ namespace NRediSearch
                 return this;
             }
 
-            public SuggestionOptionsBuilder With(SuggestionOptions.With with)
+            public SuggestionOptionsBuilder With(WithOptions with)
             {
                 _with = with;
 

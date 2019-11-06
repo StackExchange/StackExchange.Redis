@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using NRediSearch.Aggregation;
 using StackExchange.Redis;
 using static NRediSearch.Schema;
+using static NRediSearch.SuggestionOptions;
 
 namespace NRediSearch
 {
@@ -710,29 +711,29 @@ namespace NRediSearch
                 args.Add("FUZZY".Literal());
             }
 
-            if (options.GetWith() != null)
+            if (options.With != WithOptions.None)
             {
-                args.AddRange(options.GetWith().Flags);
+                args.AddRange(options.GetFlags());
             }
 
             var results = (RedisResult[])DbSync.Execute("FT.SUGGET", args);
 
-            if (options.GetWith() == null)
+            if (options.With == WithOptions.None)
             {
                 return GetSuggestionsNoOptions(results);
             }
 
-            if (options.GetWith().IsPayloadAndScores)
+            if (options.GetIsPayloadAndScores())
             {
                 return GetSuggestionsWithPayloadAndScores(results);
             }
 
-            if (options.GetWith().IsPayload)
+            if (options.GetIsPayload())
             {
                 return GetSuggestionsWithPayload(results);
             }
 
-            if (options.GetWith().IsScores)
+            if (options.GetIsScores())
             {
                 return GetSuggestionsWithScores(results);
             }
@@ -761,29 +762,29 @@ namespace NRediSearch
                 args.Add("FUZZY".Literal());
             }
 
-            if (options.GetWith() != null)
+            if (options.With != WithOptions.None)
             {
-                args.AddRange(options.GetWith().Flags);
+                args.AddRange(options.GetFlags());
             }
 
             var results = (RedisResult[])await _db.ExecuteAsync("FT.SUGGET", args).ConfigureAwait(false);
 
-            if (options.GetWith() == null)
+            if (options.With == WithOptions.None)
             {
                 return GetSuggestionsNoOptions(results);
             }
 
-            if (options.GetWith().IsPayloadAndScores)
+            if (options.GetIsPayloadAndScores())
             {
                 return GetSuggestionsWithPayloadAndScores(results);
             }
 
-            if (options.GetWith().IsPayload)
+            if (options.GetIsPayload())
             {
                 return GetSuggestionsWithPayload(results);
             }
 
-            if (options.GetWith().IsScores)
+            if (options.GetIsScores())
             {
                 return GetSuggestionsWithScores(results);
             }

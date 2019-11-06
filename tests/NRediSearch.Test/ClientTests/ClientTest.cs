@@ -5,6 +5,7 @@ using Xunit;
 using Xunit.Abstractions;
 using static NRediSearch.Client;
 using static NRediSearch.Schema;
+using static NRediSearch.SuggestionOptions;
 
 namespace NRediSearch.Test.ClientTests
 {
@@ -627,7 +628,7 @@ namespace NRediSearch.Test.ClientTests
             Suggestion noScoreOrPayload = Suggestion.Builder.String("COUNT NO PAYLOAD OR COUNT").Build();
             Assert.True(cl.AddSuggestion(noScoreOrPayload, true) > 1, "Count single added should return more than 1");
 
-            var payloads = cl.GetSuggestions(suggestion.String.Substring(0, 3), SuggestionOptions.Builder.With(SuggestionOptions.With.PAYLOAD_AND_SCORES).Build());
+            var payloads = cl.GetSuggestions(suggestion.String.Substring(0, 3), SuggestionOptions.Builder.With(WithOptions.PayloadsAndScores).Build());
             Assert.Equal(4, payloads.Length);
             Assert.True(payloads[2].Payload.Length > 0);
             Assert.True(payloads[1].Score < .299);
@@ -642,7 +643,7 @@ namespace NRediSearch.Test.ClientTests
             cl.AddSuggestion(Suggestion.Builder.String("COUNTNO PAYLOAD OR COUNT").Build(), false);
 
             // test that with a partial part of that string will have the entire word returned
-            var payloads = cl.GetSuggestions("COU", SuggestionOptions.Builder.Max(3).Fuzzy().With(SuggestionOptions.With.PAYLOAD).Build());
+            var payloads = cl.GetSuggestions("COU", SuggestionOptions.Builder.Max(3).Fuzzy().With(WithOptions.Payloads).Build());
             Assert.Equal(3, payloads.Length);
         }
 
@@ -668,7 +669,7 @@ namespace NRediSearch.Test.ClientTests
             Client cl = GetClient();
 
             cl.AddSuggestion(Suggestion.Builder.String("DIFF_WORD").Score(0.4).Payload("PAYLOADS ROCK ").Build(), true);
-            var list = cl.GetSuggestions("DIF", SuggestionOptions.Builder.Max(2).With(SuggestionOptions.With.SCORES).Build());
+            var list = cl.GetSuggestions("DIF", SuggestionOptions.Builder.Max(2).With(WithOptions.Scores).Build());
             Assert.True(list[0].Score <= .2);
         }
 
@@ -679,7 +680,7 @@ namespace NRediSearch.Test.ClientTests
 
             cl.AddSuggestion(Suggestion.Builder.String("NO WORD").Score(0.4).Build(), false);
 
-            var none = cl.GetSuggestions("DIF", SuggestionOptions.Builder.Max(3).With(SuggestionOptions.With.SCORES).Build());
+            var none = cl.GetSuggestions("DIF", SuggestionOptions.Builder.Max(3).With(WithOptions.Scores).Build());
             Assert.Empty(none);
         }
 
