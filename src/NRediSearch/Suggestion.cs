@@ -4,7 +4,7 @@ using StackExchange.Redis;
 
 namespace NRediSearch
 {
-    public class Suggestion
+    public sealed class Suggestion
     {
         public string String { get; }
         public double Score { get; }
@@ -24,14 +24,12 @@ namespace NRediSearch
                 return true;
             }
 
-            if (obj == null || obj.GetType() != GetType())
+            if(!(obj is Suggestion that))
             {
                 return false;
             }
 
-            var that = obj as Suggestion;
-
-            return Score.Equals(that.Score) && String.Equals(that.String) && Payload.Equals(that.Payload);
+            return Score == that.Score && String == that.String && Payload == that.Payload;
         }
 
         public override int GetHashCode()
