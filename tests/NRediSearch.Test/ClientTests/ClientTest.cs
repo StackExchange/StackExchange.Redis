@@ -365,7 +365,7 @@ namespace NRediSearch.Test.ClientTests
             SearchResult res2 = cl.Search(new Query("@tags:{tagA}"));
             Assert.Equal(100, res2.TotalResults);
 
-            var info = cl.GetInfo();
+            var info = cl.GetInfoParsed();
             Assert.Equal(cl.IndexName, info.IndexName);
 
             Assert.True(info.Fields.ContainsKey("tags"));
@@ -397,6 +397,18 @@ namespace NRediSearch.Test.ClientTests
         }
 
         [Fact]
+        public void TestInfoParsed()
+        {
+            Client cl = GetClient();
+
+            Schema sc = new Schema().AddTextField("title", 1.0);
+            Assert.True(cl.CreateIndex(sc, IndexOptions.Default));
+
+            var info = cl.GetInfoParsed();
+            Assert.Equal(cl.IndexName, info.IndexName);
+        }
+
+        [Fact]
         public void TestInfo()
         {
             Client cl = GetClient();
@@ -405,7 +417,7 @@ namespace NRediSearch.Test.ClientTests
             Assert.True(cl.CreateIndex(sc, IndexOptions.Default));
 
             var info = cl.GetInfo();
-            Assert.Equal(cl.IndexName, info.IndexName);
+            Assert.Equal(cl.IndexName, info["index_name"]);
         }
 
         [Fact]

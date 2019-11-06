@@ -478,17 +478,48 @@ namespace NRediSearch
         }
 
         /// <summary>
-        /// Get the index info, including memory consumption and other statistics.
+        /// Get the index info, including memory consumption and other statistics
         /// </summary>
         /// <returns>a map of key/value pairs</returns>
-        public InfoResult GetInfo() =>
-            new InfoResult(DbSync.Execute("FT.INFO", _boxedIndexName));
+        public Dictionary<string, RedisValue> GetInfo() =>
+            ParseGetInfo(DbSync.Execute("FT.INFO", _boxedIndexName));
+
+        /// <summary>
+        /// Get the index info, including memory consumption and other statistics
+        /// </summary>
+        /// <returns>a map of key/value pairs</returns>
+        public async Task<Dictionary<string, RedisValue>> GetInfoAsync() =>
+            ParseGetInfo(await _db.ExecuteAsync("FT.INFO", _boxedIndexName).ConfigureAwait(false));
+
+        private static Dictionary<string, RedisValue> ParseGetInfo(RedisResult value)
+        {
+            var res = (RedisResult[])value;
+            var info = new Dictionary<string, RedisValue>();
+            for (int i = 0; i < res.Length; i += 2)
+            {
+                var val = res[i + 1];
+                if (val.Type != ResultType.MultiBulk)
+                {
+                    info.Add((string)res[i], (RedisValue)val);
+                }
+            }
+            return info;
+        }
 
         /// <summary>
         /// Get the index info, including memory consumption and other statistics.
         /// </summary>
-        /// <returns>a map of key/value pairs</returns>
-        public async Task<InfoResult> GetInfoAsync() =>
+        /// <returns>An `InfoResult` object with parsed values from the FT.INFO command.</returns>
+        public InfoResult GetInfoParsed() =>
+            new InfoResult(DbSync.Execute("FT.INFO", _boxedIndexName));
+
+
+
+        /// <summary>
+        /// Get the index info, including memory consumption and other statistics.
+        /// </summary>
+        /// <returns>An `InfoResult` object with parsed values from the FT.INFO command.</returns>
+        public async Task<InfoResult> GetInfoParsedAsync() =>
             new InfoResult(await _db.ExecuteAsync("FT.INFO", _boxedIndexName).ConfigureAwait(false));
 
         /// <summary>
