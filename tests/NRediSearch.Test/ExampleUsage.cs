@@ -28,7 +28,7 @@ namespace NRediSearch.Test
             bool result = false;
             try
             {
-                result = client.CreateIndex(sc, IndexOptions.Default);
+                result = client.CreateIndex(sc, new ConfiguredIndexOptions());
             }
             catch (RedisServerException ex)
             {

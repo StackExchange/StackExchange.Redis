@@ -29,7 +29,7 @@ namespace NRediSearch.Test.ClientTests
             Schema sc = new Schema();
             sc.AddSortableTextField("name", 1.0);
             sc.AddSortableNumericField("count");
-            cl.CreateIndex(sc, IndexOptions.Default);
+            cl.CreateIndex(sc, new ConfiguredIndexOptions());
             cl.AddDocument(new Document("data1").Set("name", "abc").Set("count", 10));
             cl.AddDocument(new Document("data2").Set("name", "def").Set("count", 5));
             cl.AddDocument(new Document("data3").Set("name", "def").Set("count", 25));

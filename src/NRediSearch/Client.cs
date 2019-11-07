@@ -13,7 +13,7 @@ namespace NRediSearch
     public sealed class Client
     {
         [Flags]
-        public enum IndexOption
+        public enum IndexOptions
         {
             /// <summary>
             /// All options disabled
@@ -30,23 +30,33 @@ namespace NRediSearch
             /// </summary>
             KeepFieldFlags = 2,
             /// <summary>
-            /// The default indexing options - use term offsets and keep fields flags
+            /// The default indexing options - use term offsets, keep fields flags, keep term frequencies
             /// </summary>
             Default = UseTermOffsets | KeepFieldFlags | KeepTermFrequencies,
             /// <summary>
             /// If set, we keep an index of the top entries per term, allowing extremely fast single word queries
             /// regardless of index size, at the cost of more memory
             /// </summary>
-            KeepTermFrequencies = 4,
+            [Obsolete("'NOSCOREIDX' was removed from RediSearch.")]
+            UseScoreIndexes = 4,
+            /// <summary>
+            /// If set, we will disable the Stop-Words completely
+            /// </summary>
+            DisableStopWords = 8,
+            /// <summary>
+            /// If set, we keep an index of the top entries per term, allowing extremely fast single word queries
+            /// regardless of index size, at the cost of more memory
+            /// </summary>
+            KeepTermFrequencies = 16
         }
 
-        public sealed class IndexOptions
+        public sealed class ConfiguredIndexOptions
         {
             public static IndexOptions Default => new IndexOptions();
 
-            private IndexOption _options;
+            private IndexOptions _options;
             private string[] _stopwords;
-            public IndexOptions(IndexOption options = IndexOption.Default)
+            public ConfiguredIndexOptions(IndexOptions options = IndexOptions.Default)
             {
                 _options = options;
             }
@@ -55,36 +65,50 @@ namespace NRediSearch
             /// Set a custom stopword list.
             /// </summary>
             /// <param name="stopwords">The new stopwords to use.</param>
-            public IndexOptions SetStopwords(params string[] stopwords)
+            public ConfiguredIndexOptions SetStopwords(params string[] stopwords)
             {
-                _stopwords = stopwords;
+                _stopwords = stopwords ?? throw new ArgumentNullException(nameof(stopwords));
+                if (stopwords.Length == 0) _options |= IndexOptions.DisableStopWords;
+                else _options &= ~IndexOptions.DisableStopWords;
+                return this;
+            }
+
+            public ConfiguredIndexOptions SetNoStopwords()
+            {
+                _options |= IndexOptions.DisableStopWords;
 
                 return this;
             }
 
             internal void SerializeRedisArgs(List<object> args)
             {
-                if (!_options.HasFlag(IndexOption.UseTermOffsets))
-                {
-                    args.Add("NOOFFSETS".Literal());
-                }
-                if (!_options.HasFlag(IndexOption.KeepFieldFlags))
-                {
-                    args.Add("NOFIELDS".Literal());
-                }
-                if (!_options.HasFlag(IndexOption.KeepTermFrequencies))
-                {
-                    args.Add("NOFREQS".Literal());
-                }
-
+                SerializeRedisArgs(_options, args);
                 if (_stopwords != null && _stopwords.Length != 0)
                 {
                     args.Add("STOPWORDS".Literal());
                     args.Add(_stopwords.Length.Boxed());
-                    if (_stopwords.Length > 0)
-                    {
-                        args.AddRange(_stopwords);
-                    }
+                    args.AddRange(_stopwords);
+                }
+            }
+
+            internal static void SerializeRedisArgs(IndexOptions options, List<object> args)
+            {
+                if ((options & IndexOptions.UseTermOffsets) == 0)
+                {
+                    args.Add("NOOFFSETS".Literal());
+                }
+                if ((options & IndexOptions.KeepFieldFlags) == 0)
+                {
+                    args.Add("NOFIELDS".Literal());
+                }
+                if ((options & IndexOptions.KeepTermFrequencies) == 0)
+                {
+                    args.Add("NOFREQS".Literal());
+                }
+                if ((options & IndexOptions.DisableStopWords) == IndexOptions.DisableStopWords)
+                {
+                    args.Add("STOPWORDS".Literal());
+                    args.Add(0.Boxed());
                 }
             }
         }
@@ -109,7 +133,7 @@ namespace NRediSearch
         /// <param name="schema">a schema definition <seealso cref="Schema"/></param>
         /// <param name="options">index option flags <seealso cref="IndexOptions"/></param>
         /// <returns>true if successful</returns>
-        public bool CreateIndex(Schema schema, IndexOptions options)
+        public bool CreateIndex(Schema schema, ConfiguredIndexOptions options)
         {
             var args = new List<object>
             {
@@ -132,7 +156,7 @@ namespace NRediSearch
         /// <param name="schema">a schema definition <seealso cref="Schema"/></param>
         /// <param name="options">index option flags <seealso cref="IndexOptions"/></param>
         /// <returns>true if successful</returns>
-        public async Task<bool> CreateIndexAsync(Schema schema, IndexOptions options)
+        public async Task<bool> CreateIndexAsync(Schema schema, ConfiguredIndexOptions options)
         {
             var args = new List<object>
             {
