@@ -749,6 +749,34 @@ namespace NRediSearch
         /// Get completion suggestions for a prefix
         /// </summary>
         /// <param name="prefix">the prefix to complete on</param>
+        /// <param name="fuzzy"> if set,we do a fuzzy prefix search, including prefixes at levenshtein distance of 1 from the prefix sent</param>
+        /// <param name="max">If set, we limit the results to a maximum of num. (Note: The default is 5, and the number cannot be greater than 10).</param>
+        /// <returns>a list of the top suggestions matching the prefix</returns>
+        public string[] GetSuggestions(string prefix, bool fuzzy = false, int max = 5)
+        {
+            var optionsBuilder = SuggestionOptions.Builder.Max(max);
+
+            if (fuzzy)
+            {
+                optionsBuilder.Fuzzy();
+            }
+
+            var suggestions = GetSuggestions(prefix, optionsBuilder.Build());
+
+            var result = new string[suggestions.Length];
+
+            for (var i = 0; i < suggestions.Length; i++)
+            {
+                result[i] = suggestions[i].String;
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Get completion suggestions for a prefix
+        /// </summary>
+        /// <param name="prefix">the prefix to complete on</param>
         /// <param name="suggestionOptions"> the options on what you need returned and other usage</param>
         /// <returns>a list of the top suggestions matching the prefix</returns>
         public Suggestion[] GetSuggestions(string prefix, SuggestionOptions options)
@@ -795,6 +823,35 @@ namespace NRediSearch
 
             return default;
         }
+
+        /// <summary>
+        /// Get completion suggestions for a prefix
+        /// </summary>
+        /// <param name="prefix">the prefix to complete on</param>
+        /// <param name="fuzzy"> if set,we do a fuzzy prefix search, including prefixes at levenshtein distance of 1 from the prefix sent</param>
+        /// <param name="max">If set, we limit the results to a maximum of num. (Note: The default is 5, and the number cannot be greater than 10).</param>
+        /// <returns>a list of the top suggestions matching the prefix</returns>
+        public async Task<string[]> GetSuggestionsAsync(string prefix, bool fuzzy = false, int max = 5)
+        {
+            var optionsBuilder = SuggestionOptions.Builder.Max(max);
+
+            if (fuzzy)
+            {
+                optionsBuilder.Fuzzy();
+            }
+
+            var suggestions = await GetSuggestionsAsync(prefix, optionsBuilder.Build());
+
+            var result = new string[suggestions.Length];
+
+            for(var i = 0; i < suggestions.Length; i++)
+            {
+                result[i] = suggestions[i].String;
+            }
+
+            return result;
+        }
+
 
         /// <summary>
         /// Get completion suggestions for a prefix

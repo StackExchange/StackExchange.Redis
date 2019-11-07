@@ -676,6 +676,22 @@ namespace NRediSearch.Test.ClientTests
         }
 
         [Fact]
+        public void TestGetSuggestionsAsStringArray()
+        {
+            Client cl = GetClient();
+
+            cl.AddSuggestion(Suggestion.Builder.String("DIFF_WORD").Score(0.4).Payload("PAYLOADS ROCK ").Build(), false);
+            cl.AddSuggestion(Suggestion.Builder.String("DIFF wording").Score(0.5).Payload("ANOTHER PAYLOAD ").Build(), false);
+            cl.AddSuggestion(Suggestion.Builder.String("DIFFERENT").Score(0.7).Payload("I am a payload").Build(), false);
+
+            var payloads = cl.GetSuggestions("DIF", max: 2);
+            Assert.Equal(2, payloads.Length);
+
+            var three = cl.GetSuggestions("DIF", max: 3);
+            Assert.Equal(3, three.Length);
+        }
+
+        [Fact]
         public void TestGetSuggestionWithScore()
         {
             Client cl = GetClient();
