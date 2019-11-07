@@ -37,7 +37,7 @@ namespace NRediSearch
             /// If set, we keep an index of the top entries per term, allowing extremely fast single word queries
             /// regardless of index size, at the cost of more memory
             /// </summary>
-            [Obsolete("'NOSCOREIDX' was removed from RediSearch.")]
+            [Obsolete("'NOSCOREIDX' was removed from RediSearch.", true)]
             UseScoreIndexes = 4,
             /// <summary>
             /// If set, we will disable the Stop-Words completely
