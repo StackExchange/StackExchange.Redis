@@ -10,12 +10,7 @@ namespace NRediSearch
     {
         private readonly Dictionary<string, RedisValue>[] _results;
 
-        internal AggregationResult(RedisResult result, long cursorId) : this(result)
-        {
-            CursorId = cursorId;
-        }
-
-        internal AggregationResult(RedisResult result)
+        internal AggregationResult(RedisResult result, long cursorId = -1)
         {
             var arr = (RedisResult[])result;
 
@@ -33,6 +28,8 @@ namespace NRediSearch
                 }
                 _results[i - 1] = cur;
             }
+
+            CursorId = cursorId;
         }
         public IReadOnlyList<Dictionary<string, RedisValue>> GetResults() => _results;
 
@@ -45,6 +42,6 @@ namespace NRediSearch
             return new Row(_results[index]);
         }
 
-        public long CursorId { get; } = -1;
+        public long CursorId { get; }
     }
 }
