@@ -1,13 +1,12 @@
-﻿using System;
+﻿using Pipelines.Sockets.Unofficial.Arenas;
+using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
-using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
-using Pipelines.Sockets.Unofficial.Arenas;
 
 namespace StackExchange.Redis
 {
@@ -2018,5 +2017,38 @@ The coordinates as a two items x,y array (longitude,latitude).
 
             box?.SetResult(value);
         }
+    }
+
+    internal abstract class ArrayResultProcessor<T> : ResultProcessor<T[]>
+    {
+        protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+        {
+            switch(result.Type)
+            {
+                case ResultType.MultiBulk:
+                    var items = result.GetItems();
+                    T[] arr;
+                    if (items.IsEmpty)
+                    {
+                        arr = Array.Empty<T>();
+                    }
+                    else
+                    {
+                        arr = new T[checked((int)items.Length)];
+                        int index = 0;
+                        foreach (ref RawResult inner in items)
+                        {
+                            if (!TryParse(inner, out arr[index++]))
+                                return false;
+                        }
+                    }
+                    SetResult(message, arr);
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        protected abstract bool TryParse(in RawResult raw, out T parsed);
     }
 }

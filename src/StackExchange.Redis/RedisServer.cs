@@ -869,5 +869,119 @@ namespace StackExchange.Redis
         /// For testing only
         /// </summary>
         internal void SimulateConnectionFailure() => server.SimulateConnectionFailure();
+
+        public Task<string> LatencyDoctorAsync(CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.LATENCY, RedisLiterals.DOCTOR);
+            return ExecuteAsync(msg, ResultProcessor.String);
+        }
+
+        public string LatencyDoctor(CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.LATENCY, RedisLiterals.DOCTOR);
+            return ExecuteSync(msg, ResultProcessor.String);
+        }
+
+        private static Message LatencyResetCommand(string[] eventNames, CommandFlags flags)
+        {
+            if (eventNames == null) eventNames = Array.Empty<string>();
+            switch (eventNames.Length)
+            {
+                case 0:
+                    return Message.Create(-1, flags, RedisCommand.LATENCY, RedisLiterals.RESET);
+                case 1:
+                    return Message.Create(-1, flags, RedisCommand.LATENCY, RedisLiterals.RESET, (RedisValue)eventNames[0]);
+                default:
+                    var arr = new RedisValue[eventNames.Length + 1];
+                    arr[0] = RedisLiterals.RESET;
+                    for (int i = 0; i < eventNames.Length; i++)
+                        arr[i + 1] = eventNames[i];
+                    return Message.Create(-1, flags, RedisCommand.LATENCY, arr);
+
+            }
+        }
+        public Task<long> LatencyResetAsync(string[] eventNames = null, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = LatencyResetCommand(eventNames, flags);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
+
+        public long LatencyReset(string[] eventNames = null, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = LatencyResetCommand(eventNames, flags);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+
+        public Task<LatencyHistoryEntry[]> LatencyHistoryAsync(string eventName, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.LATENCY, RedisLiterals.HISTORY, (RedisValue)eventName);
+            return ExecuteAsync(msg, LatencyHistoryEntry.ToArray);
+        }
+
+        public LatencyHistoryEntry[] LatencyHistory(string eventName, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.LATENCY, RedisLiterals.HISTORY, (RedisValue)eventName);
+            return ExecuteSync(msg, LatencyHistoryEntry.ToArray);
+        }
+
+        public Task<LatencyLatestEntry[]> LatencyLatestAsync(CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.LATENCY, RedisLiterals.LATEST);
+            return ExecuteAsync(msg, LatencyLatestEntry.ToArray);
+        }
+
+        public LatencyLatestEntry[] LatencyLatest(CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.LATENCY, RedisLiterals.LATEST);
+            return ExecuteSync(msg, LatencyLatestEntry.ToArray);
+        }
+
+        public Task<string> MemoryDoctorAsync(CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.MEMORY, RedisLiterals.DOCTOR);
+            return ExecuteAsync(msg, ResultProcessor.String);
+        }
+
+        public string MemoryDoctor(CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.MEMORY, RedisLiterals.DOCTOR);
+            return ExecuteSync(msg, ResultProcessor.String);
+        }
+
+        public Task MemoryPurgeAsync(CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.MEMORY, RedisLiterals.PURGE);
+            return ExecuteAsync(msg, ResultProcessor.DemandOK);
+        }
+
+        public void MemoryPurge(CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.MEMORY, RedisLiterals.PURGE);
+            ExecuteSync(msg, ResultProcessor.DemandOK);
+        }
+
+        public Task<string> MemoryAllocatorStatsAsync(CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.MEMORY, RedisLiterals.MALLOC_STATS);
+            return ExecuteAsync(msg, ResultProcessor.String);
+        }
+
+        public string MemoryAllocatorStats(CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.MEMORY, RedisLiterals.MALLOC_STATS);
+            return ExecuteSync(msg, ResultProcessor.String);
+        }
+
+        public Task<RedisResult> MemoryStatsAsync(CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.MEMORY, RedisLiterals.STATS);
+            return ExecuteAsync(msg, ResultProcessor.ScriptResult);
+        }
+
+        public RedisResult MemoryStats(CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.MEMORY, RedisLiterals.STATS);
+            return ExecuteSync(msg, ResultProcessor.ScriptResult);
+        }
     }
 }
