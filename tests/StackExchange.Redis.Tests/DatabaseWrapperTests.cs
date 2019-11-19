@@ -167,6 +167,13 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void HashStringLength()
+        {
+            wrapper.HashStringLength("key","field", CommandFlags.None);
+            mock.Verify(_ => _.HashStringLength("prefix:key", "field", CommandFlags.None));
+        }
+
+        [Fact]
         public void HashValues()
         {
             wrapper.HashValues("key", CommandFlags.None);

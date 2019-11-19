@@ -359,6 +359,16 @@ namespace StackExchange.Redis
         bool HashSet(RedisKey key, RedisValue hashField, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Returns the string length of the value associated with field in the hash stored at key.
+        /// </summary>
+        /// <param name="key">The key of the hash.</param>
+        /// <param name="hashField">The field containing the string</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>the length of the string at field, or 0 when key does not exist.</returns>
+        /// <remarks>https://redis.io/commands/hstrlen</remarks>
+        long HashStringLength(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None);
+        
+        /// <summary>
         /// Returns all values in the hash stored at key.
         /// </summary>
         /// <param name="key">The key of the hash.</param>
