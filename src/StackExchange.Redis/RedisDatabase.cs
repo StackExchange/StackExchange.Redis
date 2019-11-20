@@ -1216,6 +1216,7 @@ namespace StackExchange.Redis
 
         public long SetAdd(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
         {
+            if (values.Length == 0) return 0;
             var msg = Message.Create(Database, flags, RedisCommand.SADD, key, values);
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
@@ -1228,6 +1229,7 @@ namespace StackExchange.Redis
 
         public Task<long> SetAddAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
         {
+            if (values.Length == 0) return Task.FromResult<long>(0);
             var msg = Message.Create(Database, flags, RedisCommand.SADD, key, values);
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
