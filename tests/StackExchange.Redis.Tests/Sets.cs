@@ -189,5 +189,41 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(10, db.SetLength(key));
             }
         }
+
+        [Fact]
+        public void SetAdd_Zero()
+        {
+            using (var conn = Create())
+            {
+                var db = conn.GetDatabase();
+                var key = Me();
+
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+
+                var result = db.SetAdd(key, new RedisValue[0]);
+                Assert.Equal(0, result);
+
+                Assert.Equal(0, db.SetLength(key));
+            }
+        }
+
+        [Fact]
+        public async Task SetAdd_Zero_Async()
+        {
+            using (var conn = Create())
+            {
+                var db = conn.GetDatabase();
+                var key = Me();
+
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+
+                var t = db.SetAddAsync(key, new RedisValue[0]);
+                Assert.True(t.IsCompleted); // sync
+                var count = await t;
+                Assert.Equal(0, count);
+
+                Assert.Equal(0, db.SetLength(key));
+            }
+        }
     }
 }
