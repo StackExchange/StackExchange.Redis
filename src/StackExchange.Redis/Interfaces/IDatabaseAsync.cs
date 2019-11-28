@@ -1889,5 +1889,24 @@ namespace StackExchange.Redis
         /// <returns>The length of the string after it was modified by the command.</returns>
         /// <remarks>https://redis.io/commands/setrange</remarks>
         Task<RedisValue> StringSetRangeAsync(RedisKey key, long offset, RedisValue value, CommandFlags flags = CommandFlags.None);
+
+                /// <summary>
+        /// Touch the specified key. 
+        /// </summary>
+        /// <param name="key">The key to touch.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>True if the key was touched.</returns>
+        /// <remarks>https://redis.io/commands/touch</remarks>
+        Task<bool> KeyTouchAsync(RedisKey key, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Youch the specified keys. A key is ignored if it does not exist.
+        /// </summary>
+        /// <param name="keys">The keys to touch.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The number of keys that were touched.</returns>
+        /// <remarks>https://redis.io/commands/touch</remarks>
+        Task<long> KeyTouchAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None);
+
     }
 }
