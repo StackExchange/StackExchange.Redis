@@ -2458,6 +2458,23 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.RedisValue);
         }
 
+        public bool KeyTouch(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.TOUCH, key);
+            return ExecuteSync(msg, ResultProcessor.DemandZeroOrOne);
+        }
+
+        public long KeyTouch(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
+        {
+            if (keys == null) throw new ArgumentNullException(nameof(keys));
+            if (keys.Length > 0)
+            {
+                var msg = keys.Length == 0 ? null : Message.Create(Database, flags, RedisCommand.TOUCH, keys);
+                return ExecuteSync(msg, ResultProcessor.Int64);
+            }
+            return 0;
+        }
+
         public Task<RedisValue> StringSetRangeAsync(RedisKey key, long offset, RedisValue value, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.SETRANGE, key, offset, value);
