@@ -193,9 +193,13 @@ namespace StackExchange.Redis.Tests
                 var idleTime2 = db.KeyIdleTime(key);
                 Assert.True(idleTime2 < idleTime);
 
-                db.KeyDelete(key);
+                Assert.True(db.KeyTouch(key));
                 var idleTime3 = db.KeyIdleTime(key);
-                Assert.Null(idleTime3);
+                Assert.True(idleTime3 < idleTim2);
+
+                db.KeyDelete(key);
+                var idleTime4 = db.KeyIdleTime(key);
+                Assert.Null(idleTime4);
             }
         }
 
@@ -216,9 +220,13 @@ namespace StackExchange.Redis.Tests
                 var idleTime2 = await db.KeyIdleTimeAsync(key).ForAwait();
                 Assert.True(idleTime2 < idleTime);
 
-                db.KeyDelete(key);
+                Assert.True(await db.KeyTouchAsync(key).ForAwait());
                 var idleTime3 = await db.KeyIdleTimeAsync(key).ForAwait();
-                Assert.Null(idleTime3);
+                Assert.True(idleTime3 < idleTim2);
+
+                db.KeyDelete(key);
+                var idleTime4 = await db.KeyIdleTimeAsync(key).ForAwait();
+                Assert.Null(idleTime4);
             }
         }
     }
