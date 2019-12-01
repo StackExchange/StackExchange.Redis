@@ -200,8 +200,8 @@ namespace StackExchange.Redis.Tests
                 Assert.True(idleTime4 < idleTime3);
 
                 db.KeyDelete(key);
-                var idleTime4 = db.KeyIdleTime(key);
-                Assert.Null(idleTime4);
+                var idleTime5 = db.KeyIdleTime(key);
+                Assert.Null(idleTime5);
             }
         }
 
@@ -229,8 +229,8 @@ namespace StackExchange.Redis.Tests
                 Assert.True(idleTime4 < idleTime3);
 
                 db.KeyDelete(key);
-                var idleTime4 = await db.KeyIdleTimeAsync(key).ForAwait();
-                Assert.Null(idleTime4);
+                var idleTime5 = await db.KeyIdleTimeAsync(key).ForAwait();
+                Assert.Null(idleTime5);
             }
         }
     }
