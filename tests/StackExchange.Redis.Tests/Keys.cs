@@ -193,6 +193,7 @@ namespace StackExchange.Redis.Tests
                 var idleTime2 = db.KeyIdleTime(key);
                 Assert.True(idleTime2 < idleTime);
 
+                await Task.Delay(2000).ForAwait();
                 Assert.True(db.KeyTouch(key));
                 var idleTime3 = db.KeyIdleTime(key);
                 Assert.True(idleTime3 < idleTime2);
@@ -220,6 +221,7 @@ namespace StackExchange.Redis.Tests
                 var idleTime2 = await db.KeyIdleTimeAsync(key).ForAwait();
                 Assert.True(idleTime2 < idleTime);
 
+                await Task.Delay(2000).ForAwait();
                 Assert.True(await db.KeyTouchAsync(key).ForAwait());
                 var idleTime3 = await db.KeyIdleTimeAsync(key).ForAwait();
                 Assert.True(idleTime3 < idleTime2);
