@@ -260,7 +260,7 @@ namespace StackExchange.Redis.Tests
 
                 Assert.True(await db.KeyTouchAsync(key).ForAwait());
                 var idleTime1 = await db.KeyIdleTimeAsync(key).ForAwait();
-                Assert.True(idleTime1 < idleTime2);
+                Assert.True(idleTime1 < idleTime);
             }
         }
     }
