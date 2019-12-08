@@ -201,6 +201,11 @@ namespace StackExchange.Redis
         public Version Version => version ?? v2_0_0;
 
         /// <summary>
+        /// Are the Touch command available?
+        /// </summary>
+        public bool KeyTouch => Version >= v3_2_1;
+
+        /// <summary>
         /// Create a string representation of the available features
         /// </summary>
         public override string ToString()

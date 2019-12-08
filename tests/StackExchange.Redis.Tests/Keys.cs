@@ -193,13 +193,30 @@ namespace StackExchange.Redis.Tests
                 var idleTime2 = db.KeyIdleTime(key);
                 Assert.True(idleTime2 < idleTime);
 
-                Assert.True(db.KeyTouch(key));
-                var idleTime3 = db.KeyIdleTime(key);
-                Assert.True(idleTime3 < idleTime2);
-
                 db.KeyDelete(key);
-                var idleTime4 = db.KeyIdleTime(key);
-                Assert.Null(idleTime4);
+                var idleTime3 = db.KeyIdleTime(key);
+                Assert.Null(idleTime3);
+            }
+        }
+
+        [Fact]
+        public async Task TouchIdleTime()
+        {
+            using (var muxer = Create())
+            {
+                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.KeyTouch), r => r.KeyTouch);
+                
+                RedisKey key = Me();
+                var db = muxer.GetDatabase();
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
+                await Task.Delay(2000).ForAwait();
+                var idleTime = db.KeyIdleTime(key);
+                Assert.True(idleTime > TimeSpan.Zero);
+
+                Assert.True(db.KeyTouch(key));
+                var idleTime1 = db.KeyIdleTime(key);
+                Assert.True(idleTime1 < idleTime);
             }
         }
 
@@ -220,13 +237,30 @@ namespace StackExchange.Redis.Tests
                 var idleTime2 = await db.KeyIdleTimeAsync(key).ForAwait();
                 Assert.True(idleTime2 < idleTime);
 
-                Assert.True(await db.KeyTouchAsync(key).ForAwait());
-                var idleTime3 = await db.KeyIdleTimeAsync(key).ForAwait();
-                Assert.True(idleTime3 < idleTime2);
-
                 db.KeyDelete(key);
-                var idleTime4 = await db.KeyIdleTimeAsync(key).ForAwait();
-                Assert.Null(idleTime4);
+                var idleTime3 = await db.KeyIdleTimeAsync(key).ForAwait();
+                Assert.Null(idleTime3);
+            }
+        }
+
+        [Fact]
+        public async Task TouchIdleTimeAsync()
+        {
+            using (var muxer = Create())
+            {
+                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.KeyTouch), r => r.KeyTouch);
+
+                RedisKey key = Me();
+                var db = muxer.GetDatabase();
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.StringSet(key, "new value", flags: CommandFlags.FireAndForget);
+                await Task.Delay(2000).ForAwait();
+                var idleTime = await db.KeyIdleTimeAsync(key).ForAwait();
+                Assert.True(idleTime > TimeSpan.Zero);
+
+                Assert.True(await db.KeyTouchAsync(key).ForAwait());
+                var idleTime1 = await db.KeyIdleTimeAsync(key).ForAwait();
+                Assert.True(idleTime1 < idleTime2);
             }
         }
     }
