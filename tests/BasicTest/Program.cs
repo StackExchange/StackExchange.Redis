@@ -5,6 +5,7 @@ using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Columns;
 using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Diagnosers;
+using BenchmarkDotNet.Environments;
 using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Running;
 using BenchmarkDotNet.Toolchains.InProcess;
@@ -30,8 +31,9 @@ namespace BasicTest
             Add(StatisticColumn.OperationsPerSecond);
             Add(JitOptimizationsValidator.FailOnError);
 
-            Add(Configure(Job.Clr));
-            Add(Configure(Job.Core));
+            Add(Configure(Job.Default.With(ClrRuntime.Net472)));
+            Add(Configure(Job.Default.With(CoreRuntime.Core30)));
+            Add(Configure(Job.Default.With(CoreRuntime.Core31)));
         }
     }
     internal class SlowConfig : CustomConfig
