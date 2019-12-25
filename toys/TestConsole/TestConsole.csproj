@@ -2,7 +2,8 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFrameworks>netcoreapp2.1;net461;net462;net47;net472</TargetFrameworks>
+    <TargetFrameworks Condition="'$(OS)' == 'Windows_NT'">netcoreapp2.1;net461;net462;net47;net472</TargetFrameworks>
+    <TargetFrameworks Condition="'$(OS)' != 'Windows_NT'">netcoreapp2.1;netcoreapp3.1</TargetFrameworks>
     <LangVersion>latest</LangVersion>
     <DefineConstants>SEV2</DefineConstants>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
