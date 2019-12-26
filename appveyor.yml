@@ -6,7 +6,7 @@ init:
   - git config --global core.autocrlf input
 
 install:
-- cmd: choco install dotnetcore-sdk --version 2.2.401
+- cmd: choco install dotnetcore-sdk --version 3.1.100
 - cmd: >-
     cd tests\RedisConfigs\3.0.503
 
