@@ -3,10 +3,8 @@
     <TargetFrameworks>net462;netcoreapp2.1</TargetFrameworks>
     <AssemblyName>StackExchange.Redis.Tests</AssemblyName>
     <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
-    <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <SignAssembly>true</SignAssembly>
     <DebugType>full</DebugType>
-    <IsTestProject Condition="'$(OS)' != 'Windows_NT' AND $(TargetFramework.StartsWith('net4'))">false</IsTestProject>
   </PropertyGroup>
 
   <ItemGroup>

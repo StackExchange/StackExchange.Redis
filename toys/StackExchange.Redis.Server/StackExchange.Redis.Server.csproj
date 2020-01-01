@@ -4,7 +4,6 @@
     <TargetFrameworks>netstandard2.0</TargetFrameworks>
     <Description>Basic redis server based on StackExchange.Redis</Description>
     <AssemblyTitle>StackExchange.Redis</AssemblyTitle>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <AssemblyName>StackExchange.Redis.Server</AssemblyName>
     <PackageId>StackExchange.Redis.Server</PackageId>
     <PackageTags>Server;Async;Redis;Cache;PubSub;Messaging</PackageTags>
