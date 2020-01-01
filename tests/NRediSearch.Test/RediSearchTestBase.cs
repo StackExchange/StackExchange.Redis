@@ -57,36 +57,40 @@ namespace NRediSearch.Test
             conn.Closing += complete => output.WriteLine(complete ? "Closed" : "Closing...");
 
             var server = conn.GetServer(ep);
-            var arr = (RedisResult[])server.Execute("module", "list");
-            bool found = false;
-            foreach (var module in arr)
+            if (server.Features.Module)
             {
-                var parsed = Parse(module);
-                if (parsed.TryGetValue("name", out var val) && val == "ft")
+                var arr = (RedisResult[])server.Execute("module", "list");
+                bool found = false;
+                foreach (var module in arr)
                 {
-                    found = true;
-                    if (parsed.TryGetValue("ver", out val))
-                        output?.WriteLine($"Version: {val}");
-                    break;
+                    var parsed = Parse(module);
+                    if (parsed.TryGetValue("name", out var val) && val == "ft")
+                    {
+                        found = true;
+                        if (parsed.TryGetValue("ver", out val))
+                            output?.WriteLine($"Version: {val}");
+                        break;
+                    }
                 }
-            }
 
-            if (!found)
-            {
-                output?.WriteLine("Module not found; attempting to load...");
-                var config = server.Info("server").SelectMany(_ => _).FirstOrDefault(x => x.Key == "config_file").Value;
-                if (!string.IsNullOrEmpty(config))
+                if (!found)
                 {
-                    var i = config.LastIndexOf('/');
-                    var modulePath = config.Substring(0, i + 1) + "redisearch.so";
-                    try
+                    output?.WriteLine("Module not found; attempting to load...");
+                    var config = server.Info("server").SelectMany(_ => _).FirstOrDefault(x => x.Key == "config_file").Value;
+                    if (!string.IsNullOrEmpty(config))
                     {
-                        var result = server.Execute("module", "load", modulePath);
-                        output?.WriteLine((string)result);
-                    } catch(RedisServerException err)
-                    {
-                        // *probably* duplicate load; we'll try the tests anyways!
-                        output?.WriteLine(err.Message);
+                        var i = config.LastIndexOf('/');
+                        var modulePath = config.Substring(0, i + 1) + "redisearch.so";
+                        try
+                        {
+                            var result = server.Execute("module", "load", modulePath);
+                            output?.WriteLine((string)result);
+                        }
+                        catch (RedisServerException err)
+                        {
+                            // *probably* duplicate load; we'll try the tests anyways!
+                            output?.WriteLine(err.Message);
+                        }
                     }
                 }
             }
