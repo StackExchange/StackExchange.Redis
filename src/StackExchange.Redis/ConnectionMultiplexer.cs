@@ -2052,9 +2052,9 @@ namespace StackExchange.Redis
 
         internal ServerSelectionStrategy ServerSelectionStrategy { get; }
 
-        internal System.Threading.Timer sentinelMasterReconnectTimer = null;
-        
-        internal Dictionary<String, ConnectionMultiplexer> sentinelConnectionChildren = null;
+        internal Timer sentinelMasterReconnectTimer;
+
+        internal Dictionary<string, ConnectionMultiplexer> sentinelConnectionChildren;
 
         /// <summary>
         /// Initializes the connection as a Sentinel connection and adds
@@ -2064,28 +2064,31 @@ namespace StackExchange.Redis
         /// <param name="logProxy"></param>
         internal void InitializeSentinel(LogProxy logProxy)
         {
-            if(ServerSelectionStrategy.ServerType != ServerType.Sentinel)
-                return;        
+            if (ServerSelectionStrategy.ServerType != ServerType.Sentinel)
+            {
+                return;
+            }
 
-            sentinelConnectionChildren = new Dictionary<string,ConnectionMultiplexer>();
+            sentinelConnectionChildren = new Dictionary<string, ConnectionMultiplexer>();
 
             // Subscribe to sentinel change events
             ISubscriber sub = GetSubscriber();
-            if(sub.SubscribedEndpoint("+switch-master") == null)
+            if (sub.SubscribedEndpoint("+switch-master") == null)
             {
-                sub.Subscribe("+switch-master", (channel, message) => {
+                sub.Subscribe("+switch-master", (channel, message) =>
+                {
                     string[] messageParts = ((string)message).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                     EndPoint switchBlame = Format.TryParseEndPoint(string.Format("{0}:{1}", messageParts[1], messageParts[2]));
-                    
-                    lock(sentinelConnectionChildren)
+
+                    lock (sentinelConnectionChildren)
                     {
                         // Switch the master if we have connections for that service
-                        if(sentinelConnectionChildren.ContainsKey(messageParts[0]))
+                        if (sentinelConnectionChildren.ContainsKey(messageParts[0]))
                         {
                             ConnectionMultiplexer child = sentinelConnectionChildren[messageParts[0]];
 
                             // Is the connection still valid?
-                            if(child.IsDisposed)
+                            if (child.IsDisposed)
                             {
                                 child.ConnectionFailed -= OnManagedConnectionFailed;
                                 child.ConnectionRestored -= OnManagedConnectionRestored;
@@ -2098,45 +2101,48 @@ namespace StackExchange.Redis
                         }
                     }
                 });
-            }  
+            }
 
             // If we lose connection to a sentinel server,
             // We need to reconfigure to make sure we still have
             // a subscription to the +switch-master channel.
-            this.ConnectionFailed += (sender, e) => {
+            ConnectionFailed += (sender, e) =>
+            {
                 // Reconfigure to get subscriptions back online
                 ReconfigureAsync(false, true, logProxy, e.EndPoint, "Lost sentinel connection", false).Wait();
             };
 
             // Subscribe to new sentinels being added
-            if(sub.SubscribedEndpoint("+sentinel") == null)
+            if (sub.SubscribedEndpoint("+sentinel") == null)
             {
-                sub.Subscribe("+sentinel", (channel, message) => {
+                sub.Subscribe("+sentinel", (channel, message) =>
+                {
                     string[] messageParts = ((string)message).Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                     UpdateSentinelAddressList(messageParts[0]);
                 });
             }
         }
-        const string FAILED_CONFIGURE_MASTER_FOR_SERVICE_MSG =
+
+        private const string FAILED_CONFIGURE_MASTER_FOR_SERVICE_MSG =
             "Failed connecting to configured master for service: {0}, after {1} retries within interval {2}";
+
         /// <summary>
         /// Returns a managed connection to the master server indicated by
         /// the ServiceName in the config.
         /// </summary>
         /// <param name="config">the configuration to be used when connecting to the master</param>
         /// <param name="log"></param>
-        /// <returns></returns>
         public ConnectionMultiplexer GetSentinelMasterConnection(ConfigurationOptions config, TextWriter log = null)
         {
-            if(ServerSelectionStrategy.ServerType != ServerType.Sentinel)
+            if (ServerSelectionStrategy.ServerType != ServerType.Sentinel)
                 throw new NotImplementedException("The ConnectionMultiplexer is not a Sentinel connection.");
 
-            if(String.IsNullOrEmpty(config.ServiceName))
+            if (string.IsNullOrEmpty(config.ServiceName))
                 throw new ArgumentException("A ServiceName must be specified.");
 
-            lock(sentinelConnectionChildren)
+            lock (sentinelConnectionChildren)
             {
-                if(sentinelConnectionChildren.ContainsKey(config.ServiceName) && !sentinelConnectionChildren[config.ServiceName].IsDisposed)
+                if (sentinelConnectionChildren.ContainsKey(config.ServiceName) && !sentinelConnectionChildren[config.ServiceName].IsDisposed)
                     return sentinelConnectionChildren[config.ServiceName];
             }
 
@@ -2145,8 +2151,8 @@ namespace StackExchange.Redis
 
             // Get an initial endpoint
             var msg = string.Format(FAILED_CONFIGURE_MASTER_FOR_SERVICE_MSG, config.ServiceName, 5, 10);
-            EndPoint initialMasterEndPoint = Retry<EndPoint>(5,10, () => GetConfiguredMasterForService(config.ServiceName), msg);
-               
+            EndPoint initialMasterEndPoint = Retry<EndPoint>(5, 10, () => GetConfiguredMasterForService(config.ServiceName), msg);
+
             //SHADI: do 
             //{
             //    initialMasterEndPoint = GetConfiguredMasterForService(config.ServiceName);
@@ -2154,26 +2160,26 @@ namespace StackExchange.Redis
 
             config.EndPoints.Add(initialMasterEndPoint);
 
-            ConnectionMultiplexer connection = ConnectionMultiplexer.Connect(config, log);
+            ConnectionMultiplexer connection = Connect(config, log);
 
             // Attach to reconnect event to ensure proper connection to the new master
             connection.ConnectionRestored += OnManagedConnectionRestored;
 
             // If we lost the connection, run a switch to a least try and get updated info about the master
-            connection.ConnectionFailed += OnManagedConnectionFailed;                        
+            connection.ConnectionFailed += OnManagedConnectionFailed;
 
-            lock(sentinelConnectionChildren)
+            lock (sentinelConnectionChildren)
             {
                 sentinelConnectionChildren[connection.RawConfig.ServiceName] = connection;
             }
 
             // Perform the initial switchover
-            SwitchMaster(RawConfig.EndPoints[0], connection, log);   
-         
+            SwitchMaster(RawConfig.EndPoints[0], connection, log);
+
             return connection;
         }
 
-        internal void OnManagedConnectionRestored(Object sender, ConnectionFailedEventArgs e)
+        internal void OnManagedConnectionRestored(object sender, ConnectionFailedEventArgs e)
         {
             ConnectionMultiplexer connection = (ConnectionMultiplexer)sender;
 
@@ -2186,7 +2192,7 @@ namespace StackExchange.Redis
             // Run a switch to make sure we have update-to-date 
             // information about which master we should connect to
             SwitchMaster(e.EndPoint, connection);
-    
+
             try
             {
                 // Verify that the reconnected endpoint is a master,
@@ -2214,29 +2220,30 @@ namespace StackExchange.Redis
             }
         }
 
-        internal void OnManagedConnectionFailed(Object sender, ConnectionFailedEventArgs e)
+        internal void OnManagedConnectionFailed(object sender, ConnectionFailedEventArgs e)
         {
             ConnectionMultiplexer connection = (ConnectionMultiplexer)sender;
             // Periodically check to see if we can reconnect to the proper master.
             // This is here in case we lost our subscription to a good sentinel instance
             // or if we miss the published master change
-            if(connection.sentinelMasterReconnectTimer == null)
+            if (connection.sentinelMasterReconnectTimer == null)
             {
-                connection.sentinelMasterReconnectTimer = new System.Threading.Timer((o) => {
+                connection.sentinelMasterReconnectTimer = new Timer((_) =>
+                {
                     SwitchMaster(e.EndPoint, connection);
                 }, null, TimeSpan.FromSeconds(0), TimeSpan.FromSeconds(1));
 
                 //connection.sentinelMasterReconnectTimer.AutoReset = true;                            
-                
+
                 //connection.sentinelMasterReconnectTimer.Start();
-            }   
+            }
         }
 
-        internal EndPoint GetConfiguredMasterForService(String serviceName, int timeoutmillis = -1)
+        internal EndPoint GetConfiguredMasterForService(string serviceName, int timeoutmillis = -1)
         {
-            Task<EndPoint>[] sentinelMasters = this.GetServerSnapshot().ToArray()
+            Task<EndPoint>[] sentinelMasters = GetServerSnapshot().ToArray()
                         .Where(s => s.ServerType == ServerType.Sentinel)
-                        .Select(s => this.GetServer(s.EndPoint).SentinelGetMasterAddressByNameAsync(serviceName))
+                        .Select(s => GetServer(s.EndPoint).SentinelGetMasterAddressByNameAsync(serviceName))
                         .ToArray();
 
             Task<Task<EndPoint>> firstCompleteRequest = WaitFirstNonNullIgnoreErrorsAsync(sentinelMasters);
@@ -2246,7 +2253,7 @@ namespace StackExchange.Redis
                 throw new Exception("Unable to determine master");
 
             return firstCompleteRequest.Result.Result;
-        }	
+        }
 
         private static async Task<Task<T>> WaitFirstNonNullIgnoreErrorsAsync<T>(Task<T>[] tasks)
         {
@@ -2257,13 +2264,9 @@ namespace StackExchange.Redis
 
             try
             {
-                while (taskList.Count() > 0)
+                while (taskList.Count > 0)
                 {
-#if NET40
-                    var allTasksAwaitingAny = TaskEx.WhenAny(taskList).ObserveErrors();
-#else
                     var allTasksAwaitingAny = Task.WhenAny(taskList).ObserveErrors();
-#endif
                     var result = await allTasksAwaitingAny.ForAwait();
                     taskList.Remove((Task<T>)result);
                     if (((Task<T>)result).IsFaulted) continue;
@@ -2277,7 +2280,7 @@ namespace StackExchange.Redis
             return null;
         }
 
-        internal EndPoint currentSentinelMasterEndPoint = null;
+        internal EndPoint currentSentinelMasterEndPoint;
 
         /// <summary>
         ///  Switches the SentinelMasterConnection over to a new master.
@@ -2286,16 +2289,16 @@ namespace StackExchange.Redis
         /// <param name="connection">the connection that should be switched over to a new master endpoint</param>
         /// <param name="log">log output</param>
         internal void SwitchMaster(EndPoint switchBlame, ConnectionMultiplexer connection, TextWriter log = null)
-        {            
-            if(log == null) log = TextWriter.Null;
+        {
+            if (log == null) log = TextWriter.Null;
 
             using (var logProxy = LogProxy.TryCreate(log))
             {
-                String serviceName = connection.RawConfig.ServiceName;
+                string serviceName = connection.RawConfig.ServiceName;
 
                 // Get new master
                 var msg = string.Format(FAILED_CONFIGURE_MASTER_FOR_SERVICE_MSG, serviceName, 5, 10);
-                EndPoint masterEndPoint = Retry<EndPoint>(5, 10, () => { return GetConfiguredMasterForService(serviceName); }, msg);
+                EndPoint masterEndPoint = Retry<EndPoint>(5, 10, () => GetConfiguredMasterForService(serviceName), msg);
 
                 //Shadi: do 
                 //{
@@ -2318,6 +2321,7 @@ namespace StackExchange.Redis
                 UpdateSentinelAddressList(serviceName);
             }
         }
+
         /// <summary>
         /// retry mechanism that executing func t times to get a non-null result within a constant interval between retries.
         /// if t exceeds the times parameter without success, it will throw an exception with a descriptive message
@@ -2331,10 +2335,10 @@ namespace StackExchange.Redis
         /// <returns>object of type T</returns>
         private T Retry<T>(int times, int interval, Func<T> func, string message)
         {
-            for(var t = 0; t < times; t++)
+            for (var t = 0; t < times; t++)
             {
-                var result  = func();            
-                if(result != null)
+                var result = func();
+                if (result != null)
                 {
                     return result;
                 }
@@ -2344,11 +2348,11 @@ namespace StackExchange.Redis
             throw new NullReferenceException(message);
         }
 
-        internal void UpdateSentinelAddressList(String serviceName, int timeoutmillis = 500)
+        internal void UpdateSentinelAddressList(string serviceName, int timeoutmillis = 500)
         {
-            Task<EndPoint[]>[] sentinels = this.GetServerSnapshot().ToArray()
+            Task<EndPoint[]>[] sentinels = GetServerSnapshot().ToArray()
                         .Where(s => s.ServerType == ServerType.Sentinel)
-                        .Select(s => this.GetServer(s.EndPoint).SentinelGetSentinelAddresses(serviceName))
+                        .Select(s => GetServer(s.EndPoint).SentinelGetSentinelAddresses(serviceName))
                         .ToArray();
 
             Task<Task<EndPoint[]>> firstCompleteRequest = WaitFirstNonNullIgnoreErrorsAsync(sentinels);
@@ -2361,15 +2365,15 @@ namespace StackExchange.Redis
                 return;
             if (firstCompleteRequest.Result.Result == null)
                 return;
-                        
+
             bool hasNew = false;
-            foreach(EndPoint newSentinel in firstCompleteRequest.Result.Result.Where(x => !RawConfig.EndPoints.Contains(x)))
+            foreach (EndPoint newSentinel in firstCompleteRequest.Result.Result.Where(x => !RawConfig.EndPoints.Contains(x)))
             {
                 hasNew = true;
                 RawConfig.EndPoints.Add(newSentinel);
             }
 
-            if(hasNew)
+            if (hasNew)
             {
                 // Reconfigure the sentinel multiplexer if we added new endpoints
                 ReconfigureAsync(false, true, null, RawConfig.EndPoints[0], "Updating Sentinel List", false).Wait();
