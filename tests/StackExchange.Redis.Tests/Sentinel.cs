@@ -148,6 +148,8 @@ namespace StackExchange.Redis.Tests
         public void SentinelSentinelsTest()
         {
             var sentinels = Server26379.SentinelSentinels(ServiceName);
+            var Server26380Info = Server26380.Info();
+
             var expected = new List<string> {
                 Server26380.EndPoint.ToString(),
                 Server26381.EndPoint.ToString()
@@ -156,7 +158,8 @@ namespace StackExchange.Redis.Tests
             var actual = new List<string>();
             foreach (var kv in sentinels)
             {
-                actual.Add(kv.ToDictionary()["name"]);
+                var data = kv.ToDictionary();
+                actual.Add(data["ip"] + ":" + data["port"]);
             }
 
             Assert.All(expected, ep => Assert.NotEqual(ep, Server26379.EndPoint.ToString()));
@@ -166,7 +169,8 @@ namespace StackExchange.Redis.Tests
             sentinels = Server26380.SentinelSentinels(ServiceName);
             foreach (var kv in sentinels)
             {
-                actual.Add(kv.ToDictionary()["name"]);
+                var data = kv.ToDictionary();
+                actual.Add(data["ip"] + ":" + data["port"]);
             }
             expected = new List<string> {
                 Server26379.EndPoint.ToString(),
@@ -180,7 +184,8 @@ namespace StackExchange.Redis.Tests
             sentinels = Server26381.SentinelSentinels(ServiceName);
             foreach (var kv in sentinels)
             {
-                actual.Add(kv.ToDictionary()["name"]);
+                var data = kv.ToDictionary();
+                actual.Add(data["ip"] + ":" + data["port"]);
             }
             expected = new List<string> {
                 Server26379.EndPoint.ToString(),
@@ -204,7 +209,8 @@ namespace StackExchange.Redis.Tests
             var actual = new List<string>();
             foreach (var kv in sentinels)
             {
-                actual.Add(kv.ToDictionary()["name"]);
+                var data = kv.ToDictionary();
+                actual.Add(data["ip"] + ":" + data["port"]);
             }
             Assert.All(expected, ep => Assert.NotEqual(ep, Server26379.EndPoint.ToString()));
             Assert.True(sentinels.Length == 2);
@@ -220,7 +226,8 @@ namespace StackExchange.Redis.Tests
             actual = new List<string>();
             foreach (var kv in sentinels)
             {
-                actual.Add(kv.ToDictionary()["name"]);
+                var data = kv.ToDictionary();
+                actual.Add(data["ip"] + ":" + data["port"]);
             }
             Assert.All(expected, ep => Assert.NotEqual(ep, Server26380.EndPoint.ToString()));
             Assert.True(sentinels.Length == 2);
@@ -234,7 +241,8 @@ namespace StackExchange.Redis.Tests
             actual = new List<string>();
             foreach (var kv in sentinels)
             {
-                actual.Add(kv.ToDictionary()["name"]);
+                var data = kv.ToDictionary();
+                actual.Add(data["ip"] + ":" + data["port"]);
             }
             Assert.All(expected, ep => Assert.NotEqual(ep, Server26381.EndPoint.ToString()));
             Assert.True(sentinels.Length == 2);
