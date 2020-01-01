@@ -1984,46 +1984,38 @@ The coordinates as a two items x,y array (longitude,latitude).
             }
         }
 
-        sealed class SentinelGetSentinelAddresses : ResultProcessor<EndPoint[]>
+        private sealed class SentinelGetSentinelAddresses : ResultProcessor<EndPoint[]>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
-               
                 List<EndPoint> endPoints = new List<EndPoint>();
 
                 switch (result.Type)
                 {
                     case ResultType.MultiBulk:
-                        RawResult[] items = result.GetItems().ToArray();
-
-                        foreach (RawResult item in items)
+                        foreach (RawResult item in result.GetItems())
                         {
                             var arr = item.GetItemsAsValues();
-                            String ip = null;
-                            String portStr = null;
+                            string ip = null;
+                            string portStr = null;
 
                             for (int i = 0; i < arr.Length && (ip == null || portStr == null); i += 2)
                             {
-                                String name = arr[i];
-                                String value = arr[i + 1];
+                                string name = arr[i];
+                                string value = arr[i + 1];
 
                                 switch (name)
                                 {
                                     case "ip":
                                         ip = value;
                                         break;
-
                                     case "port":
                                         portStr = value;
-                                        break;
-
-                                    default:
                                         break;
                                 }
                             }
 
-                            int port;
-                            if (ip != null && portStr != null && int.TryParse(portStr, out port))
+                            if (ip != null && portStr != null && int.TryParse(portStr, out int port))
                             {
                                 endPoints.Add(Format.ParseEndPoint(ip, port));
                             }
