@@ -130,7 +130,14 @@ namespace StackExchange.Redis.Tests
             wrapper.HashSetAsync("key", "hashField", "value", When.Exists, CommandFlags.None);
             mock.Verify(_ => _.HashSetAsync("prefix:key", "hashField", "value", When.Exists, CommandFlags.None));
         }
-
+        
+        [Fact]
+        public void HashStringLengthAsync()
+        {
+            wrapper.HashStringLengthAsync("key","field", CommandFlags.None);
+            mock.Verify(_ => _.HashStringLengthAsync("prefix:key", "field", CommandFlags.None));
+        }
+        
         [Fact]
         public void HashValuesAsync()
         {

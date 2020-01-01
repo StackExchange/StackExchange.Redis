@@ -66,6 +66,11 @@ namespace StackExchange.Redis
         public bool ExpireOverwrite => Version >= v2_1_3;
 
         /// <summary>
+        /// Is HSTRLEN available?
+        /// </summary>
+        public bool HashStringLength => Version >= v3_2_0;
+
+        /// <summary>
         /// Does HDEL support varadic usage?
         /// </summary>
         public bool HashVaradicDelete => Version >= v2_4_0;
@@ -84,6 +89,11 @@ namespace StackExchange.Redis
         /// Is LINSERT available?
         /// </summary>
         public bool ListInsert => Version >= v2_1_1;
+
+        /// <summary>
+        /// Is MEMORY available?
+        /// </summary>
+        public bool Memory => Version >= v4_0_0;
 
         /// <summary>
         /// Indicates whether PEXPIRE and PTTL are supported

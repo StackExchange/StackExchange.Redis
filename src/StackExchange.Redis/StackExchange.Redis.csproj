@@ -15,10 +15,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Pipelines.Sockets.Unofficial" Version="2.0.22" />
-    <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="4.5.0" />
-    <PackageReference Include="System.IO.Pipelines" Version="4.5.1" />
-    <PackageReference Include="System.Threading.Channels" Version="4.5.0" />
+    <PackageReference Include="Pipelines.Sockets.Unofficial" Version="2.1.1" />
+    <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="4.7.0" />
+    <PackageReference Include="System.IO.Pipelines" Version="4.7.0" />
+    <PackageReference Include="System.Threading.Channels" Version="4.7.0" />
     <!-- net472 needs this for ZipArchive; I have no idea why this changed, but... meh; note this also demands SDK 2.1.400 -->
     <PackageReference Include="System.IO.Compression" Version="4.3.0" Condition="'$(TargetFramework)' == 'net472'" />
   </ItemGroup>

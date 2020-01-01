@@ -84,6 +84,21 @@ sub.Subscribe("messages", (channel, message) => {
 ```
 <sub>Note: exceptions are caught and discarded by StackExchange.Redis here, to prevent cascading failures. To handle failures, use a `try`/`catch` inside your handler to do as you wish with any exceptions.</sub>
 
+In v2, you can subscribe without providing a callback directly to the `Subscribe()` method, and instead using the returned `ChannelMessageQueue`, which represents a message queue of ordered pub/sub notifications. This allows the usage of the `ChannelMessageQueue.OnMessage()` method, which provides overloads for both synchronous (`Action<ChannelMessage>`) and asynchronous (`Func<ChannelMessage, Task>`) handlers to execute when receiving a message.
+
+```csharp
+// Synchronous handler
+sub.Subscribe("messages").OnMessage(channelMessage => {
+    Console.WriteLine((string) channelMessage.Message);
+});
+
+// Asynchronous handler
+sub.Subscribe("messages").OnMessage(async channelMessage => {
+    await Task.Delay(1000);
+    Console.WriteLine((string) channelMessage.Message);
+});
+```
+
 Separately (and often in a separate process on a separate machine) you can publish to this channel:
 
 ```csharp

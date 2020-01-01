@@ -438,6 +438,13 @@ namespace StackExchange.Redis
             ExecuteSync(msg, ResultProcessor.DemandOK);
         }
 
+        public long HashStringLength(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.HSTRLEN, key, hashField);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+
+
         public Task<bool> HashSetAsync(RedisKey key, RedisValue hashField, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
             WhenAlwaysOrNotExists(when);
@@ -445,6 +452,12 @@ namespace StackExchange.Redis
                 ? Message.Create(Database, flags, RedisCommand.HDEL, key, hashField)
                 : Message.Create(Database, flags, when == When.Always ? RedisCommand.HSET : RedisCommand.HSETNX, key, hashField, value);
             return ExecuteAsync(msg, ResultProcessor.Boolean);
+        }
+
+        public Task<long> HashStringLengthAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.HSTRLEN, key, hashField);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
         public Task HashSetAsync(RedisKey key, HashEntry[] hashFields, CommandFlags flags = CommandFlags.None)
@@ -1203,6 +1216,7 @@ namespace StackExchange.Redis
 
         public long SetAdd(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
         {
+            if (values.Length == 0) return 0;
             var msg = Message.Create(Database, flags, RedisCommand.SADD, key, values);
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
@@ -1215,6 +1229,7 @@ namespace StackExchange.Redis
 
         public Task<long> SetAddAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
         {
+            if (values.Length == 0) return Task.FromResult<long>(0);
             var msg = Message.Create(Database, flags, RedisCommand.SADD, key, values);
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
