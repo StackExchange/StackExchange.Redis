@@ -38,9 +38,10 @@ pushd Sentinel > /dev/null
 echo "${INDENT}Targets: 7010-7011"
 redis-server redis-7010.conf &>/dev/null &
 redis-server redis-7011.conf &>/dev/null &
-echo "${INDENT}Monitors: 26379-26380"
+echo "${INDENT}Monitors: 26379-26381"
 redis-server sentinel-26379.conf --sentinel &>/dev/null &
 redis-server sentinel-26380.conf --sentinel &>/dev/null &
+redis-server sentinel-26381.conf --sentinel &>/dev/null &
 popd > /dev/null
 
 echo Servers started.
