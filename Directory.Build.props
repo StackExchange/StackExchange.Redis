@@ -1,10 +1,9 @@
 <Project>
   <PropertyGroup>
     <VersionPrefix>2.0.0</VersionPrefix>
-    <Copyright>2017 Stack Exchange, Inc.</Copyright>
+    <Copyright>2020 Stack Exchange, Inc.</Copyright>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <LibTargetFrameworks>netstandard2.0</LibTargetFrameworks>
     <AssemblyOriginatorKeyFile>$(MSBuildThisFileDirectory)StackExchange.Redis.snk</AssemblyOriginatorKeyFile>
     <PackageId>$(AssemblyName)</PackageId>
     <Features>strict</Features>
@@ -25,6 +24,8 @@
     <DefaultLanguage>en-US</DefaultLanguage>
     <IncludeSymbols>false</IncludeSymbols>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
+
+    <IsTestProject Condition="'$(OS)' != 'Windows_NT' AND $(TargetFramework.StartsWith('net4'))">false</IsTestProject>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Nerdbank.GitVersioning" Version="3.0.28" PrivateAssets="all" />
