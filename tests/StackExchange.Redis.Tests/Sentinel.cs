@@ -46,7 +46,7 @@ namespace StackExchange.Redis.Tests
             Server26379 = Conn.GetServer(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPort);
             Server26380 = Conn.GetServer(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPort1);
             Server26381 = Conn.GetServer(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPort2);
-            SentinelsServers = new IServer[] { Server26379, Server26380, Server26381};
+            SentinelsServers = new IServer[] { Server26379, Server26380, Server26381 };
         }
 
         [Fact]
@@ -66,7 +66,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void SentinelGetMasterAddressByNameTest()
         {
-            foreach(var server in SentinelsServers)
+            foreach (var server in SentinelsServers)
             {
                 var master = server.SentinelMaster(ServiceName);
                 var endpoint = server.SentinelGetMasterAddressByName(ServiceName);
@@ -154,11 +154,10 @@ namespace StackExchange.Redis.Tests
             };
 
             var actual = new List<string>();
-            foreach(var kv in sentinels)
+            foreach (var kv in sentinels)
             {
                 actual.Add(kv.ToDictionary()["name"]);
             }
-            
 
             Assert.All(expected, ep => Assert.NotEqual(ep, Server26379.EndPoint.ToString()));
             Assert.True(sentinels.Length == 2);
@@ -177,7 +176,7 @@ namespace StackExchange.Redis.Tests
             Assert.All(expected, ep => Assert.NotEqual(ep, Server26380.EndPoint.ToString()));
             Assert.True(sentinels.Length == 2);
             Assert.All(expected, ep => Assert.Contains(ep, actual));
-            
+
             sentinels = Server26381.SentinelSentinels(ServiceName);
             foreach (var kv in sentinels)
             {
@@ -210,7 +209,6 @@ namespace StackExchange.Redis.Tests
             Assert.All(expected, ep => Assert.NotEqual(ep, Server26379.EndPoint.ToString()));
             Assert.True(sentinels.Length == 2);
             Assert.All(expected, ep => Assert.Contains(ep, actual));
-            
 
             sentinels = await Server26380.SentinelSentinelsAsync(ServiceName).ForAwait();
 
@@ -245,7 +243,7 @@ namespace StackExchange.Redis.Tests
 
         [Fact]
         public void SentinelMastersTest()
-        {            
+        {
             var masterConfigs = Server26379.SentinelMasters();
             Assert.Single(masterConfigs);
             Assert.True(masterConfigs[0].ToDictionary().ContainsKey("name"));
@@ -281,13 +279,14 @@ namespace StackExchange.Redis.Tests
         public void SentinelSlavesTest()
         {
             var slaveConfigs = Server26379.SentinelSlaves(ServiceName);
-            Assert.True(slaveConfigs.Length > 0);            
+            Assert.True(slaveConfigs.Length > 0);
             Assert.True(slaveConfigs[0].ToDictionary().ContainsKey("name"));
             Assert.Equal("slave", slaveConfigs[0].ToDictionary()["flags"]);
-            
+
             foreach (var config in slaveConfigs)
             {
-                foreach (var kvp in config) {
+                foreach (var kvp in config)
+                {
                     Log("{0}:{1}", kvp.Key, kvp.Value);
                 }
             }
@@ -299,7 +298,7 @@ namespace StackExchange.Redis.Tests
             var slaveConfigs = await Server26379.SentinelSlavesAsync(ServiceName).ForAwait();
             Assert.True(slaveConfigs.Length > 0);
             Assert.True(slaveConfigs[0].ToDictionary().ContainsKey("name"));
-            Assert.Equal("slave", slaveConfigs[0].ToDictionary()["flags"]);            
+            Assert.Equal("slave", slaveConfigs[0].ToDictionary()["flags"]);
             foreach (var config in slaveConfigs)
             {
                 foreach (var kvp in config)
@@ -310,15 +309,15 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void SentinelFailoverTest()
+        public async Task SentinelFailoverTest()
         {
-            foreach(var server in SentinelsServers)
+            foreach (var server in SentinelsServers)
             {
                 var master = server.SentinelGetMasterAddressByName(ServiceName);
                 var slaves = server.SentinelSlaves(ServiceName);
 
                 server.SentinelFailover(ServiceName);
-                Thread.Sleep(3000);
+                await Task.Delay(2000).ForAwait();
 
                 var newMaster = server.SentinelGetMasterAddressByName(ServiceName);
                 var newSlave = server.SentinelSlaves(ServiceName);
@@ -336,8 +335,8 @@ namespace StackExchange.Redis.Tests
                 var master = server.SentinelGetMasterAddressByName(ServiceName);
                 var slaves = server.SentinelSlaves(ServiceName);
 
-                await server.SentinelFailoverAsync(ServiceName);
-                Thread.Sleep(3000);
+                await server.SentinelFailoverAsync(ServiceName).ForAwait();
+                await Task.Delay(2000).ForAwait();
 
                 var newMaster = server.SentinelGetMasterAddressByName(ServiceName);
                 var newSlave = server.SentinelSlaves(ServiceName);
@@ -348,13 +347,13 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void GetSentinelMasterConnectionFailoverTest()
+        public async Task GetSentinelMasterConnectionFailoverTest()
         {
             var conn = Conn.GetSentinelMasterConnection(new ConfigurationOptions { ServiceName = ServiceName });
             var endpoint = conn.currentSentinelMasterEndPoint.ToString();
 
             Server26379.SentinelFailover(ServiceName);
-            Thread.Sleep(3000);
+            await Task.Delay(2000).ForAwait();
 
             var conn1 = Conn.GetSentinelMasterConnection(new ConfigurationOptions { ServiceName = ServiceName });
             var endpoint1 = conn1.currentSentinelMasterEndPoint.ToString();
@@ -369,7 +368,7 @@ namespace StackExchange.Redis.Tests
             var endpoint = conn.currentSentinelMasterEndPoint.ToString();
 
             await Server26379.SentinelFailoverAsync(ServiceName).ForAwait();
-            Thread.Sleep(5000);
+            await Task.Delay(2000).ForAwait();
             var conn1 = Conn.GetSentinelMasterConnection(new ConfigurationOptions { ServiceName = ServiceName });
             var endpoint1 = conn1.currentSentinelMasterEndPoint.ToString();
 
@@ -377,7 +376,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void GetSentinelMasterConnectionWriteReadFailover()
+        public async Task GetSentinelMasterConnectionWriteReadFailover()
         {
             var conn = Conn.GetSentinelMasterConnection(new ConfigurationOptions { ServiceName = ServiceName });
             var s = conn.currentSentinelMasterEndPoint.ToString();
@@ -386,7 +385,7 @@ namespace StackExchange.Redis.Tests
             db.StringSet("beforeFailOverValue", expected);
 
             Server26379.SentinelFailover(ServiceName);
-            Thread.Sleep(3000);
+            await Task.Delay(2000).ForAwait();
 
             var conn1 = Conn.GetSentinelMasterConnection(new ConfigurationOptions { ServiceName = ServiceName });
             var s1 = conn1.currentSentinelMasterEndPoint.ToString();
@@ -404,7 +403,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task SentinelGetSentinelAddressesTest()
         {
-            var addresses = await Server26379.SentinelGetSentinelAddresses(ServiceName).ForAwait();            
+            var addresses = await Server26379.SentinelGetSentinelAddresses(ServiceName).ForAwait();
             Assert.Contains(Server26380.EndPoint, addresses);
             Assert.Contains(Server26381.EndPoint, addresses);
 
@@ -418,16 +417,16 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void ReadOnlyConnectionSlavesTest()
+        public async Task ReadOnlyConnectionSlavesTest()
         {
             var slaves = Server26379.SentinelSlaves(ServiceName);
             var config = new ConfigurationOptions
             {
                 TieBreaker = "",
-                ServiceName = TestConfig.Current.SentinelSeviceName,               
+                ServiceName = TestConfig.Current.SentinelSeviceName,
             };
 
-            foreach(var kv in slaves)
+            foreach (var kv in slaves)
             {
                 Assert.Equal("slave", kv.ToDictionary()["flags"]);
                 config.EndPoints.Add(kv.ToDictionary()["name"]);
@@ -435,11 +434,11 @@ namespace StackExchange.Redis.Tests
 
             var readonlyConn = ConnectionMultiplexer.Connect(config);
 
-            Thread.Sleep(5000);
+            await Task.Delay(2000).ForAwait();
             Assert.True(readonlyConn.IsConnected);
             var db = readonlyConn.GetDatabase();
             var s = db.StringGet("test");
-            Assert.True(s.IsNullOrEmpty);            
+            Assert.True(s.IsNullOrEmpty);
             //var ex = Assert.Throws<RedisConnectionException>(() => db.StringSet("test", "try write to read only instance"));
             //Assert.StartsWith("No connection is available to service this operation", ex.Message);
 
