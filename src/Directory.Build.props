@@ -2,5 +2,6 @@
   <Import Project="$(MSBuildThisFileDirectory)..\Directory.Build.props" />
   <PropertyGroup>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IsPackable>true</IsPackable>
   </PropertyGroup>
 </Project>
