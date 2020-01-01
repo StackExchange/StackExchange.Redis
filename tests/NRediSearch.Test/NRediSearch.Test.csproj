@@ -2,7 +2,6 @@
   <PropertyGroup>
     <OutputType>Library</OutputType>
     <TargetFrameworks>netcoreapp2.1</TargetFrameworks>
-    <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <SignAssembly>true</SignAssembly>
   </PropertyGroup>
   <ItemGroup>
