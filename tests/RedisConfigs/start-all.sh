@@ -33,7 +33,7 @@ redis-server cluster-7005.conf &>/dev/null &
 popd > /dev/null
 
 #Sentinel Servers
-echo Starting Sentinel: 7010-7011,26379-26380
+echo Starting Sentinel: 7010-7011,26379-26381
 pushd Sentinel > /dev/null
 echo "${INDENT}Targets: 7010-7011"
 redis-server redis-7010.conf &>/dev/null &
