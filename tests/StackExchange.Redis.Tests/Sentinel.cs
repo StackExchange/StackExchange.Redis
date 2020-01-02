@@ -14,9 +14,9 @@ namespace StackExchange.Redis.Tests
         private string ServiceName => TestConfig.Current.SentinelSeviceName;
 
         private ConnectionMultiplexer Conn { get; }
-        private IServer Server26379 { get; }
-        private IServer Server26380 { get; }
-        private IServer Server26381 { get; }
+        private IServer SentinelServerA { get; }
+        private IServer SentinelServerB { get; }
+        private IServer SentinelServerC { get; }
         public IServer[] SentinelsServers { get; }
         protected StringWriter ConnectionLog { get; }
 
@@ -31,9 +31,9 @@ namespace StackExchange.Redis.Tests
             {
                 CommandMap = CommandMap.Sentinel,
                 EndPoints = {
-                    { TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPort },
-                    { TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPort1 },
-                    { TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPort2 }
+                    { TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortA },
+                    { TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortB },
+                    { TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortC }
                 },
                 AllowAdmin = true,
                 TieBreaker = "",
@@ -43,24 +43,24 @@ namespace StackExchange.Redis.Tests
             Conn = ConnectionMultiplexer.Connect(options, ConnectionLog);
             Thread.Sleep(3000);
             Assert.True(Conn.IsConnected);
-            Server26379 = Conn.GetServer(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPort);
-            Server26380 = Conn.GetServer(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPort1);
-            Server26381 = Conn.GetServer(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPort2);
-            SentinelsServers = new IServer[] { Server26379, Server26380, Server26381 };
+            SentinelServerA = Conn.GetServer(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortA);
+            SentinelServerB = Conn.GetServer(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortB);
+            SentinelServerC = Conn.GetServer(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortC);
+            SentinelsServers = new IServer[] { SentinelServerA, SentinelServerB, SentinelServerC };
         }
 
         [Fact]
         public void PingTest()
         {
-            var test = Server26379.Ping();
+            var test = SentinelServerA.Ping();
             Log("ping to sentinel {0}:{1} took {2} ms", TestConfig.Current.SentinelServer,
-                TestConfig.Current.SentinelPort, test.TotalMilliseconds);
-            test = Server26380.Ping();
+                TestConfig.Current.SentinelPortA, test.TotalMilliseconds);
+            test = SentinelServerB.Ping();
             Log("ping to sentinel {0}:{1} took {1} ms", TestConfig.Current.SentinelServer,
-                TestConfig.Current.SentinelPort1, test.TotalMilliseconds);
-            test = Server26381.Ping();
+                TestConfig.Current.SentinelPortB, test.TotalMilliseconds);
+            test = SentinelServerC.Ping();
             Log("ping to sentinel {0}:{1} took {1} ms", TestConfig.Current.SentinelServer,
-                TestConfig.Current.SentinelPort2, test.TotalMilliseconds);
+                TestConfig.Current.SentinelPortC, test.TotalMilliseconds);
         }
 
         [Fact]
@@ -147,12 +147,12 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void SentinelSentinelsTest()
         {
-            var sentinels = Server26379.SentinelSentinels(ServiceName);
-            var Server26380Info = Server26380.Info();
+            var sentinels = SentinelServerA.SentinelSentinels(ServiceName);
+            var Server26380Info = SentinelServerB.Info();
 
             var expected = new List<string> {
-                Server26380.EndPoint.ToString(),
-                Server26381.EndPoint.ToString()
+                SentinelServerB.EndPoint.ToString(),
+                SentinelServerC.EndPoint.ToString()
             };
 
             var actual = new List<string>();
@@ -162,37 +162,37 @@ namespace StackExchange.Redis.Tests
                 actual.Add(data["ip"] + ":" + data["port"]);
             }
 
-            Assert.All(expected, ep => Assert.NotEqual(ep, Server26379.EndPoint.ToString()));
+            Assert.All(expected, ep => Assert.NotEqual(ep, SentinelServerA.EndPoint.ToString()));
             Assert.True(sentinels.Length == 2);
             Assert.All(expected, ep => Assert.Contains(ep, actual));
 
-            sentinels = Server26380.SentinelSentinels(ServiceName);
+            sentinels = SentinelServerB.SentinelSentinels(ServiceName);
             foreach (var kv in sentinels)
             {
                 var data = kv.ToDictionary();
                 actual.Add(data["ip"] + ":" + data["port"]);
             }
             expected = new List<string> {
-                Server26379.EndPoint.ToString(),
-                Server26381.EndPoint.ToString()
+                SentinelServerA.EndPoint.ToString(),
+                SentinelServerC.EndPoint.ToString()
             };
 
-            Assert.All(expected, ep => Assert.NotEqual(ep, Server26380.EndPoint.ToString()));
+            Assert.All(expected, ep => Assert.NotEqual(ep, SentinelServerB.EndPoint.ToString()));
             Assert.True(sentinels.Length == 2);
             Assert.All(expected, ep => Assert.Contains(ep, actual));
 
-            sentinels = Server26381.SentinelSentinels(ServiceName);
+            sentinels = SentinelServerC.SentinelSentinels(ServiceName);
             foreach (var kv in sentinels)
             {
                 var data = kv.ToDictionary();
                 actual.Add(data["ip"] + ":" + data["port"]);
             }
             expected = new List<string> {
-                Server26379.EndPoint.ToString(),
-                Server26380.EndPoint.ToString()
+                SentinelServerA.EndPoint.ToString(),
+                SentinelServerB.EndPoint.ToString()
             };
 
-            Assert.All(expected, ep => Assert.NotEqual(ep, Server26381.EndPoint.ToString()));
+            Assert.All(expected, ep => Assert.NotEqual(ep, SentinelServerC.EndPoint.ToString()));
             Assert.True(sentinels.Length == 2);
             Assert.All(expected, ep => Assert.Contains(ep, actual));
         }
@@ -200,10 +200,10 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task SentinelSentinelsAsyncTest()
         {
-            var sentinels = await Server26379.SentinelSentinelsAsync(ServiceName).ForAwait();
+            var sentinels = await SentinelServerA.SentinelSentinelsAsync(ServiceName).ForAwait();
             var expected = new List<string> {
-                Server26380.EndPoint.ToString(),
-                Server26381.EndPoint.ToString()
+                SentinelServerB.EndPoint.ToString(),
+                SentinelServerC.EndPoint.ToString()
             };
 
             var actual = new List<string>();
@@ -212,15 +212,15 @@ namespace StackExchange.Redis.Tests
                 var data = kv.ToDictionary();
                 actual.Add(data["ip"] + ":" + data["port"]);
             }
-            Assert.All(expected, ep => Assert.NotEqual(ep, Server26379.EndPoint.ToString()));
+            Assert.All(expected, ep => Assert.NotEqual(ep, SentinelServerA.EndPoint.ToString()));
             Assert.True(sentinels.Length == 2);
             Assert.All(expected, ep => Assert.Contains(ep, actual));
 
-            sentinels = await Server26380.SentinelSentinelsAsync(ServiceName).ForAwait();
+            sentinels = await SentinelServerB.SentinelSentinelsAsync(ServiceName).ForAwait();
 
             expected = new List<string> {
-                Server26379.EndPoint.ToString(),
-                Server26381.EndPoint.ToString()
+                SentinelServerA.EndPoint.ToString(),
+                SentinelServerC.EndPoint.ToString()
             };
 
             actual = new List<string>();
@@ -229,14 +229,14 @@ namespace StackExchange.Redis.Tests
                 var data = kv.ToDictionary();
                 actual.Add(data["ip"] + ":" + data["port"]);
             }
-            Assert.All(expected, ep => Assert.NotEqual(ep, Server26380.EndPoint.ToString()));
+            Assert.All(expected, ep => Assert.NotEqual(ep, SentinelServerB.EndPoint.ToString()));
             Assert.True(sentinels.Length == 2);
             Assert.All(expected, ep => Assert.Contains(ep, actual));
 
-            sentinels = await Server26381.SentinelSentinelsAsync(ServiceName).ForAwait();
+            sentinels = await SentinelServerC.SentinelSentinelsAsync(ServiceName).ForAwait();
             expected = new List<string> {
-                Server26379.EndPoint.ToString(),
-                Server26380.EndPoint.ToString()
+                SentinelServerA.EndPoint.ToString(),
+                SentinelServerB.EndPoint.ToString()
             };
             actual = new List<string>();
             foreach (var kv in sentinels)
@@ -244,7 +244,7 @@ namespace StackExchange.Redis.Tests
                 var data = kv.ToDictionary();
                 actual.Add(data["ip"] + ":" + data["port"]);
             }
-            Assert.All(expected, ep => Assert.NotEqual(ep, Server26381.EndPoint.ToString()));
+            Assert.All(expected, ep => Assert.NotEqual(ep, SentinelServerC.EndPoint.ToString()));
             Assert.True(sentinels.Length == 2);
             Assert.All(expected, ep => Assert.Contains(ep, actual));
         }
@@ -252,7 +252,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void SentinelMastersTest()
         {
-            var masterConfigs = Server26379.SentinelMasters();
+            var masterConfigs = SentinelServerA.SentinelMasters();
             Assert.Single(masterConfigs);
             Assert.True(masterConfigs[0].ToDictionary().ContainsKey("name"));
             Assert.Equal(ServiceName, masterConfigs[0].ToDictionary()["name"]);
@@ -269,7 +269,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task SentinelMastersAsyncTest()
         {
-            var masterConfigs = await Server26379.SentinelMastersAsync().ForAwait();
+            var masterConfigs = await SentinelServerA.SentinelMastersAsync().ForAwait();
             Assert.Single(masterConfigs);
             Assert.True(masterConfigs[0].ToDictionary().ContainsKey("name"));
             Assert.Equal(ServiceName, masterConfigs[0].ToDictionary()["name"]);
@@ -286,7 +286,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void SentinelSlavesTest()
         {
-            var slaveConfigs = Server26379.SentinelSlaves(ServiceName);
+            var slaveConfigs = SentinelServerA.SentinelSlaves(ServiceName);
             Assert.True(slaveConfigs.Length > 0);
             Assert.True(slaveConfigs[0].ToDictionary().ContainsKey("name"));
             Assert.Equal("slave", slaveConfigs[0].ToDictionary()["flags"]);
@@ -303,7 +303,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task SentinelSlavesAsyncTest()
         {
-            var slaveConfigs = await Server26379.SentinelSlavesAsync(ServiceName).ForAwait();
+            var slaveConfigs = await SentinelServerA.SentinelSlavesAsync(ServiceName).ForAwait();
             Assert.True(slaveConfigs.Length > 0);
             Assert.True(slaveConfigs[0].ToDictionary().ContainsKey("name"));
             Assert.Equal("slave", slaveConfigs[0].ToDictionary()["flags"]);
@@ -360,7 +360,7 @@ namespace StackExchange.Redis.Tests
             var conn = Conn.GetSentinelMasterConnection(new ConfigurationOptions { ServiceName = ServiceName });
             var endpoint = conn.currentSentinelMasterEndPoint.ToString();
 
-            Server26379.SentinelFailover(ServiceName);
+            SentinelServerA.SentinelFailover(ServiceName);
             await Task.Delay(2000).ForAwait();
 
             var conn1 = Conn.GetSentinelMasterConnection(new ConfigurationOptions { ServiceName = ServiceName });
@@ -375,7 +375,7 @@ namespace StackExchange.Redis.Tests
             var conn = Conn.GetSentinelMasterConnection(new ConfigurationOptions { ServiceName = ServiceName });
             var endpoint = conn.currentSentinelMasterEndPoint.ToString();
 
-            await Server26379.SentinelFailoverAsync(ServiceName).ForAwait();
+            await SentinelServerA.SentinelFailoverAsync(ServiceName).ForAwait();
             await Task.Delay(2000).ForAwait();
             var conn1 = Conn.GetSentinelMasterConnection(new ConfigurationOptions { ServiceName = ServiceName });
             var endpoint1 = conn1.currentSentinelMasterEndPoint.ToString();
@@ -392,7 +392,7 @@ namespace StackExchange.Redis.Tests
             var expected = DateTime.Now.Ticks.ToString();
             db.StringSet("beforeFailOverValue", expected);
 
-            Server26379.SentinelFailover(ServiceName);
+            SentinelServerA.SentinelFailover(ServiceName);
             await Task.Delay(2000).ForAwait();
 
             var conn1 = Conn.GetSentinelMasterConnection(new ConfigurationOptions { ServiceName = ServiceName });
@@ -411,23 +411,23 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task SentinelGetSentinelAddressesTest()
         {
-            var addresses = await Server26379.SentinelGetSentinelAddresses(ServiceName).ForAwait();
-            Assert.Contains(Server26380.EndPoint, addresses);
-            Assert.Contains(Server26381.EndPoint, addresses);
+            var addresses = await SentinelServerA.SentinelGetSentinelAddresses(ServiceName).ForAwait();
+            Assert.Contains(SentinelServerB.EndPoint, addresses);
+            Assert.Contains(SentinelServerC.EndPoint, addresses);
 
-            addresses = await Server26380.SentinelGetSentinelAddresses(ServiceName).ForAwait();
-            Assert.Contains(Server26379.EndPoint, addresses);
-            Assert.Contains(Server26381.EndPoint, addresses);
+            addresses = await SentinelServerB.SentinelGetSentinelAddresses(ServiceName).ForAwait();
+            Assert.Contains(SentinelServerA.EndPoint, addresses);
+            Assert.Contains(SentinelServerC.EndPoint, addresses);
 
-            addresses = await Server26381.SentinelGetSentinelAddresses(ServiceName).ForAwait();
-            Assert.Contains(Server26379.EndPoint, addresses);
-            Assert.Contains(Server26380.EndPoint, addresses);
+            addresses = await SentinelServerC.SentinelGetSentinelAddresses(ServiceName).ForAwait();
+            Assert.Contains(SentinelServerA.EndPoint, addresses);
+            Assert.Contains(SentinelServerB.EndPoint, addresses);
         }
 
         [Fact]
         public async Task ReadOnlyConnectionSlavesTest()
         {
-            var slaves = Server26379.SentinelSlaves(ServiceName);
+            var slaves = SentinelServerA.SentinelSlaves(ServiceName);
             var config = new ConfigurationOptions
             {
                 TieBreaker = "",
