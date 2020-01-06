@@ -15,7 +15,7 @@
     <PackageProjectUrl>https://github.com/StackExchange/StackExchange.Redis/</PackageProjectUrl>
     <PackageLicenseUrl>https://raw.github.com/StackExchange/StackExchange.Redis/master/LICENSE</PackageLicenseUrl>
 
-    <LangVersion>latest</LangVersion>
+    <LangVersion>8.0</LangVersion>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>https://github.com/StackExchange/StackExchange.Redis/</RepositoryUrl>
 
