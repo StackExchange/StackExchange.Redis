@@ -7,7 +7,7 @@ init:
 
 install:
 - cmd: >-
-    cd tests\RedisConfigs\3.0.503
+    cd tests\RedisConfigs\4.0.14
 
     redis-server.exe --service-install --service-name "redis-6379" "..\Basic\master-6379.conf"
 
