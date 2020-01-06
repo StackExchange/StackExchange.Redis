@@ -1,0 +1,4 @@
+<Project>
+  <!-- We could delete this file, but being consistent in structure here -->
+  <Import Project="$(MSBuildThisFileDirectory)..\Directory.Build.props" />
+</Project>

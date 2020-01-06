@@ -101,6 +101,11 @@ namespace StackExchange.Redis
         public bool MillisecondExpiry => Version >= v2_6_0;
 
         /// <summary>
+        /// Is MODULE available?
+        /// </summary>
+        public bool Module => Version >= v4_0_0;
+
+        /// <summary>
         /// Does SRANDMEMBER support "count"?
         /// </summary>
         public bool MultipleRandom => Version >= v2_5_14;
