@@ -91,6 +91,7 @@ namespace NRediSearch.Test
                     {
                         // *probably* duplicate load; we'll try the tests anyways!
                         output?.WriteLine(err.Message);
+                        Skip.Inconclusive("Couldn't load NRediSearch module");
                     }
                 }
             }
