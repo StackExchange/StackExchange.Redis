@@ -80,7 +80,7 @@ namespace NRediSearch.Test
                 var config = server.Info("server").SelectMany(_ => _).FirstOrDefault(x => x.Key == "config_file").Value;
                 if (!string.IsNullOrEmpty(config))
                 {
-                    var i = config.LastIndexOf('/');
+                    var i = config.LastIndexOf(System.IO.Path.PathSeparator);
                     var modulePath = config.Substring(0, i + 1) + "redisearch.so";
                     try
                     {
@@ -91,7 +91,6 @@ namespace NRediSearch.Test
                     {
                         // *probably* duplicate load; we'll try the tests anyways!
                         output?.WriteLine(err.Message);
-                        Skip.Inconclusive("Couldn't load NRediSearch module");
                     }
                 }
             }
