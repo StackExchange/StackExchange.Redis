@@ -80,7 +80,7 @@ namespace NRediSearch.Test
                 var config = server.Info("server").SelectMany(_ => _).FirstOrDefault(x => x.Key == "config_file").Value;
                 if (!string.IsNullOrEmpty(config))
                 {
-                    var i = config.LastIndexOf(System.IO.Path.PathSeparator);
+                    var i = config.LastIndexOf(System.IO.Path.DirectorySeparatorChar);
                     var modulePath = config.Substring(0, i + 1) + "redisearch.so";
                     try
                     {
