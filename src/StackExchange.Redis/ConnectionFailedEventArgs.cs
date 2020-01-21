@@ -22,6 +22,20 @@ namespace StackExchange.Redis
             _physicalName = physicalName ?? GetType().Name;
         }
 
+        /// <summary>
+        /// The constructor for testing purpose.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="endPoint">Redis endpoint.</param>
+        /// <param name="connectionType">Redis connection type.</param>
+        /// <param name="failureType">Redis connection failure type.</param>
+        /// <param name="exception">The exception occured.</param>
+        /// <param name="physicalName">Connection physical name.</param>
+        public ConnectionFailedEventArgs(object sender, EndPoint endPoint, ConnectionType connectionType, ConnectionFailureType failureType, Exception exception, string physicalName)
+            : this (null, sender, endPoint, connectionType, failureType, exception, physicalName)
+        {
+        }
+
         private readonly string _physicalName;
 
         /// <summary>

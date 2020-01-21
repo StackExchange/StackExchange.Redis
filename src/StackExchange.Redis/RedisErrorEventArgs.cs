@@ -22,6 +22,17 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// The constructor for testing purpose.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="endpoint">Redis endpoint.</param>
+        /// <param name="message">Error message.</param>
+        public RedisErrorEventArgs(object sender, EndPoint endpoint, string message)
+            : this (null, sender, endpoint, message)
+        {
+        }
+
+        /// <summary>
         /// The origin of the message
         /// </summary>
         public EndPoint EndPoint { get; }

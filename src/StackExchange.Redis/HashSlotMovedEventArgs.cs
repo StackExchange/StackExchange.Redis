@@ -37,6 +37,18 @@ namespace StackExchange.Redis
             NewEndPoint = @new;
         }
 
+        /// <summary>
+        /// The constructor for testing purpose.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="hashSlot">Hash slot.</param>
+        /// <param name="old">Old endpoint.</param>
+        /// <param name="new">New endpoint.</param>
+        public HashSlotMovedEventArgs(object sender, int hashSlot, EndPoint old, EndPoint @new)
+            : this (null, sender, hashSlot, old, @new)
+        {
+        }
+
         bool ICompletable.TryComplete(bool isAsync) => ConnectionMultiplexer.TryCompleteHandler(handler, sender, this, isAsync);
 
         void ICompletable.AppendStormLog(StringBuilder sb)
