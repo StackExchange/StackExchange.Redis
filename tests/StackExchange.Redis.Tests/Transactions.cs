@@ -707,24 +707,24 @@ namespace StackExchange.Redis.Tests
         }
 
         [Theory]
-        [InlineData("five", ComparisonType.Equal, 5L, false)]
-        [InlineData("four", ComparisonType.Equal, 4L, true)]
-        [InlineData("three", ComparisonType.Equal, 3L, false)]
-        [InlineData("", ComparisonType.Equal, 2L, false)]
-        [InlineData("", ComparisonType.Equal, 0L, true)]
+        [InlineData(1, 4, ComparisonType.Equal, 5L, false)]
+        [InlineData(1, 4, ComparisonType.Equal, 4L, true)]
+        [InlineData(1, 2, ComparisonType.Equal, 3L, false)]
+        [InlineData(1, 1, ComparisonType.Equal, 2L, false)]
+        [InlineData(0, 0, ComparisonType.Equal, 0L, false)]
 
-        [InlineData("five", ComparisonType.LessThan, 5L, true)]
-        [InlineData("four", ComparisonType.LessThan, 4L, false)]
-        [InlineData("three", ComparisonType.LessThan, 3L, false)]
-        [InlineData("", ComparisonType.LessThan, 2L, true)]
-        [InlineData("", ComparisonType.LessThan, 0L, false)]
+        [InlineData(1, 4, ComparisonType.LessThan, 5L, true)]
+        [InlineData(1, 4, ComparisonType.LessThan, 4L, false)]
+        [InlineData(1, 3, ComparisonType.LessThan, 3L, false)]
+        [InlineData(1, 1, ComparisonType.LessThan, 2L, true)]
+        [InlineData(0, 0, ComparisonType.LessThan, 0L, false)]
 
-        [InlineData("five", ComparisonType.GreaterThan, 5L, false)]
-        [InlineData("four", ComparisonType.GreaterThan, 4L, false)]
-        [InlineData("three", ComparisonType.GreaterThan, 3L, true)]
-        [InlineData("", ComparisonType.GreaterThan, 2L, false)]
-        [InlineData("", ComparisonType.GreaterThan, 0L, false)]
-        public async Task BasicTranWithSortedSetRangeCountCondition(string value, ComparisonType type, long length, bool expectTranResult)
+        [InlineData(1, 5, ComparisonType.GreaterThan, 5L, false)]
+        [InlineData(1, 4, ComparisonType.GreaterThan, 4L, false)]
+        [InlineData(1, 4, ComparisonType.GreaterThan, 3L, true)]
+        [InlineData(1, 2, ComparisonType.GreaterThan, 2L, false)]
+        [InlineData(0, 0, ComparisonType.GreaterThan, 0L, true)]
+        public async Task BasicTranWithSortedSetRangeCountCondition(double min, double max, ComparisonType type, long length, bool expectTranResult)
         {
             using (var muxer = Create())
             {
@@ -735,29 +735,29 @@ namespace StackExchange.Redis.Tests
 
                 var expectSuccess = false;
                 Condition condition = null;
-                var valueLength = value?.Length ?? 0;
+                var valueLength = (int)(max - min) + 1;
                 switch (type)
                 {
                     case ComparisonType.Equal:
                         expectSuccess = valueLength == length;
-                        condition = Condition.SortedSetLengthEqual(key2, length, 0, length);
+                        condition = Condition.SortedSetLengthEqual(key2, length, min, max);
                         break;
                     case ComparisonType.GreaterThan:
                         expectSuccess = valueLength > length;
-                        condition = Condition.SortedSetLengthGreaterThan(key2, length, 0, length);
+                        condition = Condition.SortedSetLengthGreaterThan(key2, length, min, max);
                         break;
                     case ComparisonType.LessThan:
                         expectSuccess = valueLength < length;
-                        condition = Condition.SortedSetLengthLessThan(key2, length, 0, length);
+                        condition = Condition.SortedSetLengthLessThan(key2, length, min, max);
                         break;
                 }
 
-                for (var i = 0; i < valueLength; i++)
+                for (var i = 0; i < 5; i++)
                 {
                     db.SortedSetAdd(key2, i, i, flags: CommandFlags.FireAndForget);
                 }
                 Assert.False(db.KeyExists(key));
-                Assert.Equal(valueLength, db.SortedSetLength(key2));
+                Assert.Equal(5, db.SortedSetLength(key2));
 
                 var tran = db.CreateTransaction();
                 var cond = tran.AddCondition(condition);
