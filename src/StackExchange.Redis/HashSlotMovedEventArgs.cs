@@ -38,7 +38,7 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
-        /// The constructor for testing purpose.
+        /// This constructor is only for testing purposes.
         /// </summary>
         /// <param name="sender">The source of the event.</param>
         /// <param name="hashSlot">Hash slot.</param>
