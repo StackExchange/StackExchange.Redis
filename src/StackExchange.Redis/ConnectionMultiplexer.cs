@@ -13,6 +13,7 @@ using System.IO.Compression;
 using System.Runtime.CompilerServices;
 using StackExchange.Redis.Profiling;
 using Pipelines.Sockets.Unofficial;
+using System.ComponentModel;
 
 namespace StackExchange.Redis
 {
@@ -21,6 +22,41 @@ namespace StackExchange.Redis
     /// </summary>
     public sealed partial class ConnectionMultiplexer : IInternalConnectionMultiplexer // implies : IConnectionMultiplexer and : IDisposable
     {
+        [Flags]
+        private enum FeatureFlags
+        {
+            None,
+            PreventThreadTheft = 1,
+        }
+
+        private static FeatureFlags s_featureFlags;
+
+        /// <summary>
+        /// Enables or disables a feature flag; this should only be used under support guidance, and should not be rapidly toggled
+        /// </summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        [Browsable(false)]
+        public static void SetFeatureFlag(string flag, bool enabled)
+        {
+            if (Enum.TryParse<FeatureFlags>(flag, true, out var flags))
+            {
+                if (enabled) s_featureFlags |= flags;
+                else s_featureFlags &= ~flags;
+            }
+        }
+
+        /// <summary>
+        /// Returns the state of a feature flag; this should only be used under support guidance
+        /// </summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        [Browsable(false)]
+        public static bool GetFeatureFlag(string flag)
+            => Enum.TryParse<FeatureFlags>(flag, true, out var flags)
+            && (s_featureFlags & flags) == flags;
+
+        internal static bool PreventThreadTheft => (s_featureFlags & FeatureFlags.PreventThreadTheft) != 0;
+
+
         private static TaskFactory _factory = null;
 
 #if DEBUG

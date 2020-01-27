@@ -470,6 +470,15 @@ namespace StackExchange.Redis
             currBox?.ActivateContinuations();
         }
 
+        internal bool ResultBoxIsAsync
+        {
+            get
+            {
+                var currBox = Volatile.Read(ref resultBox);
+                return currBox != null && currBox.IsAsync;
+            }
+        }
+
         internal static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key, RedisKey[] keys)
         {
             switch (keys.Length)

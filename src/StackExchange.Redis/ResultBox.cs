@@ -27,7 +27,15 @@ namespace StackExchange.Redis
         void IResultBox.SetException(Exception exception) => _exception = exception ?? CancelledException;
         void IResultBox.Cancel() => _exception = CancelledException;
 
+        static readonly WaitCallback s_ActivateContinuations = state => ((SimpleResultBox)state).ActivateContinuationsImpl();
         void IResultBox.ActivateContinuations()
+        {
+            if (ConnectionMultiplexer.PreventThreadTheft)
+                ThreadPool.QueueUserWorkItem(s_ActivateContinuations, this);
+            else
+                ActivateContinuationsImpl();
+        }
+        private void ActivateContinuationsImpl()
         {
             lock (this)
             { // tell the waiting thread that we're done
@@ -108,7 +116,15 @@ namespace StackExchange.Redis
             // nothing to do re recycle: TaskCompletionSource<T> cannot be recycled
         }
 
+        static readonly WaitCallback s_ActivateContinuations = state => ((TaskResultBox<T>)state).ActivateContinuationsImpl();
         void IResultBox.ActivateContinuations()
+        {
+            if (ConnectionMultiplexer.PreventThreadTheft)
+                ThreadPool.QueueUserWorkItem(s_ActivateContinuations, this);
+            else
+                ActivateContinuationsImpl();
+        }
+        private void ActivateContinuationsImpl()
         {
             var val = _value;
             var ex = _exception;
