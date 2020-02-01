@@ -42,6 +42,7 @@ Documentation
 - [Profiling](Profiling) - profiling interfaces, as well as how to profile in an `async` world
 - [Scripting](Scripting) - running Lua scripts with convenient named parameter replacement
 - [Testing](Testing) - running the `StackExchange.Redis.Tests` suite to validate changes
+- [Thread Theft](ThreadTheft) - guidance on avoiding TPL threading problems
 
 Questions and Contributions
 ---
