@@ -7,7 +7,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// Notification of errors from the redis server
     /// </summary>
-    public sealed class RedisErrorEventArgs : EventArgs, ICompletable
+    public class RedisErrorEventArgs : EventArgs, ICompletable
     {
         private readonly EventHandler<RedisErrorEventArgs> handler;
         private readonly object sender;

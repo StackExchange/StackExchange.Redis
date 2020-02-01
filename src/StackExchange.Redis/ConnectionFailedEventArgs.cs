@@ -7,7 +7,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// Contains information about a server connection failure
     /// </summary>
-    public sealed class ConnectionFailedEventArgs : EventArgs, ICompletable
+    public class ConnectionFailedEventArgs : EventArgs, ICompletable
     {
         private readonly EventHandler<ConnectionFailedEventArgs> handler;
         private readonly object sender;

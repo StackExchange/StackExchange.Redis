@@ -7,7 +7,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// Contains information about individual hash-slot relocations
     /// </summary>
-    public sealed class HashSlotMovedEventArgs : EventArgs, ICompletable
+    public class HashSlotMovedEventArgs : EventArgs, ICompletable
     {
         private readonly object sender;
         private readonly EventHandler<HashSlotMovedEventArgs> handler;
