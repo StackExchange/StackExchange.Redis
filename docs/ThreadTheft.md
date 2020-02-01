@@ -33,7 +33,7 @@ To *avoid* this, we use the
 `TaskCreationOptions.RunContinuationsAsynchronously` flag. What *this* does depends a little
 on whether you have a `SynchronizationContext`. If you *don't* (common for console applications,
 services, etc), then the TPL uses the standard thread-pool mechanisms to schedule the
-work continuation. If you *do* have a `SynchronizationContext` (common in UI applications
+continuation. If you *do* have a `SynchronizationContext` (common in UI applications
 and web-servers), then it's `Post` method is used instead; the `Post` method is *meant* to
 be an asynchronous dispatch API. But... not all impementations are equal. Some 
 `SynchronizationContext` implementations treat `Post` as a synchronous invoke. This is true
@@ -46,7 +46,9 @@ configure ASP.NET with:
 ```
 
 In this scenario, we would once again end up with the reader being stolen and used for
-processing your application logic.
+processing your application logic. This can doom any further `await`s to timeouts,
+either temporarily (until the application logic chooses to release the thread), or permanently
+(essentially deadlocking yourself).
 
 To avoid this, the library includes an additional layer of mistrust; specifically, if
 the `preventthreadtheft` feature flag is enabled, we will *pre-emptively* queue the
