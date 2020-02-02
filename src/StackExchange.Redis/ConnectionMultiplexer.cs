@@ -45,6 +45,18 @@ namespace StackExchange.Redis
             }
         }
 
+        static ConnectionMultiplexer()
+        {
+            bool value = false;
+            try
+            {   // attempt to detect a known problem scenario
+                value = SynchronizationContext.Current?.GetType()?.Name
+                    == "LegacyAspNetSynchronizationContext";
+            }
+            catch { }
+            SetFeatureFlag(nameof(FeatureFlags.PreventThreadTheft), value);
+        }
+
         /// <summary>
         /// Returns the state of a feature flag; this should only be used under support guidance
         /// </summary>

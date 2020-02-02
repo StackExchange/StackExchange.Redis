@@ -3,6 +3,11 @@
 Verify what's the maximum bandwidth supported on your client and on the server where redis-server is hosted. If there are requests that are getting bound by bandwidth, it will take longer for them to complete and thereby can cause timeouts.
 Similarly, verify you are not getting CPU bound on client or on the server box which would cause requests to be waiting for CPU time and thereby have timeouts.
 
+Are you experiencing "thread theft" of the reader?
+---
+The parameter “`qs`” in the error message tells you the state of the reader; if this is frquently reporting `CompletePendingMessage`,
+it is possible that the reader loop has been hijacked; see [Thread Theft](ThreadTheft) for specific guidance.
+
 Are there commands taking long time to process on the redis-server?
 ---------------
 There can be commands that are taking long time to process on the redis-server causing the request to timeout. Few examples of long running commands are mget with large number of keys, keys * or poorly written lua script. You can run the SlowLog command to see if there are requests taking longer than expected. More details regarding the command can be found [here](https://redis.io/commands/slowlog).
