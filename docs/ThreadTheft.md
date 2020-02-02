@@ -45,7 +45,15 @@ configure ASP.NET with:
 <add key="aspnet:UseTaskFriendlySynchronizationContext" value="false" />
 ```
 
-In this scenario, we would once again end up with the reader being stolen and used for
+or
+
+```
+<httpRuntime targetFramework="4.5" />
+```
+
+([citation](https://devblogs.microsoft.com/aspnet/all-about-httpruntime-targetframework))
+
+In these scenarios, we would once again end up with the reader being stolen and used for
 processing your application logic. This can doom any further `await`s to timeouts,
 either temporarily (until the application logic chooses to release the thread), or permanently
 (essentially deadlocking yourself).
