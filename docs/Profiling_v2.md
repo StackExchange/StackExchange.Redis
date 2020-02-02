@@ -1,7 +1,7 @@
 ﻿Profiling
 ===
 
-StackExchange.Redis exposes a handful of methods and types to enable performance profiling.  Due to its asynchronous and multiplexing 
+StackExchange.Redis exposes a handful of methods and types to enable performance profiling.  Due to its asynchronous and multiplexing
 behavior profiling is a somewhat complicated topic.
 
 Interfaces
@@ -15,12 +15,10 @@ the library invokes this callback, and *if* a non-null session is returned: oper
 a particular profiling sesssion returns a collection of `IProfiledCommand`s which contain timing information for all commands sent to redis by the
 configured `ConnectionMultiplexer`. It is the callback's responsibility to maintain any state required to track individual sessions.
 
-
-
 Available Timings
 ---
 
-StackExchange.Redis exposes information about:  
+StackExchange.Redis exposes information about:
 
  - The redis server involved
  - The redis DB being queried
@@ -36,14 +34,13 @@ StackExchange.Redis exposes information about:
 
 `TimeSpan`s are high resolution, if supported by the runtime.  `DateTime`s are only as precise as `DateTime.UtcNow`.
 
-
 Example profilers
 ---
 
 Due to StackExchange.Redis's asynchronous interface, profiling requires outside assistance to group related commands together.
 This is achieved by providing the desired `ProfilingSession` object via the callback, and (later) calling `FinishProfiling()` on that session.
 
-Probably the most useful general-purpose session-provider is one that provides session automatically and works between `async` calls; this is simply:
+Probably the most useful general-purpose session-provider is one that provides sessions automatically and works between `async` calls; this is simply:
 
 ```csharp
 class AsyncLocalProfiler
@@ -168,12 +165,12 @@ for (var i = 0; i < 16; i++)
         );
     threads.Add(thread);
 }
-                
+
 threads.ForEach(thread => thread.Start());
 threads.ForEach(thread => thread.Join());
 ```
 
-`perThreadTimings` would end up with 16 entries of 1,000 `IProfilingCommand`s, keyed by the `Thread` the issued them.
+`perThreadTimings` would end up with 16 entries of 1,000 `IProfilingCommand`s, keyed by the `Thread` that issued them.
 
 Moving away from toy examples, here's how you can profile StackExchange.Redis in an MVC5 application.
 
@@ -217,7 +214,7 @@ protected void Application_EndRequest()
     if (session != null)
     {
         var timings = session.FinishProfiling();
-		
+
 		// do what you will with `timings` here
     }
 }

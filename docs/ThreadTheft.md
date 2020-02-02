@@ -35,7 +35,7 @@ on whether you have a `SynchronizationContext`. If you *don't* (common for conso
 services, etc), then the TPL uses the standard thread-pool mechanisms to schedule the
 continuation. If you *do* have a `SynchronizationContext` (common in UI applications
 and web-servers), then its `Post` method is used instead; the `Post` method is *meant* to
-be an asynchronous dispatch API. But... not all impementations are equal. Some 
+be an asynchronous dispatch API. But... not all implementations are equal. Some
 `SynchronizationContext` implementations treat `Post` as a synchronous invoke. This is true
 in particular of `LegacyAspNetSynchronizationContext`, which is what you get if you
 configure ASP.NET with:
