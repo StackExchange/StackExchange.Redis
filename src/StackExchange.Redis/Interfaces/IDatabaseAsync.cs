@@ -1499,7 +1499,19 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>True if the group was created.</returns>
         /// <remarks>https://redis.io/topics/streams-intro</remarks>
-        Task<bool> StreamCreateConsumerGroupAsync(RedisKey key, RedisValue groupName, RedisValue? position = null, CommandFlags flags = CommandFlags.None);
+        Task<bool> StreamCreateConsumerGroupAsync(RedisKey key, RedisValue groupName, RedisValue? position, CommandFlags flags);
+
+        /// <summary>
+        /// Create a consumer group for the given stream. 
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="groupName">The name of the group to create.</param>
+        /// <param name="position">The position to begin reading the stream. Defaults to <see cref="StreamPosition.NewMessages"/>.</param>
+        /// <param name="createStream">Create the stream if it does not already exist.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>True if the group was created.</returns>
+        /// <remarks>https://redis.io/topics/streams-intro</remarks>
+        Task<bool> StreamCreateConsumerGroupAsync(RedisKey key, RedisValue groupName, RedisValue? position = null, bool createStream = true, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Delete messages in the stream. This method does not delete the stream.

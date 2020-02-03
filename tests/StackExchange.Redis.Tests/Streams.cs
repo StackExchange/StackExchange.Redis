@@ -201,6 +201,80 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void StreamCreateConsumerGroupBeforeCreatingStream()
+        {
+            var key = GetUniqueKey("group_create_before_stream");
+
+            using (var conn = Create())
+            {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+
+                var db = conn.GetDatabase();
+
+                // Ensure the key doesn't exist.
+                var keyExistsBeforeCreate = db.KeyExists(key);
+
+                // The 'createStream' parameter is 'true' by default.
+                var groupCreated = db.StreamCreateConsumerGroup(key, "consumerGroup", StreamPosition.NewMessages);
+
+                var keyExistsAfterCreate = db.KeyExists(key);
+
+                Assert.False(keyExistsBeforeCreate);
+                Assert.True(groupCreated);
+                Assert.True(keyExistsAfterCreate);
+            }
+        }
+
+        [Fact]
+        public void StreamCreateConsumerGroupFailsIfKeyDoesntExist()
+        {
+            var key = GetUniqueKey("group_create_before_stream_should_fail");
+
+            using (var conn = Create())
+            {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+
+                var db = conn.GetDatabase();
+
+                // Pass 'false' for 'createStream' to ensure that an
+                // execption is thrown when the stream doesn't exist.
+                Assert.ThrowsAny<RedisServerException>(() =>
+                {
+                    db.StreamCreateConsumerGroup(
+                        key,
+                        "consumerGroup",
+                        StreamPosition.NewMessages,
+                        createStream: false);
+                });
+            }
+        }
+
+        [Fact]
+        public void StreamCreateConsumerGroupSucceedsWhenKeyExists()
+        {
+            var key = GetUniqueKey("group_create_after_stream");
+
+            using (var conn = Create())
+            {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+
+                var db = conn.GetDatabase();
+
+                db.StreamAdd(key, "f1", "v1");
+
+                // Pass 'false' for 'createStream', should create the consumer group
+                // without issue since the stream already exists.
+                var groupCreated = db.StreamCreateConsumerGroup(
+                    key,
+                    "consumerGroup",
+                    StreamPosition.NewMessages,
+                    createStream: false);
+
+                Assert.True(groupCreated);
+            }
+        }
+
+        [Fact]
         public void StreamConsumerGroupReadOnlyNewMessagesWithEmptyResponse()
         {
             var key = GetUniqueKey("group_read");

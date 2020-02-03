@@ -869,8 +869,8 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamCreateConsumerGroup()
         {
-            wrapper.StreamCreateConsumerGroup("key", "group", StreamPosition.Beginning, CommandFlags.None);
-            mock.Verify(_ => _.StreamCreateConsumerGroup("prefix:key", "group", StreamPosition.Beginning, CommandFlags.None));
+            wrapper.StreamCreateConsumerGroup("key", "group", StreamPosition.Beginning, false, CommandFlags.None);
+            mock.Verify(_ => _.StreamCreateConsumerGroup("prefix:key", "group", StreamPosition.Beginning, false, CommandFlags.None));
         }
 
         [Fact]
