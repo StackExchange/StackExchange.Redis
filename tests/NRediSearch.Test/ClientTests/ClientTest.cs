@@ -50,7 +50,7 @@ namespace NRediSearch.Test.ClientTests
             Assert.True(cl.DropIndex());
 
             var ex = Assert.Throws<RedisServerException>(() => cl.Search(new Query("hello world")));
-            Assert.Equal("Unknown Index name", ex.Message);
+            Assert.Equal("Unknown Index name", ex.Message, ignoreCase: true);
         }
 
         [Fact]
@@ -549,7 +549,7 @@ namespace NRediSearch.Test.ClientTests
             cl.DeleteDocument(d.Id);
 
             var ex = Assert.Throws<RedisServerException>(() => cl.AddDocument(d, options));
-            Assert.Equal("Unsupported language", ex.Message);
+            Assert.Equal("Unsupported language", ex.Message, ignoreCase: true);
         }
 
         [Fact]
@@ -557,7 +557,7 @@ namespace NRediSearch.Test.ClientTests
         {
             Client cl = GetClient();
             var ex = Assert.Throws<RedisServerException>(() => cl.DropIndex());
-            Assert.Equal("Unknown Index name", ex.Message);
+            Assert.Equal("Unknown Index name", ex.Message, ignoreCase: true);
         }
 
         [Fact]
