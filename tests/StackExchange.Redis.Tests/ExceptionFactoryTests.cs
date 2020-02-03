@@ -25,7 +25,7 @@ namespace StackExchange.Redis.Tests
         public void CanGetVersion()
         {
             var libVer = ExceptionFactory.GetLibVersion();
-            Assert.Matches(@"2\.[0-9]+\.[0-9]+\.[0-9]+", libVer);
+            Assert.Matches(@"2\.[0-9]+\.[0-9]+(\.[0-9]+)?", libVer);
         }
 
         [Fact]

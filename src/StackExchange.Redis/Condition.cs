@@ -232,6 +232,15 @@ namespace StackExchange.Redis
         public static Condition SortedSetLengthEqual(RedisKey key, long length) => new LengthCondition(key, RedisType.SortedSet, 0, length);
 
         /// <summary>
+        /// Enforces that the given sorted set contains a certain number of members with scores in the given range
+        /// </summary>
+        /// <param name="key">The key of the sorted set to check.</param>
+        /// <param name="length">The length the sorted set must be equal to.</param>
+        /// <param name="min">Minimum inclusive score.</param>
+        /// <param name="max">Maximum inclusive score.</param>
+        public static Condition SortedSetLengthEqual(RedisKey key, long length, double min = double.NegativeInfinity, double max = double.PositiveInfinity) => new SortedSetRangeLengthCondition(key, min, max, 0, length);
+
+        /// <summary>
         /// Enforces that the given sorted set cardinality is less than a certain value
         /// </summary>
         /// <param name="key">The key of the sorted set to check.</param>
@@ -239,11 +248,29 @@ namespace StackExchange.Redis
         public static Condition SortedSetLengthLessThan(RedisKey key, long length) => new LengthCondition(key, RedisType.SortedSet, 1, length);
 
         /// <summary>
+        /// Enforces that the given sorted set contains less than a certain number of members with scores in the given range
+        /// </summary>
+        /// <param name="key">The key of the sorted set to check.</param>
+        /// <param name="length">The length the sorted set must be equal to.</param>
+        /// <param name="min">Minimum inclusive score.</param>
+        /// <param name="max">Maximum inclusive score.</param>
+        public static Condition SortedSetLengthLessThan(RedisKey key, long length, double min = double.NegativeInfinity, double max = double.PositiveInfinity) => new SortedSetRangeLengthCondition(key, min, max, 1, length);
+
+        /// <summary>
         /// Enforces that the given sorted set cardinality is greater than a certain value
         /// </summary>
         /// <param name="key">The key of the sorted set to check.</param>
         /// <param name="length">The length the sorted set must be greater than.</param>
         public static Condition SortedSetLengthGreaterThan(RedisKey key, long length) => new LengthCondition(key, RedisType.SortedSet, -1, length);
+
+        /// <summary>
+        /// Enforces that the given sorted set contains more than a certain number of members with scores in the given range
+        /// </summary>
+        /// <param name="key">The key of the sorted set to check.</param>
+        /// <param name="length">The length the sorted set must be equal to.</param>
+        /// <param name="min">Minimum inclusive score.</param>
+        /// <param name="max">Maximum inclusive score.</param>
+        public static Condition SortedSetLengthGreaterThan(RedisKey key, long length, double min = double.NegativeInfinity, double max = double.PositiveInfinity) => new SortedSetRangeLengthCondition(key, min, max, -1, length);
 
         /// <summary>
         /// Enforces that the given sorted set contains a certain member
@@ -705,6 +732,76 @@ namespace StackExchange.Redis
                 yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key);
 
                 var message = ConditionProcessor.CreateMessage(this, db, CommandFlags.None, cmd, key);
+                message.SetSource(ConditionProcessor.Default, resultBox);
+                yield return message;
+            }
+
+            internal override int GetHashSlot(ServerSelectionStrategy serverSelectionStrategy)
+            {
+                return serverSelectionStrategy.HashSlot(key);
+            }
+
+            internal override bool TryValidate(in RawResult result, out bool value)
+            {
+                switch (result.Type)
+                {
+                    case ResultType.BulkString:
+                    case ResultType.SimpleString:
+                    case ResultType.Integer:
+                        var parsed = result.AsRedisValue();
+                        value = parsed.IsInteger && (expectedLength.CompareTo((long)parsed) == compareToResult);
+                        ConnectionMultiplexer.TraceWithoutContext("actual: " + (string)parsed + "; expected: " + expectedLength +
+                            "; wanted: " + GetComparisonString() + "; voting: " + value);
+                        return true;
+                }
+                value = false;
+                return false;
+            }
+        }
+
+        internal class SortedSetRangeLengthCondition : Condition
+        {
+            internal override Condition MapKeys(Func<RedisKey, RedisKey> map)
+            {
+                return new SortedSetRangeLengthCondition(map(key), min, max, compareToResult, expectedLength);
+            }
+
+            private readonly RedisValue min;
+            private readonly RedisValue max;
+            private readonly int compareToResult;
+            private readonly long expectedLength;
+            private readonly RedisKey key;
+
+            public SortedSetRangeLengthCondition(in RedisKey key, RedisValue min, RedisValue max, int compareToResult, long expectedLength)
+            {
+                if (key.IsNull) throw new ArgumentException(nameof(key));
+                this.key = key;
+                this.min = min;
+                this.max = max;
+                this.compareToResult = compareToResult;
+                this.expectedLength = expectedLength;
+            }
+
+            public override string ToString()
+            {
+                return ((string)key) + " " + RedisType.SortedSet + " range[" + min + ", " + max + "] length" + GetComparisonString() + expectedLength;
+            }
+
+            private string GetComparisonString()
+            {
+                return compareToResult == 0 ? " == " : (compareToResult < 0 ? " > " : " < ");
+            }
+
+            internal override void CheckCommands(CommandMap commandMap)
+            {
+                commandMap.AssertAvailable(RedisCommand.ZCOUNT);
+            }
+
+            internal sealed override IEnumerable<Message> CreateMessages(int db, IResultBox resultBox)
+            {
+                yield return Message.Create(db, CommandFlags.None, RedisCommand.WATCH, key);
+
+                var message = ConditionProcessor.CreateMessage(this, db, CommandFlags.None, RedisCommand.ZCOUNT, key, min, max);
                 message.SetSource(ConditionProcessor.Default, resultBox);
                 yield return message;
             }

@@ -68,7 +68,7 @@ namespace StackExchange.Redis
         /// <param name="distance">Tthe distance from the result.</param>
         /// <param name="hash">The hash of the result.</param>
         /// <param name="position">The geo position of the result.</param>
-        internal GeoRadiusResult(in RedisValue member, double? distance, long? hash, GeoPosition? position)
+        public GeoRadiusResult(in RedisValue member, double? distance, long? hash, GeoPosition? position)
         {
             Member = member;
             Distance = distance;

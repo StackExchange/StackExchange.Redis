@@ -1307,7 +1307,7 @@ namespace StackExchange.Redis
                     {
                         try
                         {
-                            ssl.AuthenticateAsClient(host, config.SslProtocols);
+                            ssl.AuthenticateAsClient(host, config.SslProtocols, config.CheckCertificateRevocation);
                         }
                         catch (Exception ex)
                         {
@@ -1420,10 +1420,10 @@ namespace StackExchange.Redis
             _readStatus = ReadStatus.ComputeResult;
             if (msg.ComputeResult(this, result))
             {
-                _readStatus = ReadStatus.CompletePendingMessage;
+                _readStatus = msg.ResultBoxIsAsync ? ReadStatus.CompletePendingMessageAsync : ReadStatus.CompletePendingMessageSync;
                 msg.Complete();
             }
-
+            _readStatus = ReadStatus.MatchResultComplete;
             _activeMessage = null;
         }
 
@@ -1561,9 +1561,11 @@ namespace StackExchange.Redis
                 }
                 finally
                 {
+                    _readStatus = ReadStatus.ResetArena;
                     _arena.Reset();
                 }
             }
+            _readStatus = ReadStatus.ProcessBufferComplete;
             return messageCount;
         }
         //void ISocketCallback.Read()
@@ -1700,8 +1702,11 @@ namespace StackExchange.Redis
             InvokePubSub,
             DequeueResult,
             ComputeResult,
-            CompletePendingMessage,
-
+            CompletePendingMessageSync,
+            CompletePendingMessageAsync,
+            MatchResultComplete,
+            ResetArena,
+            ProcessBufferComplete,
             NA = -1,
         }
         private volatile ReadStatus _readStatus;

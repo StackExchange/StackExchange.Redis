@@ -61,6 +61,10 @@ namespace StackExchange.Redis
 
         internal static readonly RedisValue MaxLen = "MAXLEN";
 
+        internal static readonly RedisValue MkStream = "MKSTREAM";
+      
+        internal static readonly RedisValue NoAck = "NOACK";
+
         internal static readonly RedisValue Stream = "STREAM";
 
         internal static readonly RedisValue Streams = "STREAMS";

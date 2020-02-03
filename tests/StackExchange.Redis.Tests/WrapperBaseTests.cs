@@ -130,7 +130,14 @@ namespace StackExchange.Redis.Tests
             wrapper.HashSetAsync("key", "hashField", "value", When.Exists, CommandFlags.None);
             mock.Verify(_ => _.HashSetAsync("prefix:key", "hashField", "value", When.Exists, CommandFlags.None));
         }
-
+        
+        [Fact]
+        public void HashStringLengthAsync()
+        {
+            wrapper.HashStringLengthAsync("key","field", CommandFlags.None);
+            mock.Verify(_ => _.HashStringLengthAsync("prefix:key", "field", CommandFlags.None));
+        }
+        
         [Fact]
         public void HashValuesAsync()
         {
@@ -820,8 +827,8 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamCreateConsumerGroupAsync()
         {
-            wrapper.StreamCreateConsumerGroupAsync("key", "group", "0-0", CommandFlags.None);
-            mock.Verify(_ => _.StreamCreateConsumerGroupAsync("prefix:key", "group", "0-0", CommandFlags.None));
+            wrapper.StreamCreateConsumerGroupAsync("key", "group", "0-0", false, CommandFlags.None);
+            mock.Verify(_ => _.StreamCreateConsumerGroupAsync("prefix:key", "group", "0-0", false, CommandFlags.None));
         }
 
         [Fact]
@@ -906,16 +913,16 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamReadGroupAsync_1()
         {
-            wrapper.StreamReadGroupAsync("key", "group", "consumer", StreamPosition.Beginning, 10, CommandFlags.None);
-            mock.Verify(_ => _.StreamReadGroupAsync("prefix:key", "group", "consumer", StreamPosition.Beginning, 10, CommandFlags.None));
+            wrapper.StreamReadGroupAsync("key", "group", "consumer", StreamPosition.Beginning, 10, false, CommandFlags.None);
+            mock.Verify(_ => _.StreamReadGroupAsync("prefix:key", "group", "consumer", StreamPosition.Beginning, 10, false, CommandFlags.None));
         }
 
         [Fact]
         public void StreamStreamReadGroupAsync_2()
         {
             var streamPositions = new StreamPosition[0] { };
-            wrapper.StreamReadGroupAsync(streamPositions, "group", "consumer", 10, CommandFlags.None);
-            mock.Verify(_ => _.StreamReadGroupAsync(streamPositions, "group", "consumer", 10, CommandFlags.None));
+            wrapper.StreamReadGroupAsync(streamPositions, "group", "consumer", 10, false, CommandFlags.None);
+            mock.Verify(_ => _.StreamReadGroupAsync(streamPositions, "group", "consumer", 10, false, CommandFlags.None));
         }
 
         [Fact]
@@ -1070,6 +1077,22 @@ namespace StackExchange.Redis.Tests
         {
             wrapper.StringSetRangeAsync("key", 123, "value", CommandFlags.None);
             mock.Verify(_ => _.StringSetRangeAsync("prefix:key", 123, "value", CommandFlags.None));
+        }
+
+        [Fact]
+        public void KeyTouchAsync_1()
+        {
+            wrapper.KeyTouchAsync("key", CommandFlags.None);
+            mock.Verify(_ => _.KeyTouchAsync("prefix:key", CommandFlags.None));
+        }
+
+        [Fact]
+        public void KeyTouchAsync_2()
+        {
+            RedisKey[] keys = new RedisKey[] { "a", "b" };
+            Expression<Func<RedisKey[], bool>> valid = _ => _.Length == 2 && _[0] == "prefix:a" && _[1] == "prefix:b";
+            wrapper.KeyTouchAsync(keys, CommandFlags.None);
+            mock.Verify(_ => _.KeyTouchAsync(It.Is(valid), CommandFlags.None));
         }
 #pragma warning restore RCS1047 // Non-asynchronous method name should not end with 'Async'.
     }

@@ -90,13 +90,13 @@ In v2, you can subscribe without providing a callback directly to the `Subscribe
 // Synchronous handler
 sub.Subscribe("messages").OnMessage(channelMessage => {
     Console.WriteLine((string) channelMessage.Message);
-};
+});
 
 // Asynchronous handler
 sub.Subscribe("messages").OnMessage(async channelMessage => {
     await Task.Delay(1000);
     Console.WriteLine((string) channelMessage.Message);
-};
+});
 ```
 
 Separately (and often in a separate process on a separate machine) you can publish to this channel:

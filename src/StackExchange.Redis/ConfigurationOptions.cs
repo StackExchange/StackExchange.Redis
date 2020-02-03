@@ -128,7 +128,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private bool? allowAdmin, abortOnConnectFail, highPrioritySocketThreads, resolveDns, ssl;
+        private bool? allowAdmin, abortOnConnectFail, highPrioritySocketThreads, resolveDns, ssl, checkCertificateRevocation;
 
         private string tieBreaker, sslHost, configChannel;
 
@@ -183,6 +183,11 @@ namespace StackExchange.Redis
         /// Automatically encodes and decodes channels
         /// </summary>
         public RedisChannel ChannelPrefix { get; set; }
+
+        /// <summary>
+        /// A Boolean value that specifies whether the certificate revocation list is checked during authentication.
+        /// </summary>
+        public bool CheckCertificateRevocation {get { return checkCertificateRevocation ?? true; } set { checkCertificateRevocation = value; }}
 
         /// <summary>
         /// Create a certificate validation check that checks against the supplied issuer even if not known by the machine

@@ -4,19 +4,16 @@
     <TargetFrameworks>netstandard2.0</TargetFrameworks>
     <Description>Basic redis server based on StackExchange.Redis</Description>
     <AssemblyTitle>StackExchange.Redis</AssemblyTitle>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <AssemblyName>StackExchange.Redis.Server</AssemblyName>
     <PackageId>StackExchange.Redis.Server</PackageId>
     <PackageTags>Server;Async;Redis;Cache;PubSub;Messaging</PackageTags>
     <OutputTypeEx>Library</OutputTypeEx>
     <SignAssembly>true</SignAssembly>
     <PublicSign Condition=" '$(OS)' != 'Windows_NT' ">true</PublicSign>
-    <LangVersion>latest</LangVersion>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\StackExchange.Redis\StackExchange.Redis.csproj" />
-    <PackageReference Include="System.Runtime.Caching" Version="4.5.0" />
+    <PackageReference Include="System.Runtime.Caching" Version="4.7.0" />
   </ItemGroup>
 </Project>

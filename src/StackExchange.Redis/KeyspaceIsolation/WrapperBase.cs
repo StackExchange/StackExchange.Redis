@@ -131,6 +131,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.HashSetAsync(ToInner(key), hashField, value, when, flags);
         }
 
+        public Task<long> HashStringLengthAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.HashStringLengthAsync(ToInner(key), hashField, flags);
+        }
+
         public Task HashSetAsync(RedisKey key, HashEntry[] hashFields, CommandFlags flags = CommandFlags.None)
         {
             return Inner.HashSetAsync(ToInner(key), hashFields, flags);
@@ -645,9 +650,14 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StreamConsumerGroupSetPositionAsync(ToInner(key), groupName, position, flags);
         }
 
-        public Task<bool> StreamCreateConsumerGroupAsync(RedisKey key, RedisValue groupName, RedisValue? position = null, CommandFlags flags = CommandFlags.None)
+        public Task<bool> StreamCreateConsumerGroupAsync(RedisKey key, RedisValue groupName, RedisValue? position, CommandFlags flags)
         {
             return Inner.StreamCreateConsumerGroupAsync(ToInner(key), groupName, position, flags);
+        }
+
+        public Task<bool> StreamCreateConsumerGroupAsync(RedisKey key, RedisValue groupName, RedisValue? position = null, bool createStream = true, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StreamCreateConsumerGroupAsync(ToInner(key), groupName, position, createStream, flags);
         }
 
         public Task<StreamInfo> StreamInfoAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -710,14 +720,24 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StreamReadAsync(streamPositions, countPerStream, flags);
         }
 
-        public Task<StreamEntry[]> StreamReadGroupAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, CommandFlags flags = CommandFlags.None)
+        public Task<StreamEntry[]> StreamReadGroupAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position, int? count, CommandFlags flags)
         {
             return Inner.StreamReadGroupAsync(ToInner(key), groupName, consumerName, position, count, flags);
         }
 
-        public Task<RedisStream[]> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, CommandFlags flags = CommandFlags.None)
+        public Task<StreamEntry[]> StreamReadGroupAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, bool noAck = false, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StreamReadGroupAsync(ToInner(key), groupName, consumerName, position, count, noAck, flags);
+        }
+
+        public Task<RedisStream[]> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, CommandFlags flags)
         {
             return Inner.StreamReadGroupAsync(streamPositions, groupName, consumerName, countPerStream, flags);
+        }
+
+        public Task<RedisStream[]> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StreamReadGroupAsync(streamPositions, groupName, consumerName, countPerStream, noAck, flags);
         }
 
         public Task<long> StreamTrimAsync(RedisKey key, int maxLength, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None)
@@ -833,6 +853,17 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public Task<TimeSpan> PingAsync(CommandFlags flags = CommandFlags.None)
         {
             return Inner.PingAsync(flags);
+        }
+
+
+        public Task<long> KeyTouchAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.KeyTouchAsync(ToInner(keys), flags);
+        }
+
+        public Task<bool> KeyTouchAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.KeyTouchAsync(ToInner(key), flags);
         }
 
         public bool TryWait(Task task)
