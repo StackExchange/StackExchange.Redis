@@ -74,3 +74,27 @@ How to configure this setting:
  - Outside of ASP.NET, use the [ThreadPool.SetMinThreads(…)](https://docs.microsoft.com/en-us/dotnet/api/system.threading.threadpool.setminthreads?view=netcore-2.0#System_Threading_ThreadPool_SetMinThreads_System_Int32_System_Int32_) API.
 
 - In .Net Core, add Environment Variable COMPlus_ThreadPool_ForceMinWorkerThreads to overwrite default MinThreads setting, according to [Environment/Registry Configuration Knobs](https://github.com/dotnet/coreclr/blob/master/Documentation/project-docs/clr-configuration-knobs.md) - You can also use the same ThreadPool.SetMinThreads() Method as described above.
+
+Explnation for abbrivations appearing in exception messages
+---
+By default Redis Timeout exception(s) includes useful information, which can help in uderstanding & diagnosing the timeouts. Some of the abbrivations are as follows:
+
+| Abbrivation   | Long Name | Meaning |
+| ------------- | ---------------------- | ---------------------------- | 
+| inst    |  OpsSinceLastHeartbeat : {int}  | |  
+|qu | Queue-Awaiting-Write : {int}|There are x operations currently waiting in queue to write to the redis server.| 
+|qs | Queue-Awaiting-Response : {int}|There are x operations currently awaiting replies from redis server.| 
+|aw | Active-Writer: {bool}|| 
+|rs | Read-State: {enum}|Possible values are NotStarted, Init, RanToCompletion, Faulted, ReadSync, ReadAsync, UpdateWriteTime, ProcessBuffer, MarkProcessed, TryParseResult, MatchResult, PubSubMessage, PubSubPMessage, Reconfigure, InvokePubSub, DequeueResult, ComputeResult, CompletePendingMessage, NA| 
+|ws | Write-State: {enum}| Possible values are Initializing, Idle, Writing, Flushing, Flushed, NA| 
+|in | Inbound-Bytes : {long}|there are x bytes waiting to be read from the input stream from redis| 
+|in-pipe | Inbound-Pipe-Bytes: {long}|Bytes waiting to be read| 
+|out-pipe| Outbound-Pipe-Bytes: {long}|Bytes waiting to be sent| 
+|mgr | 8 of 10 available|Redis Internal Dedicated Thread Pool State| 
+|IOCP | IOCP: (Busy=0,Free=500,Min=248,Max=500)| Runtime Global Thread Pool IO Threads. |
+|WORKER | WORKER: (Busy=170,Free=330,Min=248,Max=500)| Runtime Global Thread Pool Worker Threads.| 
+|v | Redis Version: version |Current redis version you are currently using in your application.|
+|active | Message-Current: {string} |Included in exception message when `IncludeDetailInExceptions=True` on multiplexer|
+|next | Message-Next: {string} |When `IncludeDetailInExceptions=True` on multiplexer, it might include command and key, otherwise only command.|
+|Local-CPU | %CPU or Not Available |When  `IncludePerformanceCountersInExceptions=True` on multiplexer, Local CPU %age will be included in exception message. It might not work in all environments where application is hosted. |
+
