@@ -20,6 +20,6 @@
     <!-- net472 needs this for ZipArchive; I have no idea why this changed, but... meh; note this also demands SDK 2.1.400 -->
     <PackageReference Include="System.IO.Compression" Version="4.3.0" Condition="'$(TargetFramework)' == 'net472'" />
 
-    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="1.0.0-preview8.19405.3" />
+    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="1.1.0" />
   </ItemGroup>
 </Project>
