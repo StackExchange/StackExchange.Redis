@@ -61,7 +61,7 @@ namespace StackExchange.Redis.Tests
                     Assert.Equal(15, s0.PageSize);
                     Assert.Equal(15, s1.PageSize);
 
-                    // start at zero                    
+                    // start at zero
                     Assert.Equal(0, s0.Cursor);
                     Assert.Equal(s0.Cursor, s1.Cursor);
 

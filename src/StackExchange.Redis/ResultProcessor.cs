@@ -579,7 +579,7 @@ namespace StackExchange.Redis
                                 {
                                     var span = arr.FirstSpan;
                                     int offset = 0;
-                                    for (int i = 0; i < pairs.Length; i++)
+                                    for (int i = 0; i < count; i++)
                                     {
                                         pairs[i] = Parse(span[offset++], span[offset++]);
                                     }
