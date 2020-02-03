@@ -884,11 +884,6 @@ namespace StackExchange.Redis.KeyspaceIsolation
         IEnumerable<SortedSetEntry> IDatabase.SortedSetScan(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
             => Inner.SortedSetScan(ToInner(key), pattern, pageSize, cursor, pageOffset, flags);
 
-        public IEnumerable<SortedSetEntry> SortedSetScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
-        {
-            return Inner.SortedSetScan(ToInner(key), pattern, pageSize, cursor, pageOffset, flags);
-        }
-
         public bool KeyTouch(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             return Inner.KeyTouch(ToInner(key), flags);
