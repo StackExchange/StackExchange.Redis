@@ -1,6 +1,6 @@
 # Release Notes
 
-## 2.1.0
+## 2.1.0-preview
 
 - add: `IAsyncEnumerable<T>` scanning APIs now supported (#1087)
 - add: new API for use with misbehaving sync-contexts ([more info](https://stackexchange.github.io/StackExchange.Redis/ThreadTheft))
