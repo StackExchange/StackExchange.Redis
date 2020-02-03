@@ -1,5 +1,23 @@
 # Release Notes
 
+## 2.1.0
+
+- add: `IAsyncEnumerable<T>` scanning APIs now supported (#1087)
+- add: new API for use with misbehaving sync-contexts ([more info](https://stackexchange.github.io/StackExchange.Redis/ThreadTheft))
+- add: `TOUCH` support (#1291 via gkorland)
+- add: `Condition` API (transactions) now supports `SortedSetLengthEqual` (#1332 via phosphene47)
+- add: `SocketManager` is now more configurable (#1115, via naile)
+- add: NRediSearch updated in line with JRediSearch (#1267, via tombatron; #1199 via oruchreis)
+- add: support for `CheckCertificatRevocation` configuration (#1234, via BLun78 and V912736)
+- add: more details about exceptions (#1190, via marafiq)
+- add: new stream APIs (#1141 and #1154 via ttingen)
+- add: event-args now mockable (#1326 via n1l)
+- fix: no-op when adding 0 values to a set (#1283 via omeaart)
+- add: support for `LATENCY` and `MEMORY` (#1204)
+- add: support for `HSTRLEN` (#1241 via eitanhs)
+- add: `GeoRadiusResult` is now mockable (#1175 via firenero)
+- fix: various documentation fixes (#1162, #1135, #1203, #1240, #1245, #1159, #1311, #1339)
+
 ## 2.0.600
 
 - add `ulong` support to `RedisValue` and `RedisResult` (#1103)

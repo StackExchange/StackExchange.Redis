@@ -7,7 +7,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// Notification of errors from the redis server
     /// </summary>
-    public sealed class RedisErrorEventArgs : EventArgs, ICompletable
+    public class RedisErrorEventArgs : EventArgs, ICompletable
     {
         private readonly EventHandler<RedisErrorEventArgs> handler;
         private readonly object sender;
@@ -19,6 +19,17 @@ namespace StackExchange.Redis
             this.sender = sender;
             Message = message;
             EndPoint = endpoint;
+        }
+
+        /// <summary>
+        /// This constructor is only for testing purposes.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="endpoint">Redis endpoint.</param>
+        /// <param name="message">Error message.</param>
+        public RedisErrorEventArgs(object sender, EndPoint endpoint, string message)
+            : this (null, sender, endpoint, message)
+        {
         }
 
         /// <summary>

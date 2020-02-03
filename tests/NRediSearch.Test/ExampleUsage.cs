@@ -4,6 +4,7 @@ using System.Linq;
 using StackExchange.Redis;
 using Xunit;
 using Xunit.Abstractions;
+using static NRediSearch.Client;
 
 namespace NRediSearch.Test
 {
@@ -27,7 +28,7 @@ namespace NRediSearch.Test
             bool result = false;
             try
             {
-                result = client.CreateIndex(sc, Client.IndexOptions.Default);
+                result = client.CreateIndex(sc, new ConfiguredIndexOptions());
             }
             catch (RedisServerException ex)
             {

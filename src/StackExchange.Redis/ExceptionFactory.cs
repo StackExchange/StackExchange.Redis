@@ -246,6 +246,13 @@ namespace StackExchange.Redis
             if (server != null)
             {
                 server.GetOutstandingCount(message.Command, out int inst, out int qs, out long @in, out int qu, out bool aw, out long toRead, out long toWrite, out var bs, out var rs, out var ws);
+                switch(rs)
+                {
+                    case PhysicalConnection.ReadStatus.CompletePendingMessageAsync:
+                    case PhysicalConnection.ReadStatus.CompletePendingMessageSync:
+                        sb.Append(" ** possible thread-theft indicated; see https://stackexchange.github.io/StackExchange.Redis/ThreadTheft ** ");
+                        break;
+                }
                 add("OpsSinceLastHeartbeat", "inst", inst.ToString());
                 add("Queue-Awaiting-Write", "qu", qu.ToString());
                 add("Queue-Awaiting-Response", "qs", qs.ToString());

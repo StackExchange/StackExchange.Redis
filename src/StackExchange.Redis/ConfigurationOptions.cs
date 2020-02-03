@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
@@ -128,7 +128,7 @@ namespace StackExchange.Redis
             }
         }
 
-        private bool? allowAdmin, abortOnConnectFail, highPrioritySocketThreads, resolveDns, ssl;
+        private bool? allowAdmin, abortOnConnectFail, highPrioritySocketThreads, resolveDns, ssl, checkCertificateRevocation;
 
         private string tieBreaker, sslHost, configChannel;
 
@@ -183,6 +183,11 @@ namespace StackExchange.Redis
         /// Automatically encodes and decodes channels
         /// </summary>
         public RedisChannel ChannelPrefix { get; set; }
+
+        /// <summary>
+        /// A Boolean value that specifies whether the certificate revocation list is checked during authentication.
+        /// </summary>
+        public bool CheckCertificateRevocation {get { return checkCertificateRevocation ?? true; } set { checkCertificateRevocation = value; }}
 
         /// <summary>
         /// Create a certificate validation check that checks against the supplied issuer even if not known by the machine
@@ -345,8 +350,8 @@ namespace StackExchange.Redis
         public string ServiceName { get; set; }
 
         /// <summary>
-        /// Gets or sets the SocketManager instance to be used with these options; if this is null a per-multiplexer
-        /// SocketManager is created automatically.
+        /// Gets or sets the SocketManager instance to be used with these options; if this is null a shared cross-multiplexer SocketManager
+        /// is used
         /// </summary>
         public SocketManager SocketManager { get; set; }
 

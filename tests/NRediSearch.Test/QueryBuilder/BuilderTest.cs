@@ -1,14 +1,14 @@
-﻿using NRediSearch.Aggregation;
-using static NRediSearch.QueryBuilder.QueryBuilder;
-using static NRediSearch.QueryBuilder.Values;
-using static NRediSearch.Aggregation.Reducers.Reducers;
-using static NRediSearch.Aggregation.SortedField;
+﻿using System;
+using System.Collections.Generic;
+using NRediSearch.Aggregation;
+using NRediSearch.QueryBuilder;
+using StackExchange.Redis;
 using Xunit;
 using Xunit.Abstractions;
-using NRediSearch.QueryBuilder;
-using System;
-using StackExchange.Redis;
-using System.Collections.Generic;
+using static NRediSearch.Aggregation.Reducers.Reducers;
+using static NRediSearch.Aggregation.SortedField;
+using static NRediSearch.QueryBuilder.QueryBuilder;
+using static NRediSearch.QueryBuilder.Values;
 
 namespace NRediSearch.Test.QueryBuilder
 {
@@ -88,7 +88,7 @@ namespace NRediSearch.Test.QueryBuilder
         {
             Assert.Equal("*", GetArgsString(new AggregationRequest()));
             AggregationRequest r = new AggregationRequest().
-                    GroupBy("@actor", Count().As ("cnt")).
+                    GroupBy("@actor", Count().As("cnt")).
                 SortBy(Descending("@cnt"));
             Assert.Equal("* GROUPBY 1 @actor REDUCE COUNT 0 AS cnt SORTBY 2 @cnt DESC", GetArgsString(r));
 
@@ -102,6 +102,39 @@ namespace NRediSearch.Test.QueryBuilder
                 Limit(10);
             Assert.Equal("* GROUPBY 1 @brand REDUCE QUANTILE 2 @price 0.5 AS q50 REDUCE QUANTILE 2 @price 0.9 AS q90 REDUCE QUANTILE 2 @price 0.95 AS q95 REDUCE AVG 1 @price REDUCE COUNT 0 AS count LIMIT 0 10 SORTBY 2 @count DESC",
                     GetArgsString(r));
+        }
+
+        [Fact]
+        public void TestAggregationBuilder()
+        {
+            Assert.Equal("*", new AggregationBuilder().GetArgsString());
+
+            AggregationBuilder r1 = new AggregationBuilder()
+                .GroupBy("@actor", Count().As("cnt"))
+                .SortBy(Descending("@cnt"));
+
+            Assert.Equal("* GROUPBY 1 @actor REDUCE COUNT 0 AS cnt SORTBY 2 @cnt DESC", r1.GetArgsString());
+
+            Group group = new Group("@brand")
+                .Reduce(Quantile("@price", 0.50).As("q50"))
+                .Reduce(Quantile("@price", 0.90).As("q90"))
+                .Reduce(Quantile("@price", 0.95).As("q95"))
+                .Reduce(Avg("@price"))
+                .Reduce(Count().As("count"));
+            AggregationBuilder r2 = new AggregationBuilder()
+                .GroupBy(group)
+                .Limit(10)
+                .SortByDescending("@count");
+
+            Assert.Equal("* GROUPBY 1 @brand REDUCE QUANTILE 2 @price 0.5 AS q50 REDUCE QUANTILE 2 @price 0.9 AS q90 REDUCE QUANTILE 2 @price 0.95 AS q95 REDUCE AVG 1 @price REDUCE COUNT 0 AS count LIMIT 0 10 SORTBY 2 @count DESC",
+                    r2.GetArgsString());
+
+            AggregationBuilder r3 = new AggregationBuilder()
+                .Load("@count")
+                .Apply("@count%1000", "thousands")
+                .SortBy(Descending("@count"))
+                .Limit(0, 2);
+            Assert.Equal("* LOAD 1 @count APPLY @count%1000 AS thousands SORTBY 2 @count DESC LIMIT 0 2", r3.GetArgsString());
         }
     }
 }

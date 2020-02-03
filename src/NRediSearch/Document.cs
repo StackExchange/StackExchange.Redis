@@ -1,6 +1,5 @@
 ﻿// .NET port of https://github.com/RedisLabs/JRediSearch/
 
-using System;
 using System.Collections.Generic;
 using StackExchange.Redis;
 
@@ -18,7 +17,7 @@ namespace NRediSearch
         public Document(string id, double score, byte[] payload) : this(id, null, score, payload) { }
         public Document(string id) : this(id, null, 1.0, null) { }
 
-        public Document(string id, Dictionary<string, RedisValue> fields, double score) : this(id, fields, score, null) { }
+        public Document(string id, Dictionary<string, RedisValue> fields, double score = 1.0) : this(id, fields, score, null) { }
 
         public Document(string id, Dictionary<string, RedisValue> fields, double score, byte[] payload)
         {
