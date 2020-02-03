@@ -404,6 +404,7 @@ namespace StackExchange.Redis
                 case RedisCommand.SREM:
                 case RedisCommand.SUNIONSTORE:
                 case RedisCommand.SWAPDB:
+                case RedisCommand.TOUCH:
                 case RedisCommand.UNLINK:
                 case RedisCommand.ZADD:
                 case RedisCommand.ZINTERSTORE:
@@ -468,6 +469,15 @@ namespace StackExchange.Redis
             performance?.SetCompleted();
 
             currBox?.ActivateContinuations();
+        }
+
+        internal bool ResultBoxIsAsync
+        {
+            get
+            {
+                var currBox = Volatile.Read(ref resultBox);
+                return currBox != null && currBox.IsAsync;
+            }
         }
 
         internal static Message Create(int db, CommandFlags flags, RedisCommand command, in RedisKey key, RedisKey[] keys)

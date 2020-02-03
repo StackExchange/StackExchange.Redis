@@ -607,7 +607,8 @@ namespace StackExchange.Redis
         Task SwapDatabasesAsync(int first, int second, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// The TIME command returns the current server time.
+        /// The TIME command returns the current server time in UTC format.
+        /// Use the DateTime.ToLocalTime() method to get local time.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
         /// <returns>The server's current time.</returns>
@@ -615,7 +616,8 @@ namespace StackExchange.Redis
         DateTime Time(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// The TIME command returns the current server time.
+        /// The TIME command returns the current server time in UTC format.
+        /// Use the DateTime.ToLocalTime() method to get local time.
         /// </summary>
         /// <param name="flags">The command flags to use.</param>
         /// <returns>The server's current time.</returns>

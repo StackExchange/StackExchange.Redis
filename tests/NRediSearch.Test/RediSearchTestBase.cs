@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using StackExchange.Redis;
+using StackExchange.Redis.Tests;
 using Xunit.Abstractions;
 
 namespace NRediSearch.Test
@@ -44,10 +45,9 @@ namespace NRediSearch.Test
 
         internal static ConnectionMultiplexer GetWithFT(ITestOutputHelper output)
         {
-            const string ep = "127.0.0.1:6379";
             var options = new ConfigurationOptions
             {
-                EndPoints = { ep },
+                EndPoints = { TestConfig.Current.MasterServerAndPort },
                 AllowAdmin = true,
                 SyncTimeout = 15000,
             };
@@ -56,7 +56,10 @@ namespace NRediSearch.Test
             conn.Connecting += (e, t) => output.WriteLine($"Connecting to {Format.ToString(e)} as {t}");
             conn.Closing += complete => output.WriteLine(complete ? "Closed" : "Closing...");
 
-            var server = conn.GetServer(ep);
+            // If say we're on a 3.x Redis server...bomb out.
+            Skip.IfMissingFeature(conn, nameof(RedisFeatures.Module), r => r.Module);
+
+            var server = conn.GetServer(TestConfig.Current.MasterServerAndPort);
             var arr = (RedisResult[])server.Execute("module", "list");
             bool found = false;
             foreach (var module in arr)
@@ -83,7 +86,8 @@ namespace NRediSearch.Test
                     {
                         var result = server.Execute("module", "load", modulePath);
                         output?.WriteLine((string)result);
-                    } catch(RedisServerException err)
+                    }
+                    catch (RedisServerException err)
                     {
                         // *probably* duplicate load; we'll try the tests anyways!
                         output?.WriteLine(err.Message);

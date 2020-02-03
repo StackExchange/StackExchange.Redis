@@ -1731,7 +1731,21 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>Returns a value of <see cref="StreamEntry"/> for each message returned.</returns>
         /// <remarks>https://redis.io/commands/xreadgroup</remarks>
-        StreamEntry[] StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, CommandFlags flags = CommandFlags.None);
+        StreamEntry[] StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position, int? count, CommandFlags flags);
+
+        /// <summary>
+        /// Read messages from a stream into an associated consumer group.
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="groupName">The name of the consumer group.</param>
+        /// <param name="consumerName">The consumer name.</param>
+        /// <param name="position">The position from which to read the stream. Defaults to <see cref="StreamPosition.NewMessages"/> when null.</param>
+        /// <param name="count">The maximum number of messages to return.</param>
+        /// <param name="noAck">When true, the message will not be added to the pending message list.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>Returns a value of <see cref="StreamEntry"/> for each message returned.</returns>
+        /// <remarks>https://redis.io/commands/xreadgroup</remarks>
+        StreamEntry[] StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, bool noAck = false, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Read from multiple streams into the given consumer group. The consumer group with the given <paramref name="groupName"/>
@@ -1745,7 +1759,22 @@ namespace StackExchange.Redis
         /// <returns>A value of <see cref="RedisStream"/> for each stream.</returns>
         /// <remarks>Equivalent of calling XREADGROUP GROUP groupName consumerName COUNT countPerStream STREAMS stream1 stream2 id1 id2</remarks>
         /// <remarks>https://redis.io/commands/xreadgroup</remarks>
-        RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, CommandFlags flags = CommandFlags.None);
+        RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, CommandFlags flags);
+
+        /// <summary>
+        /// Read from multiple streams into the given consumer group. The consumer group with the given <paramref name="groupName"/>
+        /// will need to have been created for each stream prior to calling this method.
+        /// </summary>
+        /// <param name="streamPositions">Array of streams and the positions from which to begin reading for each stream.</param>
+        /// <param name="groupName">The name of the consumer group.</param>
+        /// <param name="consumerName"></param>
+        /// <param name="countPerStream">The maximum number of messages to return from each stream.</param>
+        /// <param name="noAck">When true, the message will not be added to the pending message list.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>A value of <see cref="RedisStream"/> for each stream.</returns>
+        /// <remarks>Equivalent of calling XREADGROUP GROUP groupName consumerName COUNT countPerStream STREAMS stream1 stream2 id1 id2</remarks>
+        /// <remarks>https://redis.io/commands/xreadgroup</remarks>
+        RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Trim the stream to a specified maximum length.
@@ -1990,5 +2019,23 @@ namespace StackExchange.Redis
         /// <returns>The length of the string after it was modified by the command.</returns>
         /// <remarks>https://redis.io/commands/setrange</remarks>
         RedisValue StringSetRange(RedisKey key, long offset, RedisValue value, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Alters the last access time of a key.
+        /// </summary>
+        /// <param name="key">The key to touch.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>True if the key was touched.</returns>
+        /// <remarks>https://redis.io/commands/touch</remarks>
+        bool KeyTouch(RedisKey key, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Alters the last access time of a keys. A key is ignored if it does not exist.
+        /// </summary>
+        /// <param name="keys">The keys to touch.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The number of keys that were touched.</returns>
+        /// <remarks>https://redis.io/commands/touch</remarks>
+        long KeyTouch(RedisKey[] keys, CommandFlags flags = CommandFlags.None);
     }
 }

@@ -8,8 +8,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		.editorconfig = .editorconfig
 		appveyor.yml = appveyor.yml
 		build.cmd = build.cmd
+		Build.csproj = Build.csproj
 		build.ps1 = build.ps1
-		Directory.build.props = Directory.build.props
+		Directory.Build.props = Directory.Build.props
 		global.json = global.json
 		NuGet.Config = NuGet.Config
 		docs\ReleaseNotes.md = docs\ReleaseNotes.md
@@ -86,8 +87,15 @@ EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "KestrelRedisServer", "toys\KestrelRedisServer\KestrelRedisServer.csproj", "{3DA1EEED-E9FE-43D9-B293-E000CFCCD91A}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{73A5C363-CA1F-44C4-9A9B-EF791A76BA6A}"
+	ProjectSection(SolutionItems) = preProject
+		tests\Directory.Build.props = tests\Directory.Build.props
+		tests\Directory.Build.targets = tests\Directory.Build.targets
+	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{00CA0876-DA9F-44E8-B0DC-A88716BF347A}"
+	ProjectSection(SolutionItems) = preProject
+		src\Directory.Build.props = src\Directory.Build.props
+	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "toys", "toys", "{E25031D3-5C64-430D-B86F-697B66816FD8}"
 EndProject
@@ -108,6 +116,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{153A10E4-E
 		docs\ReleaseNotes.md = docs\ReleaseNotes.md
 		docs\Scripting.md = docs\Scripting.md
 		docs\Testing.md = docs\Testing.md
+		docs\ThreadTheft.md = docs\ThreadTheft.md
 		docs\Timeouts.md = docs\Timeouts.md
 		docs\Transactions.md = docs\Transactions.md
 	EndProjectSection
