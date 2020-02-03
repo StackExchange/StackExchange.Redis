@@ -211,6 +211,18 @@ namespace NRediSearch
                 args.Add(_fields.Length.Boxed());
                 args.AddRange(_fields);
             }
+            if (_keys?.Length > 0)
+            {
+                args.Add("INKEYS".Literal());
+                args.Add(_keys.Length.Boxed());
+                args.AddRange(_keys);
+            }
+            if (_returnFields?.Length > 0)
+            {
+                args.Add("RETURN".Literal());
+                args.Add(_returnFields.Length.Boxed());
+                args.AddRange(_returnFields);
+            }
 
             if (SortBy != null)
             {
@@ -357,10 +369,14 @@ namespace NRediSearch
             return this;
         }
 
+        /// <summary>
+        /// Result's projection - the fields to return by the query
+        /// </summary>
+        /// <param name="fields">fields a list of TEXT fields in the schemas</param>
+        /// <returns>the query object itself</returns>
         public Query ReturnFields(params string[] fields)
         {
             _returnFields = fields;
-
             return this;
         }
 

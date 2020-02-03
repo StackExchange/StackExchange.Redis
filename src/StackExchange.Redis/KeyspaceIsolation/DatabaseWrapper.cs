@@ -661,9 +661,14 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StreamConsumerGroupSetPosition(ToInner(key), groupName, position, flags);
         }
 
-        public bool StreamCreateConsumerGroup(RedisKey key, RedisValue groupName, RedisValue? position = null, CommandFlags flags = CommandFlags.None)
+        public bool StreamCreateConsumerGroup(RedisKey key, RedisValue groupName, RedisValue? position, CommandFlags flags)
         {
             return Inner.StreamCreateConsumerGroup(ToInner(key), groupName, position, flags);
+        }
+
+        public bool StreamCreateConsumerGroup(RedisKey key, RedisValue groupName, RedisValue? position = null, bool createStream = true, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StreamCreateConsumerGroup(ToInner(key), groupName, position, createStream, flags);
         }
 
         public StreamInfo StreamInfo(RedisKey key, CommandFlags flags = CommandFlags.None)
@@ -726,14 +731,24 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StreamRead(streamPositions, countPerStream, flags);
         }
 
-        public StreamEntry[] StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, CommandFlags flags = CommandFlags.None)
+        public StreamEntry[] StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position, int? count, CommandFlags flags)
         {
             return Inner.StreamReadGroup(ToInner(key), groupName, consumerName, position, count, flags);
         }
 
-        public RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, CommandFlags flags = CommandFlags.None)
+        public StreamEntry[] StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, bool noAck = false, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StreamReadGroup(ToInner(key), groupName, consumerName, position, count, noAck, flags);
+        }
+
+        public RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, CommandFlags flags)
         {
             return Inner.StreamReadGroup(streamPositions, groupName, consumerName, countPerStream, flags);
+        }
+
+        public RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StreamReadGroup(streamPositions, groupName, consumerName, countPerStream, noAck, flags);
         }
 
         public long StreamTrim(RedisKey key, int maxLength, bool useApproximateMaxLength = false, CommandFlags flags = CommandFlags.None)
@@ -880,5 +895,16 @@ namespace StackExchange.Redis.KeyspaceIsolation
         {
             return Inner.SortedSetScan(ToInner(key), pattern, pageSize, cursor, pageOffset, flags);
         }
+
+        public bool KeyTouch(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.KeyTouch(ToInner(key), flags);
+        }
+
+        public long KeyTouch(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.KeyTouch(ToInner(keys), flags);
+        }
+
     }
 }

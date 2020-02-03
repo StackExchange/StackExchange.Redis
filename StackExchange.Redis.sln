@@ -116,6 +116,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{153A10E4-E
 		docs\ReleaseNotes.md = docs\ReleaseNotes.md
 		docs\Scripting.md = docs\Scripting.md
 		docs\Testing.md = docs\Testing.md
+		docs\ThreadTheft.md = docs\ThreadTheft.md
 		docs\Timeouts.md = docs\Timeouts.md
 		docs\Transactions.md = docs\Transactions.md
 	EndProjectSection

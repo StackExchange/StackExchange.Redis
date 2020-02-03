@@ -108,7 +108,15 @@ namespace StackExchange.Redis
             // nothing to do re recycle: TaskCompletionSource<T> cannot be recycled
         }
 
+        static readonly WaitCallback s_ActivateContinuations = state => ((TaskResultBox<T>)state).ActivateContinuationsImpl();
         void IResultBox.ActivateContinuations()
+        {
+            if ((Task.CreationOptions & TaskCreationOptions.RunContinuationsAsynchronously) == 0)
+                ThreadPool.UnsafeQueueUserWorkItem(s_ActivateContinuations, this);
+            else
+                ActivateContinuationsImpl();
+        }
+        private void ActivateContinuationsImpl()
         {
             var val = _value;
             var ex = _exception;
@@ -129,15 +137,14 @@ namespace StackExchange.Redis
 
         public static IResultBox<T> Create(out TaskCompletionSource<T> source, object asyncState)
         {
-            // since 2.0, we only support platforms where this is correctly implemented
-            const TaskCreationOptions CreationOptions = TaskCreationOptions.RunContinuationsAsynchronously;
-
             // it might look a little odd to return the same object as two different things,
             // but that's because it is serving two purposes, and I want to make it clear
             // how it is being used in those 2 different ways; also, the *fact* that they
             // are the same underlying object is an implementation detail that the rest of
             // the code doesn't need to know about
-            var obj = new TaskResultBox<T>(asyncState, CreationOptions);
+            var obj = new TaskResultBox<T>(asyncState, ConnectionMultiplexer.PreventThreadTheft
+                ? TaskCreationOptions.None // if we don't trust the TPL/sync-context, avoid a double QUWI dispatch
+                : TaskCreationOptions.RunContinuationsAsynchronously);
             source = obj;
             return obj;
         }

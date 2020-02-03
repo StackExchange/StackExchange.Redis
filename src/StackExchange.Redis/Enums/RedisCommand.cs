@@ -161,6 +161,7 @@
         SYNC,
 
         TIME,
+        TOUCH,
         TTL,
         TYPE,
 
