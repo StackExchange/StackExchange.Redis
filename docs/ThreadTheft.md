@@ -25,7 +25,7 @@ to run whatever it is that your continuation wanted. In our case, that would be 
 as that would mean that the dedicated reader loop (that is meant to be processing results
 from redis) is now running your application logic instead; this is **thread theft**, and
 would exhibit as lots of timeouts with `rs: CompletePendingMessage` in the information (`rs`
-is the **r**eader **s**tate; you shouldn't often observe it in the `CompletePendingMessage`
+is the **r**eader **s**tate; you shouldn't often observe it in the `CompletePendingMessage*`
 step, because it is meant to be very fast; if you are seeing it often it probably means
 that the reader is being hijacked when trying to set results).
 

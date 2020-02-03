@@ -12,7 +12,7 @@ namespace StackExchange.Redis.Tests
     public sealed class DatabaseWrapperTests
     {
         private readonly Mock<IDatabase> mock;
-        private readonly DatabaseWrapper wrapper;
+        private readonly IDatabase wrapper;
 
         public DatabaseWrapperTests()
         {
@@ -148,7 +148,14 @@ namespace StackExchange.Redis.Tests
         public void HashScan()
         {
             wrapper.HashScan("key", "pattern", 123, flags: CommandFlags.None);
-            mock.Verify(_ => _.HashScan("prefix:key", "pattern", 123, 0, 0, CommandFlags.None));
+            mock.Verify(_ => _.HashScan("prefix:key", "pattern", 123, CommandFlags.None));
+        }
+
+        [Fact]
+        public void HashScan_Full()
+        {
+            wrapper.HashScan("key", "pattern", 123, 42, 64, flags: CommandFlags.None);
+            mock.Verify(_ => _.HashScan("prefix:key", "pattern", 123, 42, 64, CommandFlags.None));
         }
 
         [Fact]
@@ -619,7 +626,14 @@ namespace StackExchange.Redis.Tests
         public void SetScan()
         {
             wrapper.SetScan("key", "pattern", 123, flags: CommandFlags.None);
-            mock.Verify(_ => _.SetScan("prefix:key", "pattern", 123, 0, 0, CommandFlags.None));
+            mock.Verify(_ => _.SetScan("prefix:key", "pattern", 123, CommandFlags.None));
+        }
+
+        [Fact]
+        public void SetScan_Full()
+        {
+            wrapper.SetScan("key", "pattern", 123, 42, 64, flags: CommandFlags.None);
+            mock.Verify(_ => _.SetScan("prefix:key", "pattern", 123, 42, 64, CommandFlags.None));
         }
 
         [Fact]
@@ -796,7 +810,14 @@ namespace StackExchange.Redis.Tests
         public void SortedSetScan()
         {
             wrapper.SortedSetScan("key", "pattern", 123, flags: CommandFlags.None);
-            mock.Verify(_ => _.SortedSetScan("prefix:key", "pattern", 123, 0, 0, CommandFlags.None));
+            mock.Verify(_ => _.SortedSetScan("prefix:key", "pattern", 123, CommandFlags.None));
+        }
+
+        [Fact]
+        public void SortedSetScan_Full()
+        {
+            wrapper.SortedSetScan("key", "pattern", 123, 42, 64, flags: CommandFlags.None);
+            mock.Verify(_ => _.SortedSetScan("prefix:key", "pattern", 123, 42, 64, CommandFlags.None));
         }
 
         [Fact]

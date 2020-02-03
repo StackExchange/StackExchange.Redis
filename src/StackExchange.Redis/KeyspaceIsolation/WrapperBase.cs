@@ -123,6 +123,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.HashLengthAsync(ToInner(key), flags);
         }
 
+        public IAsyncEnumerable<HashEntry> HashScanAsync(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
+            => Inner.HashScanAsync(ToInner(key), pattern, pageSize, cursor, pageOffset, flags);
+
         public Task<bool> HashSetAsync(RedisKey key, RedisValue hashField, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
             return Inner.HashSetAsync(ToInner(key), hashField, value, when, flags);
@@ -466,6 +469,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.SetRemoveAsync(ToInner(key), values, flags);
         }
 
+        public IAsyncEnumerable<RedisValue> SetScanAsync(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
+            => Inner.SetScanAsync(ToInner(key), pattern, pageSize, cursor, pageOffset, flags);
+
         public Task<bool> SetRemoveAsync(RedisKey key, RedisValue value, CommandFlags flags = CommandFlags.None)
         {
             return Inner.SetRemoveAsync(ToInner(key), value, flags);
@@ -595,6 +601,9 @@ namespace StackExchange.Redis.KeyspaceIsolation
         {
             return Inner.SortedSetScoreAsync(ToInner(key), member, flags);
         }
+
+        public IAsyncEnumerable<SortedSetEntry> SortedSetScanAsync(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
+            => Inner.SortedSetScanAsync(ToInner(key), pattern, pageSize, cursor, pageOffset, flags);
 
         public Task<SortedSetEntry?> SortedSetPopAsync(RedisKey key, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
         {

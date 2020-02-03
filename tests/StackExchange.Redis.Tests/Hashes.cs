@@ -40,6 +40,55 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public async Task ScanAsync()
+        {
+            using (var muxer = Create())
+            {
+                Skip.IfMissingFeature(muxer, nameof(RedisFeatures.Scan), r => r.Scan);
+                var conn = muxer.GetDatabase();
+                var key = Me();
+                await conn.KeyDeleteAsync(key);
+                for(int i = 0; i < 200; i++)
+                {
+                    await conn.HashSetAsync(key, "key" + i, "value " + i);
+                }
+
+                int count = 0;
+                // works for async
+                await foreach(var item in conn.HashScanAsync(key, pageSize: 20))
+                {
+                    count++;
+                }
+                Assert.Equal(200, count);
+
+                // and sync=>async (via cast)
+                count = 0;
+                await foreach (var item in (IAsyncEnumerable<HashEntry>)conn.HashScan(key, pageSize: 20))
+                {
+                    count++;
+                }
+                Assert.Equal(200, count);
+
+                // and sync (native)
+                count = 0;
+                foreach (var item in conn.HashScan(key, pageSize: 20))
+                {
+                    count++;
+                }
+                Assert.Equal(200, count);
+
+                // and async=>sync (via cast)
+                count = 0;
+                foreach (var item in (IEnumerable<HashEntry>)conn.HashScanAsync(key, pageSize: 20))
+                {
+                    count++;
+                }
+                Assert.Equal(200, count);
+
+            }
+        }
+
+        [Fact]
         public void Scan()
         {
             using (var muxer = Create())

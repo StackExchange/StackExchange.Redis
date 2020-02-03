@@ -29,8 +29,19 @@ namespace StackExchange.Redis.Tests
                     db.StringSet(prefix + i, Guid.NewGuid().ToString(), flags: CommandFlags.FireAndForget);
                 }
                 var seq = server.Keys(dbId, pageSize: 50);
-                bool isScanning = seq is IScanningCursor;
-                Assert.Equal(supported, isScanning);
+                var cur = seq as IScanningCursor;
+                Assert.NotNull(cur);
+                Log($"Cursor: {cur.Cursor}, PageOffset: {cur.PageOffset}, PageSize: {cur.PageSize}");
+                Assert.Equal(0, cur.PageOffset);
+                Assert.Equal(0, cur.Cursor);
+                if (supported)
+                {
+                    Assert.Equal(50, cur.PageSize);
+                }
+                else
+                {
+                    Assert.Equal(int.MaxValue, cur.PageSize);
+                }
                 Assert.Equal(100, seq.Distinct().Count());
                 Assert.Equal(100, seq.Distinct().Count());
                 Assert.Equal(100, server.Keys(dbId, prefix + "*").Distinct().Count());
@@ -61,7 +72,7 @@ namespace StackExchange.Redis.Tests
                     Assert.Equal(15, s0.PageSize);
                     Assert.Equal(15, s1.PageSize);
 
-                    // start at zero                    
+                    // start at zero
                     Assert.Equal(0, s0.Cursor);
                     Assert.Equal(s0.Cursor, s1.Cursor);
 
