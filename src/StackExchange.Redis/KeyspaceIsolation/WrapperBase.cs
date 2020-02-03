@@ -831,6 +831,17 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.PingAsync(flags);
         }
 
+
+        public Task<long> KeyTouchAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.KeyTouchAsync(ToInner(keys), flags);
+        }
+
+        public Task<bool> KeyTouchAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.KeyTouchAsync(ToInner(key), flags);
+        }
+
         public bool TryWait(Task task)
         {
             return Inner.TryWait(task);

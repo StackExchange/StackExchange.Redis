@@ -880,5 +880,16 @@ namespace StackExchange.Redis.KeyspaceIsolation
         {
             return Inner.SortedSetScan(ToInner(key), pattern, pageSize, cursor, pageOffset, flags);
         }
+
+        public bool KeyTouch(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.KeyTouch(ToInner(key), flags);
+        }
+
+        public long KeyTouch(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.KeyTouch(ToInner(keys), flags);
+        }
+
     }
 }

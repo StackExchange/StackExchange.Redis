@@ -31,6 +31,7 @@ namespace StackExchange.Redis
                                          v2_9_5 = new Version(2, 9, 5),
                                          v3_0_0 = new Version(3, 0, 0),
                                          v3_2_0 = new Version(3, 2, 0),
+                                         v3_2_1 = new Version(3, 2, 1),
                                          v4_0_0 = new Version(4, 0, 0),
                                          v4_9_1 = new Version(4, 9, 1); // 5.0 RC1 is version 4.9.1
 
@@ -204,6 +205,11 @@ namespace StackExchange.Redis
         /// The Redis version of the server
         /// </summary>
         public Version Version => version ?? v2_0_0;
+
+        /// <summary>
+        /// Are the Touch command available?
+        /// </summary>
+        public bool KeyTouch => Version >= v3_2_1;
 
         /// <summary>
         /// Create a string representation of the available features
