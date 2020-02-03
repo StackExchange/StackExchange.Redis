@@ -19,6 +19,16 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// This constructor is only for testing purposes.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="endpoint">Redis endpoint.</param>
+        public EndPointEventArgs(object sender, EndPoint endpoint)
+            : this (null, sender, endpoint)
+        {
+        }
+
+        /// <summary>
         /// The endpoint involved in this event (this can be null)
         /// </summary>
         public EndPoint EndPoint { get; }
