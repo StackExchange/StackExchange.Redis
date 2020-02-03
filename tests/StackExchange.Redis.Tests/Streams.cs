@@ -1638,6 +1638,77 @@ namespace StackExchange.Redis.Tests
             }
         }
 
+        [Fact]
+        public void StreamReadGroupWithNoAckShowsNoPendingMessages()
+        {
+            var key = GetUniqueKey("read_group_noack");
+            const string groupName = "test_group";
+            const string consumer = "consumer";
+
+            using (var conn = Create())
+            {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+
+                var db = conn.GetDatabase();
+
+                db.StreamAdd(key, "field1", "value1");
+                db.StreamAdd(key, "field2", "value2");
+
+                db.StreamCreateConsumerGroup(key, groupName, StreamPosition.NewMessages);
+
+                var messages = db.StreamReadGroup(key,
+                    groupName,
+                    consumer,
+                    StreamPosition.NewMessages,
+                    noAck: true);
+
+                var pendingInfo = db.StreamPending(key, groupName);
+
+                Assert.Equal(0, pendingInfo.PendingMessageCount);
+            }
+        }
+
+        [Fact]
+        public void StreamReadGroupMultiStreamWithNoAckShowsNoPendingMessages()
+        {
+            var key1 = GetUniqueKey("read_group_noack1");
+            var key2 = GetUniqueKey("read_group_noack2");
+            const string groupName = "test_group";
+            const string consumer = "consumer";
+
+            using (var conn = Create())
+            {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+
+                var db = conn.GetDatabase();
+
+                db.StreamAdd(key1, "field1", "value1");
+                db.StreamAdd(key1, "field2", "value2");
+
+                db.StreamAdd(key2, "field3", "value3");
+                db.StreamAdd(key2, "field4", "value4");
+
+                db.StreamCreateConsumerGroup(key1, groupName, StreamPosition.NewMessages);
+                db.StreamCreateConsumerGroup(key2, groupName, StreamPosition.NewMessages);
+
+                var messages = db.StreamReadGroup(
+                    new StreamPosition[]
+                    {
+                        new StreamPosition(key1, StreamPosition.NewMessages),
+                        new StreamPosition(key2, StreamPosition.NewMessages)
+                    },
+                    groupName,
+                    consumer,
+                    noAck: true);
+
+                var pending1 = db.StreamPending(key1, groupName);
+                var pending2 = db.StreamPending(key2, groupName);
+
+                Assert.Equal(0, pending1.PendingMessageCount);
+                Assert.Equal(0, pending2.PendingMessageCount);
+            }
+        }
+
         private RedisKey GetUniqueKey(string type) => $"{type}_stream_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
     }
 }
