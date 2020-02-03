@@ -52,11 +52,13 @@ namespace StackExchange.Redis
             public readonly long Cursor;
             public readonly T[] ValuesOversized;
             public readonly int Count;
-            public ScanResult(long cursor, T[] valuesOversized, int count)
+            public readonly bool IsPooled;
+            public ScanResult(long cursor, T[] valuesOversized, int count, bool isPooled)
             {
                 Cursor = cursor;
                 ValuesOversized = valuesOversized;
                 Count = count;
+                IsPooled = isPooled;
             }
         }
 
@@ -116,7 +118,7 @@ namespace StackExchange.Redis
             private void SetComplete()
             {
                 _pageIndex = _pageCount = 0;
-                Recycle(ref _pageOversized);
+                Recycle(ref _pageOversized, ref _isPooled);
                 switch (_state)
                 {
                     case State.Initial:
@@ -150,6 +152,7 @@ namespace StackExchange.Redis
 
             private T[] _pageOversized;
             private int _pageCount;
+            private bool _isPooled;
             private Task<ScanResult> _pending;
             private Message _pendingMessage;
             private int _pageIndex;
@@ -169,8 +172,9 @@ namespace StackExchange.Redis
                 _currentCursor = _nextCursor;
                 _nextCursor = result.Cursor;
                 _pageIndex = _state == State.Initial ? parent.initialOffset - 1 :  -1;
-                Recycle(ref _pageOversized); // recycle any existing data
+                Recycle(ref _pageOversized, ref _isPooled); // recycle any existing data
                 _pageOversized = result.ValuesOversized ?? Array.Empty<T>();
+                _isPooled = result.IsPooled;
                 _pageCount = result.Count;
                 if (_nextCursor == RedisBase.CursorUtils.Origin)
                 {   // eof
@@ -180,7 +184,7 @@ namespace StackExchange.Redis
                 else
                 {
                     // start the next page right away
-                    parent.GetNextPageAsync(this, _nextCursor, out _pendingMessage);
+                    _pending = parent.GetNextPageAsync(this, _nextCursor, out _pendingMessage);
                 }
             }
 
@@ -243,12 +247,13 @@ namespace StackExchange.Redis
                 return false;
             }
 
-            static void Recycle(ref T[] array)
+            static void Recycle(ref T[] array, ref bool isPooled)
             {
                 var tmp = array;
                 array = null;
-                if (tmp != null && tmp.Length != 0)
+                if (tmp != null && tmp.Length != 0 && isPooled)
                     ArrayPool<T>.Shared.Return(tmp);
+                isPooled = false;
             }
 
             /// <summary>
@@ -260,8 +265,9 @@ namespace StackExchange.Redis
                 _nextCursor = _currentCursor = parent.initialCursor;
                 _pageIndex = parent.initialOffset; // don't -1 here; this makes it look "right" before incremented
                 _state = State.Initial;
-                Recycle(ref _pageOversized);
+                Recycle(ref _pageOversized, ref _isPooled);
                 _pageOversized = Array.Empty<T>();
+                _isPooled = false;
                 _pageCount = 0;
                 _pending = null;
                 _pendingMessage = null;
@@ -306,7 +312,7 @@ namespace StackExchange.Redis
             private async Task<ScanResult> AwaitedGetNextPageAsync()
             {
                 var arr = (await _pending.ForAwait()) ?? Array.Empty<T>();
-                return new ScanResult(RedisBase.CursorUtils.Origin, arr, arr.Length);
+                return new ScanResult(RedisBase.CursorUtils.Origin, arr, arr.Length, false);
             }
             private protected override ResultProcessor<ScanResult> Processor => null;
             private protected override Message CreateMessage(long cursor) => null;

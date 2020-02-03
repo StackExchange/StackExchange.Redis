@@ -782,7 +782,7 @@ namespace StackExchange.Redis
                                     keys = ArrayPool<RedisKey>.Shared.Rent(count);
                                     items.CopyTo(keys, (in RawResult r) => r.AsRedisKey());
                                 }
-                                var keysResult = new ScanResult(i64, keys, count);
+                                var keysResult = new ScanResult(i64, keys, count, true);
                                 SetResult(message, keysResult);
                                 return true;
                             }

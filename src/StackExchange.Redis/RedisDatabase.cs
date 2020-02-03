@@ -1422,10 +1422,10 @@ namespace StackExchange.Redis
             => SetScanAsync(key, pattern, pageSize, CursorUtils.Origin, 0, flags);
 
         IEnumerable<RedisValue> IDatabase.SetScan(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
-            => SetScanAsync(key, pattern, pageOffset, cursor, pageOffset, flags);
+            => SetScanAsync(key, pattern, pageSize, cursor, pageOffset, flags);
 
         IAsyncEnumerable<RedisValue> IDatabaseAsync.SetScanAsync(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
-            => SetScanAsync(key, pattern, pageOffset, cursor, pageOffset, flags);
+            => SetScanAsync(key, pattern, pageSize, cursor, pageOffset, flags);
 
         private CursorEnumerable<RedisValue> SetScanAsync(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
         {
@@ -3490,7 +3490,8 @@ namespace StackExchange.Redis
         private CursorEnumerable<T> TryScan<T>(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags, RedisCommand command, ResultProcessor<ScanEnumerable<T>.ScanResult> processor, out ServerEndPoint server)
         {
             server = null;
-            if (pageSize <= 0) throw new ArgumentOutOfRangeException(nameof(pageSize));
+            if (pageSize <= 0)
+                throw new ArgumentOutOfRangeException(nameof(pageSize));
             if (!multiplexer.CommandMap.IsAvailable(command)) return null;
 
             var features = GetFeatures(key, flags, out server);
@@ -3658,7 +3659,7 @@ namespace StackExchange.Redis
                             if (inner.Type == ResultType.MultiBulk && arr[0].TryGetInt64(out var i64))
                             {
                                 T[] oversized = Parse(inner, out int count);
-                                var sscanResult = new ScanEnumerable<T>.ScanResult(i64, oversized, count);
+                                var sscanResult = new ScanEnumerable<T>.ScanResult(i64, oversized, count, true);
                                 SetResult(message, sscanResult);
                                 return true;
                             }
