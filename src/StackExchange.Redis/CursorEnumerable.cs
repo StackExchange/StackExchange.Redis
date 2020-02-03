@@ -167,11 +167,11 @@ namespace StackExchange.Redis
                 Disposed,
             }
 
-            private void ProcessReply(in ScanResult result)
+            private void ProcessReply(in ScanResult result, bool isInitial)
             {
                 _currentCursor = _nextCursor;
                 _nextCursor = result.Cursor;
-                _pageIndex = _state == State.Initial ? parent.initialOffset - 1 :  -1;
+                _pageIndex = isInitial ? parent.initialOffset - 1 :  -1;
                 Recycle(ref _pageOversized, ref _isPooled); // recycle any existing data
                 _pageOversized = result.ValuesOversized ?? Array.Empty<T>();
                 _isPooled = result.IsPooled;
@@ -212,18 +212,21 @@ namespace StackExchange.Redis
             private ValueTask<bool> SlowNextAsync()
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                bool isInitial = false;
                 switch (_state)
                 {
                     case State.Initial:
                         _pending = parent.GetNextPageAsync(this, _nextCursor, out _pendingMessage);
+                        isInitial = true;
                         _state = State.Running;
                         goto case State.Running;
                     case State.Running:
                         Task<ScanResult> pending;
                         while ((pending = _pending) != null & _state == State.Running)
                         {
-                            if (!pending.IsCompleted) return AwaitedNextAsync();
-                            ProcessReply(pending.Result);
+                            if (!pending.IsCompleted) return AwaitedNextAsync(isInitial);
+                            ProcessReply(pending.Result, isInitial);
+                            isInitial = false;
                             if (SimpleNext()) return new ValueTask<bool>(true);
                         }
                         SetComplete();
@@ -235,12 +238,13 @@ namespace StackExchange.Redis
                 }
             }
 
-            private async ValueTask<bool> AwaitedNextAsync()
+            private async ValueTask<bool> AwaitedNextAsync(bool isInitial)
             {
                 Task<ScanResult> pending;
                 while ((pending = _pending) != null & _state == State.Running)
                 {
-                    ProcessReply(await pending.ForAwait());
+                    ProcessReply(await pending.ForAwait(), isInitial);
+                    isInitial = false;
                     if (SimpleNext()) return true;
                 }
                 SetComplete();
