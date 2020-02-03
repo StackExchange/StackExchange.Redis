@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
@@ -350,8 +350,8 @@ namespace StackExchange.Redis
         public string ServiceName { get; set; }
 
         /// <summary>
-        /// Gets or sets the SocketManager instance to be used with these options; if this is null a per-multiplexer
-        /// SocketManager is created automatically.
+        /// Gets or sets the SocketManager instance to be used with these options; if this is null a shared cross-multiplexer SocketManager
+        /// is used
         /// </summary>
         public SocketManager SocketManager { get; set; }
 

@@ -20,43 +20,11 @@ namespace StackExchange.Redis
         public string Name { get; }
 
         /// <summary>
-        /// Creates a new (optionally named) <see cref="SocketManager"/> instance
+        /// Creates a new <see cref="SocketManager"/> instance
         /// </summary>
         /// <param name="name">The name for this <see cref="SocketManager"/>.</param>
-        public SocketManager(string name = null)
-            : this(name, false, DEFAULT_WORKERS) { }
-
-        /// <summary>
-        /// Default / shared socket manager
-        /// </summary>
-        public static SocketManager Shared
-        {
-            get
-            {
-                var shared = _shared;
-                if (shared != null) return _shared;
-                try
-                {
-                    // note: we'll allow a higher max thread count on the shared one
-                    shared = new SocketManager("DefaultSocketManager", false, DEFAULT_WORKERS * 2);
-                    if (Interlocked.CompareExchange(ref _shared, shared, null) == null)
-                        shared = null;
-                }
-                finally { shared?.Dispose(); }
-                return Volatile.Read(ref _shared);
-            }
-        }
-
-        /// <summary>Returns a string that represents the current object.</summary>
-        /// <returns>A string that represents the current object.</returns>
-        public override string ToString()
-        {
-            var scheduler = SchedulerPool;
-
-            return $"scheduler - queue: {scheduler?.TotalServicedByQueue}, pool: {scheduler?.TotalServicedByPool}";
-        }
-
-        private static SocketManager _shared;
+        public SocketManager(string name)
+            : this(name, DEFAULT_WORKERS, false) { }
 
         /// <summary>
         /// Creates a new <see cref="SocketManager"/> instance
@@ -64,13 +32,18 @@ namespace StackExchange.Redis
         /// <param name="name">The name for this <see cref="SocketManager"/>.</param>
         /// <param name="useHighPrioritySocketThreads">Whether this <see cref="SocketManager"/> should use high priority sockets.</param>
         public SocketManager(string name, bool useHighPrioritySocketThreads)
-            : this(name, useHighPrioritySocketThreads, DEFAULT_WORKERS) { }
+            : this(name, DEFAULT_WORKERS, useHighPrioritySocketThreads) { }
 
-        private const int DEFAULT_WORKERS = 5, MINIMUM_SEGMENT_SIZE = 8 * 1024;
-
-        private SocketManager(string name, bool useHighPrioritySocketThreads, int workerCount)
+        /// <summary>
+        /// Creates a new (optionally named) <see cref="SocketManager"/> instance
+        /// </summary>
+        /// <param name="name">The name for this <see cref="SocketManager"/>.</param>
+        /// <param name="workerCount">the number of dedicated workers for this <see cref="SocketManager"/>.</param>
+        /// <param name="useHighPrioritySocketThreads">Whether this <see cref="SocketManager"/> should use high priority sockets.</param>
+        public SocketManager(string name = null, int workerCount = 0, bool useHighPrioritySocketThreads = false)
         {
             if (string.IsNullOrWhiteSpace(name)) name = GetType().Name;
+            if (workerCount <= 0) workerCount = DEFAULT_WORKERS;
             Name = name;
 
             const long Receive_PauseWriterThreshold = 4L * 1024 * 1024 * 1024; // receive: let's give it up to 4GiB of buffer for now
@@ -105,6 +78,40 @@ namespace StackExchange.Redis
                 minimumSegmentSize: Math.Max(defaultPipeOptions.MinimumSegmentSize, MINIMUM_SEGMENT_SIZE),
                 useSynchronizationContext: false);
         }
+
+        /// <summary>
+        /// Default / shared socket manager
+        /// </summary>
+        public static SocketManager Shared
+        {
+            get
+            {
+                var shared = _shared;
+                if (shared != null) return _shared;
+                try
+                {
+                    // note: we'll allow a higher max thread count on the shared one
+                    shared = new SocketManager("DefaultSocketManager", DEFAULT_WORKERS * 2, false);
+                    if (Interlocked.CompareExchange(ref _shared, shared, null) == null)
+                        shared = null;
+                }
+                finally { shared?.Dispose(); }
+                return Volatile.Read(ref _shared);
+            }
+        }
+
+        /// <summary>Returns a string that represents the current object.</summary>
+        /// <returns>A string that represents the current object.</returns>
+        public override string ToString()
+        {
+            var scheduler = SchedulerPool;
+
+            return $"scheduler - queue: {scheduler?.TotalServicedByQueue}, pool: {scheduler?.TotalServicedByPool}";
+        }
+
+        private static SocketManager _shared;
+
+        private const int DEFAULT_WORKERS = 5, MINIMUM_SEGMENT_SIZE = 8 * 1024;
 
         private DedicatedThreadPoolPipeScheduler _schedulerPool;
         internal readonly PipeOptions SendPipeOptions, ReceivePipeOptions;
