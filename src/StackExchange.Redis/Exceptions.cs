@@ -132,13 +132,13 @@ namespace StackExchange.Redis
     public partial class RedisException : Exception
     {
         /// <summary>
-        /// Crerates a new <see cref="RedisException"/>.
+        /// Creates a new <see cref="RedisException"/>.
         /// </summary>
         /// <param name="message">The message for the exception.</param>
         public RedisException(string message) : base(message) { }
 
         /// <summary>
-        /// Crerates a new <see cref="RedisException"/>.
+        /// Creates a new <see cref="RedisException"/>.
         /// </summary>
         /// <param name="message">The message for the exception.</param>
         /// <param name="innerException">The inner exception.</param>
