@@ -1,6 +1,7 @@
 image:
 - Visual Studio 2019
 - Ubuntu
+- vs2019-gce
 
 init:
   - git config --global core.autocrlf input
