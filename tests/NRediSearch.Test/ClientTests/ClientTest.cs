@@ -9,6 +9,7 @@ using static NRediSearch.SuggestionOptions;
 
 namespace NRediSearch.Test.ClientTests
 {
+    [Collection(NonParallelCollection.Name)]
     public class ClientTest : RediSearchTestBase
     {
         public ClientTest(ITestOutputHelper output) : base(output) { }
