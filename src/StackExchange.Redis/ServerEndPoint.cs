@@ -81,15 +81,16 @@ namespace StackExchange.Redis
         {
             get
             {
-                var tmp1 = interactive;
-                var tmp2 = subscription;
+                var snapshot = interactive;
+                var subEx = subscription?.LastException;
+                var subExData = subEx?.Data;
 
                 //check if subscription endpoint has a better lastexception
-                if (tmp2?.LastException != null && tmp2.LastException.Data.Contains("Redis-FailureType") && !tmp2.LastException.Data["Redis-FailureType"].ToString().Equals(nameof(ConnectionFailureType.UnableToConnect)))
+                if (subExData != null && subExData.Contains("Redis-FailureType") && subExData["Redis-FailureType"]?.ToString() != nameof(ConnectionFailureType.UnableToConnect))
                 {
-                    return tmp2.LastException;
+                    return subEx;
                 }
-                return tmp1?.LastException;
+                return snapshot?.LastException;
             }
         }
 

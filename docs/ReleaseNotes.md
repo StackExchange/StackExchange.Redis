@@ -17,6 +17,7 @@
 - add: support for `HSTRLEN` (#1241 via eitanhs)
 - add: `GeoRadiusResult` is now mockable (#1175 via firenero)
 - fix: various documentation fixes (#1162, #1135, #1203, #1240, #1245, #1159, #1311, #1339)
+- fix: rare race-condition around exception data (#1342)
 
 ## 2.0.600
 
