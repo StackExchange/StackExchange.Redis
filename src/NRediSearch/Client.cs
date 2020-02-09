@@ -218,7 +218,7 @@ namespace NRediSearch
             q.SerializeRedisArgs(args);
 
             var resp = (RedisResult[])DbSync.Execute("FT.SEARCH", args);
-            return new SearchResult(resp, !q.NoContent, q.WithScores, q.WithPayloads);
+            return new SearchResult(resp, !q.NoContent, q.WithScores, q.WithPayloads, q.ExplainScore);
         }
 
         /// <summary>
@@ -235,7 +235,7 @@ namespace NRediSearch
             q.SerializeRedisArgs(args);
 
             var resp = (RedisResult[])await _db.ExecuteAsync("FT.SEARCH", args).ConfigureAwait(false);
-            return new SearchResult(resp, !q.NoContent, q.WithScores, q.WithPayloads);
+            return new SearchResult(resp, !q.NoContent, q.WithScores, q.WithPayloads, q.ExplainScore);
         }
 
         /// <summary>
