@@ -107,7 +107,7 @@ sub.Publish("messages", "hello");
 
 This will (virtually instantaneously) write `"hello"` to the console of the subscribed process. As before, both channel-names and messages can be binary.
 
-Please also see [Pub / Sub Message Order](PubSubOrder) for guidance on sequential versus concurrent message processing.
+Please also see [Pub / Sub Message Order](PubSubOrder.md) for guidance on sequential versus concurrent message processing.
 
 Accessing individual servers
 ---
