@@ -293,12 +293,14 @@ namespace StackExchange.Redis
                         return FindSlave(endpoint, command) ?? Any(command, flags);
                     case CommandFlags.PreferSlave:
                         testing = FindSlave(endpoint, command);
+                        if (testing == null) testing = FindMaster(endpoint, command);
                         if (testing != null) return testing;
                         break;
                     case CommandFlags.DemandMaster:
                         return FindMaster(endpoint, command) ?? Any(command, flags);
                     case CommandFlags.PreferMaster:
                         testing = FindMaster(endpoint, command);
+                        if (testing == null) testing = FindSlave(endpoint, command);
                         if (testing != null) return testing;
                         break;
                 }
