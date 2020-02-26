@@ -75,7 +75,7 @@ How to configure this setting:
 
 - In .Net Core, add Environment Variable COMPlus_ThreadPool_ForceMinWorkerThreads to overwrite default MinThreads setting, according to [Environment/Registry Configuration Knobs](https://github.com/dotnet/coreclr/blob/master/Documentation/project-docs/clr-configuration-knobs.md) - You can also use the same ThreadPool.SetMinThreads() Method as described above.
 
-Explnation for abbrivations appearing in exception messages
+Explanation for abbrivations appearing in exception messages
 ---
 By default Redis Timeout exception(s) includes useful information, which can help in uderstanding & diagnosing the timeouts. Some of the abbrivations are as follows:
 
