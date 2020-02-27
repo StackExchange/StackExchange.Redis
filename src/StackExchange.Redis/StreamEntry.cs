@@ -1,4 +1,6 @@
-﻿namespace StackExchange.Redis
+﻿using System;
+
+namespace StackExchange.Redis
 {
     /// <summary>
     /// Describes an entry contained in a Redis Stream.
@@ -25,6 +27,26 @@
         /// The values contained within the message.
         /// </summary>
         public NameValueEntry[] Values { get; }
+
+        /// <summary>
+        /// Search for a specific field by name, returning the value
+        /// </summary>
+        public RedisValue this[RedisValue fieldName]
+        {
+            get
+            {
+                var values = Values;
+                if (values != null)
+                {
+                    for (int i = 0; i < values.Length; i++)
+                    {
+                        if (values[i].name == fieldName)
+                            return values[i].value;
+                    }
+                }
+                return RedisValue.Null;
+            }
+        }
 
         /// <summary>
         /// Indicates that the Redis Stream Entry is null.

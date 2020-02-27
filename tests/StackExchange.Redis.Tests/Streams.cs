@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -1784,5 +1785,34 @@ namespace StackExchange.Redis.Tests
         }
 
         private RedisKey GetUniqueKey(string type) => $"{type}_stream_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+
+
+        [Fact]
+        public async Task StreamReadIndexerUsage()
+        {
+            var streamName = GetUniqueKey("read-group-indexer");
+
+            using (var conn = Create())
+            {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Streams), r => r.Streams);
+
+                var db = conn.GetDatabase();
+
+                await db.StreamAddAsync(streamName, new[] {
+                    new NameValueEntry("x", "blah"),
+                    new NameValueEntry("msg", @"{""name"":""test"",""id"":123}"),
+                    new NameValueEntry("y", "more blah"),
+                });
+
+                var streamResult = await db.StreamRangeAsync(streamName, count: 1000);
+                var evntJson = streamResult
+                    .Select(x => (dynamic)JsonConvert.DeserializeObject(x["msg"]))
+                    .ToList();
+                var obj = Assert.Single(evntJson);
+                Assert.Equal(123, (int)obj.id);
+                Assert.Equal("test", (string)obj.name);
+            }
+        }
+
     }
 }
