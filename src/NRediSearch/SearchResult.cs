@@ -2,6 +2,7 @@
 
 using StackExchange.Redis;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace NRediSearch
 {
@@ -15,7 +16,7 @@ namespace NRediSearch
         public long TotalResults { get; }
         public List<Document> Documents { get; }
 
-        internal SearchResult(RedisResult[] resp, bool hasContent, bool hasScores, bool hasPayloads)
+        internal SearchResult(RedisResult[] resp, bool hasContent, bool hasScores, bool hasPayloads, bool shouldExplainScore)
         {
             // Calculate the step distance to walk over the results.
             // The order of results is id, score (if withScore), payLoad (if hasPayloads), fields
@@ -28,6 +29,7 @@ namespace NRediSearch
                 step++;
                 scoreOffset = 1;
                 contentOffset++;
+
             }
             if (hasContent)
             {
@@ -50,9 +52,20 @@ namespace NRediSearch
                 double score = 1.0;
                 byte[] payload = null;
                 RedisValue[] fields = null;
+                string[] scoreExplained = null;
                 if (hasScores)
                 {
-                    score = (double)resp[i + scoreOffset];
+                    if (shouldExplainScore)
+                    {
+                        var scoreResult = (RedisResult[])resp[i + scoreOffset];
+                        score = (double) scoreResult[0];
+                        var redisResultsScoreExplained = (RedisResult[]) scoreResult[1];
+                        scoreExplained = FlatRedisResultArray(redisResultsScoreExplained).ToArray();
+                    }
+                    else
+                    {
+                        score = (double)resp[i + scoreOffset];
+                    }
                 }
                 if (hasPayloads)
                 {
@@ -64,7 +77,23 @@ namespace NRediSearch
                     fields = (RedisValue[])resp[i + contentOffset];
                 }
 
-                docs.Add(Document.Load(id, score, payload, fields));
+                docs.Add(Document.Load(id, score, payload, fields, scoreExplained));
+            }
+        }
+
+        static IEnumerable<string> FlatRedisResultArray(RedisResult[] collection)
+        {
+            foreach (var o in collection)
+            {
+                if (o.Type == ResultType.MultiBulk)
+                {
+                    foreach (string t in FlatRedisResultArray((RedisResult[])o))
+                        yield return t;
+                }
+                else
+                {
+                    yield return o.ToString();
+                }
             }
         }
     }

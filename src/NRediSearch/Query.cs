@@ -141,6 +141,13 @@ namespace NRediSearch
         /// Set the query language, for stemming purposes; see http://redisearch.io for documentation on languages and stemming
         /// </summary>
         public string Language { get; set; }
+
+        /// <summary>
+        /// Set the query scoring. see https://oss.redislabs.com/redisearch/Scoring.html for documentation
+        /// </summary>
+        public string Scoring { get; set; }
+        public bool ExplainScore { get; set; }
+
         internal string[] _fields = null;
         internal string[] _keys = null;
         internal string[] _returnFields = null;
@@ -229,6 +236,17 @@ namespace NRediSearch
                 args.Add("SORTBY".Literal());
                 args.Add(SortBy);
                 args.Add((SortAscending ? "ASC" : "DESC").Literal());
+            }
+
+            if (Scoring != null)
+            {
+                args.Add("SCORER".Literal());
+                args.Add(Scoring);
+
+                if (ExplainScore)
+                {
+                    args.Add("EXPLAINSCORE".Literal());
+                }
             }
 
             if (Payload != null)
@@ -458,6 +476,29 @@ namespace NRediSearch
         public Query SetLanguage(string language)
         {
             Language = language;
+            return this;
+        }
+
+        /// <summary>
+        /// RediSearch comes with a few very basic scoring functions to evaluate document relevance. They are all based on document scores and term frequency.
+        /// This is regardless of the ability to use sortable fields.
+        /// Scoring functions are specified by adding the SCORER {scorer_name} argument to a search query.
+        /// If you prefer a custom scoring function, it is possible to add more functions using the Extension API.
+        /// These are the pre-bundled scoring functions available in RediSearch and how they work.Each function is mentioned by registered name,
+        /// that can be passed as a SCORER argument in FT.SEARCH
+        /// Pre-bundled scoring:
+        /// - TFIDF (default) (https://oss.redislabs.com/redisearch/Scoring.html#tfidf_default)
+        /// - TFIDF.DOCNORM (https://oss.redislabs.com/redisearch/Scoring.html#tfidfdocnorm)
+        /// - BM25 (https://oss.redislabs.com/redisearch/Scoring.html#bm25)
+        /// - DISMAX (https://oss.redislabs.com/redisearch/Scoring.html#dismax)
+        /// - DOCSCORE (https://oss.redislabs.com/redisearch/Scoring.html#docscore)
+        /// - HAMMING (https://oss.redislabs.com/redisearch/Scoring.html#hamming)
+        /// </summary>
+        /// <param name="scoring"></param>
+        /// <returns></returns>
+        public Query SetScoring(string scoring)
+        {
+            Scoring = scoring;
             return this;
         }
     }
