@@ -38,7 +38,15 @@ namespace NRediSearch.Test
             }
             catch (RedisServerException ex)
             {
-                if (!string.Equals(ex.Message, "Unknown Index name", StringComparison.OrdinalIgnoreCase)) throw;
+                if (string.Equals("Unknown Index name", ex.Message, System.StringComparison.InvariantCultureIgnoreCase)
+                    || string.Equals("no such index", ex.Message, System.StringComparison.InvariantCultureIgnoreCase))
+                {
+                    // fine
+                }
+                else
+                {
+                    throw;
+                }
             }
             return client;
         }

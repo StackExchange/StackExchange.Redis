@@ -50,7 +50,9 @@ namespace NRediSearch.Test.ClientTests
             Assert.True(cl.DropIndex());
 
             var ex = Assert.Throws<RedisServerException>(() => cl.Search(new Query("hello world")));
-            Assert.Equal("Unknown Index name", ex.Message, ignoreCase: true);
+            Assert.True(
+                string.Equals("Unknown Index name", ex.Message, System.StringComparison.InvariantCultureIgnoreCase)
+                || string.Equals("no such index", ex.Message, System.StringComparison.InvariantCultureIgnoreCase));
         }
 
         [Fact]
@@ -557,7 +559,9 @@ namespace NRediSearch.Test.ClientTests
         {
             Client cl = GetClient();
             var ex = Assert.Throws<RedisServerException>(() => cl.DropIndex());
-            Assert.Equal("Unknown Index name", ex.Message, ignoreCase: true);
+            Assert.True(
+                string.Equals("Unknown Index name", ex.Message, System.StringComparison.InvariantCultureIgnoreCase)
+                || string.Equals("no such index", ex.Message, System.StringComparison.InvariantCultureIgnoreCase));
         }
 
         [Fact]
