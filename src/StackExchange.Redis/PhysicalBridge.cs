@@ -1200,15 +1200,20 @@ namespace StackExchange.Redis
 
                 if (!connection.TransactionActive)
                 {
-                    var readmode = connection.GetReadModeCommand(isMasterOnly);
-                    if (readmode != null)
+                    // If we are executing AUTH, it means we are still unauthenticated
+                    // Setting READONLY before AUTH always fails but we think it succeeded since
+                    // we run it as Fire and Forget. 
+                    if (cmd != RedisCommand.AUTH)
                     {
-                        connection.EnqueueInsideWriteLock(readmode);
-                        readmode.WriteTo(connection);
-                        readmode.SetRequestSent();
-                        IncrementOpCount();
+                        var readmode = connection.GetReadModeCommand(isMasterOnly);
+                        if (readmode != null)
+                        {
+                            connection.EnqueueInsideWriteLock(readmode);
+                            readmode.WriteTo(connection);
+                            readmode.SetRequestSent();
+                            IncrementOpCount();
+                        }
                     }
-
                     if (message.IsAsking)
                     {
                         var asking = ReusableAskingCommand;
