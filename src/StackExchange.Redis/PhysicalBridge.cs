@@ -638,12 +638,12 @@ namespace StackExchange.Redis
 
         private readonly MutexSlim _singleWriterMutex;
 
-        private Message _activeMesssage;
+        private Message _activeMessage;
 
         private WriteResult WriteMessageInsideLock(PhysicalConnection physical, Message message)
         {
             WriteResult result;
-            var existingMessage = Interlocked.CompareExchange(ref _activeMesssage, message, null);
+            var existingMessage = Interlocked.CompareExchange(ref _activeMessage, message, null);
             if (existingMessage != null)
             {
                 Multiplexer?.OnInfoMessage($"reentrant call to WriteMessageTakingWriteLock for {message.CommandAndKey}, {existingMessage.CommandAndKey} is still active");
@@ -737,12 +737,15 @@ namespace StackExchange.Redis
 #pragma warning restore CS0618
                 }
 
-                UnmarkActiveMessage(message);
                 physical.SetIdle();
                 return result;
             }
             catch (Exception ex) { return HandleWriteException(message, ex); }
-            finally { token.Dispose(); }
+            finally
+            {
+                UnmarkActiveMessage(message);
+                token.Dispose();
+            }
 
         }
 
@@ -887,7 +890,6 @@ namespace StackExchange.Redis
                             }
 
                             _backlogStatus = BacklogStatus.MarkingInactive;
-                            UnmarkActiveMessage(message);
                             if (result != WriteResult.Success)
                             {
                                 _backlogStatus = BacklogStatus.RecordingWriteFailure;
@@ -900,6 +902,10 @@ namespace StackExchange.Redis
                     {
                         _backlogStatus = BacklogStatus.RecordingFault;
                         HandleWriteException(message, ex);
+                    }
+                    finally
+                    {
+                        UnmarkActiveMessage(message);
                     }
                 }
                 _backlogStatus = BacklogStatus.SettingIdle;
@@ -985,8 +991,7 @@ namespace StackExchange.Redis
 
                     result = flush.Result; // we know it was completed, this is fine
                 }
-
-                UnmarkActiveMessage(message);
+                
                 physical.SetIdle();
 
                 return new ValueTask<WriteResult>(result);
@@ -994,12 +999,17 @@ namespace StackExchange.Redis
             catch (Exception ex) { return new ValueTask<WriteResult>(HandleWriteException(message, ex)); }
             finally
             {
-                if (releaseLock & token.Success)
+                if (token.Success)
                 {
+                    UnmarkActiveMessage(message);
+
+                    if (releaseLock)
+                    {
 #if DEBUG
-                    RecordLockDuration(lockTaken);
+                        RecordLockDuration(lockTaken);
 #endif
-                    token.Dispose();
+                        token.Dispose();
+                    }
                 }
             }
         }
@@ -1029,8 +1039,7 @@ namespace StackExchange.Redis
                     {
                         result = await physical.FlushAsync(false).ForAwait();
                     }
-
-                    UnmarkActiveMessage(message);
+                    
                     physical.SetIdle();
 
 #if DEBUG
@@ -1043,6 +1052,10 @@ namespace StackExchange.Redis
             {
                 return HandleWriteException(message, ex);
             }
+            finally
+            {
+                UnmarkActiveMessage(message);
+            }
         }
 
         private async ValueTask<WriteResult> CompleteWriteAndReleaseLockAsync(LockToken lockToken, ValueTask<WriteResult> flush, Message message, int lockTaken)
@@ -1052,7 +1065,6 @@ namespace StackExchange.Redis
                 try
                 {
                     var result = await flush.ForAwait();
-                    UnmarkActiveMessage(message);
                     physical.SetIdle();
                     return result;
                 }
@@ -1072,7 +1084,7 @@ namespace StackExchange.Redis
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void UnmarkActiveMessage(Message message)
-            => Interlocked.CompareExchange(ref _activeMesssage, null, message); // remove if it is us
+            => Interlocked.CompareExchange(ref _activeMessage, null, message); // remove if it is us
 
         private State ChangeState(State newState)
         {
@@ -1301,6 +1313,6 @@ namespace StackExchange.Redis
             physical?.RecordConnectionFailed(ConnectionFailureType.SocketFailure);
         }
 
-        internal RedisCommand? GetActiveMessage() => Volatile.Read(ref _activeMesssage)?.Command;
+        internal RedisCommand? GetActiveMessage() => Volatile.Read(ref _activeMessage)?.Command;
     }
 }
