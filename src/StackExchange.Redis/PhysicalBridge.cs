@@ -181,6 +181,13 @@ namespace StackExchange.Redis
         }
 
         public ValueTask<WriteResult> TryWriteAsync(Message message, bool isSlave)
+            => TryWriteAsync(message, isSlave, default);
+
+        public ValueTask<WriteResult> TryWriteAsync(
+            Message message,
+            bool isSlave,
+            CancellationToken cancellationToken
+        )
         {
             if (isDisposed) throw new ObjectDisposedException(Name);
             if (!IsConnected) return new ValueTask<WriteResult>(QueueOrFailMessage(message));
@@ -188,7 +195,7 @@ namespace StackExchange.Redis
             var physical = this.physical;
             if (physical == null) return new ValueTask<WriteResult>(FailDueToNoConnection(message));
 
-            var result = WriteMessageTakingWriteLockAsync(physical, message);
+            var result = WriteMessageTakingWriteLockAsync(physical, message, cancellationToken);
             LogNonPreferred(message.Flags, isSlave);
             return result;
         }
@@ -929,7 +936,12 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="physical">The phsyical connection to write to.</param>
         /// <param name="message">The message to be written.</param>
-        internal ValueTask<WriteResult> WriteMessageTakingWriteLockAsync(PhysicalConnection physical, Message message)
+        /// <param name="cancellationToken">The token used to cancel task.</param>
+        internal ValueTask<WriteResult> WriteMessageTakingWriteLockAsync(
+            PhysicalConnection physical,
+            Message message,
+            CancellationToken cancellationToken = default
+        )
         {
             /* design decision/choice; the code works fine either way, but if this is
              * set to *true*, then when we can't take the writer-lock *right away*,
@@ -964,7 +976,10 @@ namespace StackExchange.Redis
                     // no backlog... try to wait with the timeout;
                     // if we *still* can't get it: that counts as
                     // an actual timeout
-                    var pending = _singleWriterMutex.TryWaitAsync(options: WaitOptions.DisableAsyncContext);
+                    var pending = _singleWriterMutex.TryWaitAsync(
+                        options: WaitOptions.DisableAsyncContext,
+                        cancellationToken: cancellationToken
+                    );
                     if (!pending.IsCompletedSuccessfully) return WriteMessageTakingWriteLockAsync_Awaited(pending, physical, message);
 
                     token = pending.Result; // fine since we know we got a result
@@ -976,7 +991,7 @@ namespace StackExchange.Redis
 
                 if (result == WriteResult.Success)
                 {
-                    var flush = physical.FlushAsync(false);
+                    var flush = physical.FlushAsync(false, cancellationToken);
                     if (!flush.IsCompletedSuccessfully)
                     {
                         releaseLock = false; // so we don't release prematurely
@@ -1038,6 +1053,10 @@ namespace StackExchange.Redis
 #endif
                     return result;
                 }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
             }
             catch (Exception ex)
             {

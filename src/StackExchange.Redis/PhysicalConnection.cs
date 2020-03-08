@@ -279,13 +279,16 @@ namespace StackExchange.Redis
             UpdateLastWriteTime();
         }
         internal void UpdateLastWriteTime() => Interlocked.Exchange(ref lastWriteTickCount, Environment.TickCount);
-        public Task FlushAsync()
+
+        public Task FlushAsync() => FlushAsync(cancellationToken: default);
+
+        public Task FlushAsync(CancellationToken cancellationToken)
         {
             var tmp = _ioPipe?.Output;
             if (tmp != null)
             {
                 _writeStatus = WriteStatus.Flushing;
-                var flush = tmp.FlushAsync();
+                var flush = tmp.FlushAsync(cancellationToken);
                 if (!flush.IsCompletedSuccessfully) return AwaitedFlush(flush);
                 _writeStatus = WriteStatus.Flushed;
                 UpdateLastWriteTime();
@@ -891,7 +894,10 @@ namespace StackExchange.Redis
                 throw new TimeoutException("timeout while synchronously flushing");
             }
         }
-        internal ValueTask<WriteResult> FlushAsync(bool throwOnFailure)
+        internal ValueTask<WriteResult> FlushAsync(
+            bool throwOnFailure,
+            CancellationToken cancellationToken = default
+        )
         {
             var tmp = _ioPipe?.Output;
             if (tmp == null) return new ValueTask<WriteResult>(WriteResult.NoConnectionAvailable);
@@ -903,7 +909,7 @@ namespace StackExchange.Redis
                 long flushBytes = -1;
                 if (_ioPipe is SocketConnection sc) flushBytes = sc.GetCounters().BytesWaitingToBeSent;
 #endif
-                var flush = tmp.FlushAsync();
+                var flush = tmp.FlushAsync(cancellationToken);
                 if (!flush.IsCompletedSuccessfully) return FlushAsync_Awaited(this, flush, throwOnFailure
 #if DEBUG
                     , startFlush, flushBytes
