@@ -857,6 +857,32 @@ return timeTaken
         }
 
         [Fact]
+        public async Task AsyncLuaScriptWithWrappedDatabase()
+        {
+            const string Script = "redis.call('set', @key, @value)";
+
+            using (var conn = Create(allowAdmin: true))
+            {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
+                var db = conn.GetDatabase();
+                var wrappedDb = KeyspaceIsolation.DatabaseExtensions.WithKeyPrefix(db, "prefix-");
+                var key = Me();
+                await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
+
+                var prepared = LuaScript.Prepare(Script);
+                await wrappedDb.ScriptEvaluateAsync(prepared, new { key = (RedisKey)key, value = 123 });
+                var val1 = await wrappedDb.StringGetAsync(key);
+                Assert.Equal(123, (int)val1);
+
+                var val2 = await db.StringGetAsync("prefix-" + key);
+                Assert.Equal(123, (int)val2);
+
+                var val3 = await db.StringGetAsync(key);
+                Assert.True(val3.IsNull);
+            }
+        }
+
+        [Fact]
         public void LoadedLuaScriptWithWrappedDatabase()
         {
             const string Script = "redis.call('set', @key, @value)";
@@ -879,6 +905,33 @@ return timeTaken
                 Assert.Equal(123, (int)val2);
 
                 var val3 = db.StringGet(key);
+                Assert.True(val3.IsNull);
+            }
+        }
+
+        [Fact]
+        public async Task AsyncLoadedLuaScriptWithWrappedDatabase()
+        {
+            const string Script = "redis.call('set', @key, @value)";
+
+            using (var conn = Create(allowAdmin: true))
+            {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
+                var db = conn.GetDatabase();
+                var wrappedDb = KeyspaceIsolation.DatabaseExtensions.WithKeyPrefix(db, "prefix2-");
+                var key = Me();
+                await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
+
+                var server = conn.GetServer(conn.GetEndPoints()[0]);
+                var prepared = await LuaScript.Prepare(Script).LoadAsync(server);
+                await wrappedDb.ScriptEvaluateAsync(prepared, new { key = (RedisKey)key, value = 123 }, flags: CommandFlags.FireAndForget);
+                var val1 = await wrappedDb.StringGetAsync(key);
+                Assert.Equal(123, (int)val1);
+
+                var val2 = await db.StringGetAsync("prefix2-" + key);
+                Assert.Equal(123, (int)val2);
+
+                var val3 = await db.StringGetAsync(key);
                 Assert.True(val3.IsNull);
             }
         }
