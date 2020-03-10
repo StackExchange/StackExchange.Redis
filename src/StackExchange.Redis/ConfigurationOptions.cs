@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
@@ -462,6 +462,7 @@ namespace StackExchange.Redis
                 DefaultDatabase = DefaultDatabase,
                 ReconnectRetryPolicy = reconnectRetryPolicy,
                 SslProtocols = SslProtocols,
+                CheckCertificateRevocation = CheckCertificateRevocation
             };
             foreach (var item in EndPoints)
                 options.EndPoints.Add(item);
