@@ -1675,6 +1675,10 @@ namespace StackExchange.Redis
                         {
                             ServerSelectionStrategy.ServerType = ServerType.Twemproxy;
                         }
+                        if (RawConfig.Proxy == Proxy.Cluster)
+                        {
+                            ServerSelectionStrategy.ServerType = ServerType.Cluster;
+                        }
                         else if (standaloneCount == 0 && sentinelCount > 0)
                         {
                             ServerSelectionStrategy.ServerType = ServerType.Sentinel;
