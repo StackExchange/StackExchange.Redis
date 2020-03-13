@@ -174,7 +174,7 @@ namespace NRediSearch.Test
                 .AddTextField("aka")
                 .AddTagField("language");
 
-            client.CreateIndex(schema, NRediSearch.Client.IndexOptions.Default);
+            client.CreateIndex(schema, new ConfiguredIndexOptions());
 
             var doc = new NRediSearch.Document("1");
 
