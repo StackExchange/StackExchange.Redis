@@ -27,28 +27,52 @@ namespace NRediSearch.Test
             Db = null;
         }
 
-        protected Client GetClient([CallerMemberName] string caller = null)
-            => Reset(new Client(GetType().Name + ":" + caller, Db));
-
-        protected static Client Reset(Client client)
+        protected Client GetClient([CallerFilePath] string filePath = null, [CallerMemberName] string caller = null)
         {
+            // Remove all that extra pathing
+            var offset = filePath?.IndexOf("NRediSearch.Test");
+            if (offset > -1)
+            {
+                filePath = filePath.Substring(offset.Value + "NRediSearch.Test".Length + 1);
+            }
+
+            var indexName = $"{filePath}:{caller}";
+            Output.WriteLine("Using Index: " + indexName);
+            var exists = Db.KeyExists("idx:" + indexName);
+            Output.WriteLine("Key existed: " + exists);
+
+            var client = new Client(indexName, Db);
+            var wasReset = Reset(client);
+            Output.WriteLine("Index was reset?: " + wasReset);
+            return client;
+        }
+
+        protected bool Reset(Client client)
+        {
+            Output.WriteLine("Resetting index");
             try
             {
-                client.DropIndex(); // tests create them
+                var result = client.DropIndex(); // tests create them
+                Output.WriteLine("  Result: " + result);
+                return result;
             }
             catch (RedisServerException ex)
             {
-                if (string.Equals("Unknown Index name", ex.Message, System.StringComparison.InvariantCultureIgnoreCase)
-                    || string.Equals("no such index", ex.Message, System.StringComparison.InvariantCultureIgnoreCase))
+                if (string.Equals("Unknown Index name", ex.Message, StringComparison.InvariantCultureIgnoreCase))
                 {
-                    // fine
+                    Output.WriteLine("  Unknown index name");
+                    return true;
+                }
+                if (string.Equals("no such index", ex.Message, StringComparison.InvariantCultureIgnoreCase))
+                {
+                    Output.WriteLine("  No such index");
+                    return true;
                 }
                 else
                 {
                     throw;
                 }
             }
-            return client;
         }
 
         internal static ConnectionMultiplexer GetWithFT(ITestOutputHelper output)
@@ -116,6 +140,16 @@ namespace NRediSearch.Test
                 data[key] = value;
             }
             return data;
+        }
+
+        protected bool IsMissingIndexException(Exception ex)
+        {
+            if (ex.Message == null)
+            {
+                return false;
+            }
+            return ex.Message.Contains("Unknown Index name", StringComparison.InvariantCultureIgnoreCase)
+                || ex.Message.Contains("no such index", StringComparison.InvariantCultureIgnoreCase);
         }
     }
 }
