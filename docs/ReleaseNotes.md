@@ -19,9 +19,13 @@
 - fix: various documentation fixes (#1162, #1135, #1203, #1240, #1245, #1159, #1311, #1339, #1336)
 - fix: rare race-condition around exception data (#1342)
 
+## 2.0.601
+
+- add: tracking for current and next messages to help with debugging timeout issues - helpful in cases of large pipeline blockers
+
 ## 2.0.600
 
-- add `ulong` support to `RedisValue` and `RedisResult` (#1103)
+- add: `ulong` support to `RedisValue` and `RedisResult` (#1103)
 - fix: remove odd equality: `"-" != 0` (we do, however, still allow `"-0"`, as that is at least semantically valid, and is logically `== 0`) (related to #1103)
 - performance: rework how pub/sub queues are stored - reduces delegate overheads (related to #1101)
 - fix #1108 - ensure that we don't try appending log data to the `TextWriter` once we've returned from a method that accepted one
