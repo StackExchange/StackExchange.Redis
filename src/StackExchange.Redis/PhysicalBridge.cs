@@ -638,12 +638,12 @@ namespace StackExchange.Redis
 
         private readonly MutexSlim _singleWriterMutex;
 
-        private Message _activeMesssage;
+        private Message _activeMessage;
 
         private WriteResult WriteMessageInsideLock(PhysicalConnection physical, Message message)
         {
             WriteResult result;
-            var existingMessage = Interlocked.CompareExchange(ref _activeMesssage, message, null);
+            var existingMessage = Interlocked.CompareExchange(ref _activeMessage, message, null);
             if (existingMessage != null)
             {
                 Multiplexer?.OnInfoMessage($"reentrant call to WriteMessageTakingWriteLock for {message.CommandAndKey}, {existingMessage.CommandAndKey} is still active");
@@ -1072,7 +1072,7 @@ namespace StackExchange.Redis
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void UnmarkActiveMessage(Message message)
-            => Interlocked.CompareExchange(ref _activeMesssage, null, message); // remove if it is us
+            => Interlocked.CompareExchange(ref _activeMessage, null, message); // remove if it is us
 
         private State ChangeState(State newState)
         {
@@ -1301,6 +1301,6 @@ namespace StackExchange.Redis
             physical?.RecordConnectionFailed(ConnectionFailureType.SocketFailure);
         }
 
-        internal RedisCommand? GetActiveMessage() => Volatile.Read(ref _activeMesssage)?.Command;
+        internal RedisCommand? GetActiveMessage() => Volatile.Read(ref _activeMessage)?.Command;
     }
 }
