@@ -573,5 +573,27 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal("def", result["bar"]);
             }
         }
+
+        [Fact]
+        public async Task TestWhenAlwaysAsync()
+        {
+            using (var muxer = Create())
+            {
+                var conn = muxer.GetDatabase();
+                var hashkey = Me();
+                conn.KeyDelete(hashkey, CommandFlags.FireAndForget);
+
+                var result1 = await conn.HashSetAsync(hashkey, "foo", "bar", When.Always, CommandFlags.None);
+                var result2 = await conn.HashSetAsync(hashkey, "foo2", "bar", When.Always, CommandFlags.None);
+                var result3 = await conn.HashSetAsync(hashkey, "foo", "bar", When.Always, CommandFlags.None);
+                var result4 = await conn.HashSetAsync(hashkey, "foo", "bar2", When.Always, CommandFlags.None);
+
+                Assert.True(result1, "Initial set key 1");
+                Assert.True(result2, "Initial set key 2");
+                // Fields modified *but not added* should be a zero/false. That's the behavior of HSET
+                Assert.False(result3, "Duplicate set key 1");
+                Assert.False(result4, "Duplicate se key 1 variant");
+            }
+        }
     }
 }
