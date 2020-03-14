@@ -638,12 +638,12 @@ namespace StackExchange.Redis
 
         private readonly MutexSlim _singleWriterMutex;
 
-        private Message _activeMesssage;
+        private Message _activeMessage;
 
         private WriteResult WriteMessageInsideLock(PhysicalConnection physical, Message message)
         {
             WriteResult result;
-            var existingMessage = Interlocked.CompareExchange(ref _activeMesssage, message, null);
+            var existingMessage = Interlocked.CompareExchange(ref _activeMessage, message, null);
             if (existingMessage != null)
             {
                 Multiplexer?.OnInfoMessage($"reentrant call to WriteMessageTakingWriteLock for {message.CommandAndKey}, {existingMessage.CommandAndKey} is still active");
@@ -1072,7 +1072,7 @@ namespace StackExchange.Redis
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void UnmarkActiveMessage(Message message)
-            => Interlocked.CompareExchange(ref _activeMesssage, null, message); // remove if it is us
+            => Interlocked.CompareExchange(ref _activeMessage, null, message); // remove if it is us
 
         private State ChangeState(State newState)
         {
@@ -1200,15 +1200,20 @@ namespace StackExchange.Redis
 
                 if (!connection.TransactionActive)
                 {
-                    var readmode = connection.GetReadModeCommand(isMasterOnly);
-                    if (readmode != null)
+                    // If we are executing AUTH, it means we are still unauthenticated
+                    // Setting READONLY before AUTH always fails but we think it succeeded since
+                    // we run it as Fire and Forget. 
+                    if (cmd != RedisCommand.AUTH)
                     {
-                        connection.EnqueueInsideWriteLock(readmode);
-                        readmode.WriteTo(connection);
-                        readmode.SetRequestSent();
-                        IncrementOpCount();
+                        var readmode = connection.GetReadModeCommand(isMasterOnly);
+                        if (readmode != null)
+                        {
+                            connection.EnqueueInsideWriteLock(readmode);
+                            readmode.WriteTo(connection);
+                            readmode.SetRequestSent();
+                            IncrementOpCount();
+                        }
                     }
-
                     if (message.IsAsking)
                     {
                         var asking = ReusableAskingCommand;
@@ -1296,6 +1301,6 @@ namespace StackExchange.Redis
             physical?.RecordConnectionFailed(ConnectionFailureType.SocketFailure);
         }
 
-        internal RedisCommand? GetActiveMessage() => Volatile.Read(ref _activeMesssage)?.Command;
+        internal RedisCommand? GetActiveMessage() => Volatile.Read(ref _activeMessage)?.Command;
     }
 }

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -6,6 +7,7 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+using Pipelines.Sockets.Unofficial.Arenas;
 using static StackExchange.Redis.ConnectionMultiplexer;
 
 #pragma warning disable RCS1231 // Make parameter ref read-only.
@@ -286,11 +288,15 @@ namespace StackExchange.Redis
         }
 
         IEnumerable<RedisKey> IServer.Keys(int database, RedisValue pattern, int pageSize, CommandFlags flags)
-        {
-            return Keys(database, pattern, pageSize, CursorUtils.Origin, 0, flags);
-        }
+            => KeysAsync(database, pattern, pageSize, CursorUtils.Origin, 0, flags);
 
-        public IEnumerable<RedisKey> Keys(int database = 0, RedisValue pattern = default(RedisValue), int pageSize = CursorUtils.DefaultPageSize, long cursor = CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
+        IEnumerable<RedisKey> IServer.Keys(int database, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
+            => KeysAsync(database, pattern, pageSize, cursor, pageOffset, flags);
+
+        IAsyncEnumerable<RedisKey> IServer.KeysAsync(int database, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
+            => KeysAsync(database, pattern, pageSize, cursor, pageOffset, flags);
+
+        private CursorEnumerable<RedisKey> KeysAsync(int database, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
         {
             if (pageSize <= 0) throw new ArgumentOutOfRangeException(nameof(pageSize));
             if (CursorUtils.IsNil(pattern)) pattern = RedisLiterals.Wildcard;
@@ -302,9 +308,9 @@ namespace StackExchange.Redis
                 if (features.Scan) return new KeysScanEnumerable(this, database, pattern, pageSize, cursor, pageOffset, flags);
             }
 
-            if (cursor != 0 || pageOffset != 0) throw ExceptionFactory.NoCursor(RedisCommand.KEYS);
+            if (cursor != 0) throw ExceptionFactory.NoCursor(RedisCommand.KEYS);
             Message msg = Message.Create(database, flags, RedisCommand.KEYS, pattern);
-            return ExecuteSync(msg, ResultProcessor.RedisKeyArray);
+            return CursorEnumerable<RedisKey>.From(this, server, ExecuteAsync(msg, ResultProcessor.RedisKeyArray), pageOffset);
         }
 
         public DateTime LastSave(CommandFlags flags = CommandFlags.None)
@@ -721,11 +727,11 @@ namespace StackExchange.Redis
                 this.pattern = pattern;
             }
 
-            protected override Message CreateMessage(long cursor)
+            private protected override Message CreateMessage(long cursor)
             {
                 if (CursorUtils.IsNil(pattern))
                 {
-                    if (pageSize == CursorUtils.DefaultPageSize)
+                    if (pageSize == CursorUtils.DefaultRedisPageSize)
                     {
                         return Message.Create(db, flags, RedisCommand.SCAN, cursor);
                     }
@@ -736,7 +742,7 @@ namespace StackExchange.Redis
                 }
                 else
                 {
-                    if (pageSize == CursorUtils.DefaultPageSize)
+                    if (pageSize == CursorUtils.DefaultRedisPageSize)
                     {
                         return Message.Create(db, flags, RedisCommand.SCAN, cursor, RedisLiterals.MATCH, pattern);
                     }
@@ -747,7 +753,7 @@ namespace StackExchange.Redis
                 }
             }
 
-            protected override ResultProcessor<ScanResult> Processor => processor;
+            private protected override ResultProcessor<ScanResult> Processor => processor;
 
             public static readonly ResultProcessor<ScanResult> processor = new KeysResultProcessor();
             private class KeysResultProcessor : ResultProcessor<ScanResult>
@@ -762,7 +768,21 @@ namespace StackExchange.Redis
                             RawResult inner;
                             if (arr.Length == 2 && (inner = arr[1]).Type == ResultType.MultiBulk && arr[0].TryGetInt64(out i64))
                             {
-                                var keysResult = new ScanResult(i64, inner.GetItemsAsKeys());
+                                var items = inner.GetItems();
+                                RedisKey[] keys;
+                                int count;
+                                if (items.IsEmpty)
+                                {
+                                    keys = Array.Empty<RedisKey>();
+                                    count = 0;
+                                }
+                                else
+                                {
+                                    count = (int)items.Length;
+                                    keys = ArrayPool<RedisKey>.Shared.Rent(count);
+                                    items.CopyTo(keys, (in RawResult r) => r.AsRedisKey());
+                                }
+                                var keysResult = new ScanResult(i64, keys, count, true);
                                 SetResult(message, keysResult);
                                 return true;
                             }

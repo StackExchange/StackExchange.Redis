@@ -35,13 +35,15 @@ namespace NRediSearch.Test
                 NoStopwords = true,
                 Verbatim = true,
                 WithPayloads = true,
-                WithScores = true
+                WithScores = true,
+                Scoring = "TFIDF.DOCNORM",
+                ExplainScore = true
             };
 
             var args = new List<object>();
             query.SerializeRedisArgs(args);
 
-            Assert.Equal(8, args.Count);
+            Assert.Equal(11, args.Count);
             Assert.Equal(query.QueryString, (string)args[0]);
             Assert.Contains("NOCONTENT".Literal(), args);
             Assert.Contains("NOSTOPWORDS".Literal(), args);
@@ -50,9 +52,15 @@ namespace NRediSearch.Test
             Assert.Contains("WITHSCORES".Literal(), args);
             Assert.Contains("LANGUAGE".Literal(), args);
             Assert.Contains("", args);
+            Assert.Contains("SCORER".Literal(), args);
+            Assert.Contains("TFIDF.DOCNORM", args);
+            Assert.Contains("EXPLAINSCORE".Literal(), args);
 
             var languageIndex = args.IndexOf("LANGUAGE".Literal());
             Assert.Equal("", args[languageIndex + 1]);
+
+            var scoringIndex = args.IndexOf("SCORER".Literal());
+            Assert.Equal("TFIDF.DOCNORM", args[scoringIndex + 1]);
         }
 
         [Fact]
@@ -113,6 +121,16 @@ namespace NRediSearch.Test
         }
 
         [Fact]
+        public void ReturnFields()
+        {
+            var query = GetQuery();
+
+            Assert.Null(query._returnFields);
+            Assert.Same(query, query.ReturnFields("foo", "bar"));
+            Assert.Equal(2, query._returnFields.Length);
+        }
+
+        [Fact]
         public void HighlightFields()
         {
             var query = GetQuery();
@@ -157,6 +175,15 @@ namespace NRediSearch.Test
             Assert.Single(query._summarizeFields);
             Assert.Equal(-1, query._summarizeFragmentLen);
             Assert.Equal(-1, query._summarizeNumFragments);
+        }
+
+        [Fact]
+        public void SetScoring()
+        {
+            var query = GetQuery();
+            Assert.Null(query.Scoring);
+            Assert.Same(query, query.SetScoring("TFIDF.DOCNORM"));
+            Assert.Equal("TFIDF.DOCNORM", query.Scoring);
         }
     }
 }

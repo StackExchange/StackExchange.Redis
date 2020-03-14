@@ -228,13 +228,30 @@ namespace StackExchange.Redis.Tests
             Assert.False(shortName.Contains("If"), fullName + ":If"); // should probably be a When option
 
             var returnType = method.ReturnType ?? typeof(void);
+
             if (isAsync)
             {
-                Assert.True(typeof(Task).IsAssignableFrom(returnType), fullName + ":Task");
+                Assert.True(IsAsyncMethod(returnType), fullName + ":Task");
             }
             else
             {
-                Assert.False(typeof(Task).IsAssignableFrom(returnType), fullName + ":Task");
+                Assert.False(IsAsyncMethod(returnType), fullName + ":Task");
+            }
+
+            static bool IsAsyncMethod(Type returnType)
+            {
+                if (returnType == typeof(Task)) return true;
+                if (returnType == typeof(ValueTask)) return true;
+
+                if (returnType.IsGenericType)
+                {
+                    var genDef = returnType.GetGenericTypeDefinition();
+                    if (genDef == typeof(Task<>)) return true;
+                    if (genDef == typeof(ValueTask<>)) return true;
+                    if (genDef == typeof(IAsyncEnumerable<>)) return true;
+                }
+
+                return false;
             }
         }
 

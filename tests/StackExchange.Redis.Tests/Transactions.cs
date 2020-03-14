@@ -707,6 +707,84 @@ namespace StackExchange.Redis.Tests
         }
 
         [Theory]
+        [InlineData(1, 4, ComparisonType.Equal, 5L, false)]
+        [InlineData(1, 4, ComparisonType.Equal, 4L, true)]
+        [InlineData(1, 2, ComparisonType.Equal, 3L, false)]
+        [InlineData(1, 1, ComparisonType.Equal, 2L, false)]
+        [InlineData(0, 0, ComparisonType.Equal, 0L, false)]
+
+        [InlineData(1, 4, ComparisonType.LessThan, 5L, true)]
+        [InlineData(1, 4, ComparisonType.LessThan, 4L, false)]
+        [InlineData(1, 3, ComparisonType.LessThan, 3L, false)]
+        [InlineData(1, 1, ComparisonType.LessThan, 2L, true)]
+        [InlineData(0, 0, ComparisonType.LessThan, 0L, false)]
+
+        [InlineData(1, 5, ComparisonType.GreaterThan, 5L, false)]
+        [InlineData(1, 4, ComparisonType.GreaterThan, 4L, false)]
+        [InlineData(1, 4, ComparisonType.GreaterThan, 3L, true)]
+        [InlineData(1, 2, ComparisonType.GreaterThan, 2L, false)]
+        [InlineData(0, 0, ComparisonType.GreaterThan, 0L, true)]
+        public async Task BasicTranWithSortedSetRangeCountCondition(double min, double max, ComparisonType type, long length, bool expectTranResult)
+        {
+            using (var muxer = Create())
+            {
+                RedisKey key = Me(), key2 = Me() + "2";
+                var db = muxer.GetDatabase();
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                db.KeyDelete(key2, CommandFlags.FireAndForget);
+
+                var expectSuccess = false;
+                Condition condition = null;
+                var valueLength = (int)(max - min) + 1;
+                switch (type)
+                {
+                    case ComparisonType.Equal:
+                        expectSuccess = valueLength == length;
+                        condition = Condition.SortedSetLengthEqual(key2, length, min, max);
+                        break;
+                    case ComparisonType.GreaterThan:
+                        expectSuccess = valueLength > length;
+                        condition = Condition.SortedSetLengthGreaterThan(key2, length, min, max);
+                        break;
+                    case ComparisonType.LessThan:
+                        expectSuccess = valueLength < length;
+                        condition = Condition.SortedSetLengthLessThan(key2, length, min, max);
+                        break;
+                }
+
+                for (var i = 0; i < 5; i++)
+                {
+                    db.SortedSetAdd(key2, i, i, flags: CommandFlags.FireAndForget);
+                }
+                Assert.False(db.KeyExists(key));
+                Assert.Equal(5, db.SortedSetLength(key2));
+
+                var tran = db.CreateTransaction();
+                var cond = tran.AddCondition(condition);
+                var push = tran.StringSetAsync(key, "any value");
+                var exec = tran.ExecuteAsync();
+                var get = db.StringLength(key);
+
+                Assert.Equal(expectTranResult, await exec);
+
+                if (expectSuccess)
+                {
+                    Assert.True(await exec, "eq: exec");
+                    Assert.True(cond.WasSatisfied, "eq: was satisfied");
+                    Assert.True(await push); // eq: push
+                    Assert.Equal("any value".Length, get); // eq: get
+                }
+                else
+                {
+                    Assert.False(await exec, "neq: exec");
+                    Assert.False(cond.WasSatisfied, "neq: was satisfied");
+                    Assert.Equal(TaskStatus.Canceled, SafeStatus(push)); // neq: push
+                    Assert.Equal(0, get); // neq: get
+                }
+            }
+        }
+
+        [Theory]
         [InlineData(false, false, true)]
         [InlineData(false, true, false)]
         [InlineData(true, false, false)]
@@ -1128,7 +1206,7 @@ namespace StackExchange.Redis.Tests
         }
 #endif
 
-        [Fact]
+        [FactLongRunning]
         public async Task ExecCompletes_Issue943()
         {
             int hashHit = 0, hashMiss = 0, expireHit = 0, expireMiss = 0;

@@ -7,7 +7,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// Contains information about a server connection failure
     /// </summary>
-    public sealed class ConnectionFailedEventArgs : EventArgs, ICompletable
+    public class ConnectionFailedEventArgs : EventArgs, ICompletable
     {
         private readonly EventHandler<ConnectionFailedEventArgs> handler;
         private readonly object sender;
@@ -20,6 +20,20 @@ namespace StackExchange.Redis
             Exception = exception;
             FailureType = failureType;
             _physicalName = physicalName ?? GetType().Name;
+        }
+
+        /// <summary>
+        /// This constructor is only for testing purposes.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="endPoint">Redis endpoint.</param>
+        /// <param name="connectionType">Redis connection type.</param>
+        /// <param name="failureType">Redis connection failure type.</param>
+        /// <param name="exception">The exception occured.</param>
+        /// <param name="physicalName">Connection physical name.</param>
+        public ConnectionFailedEventArgs(object sender, EndPoint endPoint, ConnectionType connectionType, ConnectionFailureType failureType, Exception exception, string physicalName)
+            : this (null, sender, endPoint, connectionType, failureType, exception, physicalName)
+        {
         }
 
         private readonly string _physicalName;

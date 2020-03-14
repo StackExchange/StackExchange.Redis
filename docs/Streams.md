@@ -25,7 +25,7 @@ var values = new NameValueEntry[]
 {
     new NameValueEntry("sensor_id", "1234"),
     new NameValueEntry("temp", "19.8")
-}; 
+};
 
 var db = redis.GetDatabase();
 var messageId = db.StreamAdd("sensor_stream", values);
@@ -63,7 +63,7 @@ Console.WriteLine($"Length = {streams.First().Entries.Length}");
 
 You can limit the number of messages returned per stream by using the `countPerStream` optional parameter.
 
-The `StreamRange` method allows you to return a range of entries within a stream. 
+The `StreamRange` method allows you to return a range of entries within a stream.
 
 ```csharp
 var messages = db.StreamRange("event_stream", minId: "-", maxId: "+");
@@ -72,9 +72,9 @@ var messages = db.StreamRange("event_stream", minId: "-", maxId: "+");
 The `"-"` and `"+"` special characters indicate the smallest and greatest IDs possible. These values are the default values that will be used if no value is passed for the respective parameter. You also have the option to read the stream in reverse by using the `messageOrder` parameter. The `StreamRange` method also provides the ability to limit the number of entries returned by using the `count` parameter.
 
 ```csharp
-var messages = db.StreamRange("event_stream", 
-    minId: "0-0", 
-    maxId: "+", 
+var messages = db.StreamRange("event_stream",
+    minId: "0-0",
+    maxId: "+",
     count: 100,
     messageOrder: Order.Descending);
 ```
@@ -168,10 +168,10 @@ The `StreamClaim` method can be used to change ownership of messages consumed by
 
 ```csharp
 // Change ownership to consumer_2 for the first 5 messages pending for consumer_1.
-var pendingMessages = db.StreamPendingMessages("events_stream", 
-    "events_cg", 
-    count: 5, 
-    consumerName: "consumer_1", 
+var pendingMessages = db.StreamPendingMessages("events_stream",
+    "events_cg",
+    count: 5,
+    consumerName: "consumer_1",
     minId: "0-0");
 
 db.StreamClaim("events_stream",
@@ -182,7 +182,3 @@ db.StreamClaim("events_stream",
 ```
 
 There are several other methods used to process streams using consumer groups. Please reference the Streams unit tests for those methods and how they are used.
-
-
-
-

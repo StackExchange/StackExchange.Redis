@@ -7,8 +7,10 @@ Processing them sequentially means that you don't need to worry (quite as much) 
 they will be processed in exactly the same order in which they are received (via a queue) - but as a consequence it means that messages can delay each-other.
 
 ```csharp
-multiplexer.GetSubscriber().SubScribe("messages", (channel, message) => {
-    Console.WriteLine((string)message);
+var channel = multiplexer.GetSubscriber().Subscribe("messages");
+channel.OnMessage(message =>
+{
+    Console.WriteLine((string)message.Message);
 });
 ```
 
@@ -17,9 +19,7 @@ responsible for ensuring that concurrent messages don't corrupt your internal st
 This works *particularly* well if messages are generally unrelated.
 
 ```csharp
-var channelMessageQueue = multiplexer.GetSubscriber().SubScribe("messages");
-channel.OnMessage(message =>
-{
-    Console.WriteLine((string)message.Message);
+multiplexer.GetSubscriber().Subscribe("messages", (channel, message) => {
+    Console.WriteLine((string)message);
 });
 ```

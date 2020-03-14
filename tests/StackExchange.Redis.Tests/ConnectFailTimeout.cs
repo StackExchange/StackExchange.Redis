@@ -24,14 +24,19 @@ namespace StackExchange.Redis.Tests
 
                 // No need to delay, we're going to try a disconnected connection immediately so it'll fail...
                 conn.IgnoreConnect = true;
+                Log("simulating failure");
                 server.SimulateConnectionFailure();
+                Log("simulated failure");
                 conn.IgnoreConnect = false;
+                Log("pinging - expect failure");
                 Assert.Throws<RedisConnectionException>(() => server.Ping());
-
+                Log("pinged");
                 // Heartbeat should reconnect by now
                 await Task.Delay(5000).ConfigureAwait(false);
 
+                Log("pinging - expect success");
                 var time = server.Ping();
+                Log("pinged");
                 Log(time.ToString());
             }
         }

@@ -1,7 +1,7 @@
 ﻿Profiling
 ===
 
-StackExchange.Redis exposes a handful of methods and types to enable performance profiling.  Due to its asynchronous and multiplexing 
+StackExchange.Redis exposes a handful of methods and types to enable performance profiling. Due to its asynchronous and multiplexing
 behavior profiling is a somewhat complicated topic.
 
 Interfaces
@@ -10,7 +10,7 @@ Interfaces
 The profiling interface is composed of `IProfiler`, `ConnectionMultiplexer.RegisterProfiler(IProfiler)`, `ConnectionMultiplexer.BeginProfiling(object)`,
 `ConnectionMultiplexer.FinishProfiling(object)`, and `IProfiledCommand`.
 
-You register a single `IProfiler` with a `ConnectionMultiplexer` instance, it cannot be changed.  You begin profiling for a given context (ie. Thread,
+You register a single `IProfiler` with a `ConnectionMultiplexer` instance, it cannot be changed. You begin profiling for a given context (ie. Thread,
 Http Request, and so on) by calling `BeginProfiling(object)`, and finish by calling `FinishProfiling(object)`.  `FinishProfiling(object)` returns
 a collection of `IProfiledCommand`s which contain timing information for all commands sent to redis by the configured `ConnectionMultiplexer` between
 the `(Begin|Finish)Profiling` calls with the given context.
@@ -20,7 +20,7 @@ What "context" object should be used is application specific.
 Available Timings
 ---
 
-StackExchange.Redis exposes information about:  
+StackExchange.Redis exposes information about:
 
  - The redis server involved
  - The redis DB being queried
@@ -144,12 +144,12 @@ for (var i = 0; i < 16; i++)
 
     threads.Add(thread);
 }
-                
+
 threads.ForEach(thread => thread.Start());
 threads.ForEach(thread => thread.Join());
 ```
 
-`perThreadTimings` would end up with 16 entries of 1,000 `IProfilingCommand`s, keyed by the `Thread` the issued them.
+`perThreadTimings` would end up with 16 entries of 1,000 `IProfilingCommand`s, keyed by the `Thread` that issued them.
 
 Moving away from toy examples, here's how you can profile StackExchange.Redis in an MVC5 application.
 
@@ -199,7 +199,7 @@ protected void Application_EndRequest()
     if (ctxObj != null)
     {
         var timings = RedisConnection.FinishProfiling(ctxObj);
-		
+
 		// do what you will with `timings` here
     }
 }

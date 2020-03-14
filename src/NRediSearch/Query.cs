@@ -1,6 +1,5 @@
 ﻿// .NET port of https://github.com/RedisLabs/JRediSearch/
 
-using System;
 using System.Collections.Generic;
 using System.Globalization;
 using StackExchange.Redis;
@@ -142,7 +141,16 @@ namespace NRediSearch
         /// Set the query language, for stemming purposes; see http://redisearch.io for documentation on languages and stemming
         /// </summary>
         public string Language { get; set; }
+
+        /// <summary>
+        /// Set the query scoring. see https://oss.redislabs.com/redisearch/Scoring.html for documentation
+        /// </summary>
+        public string Scoring { get; set; }
+        public bool ExplainScore { get; set; }
+
         internal string[] _fields = null;
+        internal string[] _keys = null;
+        internal string[] _returnFields = null;
         /// <summary>
         /// Set the query payload to be evaluated by the scoring function
         /// </summary>
@@ -210,12 +218,35 @@ namespace NRediSearch
                 args.Add(_fields.Length.Boxed());
                 args.AddRange(_fields);
             }
+            if (_keys?.Length > 0)
+            {
+                args.Add("INKEYS".Literal());
+                args.Add(_keys.Length.Boxed());
+                args.AddRange(_keys);
+            }
+            if (_returnFields?.Length > 0)
+            {
+                args.Add("RETURN".Literal());
+                args.Add(_returnFields.Length.Boxed());
+                args.AddRange(_returnFields);
+            }
 
             if (SortBy != null)
             {
                 args.Add("SORTBY".Literal());
                 args.Add(SortBy);
                 args.Add((SortAscending ? "ASC" : "DESC").Literal());
+            }
+
+            if (Scoring != null)
+            {
+                args.Add("SCORER".Literal());
+                args.Add(Scoring);
+
+                if (ExplainScore)
+                {
+                    args.Add("EXPLAINSCORE".Literal());
+                }
             }
 
             if (Payload != null)
@@ -287,6 +318,28 @@ namespace NRediSearch
                     args.Add(_summarizeSeparator);
                 }
             }
+
+            if (_keys != null && _keys.Length > 0)
+            {
+                args.Add("INKEYS".Literal());
+                args.Add(_keys.Length.Boxed());
+
+                foreach (var key in _keys)
+                {
+                    args.Add(key);
+                }
+            }
+
+            if (_returnFields != null && _returnFields.Length > 0)
+            {
+                args.Add("RETURN".Literal());
+                args.Add(_returnFields.Length.Boxed());
+
+                foreach (var returnField in _returnFields)
+                {
+                    args.Add(returnField);
+                }
+            }
         }
 
         /// <summary>
@@ -320,6 +373,28 @@ namespace NRediSearch
         public Query LimitFields(params string[] fields)
         {
             _fields = fields;
+            return this;
+        }
+
+        /// <summary>
+        /// Limit the query to results that are limited to a specific set of keys
+        /// </summary>
+        /// <param name="keys">a list of the TEXT fields in the schemas</param>
+        /// <returns>the query object itself</returns>
+        public Query LimitKeys(params string[] keys)
+        {
+            _keys = keys;
+            return this;
+        }
+
+        /// <summary>
+        /// Result's projection - the fields to return by the query
+        /// </summary>
+        /// <param name="fields">fields a list of TEXT fields in the schemas</param>
+        /// <returns>the query object itself</returns>
+        public Query ReturnFields(params string[] fields)
+        {
+            _returnFields = fields;
             return this;
         }
 
@@ -401,6 +476,29 @@ namespace NRediSearch
         public Query SetLanguage(string language)
         {
             Language = language;
+            return this;
+        }
+
+        /// <summary>
+        /// RediSearch comes with a few very basic scoring functions to evaluate document relevance. They are all based on document scores and term frequency.
+        /// This is regardless of the ability to use sortable fields.
+        /// Scoring functions are specified by adding the SCORER {scorer_name} argument to a search query.
+        /// If you prefer a custom scoring function, it is possible to add more functions using the Extension API.
+        /// These are the pre-bundled scoring functions available in RediSearch and how they work.Each function is mentioned by registered name,
+        /// that can be passed as a SCORER argument in FT.SEARCH
+        /// Pre-bundled scoring:
+        /// - TFIDF (default) (https://oss.redislabs.com/redisearch/Scoring.html#tfidf_default)
+        /// - TFIDF.DOCNORM (https://oss.redislabs.com/redisearch/Scoring.html#tfidfdocnorm)
+        /// - BM25 (https://oss.redislabs.com/redisearch/Scoring.html#bm25)
+        /// - DISMAX (https://oss.redislabs.com/redisearch/Scoring.html#dismax)
+        /// - DOCSCORE (https://oss.redislabs.com/redisearch/Scoring.html#docscore)
+        /// - HAMMING (https://oss.redislabs.com/redisearch/Scoring.html#hamming)
+        /// </summary>
+        /// <param name="scoring"></param>
+        /// <returns></returns>
+        public Query SetScoring(string scoring)
+        {
+            Scoring = scoring;
             return this;
         }
     }

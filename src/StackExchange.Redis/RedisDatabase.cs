@@ -1,9 +1,10 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
-using System.Linq;
 using System.Net;
 using System.Text;
 using System.Threading.Tasks;
+using Pipelines.Sockets.Unofficial.Arenas;
 
 namespace StackExchange.Redis
 {
@@ -408,17 +409,22 @@ namespace StackExchange.Redis
         }
 
         IEnumerable<HashEntry> IDatabase.HashScan(RedisKey key, RedisValue pattern, int pageSize, CommandFlags flags)
-        {
-            return HashScan(key, pattern, pageSize, CursorUtils.Origin, 0, flags);
-        }
+            => HashScanAsync(key, pattern, pageSize, CursorUtils.Origin, 0, flags);
 
-        public IEnumerable<HashEntry> HashScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = CursorUtils.DefaultPageSize, long cursor = CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
+        IEnumerable<HashEntry> IDatabase.HashScan(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
+            => HashScanAsync(key, pattern, pageSize, cursor, pageOffset, flags);
+
+        IAsyncEnumerable<HashEntry> IDatabaseAsync.HashScanAsync(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
+            => HashScanAsync(key, pattern, pageSize, cursor, pageOffset, flags);
+
+        private CursorEnumerable<HashEntry> HashScanAsync(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
         {
-            var scan = TryScan<HashEntry>(key, pattern, pageSize, cursor, pageOffset, flags, RedisCommand.HSCAN, HashScanResultProcessor.Default);
+            var scan = TryScan<HashEntry>(key, pattern, pageSize, cursor, pageOffset, flags, RedisCommand.HSCAN, HashScanResultProcessor.Default, out var server);
             if (scan != null) return scan;
 
-            if (cursor != 0 || pageOffset != 0) throw ExceptionFactory.NoCursor(RedisCommand.HGETALL);
-            if (pattern.IsNull) return HashGetAll(key, flags);
+            if (cursor != 0) throw ExceptionFactory.NoCursor(RedisCommand.HGETALL);
+
+            if (pattern.IsNull) return CursorEnumerable<HashEntry>.From(this, server, HashGetAllAsync(key, flags), pageOffset);
             throw ExceptionFactory.NotSupported(true, RedisCommand.HSCAN);
         }
 
@@ -1413,17 +1419,21 @@ namespace StackExchange.Redis
         }
 
         IEnumerable<RedisValue> IDatabase.SetScan(RedisKey key, RedisValue pattern, int pageSize, CommandFlags flags)
-        {
-            return SetScan(key, pattern, pageSize, CursorUtils.Origin, 0, flags);
-        }
+            => SetScanAsync(key, pattern, pageSize, CursorUtils.Origin, 0, flags);
 
-        public IEnumerable<RedisValue> SetScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = CursorUtils.DefaultPageSize, long cursor = CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
+        IEnumerable<RedisValue> IDatabase.SetScan(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
+            => SetScanAsync(key, pattern, pageSize, cursor, pageOffset, flags);
+
+        IAsyncEnumerable<RedisValue> IDatabaseAsync.SetScanAsync(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
+            => SetScanAsync(key, pattern, pageSize, cursor, pageOffset, flags);
+
+        private CursorEnumerable<RedisValue> SetScanAsync(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
         {
-            var scan = TryScan<RedisValue>(key, pattern, pageSize, cursor, pageOffset, flags, RedisCommand.SSCAN, SetScanResultProcessor.Default);
+            var scan = TryScan<RedisValue>(key, pattern, pageSize, cursor, pageOffset, flags, RedisCommand.SSCAN, SetScanResultProcessor.Default, out var server);
             if (scan != null) return scan;
 
-            if (cursor != 0 || pageOffset != 0) throw ExceptionFactory.NoCursor(RedisCommand.SMEMBERS);
-            if (pattern.IsNull) return SetMembers(key, flags);
+            if (cursor != 0) throw ExceptionFactory.NoCursor(RedisCommand.SMEMBERS);
+            if (pattern.IsNull) return CursorEnumerable<RedisValue>.From(this, server, SetMembersAsync(key, flags), pageOffset);
             throw ExceptionFactory.NotSupported(true, RedisCommand.SSCAN);
         }
 
@@ -1666,17 +1676,21 @@ namespace StackExchange.Redis
         }
 
         IEnumerable<SortedSetEntry> IDatabase.SortedSetScan(RedisKey key, RedisValue pattern, int pageSize, CommandFlags flags)
-        {
-            return SortedSetScan(key, pattern, pageSize, CursorUtils.Origin, 0, flags);
-        }
+            => SortedSetScanAsync(key, pattern, pageSize, CursorUtils.Origin, 0, flags);
 
-        public IEnumerable<SortedSetEntry> SortedSetScan(RedisKey key, RedisValue pattern = default(RedisValue), int pageSize = CursorUtils.DefaultPageSize, long cursor = CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
+        IEnumerable<SortedSetEntry> IDatabase.SortedSetScan(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
+            => SortedSetScanAsync(key, pattern, pageSize, cursor, pageOffset, flags);
+
+        IAsyncEnumerable<SortedSetEntry> IDatabaseAsync.SortedSetScanAsync(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
+            => SortedSetScanAsync(key, pattern, pageSize, cursor, pageOffset, flags);
+
+        private CursorEnumerable<SortedSetEntry> SortedSetScanAsync(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
         {
-            var scan = TryScan<SortedSetEntry>(key, pattern, pageSize, cursor, pageOffset, flags, RedisCommand.ZSCAN, SortedSetScanResultProcessor.Default);
+            var scan = TryScan<SortedSetEntry>(key, pattern, pageSize, cursor, pageOffset, flags, RedisCommand.ZSCAN, SortedSetScanResultProcessor.Default, out var server);
             if (scan != null) return scan;
 
-            if (cursor != 0 || pageOffset != 0) throw ExceptionFactory.NoCursor(RedisCommand.ZRANGE);
-            if (pattern.IsNull) return SortedSetRangeByRankWithScores(key, flags: flags);
+            if (cursor != 0) throw ExceptionFactory.NoCursor(RedisCommand.ZRANGE);
+            if (pattern.IsNull) return CursorEnumerable<SortedSetEntry>.From(this, server, SortedSetRangeByRankWithScoresAsync(key, flags: flags), pageOffset);
             throw ExceptionFactory.NotSupported(true, RedisCommand.ZSCAN);
         }
 
@@ -1878,38 +1892,46 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Boolean);
         }
 
-        public bool StreamCreateConsumerGroup(RedisKey key, RedisValue groupName, RedisValue? position = null, CommandFlags flags = CommandFlags.None)
+        public bool StreamCreateConsumerGroup(RedisKey key, RedisValue groupName, RedisValue? position, CommandFlags flags)
         {
-            var actualPosition = position ?? StreamConstants.NewMessages;
+            return StreamCreateConsumerGroup(
+                key,
+                groupName,
+                position,
+                true, 
+                flags);
+        }
 
-            var msg = Message.Create(Database,
-                flags,
-                RedisCommand.XGROUP,
-                new RedisValue[]
-                {
-                    StreamConstants.Create,
-                    key.AsRedisValue(),
-                    groupName,
-                    StreamPosition.Resolve(actualPosition, RedisCommand.XGROUP)
-                });
+        public bool StreamCreateConsumerGroup(RedisKey key, RedisValue groupName, RedisValue? position = null, bool createStream = true, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetStreamCreateConsumerGroupMessage(
+                key,
+                groupName,
+                position,
+                createStream,
+                flags);
 
             return ExecuteSync(msg, ResultProcessor.Boolean);
         }
 
-        public Task<bool> StreamCreateConsumerGroupAsync(RedisKey key, RedisValue groupName, RedisValue? position = null, CommandFlags flags = CommandFlags.None)
+        public Task<bool> StreamCreateConsumerGroupAsync(RedisKey key, RedisValue groupName, RedisValue? position, CommandFlags flags)
         {
-            var actualPosition = position ?? StreamPosition.NewMessages;
+            return StreamCreateConsumerGroupAsync(
+                key,
+                groupName,
+                position,
+                true,
+                flags);
+        }
 
-            var msg = Message.Create(Database,
-                flags,
-                RedisCommand.XGROUP,
-                new RedisValue[]
-                {
-                    StreamConstants.Create,
-                    key.AsRedisValue(),
-                    groupName,
-                    StreamPosition.Resolve(actualPosition, RedisCommand.XGROUP)
-                });
+        public Task<bool> StreamCreateConsumerGroupAsync(RedisKey key, RedisValue groupName, RedisValue? position = null, bool createStream = true, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetStreamCreateConsumerGroupMessage(
+                key,
+                groupName,
+                position,
+                createStream,
+                flags);
 
             return ExecuteAsync(msg, ResultProcessor.Boolean);
         }
@@ -2158,7 +2180,18 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.MultiStream);
         }
 
-        public StreamEntry[] StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, CommandFlags flags = CommandFlags.None)
+        public StreamEntry[] StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position, int? count, CommandFlags flags)
+        {
+            return StreamReadGroup(key,
+                groupName,
+                consumerName,
+                position,
+                count,
+                false,
+                flags);
+        }
+
+        public StreamEntry[] StreamReadGroup(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, bool noAck = false, CommandFlags flags = CommandFlags.None)
         {
             var actualPosition = position ?? StreamPosition.NewMessages;
 
@@ -2167,12 +2200,24 @@ namespace StackExchange.Redis
                 consumerName,
                 StreamPosition.Resolve(actualPosition, RedisCommand.XREADGROUP),
                 count,
+                noAck,
                 flags);
 
             return ExecuteSync(msg, ResultProcessor.SingleStreamWithNameSkip);
         }
 
-        public Task<StreamEntry[]> StreamReadGroupAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, CommandFlags flags = CommandFlags.None)
+        public Task<StreamEntry[]> StreamReadGroupAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position, int? count, CommandFlags flags)
+        {
+            return StreamReadGroupAsync(key,
+                groupName,
+                consumerName,
+                position,
+                count,
+                false,
+                flags);
+        }
+        
+        public Task<StreamEntry[]> StreamReadGroupAsync(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue? position = null, int? count = null, bool noAck = false, CommandFlags flags = CommandFlags.None)
         {
             var actualPosition = position ?? StreamPosition.NewMessages;
 
@@ -2181,20 +2226,53 @@ namespace StackExchange.Redis
                 consumerName,
                 StreamPosition.Resolve(actualPosition, RedisCommand.XREADGROUP),
                 count,
+                noAck,
                 flags);
 
             return ExecuteAsync(msg, ResultProcessor.SingleStreamWithNameSkip);
         }
 
-        public RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, CommandFlags flags = CommandFlags.None)
+        public RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, CommandFlags flags)
         {
-            var msg = GetMultiStreamReadGroupMessage(streamPositions, groupName, consumerName, countPerStream, flags);
+            return StreamReadGroup(streamPositions,
+                groupName,
+                consumerName,
+                countPerStream,
+                false,
+                flags);
+        }
+
+        public RedisStream[] StreamReadGroup(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetMultiStreamReadGroupMessage(streamPositions,
+                groupName,
+                consumerName,
+                countPerStream,
+                noAck,
+                flags);
+
             return ExecuteSync(msg, ResultProcessor.MultiStream);
         }
 
-        public Task<RedisStream[]> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, CommandFlags flags = CommandFlags.None)
+        public Task<RedisStream[]> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, CommandFlags flags)
         {
-            var msg = GetMultiStreamReadGroupMessage(streamPositions, groupName, consumerName, countPerStream, flags);
+            return StreamReadGroupAsync(streamPositions,
+                groupName,
+                consumerName,
+                countPerStream,
+                false,
+                flags);
+        }
+
+        public Task<RedisStream[]> StreamReadGroupAsync(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream = null, bool noAck = false, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetMultiStreamReadGroupMessage(streamPositions,
+                groupName,
+                consumerName,
+                countPerStream,
+                noAck,
+                flags);
+
             return ExecuteAsync(msg, ResultProcessor.MultiStream);
         }
 
@@ -2458,6 +2536,40 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.RedisValue);
         }
 
+        public bool KeyTouch(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.TOUCH, key);
+            return ExecuteSync(msg, ResultProcessor.DemandZeroOrOne);
+        }
+
+        public long KeyTouch(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
+        {
+            if (keys == null) throw new ArgumentNullException(nameof(keys));
+            if (keys.Length > 0)
+            {
+                var msg = keys.Length == 0 ? null : Message.Create(Database, flags, RedisCommand.TOUCH, keys);
+                return ExecuteSync(msg, ResultProcessor.Int64);
+            }
+            return 0;
+        }
+
+        public Task<bool> KeyTouchAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(Database, flags, RedisCommand.TOUCH, key);
+            return ExecuteAsync(msg, ResultProcessor.DemandZeroOrOne);
+        }
+
+        public Task<long> KeyTouchAsync(RedisKey[] keys, CommandFlags flags = CommandFlags.None)
+        {
+            if (keys == null) throw new ArgumentNullException(nameof(keys));
+            if (keys.Length > 0)
+            {
+                var msg = keys.Length == 0 ? null : Message.Create(Database, flags, RedisCommand.TOUCH, keys);
+                return ExecuteAsync(msg, ResultProcessor.Int64);
+            }
+            return CompletedTask<long>.Default(0);
+        }
+
         public Task<RedisValue> StringSetRangeAsync(RedisKey key, long offset, RedisValue value, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(Database, flags, RedisCommand.SETRANGE, key, offset, value);
@@ -2579,7 +2691,7 @@ namespace StackExchange.Redis
             return result;
         }
 
-        private Message GetMultiStreamReadGroupMessage(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, CommandFlags flags)
+        private Message GetMultiStreamReadGroupMessage(StreamPosition[] streamPositions, RedisValue groupName, RedisValue consumerName, int? countPerStream, bool noAck, CommandFlags flags)
         {
             // Example: XREADGROUP GROUP groupName consumerName COUNT countPerStream STREAMS stream1 stream2 id1 id2
             if (streamPositions == null) throw new ArgumentNullException(nameof(streamPositions));
@@ -2593,7 +2705,8 @@ namespace StackExchange.Redis
             var values = new RedisValue[
                 4                                       // Room for GROUP groupName consumerName & STREAMS
                 + (streamPositions.Length * 2)          // Enough room for the stream keys and associated IDs.
-                + (countPerStream.HasValue ? 2 : 0)];   // Room for "COUNT num" or 0 if countPerStream is null.
+                + (countPerStream.HasValue ? 2 : 0)     // Room for "COUNT num" or 0 if countPerStream is null.
+                + (noAck ? 1 : 0)];                     // Allow for the NOACK subcommand.
 
             var offset = 0;
 
@@ -2605,6 +2718,11 @@ namespace StackExchange.Redis
             {
                 values[offset++] = StreamConstants.Count;
                 values[offset++] = countPerStream;
+            }
+
+            if (noAck)
+            {
+                values[offset++] = StreamConstants.NoAck;
             }
 
             values[offset++] = StreamConstants.Streams;
@@ -3048,6 +3166,28 @@ namespace StackExchange.Redis
             return Message.Create(Database, flags, RedisCommand.XCLAIM, values);
         }
 
+        private Message GetStreamCreateConsumerGroupMessage(RedisKey key, RedisValue groupName, RedisValue? position = null, bool createStream = true, CommandFlags flags = CommandFlags.None)
+        {
+            var actualPosition = position ?? StreamConstants.NewMessages;
+
+            var values = new RedisValue[createStream ? 5 : 4];
+
+            values[0] = StreamConstants.Create;
+            values[1] = key.AsRedisValue();
+            values[2] = groupName;
+            values[3] = StreamPosition.Resolve(actualPosition, RedisCommand.XGROUP);
+
+            if (createStream)
+            {
+                values[4] = StreamConstants.MkStream;
+            }
+
+            return Message.Create(Database,
+                flags,
+                RedisCommand.XGROUP,
+                values);
+        }
+
         private Message GetStreamPendingMessagesMessage(RedisKey key, RedisValue groupName, RedisValue? minId, RedisValue? maxId, int count, RedisValue consumerName, CommandFlags flags)
         {
             // > XPENDING mystream mygroup - + 10 [consumer name]
@@ -3114,7 +3254,7 @@ namespace StackExchange.Redis
                 values);
         }
 
-        private Message GetStreamReadGroupMessage(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue afterId, int? count, CommandFlags flags)
+        private Message GetStreamReadGroupMessage(RedisKey key, RedisValue groupName, RedisValue consumerName, RedisValue afterId, int? count, bool noAck, CommandFlags flags)
         {
             // Example: > XREADGROUP GROUP mygroup Alice COUNT 1 STREAMS mystream >
             if (count.HasValue && count <= 0)
@@ -3122,7 +3262,7 @@ namespace StackExchange.Redis
                 throw new ArgumentOutOfRangeException(nameof(count), "count must be greater than 0.");
             }
 
-            var totalValueCount = 6 + (count.HasValue ? 2 : 0);
+            var totalValueCount = 6 + (count.HasValue ? 2 : 0) + (noAck ? 1 : 0);
             var values = new RedisValue[totalValueCount];
 
             var offset = 0;
@@ -3135,6 +3275,11 @@ namespace StackExchange.Redis
             {
                 values[offset++] = StreamConstants.Count;
                 values[offset++] = count.Value;
+            }
+
+            if (noAck)
+            {
+                values[offset++] = StreamConstants.NoAck;
             }
 
             values[offset++] = StreamConstants.Streams;
@@ -3342,16 +3487,18 @@ namespace StackExchange.Redis
             }
         }
 
-        private IEnumerable<T> TryScan<T>(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags, RedisCommand command, ResultProcessor<ScanIterator<T>.ScanResult> processor)
+        private CursorEnumerable<T> TryScan<T>(RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags, RedisCommand command, ResultProcessor<ScanEnumerable<T>.ScanResult> processor, out ServerEndPoint server)
         {
-            if (pageSize <= 0) throw new ArgumentOutOfRangeException(nameof(pageSize));
+            server = null;
+            if (pageSize <= 0)
+                throw new ArgumentOutOfRangeException(nameof(pageSize));
             if (!multiplexer.CommandMap.IsAvailable(command)) return null;
 
-            var features = GetFeatures(key, flags, out ServerEndPoint server);
+            var features = GetFeatures(key, flags, out server);
             if (!features.Scan) return null;
 
             if (CursorUtils.IsNil(pattern)) pattern = (byte[])null;
-            return new ScanIterator<T>(this, server, key, pattern, pageSize, cursor, pageOffset, flags, command, processor);
+            return new ScanEnumerable<T>(this, server, key, pattern, pageSize, cursor, pageOffset, flags, command, processor);
         }
 
         private Message GetLexMessage(RedisCommand command, RedisKey key, RedisValue min, RedisValue max, Exclude exclude, long skip, long take, CommandFlags flags)
@@ -3425,13 +3572,13 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
-        internal class ScanIterator<T> : CursorEnumerable<T>
+        internal class ScanEnumerable<T> : CursorEnumerable<T>
         {
             private readonly RedisKey key;
             private readonly RedisValue pattern;
             private readonly RedisCommand command;
 
-            public ScanIterator(RedisDatabase database, ServerEndPoint server, RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags,
+            public ScanEnumerable(RedisDatabase database, ServerEndPoint server, RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags,
                 RedisCommand command, ResultProcessor<ScanResult> processor)
                 : base(database, server, database.Database, pageSize, cursor, pageOffset, flags)
             {
@@ -3441,13 +3588,13 @@ namespace StackExchange.Redis
                 Processor = processor;
             }
 
-            protected override ResultProcessor<CursorEnumerable<T>.ScanResult> Processor { get; }
+            private protected override ResultProcessor<CursorEnumerable<T>.ScanResult> Processor { get; }
 
-            protected override Message CreateMessage(long cursor)
+            private protected override Message CreateMessage(long cursor)
             {
                 if (CursorUtils.IsNil(pattern))
                 {
-                    if (pageSize == CursorUtils.DefaultPageSize)
+                    if (pageSize == CursorUtils.DefaultRedisPageSize)
                     {
                         return Message.Create(db, flags, command, key, cursor);
                     }
@@ -3458,7 +3605,7 @@ namespace StackExchange.Redis
                 }
                 else
                 {
-                    if (pageSize == CursorUtils.DefaultPageSize)
+                    if (pageSize == CursorUtils.DefaultRedisPageSize)
                     {
                         return Message.Create(db, flags, command, key, cursor, RedisLiterals.MATCH, pattern);
                     }
@@ -3490,18 +3637,15 @@ namespace StackExchange.Redis
 
         private sealed class HashScanResultProcessor : ScanResultProcessor<HashEntry>
         {
-            public static readonly ResultProcessor<ScanIterator<HashEntry>.ScanResult> Default = new HashScanResultProcessor();
+            public static readonly ResultProcessor<ScanEnumerable<HashEntry>.ScanResult> Default = new HashScanResultProcessor();
             private HashScanResultProcessor() { }
-            protected override HashEntry[] Parse(in RawResult result)
-            {
-                if (!HashEntryArray.TryParse(result, out HashEntry[] pairs)) pairs = null;
-                return pairs;
-            }
+            protected override HashEntry[] Parse(in RawResult result, out int count)
+                => HashEntryArray.TryParse(result, out HashEntry[] pairs, true, out count) ? pairs : null;
         }
 
-        private abstract class ScanResultProcessor<T> : ResultProcessor<ScanIterator<T>.ScanResult>
+        private abstract class ScanResultProcessor<T> : ResultProcessor<ScanEnumerable<T>.ScanResult>
         {
-            protected abstract T[] Parse(in RawResult result);
+            protected abstract T[] Parse(in RawResult result, out int count);
 
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
@@ -3514,7 +3658,8 @@ namespace StackExchange.Redis
                             ref RawResult inner = ref arr[1];
                             if (inner.Type == ResultType.MultiBulk && arr[0].TryGetInt64(out var i64))
                             {
-                                var sscanResult = new ScanIterator<T>.ScanResult(i64, Parse(inner));
+                                T[] oversized = Parse(inner, out int count);
+                                var sscanResult = new ScanEnumerable<T>.ScanResult(i64, oversized, count, true);
                                 SetResult(message, sscanResult);
                                 return true;
                             }
@@ -3674,11 +3819,20 @@ namespace StackExchange.Redis
 
         private sealed class SetScanResultProcessor : ScanResultProcessor<RedisValue>
         {
-            public static readonly ResultProcessor<ScanIterator<RedisValue>.ScanResult> Default = new SetScanResultProcessor();
+            public static readonly ResultProcessor<ScanEnumerable<RedisValue>.ScanResult> Default = new SetScanResultProcessor();
             private SetScanResultProcessor() { }
-            protected override RedisValue[] Parse(in RawResult result)
+            protected override RedisValue[] Parse(in RawResult result, out int count)
             {
-                return result.GetItemsAsValues();
+                var items = result.GetItems();
+                if (items.IsEmpty)
+                {
+                    count = 0;
+                    return Array.Empty<RedisValue>();
+                }
+                count = (int)items.Length;
+                RedisValue[] arr = ArrayPool<RedisValue>.Shared.Rent(count);
+                items.CopyTo(arr, (in RawResult r) => r.AsRedisValue());
+                return arr;
             }
         }
 
@@ -3720,13 +3874,10 @@ namespace StackExchange.Redis
 
         private sealed class SortedSetScanResultProcessor : ScanResultProcessor<SortedSetEntry>
         {
-            public static readonly ResultProcessor<ScanIterator<SortedSetEntry>.ScanResult> Default = new SortedSetScanResultProcessor();
+            public static readonly ResultProcessor<ScanEnumerable<SortedSetEntry>.ScanResult> Default = new SortedSetScanResultProcessor();
             private SortedSetScanResultProcessor() { }
-            protected override SortedSetEntry[] Parse(in RawResult result)
-            {
-                if (!SortedSetWithScores.TryParse(result, out SortedSetEntry[] pairs)) pairs = null;
-                return pairs;
-            }
+            protected override SortedSetEntry[] Parse(in RawResult result, out int count)
+                => SortedSetWithScores.TryParse(result, out SortedSetEntry[] pairs, true, out count) ? pairs : null;
         }
 
         private class StringGetWithExpiryMessage : Message.CommandKeyBase, IMultiMessage
