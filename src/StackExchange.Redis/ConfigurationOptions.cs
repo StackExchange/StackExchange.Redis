@@ -462,7 +462,7 @@ namespace StackExchange.Redis
                 DefaultDatabase = DefaultDatabase,
                 ReconnectRetryPolicy = reconnectRetryPolicy,
                 SslProtocols = SslProtocols,
-                CheckCertificateRevocation = CheckCertificateRevocation
+                checkCertificateRevocation = checkCertificateRevocation,
             };
             foreach (var item in EndPoints)
                 options.EndPoints.Add(item);
