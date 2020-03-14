@@ -50,9 +50,8 @@ namespace NRediSearch.Test.ClientTests
             Assert.True(cl.DropIndex());
 
             var ex = Assert.Throws<RedisServerException>(() => cl.Search(new Query("hello world")));
-            Assert.True(
-                string.Equals("Unknown Index name", ex.Message, System.StringComparison.InvariantCultureIgnoreCase)
-                || string.Equals("no such index", ex.Message, System.StringComparison.InvariantCultureIgnoreCase));
+            Output.WriteLine("Exception: " + ex.Message);
+            Assert.True(IsMissingIndexException(ex));
         }
 
         [Fact]
@@ -311,7 +310,6 @@ namespace NRediSearch.Test.ClientTests
         public void TestDrop()
         {
             Client cl = GetClient();
-            Db.Execute("FLUSHDB"); // yeah, this is horrible, deal with it
 
             Schema sc = new Schema().AddTextField("title", 1.0);
 
@@ -329,25 +327,27 @@ namespace NRediSearch.Test.ClientTests
             Assert.Equal(100, res.TotalResults);
 
             var key = (string)Db.KeyRandom();
+            Output.WriteLine("Found key: " + key);
             Assert.NotNull(key);
 
             Reset(cl);
 
-            key = (string)Db.KeyRandom();
-            Assert.Null(key);
+            var indexExists = Db.KeyExists(cl.IndexName);
+            Assert.False(indexExists);
         }
 
         [Fact]
         public void TestAlterAdd()
         {
             Client cl = GetClient();
-            Db.Execute("FLUSHDB"); // YEAH, this is still horrible and I'm still dealing with it.
 
             Schema sc = new Schema().AddTextField("title", 1.0);
 
             Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
-            var fields = new Dictionary<string, RedisValue>();
-            fields.Add("title", "hello world");
+            var fields = new Dictionary<string, RedisValue>
+            {
+                { "title", "hello world" }
+            };
             for (int i = 0; i < 100; i++)
             {
                 Assert.True(cl.AddDocument($"doc{i}", fields));
@@ -559,9 +559,7 @@ namespace NRediSearch.Test.ClientTests
         {
             Client cl = GetClient();
             var ex = Assert.Throws<RedisServerException>(() => cl.DropIndex());
-            Assert.True(
-                string.Equals("Unknown Index name", ex.Message, System.StringComparison.InvariantCultureIgnoreCase)
-                || string.Equals("no such index", ex.Message, System.StringComparison.InvariantCultureIgnoreCase));
+            Assert.True(IsMissingIndexException(ex));
         }
 
         [Fact]
@@ -582,7 +580,6 @@ namespace NRediSearch.Test.ClientTests
         public void TestMGet()
         {
             Client cl = GetClient();
-            Db.Execute("FLUSHDB"); // YEAH, this is still horrible and I'm still dealing with it.
 
             cl.CreateIndex(new Schema().AddTextField("txt1", 1.0), new ConfiguredIndexOptions());
             cl.AddDocument(new Document("doc1").Set("txt1", "Hello World!1"), new AddOptions());
@@ -726,6 +723,10 @@ namespace NRediSearch.Test.ClientTests
 
             Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
 
+            var search = cl.Search(new Query("hello"));
+            Output.WriteLine("Initial search: " + search.TotalResults);
+            Assert.Equal(0, search.TotalResults);
+
             var fields1 = new Dictionary<string, RedisValue>();
             fields1.Add("title", "hello world");
             fields1.Add("category", "red");
@@ -750,7 +751,13 @@ namespace NRediSearch.Test.ClientTests
             Assert.Equal(1, cl.Search(new Query("@category:{yellow}")).TotalResults);
             Assert.Equal(0, cl.Search(new Query("@category:{purple}")).TotalResults);
             Assert.Equal(1, cl.Search(new Query("@category:{orange\\;purple}")).TotalResults);
-            Assert.Equal(4, cl.Search(new Query("hello")).TotalResults);
+            search = cl.Search(new Query("hello"));
+            Output.WriteLine("Post-search: " + search.TotalResults);
+            foreach (var doc in search.Documents)
+            {
+                Output.WriteLine("Found: " + doc.Id);
+            }
+            Assert.Equal(4, search.TotalResults);
         }
 
         [Fact]
@@ -818,7 +825,6 @@ namespace NRediSearch.Test.ClientTests
         public void TestReturnFields()
         {
             Client cl = GetClient();
-            Db.Execute("FLUSHDB");
 
             Schema sc = new Schema().AddTextField("field1", 1.0).AddTextField("field2", 1.0);
             Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
@@ -841,7 +847,6 @@ namespace NRediSearch.Test.ClientTests
         public void TestInKeys()
         {
             Client cl = GetClient();
-            Db.Execute("FLUSHDB");
             Schema sc = new Schema().AddTextField("field1", 1.0).AddTextField("field2", 1.0);
             Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
 
