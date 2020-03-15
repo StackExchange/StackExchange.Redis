@@ -271,7 +271,7 @@ namespace StackExchange.Redis
                     if (string.IsNullOrWhiteSpace(log)) Interlocked.Exchange(ref mutiplexer.haveStormLog, 0);
                     else Interlocked.Exchange(ref mutiplexer.stormLogSnapshot, log);
                 }
-                add("Server-Endpoint", "serverEndpoint", server.EndPoint.ToString());
+                add("Server-Endpoint", "serverEndpoint", server.EndPoint.ToString().Replace("Unspecified/",""));
             }
             add("Manager", "mgr", mutiplexer.SocketManager?.GetState());
 
