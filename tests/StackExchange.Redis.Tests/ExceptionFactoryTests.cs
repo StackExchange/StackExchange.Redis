@@ -108,5 +108,37 @@ namespace StackExchange.Redis.Tests
                 ClearAmbientFailures();
             }
         }
+
+        [Fact]
+        public void TimeoutException()
+        {
+            try
+            {
+                using (var muxer = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, shared: false) as ConnectionMultiplexer)
+                {
+                    var conn = muxer.GetDatabase();
+                    var server = GetServer(muxer);
+                    muxer.AllowConnect = false;
+                    var msg = Message.Create(-1, CommandFlags.None, RedisCommand.PING);
+                    var rawEx = ExceptionFactory.Timeout(muxer, "Test Timeout", msg, new ServerEndPoint(muxer, server.EndPoint));
+                    var ex = Assert.IsType<RedisTimeoutException>(rawEx);
+                    Writer.WriteLine("Exception: " + ex.Message);
+
+                    // Example format: "Test Timeout, command=PING, inst: 0, qu: 0, qs: 0, aw: False, in: 0, in-pipe: 0, out-pipe: 0, serverEndpoint: 127.0.0.1:6379, mgr: 10 of 10 available, clientName: TimeoutException, IOCP: (Busy=0,Free=1000,Min=8,Max=1000), WORKER: (Busy=2,Free=2045,Min=8,Max=2047), v: 2.1.0 (Please take a look at this article for some common client-side issues that can cause timeouts: https://stackexchange.github.io/StackExchange.Redis/Timeouts)";
+                    Assert.StartsWith("Test Timeout, command=PING", ex.Message);
+                    Assert.Contains("clientName: " + nameof(TimeoutException), ex.Message);
+                    // Ensure our pipe numbers are in place
+                    Assert.Contains("inst: 0, qu: 0, qs: 0, aw: False, in: 0, in-pipe: 0, out-pipe: 0", ex.Message);
+                    Assert.Contains("serverEndpoint: " + server.EndPoint.ToString(), ex.Message);
+                    Assert.DoesNotContain("Unspecified/", ex.Message);
+                    Assert.EndsWith(" (Please take a look at this article for some common client-side issues that can cause timeouts: https://stackexchange.github.io/StackExchange.Redis/Timeouts)", ex.Message);
+                    Assert.Null(ex.InnerException);
+                }
+            }
+            finally
+            {
+                ClearAmbientFailures();
+            }
+        }
     }
 }
