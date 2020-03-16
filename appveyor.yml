@@ -2,6 +2,9 @@ image:
 - Visual Studio 2019
 - Ubuntu
 
+services:
+- docker
+
 init:
   - git config --global core.autocrlf input
 
