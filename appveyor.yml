@@ -61,9 +61,7 @@ install:
 - sh: >-
     cd tests/RedisConfigs
 
-    chmod +x start-all.sh
-
-    ./start-all.sh
+    docker-compose up -d
 
     cd ../..
 - ps: >-
