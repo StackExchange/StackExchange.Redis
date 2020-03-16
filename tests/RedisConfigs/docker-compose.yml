@@ -1,0 +1,12 @@
+version: '3.7'
+
+services:
+  redis:
+    build:
+      context: .
+    image: stackexchange/redis-tests:latest
+    ports:
+      - 6379-6383:6379-6383
+      - 7000-7006:7000-7006
+      - 7010-7011:7010-7011
+      - 26379-26381:26379-26381
