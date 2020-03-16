@@ -5,6 +5,7 @@ services:
     build:
       context: .
     image: stackexchange/redis-tests:latest
+    platform: linux
     ports:
       - 6379-6383:6379-6383
       - 7000-7006:7000-7006
