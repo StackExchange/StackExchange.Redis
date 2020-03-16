@@ -9,7 +9,6 @@ install:
 - cmd: >-
     cd tests\RedisConfigs
     
-    docker-switch-linux
     docker-compose up -d
 
     cd ..\..
