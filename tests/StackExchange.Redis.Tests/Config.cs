@@ -1,6 +1,8 @@
 ﻿using System;
 using System.IO;
 using System.Linq;
+using System.Net;
+using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Threading.Tasks;
 using Xunit;
@@ -109,6 +111,21 @@ namespace StackExchange.Redis.Tests
 
             options = ConfigurationOptions.Parse("syncTimeout=20");
             Assert.Equal(20, options.SyncTimeout);
+        }
+
+        [Theory]
+        [InlineData("127.1:6379", AddressFamily.InterNetwork, "127.0.0.1", 6379)]
+        [InlineData("127.0.0.1:6379", AddressFamily.InterNetwork, "127.0.0.1", 6379)]
+        [InlineData("2a01:9820:1:24::1:1:6379", AddressFamily.InterNetworkV6, "2a01:9820:1:24:0:1:1:6379", 0)]
+        [InlineData("[2a01:9820:1:24::1:1]:6379", AddressFamily.InterNetworkV6, "2a01:9820:1:24::1:1", 6379)]
+        public void ConfigurationOptionsIPv6Parsing(string configString, AddressFamily family, string address, int port)
+        {
+            var options = ConfigurationOptions.Parse(configString);
+            Assert.Single(options.EndPoints);
+            var ep = Assert.IsType<IPEndPoint>(options.EndPoints[0]);
+            Assert.Equal(family, ep.AddressFamily);
+            Assert.Equal(address, ep.Address.ToString());
+            Assert.Equal(port, ep.Port);
         }
 
         [Fact]
