@@ -1,4 +1,4 @@
-FROM redis:5-alpine
+FROM redis:5
 
 COPY Basic /data/Basic/
 COPY Failover /data/Failover/
@@ -9,7 +9,7 @@ RUN chown -R redis:redis /data
 
 COPY Docker/docker-entrypoint.sh /usr/local/bin/
 
-RUN apk add --update supervisor && rm  -rf /tmp/* /var/cache/apk/*
+RUN apt-get -y update && apt-get install -y git gcc make supervisor && apt-get clean
 
 ADD Docker/supervisord.conf /etc/
 
