@@ -37,6 +37,11 @@ namespace StackExchange.Redis
             _memory = default;
         }
 
+        /// <summary>
+        /// Creates a <see cref="RedisValue"/> from a string.
+        /// </summary>
+        public RedisValue(string value) : this(0, default, value) { }
+
 #pragma warning disable RCS1085 // Use auto-implemented property.
         internal object DirectObject => _objectOrSentinel;
         internal long DirectOverlappedBits64 => _overlappedBits64;
