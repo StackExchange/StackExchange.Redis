@@ -221,7 +221,7 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.KeyExpireAsync(ToInner(key), expiry, flags);
         }
 
-        public Task<TimeSpan?> KeyIdleTimeAsync(RedisKey key,CommandFlags flags = CommandFlags.None)
+        public Task<TimeSpan?> KeyIdleTimeAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             return Inner.KeyIdleTimeAsync(ToInner(key), flags);
         }
@@ -386,12 +386,14 @@ namespace StackExchange.Redis.KeyspaceIsolation
 
         public Task<RedisResult> ScriptEvaluateAsync(LuaScript script, object parameters = null, CommandFlags flags = CommandFlags.None)
         {
-            return Inner.ScriptEvaluateAsync(script, parameters, flags);
+            // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
+            return script.EvaluateAsync(Inner, parameters, Prefix, flags);
         }
 
         public Task<RedisResult> ScriptEvaluateAsync(LoadedLuaScript script, object parameters = null, CommandFlags flags = CommandFlags.None)
         {
-            return Inner.ScriptEvaluateAsync(script, parameters, flags);
+            // TODO: The return value could contain prefixed keys. It might make sense to 'unprefix' those?
+            return script.EvaluateAsync(Inner, parameters, Prefix, flags);
         }
 
         public Task<long> SetAddAsync(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
@@ -908,12 +910,12 @@ namespace StackExchange.Redis.KeyspaceIsolation
             {
                 var withPrefix = new object[args.Count];
                 int i = 0;
-                foreach(var oldArg in args)
+                foreach (var oldArg in args)
                 {
                     object newArg;
                     if (oldArg is RedisKey key)
                     {
-                        newArg    = ToInner(key);
+                        newArg = ToInner(key);
                     }
                     else if (oldArg is RedisChannel channel)
                     {
