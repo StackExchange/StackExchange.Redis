@@ -23,6 +23,7 @@
 - fix: `ScriptEvaluateAsync` keyspace isolation (#1377 via gliljas)
 - fix: F# compatibility enhancements (#1386)
 - fix: improved `ScriptResult` null support (#1392)
+- fix: error with DNS resolution breaking endpoint iterator (#1393)
 - tests: better docker support for tests (#1389 via ejsmith; #1391)
 - tests: general test improvements (#1183, #1385, #1384)
 
