@@ -941,5 +941,45 @@ return arr;
                 Assert.Equal(string.Join(",", viaArr), string.Join(",", viaArgs));
             }
         }
+
+        [Fact]
+        public void RedisResultUnderstandsNullArrayArray() => TestNullArray(RedisResult.NullArray);
+        [Fact]
+        public void RedisResultUnderstandsNullArrayNull() => TestNullArray(null);
+
+        static void TestNullArray(RedisResult value)
+        {
+            Assert.True(value == null || value.IsNull);
+
+            Assert.Null((RedisValue[])value);
+            Assert.Null((RedisKey[])value);
+            Assert.Null((bool[])value);
+            Assert.Null((long[])value);
+            Assert.Null((ulong[])value);
+            Assert.Null((string[])value);
+            Assert.Null((int[])value);
+            Assert.Null((double[])value);
+            Assert.Null((byte[][])value);
+            Assert.Null((RedisResult[])value);
+        }
+
+        [Fact]
+        public void RedisResultUnderstandsNullNull() => TestNullValue(null);
+        [Fact]
+        public void RedisResultUnderstandsNullValue() => TestNullValue(RedisResult.Create(RedisValue.Null, ResultType.None));
+
+        static void TestNullValue(RedisResult value)
+        {
+            Assert.True(value == null || value.IsNull);
+
+            Assert.True(((RedisValue)value).IsNull);
+            Assert.True(((RedisKey)value).IsNull);
+            Assert.Null((bool?)value);
+            Assert.Null((long?)value);
+            Assert.Null((ulong?)value);
+            Assert.Null((string)value);
+            Assert.Null((double?)value);
+            Assert.Null((byte[])value);
+        }
     }
 }
