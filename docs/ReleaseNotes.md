@@ -2,6 +2,8 @@
 
 ## 2.1.0-preview
 
+- fix: ensure active-message is cleared (#1374 via hamish-omny)
+- add: sentinel support (#1067 via shadim; #692 via lexxdark)
 - add: `IAsyncEnumerable<T>` scanning APIs now supported (#1087)
 - add: new API for use with misbehaving sync-contexts ([more info](https://stackexchange.github.io/StackExchange.Redis/ThreadTheft))
 - add: `TOUCH` support (#1291 via gkorland)
@@ -18,6 +20,11 @@
 - add: `GeoRadiusResult` is now mockable (#1175 via firenero)
 - fix: various documentation fixes (#1162, #1135, #1203, #1240, #1245, #1159, #1311, #1339, #1336)
 - fix: rare race-condition around exception data (#1342)
+- fix: `ScriptEvaluateAsync` keyspace isolation (#1377 via gliljas)
+- fix: F# compatibility enhancements (#1386)
+- fix: improved `ScriptResult` null support (#1392)
+- tests: better docker support for tests (#1389 via ejsmith; #1391)
+- tests: general test improvements (#1183, #1385, #1384)
 
 ## 2.0.601
 
