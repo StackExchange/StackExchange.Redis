@@ -385,5 +385,23 @@ namespace StackExchange.Redis.Tests
                 }
             }
         }
+
+        [Fact]
+        public void EndpointIteratorIsReliableOverChanges()
+        {
+            var eps = new EndPointCollection
+            {
+                { IPAddress.Loopback, 7999 },
+                { IPAddress.Loopback, 8000 },
+            };
+
+            using var iter = eps.GetEnumerator();
+            Assert.True(iter.MoveNext());
+            Assert.Equal(7999, ((IPEndPoint)iter.Current).Port);
+            eps[1] = new IPEndPoint(IPAddress.Loopback, 8001); // boom
+            Assert.True(iter.MoveNext());
+            Assert.Equal(8001, ((IPEndPoint)iter.Current).Port);
+            Assert.False(iter.MoveNext());
+        }
     }
 }
