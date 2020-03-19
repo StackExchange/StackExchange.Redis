@@ -13,7 +13,7 @@
     <NoWarn>NU5105</NoWarn>
     <PackageReleaseNotes>https://stackexchange.github.io/StackExchange.Redis/ReleaseNotes</PackageReleaseNotes>
     <PackageProjectUrl>https://github.com/StackExchange/StackExchange.Redis/</PackageProjectUrl>
-    <PackageLicenseUrl>https://raw.github.com/StackExchange/StackExchange.Redis/master/LICENSE</PackageLicenseUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
 
     <LangVersion>8.0</LangVersion>
     <RepositoryType>git</RepositoryType>

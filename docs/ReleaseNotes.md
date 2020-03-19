@@ -1,6 +1,6 @@
 # Release Notes
 
-## 2.1.0-preview
+## 2.1.0
 
 - fix: ensure active-message is cleared (#1374 via hamish-omny)
 - add: sentinel support (#1067 via shadim; #692 via lexxdark)
