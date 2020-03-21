@@ -40,9 +40,9 @@ namespace StackExchange.Redis.Tests.Issues
                     return Task.CompletedTask;
                 });
                 second.OnMessage(_ => Interlocked.Increment(ref i));
-                await Task.Delay(100);
+                await Task.Delay(200);
                 await pubsub.PublishAsync(name, "abc");
-                await Task.Delay(100);
+                await Task.Delay(200);
                 lock (values)
                 {
                     Assert.Equal("abc", Assert.Single(values));
@@ -53,9 +53,9 @@ namespace StackExchange.Redis.Tests.Issues
                 Assert.False(second.Completion.IsCompleted, "completed");
 
                 await first.UnsubscribeAsync();
-                await Task.Delay(100);
+                await Task.Delay(200);
                 await pubsub.PublishAsync(name, "def");
-                await Task.Delay(100);
+                await Task.Delay(200);
                 lock (values)
                 {
                     Assert.Equal("abc", Assert.Single(values));
@@ -66,9 +66,9 @@ namespace StackExchange.Redis.Tests.Issues
                 AssertCounts(pubsub, name, true, 0, 1);
 
                 await second.UnsubscribeAsync();
-                await Task.Delay(100);
+                await Task.Delay(200);
                 await pubsub.PublishAsync(name, "ghi");
-                await Task.Delay(100);
+                await Task.Delay(200);
                 lock (values)
                 {
                     Assert.Equal("abc", Assert.Single(values));

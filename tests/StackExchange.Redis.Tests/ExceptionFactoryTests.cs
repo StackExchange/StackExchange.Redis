@@ -35,13 +35,12 @@ namespace StackExchange.Redis.Tests
             Assert.Null(ex.InnerException);
         }
 
-#if DEBUG
         [Fact]
         public void MultipleEndpointsThrowConnectionException()
         {
             try
             {
-                using (var muxer = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true))
+                using (var muxer = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, shared: false))
                 {
                     var conn = muxer.GetDatabase();
                     muxer.AllowConnect = false;
@@ -55,7 +54,8 @@ namespace StackExchange.Redis.Tests
                     var outer = Assert.IsType<RedisConnectionException>(ex);
                     Assert.Equal(ConnectionFailureType.UnableToResolvePhysicalConnection, outer.FailureType);
                     var inner = Assert.IsType<RedisConnectionException>(outer.InnerException);
-                    Assert.Equal(ConnectionFailureType.SocketFailure, inner.FailureType);
+                    Assert.True(inner.FailureType == ConnectionFailureType.SocketFailure
+                             || inner.FailureType == ConnectionFailureType.InternalFailure);
                 }
             }
             finally
@@ -69,7 +69,7 @@ namespace StackExchange.Redis.Tests
         {
             try
             {
-                using (var muxer = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true))
+                using (var muxer = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, shared: false))
                 {
                     var conn = muxer.GetDatabase();
                     muxer.AllowConnect = false;
@@ -87,7 +87,6 @@ namespace StackExchange.Redis.Tests
                 ClearAmbientFailures();
             }
         }
-#endif
 
         [Fact]
         public void NullInnerExceptionForMultipleEndpointsWithNoLastException()

@@ -361,12 +361,15 @@ namespace StackExchange.Redis.Tests
             var endpoint = conn.currentSentinelMasterEndPoint.ToString();
 
             SentinelServerA.SentinelFailover(ServiceName);
-            await Task.Delay(2000).ForAwait();
+            // Try and complete ASAP
+            await UntilCondition(TimeSpan.FromSeconds(10), () => {
+                var checkConn = Conn.GetSentinelMasterConnection(new ConfigurationOptions { ServiceName = ServiceName });
+                return endpoint != checkConn.currentSentinelMasterEndPoint.ToString();
+            }, waitPerLoop: TimeSpan.FromMilliseconds(50));
 
+            // Post-check for validity
             var conn1 = Conn.GetSentinelMasterConnection(new ConfigurationOptions { ServiceName = ServiceName });
-            var endpoint1 = conn1.currentSentinelMasterEndPoint.ToString();
-
-            Assert.NotEqual(endpoint, endpoint1);
+            Assert.NotEqual(endpoint, conn1.currentSentinelMasterEndPoint.ToString());
         }
 
         [Fact]
@@ -376,11 +379,15 @@ namespace StackExchange.Redis.Tests
             var endpoint = conn.currentSentinelMasterEndPoint.ToString();
 
             await SentinelServerA.SentinelFailoverAsync(ServiceName).ForAwait();
-            await Task.Delay(2000).ForAwait();
-            var conn1 = Conn.GetSentinelMasterConnection(new ConfigurationOptions { ServiceName = ServiceName });
-            var endpoint1 = conn1.currentSentinelMasterEndPoint.ToString();
+            // Try and complete ASAP
+            await UntilCondition(TimeSpan.FromSeconds(10), () => {
+                var checkConn = Conn.GetSentinelMasterConnection(new ConfigurationOptions { ServiceName = ServiceName });
+                return endpoint != checkConn.currentSentinelMasterEndPoint.ToString();
+            }, waitPerLoop: TimeSpan.FromMilliseconds(50));
 
-            Assert.NotEqual(endpoint, endpoint1);
+            // Post-check for validity
+            var conn1 = Conn.GetSentinelMasterConnection(new ConfigurationOptions { ServiceName = ServiceName });
+            Assert.NotEqual(endpoint, conn1.currentSentinelMasterEndPoint.ToString());
         }
 
         [Fact]
@@ -442,7 +449,7 @@ namespace StackExchange.Redis.Tests
 
             var readonlyConn = ConnectionMultiplexer.Connect(config);
 
-            await Task.Delay(2000).ForAwait();
+            await UntilCondition(TimeSpan.FromSeconds(2), () => readonlyConn.IsConnected);
             Assert.True(readonlyConn.IsConnected);
             var db = readonlyConn.GetDatabase();
             var s = db.StringGet("test");

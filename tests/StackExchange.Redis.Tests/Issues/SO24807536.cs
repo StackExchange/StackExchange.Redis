@@ -21,7 +21,7 @@ namespace StackExchange.Redis.Tests.Issues
                 // setup some data
                 cache.KeyDelete(key, CommandFlags.FireAndForget);
                 cache.HashSet(key, "full", "some value", flags: CommandFlags.FireAndForget);
-                cache.KeyExpire(key, TimeSpan.FromSeconds(3), CommandFlags.FireAndForget);
+                cache.KeyExpire(key, TimeSpan.FromSeconds(1), CommandFlags.FireAndForget);
 
                 // test while exists
                 var keyExists = cache.KeyExists(key);
@@ -32,7 +32,7 @@ namespace StackExchange.Redis.Tests.Issues
                 Assert.Equal("some value", fullWait.Result);
 
                 // wait for expiry
-                await Task.Delay(4000).ForAwait();
+                await Task.Delay(2000).ForAwait();
 
                 // test once expired
                 keyExists = cache.KeyExists(key);
