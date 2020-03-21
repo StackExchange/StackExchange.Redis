@@ -281,6 +281,7 @@ namespace StackExchange.Redis.Tests
             Assert.Equal("WRONGTYPE Operation against a key holding the wrong kind of value", ex.Message);
         }
 
+#if DEBUG
         [Fact]
         public async Task TestSevered()
         {
@@ -302,6 +303,7 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(key, db.StringGet(key));
             }
         }
+#endif
 
         [Fact]
         public async Task IncrAsync()
