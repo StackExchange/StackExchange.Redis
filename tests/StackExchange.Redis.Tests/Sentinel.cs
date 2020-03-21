@@ -400,13 +400,19 @@ namespace StackExchange.Redis.Tests
             db.StringSet("beforeFailOverValue", expected);
 
             SentinelServerA.SentinelFailover(ServiceName);
-            await Task.Delay(2000).ForAwait();
+            // Spin until complete (with a timeout) - since this can vary
+            await UntilCondition(TimeSpan.FromSeconds(10), () =>
+            {
+                var checkConn = Conn.GetSentinelMasterConnection(new ConfigurationOptions { ServiceName = ServiceName });
+                return s != checkConn.currentSentinelMasterEndPoint.ToString();
+            }, waitPerLoop: TimeSpan.FromMilliseconds(50));
 
             var conn1 = Conn.GetSentinelMasterConnection(new ConfigurationOptions { ServiceName = ServiceName });
             var s1 = conn1.currentSentinelMasterEndPoint.ToString();
 
             var db1 = conn1.GetDatabase();
             var actual = db1.StringGet("beforeFailOverValue");
+
             Assert.NotNull(s);
             Assert.NotNull(s1);
             Assert.NotEmpty(s);
