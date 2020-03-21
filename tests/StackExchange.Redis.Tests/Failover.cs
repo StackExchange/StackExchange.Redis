@@ -104,7 +104,7 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-#if DEBUG
+
         [Fact]
         public async Task DeslaveGoesToPrimary()
         {
@@ -183,7 +183,7 @@ namespace StackExchange.Redis.Tests
                     Assert.Equal(secondary2.EndPoint, db2.IdentifyEndpoint(key, CommandFlags.DemandSlave));
                 }
 
-                await UntilCondition(TimeSpan.FromSeconds(10), () => !primary.IsSlave && secondary.IsSlave, waitPerLoop: TimeSpan.FromMilliseconds(50));
+                await UntilCondition(TimeSpan.FromSeconds(20), () => !primary.IsSlave && secondary.IsSlave);
 
                 Assert.False(primary.IsSlave, $"{primary.EndPoint} should be a master.");
                 Assert.True(secondary.IsSlave, $"{secondary.EndPoint} should be a slave.");
@@ -194,7 +194,6 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(secondary.EndPoint, db.IdentifyEndpoint(key, CommandFlags.DemandSlave));
             }
         }
-#endif
 
         [Fact]
         public async Task SubscriptionsSurviveMasterSwitchAsync()
