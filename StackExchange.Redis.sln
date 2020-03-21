@@ -123,6 +123,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{153A10E4-E
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TestConsoleBaseline", "toys\TestConsoleBaseline\TestConsoleBaseline.csproj", "{D58114AE-4998-4647-AFCA-9353D20495AE}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = ".github", ".github\.github.csproj", "{8FB98E7D-DAE2-4465-BD9A-104000E0A2D4}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -169,6 +171,10 @@ Global
 		{D58114AE-4998-4647-AFCA-9353D20495AE}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D58114AE-4998-4647-AFCA-9353D20495AE}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D58114AE-4998-4647-AFCA-9353D20495AE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8FB98E7D-DAE2-4465-BD9A-104000E0A2D4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8FB98E7D-DAE2-4465-BD9A-104000E0A2D4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8FB98E7D-DAE2-4465-BD9A-104000E0A2D4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8FB98E7D-DAE2-4465-BD9A-104000E0A2D4}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
