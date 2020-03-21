@@ -104,6 +104,7 @@ namespace StackExchange.Redis.Tests
             }
         }
 
+#if DEBUG
         [Fact]
         public async Task DeslaveGoesToPrimary()
         {
@@ -193,6 +194,7 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(secondary.EndPoint, db.IdentifyEndpoint(key, CommandFlags.DemandSlave));
             }
         }
+#endif
 
         [Fact]
         public async Task SubscriptionsSurviveMasterSwitchAsync()
