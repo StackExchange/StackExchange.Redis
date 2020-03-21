@@ -41,7 +41,14 @@ namespace StackExchange.Redis.Tests
                 SyncTimeout = 5000
             };
             Conn = ConnectionMultiplexer.Connect(options, ConnectionLog);
-            Thread.Sleep(3000);
+            for (var i = 0; i < 150; i++)
+            {
+                Thread.Sleep(20);
+                if (Conn.IsConnected)
+                {
+                    break;
+                }
+            }
             Assert.True(Conn.IsConnected);
             SentinelServerA = Conn.GetServer(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortA);
             SentinelServerB = Conn.GetServer(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortB);
