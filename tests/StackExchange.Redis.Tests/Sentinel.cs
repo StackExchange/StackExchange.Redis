@@ -343,7 +343,16 @@ namespace StackExchange.Redis.Tests
                 var slaves = server.SentinelSlaves(ServiceName);
 
                 await Task.Delay(1000).ForAwait();
-                server.SentinelFailover(ServiceName);
+                try
+                {
+                    server.SentinelFailover(ServiceName);
+                }
+                catch (RedisServerException ex) when (ex.Message.Contains("NOGOODSLAVE"))
+                {
+                    // Retry once
+                    await Task.Delay(1000).ForAwait();
+                    server.SentinelFailover(ServiceName);
+                }
                 await Task.Delay(2000).ForAwait();
 
                 var newMaster = server.SentinelGetMasterAddressByName(ServiceName);
@@ -365,7 +374,16 @@ namespace StackExchange.Redis.Tests
                 var slaves = server.SentinelSlaves(ServiceName);
 
                 await Task.Delay(1000).ForAwait();
-                await server.SentinelFailoverAsync(ServiceName).ForAwait();
+                try
+                {
+                    await server.SentinelFailoverAsync(ServiceName).ForAwait();
+                }
+                catch (RedisServerException ex) when (ex.Message.Contains("NOGOODSLAVE"))
+                {
+                    // Retry once
+                    await Task.Delay(1000).ForAwait();
+                    await server.SentinelFailoverAsync(ServiceName).ForAwait();
+                }
                 await Task.Delay(2000).ForAwait();
 
                 var newMaster = server.SentinelGetMasterAddressByName(ServiceName);
@@ -382,7 +400,16 @@ namespace StackExchange.Redis.Tests
             var conn = Conn.GetSentinelMasterConnection(new ConfigurationOptions { ServiceName = ServiceName });
             var endpoint = conn.currentSentinelMasterEndPoint.ToString();
 
-            SentinelServerA.SentinelFailover(ServiceName);
+            try
+            {
+                SentinelServerA.SentinelFailover(ServiceName);
+            }
+            catch (RedisServerException ex) when (ex.Message.Contains("NOGOODSLAVE"))
+            {
+                // Retry once
+                await Task.Delay(1000).ForAwait();
+                SentinelServerA.SentinelFailover(ServiceName);
+            }
             await Task.Delay(2000).ForAwait();
 
             // Try and complete ASAP
@@ -402,7 +429,17 @@ namespace StackExchange.Redis.Tests
             var conn = Conn.GetSentinelMasterConnection(new ConfigurationOptions { ServiceName = ServiceName });
             var endpoint = conn.currentSentinelMasterEndPoint.ToString();
 
-            await SentinelServerA.SentinelFailoverAsync(ServiceName).ForAwait();
+            try
+            {
+                await SentinelServerA.SentinelFailoverAsync(ServiceName).ForAwait();
+            }
+            catch (RedisServerException ex) when (ex.Message.Contains("NOGOODSLAVE"))
+            {
+                // Retry once
+                await Task.Delay(1000).ForAwait();
+                await SentinelServerA.SentinelFailoverAsync(ServiceName).ForAwait();
+            }
+
             // Try and complete ASAP
             await UntilCondition(TimeSpan.FromSeconds(10), () => {
                 var checkConn = Conn.GetSentinelMasterConnection(new ConfigurationOptions { ServiceName = ServiceName });
@@ -427,7 +464,16 @@ namespace StackExchange.Redis.Tests
                 () => SentinelServerA.SentinelMaster(ServiceName).ToDictionary()["num-slaves"] != "0"
             );
 
-            SentinelServerA.SentinelFailover(ServiceName);
+            try
+            {
+                SentinelServerA.SentinelFailover(ServiceName);
+            }
+            catch (RedisServerException ex) when (ex.Message.Contains("NOGOODSLAVE"))
+            {
+                // Retry once
+                await Task.Delay(1000).ForAwait();
+                SentinelServerA.SentinelFailover(ServiceName);
+            }
             // Spin until complete (with a timeout) - since this can vary
             await UntilCondition(TimeSpan.FromSeconds(20), () =>
             {
