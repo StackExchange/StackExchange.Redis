@@ -20,7 +20,7 @@ jobs:
       run: dotnet build Build.csproj -c Release /p:CI=true
     - name: Start Redis Services
       working-directory: ./tests/RedisConfigs
-      run: docker-compose -f docker-compose.yml up -d && docker-compose -f docker-compose.yml up ready
+      run: docker-compose -f docker-compose.yml up -d
     - name: .NET Test
       run: dotnet test Build.csproj -c Release --no-build /p:CI=true
       env:
