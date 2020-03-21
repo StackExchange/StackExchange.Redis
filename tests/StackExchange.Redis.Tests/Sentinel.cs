@@ -389,7 +389,7 @@ namespace StackExchange.Redis.Tests
             await UntilCondition(TimeSpan.FromSeconds(10), () => {
                 var checkConn = Conn.GetSentinelMasterConnection(new ConfigurationOptions { ServiceName = ServiceName });
                 return endpoint != checkConn.currentSentinelMasterEndPoint.ToString();
-            }, waitPerLoop: TimeSpan.FromMilliseconds(50));
+            });
 
             // Post-check for validity
             var conn1 = Conn.GetSentinelMasterConnection(new ConfigurationOptions { ServiceName = ServiceName });
@@ -407,7 +407,7 @@ namespace StackExchange.Redis.Tests
             await UntilCondition(TimeSpan.FromSeconds(10), () => {
                 var checkConn = Conn.GetSentinelMasterConnection(new ConfigurationOptions { ServiceName = ServiceName });
                 return endpoint != checkConn.currentSentinelMasterEndPoint.ToString();
-            }, waitPerLoop: TimeSpan.FromMilliseconds(50));
+            });
 
             // Post-check for validity
             var conn1 = Conn.GetSentinelMasterConnection(new ConfigurationOptions { ServiceName = ServiceName });
@@ -424,8 +424,8 @@ namespace StackExchange.Redis.Tests
             db.StringSet("beforeFailOverValue", expected);
 
             await UntilCondition(TimeSpan.FromSeconds(10),
-                () => SentinelServerA.SentinelMaster(ServiceName).ToDictionary()["num-slaves"] != "0",
-                waitPerLoop: TimeSpan.FromMilliseconds(50));
+                () => SentinelServerA.SentinelMaster(ServiceName).ToDictionary()["num-slaves"] != "0"
+            );
 
             SentinelServerA.SentinelFailover(ServiceName);
             // Spin until complete (with a timeout) - since this can vary
@@ -433,7 +433,7 @@ namespace StackExchange.Redis.Tests
             {
                 var checkConn = Conn.GetSentinelMasterConnection(new ConfigurationOptions { ServiceName = ServiceName });
                 return s != checkConn.currentSentinelMasterEndPoint.ToString();
-            }, waitPerLoop: TimeSpan.FromMilliseconds(50));
+            });
 
             var conn1 = Conn.GetSentinelMasterConnection(new ConfigurationOptions { ServiceName = ServiceName });
             var s1 = conn1.currentSentinelMasterEndPoint.ToString();

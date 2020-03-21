@@ -295,7 +295,7 @@ namespace StackExchange.Redis.Tests
                 var server = GetServer(muxer);
                 server.SimulateConnectionFailure();
                 var watch = Stopwatch.StartNew();
-                await UntilCondition(TimeSpan.FromSeconds(10), () => server.IsConnected, waitPerLoop: TimeSpan.FromMilliseconds(50));
+                await UntilCondition(TimeSpan.FromSeconds(10), () => server.IsConnected);
                 watch.Stop();
                 Log("Time to re-establish: {0}ms (any order)", watch.ElapsedMilliseconds);
                 await UntilCondition(TimeSpan.FromSeconds(10), () => key == db.StringGet(key));
