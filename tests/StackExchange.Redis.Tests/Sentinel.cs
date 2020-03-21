@@ -331,6 +331,10 @@ namespace StackExchange.Redis.Tests
                 var master = server.SentinelGetMasterAddressByName(ServiceName);
                 var slaves = server.SentinelSlaves(ServiceName);
 
+                await UntilCondition(TimeSpan.FromSeconds(10),
+                    () => server.SentinelSlaves(ServiceName).Length > 0,
+                    waitPerLoop: TimeSpan.FromMilliseconds(50));
+
                 server.SentinelFailover(ServiceName);
                 await Task.Delay(2000).ForAwait();
 
@@ -350,6 +354,10 @@ namespace StackExchange.Redis.Tests
                 var master = server.SentinelGetMasterAddressByName(ServiceName);
                 var slaves = server.SentinelSlaves(ServiceName);
 
+                await UntilCondition(TimeSpan.FromSeconds(10),
+                    () => server.SentinelSlaves(ServiceName).Length > 0,
+                    waitPerLoop: TimeSpan.FromMilliseconds(50));
+
                 await server.SentinelFailoverAsync(ServiceName).ForAwait();
                 await Task.Delay(2000).ForAwait();
 
@@ -366,6 +374,10 @@ namespace StackExchange.Redis.Tests
         {
             var conn = Conn.GetSentinelMasterConnection(new ConfigurationOptions { ServiceName = ServiceName });
             var endpoint = conn.currentSentinelMasterEndPoint.ToString();
+
+            await UntilCondition(TimeSpan.FromSeconds(10),
+                () => SentinelServerA.SentinelSlaves(ServiceName).Length > 0,
+                waitPerLoop: TimeSpan.FromMilliseconds(50));
 
             SentinelServerA.SentinelFailover(ServiceName);
             // Try and complete ASAP
@@ -405,6 +417,10 @@ namespace StackExchange.Redis.Tests
             IDatabase db = conn.GetDatabase();
             var expected = DateTime.Now.Ticks.ToString();
             db.StringSet("beforeFailOverValue", expected);
+
+            await UntilCondition(TimeSpan.FromSeconds(10),
+                () => SentinelServerA.SentinelSlaves(ServiceName).Length > 0,
+                waitPerLoop: TimeSpan.FromMilliseconds(50));
 
             SentinelServerA.SentinelFailover(ServiceName);
             // Spin until complete (with a timeout) - since this can vary
