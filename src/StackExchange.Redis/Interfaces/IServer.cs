@@ -771,8 +771,7 @@ namespace StackExchange.Redis
         KeyValuePair<string, string>[] SentinelMaster(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Force a failover as if the master was not reachable, and without asking for agreement to other Sentinels 
-        /// (however a new version of the configuration will be published so that the other Sentinels will update their configurations).
+        /// Show the state and info of the specified master.
         /// </summary>
         /// <param name="serviceName">The sentinel service name.</param>
         /// <param name="flags">The command flags to use.</param>
