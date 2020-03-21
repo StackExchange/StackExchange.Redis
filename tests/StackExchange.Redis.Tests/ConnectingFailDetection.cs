@@ -139,9 +139,8 @@ namespace StackExchange.Redis.Tests
                 server.SimulateConnectionFailure();
 
                 await UntilCondition(TimeSpan.FromSeconds(10), () => muxer.IsConnected);
-                // interactive+subscriber = 2
-                Assert.Equal(2, Volatile.Read(ref failCount));
-                Assert.Equal(2, Volatile.Read(ref restoreCount));
+                Assert.True(Volatile.Read(ref failCount) > 1);
+                Assert.True(Volatile.Read(ref restoreCount) > 1);
             }
         }
     }
