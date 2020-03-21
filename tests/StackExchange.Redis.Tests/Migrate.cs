@@ -36,7 +36,7 @@ namespace StackExchange.Redis.Tests
                 // we keep seeing it fail on the CI server where the key has *left* the origin, but
                 // has *not* yet arrived at the destination; adding a pause while we investigate with
                 // the redis folks
-                await UntilCondition(TimeSpan.FromSeconds(5), () => toDb.KeyExists(key));
+                await UntilCondition(TimeSpan.FromSeconds(5), () => !fromDb.KeyExists(key) && toDb.KeyExists(key));
 
                 Assert.False(fromDb.KeyExists(key));
                 Assert.True(toDb.KeyExists(key));
