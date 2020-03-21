@@ -237,14 +237,15 @@ namespace StackExchange.Redis.Tests
                 Assert.False(b.GetServer(TestConfig.Current.FailoverMasterServerAndPort).IsSlave, $"B Connection: {TestConfig.Current.FailoverMasterServerAndPort} should be a master");
                 Assert.True(b.GetServer(TestConfig.Current.FailoverSlaveServerAndPort).IsSlave, $"B Connection: {TestConfig.Current.FailoverSlaveServerAndPort} should be a slave");
 
+                Log("Failover 1 Complete");
                 var epA = subA.SubscribedEndpoint(channel);
                 var epB = subB.SubscribedEndpoint(channel);
-                Log("A: " + EndPointCollection.ToString(epA));
-                Log("B: " + EndPointCollection.ToString(epB));
+                Log("  A: " + EndPointCollection.ToString(epA));
+                Log("  B: " + EndPointCollection.ToString(epB));
                 subA.Publish(channel, "A1");
                 subB.Publish(channel, "B1");
-                Log("SubA ping: " + subA.Ping());
-                Log("SubB ping: " + subB.Ping());
+                Log("  SubA ping: " + subA.Ping());
+                Log("  SubB ping: " + subB.Ping());
                 // If redis is under load due to this suite, it may take a moment to send across.
                 await UntilCondition(5000, () => Interlocked.Read(ref aCount) == 2 && Interlocked.Read(ref bCount) == 2).ForAwait();
 
@@ -266,16 +267,17 @@ namespace StackExchange.Redis.Tests
                     await UntilCondition(3000, () => b.GetServer(TestConfig.Current.FailoverMasterServerAndPort).IsSlave).ForAwait();
                     subA.Ping();
                     subB.Ping();
-                    Log("Pausing...");
-                    Log("A " + TestConfig.Current.FailoverMasterServerAndPort + " status: " + (a.GetServer(TestConfig.Current.FailoverMasterServerAndPort).IsSlave ? "Slave" : "Master"));
-                    Log("A " + TestConfig.Current.FailoverSlaveServerAndPort + " status: " + (a.GetServer(TestConfig.Current.FailoverSlaveServerAndPort).IsSlave ? "Slave" : "Master"));
-                    Log("B " + TestConfig.Current.FailoverMasterServerAndPort + " status: " + (b.GetServer(TestConfig.Current.FailoverMasterServerAndPort).IsSlave ? "Slave" : "Master"));
-                    Log("B " + TestConfig.Current.FailoverSlaveServerAndPort + " status: " + (b.GetServer(TestConfig.Current.FailoverSlaveServerAndPort).IsSlave ? "Slave" : "Master"));
+                    Log("Falover 2 Attempted. Pausing...");
+                    Log("  A " + TestConfig.Current.FailoverMasterServerAndPort + " status: " + (a.GetServer(TestConfig.Current.FailoverMasterServerAndPort).IsSlave ? "Slave" : "Master"));
+                    Log("  A " + TestConfig.Current.FailoverSlaveServerAndPort + " status: " + (a.GetServer(TestConfig.Current.FailoverSlaveServerAndPort).IsSlave ? "Slave" : "Master"));
+                    Log("  B " + TestConfig.Current.FailoverMasterServerAndPort + " status: " + (b.GetServer(TestConfig.Current.FailoverMasterServerAndPort).IsSlave ? "Slave" : "Master"));
+                    Log("  B " + TestConfig.Current.FailoverSlaveServerAndPort + " status: " + (b.GetServer(TestConfig.Current.FailoverSlaveServerAndPort).IsSlave ? "Slave" : "Master"));
 
                     if (!a.GetServer(TestConfig.Current.FailoverMasterServerAndPort).IsSlave)
                     {
                         TopologyFail();
                     }
+                    Log("Falover 2 Complete.");
 
                     Assert.True(a.GetServer(TestConfig.Current.FailoverMasterServerAndPort).IsSlave, $"A Connection: {TestConfig.Current.FailoverMasterServerAndPort} should be a slave");
                     Assert.False(a.GetServer(TestConfig.Current.FailoverSlaveServerAndPort).IsSlave, $"A Connection: {TestConfig.Current.FailoverSlaveServerAndPort} should be a master");
@@ -288,21 +290,27 @@ namespace StackExchange.Redis.Tests
                     Assert.False(b.GetServer(TestConfig.Current.FailoverSlaveServerAndPort).IsSlave, $"B Connection: {TestConfig.Current.FailoverSlaveServerAndPort} should be a master");
 
                     Log("Pause complete");
-                    Log("A outstanding: " + a.GetCounters().TotalOutstanding);
-                    Log("B outstanding: " + b.GetCounters().TotalOutstanding);
+                    Log("  A outstanding: " + a.GetCounters().TotalOutstanding);
+                    Log("  B outstanding: " + b.GetCounters().TotalOutstanding);
                     subA.Ping();
                     subB.Ping();
                     await Task.Delay(1000).ForAwait();
                     epA = subA.SubscribedEndpoint(channel);
                     epB = subB.SubscribedEndpoint(channel);
-                    Log("A: " + EndPointCollection.ToString(epA));
-                    Log("B: " + EndPointCollection.ToString(epB));
-                    Log("A2 sent to: " + subA.Publish(channel, "A2"));
-                    Log("B2 sent to: " + subB.Publish(channel, "B2"));
+                    Log("Subscription complete");
+                    Log("  A: " + EndPointCollection.ToString(epA));
+                    Log("  B: " + EndPointCollection.ToString(epB));
+                    Log("  A2 sent to: " + subA.Publish(channel, "A2"));
+                    Log("  B2 sent to: " + subB.Publish(channel, "B2"));
                     subA.Ping();
                     subB.Ping();
-                    Log("Checking...");
+                    Log("Ping Complete. Checking...");
                     await UntilCondition(10000, () => Interlocked.Read(ref aCount) == 2 && Interlocked.Read(ref bCount) == 2).ForAwait();
+
+                    Log("Counts so far:");
+                    Log("  aCount: " + Interlocked.Read(ref aCount));
+                    Log("  bCount: " + Interlocked.Read(ref bCount));
+                    Log("  masterChanged: " + Interlocked.Read(ref masterChanged));
 
                     Assert.Equal(2, Interlocked.Read(ref aCount));
                     Assert.Equal(2, Interlocked.Read(ref bCount));
