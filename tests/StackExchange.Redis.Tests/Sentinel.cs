@@ -151,6 +151,15 @@ namespace StackExchange.Redis.Tests
             }
         }
 
+        // Sometimes it's global, sometimes it's local
+        // Depends what mood Redis is in but they're equal and not the point of our tests
+        private static readonly IpComparer _ipComparer = new IpComparer();
+        private class IpComparer : IEqualityComparer<string>
+        {
+            public bool Equals(string x, string y) => x == y || x?.Replace("0.0.0.0", "127.0.0.1") == y?.Replace("0.0.0.0", "127.0.0.1");
+            public int GetHashCode(string obj) => obj.GetHashCode();
+        }
+
         [Fact]
         public void SentinelSentinelsTest()
         {
@@ -171,7 +180,7 @@ namespace StackExchange.Redis.Tests
 
             Assert.All(expected, ep => Assert.NotEqual(ep, SentinelServerA.EndPoint.ToString()));
             Assert.True(sentinels.Length == 2);
-            Assert.All(expected, ep => Assert.Contains(ep, actual));
+            Assert.All(expected, ep => Assert.Contains(ep, actual, _ipComparer));
 
             sentinels = SentinelServerB.SentinelSentinels(ServiceName);
             foreach (var kv in sentinels)
@@ -186,7 +195,7 @@ namespace StackExchange.Redis.Tests
 
             Assert.All(expected, ep => Assert.NotEqual(ep, SentinelServerB.EndPoint.ToString()));
             Assert.True(sentinels.Length == 2);
-            Assert.All(expected, ep => Assert.Contains(ep, actual));
+            Assert.All(expected, ep => Assert.Contains(ep, actual, _ipComparer));
 
             sentinels = SentinelServerC.SentinelSentinels(ServiceName);
             foreach (var kv in sentinels)
@@ -201,7 +210,7 @@ namespace StackExchange.Redis.Tests
 
             Assert.All(expected, ep => Assert.NotEqual(ep, SentinelServerC.EndPoint.ToString()));
             Assert.True(sentinels.Length == 2);
-            Assert.All(expected, ep => Assert.Contains(ep, actual));
+            Assert.All(expected, ep => Assert.Contains(ep, actual, _ipComparer));
         }
 
         [Fact]
@@ -221,7 +230,7 @@ namespace StackExchange.Redis.Tests
             }
             Assert.All(expected, ep => Assert.NotEqual(ep, SentinelServerA.EndPoint.ToString()));
             Assert.True(sentinels.Length == 2);
-            Assert.All(expected, ep => Assert.Contains(ep, actual));
+            Assert.All(expected, ep => Assert.Contains(ep, actual, _ipComparer));
 
             sentinels = await SentinelServerB.SentinelSentinelsAsync(ServiceName).ForAwait();
 
@@ -238,7 +247,7 @@ namespace StackExchange.Redis.Tests
             }
             Assert.All(expected, ep => Assert.NotEqual(ep, SentinelServerB.EndPoint.ToString()));
             Assert.True(sentinels.Length == 2);
-            Assert.All(expected, ep => Assert.Contains(ep, actual));
+            Assert.All(expected, ep => Assert.Contains(ep, actual, _ipComparer));
 
             sentinels = await SentinelServerC.SentinelSentinelsAsync(ServiceName).ForAwait();
             expected = new List<string> {
@@ -253,7 +262,7 @@ namespace StackExchange.Redis.Tests
             }
             Assert.All(expected, ep => Assert.NotEqual(ep, SentinelServerC.EndPoint.ToString()));
             Assert.True(sentinels.Length == 2);
-            Assert.All(expected, ep => Assert.Contains(ep, actual));
+            Assert.All(expected, ep => Assert.Contains(ep, actual, _ipComparer));
         }
 
         [Fact]
