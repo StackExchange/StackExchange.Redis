@@ -333,6 +333,7 @@ namespace StackExchange.Redis.Tests
                 var master = server.SentinelGetMasterAddressByName(ServiceName);
                 var slaves = server.SentinelSlaves(ServiceName);
 
+                await Task.Delay(1000).ForAwait();
                 server.SentinelFailover(ServiceName);
                 await Task.Delay(2000).ForAwait();
 
@@ -354,6 +355,7 @@ namespace StackExchange.Redis.Tests
                 var master = server.SentinelGetMasterAddressByName(ServiceName);
                 var slaves = server.SentinelSlaves(ServiceName);
 
+                await Task.Delay(1000).ForAwait();
                 await server.SentinelFailoverAsync(ServiceName).ForAwait();
                 await Task.Delay(2000).ForAwait();
 
@@ -413,7 +415,7 @@ namespace StackExchange.Redis.Tests
             db.StringSet("beforeFailOverValue", expected);
 
             await UntilCondition(TimeSpan.FromSeconds(10),
-                () => SentinelServerA.SentinelSlaves(ServiceName).Length > 0,
+                () => SentinelServerA.SentinelMaster(ServiceName).ToDictionary()["num-slaves"] != "0",
                 waitPerLoop: TimeSpan.FromMilliseconds(50));
 
             SentinelServerA.SentinelFailover(ServiceName);
