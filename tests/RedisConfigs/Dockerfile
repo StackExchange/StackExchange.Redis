@@ -8,6 +8,7 @@ COPY Sentinel /data/Sentinel/
 RUN chown -R redis:redis /data
 
 COPY Docker/docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 RUN apt-get -y update && apt-get install -y git gcc make supervisor && apt-get clean
 
