@@ -56,7 +56,7 @@ namespace StackExchange.Redis.Tests.Issues
                 await first.UnsubscribeAsync();
                 await Task.Delay(200);
                 await pubsub.PublishAsync(name, "def");
-                await UntilCondition(TimeSpan.FromSeconds(10), () => values.Count == 1);
+                await UntilCondition(TimeSpan.FromSeconds(10), () => values.Count == 1 && Volatile.Read(ref i) == 2);
                 lock (values)
                 {
                     Assert.Equal("abc", Assert.Single(values));
