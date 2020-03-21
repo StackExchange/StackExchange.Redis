@@ -401,7 +401,7 @@ namespace StackExchange.Redis.Tests
 
             SentinelServerA.SentinelFailover(ServiceName);
             // Spin until complete (with a timeout) - since this can vary
-            await UntilCondition(TimeSpan.FromSeconds(10), () =>
+            await UntilCondition(TimeSpan.FromSeconds(20), () =>
             {
                 var checkConn = Conn.GetSentinelMasterConnection(new ConfigurationOptions { ServiceName = ServiceName });
                 return s != checkConn.currentSentinelMasterEndPoint.ToString();
