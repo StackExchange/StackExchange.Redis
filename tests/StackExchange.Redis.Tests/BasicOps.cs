@@ -297,7 +297,7 @@ namespace StackExchange.Redis.Tests
                 await UntilCondition(TimeSpan.FromSeconds(10), () => server.IsConnected, waitPerLoop: TimeSpan.FromMilliseconds(50));
                 watch.Stop();
                 Log("Time to re-establish: {0}ms (any order)", watch.ElapsedMilliseconds);
-                await Task.Delay(2000).ForAwait();
+                await UntilCondition(TimeSpan.FromSeconds(10), () => key == db.StringGet(key));
                 Debug.WriteLine("Pinging...");
                 Assert.Equal(key, db.StringGet(key));
             }
