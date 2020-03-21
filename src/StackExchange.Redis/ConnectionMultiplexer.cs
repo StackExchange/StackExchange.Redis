@@ -106,6 +106,11 @@ namespace StackExchange.Redis
         internal volatile bool IgnoreConnect;
 
         /// <summary>
+        /// Tracks overall connection multiplexer counts
+        /// </summary>
+        internal static int _connectAttemptCount, _connectCount, _closeCount;
+
+        /// <summary>
         /// Provides a way of overriding the default Task Factory. If not set, it will use the default Task.Factory.
         /// Useful when top level code sets it's own factory which may interfere with Redis queries.
         /// </summary>
@@ -834,12 +839,14 @@ namespace StackExchange.Redis
                 {
                     muxer = CreateMultiplexer(configuration, logProxy, out connectHandler);
                     killMe = muxer;
+                    Interlocked.Increment(ref _connectAttemptCount);
                     bool configured = await muxer.ReconfigureAsync(true, false, logProxy, null, "connect").ObserveErrors().ForAwait();
                     if (!configured)
                     {
                         throw ExceptionFactory.UnableToConnect(muxer, muxer.failureMessage);
                     }
                     killMe = null;
+                    Interlocked.Increment(ref _connectCount);
                     return muxer;
                 }
                 finally
@@ -992,6 +999,7 @@ namespace StackExchange.Redis
                 {
                     muxer = CreateMultiplexer(configuration, logProxy, out connectHandler);
                     killMe = muxer;
+                    Interlocked.Increment(ref _connectAttemptCount);
                     // note that task has timeouts internally, so it might take *just over* the regular timeout
                     var task = muxer.ReconfigureAsync(true, false, logProxy, null, "connect");
 
@@ -1010,6 +1018,7 @@ namespace StackExchange.Redis
 
                     if (!task.Result) throw ExceptionFactory.UnableToConnect(muxer, muxer.failureMessage);
                     killMe = null;
+                    Interlocked.Increment(ref _connectCount);
 
                     if (muxer.ServerSelectionStrategy.ServerType == ServerType.Sentinel)
                     {
@@ -2452,6 +2461,7 @@ namespace StackExchange.Redis
             DisposeAndClearServers();
             OnCloseReaderWriter();
             OnClosing(true);
+            Interlocked.Increment(ref _closeCount);
         }
 
         partial void OnCloseReaderWriter();

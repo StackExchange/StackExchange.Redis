@@ -292,6 +292,8 @@ namespace StackExchange.Redis
                 add("Local-CPU", "Local-CPU", PerfCounterHelper.GetSystemCpuPercent());
             }
 
+            add("Multiplexer-Connects", "mc", $"{ConnectionMultiplexer._connectAttemptCount}/{ConnectionMultiplexer._connectCount}/{ConnectionMultiplexer._closeCount}");
+
             add("Version", "v", GetLibVersion());
 
             sb.Append(" (Please take a look at this article for some common client-side issues that can cause timeouts: ");
