@@ -182,6 +182,8 @@ namespace StackExchange.Redis.Tests
                     Assert.Equal(secondary2.EndPoint, db2.IdentifyEndpoint(key, CommandFlags.DemandSlave));
                 }
 
+                await UntilCondition(TimeSpan.FromSeconds(10), () => !primary.IsSlave && secondary.IsSlave, waitPerLoop: TimeSpan.FromMilliseconds(50));
+
                 Assert.False(primary.IsSlave, $"{primary.EndPoint} should be a master.");
                 Assert.True(secondary.IsSlave, $"{secondary.EndPoint} should be a slave.");
 
