@@ -131,7 +131,6 @@ namespace StackExchange.Redis.Tests
                 muxer.ConnectionRestored += delegate { Interlocked.Increment(ref restoreCount); };
 
                 var db = muxer.GetDatabase();
-                db.Ping();
                 Assert.Equal(0, Volatile.Read(ref failCount));
                 Assert.Equal(0, Volatile.Read(ref restoreCount));
 

@@ -30,7 +30,7 @@ namespace StackExchange.Redis.Tests
                 toDb.KeyDelete(key, CommandFlags.FireAndForget);
                 fromDb.StringSet(key, "foo", flags: CommandFlags.FireAndForget);
                 var dest = to.GetEndPoints(true).Single();
-                fromDb.KeyMigrate(key, dest);
+                fromDb.KeyMigrate(key, dest, migrateOptions: MigrateOptions.Replace);
 
                 // this is *meant* to be synchronous at the redis level, but
                 // we keep seeing it fail on the CI server where the key has *left* the origin, but

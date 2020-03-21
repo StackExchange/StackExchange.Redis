@@ -418,7 +418,7 @@ namespace StackExchange.Redis.Tests
             return watch.Elapsed;
         }
 
-        private static readonly TimeSpan DefaultWaitPerLoop = TimeSpan.FromMilliseconds(100);
+        private static readonly TimeSpan DefaultWaitPerLoop = TimeSpan.FromMilliseconds(50);
         protected async Task UntilCondition(TimeSpan maxWaitTime, Func<bool> predicate, TimeSpan? waitPerLoop = null)
         {
             TimeSpan spent = TimeSpan.Zero;

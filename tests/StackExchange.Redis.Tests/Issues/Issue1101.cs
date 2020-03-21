@@ -111,7 +111,7 @@ namespace StackExchange.Redis.Tests.Issues
 
                 await Task.Delay(100);
                 await pubsub.PublishAsync(name, "abc");
-                await Task.Delay(100);
+                await UntilCondition(TimeSpan.FromSeconds(10), () => values.Count == 1);
                 lock (values)
                 {
                     Assert.Equal("abc", Assert.Single(values));
@@ -124,7 +124,7 @@ namespace StackExchange.Redis.Tests.Issues
                 await pubsub.UnsubscribeAsync(name);
                 await Task.Delay(100);
                 await pubsub.PublishAsync(name, "def");
-                await Task.Delay(100);
+                await UntilCondition(TimeSpan.FromSeconds(10), () => values.Count == 1);
                 lock (values)
                 {
                     Assert.Equal("abc", Assert.Single(values));
@@ -162,7 +162,7 @@ namespace StackExchange.Redis.Tests.Issues
                 second.OnMessage(_ => Interlocked.Increment(ref i));
                 await Task.Delay(100);
                 await pubsub.PublishAsync(name, "abc");
-                await Task.Delay(100);
+                await UntilCondition(TimeSpan.FromSeconds(10), () => values.Count == 1);
                 lock (values)
                 {
                     Assert.Equal("abc", Assert.Single(values));
@@ -175,7 +175,7 @@ namespace StackExchange.Redis.Tests.Issues
                 await pubsub.UnsubscribeAllAsync();
                 await Task.Delay(100);
                 await pubsub.PublishAsync(name, "def");
-                await Task.Delay(100);
+                await UntilCondition(TimeSpan.FromSeconds(10), () => values.Count == 1);
                 lock (values)
                 {
                     Assert.Equal("abc", Assert.Single(values));
