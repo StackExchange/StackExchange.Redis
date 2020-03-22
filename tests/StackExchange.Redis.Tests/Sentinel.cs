@@ -12,6 +12,7 @@ namespace StackExchange.Redis.Tests
     public class Sentinel : TestBase
     {
         private string ServiceName => TestConfig.Current.SentinelSeviceName;
+        private ConfigurationOptions ServiceOptions => new ConfigurationOptions { ServiceName = ServiceName, AllowAdmin = true };
 
         private ConnectionMultiplexer Conn { get; }
         private IServer SentinelServerA { get; }
@@ -44,7 +45,7 @@ namespace StackExchange.Redis.Tests
             for (var i = 0; i < 150; i++)
             {
                 Thread.Sleep(20);
-                if (Conn.IsConnected)
+                if (Conn.IsConnected && Conn.GetSentinelMasterConnection(ServiceOptions).IsConnected)
                 {
                     break;
                 }
@@ -345,13 +346,17 @@ namespace StackExchange.Redis.Tests
                 await Task.Delay(1000).ForAwait();
                 try
                 {
+                    Log("Failover attempted initiated");
                     server.SentinelFailover(ServiceName);
+                    Log("  Success!");
                 }
                 catch (RedisServerException ex) when (ex.Message.Contains("NOGOODSLAVE"))
                 {
                     // Retry once
+                    Log("  Retry initiated");
                     await Task.Delay(1000).ForAwait();
                     server.SentinelFailover(ServiceName);
+                    Log("  Retry complete");
                 }
                 await Task.Delay(2000).ForAwait();
 
@@ -376,13 +381,17 @@ namespace StackExchange.Redis.Tests
                 await Task.Delay(1000).ForAwait();
                 try
                 {
+                    Log("Failover attempted initiated");
                     await server.SentinelFailoverAsync(ServiceName).ForAwait();
+                    Log("  Success!");
                 }
                 catch (RedisServerException ex) when (ex.Message.Contains("NOGOODSLAVE"))
                 {
                     // Retry once
+                    Log("  Retry initiated");
                     await Task.Delay(1000).ForAwait();
                     await server.SentinelFailoverAsync(ServiceName).ForAwait();
+                    Log("  Retry complete");
                 }
                 await Task.Delay(2000).ForAwait();
 
@@ -397,95 +406,149 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task GetSentinelMasterConnectionFailoverTest()
         {
-            var conn = Conn.GetSentinelMasterConnection(new ConfigurationOptions { ServiceName = ServiceName });
+            var conn = Conn.GetSentinelMasterConnection(ServiceOptions);
             var endpoint = conn.currentSentinelMasterEndPoint.ToString();
 
             try
             {
+                Log("Failover attempted initiated");
                 SentinelServerA.SentinelFailover(ServiceName);
+                Log("  Success!");
             }
             catch (RedisServerException ex) when (ex.Message.Contains("NOGOODSLAVE"))
             {
                 // Retry once
+                Log("  Retry initiated");
                 await Task.Delay(1000).ForAwait();
                 SentinelServerA.SentinelFailover(ServiceName);
+                Log("  Retry complete");
             }
             await Task.Delay(2000).ForAwait();
 
             // Try and complete ASAP
             await UntilCondition(TimeSpan.FromSeconds(10), () => {
-                var checkConn = Conn.GetSentinelMasterConnection(new ConfigurationOptions { ServiceName = ServiceName });
+                var checkConn = Conn.GetSentinelMasterConnection(ServiceOptions);
                 return endpoint != checkConn.currentSentinelMasterEndPoint.ToString();
             });
 
             // Post-check for validity
-            var conn1 = Conn.GetSentinelMasterConnection(new ConfigurationOptions { ServiceName = ServiceName });
+            var conn1 = Conn.GetSentinelMasterConnection(ServiceOptions);
             Assert.NotEqual(endpoint, conn1.currentSentinelMasterEndPoint.ToString());
         }
 
         [Fact]
         public async Task GetSentinelMasterConnectionFailoverAsyncTest()
         {
-            var conn = Conn.GetSentinelMasterConnection(new ConfigurationOptions { ServiceName = ServiceName });
+            var conn = Conn.GetSentinelMasterConnection(ServiceOptions);
             var endpoint = conn.currentSentinelMasterEndPoint.ToString();
 
             try
             {
+                Log("Failover attempted initiated");
                 await SentinelServerA.SentinelFailoverAsync(ServiceName).ForAwait();
+                Log("  Success!");
             }
             catch (RedisServerException ex) when (ex.Message.Contains("NOGOODSLAVE"))
             {
                 // Retry once
+                Log("  Retry initiated");
                 await Task.Delay(1000).ForAwait();
                 await SentinelServerA.SentinelFailoverAsync(ServiceName).ForAwait();
+                Log("  Retry complete");
             }
 
             // Try and complete ASAP
             await UntilCondition(TimeSpan.FromSeconds(10), () => {
-                var checkConn = Conn.GetSentinelMasterConnection(new ConfigurationOptions { ServiceName = ServiceName });
+                var checkConn = Conn.GetSentinelMasterConnection(ServiceOptions);
                 return endpoint != checkConn.currentSentinelMasterEndPoint.ToString();
             });
 
             // Post-check for validity
-            var conn1 = Conn.GetSentinelMasterConnection(new ConfigurationOptions { ServiceName = ServiceName });
+            var conn1 = Conn.GetSentinelMasterConnection(ServiceOptions);
             Assert.NotEqual(endpoint, conn1.currentSentinelMasterEndPoint.ToString());
         }
 
         [Fact]
         public async Task GetSentinelMasterConnectionWriteReadFailover()
         {
-            var conn = Conn.GetSentinelMasterConnection(new ConfigurationOptions { ServiceName = ServiceName });
+            Log("Conn:");
+            foreach (var server in Conn.GetServerSnapshot().ToArray())
+            {
+                Log("  Endpoint: " + server.EndPoint);
+            }
+            Log("Conn Slaves:");
+            foreach (var slaves in SentinelServerA.SentinelSlaves(ServiceName))
+            {
+                foreach(var pair in slaves)
+                {
+                    Log("  {0}: {1}", pair.Key, pair.Value);
+                }
+            }
+
+            var conn = Conn.GetSentinelMasterConnection(ServiceOptions);
             var s = conn.currentSentinelMasterEndPoint.ToString();
+            Log("Sentinel Master Endpoint: " + s);
+            foreach (var server in conn.GetServerSnapshot().ToArray())
+            {
+                Log("  Server: " + server.EndPoint);
+                Log("    Master Endpoint: " + server.MasterEndPoint);
+                Log("    IsSlave: " + server.IsSlave);
+                Log("    SlaveReadOnly: " + server.SlaveReadOnly);
+                var info = conn.GetServer(server.EndPoint).Info("Replication");
+                foreach (var section in info)
+                {
+                    Log("    Section: " + section.Key);
+                    foreach (var pair in section)
+                    {
+                        Log("        " + pair.Key +": " + pair.Value);
+                    }
+                }
+            }
+
             IDatabase db = conn.GetDatabase();
             var expected = DateTime.Now.Ticks.ToString();
-            db.StringSet("beforeFailOverValue", expected);
+            Log("Tick Key: " + expected);
+            var key = Me();
+            db.KeyDelete(key, CommandFlags.FireAndForget);
+            db.StringSet(key, expected);
 
             await UntilCondition(TimeSpan.FromSeconds(10),
                 () => SentinelServerA.SentinelMaster(ServiceName).ToDictionary()["num-slaves"] != "0"
             );
+            Log("Conditions met");
 
             try
             {
+                Log("Failover attempted initiated");
                 SentinelServerA.SentinelFailover(ServiceName);
+                Log("  Success!");
             }
             catch (RedisServerException ex) when (ex.Message.Contains("NOGOODSLAVE"))
             {
                 // Retry once
+                Log("  Retry initiated");
                 await Task.Delay(1000).ForAwait();
                 SentinelServerA.SentinelFailover(ServiceName);
+                Log("  Retry complete");
             }
+            Log("Delaying for failover conditions...");
+            await Task.Delay(1000).ForAwait();
+            Log("Conditons check...");
             // Spin until complete (with a timeout) - since this can vary
             await UntilCondition(TimeSpan.FromSeconds(20), () =>
             {
-                var checkConn = Conn.GetSentinelMasterConnection(new ConfigurationOptions { ServiceName = ServiceName });
-                return s != checkConn.currentSentinelMasterEndPoint.ToString();
+                var checkConn = Conn.GetSentinelMasterConnection(ServiceOptions);
+                return s != checkConn.currentSentinelMasterEndPoint.ToString()
+                    && expected == checkConn.GetDatabase().StringGet(key);
             });
+            Log("  Conditions met.");
 
-            var conn1 = Conn.GetSentinelMasterConnection(new ConfigurationOptions { ServiceName = ServiceName });
+            var conn1 = Conn.GetSentinelMasterConnection(ServiceOptions);
             var s1 = conn1.currentSentinelMasterEndPoint.ToString();
+            Log("New master endpoint: " + s1);
 
-            var db1 = conn1.GetDatabase();
-            var actual = db1.StringGet("beforeFailOverValue");
+            var actual = conn1.GetDatabase().StringGet(key);
+            Log("Fetched tick key: " + actual);
 
             Assert.NotNull(s);
             Assert.NotNull(s1);
