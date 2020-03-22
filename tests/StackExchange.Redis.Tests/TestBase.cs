@@ -47,7 +47,7 @@ namespace StackExchange.Redis.Tests
                 Console.WriteLine(message);
             }
         }
-        protected void Log(string message) => Log(Writer, message);
+        protected void Log(string message) => LogNoTime(Writer, message);
         public static void Log(TextWriter output, string message)
         {
             lock (output)
