@@ -129,6 +129,7 @@ namespace StackExchange.Redis.Tests
                     Assert.Contains("clientName: " + nameof(TimeoutException), ex.Message);
                     // Ensure our pipe numbers are in place
                     Assert.Contains("inst: 0, qu: 0, qs: 0, aw: False, in: 0, in-pipe: 0, out-pipe: 0", ex.Message);
+                    Assert.Contains("mc: 1/1/0", ex.Message);
                     Assert.Contains("serverEndpoint: " + server.EndPoint.ToString(), ex.Message);
                     Assert.DoesNotContain("Unspecified/", ex.Message);
                     Assert.EndsWith(" (Please take a look at this article for some common client-side issues that can cause timeouts: https://stackexchange.github.io/StackExchange.Redis/Timeouts)", ex.Message);

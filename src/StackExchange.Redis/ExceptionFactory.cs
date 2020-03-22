@@ -273,6 +273,7 @@ namespace StackExchange.Redis
                 }
                 add("Server-Endpoint", "serverEndpoint", server.EndPoint.ToString().Replace("Unspecified/",""));
             }
+            add("Multiplexer-Connects", "mc", $"{mutiplexer._connectAttemptCount}/{mutiplexer._connectCount}/{mutiplexer._closeCount}");
             add("Manager", "mgr", mutiplexer.SocketManager?.GetState());
 
             add("Client-Name", "clientName", mutiplexer.ClientName);
@@ -291,8 +292,6 @@ namespace StackExchange.Redis
             {
                 add("Local-CPU", "Local-CPU", PerfCounterHelper.GetSystemCpuPercent());
             }
-
-            add("Multiplexer-Connects", "mc", $"{ConnectionMultiplexer._connectAttemptCount}/{ConnectionMultiplexer._connectCount}/{ConnectionMultiplexer._closeCount}");
 
             add("Version", "v", GetLibVersion());
 
