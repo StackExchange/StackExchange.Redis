@@ -356,12 +356,13 @@ namespace StackExchange.Redis.Tests
 
         public static string Me([CallerFilePath] string filePath = null, [CallerMemberName] string caller = null) =>
 #if NET462
-            "net462-" + Path.GetFileNameWithoutExtension(filePath) + "-" + caller;
-#elif NETCOREAPP2_0
-            "netcoreapp2.0-" + Path.GetFileNameWithoutExtension(filePath) + "-" + caller;
+            "net462-"
+#elif NETCOREAPP2_1
+            "netcoreapp2.1-"
 #else
-            "unknown-" + Path.GetFileNameWithoutExtension(filePath) + "-" + caller;
+            "unknown-"
 #endif
+         + Path.GetFileNameWithoutExtension(filePath) + "-" + caller;
 
         protected static TimeSpan RunConcurrent(Action work, int threads, int timeout = 10000, [CallerMemberName] string caller = null)
         {

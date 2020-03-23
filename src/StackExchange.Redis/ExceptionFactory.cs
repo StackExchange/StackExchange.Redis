@@ -18,7 +18,7 @@ namespace StackExchange.Redis
         {
             string s = GetLabel(includeDetail, command, message);
             var ex = new RedisCommandException("This operation is not available unless admin mode is enabled: " + s);
-            if (includeDetail) AddDetail(ex, message, server, s);
+            if (includeDetail) AddExceptionDetail(ex, message, server, s);
             return ex;
         }
 
@@ -33,7 +33,7 @@ namespace StackExchange.Redis
         internal static Exception ConnectionFailure(bool includeDetail, ConnectionFailureType failureType, string message, ServerEndPoint server)
         {
             var ex = new RedisConnectionException(failureType, message);
-            if (includeDetail) AddDetail(ex, null, server, null);
+            if (includeDetail) AddExceptionDetail(ex, null, server, null);
             return ex;
         }
 
@@ -41,14 +41,14 @@ namespace StackExchange.Redis
         {
             string s = command.ToString();
             var ex = new RedisCommandException("A target database is not required for " + s);
-            if (includeDetail) AddDetail(ex, null, null, s);
+            if (includeDetail) AddExceptionDetail(ex, null, null, s);
             return ex;
         }
 
         internal static Exception DatabaseOutfRange(bool includeDetail, int targetDatabase, Message message, ServerEndPoint server)
         {
             var ex = new RedisCommandException("The database does not exist on the server: " + targetDatabase);
-            if (includeDetail) AddDetail(ex, message, server, null);
+            if (includeDetail) AddExceptionDetail(ex, message, server, null);
             return ex;
         }
 
@@ -56,7 +56,7 @@ namespace StackExchange.Redis
         {
             string s = command.ToString();
             var ex = new RedisCommandException("A target database is required for " + s);
-            if (includeDetail) AddDetail(ex, null, null, s);
+            if (includeDetail) AddExceptionDetail(ex, null, null, s);
             return ex;
         }
 
@@ -64,14 +64,14 @@ namespace StackExchange.Redis
         {
             string s = GetLabel(includeDetail, command, message);
             var ex = new RedisCommandException("Command cannot be issued to a slave: " + s);
-            if (includeDetail) AddDetail(ex, message, server, s);
+            if (includeDetail) AddExceptionDetail(ex, message, server, s);
             return ex;
         }
 
         internal static Exception MultiSlot(bool includeDetail, Message message)
         {
             var ex = new RedisCommandException("Multi-key operations must involve a single slot; keys can use 'hash tags' to help this, i.e. '{/users/12345}/account' and '{/users/12345}/contacts' will always be in the same slot");
-            if (includeDetail) AddDetail(ex, message, null, null);
+            if (includeDetail) AddExceptionDetail(ex, message, null, null);
             return ex;
         }
 
@@ -91,9 +91,14 @@ namespace StackExchange.Redis
             }
         }
 
-        internal static Exception NoConnectionAvailable(bool includeDetail, bool includePerformanceCounters, RedisCommand command, Message message, ServerEndPoint server, ReadOnlySpan<ServerEndPoint> serverSnapshot)
+        internal static Exception NoConnectionAvailable(
+            ConnectionMultiplexer multiplexer,
+            Message message,
+            ServerEndPoint server,
+            ReadOnlySpan<ServerEndPoint> serverSnapshot = default,
+            RedisCommand command = default)
         {
-            string commandLabel = GetLabel(includeDetail, command, message);
+            string commandLabel = GetLabel(multiplexer.IncludeDetailInExceptions, message?.Command ?? command, message);
 
             if (server != null)
             {
@@ -102,25 +107,51 @@ namespace StackExchange.Redis
                 serverSnapshot = new ServerEndPoint[] { server };
             }
 
-            var innerException = PopulateInnerExceptions(serverSnapshot);
+            var innerException = PopulateInnerExceptions(serverSnapshot == default ? multiplexer.GetServerSnapshot() : serverSnapshot);
 
-            StringBuilder exceptionmessage = new StringBuilder("No connection is available to service this operation: ").Append(commandLabel);
+            // Try to get a useful error message for the user.
+            long attempts = multiplexer._connectAttemptCount, completions = multiplexer._connectCompletedCount;
+            string initialMessage;
+            // We only need to customize the connection if we're aborting on connect fail
+            // The "never" case would have thrown, if this was true
+            if (!multiplexer.RawConfig.AbortOnConnectFail && attempts <= multiplexer.RawConfig.ConnectRetry && completions == 0)
+            {
+                // Initial attempt, attempted use before an async connection completes
+                initialMessage = $"Connection to Redis never succeeded (attempts: {attempts} - connection likely in-progress), unable to service operation: ";
+            }
+            else if (!multiplexer.RawConfig.AbortOnConnectFail && attempts > multiplexer.RawConfig.ConnectRetry && completions == 0)
+            {
+                // Attempted use after a full initial retry connect count # of failures
+                // This can happen in Azure often, where user disables abort and has the wrong config
+                initialMessage = $"Connection to Redis never succeeded (attempts: {attempts} - check your config), unable to service operation: ";
+            }
+            else
+            {
+                // Default if we don't have a more useful error message here based on circumstances
+                initialMessage = "No connection is active/available to service this operation: ";
+            }
+
+            StringBuilder sb = new StringBuilder(initialMessage);
+            sb.Append(commandLabel);
             string innermostExceptionstring = GetInnerMostExceptionMessage(innerException);
             if (!string.IsNullOrEmpty(innermostExceptionstring))
             {
-                exceptionmessage.Append("; ").Append(innermostExceptionstring);
+                sb.Append("; ").Append(innermostExceptionstring);
             }
 
-            if (includeDetail)
+            // Add counters and exception data if we have it
+            List<Tuple<string, string>> data = null;
+            if (multiplexer.IncludeDetailInExceptions)
             {
-                exceptionmessage.Append("; ").Append(PerfCounterHelper.GetThreadPoolAndCPUSummary(includePerformanceCounters));
+                data = new List<Tuple<string, string>>();
+                AddCommonDetail(data, sb, message, multiplexer, server);
             }
-
-            var ex = new RedisConnectionException(ConnectionFailureType.UnableToResolvePhysicalConnection, exceptionmessage.ToString(), innerException, message?.Status ?? CommandStatus.Unknown);
-
-            if (includeDetail)
+            var ex = new RedisConnectionException(ConnectionFailureType.UnableToResolvePhysicalConnection, sb.ToString(), innerException, message?.Status ?? CommandStatus.Unknown);
+            if (multiplexer.IncludeDetailInExceptions)
             {
-                AddDetail(ex, message, server, commandLabel);
+                CopyDataToException(data, ex);
+                sb.Append("; ").Append(PerfCounterHelper.GetThreadPoolAndCPUSummary(multiplexer.IncludePerformanceCountersInExceptions));
+                AddExceptionDetail(ex, message, server, commandLabel);
             }
             return ex;
         }
@@ -160,7 +191,7 @@ namespace StackExchange.Redis
         {
             string s = GetLabel(includeDetail, command, null);
             var ex = new RedisCommandException("Command is not available on your server: " + s);
-            if (includeDetail) AddDetail(ex, null, null, s);
+            if (includeDetail) AddExceptionDetail(ex, null, null, s);
             return ex;
         }
 
@@ -181,7 +212,16 @@ namespace StackExchange.Redis
             }
             return _libVersion;
         }
-        internal static Exception Timeout(ConnectionMultiplexer mutiplexer, string baseErrorMessage, Message message, ServerEndPoint server, WriteResult? result = null)
+        private static void Add(List<Tuple<string, string>> data, StringBuilder sb, string lk, string sk, string v)
+        {
+            if (v != null)
+            {
+                if (lk != null) data.Add(Tuple.Create(lk, v));
+                if (sk != null) sb.Append(", ").Append(sk).Append(": ").Append(v);
+            }
+        }
+
+        internal static Exception Timeout(ConnectionMultiplexer multiplexer, string baseErrorMessage, Message message, ServerEndPoint server, WriteResult? result = null)
         {
             List<Tuple<string, string>> data = new List<Tuple<string, string>> { Tuple.Create("Message", message.CommandAndKey) };
             var sb = new StringBuilder();
@@ -195,104 +235,38 @@ namespace StackExchange.Redis
             }
             else
             {
-                sb.Append("Timeout performing ").Append(message.Command).Append(" (").Append(Format.ToString(mutiplexer.TimeoutMilliseconds)).Append("ms)");
-            }
-
-            void add(string lk, string sk, string v)
-            {
-                if (v != null)
-                {
-                    if (lk != null) data.Add(Tuple.Create(lk, v));
-                    if (sk != null) sb.Append(", ").Append(sk).Append(": ").Append(v);
-                }
+                sb.Append("Timeout performing ").Append(message.Command).Append(" (").Append(Format.ToString(multiplexer.TimeoutMilliseconds)).Append("ms)");
             }
 
             // Add timeout data, if we have it
             if (result == WriteResult.TimeoutBeforeWrite)
             {
-                add("Timeout", "timeout", Format.ToString(mutiplexer.TimeoutMilliseconds));
+                Add(data, sb, "Timeout", "timeout", Format.ToString(multiplexer.TimeoutMilliseconds));
                 try
                 {
 #if DEBUG
-                    if (message.QueuePosition >= 0) add("QueuePosition", null, message.QueuePosition.ToString()); // the position the item was when added to the queue
-                    if ((int)message.ConnectionWriteState >= 0) add("WriteState", null, message.ConnectionWriteState.ToString()); // what the physical was doing when it was added to the queue
+                    if (message.QueuePosition >= 0) Add(data, sb, "QueuePosition", null, message.QueuePosition.ToString()); // the position the item was when added to the queue
+                    if ((int)message.ConnectionWriteState >= 0) Add(data, sb, "WriteState", null, message.ConnectionWriteState.ToString()); // what the physical was doing when it was added to the queue
 #endif
                     if (message != null && message.TryGetPhysicalState(out var ws, out var rs, out var sentDelta, out var receivedDelta))
                     {
-                        add("Write-State", null, ws.ToString());
-                        add("Read-State", null, rs.ToString());
+                        Add(data, sb, "Write-State", null, ws.ToString());
+                        Add(data, sb, "Read-State", null, rs.ToString());
                         // these might not always be available
                         if (sentDelta >= 0)
                         {
-                            add("OutboundDeltaKB", "outbound", $"{sentDelta >> 10}KiB");
+                            Add(data, sb, "OutboundDeltaKB", "outbound", $"{sentDelta >> 10}KiB");
                         }
                         if (receivedDelta >= 0)
                         {
-                            add("InboundDeltaKB", "inbound", $"{receivedDelta >> 10}KiB");
+                            Add(data, sb, "InboundDeltaKB", "inbound", $"{receivedDelta >> 10}KiB");
                         }
                     }
                 }
                 catch { }
             }
 
-            if (message != null)
-            {
-                message.TryGetHeadMessages(out var now, out var next);
-                if (now != null) add("Message-Current", "active", mutiplexer.IncludeDetailInExceptions ? now.CommandAndKey : now.Command.ToString());
-                if (next != null) add("Message-Next", "next", mutiplexer.IncludeDetailInExceptions ? next.CommandAndKey : next.Command.ToString());
-            }
-
-            // Add server data, if we have it
-            if (server != null)
-            {
-                server.GetOutstandingCount(message.Command, out int inst, out int qs, out long @in, out int qu, out bool aw, out long toRead, out long toWrite, out var bs, out var rs, out var ws);
-                switch(rs)
-                {
-                    case PhysicalConnection.ReadStatus.CompletePendingMessageAsync:
-                    case PhysicalConnection.ReadStatus.CompletePendingMessageSync:
-                        sb.Append(" ** possible thread-theft indicated; see https://stackexchange.github.io/StackExchange.Redis/ThreadTheft ** ");
-                        break;
-                }
-                add("OpsSinceLastHeartbeat", "inst", inst.ToString());
-                add("Queue-Awaiting-Write", "qu", qu.ToString());
-                add("Queue-Awaiting-Response", "qs", qs.ToString());
-                add("Active-Writer", "aw", aw.ToString());
-                if (qu != 0) add("Backlog-Writer", "bw", bs.ToString());
-                if (rs != PhysicalConnection.ReadStatus.NA) add("Read-State", "rs", rs.ToString());
-                if (ws != PhysicalConnection.WriteStatus.NA) add("Write-State", "ws", ws.ToString());
-
-                if (@in >= 0) add("Inbound-Bytes", "in", @in.ToString());
-                if (toRead >= 0) add("Inbound-Pipe-Bytes", "in-pipe", toRead.ToString());
-                if (toWrite >= 0) add("Outbound-Pipe-Bytes", "out-pipe", toWrite.ToString());
-
-                if (mutiplexer.StormLogThreshold >= 0 && qs >= mutiplexer.StormLogThreshold && Interlocked.CompareExchange(ref mutiplexer.haveStormLog, 1, 0) == 0)
-                {
-                    var log = server.GetStormLog(message.Command);
-                    if (string.IsNullOrWhiteSpace(log)) Interlocked.Exchange(ref mutiplexer.haveStormLog, 0);
-                    else Interlocked.Exchange(ref mutiplexer.stormLogSnapshot, log);
-                }
-                add("Server-Endpoint", "serverEndpoint", server.EndPoint.ToString().Replace("Unspecified/",""));
-            }
-            add("Manager", "mgr", mutiplexer.SocketManager?.GetState());
-
-            add("Client-Name", "clientName", mutiplexer.ClientName);
-            var hashSlot = message.GetHashSlot(mutiplexer.ServerSelectionStrategy);
-            // only add keyslot if its a valid cluster key slot
-            if (hashSlot != ServerSelectionStrategy.NoSlot)
-            {
-                add("Key-HashSlot", "PerfCounterHelperkeyHashSlot", message.GetHashSlot(mutiplexer.ServerSelectionStrategy).ToString());
-            }
-            int busyWorkerCount = PerfCounterHelper.GetThreadPoolStats(out string iocp, out string worker);
-            add("ThreadPool-IO-Completion", "IOCP", iocp);
-            add("ThreadPool-Workers", "WORKER", worker);
-            data.Add(Tuple.Create("Busy-Workers", busyWorkerCount.ToString()));
-
-            if (mutiplexer.IncludePerformanceCountersInExceptions)
-            {
-                add("Local-CPU", "Local-CPU", PerfCounterHelper.GetSystemCpuPercent());
-            }
-
-            add("Version", "v", GetLibVersion());
+            AddCommonDetail(data, sb, message, multiplexer, server);
 
             sb.Append(" (Please take a look at this article for some common client-side issues that can cause timeouts: ");
             sb.Append(timeoutHelpLink);
@@ -302,6 +276,14 @@ namespace StackExchange.Redis
             {
                 HelpLink = timeoutHelpLink
             };
+            CopyDataToException(data, ex);
+
+            if (multiplexer.IncludeDetailInExceptions) AddExceptionDetail(ex, message, server, null);
+            return ex;
+        }
+
+        private static void CopyDataToException(List<Tuple<string, string>> data, Exception ex)
+        {
             if (data != null)
             {
                 var exData = ex.Data;
@@ -310,12 +292,81 @@ namespace StackExchange.Redis
                     exData["Redis-" + kv.Item1] = kv.Item2;
                 }
             }
-
-            if (mutiplexer.IncludeDetailInExceptions) AddDetail(ex, message, server, null);
-            return ex;
         }
 
-        private static void AddDetail(Exception exception, Message message, ServerEndPoint server, string label)
+        private static void AddCommonDetail(
+            List<Tuple<string, string>> data,
+            StringBuilder sb,
+            Message message,
+            ConnectionMultiplexer multiplexer,
+            ServerEndPoint server
+            )
+        {
+            if (message != null)
+            {
+                message.TryGetHeadMessages(out var now, out var next);
+                if (now != null) Add(data, sb, "Message-Current", "active", multiplexer.IncludeDetailInExceptions ? now.CommandAndKey : now.Command.ToString());
+                if (next != null) Add(data, sb, "Message-Next", "next", multiplexer.IncludeDetailInExceptions ? next.CommandAndKey : next.Command.ToString());
+            }
+
+            // Add server data, if we have it
+            if (server != null && message != null)
+            {
+                server.GetOutstandingCount(message.Command, out int inst, out int qs, out long @in, out int qu, out bool aw, out long toRead, out long toWrite, out var bs, out var rs, out var ws);
+                switch (rs)
+                {
+                    case PhysicalConnection.ReadStatus.CompletePendingMessageAsync:
+                    case PhysicalConnection.ReadStatus.CompletePendingMessageSync:
+                        sb.Append(" ** possible thread-theft indicated; see https://stackexchange.github.io/StackExchange.Redis/ThreadTheft ** ");
+                        break;
+                }
+                Add(data, sb, "OpsSinceLastHeartbeat", "inst", inst.ToString());
+                Add(data, sb, "Queue-Awaiting-Write", "qu", qu.ToString());
+                Add(data, sb, "Queue-Awaiting-Response", "qs", qs.ToString());
+                Add(data, sb, "Active-Writer", "aw", aw.ToString());
+                if (qu != 0) Add(data, sb, "Backlog-Writer", "bw", bs.ToString());
+                if (rs != PhysicalConnection.ReadStatus.NA) Add(data, sb, "Read-State", "rs", rs.ToString());
+                if (ws != PhysicalConnection.WriteStatus.NA) Add(data, sb, "Write-State", "ws", ws.ToString());
+
+                if (@in >= 0) Add(data, sb, "Inbound-Bytes", "in", @in.ToString());
+                if (toRead >= 0) Add(data, sb, "Inbound-Pipe-Bytes", "in-pipe", toRead.ToString());
+                if (toWrite >= 0) Add(data, sb, "Outbound-Pipe-Bytes", "out-pipe", toWrite.ToString());
+
+                if (multiplexer.StormLogThreshold >= 0 && qs >= multiplexer.StormLogThreshold && Interlocked.CompareExchange(ref multiplexer.haveStormLog, 1, 0) == 0)
+                {
+                    var log = server.GetStormLog(message.Command);
+                    if (string.IsNullOrWhiteSpace(log)) Interlocked.Exchange(ref multiplexer.haveStormLog, 0);
+                    else Interlocked.Exchange(ref multiplexer.stormLogSnapshot, log);
+                }
+                Add(data, sb, "Server-Endpoint", "serverEndpoint", server.EndPoint.ToString().Replace("Unspecified/", ""));
+            }
+            Add(data, sb, "Multiplexer-Connects", "mc", $"{multiplexer._connectAttemptCount}/{multiplexer._connectCompletedCount}/{multiplexer._connectionCloseCount}");
+            Add(data, sb, "Manager", "mgr", multiplexer.SocketManager?.GetState());
+
+            Add(data, sb, "Client-Name", "clientName", multiplexer.ClientName);
+            if (message != null)
+            {
+                var hashSlot = message.GetHashSlot(multiplexer.ServerSelectionStrategy);
+                // only add keyslot if its a valid cluster key slot
+                if (hashSlot != ServerSelectionStrategy.NoSlot)
+                {
+                    Add(data, sb, "Key-HashSlot", "PerfCounterHelperkeyHashSlot", message.GetHashSlot(multiplexer.ServerSelectionStrategy).ToString());
+                }
+            }
+            int busyWorkerCount = PerfCounterHelper.GetThreadPoolStats(out string iocp, out string worker);
+            Add(data, sb, "ThreadPool-IO-Completion", "IOCP", iocp);
+            Add(data, sb, "ThreadPool-Workers", "WORKER", worker);
+            data.Add(Tuple.Create("Busy-Workers", busyWorkerCount.ToString()));
+
+            if (multiplexer.IncludePerformanceCountersInExceptions)
+            {
+                Add(data, sb, "Local-CPU", "Local-CPU", PerfCounterHelper.GetSystemCpuPercent());
+            }
+
+            Add(data, sb, "Version", "v", GetLibVersion());
+        }
+
+        private static void AddExceptionDetail(Exception exception, Message message, ServerEndPoint server, string label)
         {
             if (exception != null)
             {
