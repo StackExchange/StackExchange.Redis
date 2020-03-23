@@ -756,19 +756,19 @@ namespace StackExchange.Redis
         /// Returns the ip and port numbers of all known Sentinels
         /// for the given service name.
         /// </summary>
-        /// <param name="serviveName">the sentinel service name</param>
+        /// <param name="serviceName">the sentinel service name</param>
         /// <param name="flags"></param>
         /// <returns>a list of the sentinel ips and ports</returns>
-        EndPoint[] SentinelGetSentinelAddresses(string serviveName, CommandFlags flags = CommandFlags.None);
+        EndPoint[] SentinelGetSentinelAddresses(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns the ip and port numbers of all known Sentinels
         /// for the given service name.
         /// </summary>
-        /// <param name="serviveName">the sentinel service name</param>
+        /// <param name="serviceName">the sentinel service name</param>
         /// <param name="flags"></param>
         /// <returns>a list of the sentinel ips and ports</returns>
-        Task<EndPoint[]> SentinelGetSentinelAddressesAsync(string serviveName, CommandFlags flags = CommandFlags.None);
+        Task<EndPoint[]> SentinelGetSentinelAddressesAsync(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Show the state and info of the specified master.
