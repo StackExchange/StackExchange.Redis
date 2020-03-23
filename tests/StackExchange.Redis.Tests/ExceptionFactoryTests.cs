@@ -185,7 +185,6 @@ namespace StackExchange.Redis.Tests
                         Assert.DoesNotContain("serverEndpoint: " + server.EndPoint.ToString().Replace("Unspecified/", ""), ex.Message);
                     }
                     Assert.DoesNotContain("Unspecified/", ex.Message);
-                    Assert.Null(ex.InnerException);
                 }
             }
             finally
