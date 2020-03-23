@@ -1,4 +1,5 @@
-﻿using System.Threading;
+﻿using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
@@ -113,7 +114,7 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void Issue922_ReconnectRaised()
+        public async Task Issue922_ReconnectRaised()
         {
             var config = ConfigurationOptions.Parse(TestConfig.Current.MasterServerAndPort);
             config.AbortOnConnectFail = true;
@@ -130,15 +131,14 @@ namespace StackExchange.Redis.Tests
                 muxer.ConnectionRestored += delegate { Interlocked.Increment(ref restoreCount); };
 
                 var db = muxer.GetDatabase();
-                db.Ping();
                 Assert.Equal(0, Volatile.Read(ref failCount));
                 Assert.Equal(0, Volatile.Read(ref restoreCount));
 
                 var server = muxer.GetServer(TestConfig.Current.MasterServerAndPort);
                 server.SimulateConnectionFailure();
-                Thread.Sleep(1000);
 
-                db.Ping(); // interactive+subscriber = 2
+                await UntilCondition(TimeSpan.FromSeconds(10), () => Volatile.Read(ref failCount) + Volatile.Read(ref restoreCount) == 4);
+                // interactive+subscriber = 2
                 Assert.Equal(2, Volatile.Read(ref failCount));
                 Assert.Equal(2, Volatile.Read(ref restoreCount));
             }

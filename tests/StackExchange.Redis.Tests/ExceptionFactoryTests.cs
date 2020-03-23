@@ -47,7 +47,8 @@ namespace StackExchange.Redis.Tests
                     var outer = Assert.IsType<RedisConnectionException>(ex);
                     Assert.Equal(ConnectionFailureType.UnableToResolvePhysicalConnection, outer.FailureType);
                     var inner = Assert.IsType<RedisConnectionException>(outer.InnerException);
-                    Assert.Equal(ConnectionFailureType.SocketFailure, inner.FailureType);
+                    Assert.True(inner.FailureType == ConnectionFailureType.SocketFailure
+                             || inner.FailureType == ConnectionFailureType.InternalFailure);
                 }
             }
             finally

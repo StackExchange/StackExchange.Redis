@@ -38,16 +38,22 @@ namespace StackExchange.Redis.Tests
         protected void LogNoTime(string message) => LogNoTime(Writer, message);
         internal static void LogNoTime(TextWriter output, string message)
         {
-            output.WriteLine(message);
+            lock (output)
+            {
+                output.WriteLine(message);
+            }
             if (TestConfig.Current.LogToConsole)
             {
                 Console.WriteLine(message);
             }
         }
-        protected void Log(string message) => Log(Writer, message);
+        protected void Log(string message) => LogNoTime(Writer, message);
         public static void Log(TextWriter output, string message)
         {
-            output?.WriteLine(Time() + ": " + message);
+            lock (output)
+            {
+                output?.WriteLine(Time() + ": " + message);
+            }
             if (TestConfig.Current.LogToConsole)
             {
                 Console.WriteLine(message);
@@ -55,7 +61,10 @@ namespace StackExchange.Redis.Tests
         }
         protected void Log(string message, params object[] args)
         {
-            Output.WriteLine(Time() + ": " + message, args);
+            lock (Output)
+            {
+                Output.WriteLine(Time() + ": " + message, args);
+            }
             if (TestConfig.Current.LogToConsole)
             {
                 Console.WriteLine(message, args);
@@ -410,13 +419,15 @@ namespace StackExchange.Redis.Tests
             return watch.Elapsed;
         }
 
-        protected async Task UntilCondition(int maxMilliseconds, Func<bool> predicate, int perLoop = 100)
+        private static readonly TimeSpan DefaultWaitPerLoop = TimeSpan.FromMilliseconds(50);
+        protected async Task UntilCondition(TimeSpan maxWaitTime, Func<bool> predicate, TimeSpan? waitPerLoop = null)
         {
-            var spent = 0;
-            while (spent < maxMilliseconds && !predicate())
+            TimeSpan spent = TimeSpan.Zero;
+            while (spent < maxWaitTime && !predicate())
             {
-                await Task.Delay(perLoop).ForAwait();
-                spent += perLoop;
+                var wait = waitPerLoop ?? DefaultWaitPerLoop;
+                await Task.Delay(wait).ForAwait();
+                spent += wait;
             }
         }
     }

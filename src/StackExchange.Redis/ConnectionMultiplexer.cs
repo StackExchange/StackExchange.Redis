@@ -458,21 +458,30 @@ namespace StackExchange.Redis
             // ConfigurationOptions.ConfigCheckSeconds interval to identify the current (created by this method call) topology correctly.
             var blockingReconfig = Interlocked.CompareExchange(ref activeConfigCause, "Block: Pending Master Reconfig", null) == null;
 
-            // try and broadcast this everywhere, to catch the maximum audience
-            if ((options & ReplicationChangeOptions.Broadcast) != 0 && ConfigurationChangedChannel != null
-                && CommandMap.IsAvailable(RedisCommand.PUBLISH))
+            // Try and broadcast the fact a change happened to all members
+            // We want everyone possible to pick it up.
+            // We broadcast before *and after* the change to remote members, so that they don't go without detecting a change happened.
+            // This eliminates the race of pub/sub *then* re-slaving happening, since a method both preceeds and follows.
+            void Broadcast(ReadOnlySpan<ServerEndPoint> serverNodes)
             {
-                RedisValue channel = ConfigurationChangedChannel;
-                foreach (var node in nodes)
+                if ((options & ReplicationChangeOptions.Broadcast) != 0 && ConfigurationChangedChannel != null
+                    && CommandMap.IsAvailable(RedisCommand.PUBLISH))
                 {
-                    if (!node.IsConnected) continue;
-                    log?.WriteLine($"Broadcasting via {Format.ToString(node.EndPoint)}...");
-                    msg = Message.Create(-1, flags, RedisCommand.PUBLISH, channel, newMaster);
+                    RedisValue channel = ConfigurationChangedChannel;
+                    foreach (var node in serverNodes)
+                    {
+                        if (!node.IsConnected) continue;
+                        log?.WriteLine($"Broadcasting via {Format.ToString(node.EndPoint)}...");
+                        msg = Message.Create(-1, flags, RedisCommand.PUBLISH, channel, newMaster);
 #pragma warning disable CS0618
-                    node.WriteDirectFireAndForgetSync(msg, ResultProcessor.Int64);
+                        node.WriteDirectFireAndForgetSync(msg, ResultProcessor.Int64);
 #pragma warning restore CS0618
+                    }
                 }
             }
+
+            // Send a message before it happens - because afterwards a new slave may be unresponsive
+            Broadcast(nodes);
 
             if ((options & ReplicationChangeOptions.EnslaveSubordinates) != 0)
             {
@@ -487,6 +496,11 @@ namespace StackExchange.Redis
 #pragma warning restore CS0618
                 }
             }
+
+            // ...and send one after it happens - because the first broadcast may have landed on a secondary client
+            // and it can reconfgure before any topology change actually happened. This is most likely to happen
+            // in low-latency environments.
+            Broadcast(nodes);
 
             // and reconfigure the muxer
             log?.WriteLine("Reconfiguring all endpoints...");

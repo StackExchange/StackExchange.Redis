@@ -27,21 +27,20 @@ namespace StackExchange.Redis.Tests
                 pub.Subscribe(new RedisChannel("ab*d", RedisChannel.PatternMode.Auto), (x, y) => Interlocked.Increment(ref c));
                 pub.Subscribe("abc*", (x, y) => Interlocked.Increment(ref d));
 
-                await Task.Delay(4100).ForAwait();
+                await Task.Delay(1000).ForAwait();
                 pub.Publish("abcd", "efg");
-                await Task.Delay(500).ForAwait();
+                await UntilCondition(TimeSpan.FromSeconds(10),
+                    () => Thread.VolatileRead(ref b) == 1
+                       && Thread.VolatileRead(ref c) == 1
+                       && Thread.VolatileRead(ref d) == 1);
                 Assert.Equal(0, Thread.VolatileRead(ref a));
                 Assert.Equal(1, Thread.VolatileRead(ref b));
                 Assert.Equal(1, Thread.VolatileRead(ref c));
                 Assert.Equal(1, Thread.VolatileRead(ref d));
 
                 pub.Publish("*bcd", "efg");
-                await Task.Delay(500).ForAwait();
+                await UntilCondition(TimeSpan.FromSeconds(10), () => Thread.VolatileRead(ref a) == 1);
                 Assert.Equal(1, Thread.VolatileRead(ref a));
-                //Assert.Equal(1, Thread.VolatileRead(ref b));
-                //Assert.Equal(1, Thread.VolatileRead(ref c));
-                //Assert.Equal(1, Thread.VolatileRead(ref d));
-
             }
         }
 

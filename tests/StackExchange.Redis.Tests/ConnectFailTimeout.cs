@@ -1,4 +1,4 @@
-﻿using System.Threading;
+﻿using System;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
@@ -9,7 +9,6 @@ namespace StackExchange.Redis.Tests
     {
         public ConnectFailTimeout(ITestOutputHelper output) : base (output) { }
 
-#if DEBUG
         [Fact]
         public async Task NoticesConnectFail()
         {
@@ -32,7 +31,7 @@ namespace StackExchange.Redis.Tests
                 Assert.Throws<RedisConnectionException>(() => server.Ping());
                 Log("pinged");
                 // Heartbeat should reconnect by now
-                await Task.Delay(5000).ConfigureAwait(false);
+                await UntilCondition(TimeSpan.FromSeconds(10), () => server.IsConnected);
 
                 Log("pinging - expect success");
                 var time = server.Ping();
@@ -40,6 +39,5 @@ namespace StackExchange.Redis.Tests
                 Log(time.ToString());
             }
         }
-#endif
     }
 }
