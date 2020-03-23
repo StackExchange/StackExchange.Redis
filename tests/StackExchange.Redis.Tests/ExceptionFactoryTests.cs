@@ -132,5 +132,66 @@ namespace StackExchange.Redis.Tests
                 ClearAmbientFailures();
             }
         }
+
+        [Theory]
+        [InlineData(0, 0, true, "No connection is active/available to service this operation: PING")]
+        [InlineData(1, 0, true, "Connection to Redis never succeeded (1 attempt - connection likely in-progress), unable to service operation: PING")]
+        [InlineData(12, 0, true, "Connection to Redis never succeeded (12 attempts - check your config), unable to service operation: PING")]
+        [InlineData(0, 0, false, "No connection is active/available to service this operation: PING")]
+        [InlineData(1, 0, false, "Connection to Redis never succeeded (1 attempt - connection likely in-progress), unable to service operation: PING")]
+        [InlineData(12, 0, false, "Connection to Redis never succeeded (12 attempts - check your config), unable to service operation: PING")]
+        public void NoConnectionException(int connCount, int completeCount, bool hasDetail, string messageStart)
+        {
+            try
+            {
+                var options = new ConfigurationOptions()
+                {
+                    AbortOnConnectFail = false,
+                    ConnectTimeout = 500,
+                    SyncTimeout = 500,
+                    KeepAlive = 5000
+                };
+                options.EndPoints.Add($"doesnot.exist.{Guid.NewGuid():N}:6379");
+
+                var muxer = ConnectionMultiplexer.Connect(options);
+                using (muxer)
+                {
+                    var server = muxer.GetServer(muxer.GetEndPoints()[0]);
+                    muxer.AllowConnect = false;
+                    muxer._connectAttemptCount = connCount;
+                    muxer._connectCompletedCount = completeCount;
+                    muxer.IncludeDetailInExceptions = hasDetail;
+                    muxer.IncludePerformanceCountersInExceptions = hasDetail;
+
+                    var msg = Message.Create(-1, CommandFlags.None, RedisCommand.PING);
+                    var rawEx = ExceptionFactory.NoConnectionAvailable(muxer, msg, new ServerEndPoint(muxer, server.EndPoint));
+                    var ex = Assert.IsType<RedisConnectionException>(rawEx);
+                    Writer.WriteLine("Exception: " + ex.Message);
+
+                    // Example format: "Exception: No connection is active/available to service this operation: PING, inst: 0, qu: 0, qs: 0, aw: False, in: 0, in-pipe: 0, out-pipe: 0, serverEndpoint: 127.0.0.1:6379, mc: 1/1/0, mgr: 10 of 10 available, clientName: NoConnectionException, IOCP: (Busy=0,Free=1000,Min=8,Max=1000), WORKER: (Busy=2,Free=2045,Min=8,Max=2047), Local-CPU: 100%, v: 2.1.0.5";
+                    Assert.StartsWith(messageStart, ex.Message);
+
+                    // Ensure our pipe numbers are in place if they should be
+                    if (hasDetail)
+                    {
+                        Assert.Contains("inst: 0, qu: 0, qs: 0, aw: False, in: 0, in-pipe: 0, out-pipe: 0", ex.Message);
+                        Assert.Contains($"mc: {connCount}/{completeCount}/0", ex.Message);
+                        Assert.Contains("serverEndpoint: " + server.EndPoint.ToString().Replace("Unspecified/", ""), ex.Message);
+                    }
+                    else
+                    {
+                        Assert.DoesNotContain("inst: 0, qu: 0, qs: 0, aw: False, in: 0, in-pipe: 0, out-pipe: 0", ex.Message);
+                        Assert.DoesNotContain($"mc: {connCount}/{completeCount}/0", ex.Message);
+                        Assert.DoesNotContain("serverEndpoint: " + server.EndPoint.ToString().Replace("Unspecified/", ""), ex.Message);
+                    }
+                    Assert.DoesNotContain("Unspecified/", ex.Message);
+                    Assert.Null(ex.InnerException);
+                }
+            }
+            finally
+            {
+                ClearAmbientFailures();
+            }
+        }
     }
 }
