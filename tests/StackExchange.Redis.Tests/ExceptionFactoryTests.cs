@@ -134,26 +134,39 @@ namespace StackExchange.Redis.Tests
         }
 
         [Theory]
-        [InlineData(0, 0, true, "No connection is active/available to service this operation: PING")]
-        [InlineData(1, 0, true, "Connection to Redis never succeeded (1 attempt - connection likely in-progress), unable to service operation: PING")]
-        [InlineData(12, 0, true, "Connection to Redis never succeeded (12 attempts - check your config), unable to service operation: PING")]
-        [InlineData(0, 0, false, "No connection is active/available to service this operation: PING")]
-        [InlineData(1, 0, false, "Connection to Redis never succeeded (1 attempt - connection likely in-progress), unable to service operation: PING")]
-        [InlineData(12, 0, false, "Connection to Redis never succeeded (12 attempts - check your config), unable to service operation: PING")]
-        public void NoConnectionException(int connCount, int completeCount, bool hasDetail, string messageStart)
+        [InlineData(false, 0, 0, true, "Connection to Redis never succeeded (attempts: 0 - connection likely in-progress), unable to service operation: PING")]
+        [InlineData(false, 1, 0, true, "Connection to Redis never succeeded (attempts: 1 - connection likely in-progress), unable to service operation: PING")]
+        [InlineData(false, 12, 0, true, "Connection to Redis never succeeded (attempts: 12 - check your config), unable to service operation: PING")]
+        [InlineData(false, 0, 0, false, "Connection to Redis never succeeded (attempts: 0 - connection likely in-progress), unable to service operation: PING")]
+        [InlineData(false, 1, 0, false, "Connection to Redis never succeeded (attempts: 1 - connection likely in-progress), unable to service operation: PING")]
+        [InlineData(false, 12, 0, false, "Connection to Redis never succeeded (attempts: 12 - check your config), unable to service operation: PING")]
+        [InlineData(true, 0, 0, true, "No connection is active/available to service this operation: PING")]
+        [InlineData(true, 1, 0, true, "No connection is active/available to service this operation: PING")]
+        [InlineData(true, 12, 0, true, "No connection is active/available to service this operation: PING")]
+        public void NoConnectionException(bool abortOnConnect, int connCount, int completeCount, bool hasDetail, string messageStart)
         {
             try
             {
                 var options = new ConfigurationOptions()
                 {
-                    AbortOnConnectFail = false,
+                    AbortOnConnectFail = abortOnConnect,
                     ConnectTimeout = 500,
                     SyncTimeout = 500,
                     KeepAlive = 5000
                 };
-                options.EndPoints.Add($"doesnot.exist.{Guid.NewGuid():N}:6379");
 
-                var muxer = ConnectionMultiplexer.Connect(options);
+                ConnectionMultiplexer muxer;
+                if (abortOnConnect)
+                {
+                    options.EndPoints.Add(TestConfig.Current.MasterServerAndPort);
+                    muxer = ConnectionMultiplexer.Connect(options);
+                }
+                else
+                {
+                    options.EndPoints.Add($"doesnot.exist.{Guid.NewGuid():N}:6379");
+                    muxer = ConnectionMultiplexer.Connect(options);
+                }
+
                 using (muxer)
                 {
                     var server = muxer.GetServer(muxer.GetEndPoints()[0]);

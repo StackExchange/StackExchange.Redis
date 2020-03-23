@@ -114,16 +114,16 @@ namespace StackExchange.Redis
             string initialMessage;
             // We only need to customize the connection if we're aborting on connect fail
             // The "never" case would have thrown, if this was true
-            if (!multiplexer.RawConfig.AbortOnConnectFail && attempts == 1 && completions == 0)
+            if (!multiplexer.RawConfig.AbortOnConnectFail && attempts <= multiplexer.RawConfig.ConnectRetry && completions == 0)
             {
                 // Initial attempt, attempted use before an async connection completes
-                initialMessage = $"Connection to Redis never succeeded (1 attempt - connection likely in-progress), unable to service operation: ";
+                initialMessage = $"Connection to Redis never succeeded (attempts: {attempts} - connection likely in-progress), unable to service operation: ";
             }
-            else if (!multiplexer.RawConfig.AbortOnConnectFail && attempts >= multiplexer.RawConfig.ConnectRetry && completions == 0)
+            else if (!multiplexer.RawConfig.AbortOnConnectFail && attempts > multiplexer.RawConfig.ConnectRetry && completions == 0)
             {
                 // Attempted use after a full initial retry connect count # of failures
                 // This can happen in Azure often, where user disables abort and has the wrong config
-                initialMessage = $"Connection to Redis never succeeded ({attempts} attempts - check your config), unable to service operation: ";
+                initialMessage = $"Connection to Redis never succeeded (attempts: {attempts} - check your config), unable to service operation: ";
             }
             else
             {
