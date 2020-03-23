@@ -913,7 +913,7 @@ namespace StackExchange.Redis
                 string s = null;
                 if (_log != null)
                 {
-                    lock(SyncLock)
+                    lock (SyncLock)
                     {
                         s = _log?.ToString();
                     }
@@ -2254,7 +2254,7 @@ namespace StackExchange.Redis
         {
             ConnectionMultiplexer connection = (ConnectionMultiplexer)sender;
 
-            if(connection.sentinelMasterReconnectTimer != null)
+            if (connection.sentinelMasterReconnectTimer != null)
             {
                 connection.sentinelMasterReconnectTimer.Dispose();
                 connection.sentinelMasterReconnectTimer = null;
@@ -2268,7 +2268,7 @@ namespace StackExchange.Redis
             {
                 // Verify that the reconnected endpoint is a master,
                 // and the correct one otherwise we should reconnect
-                if(connection.GetServer(e.EndPoint).IsSlave || e.EndPoint != connection.currentSentinelMasterEndPoint)
+                if (connection.GetServer(e.EndPoint).IsSlave || e.EndPoint != connection.currentSentinelMasterEndPoint)
                 {
                     // Wait for things to smooth out
                     Thread.Sleep(200);
@@ -2277,7 +2277,7 @@ namespace StackExchange.Redis
                     SwitchMaster(e.EndPoint, connection);
                 }
             }
-            catch(Exception)
+            catch (Exception)
             {
                 // If we get here it means that we tried to reconnect to a server that is no longer
                 // considered a master by Sentinel and was removed from the list of endpoints.
@@ -2311,7 +2311,11 @@ namespace StackExchange.Redis
                 .ToArray()
                 .Where(s => s.ServerType == ServerType.Sentinel)
                 .AsParallel()
-                .Select(s => GetServer(s.EndPoint).SentinelGetMasterAddressByName(serviceName))
+                .Select(s =>
+                {
+                    try { return GetServer(s.EndPoint).SentinelGetMasterAddressByName(serviceName); }
+                    catch { return null; }
+                })
                 .First(r => r != null);
 
         internal EndPoint currentSentinelMasterEndPoint;
@@ -2388,7 +2392,11 @@ namespace StackExchange.Redis
                                         .ToArray()
                                         .Where(s => s.ServerType == ServerType.Sentinel)
                                         .AsParallel()
-                                        .Select(s => GetServer(s.EndPoint).SentinelGetSentinelAddresses(serviceName))
+                                        .Select(s =>
+                                        {
+                                            try { return GetServer(s.EndPoint).SentinelGetSentinelAddresses(serviceName); }
+                                            catch { return null; }
+                                        })
                                         .First(r => r != null);
 
             // Ignore errors, as having an updated sentinel list is
