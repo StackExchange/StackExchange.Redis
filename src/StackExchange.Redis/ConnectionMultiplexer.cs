@@ -108,7 +108,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Tracks overall connection multiplexer counts
         /// </summary>
-        internal long _connectAttemptCount, _connectCount, _closeCount;
+        internal int _connectAttemptCount = 0, _connectCompletedCount = 0, _connectionCloseCount = 0;
 
         /// <summary>
         /// Provides a way of overriding the default Task Factory. If not set, it will use the default Task.Factory.
@@ -389,7 +389,7 @@ namespace StackExchange.Redis
 
             if (server == null) throw new ArgumentNullException(nameof(server));
             var srv = new RedisServer(this, server, null);
-            if (!srv.IsConnected) throw ExceptionFactory.NoConnectionAvailable(IncludeDetailInExceptions, IncludePerformanceCountersInExceptions, RedisCommand.SLAVEOF, null, server, GetServerSnapshot());
+            if (!srv.IsConnected) throw ExceptionFactory.NoConnectionAvailable(this, null, server, GetServerSnapshot(), command: RedisCommand.SLAVEOF);
 
             CommandMap.AssertAvailable(RedisCommand.SLAVEOF);
 #pragma warning disable CS0618
@@ -846,7 +846,7 @@ namespace StackExchange.Redis
                         throw ExceptionFactory.UnableToConnect(muxer, muxer.failureMessage);
                     }
                     killMe = null;
-                    Interlocked.Increment(ref muxer._connectCount);
+                    Interlocked.Increment(ref muxer._connectCompletedCount);
                     return muxer;
                 }
                 finally
@@ -1018,7 +1018,7 @@ namespace StackExchange.Redis
 
                     if (!task.Result) throw ExceptionFactory.UnableToConnect(muxer, muxer.failureMessage);
                     killMe = null;
-                    Interlocked.Increment(ref muxer._connectCount);
+                    Interlocked.Increment(ref muxer._connectCompletedCount);
 
                     if (muxer.ServerSelectionStrategy.ServerType == ServerType.Sentinel)
                     {
@@ -2461,7 +2461,7 @@ namespace StackExchange.Redis
             DisposeAndClearServers();
             OnCloseReaderWriter();
             OnClosing(true);
-            Interlocked.Increment(ref _closeCount);
+            Interlocked.Increment(ref _connectionCloseCount);
         }
 
         partial void OnCloseReaderWriter();
@@ -2578,7 +2578,7 @@ namespace StackExchange.Redis
             {
                 case WriteResult.Success: return null;
                 case WriteResult.NoConnectionAvailable:
-                    return ExceptionFactory.NoConnectionAvailable(IncludeDetailInExceptions, IncludePerformanceCountersInExceptions, message.Command, message, server, GetServerSnapshot());
+                    return ExceptionFactory.NoConnectionAvailable(this, message, server);
                 case WriteResult.TimeoutBeforeWrite:
                     return ExceptionFactory.Timeout(this, "The timeout was reached before the message could be written to the output buffer, and it was not sent", message, server, result);
                 case WriteResult.WriteFailure:
