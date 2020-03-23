@@ -2316,7 +2316,7 @@ namespace StackExchange.Redis
                     try { return GetServer(s.EndPoint).SentinelGetMasterAddressByName(serviceName); }
                     catch { return null; }
                 })
-                .First(r => r != null);
+                .FirstOrDefault(r => r != null);
 
         internal EndPoint currentSentinelMasterEndPoint;
 
@@ -2397,7 +2397,7 @@ namespace StackExchange.Redis
                                             try { return GetServer(s.EndPoint).SentinelGetSentinelAddresses(serviceName); }
                                             catch { return null; }
                                         })
-                                        .First(r => r != null);
+                                        .FirstOrDefault(r => r != null);
 
             // Ignore errors, as having an updated sentinel list is
             // not essential
