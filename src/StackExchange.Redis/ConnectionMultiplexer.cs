@@ -2303,53 +2303,16 @@ namespace StackExchange.Redis
                 {
                     SwitchMaster(e.EndPoint, connection);
                 }, null, TimeSpan.FromSeconds(0), TimeSpan.FromSeconds(1));
-
-                //connection.sentinelMasterReconnectTimer.AutoReset = true;                            
-
-                //connection.sentinelMasterReconnectTimer.Start();
             }
         }
 
-        internal EndPoint GetConfiguredMasterForService(string serviceName, int timeoutmillis = -1)
-        {
-            Task<EndPoint>[] sentinelMasters = GetServerSnapshot().ToArray()
-                        .Where(s => s.ServerType == ServerType.Sentinel)
-                        .Select(s => GetServer(s.EndPoint).SentinelGetMasterAddressByNameAsync(serviceName))
-                        .ToArray();
-
-            Task<Task<EndPoint>> firstCompleteRequest = WaitFirstNonNullIgnoreErrorsAsync(sentinelMasters);
-            if (!firstCompleteRequest.Wait(timeoutmillis))
-                throw new TimeoutException("Timeout resolving master for service");
-            if (firstCompleteRequest.Result?.Result == null)
-                throw new Exception("Unable to determine master");
-
-            return firstCompleteRequest.Result.Result;
-        }
-
-        private static async Task<Task<T>> WaitFirstNonNullIgnoreErrorsAsync<T>(Task<T>[] tasks)
-        {
-            if (tasks == null) throw new ArgumentNullException("tasks");
-            if (tasks.Length == 0) return null;
-            var typeNullable = (Nullable.GetUnderlyingType(typeof(T)) != null);
-            var taskList = tasks.Cast<Task>().ToList();
-
-            try
-            {
-                while (taskList.Count > 0)
-                {
-                    var allTasksAwaitingAny = Task.WhenAny(taskList).ObserveErrors();
-                    var result = await allTasksAwaitingAny.ForAwait();
-                    taskList.Remove((Task<T>)result);
-                    if (((Task<T>)result).IsFaulted) continue;
-                    if ((!typeNullable) || ((Task<T>)result).Result != null)
-                        return (Task<T>)result;
-                }
-            }
-            catch
-            { }
-
-            return null;
-        }
+        internal EndPoint GetConfiguredMasterForService(string serviceName) =>
+            GetServerSnapshot()
+                .ToArray()
+                .Where(s => s.ServerType == ServerType.Sentinel)
+                .AsParallel()
+                .Select(s => GetServer(s.EndPoint).SentinelGetMasterAddressByName(serviceName))
+                .First(r => r != null);
 
         internal EndPoint currentSentinelMasterEndPoint;
 
@@ -2419,26 +2382,22 @@ namespace StackExchange.Redis
             throw new NullReferenceException(message);
         }
 
-        internal void UpdateSentinelAddressList(string serviceName, int timeoutmillis = 500)
+        internal void UpdateSentinelAddressList(string serviceName)
         {
-            Task<EndPoint[]>[] sentinels = GetServerSnapshot().ToArray()
-                        .Where(s => s.ServerType == ServerType.Sentinel)
-                        .Select(s => GetServer(s.EndPoint).SentinelGetSentinelAddresses(serviceName))
-                        .ToArray();
-
-            Task<Task<EndPoint[]>> firstCompleteRequest = WaitFirstNonNullIgnoreErrorsAsync(sentinels);
+            var firstCompleteRequest = GetServerSnapshot()
+                                        .ToArray()
+                                        .Where(s => s.ServerType == ServerType.Sentinel)
+                                        .AsParallel()
+                                        .Select(s => GetServer(s.EndPoint).SentinelGetSentinelAddresses(serviceName))
+                                        .First(r => r != null);
 
             // Ignore errors, as having an updated sentinel list is
             // not essential
-            if (firstCompleteRequest.Result?.Result == null)
-                return;
-            if (!firstCompleteRequest.Wait(timeoutmillis))
-                return;
-            if (firstCompleteRequest.Result.Result == null)
+            if (firstCompleteRequest == null)
                 return;
 
             bool hasNew = false;
-            foreach (EndPoint newSentinel in firstCompleteRequest.Result.Result.Where(x => !RawConfig.EndPoints.Contains(x)))
+            foreach (EndPoint newSentinel in firstCompleteRequest.Where(x => !RawConfig.EndPoints.Contains(x)))
             {
                 hasNew = true;
                 RawConfig.EndPoints.Add(newSentinel);
