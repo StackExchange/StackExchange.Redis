@@ -1,5 +1,6 @@
 {
-  "version": "2.1.0",
+  "version": "2.1",
+  "versionHeightOffset": 20,
   "assemblyVersion": "2.0",
   "publicReleaseRefSpec": [
     "^refs/heads/master$",
