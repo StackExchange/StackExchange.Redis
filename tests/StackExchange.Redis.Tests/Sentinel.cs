@@ -562,15 +562,15 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task SentinelGetSentinelAddressesTest()
         {
-            var addresses = await SentinelServerA.SentinelGetSentinelAddresses(ServiceName).ForAwait();
+            var addresses = await SentinelServerA.SentinelGetSentinelAddressesAsync(ServiceName).ForAwait();
             Assert.Contains(SentinelServerB.EndPoint, addresses);
             Assert.Contains(SentinelServerC.EndPoint, addresses);
 
-            addresses = await SentinelServerB.SentinelGetSentinelAddresses(ServiceName).ForAwait();
+            addresses = await SentinelServerB.SentinelGetSentinelAddressesAsync(ServiceName).ForAwait();
             Assert.Contains(SentinelServerA.EndPoint, addresses);
             Assert.Contains(SentinelServerC.EndPoint, addresses);
 
-            addresses = await SentinelServerC.SentinelGetSentinelAddresses(ServiceName).ForAwait();
+            addresses = await SentinelServerC.SentinelGetSentinelAddressesAsync(ServiceName).ForAwait();
             Assert.Contains(SentinelServerA.EndPoint, addresses);
             Assert.Contains(SentinelServerB.EndPoint, addresses);
         }

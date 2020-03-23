@@ -2423,7 +2423,7 @@ namespace StackExchange.Redis
         {
             Task<EndPoint[]>[] sentinels = GetServerSnapshot().ToArray()
                         .Where(s => s.ServerType == ServerType.Sentinel)
-                        .Select(s => GetServer(s.EndPoint).SentinelGetSentinelAddresses(serviceName))
+                        .Select(s => GetServer(s.EndPoint).SentinelGetSentinelAddressesAsync(serviceName))
                         .ToArray();
 
             Task<Task<EndPoint[]>> firstCompleteRequest = WaitFirstNonNullIgnoreErrorsAsync(sentinels);

@@ -807,10 +807,16 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.SentinelMasterEndpoint);
         }
 
-        public Task<EndPoint[]> SentinelGetSentinelAddresses(string serviceName, CommandFlags flags = CommandFlags.None)
+        public EndPoint[] SentinelGetSentinelAddresses(string serviceName, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.SENTINELS, (RedisValue)serviceName);
-            return ExecuteAsync(msg, ResultProcessor.SentinelAddressesEndPoints);            
+            return ExecuteSync(msg, ResultProcessor.SentinelAddressesEndPoints);
+        }
+
+        public Task<EndPoint[]> SentinelGetSentinelAddressesAsync(string serviceName, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.SENTINELS, (RedisValue)serviceName);
+            return ExecuteAsync(msg, ResultProcessor.SentinelAddressesEndPoints);
         }
 
         public KeyValuePair<string, string>[] SentinelMaster(string serviceName, CommandFlags flags = CommandFlags.None)
