@@ -46,7 +46,7 @@ namespace StackExchange.Redis.Tests
         {
             var ex = Assert.Throws<RedisConnectionException>(() =>
             {
-                using (var conn = ConnectionMultiplexer.Connect(TestConfig.Current.MasterServer + ":6500", Writer)) { }
+                using (var conn = ConnectionMultiplexer.Connect(TestConfig.Current.MasterServer + ":6500,connectTimeout=1000", Writer)) { }
             });
             Log(ex.ToString());
         }
@@ -56,7 +56,7 @@ namespace StackExchange.Redis.Tests
         {
             var ex = await Assert.ThrowsAsync<RedisConnectionException>(async () =>
             {
-                using (var conn = await ConnectionMultiplexer.ConnectAsync($"doesnot.exist.ds.{Guid.NewGuid():N}.com:6500", Writer).ForAwait()) { }
+                using (var conn = await ConnectionMultiplexer.ConnectAsync($"doesnot.exist.ds.{Guid.NewGuid():N}.com:6500,connectTimeout=1000", Writer).ForAwait()) { }
             }).ForAwait();
             Log(ex.ToString());
         }
@@ -64,7 +64,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void CreateDisconnectedNonsenseConnection_IP()
         {
-            using (var conn = ConnectionMultiplexer.Connect(TestConfig.Current.MasterServer + ":6500,abortConnect=false", Writer))
+            using (var conn = ConnectionMultiplexer.Connect(TestConfig.Current.MasterServer + ":6500,abortConnect=false,connectTimeout=1000", Writer))
             {
                 Assert.False(conn.GetServer(conn.GetEndPoints().Single()).IsConnected);
                 Assert.False(conn.GetDatabase().IsConnected(default(RedisKey)));
@@ -74,7 +74,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void CreateDisconnectedNonsenseConnection_DNS()
         {
-            using (var conn = ConnectionMultiplexer.Connect($"doesnot.exist.ds.{Guid.NewGuid():N}.com:6500, abortConnect=false", Writer))
+            using (var conn = ConnectionMultiplexer.Connect($"doesnot.exist.ds.{Guid.NewGuid():N}.com:6500,abortConnect=false,connectTimeout=1000", Writer))
             {
                 Assert.False(conn.GetServer(conn.GetEndPoints().Single()).IsConnected);
                 Assert.False(conn.GetDatabase().IsConnected(default(RedisKey)));

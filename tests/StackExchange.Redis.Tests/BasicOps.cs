@@ -292,12 +292,13 @@ namespace StackExchange.Redis.Tests
                 string key = Guid.NewGuid().ToString();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
                 db.StringSet(key, key, flags: CommandFlags.FireAndForget);
-                GetServer(muxer).SimulateConnectionFailure();
+                var server = GetServer(muxer);
+                server.SimulateConnectionFailure();
                 var watch = Stopwatch.StartNew();
-                db.Ping();
+                await UntilCondition(TimeSpan.FromSeconds(10), () => server.IsConnected);
                 watch.Stop();
                 Log("Time to re-establish: {0}ms (any order)", watch.ElapsedMilliseconds);
-                await Task.Delay(2000).ForAwait();
+                await UntilCondition(TimeSpan.FromSeconds(10), () => key == db.StringGet(key));
                 Debug.WriteLine("Pinging...");
                 Assert.Equal(key, db.StringGet(key));
             }

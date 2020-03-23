@@ -30,11 +30,14 @@ namespace StackExchange.Redis.Tests
                 toDb.KeyDelete(key, CommandFlags.FireAndForget);
                 fromDb.StringSet(key, "foo", flags: CommandFlags.FireAndForget);
                 var dest = to.GetEndPoints(true).Single();
-                fromDb.KeyMigrate(key, dest);
-                await Task.Delay(1000); // this is *meant* to be synchronous at the redis level, but
+                fromDb.KeyMigrate(key, dest, migrateOptions: MigrateOptions.Replace);
+
+                // this is *meant* to be synchronous at the redis level, but
                 // we keep seeing it fail on the CI server where the key has *left* the origin, but
                 // has *not* yet arrived at the destination; adding a pause while we investigate with
                 // the redis folks
+                await UntilCondition(TimeSpan.FromSeconds(5), () => !fromDb.KeyExists(key) && toDb.KeyExists(key));
+
                 Assert.False(fromDb.KeyExists(key));
                 Assert.True(toDb.KeyExists(key));
                 string s = toDb.StringGet(key);
