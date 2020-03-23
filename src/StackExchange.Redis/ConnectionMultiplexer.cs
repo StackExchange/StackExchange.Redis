@@ -2320,7 +2320,7 @@ namespace StackExchange.Redis
             Task<Task<EndPoint>> firstCompleteRequest = WaitFirstNonNullIgnoreErrorsAsync(sentinelMasters);
             if (!firstCompleteRequest.Wait(timeoutmillis))
                 throw new TimeoutException("Timeout resolving master for service");
-            if (firstCompleteRequest.Result.Result == null)
+            if (firstCompleteRequest.Result?.Result == null)
                 throw new Exception("Unable to determine master");
 
             return firstCompleteRequest.Result.Result;
