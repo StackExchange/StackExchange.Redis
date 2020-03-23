@@ -92,26 +92,6 @@ namespace StackExchange.Redis.Tests
                 ClearAmbientFailures();
             }
         }
-#endif
-
-        [Fact]
-        public void ConnectsWhenBeginConnectCompletesSynchronously()
-        {
-            try
-            {
-                using (var muxer = Create(keepAlive: 1, connectTimeout: 3000))
-                {
-                    var conn = muxer.GetDatabase();
-                    conn.Ping();
-
-                    Assert.True(muxer.IsConnected);
-                }
-            }
-            finally
-            {
-                ClearAmbientFailures();
-            }
-        }
 
         [Fact]
         public async Task Issue922_ReconnectRaised()
@@ -141,6 +121,26 @@ namespace StackExchange.Redis.Tests
                 // interactive+subscriber = 2
                 Assert.Equal(2, Volatile.Read(ref failCount));
                 Assert.Equal(2, Volatile.Read(ref restoreCount));
+            }
+        }
+#endif
+
+        [Fact]
+        public void ConnectsWhenBeginConnectCompletesSynchronously()
+        {
+            try
+            {
+                using (var muxer = Create(keepAlive: 1, connectTimeout: 3000))
+                {
+                    var conn = muxer.GetDatabase();
+                    conn.Ping();
+
+                    Assert.True(muxer.IsConnected);
+                }
+            }
+            finally
+            {
+                ClearAmbientFailures();
             }
         }
     }
