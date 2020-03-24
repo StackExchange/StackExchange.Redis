@@ -403,6 +403,7 @@ namespace StackExchange.Redis.Tests
             }
         }
 
+#if DEBUG
         [Fact]
         public async Task GetSentinelMasterConnectionFailoverTest()
         {
@@ -467,6 +468,7 @@ namespace StackExchange.Redis.Tests
             var conn1 = Conn.GetSentinelMasterConnection(ServiceOptions);
             Assert.NotEqual(endpoint, conn1.currentSentinelMasterEndPoint.ToString());
         }
+#endif
 
         [Fact]
         public async Task GetSentinelMasterConnectionWriteReadFailover()
