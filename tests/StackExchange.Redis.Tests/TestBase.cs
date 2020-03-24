@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Reflection;
 using System.Runtime;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -100,10 +101,27 @@ namespace StackExchange.Redis.Tests
                     backgroundExceptions.Add(args.Exception.ToString());
                 }
             };
+
             Console.WriteLine("Setup information:");
             Console.WriteLine("  GC IsServer: " + GCSettings.IsServerGC);
             Console.WriteLine("  GC LOH Mode: " + GCSettings.LargeObjectHeapCompactionMode);
             Console.WriteLine("  GC Latency Mode: " + GCSettings.LatencyMode);
+            try
+            {
+                // Bad idea!
+                Console.WriteLine("  Console.IsOutputRedirected: " + Console.IsOutputRedirected);
+                if (Console.IsOutputRedirected)
+                {
+                    Console.WriteLine("  Engaging bad idea...");
+                    typeof(Console).GetField("_isStdOutRedirected", BindingFlags.NonPublic | BindingFlags.Static)
+                                   .SetValue(null, new StrongBox<bool>(false));
+                    Console.WriteLine("  Console.IsOutputRedirected: " + Console.IsOutputRedirected);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("  Bad idea went bad: " + ex.Message);
+            }
         }
         internal static string Time() => DateTime.UtcNow.ToString("HH:mm:ss.fff");
         protected void OnConnectionFailed(object sender, ConnectionFailedEventArgs e)
