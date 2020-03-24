@@ -2,5 +2,6 @@
   "methodDisplay": "classAndMethod",
   "maxParallelThreads": 8,
   "diagnosticMessages": false,
-  "longRunningTestSeconds": 60
+  "longRunningTestSeconds": 60,
+  "appDomain": "denied"
 }
