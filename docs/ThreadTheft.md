@@ -3,8 +3,14 @@
 If you're here because you followed a link in an exception and you just want your code to work,
 the short version is: try adding the following *early on* in your application startup:
 
+>=2.1
 ``` c#
 ConnectionMultiplexer.SetFeatureFlag("preventthreadtheft", true);
+```
+1.2.6
+``` c#
+ConnectionMultiplexer connectionMultiplexer = .....;
+connectionMultiplexer.PreserveAsyncOrder = false;
 ```
 
 and see if that fixes things. If you want more context as to what this is about - keep reading!

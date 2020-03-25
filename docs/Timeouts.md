@@ -6,7 +6,7 @@ Similarly, verify you are not getting CPU bound on client or on the server box w
 Are you experiencing "thread theft" of the reader?
 ---------------
 The parameter “`rs`” in the error message tells you the state of the reader; if this is frequently reporting `CompletePendingMessage*`,
-it is possible that the reader loop has been hijacked; see [Thread Theft](ThreadTheft) for specific guidance.
+it is possible that the reader loop has been hijacked; see [Thread Theft](ThreadTheft.md) for specific guidance.
 
 Are there commands taking a long time to process on the redis-server?
 ---------------
