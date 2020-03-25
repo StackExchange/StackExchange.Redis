@@ -509,6 +509,7 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.TieBreaker, tieBreaker);
             Append(sb, OptionKeys.WriteBuffer, writeBuffer);
             Append(sb, OptionKeys.Ssl, ssl);
+            Append(sb, OptionKeys.SslProtocols, SslProtocols);
             Append(sb, OptionKeys.SslHost, sslHost);
             Append(sb, OptionKeys.HighPrioritySocketThreads, highPrioritySocketThreads);
             Append(sb, OptionKeys.ConfigChannel, configChannel);
@@ -590,6 +591,21 @@ namespace StackExchange.Redis
                 {
                     sb.Append(prefix).Append('=');
                 }
+                sb.Append(s);
+            }
+        }
+
+        private static void Append(StringBuilder sb, string prefix, SslProtocols? sslProtocols)
+        {
+            string s = sslProtocols?.ToString();
+            if (!string.IsNullOrWhiteSpace(s))
+            {
+                if (sb.Length != 0) sb.Append(',');
+                if (!string.IsNullOrEmpty(prefix))
+                {
+                    sb.Append(prefix).Append('=');
+                }
+                s = s.Replace(",", "|");
                 sb.Append(s);
             }
         }
