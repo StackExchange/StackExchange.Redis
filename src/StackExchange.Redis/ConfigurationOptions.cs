@@ -76,6 +76,7 @@ namespace StackExchange.Redis
                 HighPrioritySocketThreads = "highPriorityThreads",
                 KeepAlive = "keepAlive",
                 ClientName = "name",
+                User = "user",
                 Password = "password",
                 PreserveAsyncOrder = "preserveAsyncOrder",
                 Proxy = "proxy",
@@ -104,6 +105,7 @@ namespace StackExchange.Redis
                 DefaultDatabase,
                 HighPrioritySocketThreads,
                 KeepAlive,
+                User,
                 Password,
                 PreserveAsyncOrder,
                 Proxy,
@@ -306,6 +308,11 @@ namespace StackExchange.Redis
 #pragma warning restore RCS1128 // Use coalesce expression.
 
         /// <summary>
+        /// The user to use to authenticate with the server.
+        /// </summary>
+        public string User { get; set; }
+
+        /// <summary>
         /// The password to use to authenticate with the server.
         /// </summary>
         public string Password { get; set; }
@@ -441,6 +448,7 @@ namespace StackExchange.Redis
                 allowAdmin = allowAdmin,
                 defaultVersion = defaultVersion,
                 connectTimeout = connectTimeout,
+                User = User,
                 Password = Password,
                 tieBreaker = tieBreaker,
                 writeBuffer = writeBuffer,
@@ -505,6 +513,7 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.AllowAdmin, allowAdmin);
             Append(sb, OptionKeys.Version, defaultVersion);
             Append(sb, OptionKeys.ConnectTimeout, connectTimeout);
+            Append(sb, OptionKeys.User, User);
             Append(sb, OptionKeys.Password, (includePassword || string.IsNullOrEmpty(Password)) ? Password : "*****");
             Append(sb, OptionKeys.TieBreaker, tieBreaker);
             Append(sb, OptionKeys.WriteBuffer, writeBuffer);
@@ -597,9 +606,10 @@ namespace StackExchange.Redis
 
         private void Clear()
         {
-            ClientName = ServiceName = Password = tieBreaker = sslHost = configChannel = null;
+            ClientName = ServiceName = User =Password = tieBreaker = sslHost = configChannel = null;
             keepAlive = syncTimeout = asyncTimeout = connectTimeout = writeBuffer = connectRetry = configCheckSeconds = DefaultDatabase = null;
             allowAdmin = abortOnConnectFail = highPrioritySocketThreads = resolveDns = ssl = null;
+            SslProtocols = null;
             defaultVersion = null;
             EndPoints.Clear();
             commandMap = null;
@@ -685,6 +695,9 @@ namespace StackExchange.Redis
                             break;
                         case OptionKeys.Version:
                             DefaultVersion = OptionKeys.ParseVersion(key, value);
+                            break;
+                        case OptionKeys.User:
+                            User = value;
                             break;
                         case OptionKeys.Password:
                             Password = value;
