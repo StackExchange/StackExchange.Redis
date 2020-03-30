@@ -1,5 +1,15 @@
 # Release Notes
 
+## 2.1.28
+
+- fix: stability in new sentinel APIs
+- fix: include `SslProtocolos` in `ConfigurationOptions.ToString()` (#1408 via vksampath and Sampath Vuyyuru
+- fix: clarify messaging around disconnected multiplexers (#1396)
+- change: tweak methods of new sentinel API (this is technically a breaking change, but since this is a new API that was pulled quickly, we consider this to be acceptable)
+- add: new thread`SocketManager` mode (opt-in) to always use the regular thread-pool instead of the dedicated pool
+- add: improved counters in/around error messages
+- build: enable deterministic builds
+
 ## 2.1.0
 
 - fix: ensure active-message is cleared (#1374 via hamish-omny)
