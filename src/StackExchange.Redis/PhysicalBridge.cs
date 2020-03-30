@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Pipelines;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
@@ -768,7 +769,7 @@ namespace StackExchange.Redis
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void StartBacklogProcessor()
         {
-            var sched = Multiplexer.SocketManager?.SchedulerPool ?? DedicatedThreadPoolPipeScheduler.Default;
+            var sched = Multiplexer.SocketManager?.Scheduler ?? PipeScheduler.ThreadPool;
 #if DEBUG
             _backlogProcessorRequestedTime = Environment.TickCount;
 #endif

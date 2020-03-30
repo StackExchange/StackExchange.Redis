@@ -1,10 +1,12 @@
 ﻿using System;
 using System.IO;
+using System.IO.Pipelines;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Threading.Tasks;
+using Pipelines.Sockets.Unofficial;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -402,6 +404,29 @@ namespace StackExchange.Redis.Tests
             Assert.True(iter.MoveNext());
             Assert.Equal(8001, ((IPEndPoint)iter.Current).Port);
             Assert.False(iter.MoveNext());
+        }
+
+        [Fact]
+        public void ThreadPoolManagerIsDetected()
+        {
+            var config = new ConfigurationOptions
+            {
+                EndPoints = { { IPAddress.Loopback, 6379 } },
+                SocketManager = SocketManager.ThreadPool
+            };
+            using var muxer = ConnectionMultiplexer.Connect(config);
+            Assert.Same(PipeScheduler.ThreadPool, muxer.SocketManager.Scheduler);
+        }
+
+        [Fact]
+        public void DefaultThreadPoolManagerIsDetected()
+        {
+            var config = new ConfigurationOptions
+            {
+                EndPoints = { { IPAddress.Loopback, 6379 } },
+            };
+            using var muxer = ConnectionMultiplexer.Connect(config);
+            Assert.Same(SocketManager.Shared.Scheduler, muxer.SocketManager.Scheduler);
         }
     }
 }
