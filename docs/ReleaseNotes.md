@@ -8,6 +8,7 @@
 - change: tweak methods of new sentinel API (this is technically a breaking change, but since this is a new API that was pulled quickly, we consider this to be acceptable)
 - add: new thread`SocketManager` mode (opt-in) to always use the regular thread-pool instead of the dedicated pool
 - add: improved counters in/around error messages
+- add: new `User` property on `ConfigurationOptions`
 - build: enable deterministic builds
 
 ## 2.1.0
