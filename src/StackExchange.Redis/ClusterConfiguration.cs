@@ -157,10 +157,12 @@ namespace StackExchange.Redis
         private readonly Dictionary<EndPoint, ClusterNode> nodeLookup = new Dictionary<EndPoint, ClusterNode>();
 
         private readonly ServerSelectionStrategy serverSelectionStrategy;
-        internal ClusterConfiguration(ServerSelectionStrategy serverSelectionStrategy, string nodes, EndPoint origin)
+        
+        internal ClusterConfiguration(ServerSelectionStrategy serverSelectionStrategy, string nodes, EndPoint origin, Dictionary<string, string> addressRemapping)
         {
             // Beware: Any exception thrown here will wreak silent havoc like inability to connect to cluster nodes or non returning calls
             this.serverSelectionStrategy = serverSelectionStrategy;
+            this.AddressRemapping = addressRemapping;
             Origin = origin;
             using (var reader = new StringReader(nodes))
             {
@@ -220,6 +222,8 @@ namespace StackExchange.Redis
         /// The node that was asked for the configuration
         /// </summary>
         public EndPoint Origin { get; }
+
+        internal readonly Dictionary<string, string> AddressRemapping;
 
         /// <summary>
         /// Obtain the node relating to a specified endpoint
@@ -291,6 +295,10 @@ namespace StackExchange.Redis
             var ep = parts[1];
             int at = ep.IndexOf('@');
             if (at >= 0) ep = ep.Substring(0, at);
+            if ((configuration?.AddressRemapping?.ContainsKey(ep)).GetValueOrDefault(false))
+            {
+                ep = configuration.AddressRemapping[ep];
+            }
 
             EndPoint = Format.TryParseEndPoint(ep);
             if (flags.Contains("myself"))

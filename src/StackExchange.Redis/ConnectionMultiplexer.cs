@@ -1146,6 +1146,7 @@ namespace StackExchange.Redis
 
             TimeoutMilliseconds = configuration.SyncTimeout;
             AsyncTimeoutMilliseconds = configuration.AsyncTimeout;
+            addressRemapping = configuration.AddressRemapping;
 
             OnCreateReaderWriter(configuration);
             ServerSelectionStrategy = new ServerSelectionStrategy(this);
@@ -2122,6 +2123,8 @@ namespace StackExchange.Redis
         internal ConfigurationOptions RawConfig { get; }
 
         internal ServerSelectionStrategy ServerSelectionStrategy { get; }
+
+        internal Dictionary<string, string> addressRemapping { get; set; }
 
         internal Timer sentinelMasterReconnectTimer;
 

@@ -357,6 +357,11 @@ namespace StackExchange.Redis
         public string ServiceName { get; set; }
 
         /// <summary>
+        /// A key value pair of address remappings
+        /// </summary>
+        public Dictionary<string, string> AddressRemapping { get; set; }
+
+        /// <summary>
         /// Gets or sets the SocketManager instance to be used with these options; if this is null a shared cross-multiplexer SocketManager
         /// is used
         /// </summary>
@@ -471,6 +476,7 @@ namespace StackExchange.Redis
                 ReconnectRetryPolicy = reconnectRetryPolicy,
                 SslProtocols = SslProtocols,
                 checkCertificateRevocation = checkCertificateRevocation,
+                AddressRemapping = AddressRemapping
             };
             foreach (var item in EndPoints)
                 options.EndPoints.Add(item);
@@ -618,6 +624,7 @@ namespace StackExchange.Redis
             CertificateValidation = null;
             ChannelPrefix = default(RedisChannel);
             SocketManager = null;
+            AddressRemapping = null;
         }
 
         object ICloneable.Clone() => Clone();

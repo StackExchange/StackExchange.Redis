@@ -198,6 +198,10 @@ namespace StackExchange.Redis
                     log = false;
                     string[] parts = result.GetString().Split(StringSplits.Space, 3);
                     EndPoint endpoint;
+                    if ((bridge?.Multiplexer?.addressRemapping?.ContainsKey(parts[2])).GetValueOrDefault(false))
+                    {
+                        parts[2]=bridge.Multiplexer.addressRemapping[parts[2]];
+                    }
                     if (Format.TryParseInt32(parts[1], out int hashSlot)
                         && (endpoint = Format.TryParseEndPoint(parts[2])) != null)
                     {
@@ -850,7 +854,7 @@ namespace StackExchange.Redis
                 var bridge = connection.BridgeCouldBeNull;
                 if (bridge == null) throw new ObjectDisposedException(connection.ToString());
                 var server = bridge.ServerEndPoint;
-                var config = new ClusterConfiguration(bridge.Multiplexer.ServerSelectionStrategy, nodes, server.EndPoint);
+                var config = new ClusterConfiguration(bridge.Multiplexer.ServerSelectionStrategy, nodes, server.EndPoint, bridge.Multiplexer.addressRemapping);
                 server.SetClusterConfiguration(config);
                 return config;
             }
