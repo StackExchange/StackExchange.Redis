@@ -357,7 +357,9 @@ namespace StackExchange.Redis
         public string ServiceName { get; set; }
 
         /// <summary>
-        /// A key value pair of address remappings
+        /// A key value pair of server address remappings
+        /// Any key found will be replaced with the value when parsing cluster / sentinel responses
+        /// This allows you to use different addressing, ports and tls settings outside the cluster vs inside
         /// </summary>
         public Dictionary<string, string> AddressRemapping { get; set; }
 
