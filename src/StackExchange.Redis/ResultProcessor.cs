@@ -717,7 +717,12 @@ namespace StackExchange.Redis
                                 }
                                 if (roleSeen)
                                 { // these are in the same section, if presnt
-                                    server.MasterEndPoint = Format.TryParseEndPoint(masterHost, masterPort);
+                                    string masterHostPort = $"{masterHost}:{masterPort}";
+                                    if ((server?.Multiplexer?.addressRemapping?.ContainsKey(masterHostPort)).GetValueOrDefault(false))
+                                    {
+                                        masterHostPort = server.Multiplexer.addressRemapping[masterHostPort];
+                                    }
+                                    server.MasterEndPoint = Format.TryParseEndPoint(masterHostPort);
                                 }
                             }
                         }
@@ -854,7 +859,7 @@ namespace StackExchange.Redis
                 var bridge = connection.BridgeCouldBeNull;
                 if (bridge == null) throw new ObjectDisposedException(connection.ToString());
                 var server = bridge.ServerEndPoint;
-                var config = new ClusterConfiguration(bridge.Multiplexer.ServerSelectionStrategy, nodes, server.EndPoint, bridge.Multiplexer.addressRemapping);
+                var config = new ClusterConfiguration(bridge.Multiplexer.ServerSelectionStrategy, nodes, server.EndPoint, bridge.Multiplexer?.addressRemapping);
                 server.SetClusterConfiguration(config);
                 return config;
             }
@@ -1978,7 +1983,12 @@ The coordinates as a two items x,y array (longitude,latitude).
                         }
                         else if (arr.Length == 2 && Format.TryParseInt32(arr[1], out var port))
                         {
-                            SetResult(message, Format.ParseEndPoint(arr[0], port));
+                            string hostPort = $"{arr[0]}:{port}";
+                            if ((connection.BridgeCouldBeNull?.Multiplexer?.addressRemapping?.ContainsKey(hostPort)).GetValueOrDefault(false))
+                            {
+                                hostPort = connection.BridgeCouldBeNull.Multiplexer.addressRemapping[hostPort];
+                            }
+                            SetResult(message, Format.TryParseEndPoint(hostPort));
                             return true;
                         }
                         else if (arr.Length == 0)
@@ -2025,7 +2035,12 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                             if (ip != null && portStr != null && int.TryParse(portStr, out int port))
                             {
-                                endPoints.Add(Format.ParseEndPoint(ip, port));
+                                string hostPort = $"{ip}:{port}";
+                                if ((connection.BridgeCouldBeNull?.Multiplexer?.addressRemapping?.ContainsKey(hostPort)).GetValueOrDefault(false))
+                                {
+                                    hostPort = connection.BridgeCouldBeNull.Multiplexer.addressRemapping[hostPort];
+                                }
+                                endPoints.Add(Format.TryParseEndPoint(hostPort));
                             }
                         }
                         break;
