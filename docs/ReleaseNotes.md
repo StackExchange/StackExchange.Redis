@@ -1,5 +1,9 @@
 # Release Notes
 
+## 2.1.30
+
+- fix deterministic builds
+
 ## 2.1.28
 
 - fix: stability in new sentinel APIs
@@ -9,7 +13,7 @@
 - add: new thread`SocketManager` mode (opt-in) to always use the regular thread-pool instead of the dedicated pool
 - add: improved counters in/around error messages
 - add: new `User` property on `ConfigurationOptions`
-- build: enable deterministic builds
+- build: enable deterministic builds (note: this failed; fixed in 2.1.30)
 
 ## 2.1.0
 
