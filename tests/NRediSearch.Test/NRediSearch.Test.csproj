@@ -9,5 +9,4 @@
     <ProjectReference Include="..\StackExchange.Redis.Tests\StackExchange.Redis.Tests.csproj" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
   </ItemGroup>
-  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Packages.props', '$(MSBuildThisFileDirectory)../'))" />
 </Project>

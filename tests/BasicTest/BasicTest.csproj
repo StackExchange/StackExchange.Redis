@@ -14,6 +14,5 @@
     <PackageReference Include="BenchmarkDotNet" />
     <ProjectReference Include="..\..\src\StackExchange.Redis\StackExchange.Redis.csproj" />
   </ItemGroup>
-  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Packages.props', '$(MSBuildThisFileDirectory)../'))" />
 
 </Project>
