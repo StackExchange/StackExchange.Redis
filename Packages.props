@@ -1,0 +1,5 @@
+<Project>
+  <ItemGroup>
+    <ProjectReference Update="Microsoft.NET.Test.Sdk" Version="16.5.0" />
+  </ItemGroup>
+</Project>
