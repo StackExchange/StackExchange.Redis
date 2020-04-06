@@ -236,7 +236,7 @@ namespace StackExchange.Redis
             var lastColonIndex = addressWithPort.LastIndexOf(':');
             if (lastColonIndex > 0)
             {
-                // IPv4 with port or IPv6
+                // IPv4 with port or IPv6 with brackets
                 var closingIndex = addressWithPort.LastIndexOf(']');
                 if (closingIndex > 0)
                 {
@@ -250,12 +250,22 @@ namespace StackExchange.Redis
                 }
                 else
                 {
-                    // IPv6 without port or IPv4
+                    // IPv6 without port or IPv6 without brackets and port or IPv4
                     var firstColonIndex = addressWithPort.IndexOf(':');
                     if (firstColonIndex != lastColonIndex)
                     {
-                        // IPv6 ::1
-                        addressPart = addressWithPort;
+                        var doubleColonIndex = addressWithPort.LastIndexOf("::");
+                        //IPv6 with port and no brackets
+                        if (doubleColonIndex > 0 && (doubleColonIndex + 1) < lastColonIndex)
+                        {
+                            portPart = addressWithPort.Substring(lastColonIndex + 1);
+                            addressPart = addressWithPort.Substring(0, lastColonIndex);
+                        }
+                        //IPv6 ::1
+                        else
+                        {
+                            addressPart = addressWithPort;
+                        }
                     }
                     else
                     {
