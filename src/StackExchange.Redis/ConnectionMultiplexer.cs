@@ -1248,7 +1248,12 @@ namespace StackExchange.Redis
         /// <param name="asyncState">The async state object to pass to the created <see cref="RedisSubscriber"/>.</param>
         public ISubscriber GetSubscriber(object asyncState = null)
         {
-            if (RawConfig.Proxy == Proxy.Twemproxy) throw new NotSupportedException("The pub/sub API is not available via twemproxy");
+            switch (RawConfig.Proxy)
+            {
+                case Proxy.Twemproxy:
+                case Proxy.RedisClusterProxy:
+                    throw new NotSupportedException($"The pub/sub API is not available via {RawConfig.Proxy}");
+            }
             return new RedisSubscriber(this, asyncState);
         }
 
@@ -1263,7 +1268,15 @@ namespace StackExchange.Redis
                 db = RawConfig.DefaultDatabase ?? 0;
 
             if (db < 0) throw new ArgumentOutOfRangeException(nameof(db));
-            if (db != 0 && RawConfig.Proxy == Proxy.Twemproxy) throw new NotSupportedException("Twemproxy only supports database 0");
+            if (db != 0)
+            {
+                switch (RawConfig.Proxy)
+                {
+                    case Proxy.Twemproxy:
+                    case Proxy.RedisClusterProxy:
+                        throw new NotSupportedException($"{RawConfig.Proxy} only supports database 0");
+                }
+            }
 
             // if there's no async-state, and the DB is suitable, we can hand out a re-used instance
             return (asyncState == null && db <= MaxCachedDatabaseInstance)
@@ -1318,7 +1331,12 @@ namespace StackExchange.Redis
         public IServer GetServer(EndPoint endpoint, object asyncState = null)
         {
             if (endpoint == null) throw new ArgumentNullException(nameof(endpoint));
-            if (RawConfig.Proxy == Proxy.Twemproxy) throw new NotSupportedException("The server API is not available via twemproxy");
+            switch (RawConfig.Proxy)
+            {
+                case Proxy.RedisClusterProxy:
+                case Proxy.Twemproxy:
+                    throw new NotSupportedException($"The server API is not available via {RawConfig.Proxy}");
+            }
             var server = (ServerEndPoint)servers[endpoint];
             if (server == null) throw new ArgumentException("The specified endpoint is not defined", nameof(endpoint));
             return new RedisServer(this, server, asyncState);
@@ -1634,6 +1652,7 @@ namespace StackExchange.Redis
                                     {
                                         case ServerType.Twemproxy:
                                         case ServerType.Standalone:
+                                        case ServerType.RedisClusterProxy:
                                             standaloneCount++;
                                             break;
                                         case ServerType.Sentinel:
@@ -1657,6 +1676,7 @@ namespace StackExchange.Redis
                                     switch (server.ServerType)
                                     {
                                         case ServerType.Twemproxy:
+                                        case ServerType.RedisClusterProxy:
                                         case ServerType.Sentinel:
                                         case ServerType.Standalone:
                                         case ServerType.Cluster:
@@ -1701,17 +1721,24 @@ namespace StackExchange.Redis
                     if (clusterCount == 0)
                     {
                         // set the serverSelectionStrategy
-                        if (RawConfig.Proxy == Proxy.Twemproxy)
+                        switch (RawConfig.Proxy)
                         {
-                            ServerSelectionStrategy.ServerType = ServerType.Twemproxy;
-                        }
-                        else if (standaloneCount == 0 && sentinelCount > 0)
-                        {
-                            ServerSelectionStrategy.ServerType = ServerType.Sentinel;
-                        }
-                        else
-                        {
-                            ServerSelectionStrategy.ServerType = ServerType.Standalone;
+                            case Proxy.Twemproxy:
+                                ServerSelectionStrategy.ServerType = ServerType.Twemproxy;
+                                break;
+                            case Proxy.RedisClusterProxy:
+                                ServerSelectionStrategy.ServerType = ServerType.RedisClusterProxy;
+                                break;
+                            default:
+                                if (standaloneCount == 0 && sentinelCount > 0)
+                                {
+                                    ServerSelectionStrategy.ServerType = ServerType.Sentinel;
+                                }
+                                else
+                                {
+                                    ServerSelectionStrategy.ServerType = ServerType.Standalone;
+                                }
+                                break;
                         }
                         var preferred = await NominatePreferredMaster(log, servers, useTieBreakers, tieBreakers, masters).ObserveErrors().ForAwait();
                         foreach (var master in masters)

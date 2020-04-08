@@ -21,7 +21,7 @@ namespace StackExchange.Redis
         public static CommandMap Default { get; } = CreateImpl(null, null);
 
         /// <summary>
-        /// The commands available to <a href="twemproxy">https://github.com/twitter/twemproxy</a>
+        /// The commands available to <a href="https://github.com/twitter/twemproxy/">twemproxy</a>
         /// </summary>
         /// <remarks>https://github.com/twitter/twemproxy/blob/master/notes/redis.md</remarks>
         public static CommandMap Twemproxy { get; } = CreateImpl(null, exclusions: new HashSet<RedisCommand>
@@ -51,6 +51,49 @@ namespace StackExchange.Redis
             RedisCommand.BGREWRITEAOF, RedisCommand.BGSAVE, RedisCommand.CLIENT, RedisCommand.CLUSTER, RedisCommand.CONFIG, RedisCommand.DBSIZE,
             RedisCommand.DEBUG, RedisCommand.FLUSHALL, RedisCommand.FLUSHDB, RedisCommand.INFO, RedisCommand.LASTSAVE, RedisCommand.MONITOR, RedisCommand.SAVE,
             RedisCommand.SHUTDOWN, RedisCommand.SLAVEOF, RedisCommand.SLOWLOG, RedisCommand.SYNC, RedisCommand.TIME
+        });
+
+        /// <summary>
+        /// The commands available to <a href="https://github.com/RedisLabs/redis-cluster-proxy/">redis-cluster-proxy</a>
+        /// </summary>
+        /// <remarks>https://github.com/RedisLabs/redis-cluster-proxy/</remarks>
+        public static CommandMap RedisClusterProxy { get; } = CreateImpl(null, exclusions: new HashSet<RedisCommand>
+        {
+            // via "proxy command unsupported"
+            // RedisCommand.ACL,
+            RedisCommand.ASKING,
+            RedisCommand.CLIENT,
+            RedisCommand.CLUSTER,
+            RedisCommand.CONFIG,
+            RedisCommand.DEBUG,
+            // RedisCommand.HELLO,
+            RedisCommand.INFO,
+            RedisCommand.LATENCY,
+            RedisCommand.MEMORY,
+            RedisCommand.MIGRATE,
+            // RedisCommand.MODULE,
+            RedisCommand.MONITOR,
+            // RedisCommand.PFDEBUG,
+            // RedisCommand.PFSELFTEST,
+            RedisCommand.PSUBSCRIBE,
+            // RedisCommand.PSYNC,
+            RedisCommand.PUBLISH,
+            RedisCommand.PUBSUB,
+            RedisCommand.PUNSUBSCRIBE,
+            RedisCommand.READONLY,
+            RedisCommand.READWRITE,
+            // RedisCommand.REPLCONF,
+            // RedisCommand.REPLICAOF,
+            // RedisCommand.ROLE,
+            RedisCommand.SCRIPT,
+            RedisCommand.SHUTDOWN,
+            RedisCommand.SLAVEOF,
+            RedisCommand.SLOWLOG,
+            RedisCommand.SUBSCRIBE,
+            RedisCommand.SYNC,
+            RedisCommand.TIME,
+            RedisCommand.UNSUBSCRIBE,
+            // RedisCommand.WAIT,
         });
 
         /// <summary>
