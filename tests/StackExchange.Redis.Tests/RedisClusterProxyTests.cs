@@ -23,10 +23,11 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(expected, actual);
 
                 // check it knows that we're dealing with a cluster
-                var ex = Assert.Throws<NotSupportedException>(() => conn.GetServer("abc"));
-                Assert.Equal("The server API is not available via RedisClusterProxy", ex.Message);
+                var server = conn.GetServer(conn.GetEndPoints()[0]);
+                Assert.Equal(ServerType.RedisClusterProxy, server.ServerType);
+                _  = server.Echo("abc");
 
-                ex = Assert.Throws<NotSupportedException>(() => conn.GetSubscriber("abc"));
+                var ex = Assert.Throws<NotSupportedException>(() => conn.GetSubscriber("abc"));
                 Assert.Equal("The pub/sub API is not available via RedisClusterProxy", ex.Message);
 
                 // test a script

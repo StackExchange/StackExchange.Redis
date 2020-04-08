@@ -1333,7 +1333,6 @@ namespace StackExchange.Redis
             if (endpoint == null) throw new ArgumentNullException(nameof(endpoint));
             switch (RawConfig.Proxy)
             {
-                case Proxy.RedisClusterProxy:
                 case Proxy.Twemproxy:
                     throw new NotSupportedException($"The server API is not available via {RawConfig.Proxy}");
             }
