@@ -82,6 +82,38 @@ namespace StackExchange.Redis
         /// Create a dictionary from an array of key/value pairs
         /// </summary>
         /// <param name="pairs">The pairs to convert to a dictionary.</param>
+        public static Dictionary<string, string> ToStringDictionary(this NameValueEntry[] pairs)
+        {
+            if (pairs == null) return null;
+
+            var result = new Dictionary<string, string>(pairs.Length, StringComparer.Ordinal);
+            for (int i = 0; i < pairs.Length; i++)
+            {
+                result.Add(pairs[i].name, pairs[i].value);
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// Create a dictionary from an array of NameValueEntry values
+        /// </summary>
+        /// <param name="values">The entries to convert to a dictionary.</param>
+        public static Dictionary<RedisValue, RedisValue> ToDictionary(this NameValueEntry[] values)
+        {
+            if (values == null) return null;
+
+            var result = new Dictionary<RedisValue, RedisValue>(values.Length);
+            for (int i = 0; i < values.Length; i++)
+            {
+                result.Add(values[i].name, values[i].value);
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// Create a dictionary from an array of key/value pairs
+        /// </summary>
+        /// <param name="pairs">The pairs to convert to a dictionary.</param>
         public static Dictionary<string, string> ToStringDictionary(this KeyValuePair<RedisKey, RedisValue>[] pairs)
         {
             if (pairs == null) return null;
