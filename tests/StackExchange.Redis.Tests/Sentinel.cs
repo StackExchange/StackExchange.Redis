@@ -122,11 +122,6 @@ namespace StackExchange.Redis.Tests
             await db.StringSetAsync(key, expected);
         }
 
-        private void Conn_ConfigurationChanged(object sender, EndPointEventArgs e)
-        {
-            throw new NotImplementedException();
-        }
-
         [Fact]
         public void PingTest()
         {
