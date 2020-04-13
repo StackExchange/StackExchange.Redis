@@ -60,6 +60,26 @@ namespace StackExchange.Redis
         public void Add(IPAddress host, int port) => Add(new IPEndPoint(host, port));
 
         /// <summary>
+        /// Try adding a new endpoint to the list.
+        /// </summary>
+        /// <param name="endpoint">The endpoint to add.</param>
+        /// <returns>True if the endpoint was added or false if not.</returns>
+        public bool TryAdd(EndPoint endpoint)
+        {
+            if (endpoint == null) throw new ArgumentNullException(nameof(endpoint));
+
+            if (!Contains(endpoint))
+            {
+                base.InsertItem(Count, endpoint);
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
         /// See Collection&lt;T&gt;.InsertItem()
         /// </summary>
         /// <param name="index">The index to add <paramref name="item"/> into the collection at.</param>

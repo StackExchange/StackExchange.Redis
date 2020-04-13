@@ -994,12 +994,72 @@ namespace StackExchange.Redis
         /// <summary>
         /// Create a new ConnectionMultiplexer instance
         /// </summary>
-        /// <param name="configuration">The configurtion options to use for this multiplexer.</param>
+        /// <param name="configuration">The configuration options to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
         public static ConnectionMultiplexer Connect(ConfigurationOptions configuration, TextWriter log = null)
         {
             SocketConnection.AssertDependencies();
             return ConnectImpl(configuration, log);
+        }
+
+        /// <summary>
+        /// Create a new ConnectionMultiplexer instance that connects to a sentinel server
+        /// </summary>
+        /// <param name="configuration">The string configuration to use for this multiplexer.</param>
+        /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
+        public static ConnectionMultiplexer SentinelConnect(string configuration, TextWriter log = null)
+        {
+            var options = ConfigurationOptions.Parse(configuration);
+            return SentinelConnect(options);
+        }
+
+        /// <summary>
+        /// Create a new ConnectionMultiplexer instance that connects to a sentinel server
+        /// </summary>
+        /// <param name="configuration">The configuration options to use for this multiplexer.</param>
+        /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
+        public static ConnectionMultiplexer SentinelConnect(ConfigurationOptions configuration, TextWriter log = null)
+        {
+            if (string.IsNullOrEmpty(configuration.ServiceName))
+                throw new ArgumentException("A ServiceName must be specified.");
+
+            var sentinelConfigurationOptions = configuration.Clone();
+
+            // this is required when connecting to sentinel servers
+            sentinelConfigurationOptions.TieBreaker = "";
+            sentinelConfigurationOptions.CommandMap = CommandMap.Sentinel;
+
+            // use default sentinel port
+            sentinelConfigurationOptions.EndPoints.SetDefaultPorts(26379);
+
+            return Connect(sentinelConfigurationOptions, log);
+        }
+
+        /// <summary>
+        /// Create a new ConnectionMultiplexer instance that connects to a sentinel server, discovers the current master server
+        /// for the specified ServiceName in the config and returns a managed connection to the current master server
+        /// </summary>
+        /// <param name="configuration">The string configuration to use for this multiplexer.</param>
+        /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
+        public static ConnectionMultiplexer SentinelMasterConnect(string configuration, TextWriter log = null)
+        {
+            var options = ConfigurationOptions.Parse(configuration);
+            var sentinelConnection = SentinelConnect(options, log);
+
+            return sentinelConnection.GetSentinelMasterConnection(options, log);
+        }
+
+        /// <summary>
+        /// Create a new ConnectionMultiplexer instance that connects to a sentinel server, discovers the current master server
+        /// for the specified ServiceName in the config and returns a managed connection to the current master server
+        /// </summary>
+        /// <param name="configuration">The configuration options to use for this multiplexer.</param>
+        /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
+        public static ConnectionMultiplexer SentinelMasterConnect(ConfigurationOptions configuration, TextWriter log = null)
+        {
+            var sentinelConnection = SentinelConnect(configuration, log);
+
+            return sentinelConnection.GetSentinelMasterConnection(configuration, log);
         }
 
         private static ConnectionMultiplexer ConnectImpl(object configuration, TextWriter log)
@@ -2400,7 +2460,7 @@ namespace StackExchange.Redis
             foreach (EndPoint newSentinel in firstCompleteRequest.Where(x => !RawConfig.EndPoints.Contains(x)))
             {
                 hasNew = true;
-                RawConfig.EndPoints.Add(newSentinel);
+                RawConfig.EndPoints.TryAdd(newSentinel);
             }
 
             if (hasNew)

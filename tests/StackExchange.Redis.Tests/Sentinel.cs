@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
@@ -12,7 +12,7 @@ namespace StackExchange.Redis.Tests
     public class Sentinel : TestBase
     {
         private string ServiceName => TestConfig.Current.SentinelSeviceName;
-        private ConfigurationOptions ServiceOptions => new ConfigurationOptions { ServiceName = ServiceName, AllowAdmin = true };
+        private ConfigurationOptions ServiceOptions => new ConfigurationOptions { ServiceName = ServiceName, AllowAdmin = true, Password = "changeme" };
 
         private ConnectionMultiplexer Conn { get; }
         private IServer SentinelServerA { get; }
@@ -28,24 +28,16 @@ namespace StackExchange.Redis.Tests
             Skip.IfNoConfig(nameof(TestConfig.Config.SentinelServer), TestConfig.Current.SentinelServer);
             Skip.IfNoConfig(nameof(TestConfig.Config.SentinelSeviceName), TestConfig.Current.SentinelSeviceName);
 
-            var options = new ConfigurationOptions()
-            {
-                CommandMap = CommandMap.Sentinel,
-                EndPoints = {
-                    { TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortA },
-                    { TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortB },
-                    { TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortC }
-                },
-                AllowAdmin = true,
-                TieBreaker = "",
-                ServiceName = TestConfig.Current.SentinelSeviceName,
-                SyncTimeout = 5000
-            };
-            Conn = ConnectionMultiplexer.Connect(options, ConnectionLog);
+            var options = ServiceOptions.Clone();
+            options.EndPoints.Add(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortA);
+            options.EndPoints.Add(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortB);
+            options.EndPoints.Add(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortC);
+
+            Conn = ConnectionMultiplexer.SentinelConnect(options, ConnectionLog);
             for (var i = 0; i < 150; i++)
             {
                 Thread.Sleep(20);
-                if (Conn.IsConnected && Conn.GetSentinelMasterConnection(ServiceOptions).IsConnected)
+                if (Conn.IsConnected && Conn.GetSentinelMasterConnection(options).IsConnected)
                 {
                     break;
                 }
@@ -55,6 +47,84 @@ namespace StackExchange.Redis.Tests
             SentinelServerB = Conn.GetServer(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortB);
             SentinelServerC = Conn.GetServer(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortC);
             SentinelsServers = new IServer[] { SentinelServerA, SentinelServerB, SentinelServerC };
+        }
+
+        [Fact]
+        public void MasterConnectTest()
+        {
+            var options = ServiceOptions.Clone();
+            options.EndPoints.Add(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortA);
+
+            var conn = ConnectionMultiplexer.SentinelMasterConnect(options);
+            var db = conn.GetDatabase();
+
+            var test = db.Ping();
+            Log("ping to sentinel {0}:{1} took {2} ms", TestConfig.Current.SentinelServer,
+                TestConfig.Current.SentinelPortA, test.TotalMilliseconds);
+        }
+
+        [Fact]
+        public void MasterConnectWithDefaultPortTest()
+        {
+            var options = ServiceOptions.Clone();
+            options.EndPoints.Add(TestConfig.Current.SentinelServer);
+
+            var conn = ConnectionMultiplexer.SentinelMasterConnect(options);
+            var db = conn.GetDatabase();
+
+            var test = db.Ping();
+            Log("ping to sentinel {0}:{1} took {2} ms", TestConfig.Current.SentinelServer,
+                TestConfig.Current.SentinelPortA, test.TotalMilliseconds);
+        }
+
+        [Fact]
+        public void MasterConnectWithStringConfigurationTest()
+        {
+            var connectionString = $"{TestConfig.Current.SentinelServer}:{TestConfig.Current.SentinelPortA},password={ServiceOptions.Password},serviceName={ServiceOptions.ServiceName}";
+            var conn = ConnectionMultiplexer.SentinelMasterConnect(connectionString);
+            var db = conn.GetDatabase();
+
+            var test = db.Ping();
+            Log("ping to sentinel {0}:{1} took {2} ms", TestConfig.Current.SentinelServer,
+                TestConfig.Current.SentinelPortA, test.TotalMilliseconds);
+        }
+
+        [Fact]
+        public async Task MasterConnectFailoverTest()
+        {
+            var options = ServiceOptions.Clone();
+            options.EndPoints.Add(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortA);
+
+            // connection is managed and should switch to current master when failover happens
+            var conn = ConnectionMultiplexer.SentinelMasterConnect(options);
+            conn.ConfigurationChanged += (s, e) => {
+                Log($"Configuration changed: {e.EndPoint}");
+            };
+            var db = conn.GetDatabase();
+
+            var test = await db.PingAsync();
+            Log("ping to sentinel {0}:{1} took {2} ms", TestConfig.Current.SentinelServer,
+                TestConfig.Current.SentinelPortA, test.TotalMilliseconds);
+
+            // set string value on current master
+            var expected = DateTime.Now.Ticks.ToString();
+            Log("Tick Key: " + expected);
+            var key = Me();
+            await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
+            await db.StringSetAsync(key, expected);
+
+            // forces and verifies failover
+            await DoFailoverAsync();
+
+            var value = await db.StringGetAsync(key);
+            Assert.Equal(expected, value);
+
+            await db.StringSetAsync(key, expected);
+        }
+
+        private void Conn_ConfigurationChanged(object sender, EndPointEventArgs e)
+        {
+            throw new NotImplementedException();
         }
 
         [Fact]
@@ -584,7 +654,8 @@ namespace StackExchange.Redis.Tests
             var config = new ConfigurationOptions
             {
                 TieBreaker = "",
-                ServiceName = TestConfig.Current.SentinelSeviceName,
+                ServiceName = ServiceOptions.ServiceName,
+                Password = ServiceOptions.Password
             };
 
             foreach (var kv in slaves)
@@ -603,6 +674,37 @@ namespace StackExchange.Redis.Tests
             //var ex = Assert.Throws<RedisConnectionException>(() => db.StringSet("test", "try write to read only instance"));
             //Assert.StartsWith("No connection is available to service this operation", ex.Message);
 
+        }
+
+        private async Task DoFailoverAsync()
+        {
+            // capture current master and slave
+            var master = SentinelServerA.SentinelGetMasterAddressByName(ServiceName);
+            var slaves = SentinelServerA.SentinelSlaves(ServiceName);
+
+            await Task.Delay(1000).ForAwait();
+            try
+            {
+                Log("Failover attempted initiated");
+                SentinelServerA.SentinelFailover(ServiceName);
+                Log("  Success!");
+            }
+            catch (RedisServerException ex) when (ex.Message.Contains("NOGOODSLAVE"))
+            {
+                // Retry once
+                Log("  Retry initiated");
+                await Task.Delay(1000).ForAwait();
+                SentinelServerA.SentinelFailover(ServiceName);
+                Log("  Retry complete");
+            }
+            await Task.Delay(2000).ForAwait();
+
+            var newMaster = SentinelServerA.SentinelGetMasterAddressByName(ServiceName);
+            var newSlave = SentinelServerA.SentinelSlaves(ServiceName);
+
+            // make sure master changed
+            Assert.Equal(slaves[0].ToDictionary()["name"], newMaster.ToString());
+            Assert.Equal(master.ToString(), newSlave[0].ToDictionary()["name"]);
         }
     }
 }

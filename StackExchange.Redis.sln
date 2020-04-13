@@ -23,6 +23,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "RedisConfigs", "RedisConfig
 		tests\RedisConfigs\cli-master.cmd = tests\RedisConfigs\cli-master.cmd
 		tests\RedisConfigs\cli-secure.cmd = tests\RedisConfigs\cli-secure.cmd
 		tests\RedisConfigs\cli-slave.cmd = tests\RedisConfigs\cli-slave.cmd
+		tests\RedisConfigs\docker-compose.yml = tests\RedisConfigs\docker-compose.yml
+		tests\RedisConfigs\Dockerfile = tests\RedisConfigs\Dockerfile
 		tests\RedisConfigs\start-all.cmd = tests\RedisConfigs\start-all.cmd
 		tests\RedisConfigs\start-all.sh = tests\RedisConfigs\start-all.sh
 		tests\RedisConfigs\start-basic.cmd = tests\RedisConfigs\start-basic.cmd
@@ -126,6 +128,12 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TestConsoleBaseline", "toys
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = ".github", ".github\.github.csproj", "{8FB98E7D-DAE2-4465-BD9A-104000E0A2D4}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Docker", "Docker", "{A9F81DA3-DA82-423E-A5DD-B11C37548E06}"
+	ProjectSection(SolutionItems) = preProject
+		tests\RedisConfigs\Docker\docker-entrypoint.sh = tests\RedisConfigs\Docker\docker-entrypoint.sh
+		tests\RedisConfigs\Docker\supervisord.conf = tests\RedisConfigs\Docker\supervisord.conf
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -197,6 +205,7 @@ Global
 		{3DA1EEED-E9FE-43D9-B293-E000CFCCD91A} = {E25031D3-5C64-430D-B86F-697B66816FD8}
 		{153A10E4-E668-41AD-9E0F-6785CE7EED66} = {3AD17044-6BFF-4750-9AC2-2CA466375F2A}
 		{D58114AE-4998-4647-AFCA-9353D20495AE} = {E25031D3-5C64-430D-B86F-697B66816FD8}
+		{A9F81DA3-DA82-423E-A5DD-B11C37548E06} = {96E891CD-2ED7-4293-A7AB-4C6F5D8D2B05}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {193AA352-6748-47C1-A5FC-C9AA6B5F000B}
