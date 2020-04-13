@@ -29,6 +29,13 @@ This will connect to a single server on the local machine using the default redi
 var conn = ConnectionMultiplexer.Connect("redis0:6380,redis1:6380,allowAdmin=true");
 ```
 
+This will connect to a sentinel server on the local machine using the default sentinel port (26379), discover the current master server for the `mymaster` service and return a managed connection
+pointing to that master server that will automatically be updated if the master changes:
+
+```csharp
+var conn = ConnectionMultiplexer.SentinelMasterConnect("localhost,serviceName=mymaster");
+```
+
 An overview of mapping between the `string` and `ConfigurationOptions` representation is shown below, but you can switch between them trivially:
 
 ```csharp
@@ -79,7 +86,7 @@ The `ConfigurationOptions` object has a wide range of properties, all of which a
 | proxy={proxy type}     | `Proxy`                | `Proxy.None`                 | Type of proxy in use (if any); for example "twemproxy"                                                    |
 | resolveDns={bool}      | `ResolveDns`           | `false`                      | Specifies that DNS resolution should be explicit and eager, rather than implicit                          |
 | responseTimeout={int}  | `ResponseTimeout`      | `SyncTimeout`                | Time (ms) to decide whether the socket is unhealthy                                                       |
-| serviceName={string}   | `ServiceName`          | `null`                       | Not currently implemented (intended for use with sentinel)                                                |
+| serviceName={string}   | `ServiceName`          | `null`                       | Used for connecting to a sentinel master service                                                          |
 | ssl={bool}             | `Ssl`                  | `false`                      | Specifies that SSL encryption should be used                                                              |
 | sslHost={string}       | `SslHost`              | `null`                       | Enforces a particular SSL host identity on the server's certificate                                       |
 | sslProtocols={enum}    | `SslProtocols`         | `null`                       | Ssl/Tls versions supported when using an encrypted connection.  Use '\|' to provide multiple values.      |
