@@ -1,6 +1,6 @@
 # Release Notes
 
-## 2.1.38
+## 2.1.39
 
 - fix: mutex around connection was not "fair"; in specific scenario could lead to out-of-order commands (#1440)
 - fix: update libs (#1432)
