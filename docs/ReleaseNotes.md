@@ -1,5 +1,12 @@
 # Release Notes
 
+## 2.1.38
+
+- fix: mutex around connection was not "fair"; in specific scenario could lead to out-of-order commands (#1440)
+- fix: update libs (#1432)
+- fix: timing error on linux (#1433 via pengweiqhca)
+- fix: add `auth` to command-map for sentinal (#1428 via ejsmith)
+
 ## 2.1.30
 
 - fix deterministic builds
