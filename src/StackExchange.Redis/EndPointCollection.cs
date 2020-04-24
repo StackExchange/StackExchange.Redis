@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Net;
@@ -8,7 +9,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// A list of endpoints
     /// </summary>
-    public sealed class EndPointCollection : Collection<EndPoint>
+    public sealed class EndPointCollection : Collection<EndPoint>, IEnumerable, IEnumerable<EndPoint>
     {
         /// <summary>
         /// Create a new EndPointCollection
@@ -107,6 +108,22 @@ namespace StackExchange.Redis
                     this[i] = new IPEndPoint(ip.Address, defaultPort);
                     continue;
                 }
+            }
+        }
+
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+        IEnumerator<EndPoint> IEnumerable<EndPoint>.GetEnumerator() => GetEnumerator();
+
+        /// <inheritdoc/>
+        public new IEnumerator<EndPoint> GetEnumerator()
+        {
+            // this does *not* need to handle all threading scenarios; but we do
+            // want it to at least allow overwrites of existing endpoints without
+            // breaking the enumerator; in particular, this avoids a problem where
+            // ResolveEndPointsAsync swaps the addresses on us
+            for (int i = 0; i < Count; i++)
+            {
+                yield return this[i];
             }
         }
     }

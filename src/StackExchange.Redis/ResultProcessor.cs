@@ -125,6 +125,9 @@ namespace StackExchange.Redis
         public static readonly ResultProcessor<EndPoint>
             SentinelMasterEndpoint = new SentinelGetMasterAddressByNameProcessor();
 
+        public static readonly ResultProcessor<EndPoint[]>
+            SentinelAddressesEndPoints = new SentinelGetSentinelAddresses();
+
         public static readonly ResultProcessor<KeyValuePair<string, string>[][]>
             SentinelArrayOfArrays = new SentinelArrayOfArraysProcessor();
 
@@ -714,6 +717,11 @@ namespace StackExchange.Redis
                                 }
                             }
                         }
+                        else if (message?.Command == RedisCommand.SENTINEL)
+                        {
+                            server.ServerType = ServerType.Sentinel;
+                            server.Multiplexer.Trace("Auto-configured server-type: sentinel");
+                        }
                         SetResult(message, true);
                         return true;
                     case ResultType.MultiBulk:
@@ -764,6 +772,11 @@ namespace StackExchange.Redis
                                     }
                                 }
                             }
+                        }
+                        else if (message?.Command == RedisCommand.SENTINEL)
+                        {
+                            server.ServerType = ServerType.Sentinel;
+                            server.Multiplexer.Trace("Auto-configured server-type: sentinel");
                         }
                         SetResult(message, true);
                         return true;
@@ -1970,12 +1983,62 @@ The coordinates as a two items x,y array (longitude,latitude).
                             return true;
                         }
                         break;
+                }
+                return false;
+            }
+        }
+
+        private sealed class SentinelGetSentinelAddresses : ResultProcessor<EndPoint[]>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                List<EndPoint> endPoints = new List<EndPoint>();
+
+                switch (result.Type)
+                {
+                    case ResultType.MultiBulk:
+                        foreach (RawResult item in result.GetItems())
+                        {
+                            var arr = item.GetItemsAsValues();
+                            string ip = null;
+                            string portStr = null;
+
+                            for (int i = 0; i < arr.Length && (ip == null || portStr == null); i += 2)
+                            {
+                                string name = arr[i];
+                                string value = arr[i + 1];
+
+                                switch (name)
+                                {
+                                    case "ip":
+                                        ip = value;
+                                        break;
+                                    case "port":
+                                        portStr = value;
+                                        break;
+                                }
+                            }
+
+                            if (ip != null && portStr != null && int.TryParse(portStr, out int port))
+                            {
+                                endPoints.Add(Format.ParseEndPoint(ip, port));
+                            }
+                        }
+                        break;
+
                     case ResultType.SimpleString:
                         //We don't want to blow up if the master is not found
                         if (result.IsNull)
                             return true;
                         break;
                 }
+
+                if (endPoints.Count > 0)
+                {
+                    SetResult(message, endPoints.ToArray());
+                    return true;
+                }
+
                 return false;
             }
         }

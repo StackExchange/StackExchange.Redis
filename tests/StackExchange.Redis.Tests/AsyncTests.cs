@@ -39,7 +39,7 @@ namespace StackExchange.Redis.Tests
                 Assert.True(c.IsFaulted, "faulted");
                 var ex = c.Exception.InnerExceptions.Single();
                 Assert.IsType<RedisConnectionException>(ex);
-                Assert.StartsWith("No connection is available to service this operation: SADD " + key.ToString(), ex.Message);
+                Assert.StartsWith("No connection is active/available to service this operation: SADD " + key.ToString(), ex.Message);
             }
         }
 

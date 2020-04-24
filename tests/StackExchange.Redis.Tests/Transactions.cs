@@ -1206,7 +1206,7 @@ namespace StackExchange.Redis.Tests
         }
 #endif
 
-        [Fact]
+        [FactLongRunning]
         public async Task ExecCompletes_Issue943()
         {
             int hashHit = 0, hashMiss = 0, expireHit = 0, expireMiss = 0;

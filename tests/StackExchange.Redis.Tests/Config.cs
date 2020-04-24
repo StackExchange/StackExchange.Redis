@@ -1,8 +1,12 @@
 ﻿using System;
 using System.IO;
+using System.IO.Pipelines;
 using System.Linq;
+using System.Net;
+using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Threading.Tasks;
+using Pipelines.Sockets.Unofficial;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -109,6 +113,21 @@ namespace StackExchange.Redis.Tests
 
             options = ConfigurationOptions.Parse("syncTimeout=20");
             Assert.Equal(20, options.SyncTimeout);
+        }
+
+        [Theory]
+        [InlineData("127.1:6379", AddressFamily.InterNetwork, "127.0.0.1", 6379)]
+        [InlineData("127.0.0.1:6379", AddressFamily.InterNetwork, "127.0.0.1", 6379)]
+        [InlineData("2a01:9820:1:24::1:1:6379", AddressFamily.InterNetworkV6, "2a01:9820:1:24:0:1:1:6379", 0)]
+        [InlineData("[2a01:9820:1:24::1:1]:6379", AddressFamily.InterNetworkV6, "2a01:9820:1:24::1:1", 6379)]
+        public void ConfigurationOptionsIPv6Parsing(string configString, AddressFamily family, string address, int port)
+        {
+            var options = ConfigurationOptions.Parse(configString);
+            Assert.Single(options.EndPoints);
+            var ep = Assert.IsType<IPEndPoint>(options.EndPoints[0]);
+            Assert.Equal(family, ep.AddressFamily);
+            Assert.Equal(address, ep.Address.ToString());
+            Assert.Equal(port, ep.Port);
         }
 
         [Fact]
@@ -367,6 +386,47 @@ namespace StackExchange.Redis.Tests
                     }
                 }
             }
+        }
+
+        [Fact]
+        public void EndpointIteratorIsReliableOverChanges()
+        {
+            var eps = new EndPointCollection
+            {
+                { IPAddress.Loopback, 7999 },
+                { IPAddress.Loopback, 8000 },
+            };
+
+            using var iter = eps.GetEnumerator();
+            Assert.True(iter.MoveNext());
+            Assert.Equal(7999, ((IPEndPoint)iter.Current).Port);
+            eps[1] = new IPEndPoint(IPAddress.Loopback, 8001); // boom
+            Assert.True(iter.MoveNext());
+            Assert.Equal(8001, ((IPEndPoint)iter.Current).Port);
+            Assert.False(iter.MoveNext());
+        }
+
+        [Fact]
+        public void ThreadPoolManagerIsDetected()
+        {
+            var config = new ConfigurationOptions
+            {
+                EndPoints = { { IPAddress.Loopback, 6379 } },
+                SocketManager = SocketManager.ThreadPool
+            };
+            using var muxer = ConnectionMultiplexer.Connect(config);
+            Assert.Same(PipeScheduler.ThreadPool, muxer.SocketManager.Scheduler);
+        }
+
+        [Fact]
+        public void DefaultThreadPoolManagerIsDetected()
+        {
+            var config = new ConfigurationOptions
+            {
+                EndPoints = { { IPAddress.Loopback, 6379 } },
+            };
+            using var muxer = ConnectionMultiplexer.Connect(config);
+            Assert.Same(SocketManager.Shared.Scheduler, muxer.SocketManager.Scheduler);
         }
     }
 }

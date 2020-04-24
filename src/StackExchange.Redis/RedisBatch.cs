@@ -28,13 +28,13 @@ namespace StackExchange.Redis
                 if (server == null)
                 {
                     FailNoServer(snapshot);
-                    throw ExceptionFactory.NoConnectionAvailable(multiplexer.IncludeDetailInExceptions, multiplexer.IncludePerformanceCountersInExceptions, message.Command, message, server,multiplexer.GetServerSnapshot());
+                    throw ExceptionFactory.NoConnectionAvailable(multiplexer, message, server);
                 }
                 var bridge = server.GetBridge(message.Command);
                 if (bridge == null)
                 {
                     FailNoServer(snapshot);
-                    throw ExceptionFactory.NoConnectionAvailable(multiplexer.IncludeDetailInExceptions, multiplexer.IncludePerformanceCountersInExceptions, message.Command, message, server, multiplexer.GetServerSnapshot());
+                    throw ExceptionFactory.NoConnectionAvailable(multiplexer, message, server);
                 }
 
                 // identity a list

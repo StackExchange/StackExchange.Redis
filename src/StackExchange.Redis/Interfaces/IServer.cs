@@ -753,6 +753,24 @@ namespace StackExchange.Redis
         Task<EndPoint> SentinelGetMasterAddressByNameAsync(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Returns the ip and port numbers of all known Sentinels
+        /// for the given service name.
+        /// </summary>
+        /// <param name="serviceName">the sentinel service name</param>
+        /// <param name="flags"></param>
+        /// <returns>a list of the sentinel ips and ports</returns>
+        EndPoint[] SentinelGetSentinelAddresses(string serviceName, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns the ip and port numbers of all known Sentinels
+        /// for the given service name.
+        /// </summary>
+        /// <param name="serviceName">the sentinel service name</param>
+        /// <param name="flags"></param>
+        /// <returns>a list of the sentinel ips and ports</returns>
+        Task<EndPoint[]> SentinelGetSentinelAddressesAsync(string serviceName, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Show the state and info of the specified master.
         /// </summary>
         /// <param name="serviceName">The sentinel service name.</param>
@@ -762,8 +780,7 @@ namespace StackExchange.Redis
         KeyValuePair<string, string>[] SentinelMaster(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Force a failover as if the master was not reachable, and without asking for agreement to other Sentinels 
-        /// (however a new version of the configuration will be published so that the other Sentinels will update their configurations).
+        /// Show the state and info of the specified master.
         /// </summary>
         /// <param name="serviceName">The sentinel service name.</param>
         /// <param name="flags">The command flags to use.</param>

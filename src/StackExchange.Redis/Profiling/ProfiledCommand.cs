@@ -8,6 +8,8 @@ namespace StackExchange.Redis.Profiling
 {
     internal sealed class ProfiledCommand : IProfiledCommand
     {
+        private static readonly double TimestampToTicks = TimeSpan.TicksPerSecond / (double)Stopwatch.Frequency;
+
         #region IProfiledCommand Impl
         public EndPoint EndPoint => Server.EndPoint;
 
@@ -19,15 +21,21 @@ namespace StackExchange.Redis.Profiling
 
         public DateTime CommandCreated => MessageCreatedDateTime;
 
-        public TimeSpan CreationToEnqueued => TimeSpan.FromTicks(EnqueuedTimeStamp - MessageCreatedTimeStamp);
+        public TimeSpan CreationToEnqueued => GetElapsedTime(EnqueuedTimeStamp - MessageCreatedTimeStamp);
 
-        public TimeSpan EnqueuedToSending => TimeSpan.FromTicks(RequestSentTimeStamp - EnqueuedTimeStamp);
+        public TimeSpan EnqueuedToSending => GetElapsedTime(RequestSentTimeStamp - EnqueuedTimeStamp);
 
-        public TimeSpan SentToResponse => TimeSpan.FromTicks(ResponseReceivedTimeStamp - RequestSentTimeStamp);
+        public TimeSpan SentToResponse => GetElapsedTime(ResponseReceivedTimeStamp - RequestSentTimeStamp);
 
-        public TimeSpan ResponseToCompletion => TimeSpan.FromTicks(CompletedTimeStamp - ResponseReceivedTimeStamp);
+        public TimeSpan ResponseToCompletion => GetElapsedTime(CompletedTimeStamp - ResponseReceivedTimeStamp);
 
-        public TimeSpan ElapsedTime => TimeSpan.FromTicks(CompletedTimeStamp - MessageCreatedTimeStamp);
+        public TimeSpan ElapsedTime => GetElapsedTime(CompletedTimeStamp - MessageCreatedTimeStamp);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static TimeSpan GetElapsedTime(long timestampDelta)
+        {
+            return new TimeSpan((long)(TimestampToTicks * timestampDelta));
+        }
 
         public IProfiledCommand RetransmissionOf => OriginalProfiling;
 

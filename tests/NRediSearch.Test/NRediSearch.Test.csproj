@@ -7,6 +7,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\NRediSearch\NRediSearch.csproj" />
     <ProjectReference Include="..\StackExchange.Redis.Tests\StackExchange.Redis.Tests.csproj" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.4.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
   </ItemGroup>
 </Project>

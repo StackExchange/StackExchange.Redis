@@ -82,12 +82,12 @@ namespace StackExchange.Redis.Tests
                 Assert.NotNull(time);
                 Log("Time: {0}, Expected: {1}-{2}", time, TimeSpan.FromMinutes(59), TimeSpan.FromMinutes(60));
                 Assert.True(time >= TimeSpan.FromMinutes(59));
-                Assert.True(time <= TimeSpan.FromMinutes(60));
+                Assert.True(time <= TimeSpan.FromMinutes(60.1));
                 Assert.Null(await c);
                 time = await d;
                 Assert.NotNull(time);
                 Assert.True(time >= TimeSpan.FromMinutes(89));
-                Assert.True(time <= TimeSpan.FromMinutes(90));
+                Assert.True(time <= TimeSpan.FromMinutes(90.1));
                 Assert.Null(await e);
                 Assert.Null(await f);
             }

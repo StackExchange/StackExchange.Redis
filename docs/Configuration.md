@@ -75,6 +75,7 @@ The `ConfigurationOptions` object has a wide range of properties, all of which a
 | keepAlive={int}        | `KeepAlive`            | `-1`                         | Time (seconds) at which to send a message to help keep sockets alive (60 sec default)                     |
 | name={string}          | `ClientName`           | `null`                       | Identification for the connection within redis                                                            |
 | password={string}      | `Password`             | `null`                       | Password for the redis server                                                                             |
+| user={string}          | `User`                 | `null`                       | User for the redis server (for use with ACLs on redis 6 and above)                                        |
 | proxy={proxy type}     | `Proxy`                | `Proxy.None`                 | Type of proxy in use (if any); for example "twemproxy"                                                    |
 | resolveDns={bool}      | `ResolveDns`           | `false`                      | Specifies that DNS resolution should be explicit and eager, rather than implicit                          |
 | responseTimeout={int}  | `ResponseTimeout`      | `SyncTimeout`                | Time (ms) to decide whether the socket is unhealthy                                                       |

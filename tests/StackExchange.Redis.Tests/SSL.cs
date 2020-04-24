@@ -7,6 +7,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Security;
 using System.Reflection;
+using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading.Tasks;
 using StackExchange.Redis.Tests.Helpers;
@@ -458,6 +459,27 @@ namespace StackExchange.Redis.Tests
             {
                 conn.GetDatabase().Ping();
             }
+        }
+
+        [Fact]
+        public void ConfigObject_Issue1407_ToStringIncludesSslProtocols()
+        {
+            var sslProtocols = SslProtocols.Tls12 | SslProtocols.Tls;
+            var sourceOptions = new ConfigurationOptions
+            {
+                AbortOnConnectFail = false,
+                Ssl = true,
+                SslProtocols = sslProtocols,
+                ConnectRetry = 3,
+                ConnectTimeout = 5000,
+                SyncTimeout = 5000,
+                DefaultDatabase = 0,
+                EndPoints = { { "endpoint.test", 6380 } },
+                Password = "123456"
+            };
+
+            var targetOptions = ConfigurationOptions.Parse(sourceOptions.ToString());
+            Assert.Equal(sourceOptions.SslProtocols, targetOptions.SslProtocols);
         }
     }
 }

@@ -96,12 +96,12 @@ namespace StackExchange.Redis
         /// Interprets the result as a <see cref="string"/>.
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="string"/>.</param>
-        public static explicit operator string(RedisResult result) => result.AsString();
+        public static explicit operator string(RedisResult result) => result?.AsString();
         /// <summary>
         /// Interprets the result as a <see cref="T:byte[]"/>.
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="T:byte[]"/>.</param>
-        public static explicit operator byte[](RedisResult result) => result.AsByteArray();
+        public static explicit operator byte[](RedisResult result) => result?.AsByteArray();
         /// <summary>
         /// Interprets the result as a <see cref="double"/>.
         /// </summary>
@@ -132,89 +132,89 @@ namespace StackExchange.Redis
         /// Interprets the result as a <see cref="RedisValue"/>.
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="RedisValue"/>.</param>
-        public static explicit operator RedisValue(RedisResult result) => result.AsRedisValue();
+        public static explicit operator RedisValue(RedisResult result) => result?.AsRedisValue() ?? RedisValue.Null;
         /// <summary>
         /// Interprets the result as a <see cref="RedisKey"/>.
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="RedisKey"/>.</param>
-        public static explicit operator RedisKey(RedisResult result) => result.AsRedisKey();
+        public static explicit operator RedisKey(RedisResult result) => result?.AsRedisKey() ?? default;
         /// <summary>
         /// Interprets the result as a <see cref="T:Nullable{double}"/>.
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="T:Nullable{double}"/>.</param>
-        public static explicit operator double?(RedisResult result) => result.AsNullableDouble();
+        public static explicit operator double?(RedisResult result) => result?.AsNullableDouble();
         /// <summary>
         /// Interprets the result as a <see cref="T:Nullable{long}"/>.
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="T:Nullable{long}"/>.</param>
-        public static explicit operator long?(RedisResult result) => result.AsNullableInt64();
+        public static explicit operator long?(RedisResult result) => result?.AsNullableInt64();
         /// <summary>
         /// Interprets the result as a <see cref="T:Nullable{ulong}"/>.
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="T:Nullable{ulong}"/>.</param>
         [CLSCompliant(false)]
-        public static explicit operator ulong?(RedisResult result) => result.AsNullableUInt64();
+        public static explicit operator ulong?(RedisResult result) => result?.AsNullableUInt64();
         /// <summary>
         /// Interprets the result as a <see cref="T:Nullable{int}"/>.
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="T:Nullable{int}"/>.</param>
-        public static explicit operator int?(RedisResult result) => result.AsNullableInt32();
+        public static explicit operator int?(RedisResult result) => result?.AsNullableInt32();
         /// <summary>
         /// Interprets the result as a <see cref="T:Nullable{bool}"/>.
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="T:Nullable{bool}"/>.</param>
-        public static explicit operator bool?(RedisResult result) => result.AsNullableBoolean();
+        public static explicit operator bool?(RedisResult result) => result?.AsNullableBoolean();
         /// <summary>
         /// Interprets the result as a <see cref="T:string[]"/>.
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="T:string[]"/>.</param>
-        public static explicit operator string[](RedisResult result) => result.AsStringArray();
+        public static explicit operator string[](RedisResult result) => result?.AsStringArray();
         /// <summary>
         /// Interprets the result as a <see cref="T:byte[][]"/>.
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="T:byte[][]"/>.</param>
-        public static explicit operator byte[][](RedisResult result) => result.AsByteArrayArray();
+        public static explicit operator byte[][](RedisResult result) => result?.AsByteArrayArray();
         /// <summary>
         /// Interprets the result as a <see cref="T:double[]"/>.
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="T:double[]"/>.</param>
-        public static explicit operator double[](RedisResult result) => result.AsDoubleArray();
+        public static explicit operator double[](RedisResult result) => result?.AsDoubleArray();
         /// <summary>
         /// Interprets the result as a <see cref="T:long[]"/>.
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="T:long[]"/>.</param>
-        public static explicit operator long[](RedisResult result) => result.AsInt64Array();
+        public static explicit operator long[](RedisResult result) => result?.AsInt64Array();
         /// <summary>
         /// Interprets the result as a <see cref="T:ulong[]"/>.
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="T:ulong[]"/>.</param>
         [CLSCompliant(false)]
-        public static explicit operator ulong[](RedisResult result) => result.AsUInt64Array();
+        public static explicit operator ulong[](RedisResult result) => result?.AsUInt64Array();
         /// <summary>
         /// Interprets the result as a <see cref="T:int[]"/>.
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="T:int[]"/>.</param>
-        public static explicit operator int[](RedisResult result) => result.AsInt32Array();
+        public static explicit operator int[](RedisResult result) => result?.AsInt32Array();
         /// <summary>
         /// Interprets the result as a <see cref="T:bool[]"/>.
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="T:bool[]"/>.</param>
-        public static explicit operator bool[](RedisResult result) => result.AsBooleanArray();
+        public static explicit operator bool[](RedisResult result) => result?.AsBooleanArray();
         /// <summary>
         /// Interprets the result as a <see cref="T:RedisValue[]"/>.
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="T:RedisValue[]"/>.</param>
-        public static explicit operator RedisValue[](RedisResult result) => result.AsRedisValueArray();
+        public static explicit operator RedisValue[](RedisResult result) => result?.AsRedisValueArray();
         /// <summary>
         /// Interprets the result as a <see cref="T:RedisKey[]"/>.
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="T:RedisKey[]"/>.</param>
-        public static explicit operator RedisKey[](RedisResult result) => result.AsRedisKeyArray();
+        public static explicit operator RedisKey[](RedisResult result) => result?.AsRedisKeyArray();
         /// <summary>
         /// Interprets the result as a <see cref="T:RedisResult[]"/>.
         /// </summary>
         /// <param name="result">The result to convert to a <see cref="T:RedisResult[]"/>.</param>
-        public static explicit operator RedisResult[](RedisResult result) => result.AsRedisResultArray();
+        public static explicit operator RedisResult[](RedisResult result) => result?.AsRedisResultArray();
 
         /// <summary>
         /// Interprets a multi-bulk result with successive key/name values as a dictionary keyed by name

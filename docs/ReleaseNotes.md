@@ -1,7 +1,31 @@
 # Release Notes
 
-## 2.1.0-preview
+## 2.1.39
 
+- fix: mutex around connection was not "fair"; in specific scenario could lead to out-of-order commands (#1440)
+- fix: update libs (#1432)
+- fix: timing error on linux (#1433 via pengweiqhca)
+- fix: add `auth` to command-map for sentinal (#1428 via ejsmith)
+
+## 2.1.30
+
+- fix deterministic builds
+
+## 2.1.28
+
+- fix: stability in new sentinel APIs
+- fix: include `SslProtocolos` in `ConfigurationOptions.ToString()` (#1408 via vksampath and Sampath Vuyyuru
+- fix: clarify messaging around disconnected multiplexers (#1396)
+- change: tweak methods of new sentinel API (this is technically a breaking change, but since this is a new API that was pulled quickly, we consider this to be acceptable)
+- add: new thread`SocketManager` mode (opt-in) to always use the regular thread-pool instead of the dedicated pool
+- add: improved counters in/around error messages
+- add: new `User` property on `ConfigurationOptions`
+- build: enable deterministic builds (note: this failed; fixed in 2.1.30)
+
+## 2.1.0
+
+- fix: ensure active-message is cleared (#1374 via hamish-omny)
+- add: sentinel support (#1067 via shadim; #692 via lexxdark)
 - add: `IAsyncEnumerable<T>` scanning APIs now supported (#1087)
 - add: new API for use with misbehaving sync-contexts ([more info](https://stackexchange.github.io/StackExchange.Redis/ThreadTheft))
 - add: `TOUCH` support (#1291 via gkorland)
@@ -18,10 +42,20 @@
 - add: `GeoRadiusResult` is now mockable (#1175 via firenero)
 - fix: various documentation fixes (#1162, #1135, #1203, #1240, #1245, #1159, #1311, #1339, #1336)
 - fix: rare race-condition around exception data (#1342)
+- fix: `ScriptEvaluateAsync` keyspace isolation (#1377 via gliljas)
+- fix: F# compatibility enhancements (#1386)
+- fix: improved `ScriptResult` null support (#1392)
+- fix: error with DNS resolution breaking endpoint iterator (#1393)
+- tests: better docker support for tests (#1389 via ejsmith; #1391)
+- tests: general test improvements (#1183, #1385, #1384)
+
+## 2.0.601
+
+- add: tracking for current and next messages to help with debugging timeout issues - helpful in cases of large pipeline blockers
 
 ## 2.0.600
 
-- add `ulong` support to `RedisValue` and `RedisResult` (#1103)
+- add: `ulong` support to `RedisValue` and `RedisResult` (#1103)
 - fix: remove odd equality: `"-" != 0` (we do, however, still allow `"-0"`, as that is at least semantically valid, and is logically `== 0`) (related to #1103)
 - performance: rework how pub/sub queues are stored - reduces delegate overheads (related to #1101)
 - fix #1108 - ensure that we don't try appending log data to the `TextWriter` once we've returned from a method that accepted one

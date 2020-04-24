@@ -577,7 +577,7 @@ namespace StackExchange.Redis
 
                 // no need to deny exec-sync here; will be complete before they see if
                 var tcs = TaskSource.Create<T>(asyncState);
-                ConnectionMultiplexer.ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(multiplexer.IncludeDetailInExceptions, multiplexer.IncludePerformanceCountersInExceptions, message.Command, message, server, multiplexer.GetServerSnapshot()));
+                ConnectionMultiplexer.ThrowFailed(tcs, ExceptionFactory.NoConnectionAvailable(multiplexer, message, server));
                 return tcs.Task;
             }
             return base.ExecuteAsync<T>(message, processor, server);
@@ -590,7 +590,7 @@ namespace StackExchange.Redis
             if (!server.IsConnected)
             {
                 if (message == null || message.IsFireAndForget) return default(T);
-                throw ExceptionFactory.NoConnectionAvailable(multiplexer.IncludeDetailInExceptions, multiplexer.IncludePerformanceCountersInExceptions, message.Command, message, server, multiplexer.GetServerSnapshot());
+                throw ExceptionFactory.NoConnectionAvailable(multiplexer, message, server);
             }
             return base.ExecuteSync<T>(message, processor, server);
         }
@@ -805,6 +805,18 @@ namespace StackExchange.Redis
         {
             var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.GETMASTERADDRBYNAME, (RedisValue)serviceName);
             return ExecuteAsync(msg, ResultProcessor.SentinelMasterEndpoint);
+        }
+
+        public EndPoint[] SentinelGetSentinelAddresses(string serviceName, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.SENTINELS, (RedisValue)serviceName);
+            return ExecuteSync(msg, ResultProcessor.SentinelAddressesEndPoints);
+        }
+
+        public Task<EndPoint[]> SentinelGetSentinelAddressesAsync(string serviceName, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.SENTINELS, (RedisValue)serviceName);
+            return ExecuteAsync(msg, ResultProcessor.SentinelAddressesEndPoints);
         }
 
         public KeyValuePair<string, string>[] SentinelMaster(string serviceName, CommandFlags flags = CommandFlags.None)

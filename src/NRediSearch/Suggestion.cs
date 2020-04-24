@@ -96,7 +96,7 @@ namespace NRediSearch
 
                 if (isStringMissing || isScoreOutOfRange)
                 {
-                    throw new RedisCommandException($"Missing required fields: {(isStringMissing ? "string" : string.Empty)} {(isScoreOutOfRange ? "score not within range" : string.Empty)}");
+                    throw new RedisCommandException($"Missing required fields: {(isStringMissing ? "string" : string.Empty)} {(isScoreOutOfRange ? "score not within range" : string.Empty)}: {_score.ToString()}");
                 }
 
                 return new Suggestion(this);
