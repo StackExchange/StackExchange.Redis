@@ -57,11 +57,19 @@ namespace StackExchange.Redis
             writeEverySeconds = config.KeepAlive > 0 ? config.KeepAlive : 60;
             serverType = ServerType.Standalone;
 
-            // overrides for twemproxy
-            if (multiplexer.RawConfig.Proxy == Proxy.Twemproxy)
+            // overrides for twemproxy etc
+            switch (multiplexer.RawConfig.Proxy)
             {
-                databases = 1;
-                serverType = ServerType.Twemproxy;
+                case Proxy.Twemproxy:
+                    databases = 1;
+                    serverType = ServerType.Twemproxy;
+                    break;
+                case Proxy.RedisClusterProxy:
+                    databases = 1;
+                    serverType = ServerType.RedisClusterProxy;
+                    if (version < RedisFeatures.v3_0_0) // cluster is at least 3.0
+                        version = RedisFeatures.v3_0_0;
+                    break;
             }
         }
 
@@ -254,11 +262,13 @@ namespace StackExchange.Redis
 
         internal void AutoConfigure(PhysicalConnection connection)
         {
-            if (serverType == ServerType.Twemproxy)
+            switch (serverType)
             {
-                // don't try to detect configuration; all the config commands are disabled, and
-                // the fallback master/slave detection won't help
-                return;
+                case ServerType.Twemproxy:
+                case ServerType.RedisClusterProxy:
+                    // don't try to detect configuration; all the config commands are disabled, and
+                    // the fallback master/slave detection won't help
+                    return;
             }
 
             var commandMap = Multiplexer.CommandMap;

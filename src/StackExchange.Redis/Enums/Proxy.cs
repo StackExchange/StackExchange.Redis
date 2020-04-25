@@ -12,6 +12,10 @@
         /// <summary>
         /// Communication via <a href="https://github.com/twitter/twemproxy">twemproxy</a>
         /// </summary>
-        Twemproxy
+        Twemproxy,
+        /// <summary>
+        /// Communication via <a href="https://github.com/RedisLabs/redis-cluster-proxy">redis-cluster-proxy</a>
+        /// </summary>
+        RedisClusterProxy,
     }
 }

@@ -251,6 +251,8 @@ namespace StackExchange.Redis
                 {
                     case Proxy.Twemproxy:
                         return CommandMap.Twemproxy;
+                    case Proxy.RedisClusterProxy:
+                        return CommandMap.RedisClusterProxy;
                     default:
                         return CommandMap.Default;
                 }
@@ -482,7 +484,14 @@ namespace StackExchange.Redis
         /// </summary>
         public void SetDefaultPorts()
         {
-            EndPoints.SetDefaultPorts(Ssl ? 6380 : 6379);
+            if (Proxy == Proxy.RedisClusterProxy && !Ssl)
+            {
+                EndPoints.SetDefaultPorts(7777); // default port for redis-cluster-proxy
+            }
+            else
+            {
+                EndPoints.SetDefaultPorts(Ssl ? 6380 : 6379);
+            }
         }
 
         /// <summary>
