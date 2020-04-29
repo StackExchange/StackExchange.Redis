@@ -55,12 +55,42 @@ namespace StackExchange.Redis.Tests
             var options = ServiceOptions.Clone();
             options.EndPoints.Add(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortA);
 
-            var conn = ConnectionMultiplexer.SentinelMasterConnect(options);
+            var conn = ConnectionMultiplexer.Connect(options);
             var db = conn.GetDatabase();
 
             var test = db.Ping();
             Log("ping to sentinel {0}:{1} took {2} ms", TestConfig.Current.SentinelServer,
                 TestConfig.Current.SentinelPortA, test.TotalMilliseconds);
+        }
+
+        [Fact]
+        public async Task MasterConnectWithConnectionStringFailoverTest()
+        {
+            var connectionString = $"{TestConfig.Current.SentinelServer}:{TestConfig.Current.SentinelPortA},password={ServiceOptions.Password},serviceName={ServiceOptions.ServiceName}";
+            var conn = ConnectionMultiplexer.Connect(connectionString);
+            conn.ConfigurationChanged += (s, e) => {
+                Log($"Configuration changed: {e.EndPoint}");
+            };
+            var db = conn.GetDatabase();
+
+            var test = await db.PingAsync();
+            Log("ping to sentinel {0}:{1} took {2} ms", TestConfig.Current.SentinelServer,
+                TestConfig.Current.SentinelPortA, test.TotalMilliseconds);
+
+            // set string value on current master
+            var expected = DateTime.Now.Ticks.ToString();
+            Log("Tick Key: " + expected);
+            var key = Me();
+            await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
+            await db.StringSetAsync(key, expected);
+
+            // forces and verifies failover
+            await DoFailoverAsync();
+
+            var value = await db.StringGetAsync(key);
+            Assert.Equal(expected, value);
+
+            await db.StringSetAsync(key, expected);
         }
 
         [Fact]
@@ -81,10 +111,38 @@ namespace StackExchange.Redis.Tests
         public void MasterConnectWithStringConfigurationTest()
         {
             var connectionString = $"{TestConfig.Current.SentinelServer}:{TestConfig.Current.SentinelPortA},password={ServiceOptions.Password},serviceName={ServiceOptions.ServiceName}";
-            var conn = ConnectionMultiplexer.SentinelMasterConnect(connectionString);
+            var conn = ConnectionMultiplexer.Connect(connectionString);
             var db = conn.GetDatabase();
 
             var test = db.Ping();
+            Log("ping to sentinel {0}:{1} took {2} ms", TestConfig.Current.SentinelServer,
+                TestConfig.Current.SentinelPortA, test.TotalMilliseconds);
+        }
+
+        [Fact]
+        public void SentinelConnectTest()
+        {
+            var options = ServiceOptions.Clone();
+            options.EndPoints.Add(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortA);
+
+            var conn = ConnectionMultiplexer.SentinelConnect(options);
+            var db = conn.GetDatabase();
+
+            var test = db.Ping();
+            Log("ping to sentinel {0}:{1} took {2} ms", TestConfig.Current.SentinelServer,
+                TestConfig.Current.SentinelPortA, test.TotalMilliseconds);
+        }
+
+        [Fact]
+        public async Task SentinelConnectAsyncTest()
+        {
+            var options = ServiceOptions.Clone();
+            options.EndPoints.Add(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortA);
+
+            var conn = await ConnectionMultiplexer.SentinelConnectAsync(options);
+            var db = conn.GetDatabase();
+
+            var test = await db.PingAsync();
             Log("ping to sentinel {0}:{1} took {2} ms", TestConfig.Current.SentinelServer,
                 TestConfig.Current.SentinelPortA, test.TotalMilliseconds);
         }
