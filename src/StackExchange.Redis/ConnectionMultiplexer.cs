@@ -839,7 +839,7 @@ namespace StackExchange.Redis
         public static Task<ConnectionMultiplexer> ConnectAsync(string configuration, TextWriter log = null)
         {
             SocketConnection.AssertDependencies();
-            return ConnectImplAsync(PrepareConfig(configuration), log);
+            return ConnectAsync(PrepareConfig(configuration), log);
         }
 
         private static async Task<ConnectionMultiplexer> ConnectImplAsync(ConfigurationOptions configuration, TextWriter log = null)
@@ -861,6 +861,12 @@ namespace StackExchange.Redis
                     }
                     killMe = null;
                     Interlocked.Increment(ref muxer._connectCompletedCount);
+
+                    if (muxer.ServerSelectionStrategy.ServerType == ServerType.Sentinel)
+                    {
+                        // Initialize the Sentinel handlers
+                        muxer.InitializeSentinel(logProxy);
+                    }
                     return muxer;
                 }
                 finally
@@ -876,32 +882,36 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="configuration">The configuration options to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
-        public static Task<ConnectionMultiplexer> ConnectAsync(ConfigurationOptions configuration, TextWriter log = null)
+        public static async Task<ConnectionMultiplexer> ConnectAsync(ConfigurationOptions configuration, TextWriter log = null)
         {
             SocketConnection.AssertDependencies();
-            return ConnectImplAsync(PrepareConfig(configuration), log);
+
+            bool sentinel = !String.IsNullOrEmpty(configuration.ServiceName);
+
+            if (!sentinel)
+                return await ConnectImplAsync(PrepareConfig(configuration), log).ForAwait();
+
+            var conn = await ConnectImplAsync(PrepareConfig(configuration, true), log).ForAwait();
+            return conn.GetSentinelMasterConnection(PrepareConfig(configuration), log);
         }
 
         internal static ConfigurationOptions PrepareConfig(object configuration, bool sentinel = false)
         {
             if (configuration == null) throw new ArgumentNullException(nameof(configuration));
-
             ConfigurationOptions config;
-            if (configuration is string c)
+            if (configuration is string s)
             {
-                config = ConfigurationOptions.Parse(c);
+                config = ConfigurationOptions.Parse(s);
             }
             else if (configuration is ConfigurationOptions configurationOptions)
             {
-                config = configurationOptions.Clone();
+                config = (configurationOptions).Clone();
             }
             else
             {
                 throw new ArgumentException("Invalid configuration object", nameof(configuration));
             }
-
-            if (config.EndPoints.Count == 0)
-                throw new ArgumentException("No endpoints specified", nameof(configuration));
+            if (config.EndPoints.Count == 0) throw new ArgumentException("No endpoints specified", nameof(configuration));
 
             if (!sentinel)
             {
@@ -1004,17 +1014,8 @@ namespace StackExchange.Redis
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
         public static ConnectionMultiplexer Connect(string configuration, TextWriter log = null)
         {
-            SocketConnection.AssertDependencies();
             var config = PrepareConfig(configuration);
-            bool sentinel = !String.IsNullOrEmpty(config.ServiceName);
-
-            if (!sentinel)
-                return ConnectImpl(config, log);
-
-            var sentinelConfig = PrepareConfig(configuration, true);
-            var conn = ConnectImpl(sentinelConfig, log);
-
-            return conn.GetSentinelMasterConnection(config, log);
+            return Connect(config, log);
         }
 
         /// <summary>
@@ -1025,7 +1026,14 @@ namespace StackExchange.Redis
         public static ConnectionMultiplexer Connect(ConfigurationOptions configuration, TextWriter log = null)
         {
             SocketConnection.AssertDependencies();
-            return ConnectImpl(PrepareConfig(configuration), log);
+
+            bool sentinel = !String.IsNullOrEmpty(configuration.ServiceName);
+
+            if (!sentinel)
+                return ConnectImpl(PrepareConfig(configuration), log);
+
+            var conn = ConnectImpl(PrepareConfig(configuration, true), log);
+            return conn.GetSentinelMasterConnection(PrepareConfig(configuration), log);
         }
 
         /// <summary>
@@ -1036,7 +1044,7 @@ namespace StackExchange.Redis
         public static ConnectionMultiplexer SentinelConnect(string configuration, TextWriter log = null)
         {
             SocketConnection.AssertDependencies();
-            return ConnectImpl(PrepareConfig(configuration), log);
+            return ConnectImpl(PrepareConfig(configuration, true), log);
         }
 
         /// <summary>
@@ -1092,6 +1100,30 @@ namespace StackExchange.Redis
         public static ConnectionMultiplexer SentinelMasterConnect(ConfigurationOptions configuration, TextWriter log = null)
         {
             var sentinelConnection = SentinelConnect(configuration, log);
+
+            return sentinelConnection.GetSentinelMasterConnection(configuration, log);
+        }
+
+        /// <summary>
+        /// Create a new ConnectionMultiplexer instance that connects to a sentinel server, discovers the current master server
+        /// for the specified ServiceName in the config and returns a managed connection to the current master server
+        /// </summary>
+        /// <param name="configuration">The string configuration to use for this multiplexer.</param>
+        /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
+        public static Task<ConnectionMultiplexer> SentinelMasterConnectAsync(string configuration, TextWriter log = null)
+        {
+            return SentinelMasterConnectAsync(PrepareConfig(configuration, true), log);
+        }
+
+        /// <summary>
+        /// Create a new ConnectionMultiplexer instance that connects to a sentinel server, discovers the current master server
+        /// for the specified ServiceName in the config and returns a managed connection to the current master server
+        /// </summary>
+        /// <param name="configuration">The configuration options to use for this multiplexer.</param>
+        /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
+        public static async Task<ConnectionMultiplexer> SentinelMasterConnectAsync(ConfigurationOptions configuration, TextWriter log = null)
+        {
+            var sentinelConnection = await SentinelConnectAsync(configuration, log).ForAwait();
 
             return sentinelConnection.GetSentinelMasterConnection(configuration, log);
         }

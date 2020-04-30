@@ -59,6 +59,36 @@ namespace StackExchange.Redis.Tests
             };
             var db = conn.GetDatabase();
 
+            var test = db.Ping();
+            Log("ping to sentinel {0}:{1} took {2} ms", TestConfig.Current.SentinelServer,
+                TestConfig.Current.SentinelPortA, test.TotalMilliseconds);
+
+            // set string value on current master
+            var expected = DateTime.Now.Ticks.ToString();
+            Log("Tick Key: " + expected);
+            var key = Me();
+            db.KeyDelete(key, CommandFlags.FireAndForget);
+            db.StringSet(key, expected);
+
+            // forces and verifies failover
+            await DoFailoverAsync();
+
+            var value = db.StringGet(key);
+            Assert.Equal(expected, value);
+
+            db.StringSet(key, expected);
+        }
+
+        [Fact]
+        public async Task MasterConnectAsyncWithConnectionStringFailoverTest()
+        {
+            var connectionString = $"{TestConfig.Current.SentinelServer}:{TestConfig.Current.SentinelPortA},password={ServiceOptions.Password},serviceName={ServiceOptions.ServiceName}";
+            var conn = await ConnectionMultiplexer.ConnectAsync(connectionString);
+            conn.ConfigurationChanged += (s, e) => {
+                Log($"Configuration changed: {e.EndPoint}");
+            };
+            var db = conn.GetDatabase();
+
             var test = await db.PingAsync();
             Log("ping to sentinel {0}:{1} took {2} ms", TestConfig.Current.SentinelServer,
                 TestConfig.Current.SentinelPortA, test.TotalMilliseconds);
@@ -692,8 +722,6 @@ namespace StackExchange.Redis.Tests
             var slaves = SentinelServerA.SentinelSlaves(ServiceName);
             var config = new ConfigurationOptions
             {
-                TieBreaker = "",
-                ServiceName = ServiceOptions.ServiceName,
                 Password = ServiceOptions.Password
             };
 
