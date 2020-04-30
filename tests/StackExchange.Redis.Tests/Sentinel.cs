@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
@@ -47,20 +47,6 @@ namespace StackExchange.Redis.Tests
             SentinelServerB = Conn.GetServer(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortB);
             SentinelServerC = Conn.GetServer(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortC);
             SentinelsServers = new IServer[] { SentinelServerA, SentinelServerB, SentinelServerC };
-        }
-
-        [Fact]
-        public void MasterConnectTest()
-        {
-            var options = ServiceOptions.Clone();
-            options.EndPoints.Add(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortA);
-
-            var conn = ConnectionMultiplexer.Connect(options);
-            var db = conn.GetDatabase();
-
-            var test = db.Ping();
-            Log("ping to sentinel {0}:{1} took {2} ms", TestConfig.Current.SentinelServer,
-                TestConfig.Current.SentinelPortA, test.TotalMilliseconds);
         }
 
         [Fact]
