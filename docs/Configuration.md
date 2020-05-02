@@ -29,7 +29,7 @@ This will connect to a single server on the local machine using the default redi
 var conn = ConnectionMultiplexer.Connect("redis0:6380,redis1:6380,allowAdmin=true");
 ```
 
-If you specify a serviceName in the connection string, it will trigger sentinel mode. This will connect to a sentinel server on the local machine
+If you specify a serviceName in the connection string, it will trigger sentinel mode. This example will connect to a sentinel server on the local machine
 using the default sentinel port (26379), discover the current master server for the `mymaster` service and return a managed connection
 pointing to that master server that will automatically be updated if the master changes:
 
