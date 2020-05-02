@@ -891,7 +891,7 @@ namespace StackExchange.Redis
             if (!sentinel)
                 return await ConnectImplAsync(PrepareConfig(configuration), log).ForAwait();
 
-            var conn = await ConnectImplAsync(PrepareConfig(configuration, true), log).ForAwait();
+            var conn = await ConnectImplAsync(PrepareConfig(configuration, sentinel: true), log).ForAwait();
             return conn.GetSentinelMasterConnection(PrepareConfig(configuration), log);
         }
 
@@ -913,11 +913,7 @@ namespace StackExchange.Redis
             }
             if (config.EndPoints.Count == 0) throw new ArgumentException("No endpoints specified", nameof(configuration));
 
-            if (!sentinel)
-            {
-                config.SetDefaultPorts();
-            }
-            else
+            if (sentinel)
             {
                 // this is required when connecting to sentinel servers
                 config.TieBreaker = "";
@@ -925,7 +921,11 @@ namespace StackExchange.Redis
 
                 // use default sentinel port
                 config.EndPoints.SetDefaultPorts(26379);
+
+                return config;
             }
+
+            config.SetDefaultPorts();
 
             return config;
         }
@@ -1014,8 +1014,7 @@ namespace StackExchange.Redis
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
         public static ConnectionMultiplexer Connect(string configuration, TextWriter log = null)
         {
-            var config = PrepareConfig(configuration);
-            return Connect(config, log);
+            return Connect(PrepareConfig(configuration), log);
         }
 
         /// <summary>
@@ -1027,13 +1026,15 @@ namespace StackExchange.Redis
         {
             SocketConnection.AssertDependencies();
 
-            bool sentinel = !String.IsNullOrEmpty(configuration.ServiceName);
+            bool sentinel = !string.IsNullOrEmpty(configuration?.ServiceName);
 
-            if (!sentinel)
-                return ConnectImpl(PrepareConfig(configuration), log);
+            if (sentinel)
+            {
+                var conn = ConnectImpl(PrepareConfig(configuration, sentinel: true), log);
+                return conn.GetSentinelMasterConnection(PrepareConfig(configuration), log);
+            }
 
-            var conn = ConnectImpl(PrepareConfig(configuration, true), log);
-            return conn.GetSentinelMasterConnection(PrepareConfig(configuration), log);
+            return ConnectImpl(PrepareConfig(configuration), log);
         }
 
         /// <summary>
@@ -1044,7 +1045,7 @@ namespace StackExchange.Redis
         public static ConnectionMultiplexer SentinelConnect(string configuration, TextWriter log = null)
         {
             SocketConnection.AssertDependencies();
-            return ConnectImpl(PrepareConfig(configuration, true), log);
+            return ConnectImpl(PrepareConfig(configuration, sentinel: true), log);
         }
 
         /// <summary>
@@ -1066,7 +1067,7 @@ namespace StackExchange.Redis
         public static ConnectionMultiplexer SentinelConnect(ConfigurationOptions configuration, TextWriter log = null)
         {
             SocketConnection.AssertDependencies();
-            return ConnectImpl(PrepareConfig(configuration, true), log);
+            return ConnectImpl(PrepareConfig(configuration, sentinel: true), log);
         }
 
         /// <summary>
@@ -1077,7 +1078,7 @@ namespace StackExchange.Redis
         public static Task<ConnectionMultiplexer> SentinelConnectAsync(ConfigurationOptions configuration, TextWriter log = null)
         {
             SocketConnection.AssertDependencies();
-            return ConnectImplAsync(PrepareConfig(configuration, true), log);
+            return ConnectImplAsync(PrepareConfig(configuration, sentinel: true), log);
         }
 
         /// <summary>
@@ -1088,7 +1089,7 @@ namespace StackExchange.Redis
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
         public static ConnectionMultiplexer SentinelMasterConnect(string configuration, TextWriter log = null)
         {
-            return SentinelMasterConnect(PrepareConfig(configuration, true), log);
+            return SentinelMasterConnect(PrepareConfig(configuration, sentinel: true), log);
         }
 
         /// <summary>
@@ -1112,7 +1113,7 @@ namespace StackExchange.Redis
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
         public static Task<ConnectionMultiplexer> SentinelMasterConnectAsync(string configuration, TextWriter log = null)
         {
-            return SentinelMasterConnectAsync(PrepareConfig(configuration, true), log);
+            return SentinelMasterConnectAsync(PrepareConfig(configuration, sentinel: true), log);
         }
 
         /// <summary>
