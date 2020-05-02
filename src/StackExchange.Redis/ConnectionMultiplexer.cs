@@ -882,17 +882,19 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="configuration">The configuration options to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
-        public static async Task<ConnectionMultiplexer> ConnectAsync(ConfigurationOptions configuration, TextWriter log = null)
+        public static Task<ConnectionMultiplexer> ConnectAsync(ConfigurationOptions configuration, TextWriter log = null)
         {
             SocketConnection.AssertDependencies();
 
-            bool sentinel = !String.IsNullOrEmpty(configuration.ServiceName);
+            if (IsSentinel(configuration))
+                return SentinelMasterConnectAsync(configuration, log);
 
-            if (!sentinel)
-                return await ConnectImplAsync(PrepareConfig(configuration), log).ForAwait();
+            return ConnectImplAsync(PrepareConfig(configuration), log);
+        }
 
-            var conn = await ConnectImplAsync(PrepareConfig(configuration, sentinel: true), log).ForAwait();
-            return conn.GetSentinelMasterConnection(PrepareConfig(configuration), log);
+        private static bool IsSentinel(ConfigurationOptions configuration)
+        {
+            return !string.IsNullOrEmpty(configuration?.ServiceName);
         }
 
         internal static ConfigurationOptions PrepareConfig(object configuration, bool sentinel = false)
@@ -1026,12 +1028,9 @@ namespace StackExchange.Redis
         {
             SocketConnection.AssertDependencies();
 
-            bool sentinel = !string.IsNullOrEmpty(configuration?.ServiceName);
-
-            if (sentinel)
+            if (IsSentinel(configuration))
             {
-                var conn = ConnectImpl(PrepareConfig(configuration, sentinel: true), log);
-                return conn.GetSentinelMasterConnection(PrepareConfig(configuration), log);
+                return SentinelMasterConnect(configuration, log);
             }
 
             return ConnectImpl(PrepareConfig(configuration), log);

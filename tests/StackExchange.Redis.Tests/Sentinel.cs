@@ -12,7 +12,7 @@ namespace StackExchange.Redis.Tests
     public class Sentinel : TestBase
     {
         private string ServiceName => TestConfig.Current.SentinelSeviceName;
-        private ConfigurationOptions ServiceOptions => new ConfigurationOptions { ServiceName = ServiceName, AllowAdmin = true, Password = "changeme" };
+        private ConfigurationOptions ServiceOptions => new ConfigurationOptions { ServiceName = ServiceName, AllowAdmin = true };
 
         private ConnectionMultiplexer Conn { get; }
         private IServer SentinelServerA { get; }
