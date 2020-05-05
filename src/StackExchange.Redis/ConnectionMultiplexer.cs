@@ -1055,7 +1055,7 @@ namespace StackExchange.Redis
         public static Task<ConnectionMultiplexer> SentinelConnectAsync(string configuration, TextWriter log = null)
         {
             SocketConnection.AssertDependencies();
-            return ConnectImplAsync(PrepareConfig(configuration, true), log);
+            return ConnectImplAsync(PrepareConfig(configuration, sentinel: true), log);
         }
 
         /// <summary>
