@@ -9,7 +9,7 @@ namespace StackExchange.Redis
     /// <summary>
     /// A list of endpoints
     /// </summary>
-    public sealed class EndPointCollection : Collection<EndPoint>, IEnumerable, IEnumerable<EndPoint>
+    public sealed class EndPointCollection : Collection<EndPoint>, IEnumerable<EndPoint>
     {
         /// <summary>
         /// Create a new EndPointCollection

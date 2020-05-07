@@ -571,6 +571,7 @@ namespace StackExchange.Redis
                 case RedisCommand.QUIT:
                 case RedisCommand.READONLY:
                 case RedisCommand.READWRITE:
+                case RedisCommand.ROLE:
                 case RedisCommand.SAVE:
                 case RedisCommand.SCRIPT:
                 case RedisCommand.SHUTDOWN:

@@ -639,6 +639,22 @@ namespace StackExchange.Redis
         Task<DateTime> TimeAsync(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// The ROLE command returns the current server role which can be master, slave or sentinel.
+        /// </summary>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>The server's current role.</returns>
+        /// <remarks>https://redis.io/commands/role</remarks>
+        string Role(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// The ROLE command returns the current server role which can be master, slave or sentinel.
+        /// </summary>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>The server's current role.</returns>
+        /// <remarks>https://redis.io/commands/role</remarks>
+        Task<string> RoleAsync(CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Gets a text-based latency diagnostic
         /// </summary>
         /// <remarks>https://redis.io/topics/latency-monitor</remarks>
@@ -733,7 +749,7 @@ namespace StackExchange.Redis
         #region Sentinel
 
         /// <summary>
-        /// Returns the ip and port number of the master with that name. 
+        /// Returns the ip and port number of the master with that name.
         /// If a failover is in progress or terminated successfully for this master it returns the address and port of the promoted slave.
         /// </summary>
         /// <param name="serviceName">The sentinel service name.</param>
@@ -743,7 +759,7 @@ namespace StackExchange.Redis
         EndPoint SentinelGetMasterAddressByName(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Returns the ip and port number of the master with that name. 
+        /// Returns the ip and port number of the master with that name.
         /// If a failover is in progress or terminated successfully for this master it returns the address and port of the promoted slave.
         /// </summary>
         /// <param name="serviceName">The sentinel service name.</param>
@@ -769,6 +785,24 @@ namespace StackExchange.Redis
         /// <param name="flags"></param>
         /// <returns>a list of the sentinel ips and ports</returns>
         Task<EndPoint[]> SentinelGetSentinelAddressesAsync(string serviceName, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns the ip and port numbers of all known Sentinel slaves
+        /// for the given service name.
+        /// </summary>
+        /// <param name="serviceName">the sentinel service name</param>
+        /// <param name="flags"></param>
+        /// <returns>a list of the slave ips and ports</returns>
+        EndPoint[] SentinelGetSlaveAddresses(string serviceName, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns the ip and port numbers of all known Sentinel slaves
+        /// for the given service name.
+        /// </summary>
+        /// <param name="serviceName">the sentinel service name</param>
+        /// <param name="flags"></param>
+        /// <returns>a list of the slave ips and ports</returns>
+        Task<EndPoint[]> SentinelGetSlaveAddressesAsync(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Show the state and info of the specified master.
@@ -823,7 +857,7 @@ namespace StackExchange.Redis
         Task<KeyValuePair<string, string>[][]> SentinelSlavesAsync(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Force a failover as if the master was not reachable, and without asking for agreement to other Sentinels 
+        /// Force a failover as if the master was not reachable, and without asking for agreement to other Sentinels
         /// (however a new version of the configuration will be published so that the other Sentinels will update their configurations).
         /// </summary>
         /// <param name="serviceName">The sentinel service name.</param>
@@ -832,7 +866,7 @@ namespace StackExchange.Redis
         void SentinelFailover(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Force a failover as if the master was not reachable, and without asking for agreement to other Sentinels 
+        /// Force a failover as if the master was not reachable, and without asking for agreement to other Sentinels
         /// (however a new version of the configuration will be published so that the other Sentinels will update their configurations).
         /// </summary>
         /// <param name="serviceName">The sentinel service name.</param>

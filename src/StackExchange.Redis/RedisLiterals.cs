@@ -123,7 +123,9 @@ namespace StackExchange.Redis
             pubsub = "pubsub",
             replication = "replication",
             server = "server",
+            master = "master",
             slave = "slave",
+            sentinel = "sentinel",
             slave_read_only = "slave-read-only",
             timeout = "timeout",
             yes = "yes";

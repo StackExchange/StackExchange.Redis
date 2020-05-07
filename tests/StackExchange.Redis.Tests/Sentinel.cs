@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
@@ -52,13 +54,27 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task MasterConnectWithConnectionStringFailoverTest()
         {
-            var connectionString = $"{TestConfig.Current.SentinelServer}:{TestConfig.Current.SentinelPortA},password={ServiceOptions.Password},serviceName={ServiceOptions.ServiceName}";
+            var connectionString = $"{TestConfig.Current.SentinelServer}:{TestConfig.Current.SentinelPortA},password={ServiceOptions.Password},serviceName={ServiceOptions.ServiceName},allowAdmin=true";
             var conn = ConnectionMultiplexer.Connect(connectionString);
+
+            // should have 1 master and 1 slave
+            var endpoints = conn.GetEndPoints();
+            Assert.Equal(2, endpoints.Length);
+
+            var servers = endpoints.Select(e => conn.GetServer(e)).ToArray();
+            Assert.Equal(2, servers.Length);
+            Assert.Single(servers, s => s.IsSlave);
+
+            var server1 = servers.First();
+            var server2 = servers.Last();
+            Assert.Equal("master", server1.Role());
+            Assert.Equal("slave", server2.Role());
+
             conn.ConfigurationChanged += (s, e) => {
                 Log($"Configuration changed: {e.EndPoint}");
             };
-            var db = conn.GetDatabase();
 
+            var db = conn.GetDatabase();
             var test = db.Ping();
             Log("ping to sentinel {0}:{1} took {2} ms", TestConfig.Current.SentinelServer,
                 TestConfig.Current.SentinelPortA, test.TotalMilliseconds);
@@ -70,13 +86,38 @@ namespace StackExchange.Redis.Tests
             db.KeyDelete(key, CommandFlags.FireAndForget);
             db.StringSet(key, expected);
 
+            // force read from slave
+            var value = db.StringGet(key, CommandFlags.DemandSlave);
+            Assert.Equal(expected, value);
+
             // forces and verifies failover
+            var sw = Stopwatch.StartNew();
             await DoFailoverAsync();
 
-            var value = db.StringGet(key);
+            endpoints = conn.GetEndPoints();
+            Assert.Equal(2, endpoints.Length);
+
+            servers = endpoints.Select(e => conn.GetServer(e)).ToArray();
+            Assert.Equal(2, servers.Length);
+
+            server1 = servers.First();
+            server2 = servers.Last();
+
+            // check to make sure roles have swapped
+            Assert.Equal("master", server2.Role());
+            while (server1.Role() != "slave" || sw.Elapsed > TimeSpan.FromSeconds(30))
+            {
+                await Task.Delay(1000);
+            }
+            Log($"Time to swap: {sw.Elapsed}");
+            Assert.True(sw.Elapsed < TimeSpan.FromSeconds(30));
+
+            value = db.StringGet(key);
             Assert.Equal(expected, value);
 
             db.StringSet(key, expected);
+
+            conn.Dispose();
         }
 
         [Fact]

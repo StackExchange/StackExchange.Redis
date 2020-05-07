@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -1101,7 +1101,11 @@ namespace StackExchange.Redis
         {
             var sentinelConnection = SentinelConnect(configuration, log);
 
-            return sentinelConnection.GetSentinelMasterConnection(configuration, log);
+            var muxer = sentinelConnection.GetSentinelMasterConnection(configuration, log);
+            // set reference to sentinel connection so that we can dispose it
+            muxer.sentinelConnection = sentinelConnection;
+
+            return muxer;
         }
 
         /// <summary>
@@ -1125,7 +1129,11 @@ namespace StackExchange.Redis
         {
             var sentinelConnection = await SentinelConnectAsync(configuration, log).ForAwait();
 
-            return sentinelConnection.GetSentinelMasterConnection(configuration, log);
+            var muxer = sentinelConnection.GetSentinelMasterConnection(configuration, log);
+            // set reference to sentinel connection so that we can dispose it
+            muxer.sentinelConnection = sentinelConnection;
+
+            return muxer;
         }
 
         private static ConnectionMultiplexer ConnectImpl(ConfigurationOptions configuration, TextWriter log)
@@ -1169,7 +1177,7 @@ namespace StackExchange.Redis
                 }
                 finally
                 {
-                    if (connectHandler != null) muxer.ConnectionFailed -= connectHandler;
+                    if (connectHandler != null && muxer != null) muxer.ConnectionFailed -= connectHandler;
                     if (killMe != null) try { killMe.Dispose(); } catch { }
                 }
             }
@@ -2252,6 +2260,7 @@ namespace StackExchange.Redis
         internal Timer sentinelMasterReconnectTimer;
 
         internal Dictionary<string, ConnectionMultiplexer> sentinelConnectionChildren;
+        internal ConnectionMultiplexer sentinelConnection = null;
 
         /// <summary>
         /// Initializes the connection as a Sentinel connection and adds
@@ -2341,30 +2350,60 @@ namespace StackExchange.Redis
                     return sentinelConnectionChildren[config.ServiceName];
             }
 
-            // Get an initial endpoint - try twice
-            EndPoint newMasterEndPoint = GetConfiguredMasterForService(config.ServiceName)
-                                      ?? GetConfiguredMasterForService(config.ServiceName);
+            int attempts = 0;
+            bool success = false;
+            ConnectionMultiplexer connection = null;
 
-            if (newMasterEndPoint == null)
+            do
+            {
+                attempts++;
+
+                // Get an initial endpoint - try twice
+                EndPoint newMasterEndPoint = GetConfiguredMasterForService(config.ServiceName)
+                                             ?? GetConfiguredMasterForService(config.ServiceName);
+
+                if (newMasterEndPoint == null)
+                {
+                    throw new RedisConnectionException(ConnectionFailureType.UnableToConnect,
+                        $"Sentinel: Failed connecting to configured master for service: {config.ServiceName}");
+                }
+
+                EndPoint[] slaveEndPoints = GetSlavesForService(config.ServiceName)
+                                            ?? GetSlavesForService(config.ServiceName);
+
+                // Replace the master endpoint, if we found another one
+                // If not, assume the last state is the best we have and minimize the race
+                if (config.EndPoints.Count == 1)
+                {
+                    config.EndPoints[0] = newMasterEndPoint;
+                }
+                else
+                {
+                    config.EndPoints.Clear();
+                    config.EndPoints.TryAdd(newMasterEndPoint);
+                }
+
+                foreach (var slaveEndPoint in slaveEndPoints)
+                    config.EndPoints.TryAdd(slaveEndPoint);
+
+                connection = ConnectImpl(config, log);
+
+                // verify role is master according to:
+                // https://redis.io/topics/sentinel-clients
+                if (connection.GetServer(newMasterEndPoint).Role() == RedisLiterals.master)
+                {
+                    success = true;
+                    break;
+                }
+
+                Thread.Sleep(100);
+            } while (attempts < 3);
+
+            if (!success)
             {
                 throw new RedisConnectionException(ConnectionFailureType.UnableToConnect,
                     $"Sentinel: Failed connecting to configured master for service: {config.ServiceName}");
             }
-
-            // Replace the master endpoint, if we found another one
-            // If not, assume the last state is the best we have and minimize the race
-            if (config.EndPoints.Count == 1)
-            {
-                config.EndPoints[0] = newMasterEndPoint;
-            }
-            else
-            {
-                config.EndPoints.Clear();
-                config.EndPoints.Add(newMasterEndPoint);
-            }
-
-            ConnectionMultiplexer connection = ConnectImpl(config, log);
-            // TODO: Verify ROLE is master as specified here: https://redis.io/topics/sentinel-clients
 
             // Attach to reconnect event to ensure proper connection to the new master
             connection.ConnectionRestored += OnManagedConnectionRestored;
@@ -2463,6 +2502,18 @@ namespace StackExchange.Redis
 
         internal EndPoint currentSentinelMasterEndPoint;
 
+        internal EndPoint[] GetSlavesForService(string serviceName) =>
+            GetServerSnapshot()
+                .ToArray()
+                .Where(s => s.ServerType == ServerType.Sentinel)
+                .AsParallel()
+                .Select(s =>
+                {
+                    try { return GetServer(s.EndPoint).SentinelGetSlaveAddresses(serviceName); }
+                    catch { return null; }
+                })
+                .FirstOrDefault(r => r != null);
+
         /// <summary>
         /// Switches the SentinelMasterConnection over to a new master.
         /// </summary>
@@ -2487,19 +2538,22 @@ namespace StackExchange.Redis
                         $"Sentinel: Failed connecting to switch master for service: {serviceName}");
                 }
 
-                if (newMasterEndPoint != null)
-                {
-                    connection.currentSentinelMasterEndPoint = newMasterEndPoint;
+                connection.currentSentinelMasterEndPoint = newMasterEndPoint;
 
-                    if (!connection.servers.Contains(newMasterEndPoint))
-                    {
-                        connection.RawConfig.EndPoints.Clear();
-                        connection.servers.Clear();
-                        connection.RawConfig.EndPoints.TryAdd(newMasterEndPoint);
-                        Trace(string.Format("Switching master to {0}", newMasterEndPoint));
-                        // Trigger a reconfigure
-                        connection.ReconfigureAsync(false, false, logProxy, switchBlame, string.Format("master switch {0}", serviceName), false, CommandFlags.PreferMaster).Wait();
-                    }
+                if (!connection.servers.Contains(newMasterEndPoint))
+                {
+                    EndPoint[] slaveEndPoints = GetSlavesForService(serviceName)
+                                                ?? GetSlavesForService(serviceName);
+
+                    connection.servers.Clear();
+                    connection.RawConfig.EndPoints.Clear();
+                    connection.RawConfig.EndPoints.TryAdd(newMasterEndPoint);
+                    foreach (var slaveEndPoint in slaveEndPoints)
+                        connection.RawConfig.EndPoints.TryAdd(slaveEndPoint);
+                    Trace(string.Format("Switching master to {0}", newMasterEndPoint));
+                    // Trigger a reconfigure
+                    connection.ReconfigureAsync(false, false, logProxy, switchBlame,
+                        string.Format("master switch {0}", serviceName), false, CommandFlags.PreferMaster).Wait();
 
                     UpdateSentinelAddressList(serviceName);
                 }
@@ -2626,6 +2680,7 @@ namespace StackExchange.Redis
         {
             GC.SuppressFinalize(this);
             Close(!_isDisposed);
+            sentinelConnection?.Dispose();
         }
 
         internal Task<T> ExecuteAsyncImpl<T>(Message message, ResultProcessor<T> processor, object state, ServerEndPoint server)

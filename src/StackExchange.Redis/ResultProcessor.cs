@@ -85,6 +85,9 @@ namespace StackExchange.Redis
         public static readonly ResultProcessor<TimeSpan>
             ResponseTimer = new TimingProcessor();
 
+        public static readonly ResultProcessor<string>
+            Role = new RoleProcessor();
+
         public static readonly ResultProcessor<RedisResult>
             ScriptResult = new ScriptResultProcessor();
 
@@ -127,6 +130,9 @@ namespace StackExchange.Redis
 
         public static readonly ResultProcessor<EndPoint[]>
             SentinelAddressesEndPoints = new SentinelGetSentinelAddresses();
+
+        public static readonly ResultProcessor<EndPoint[]>
+            SentinelSlaveEndPoints = new SentinelGetSlaveAddresses();
 
         public static readonly ResultProcessor<KeyValuePair<string, string>[][]>
             SentinelArrayOfArrays = new SentinelArrayOfArraysProcessor();
@@ -886,6 +892,22 @@ namespace StackExchange.Redis
                         catch
                         { /* tralalalala */}
                         SetResult(message, nodes);
+                        return true;
+                }
+                return false;
+            }
+        }
+
+        private sealed class RoleProcessor : ResultProcessor<string>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                switch (result.Type)
+                {
+                    case ResultType.MultiBulk:
+                        var arr = result.GetItems();
+                        var role = arr[0].GetString();
+                        SetResult(message, role);
                         return true;
                 }
                 return false;
@@ -1989,6 +2011,61 @@ The coordinates as a two items x,y array (longitude,latitude).
         }
 
         private sealed class SentinelGetSentinelAddresses : ResultProcessor<EndPoint[]>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                List<EndPoint> endPoints = new List<EndPoint>();
+
+                switch (result.Type)
+                {
+                    case ResultType.MultiBulk:
+                        foreach (RawResult item in result.GetItems())
+                        {
+                            var arr = item.GetItemsAsValues();
+                            string ip = null;
+                            string portStr = null;
+
+                            for (int i = 0; i < arr.Length && (ip == null || portStr == null); i += 2)
+                            {
+                                string name = arr[i];
+                                string value = arr[i + 1];
+
+                                switch (name)
+                                {
+                                    case "ip":
+                                        ip = value;
+                                        break;
+                                    case "port":
+                                        portStr = value;
+                                        break;
+                                }
+                            }
+
+                            if (ip != null && portStr != null && int.TryParse(portStr, out int port))
+                            {
+                                endPoints.Add(Format.ParseEndPoint(ip, port));
+                            }
+                        }
+                        break;
+
+                    case ResultType.SimpleString:
+                        //We don't want to blow up if the master is not found
+                        if (result.IsNull)
+                            return true;
+                        break;
+                }
+
+                if (endPoints.Count > 0)
+                {
+                    SetResult(message, endPoints.ToArray());
+                    return true;
+                }
+
+                return false;
+            }
+        }
+
+        private sealed class SentinelGetSlaveAddresses : ResultProcessor<EndPoint[]>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
