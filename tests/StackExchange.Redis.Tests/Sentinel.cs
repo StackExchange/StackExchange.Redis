@@ -63,12 +63,11 @@ namespace StackExchange.Redis.Tests
 
             var servers = endpoints.Select(e => conn.GetServer(e)).ToArray();
             Assert.Equal(2, servers.Length);
-            Assert.Single(servers, s => s.IsSlave);
 
             var server1 = servers.First();
             var server2 = servers.Last();
             Assert.Equal("master", server1.Role());
-            Assert.Equal("slave", server2.Role());
+            Assert.True(await WaitForRoleAsync(server2, "slave"));
 
             conn.ConfigurationChanged += (s, e) => {
                 Log($"Configuration changed: {e.EndPoint}");
@@ -80,13 +79,14 @@ namespace StackExchange.Redis.Tests
                 TestConfig.Current.SentinelPortA, test.TotalMilliseconds);
 
             // set string value on current master
-            var expected = DateTime.Now.Ticks.ToString();
-            Log("Tick Key: " + expected);
+            var expected = DateTime.Now.ToShortTimeString();
             var key = Me();
+            Log(string.Concat(key, ":", expected));
             db.KeyDelete(key, CommandFlags.FireAndForget);
             db.StringSet(key, expected);
 
-            // force read from slave
+            // force read from slave, replication has some lag
+            await WaitForReplication(server1);
             var value = db.StringGet(key, CommandFlags.DemandSlave);
             Assert.Equal(expected, value);
 
@@ -105,12 +105,9 @@ namespace StackExchange.Redis.Tests
 
             // check to make sure roles have swapped
             Assert.Equal("master", server2.Role());
-            while (server1.Role() != "slave" || sw.Elapsed > TimeSpan.FromSeconds(30))
-            {
-                await Task.Delay(1000);
-            }
+            Assert.True(await WaitForRoleAsync(server1, "slave"));
             Log($"Time to swap: {sw.Elapsed}");
-            Assert.True(sw.Elapsed < TimeSpan.FromSeconds(30));
+            Assert.True(sw.Elapsed < TimeSpan.FromSeconds(60));
 
             value = db.StringGet(key);
             Assert.Equal(expected, value);
@@ -813,6 +810,40 @@ namespace StackExchange.Redis.Tests
             // make sure master changed
             Assert.Equal(slaves[0].ToDictionary()["name"], newMaster.ToString());
             Assert.Equal(master.ToString(), newSlave[0].ToDictionary()["name"]);
+        }
+
+        private async Task<bool> WaitForRoleAsync(IServer server, string role)
+        {
+            var sw = Stopwatch.StartNew();
+            while (sw.Elapsed < TimeSpan.FromSeconds(30))
+            {
+                if (await server.RoleAsync() == role)
+                    return true;
+
+                await Task.Delay(1000);
+            }
+
+            return false;
+        }
+
+        private async Task<bool> WaitForReplication(IServer master)
+        {
+            var sw = Stopwatch.StartNew();
+            while (sw.Elapsed < TimeSpan.FromSeconds(10))
+            {
+                var info = await master.InfoAsync("replication");
+                var replicationInfo = info.FirstOrDefault(f => f.Key == "Replication").ToArray().ToDictionary();
+                var slaveInfo = replicationInfo.FirstOrDefault(i => i.Key.StartsWith("slave")).Value?.Split(',').ToDictionary(i => i.Split('=').First(), i => i.Split('=').Last());
+                var slaveOffset = slaveInfo?["offset"];
+                var masterOffset = replicationInfo["master_repl_offset"];
+
+                if (slaveOffset == masterOffset)
+                    return true;
+
+                await Task.Delay(200);
+            }
+
+            return false;
         }
     }
 }
