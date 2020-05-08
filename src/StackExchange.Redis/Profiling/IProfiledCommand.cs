@@ -28,7 +28,7 @@ namespace StackExchange.Redis.Profiling
         string Command { get; }
 
         /// <summary>
-        /// The name of the script when EVAL command is issued.
+        /// The script to execute when EVAL command is issued.
         /// </summary>
         string Script { get; }
 
