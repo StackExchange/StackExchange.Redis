@@ -17,7 +17,13 @@ namespace StackExchange.Redis.Profiling
 
         public string Command => Message is RedisDatabase.ExecuteMessage em ? em.Command.ToString() : Message.Command.ToString();
 
+        public string Script => Message is RedisDatabase.ScriptEvalMessage sem ? sem.Script : null;
+
+        public RedisKey[] Keys => Message is IKeysMessage km ? km.Keys : null;
+
         public CommandFlags Flags => Message.Flags;
+
+        public RedisValue[] Values => Message is IValuesMessage vm ? vm.Values : null;
 
         public DateTime CommandCreated => MessageCreatedDateTime;
 
