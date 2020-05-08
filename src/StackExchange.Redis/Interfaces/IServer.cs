@@ -749,7 +749,7 @@ namespace StackExchange.Redis
         #region Sentinel
 
         /// <summary>
-        /// Returns the ip and port number of the master with that name.
+        /// Returns the ip and port number of the master with that name. 
         /// If a failover is in progress or terminated successfully for this master it returns the address and port of the promoted slave.
         /// </summary>
         /// <param name="serviceName">The sentinel service name.</param>
@@ -759,7 +759,7 @@ namespace StackExchange.Redis
         EndPoint SentinelGetMasterAddressByName(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Returns the ip and port number of the master with that name.
+        /// Returns the ip and port number of the master with that name. 
         /// If a failover is in progress or terminated successfully for this master it returns the address and port of the promoted slave.
         /// </summary>
         /// <param name="serviceName">The sentinel service name.</param>
@@ -857,7 +857,7 @@ namespace StackExchange.Redis
         Task<KeyValuePair<string, string>[][]> SentinelSlavesAsync(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Force a failover as if the master was not reachable, and without asking for agreement to other Sentinels
+        /// Force a failover as if the master was not reachable, and without asking for agreement to other Sentinels 
         /// (however a new version of the configuration will be published so that the other Sentinels will update their configurations).
         /// </summary>
         /// <param name="serviceName">The sentinel service name.</param>
@@ -866,7 +866,7 @@ namespace StackExchange.Redis
         void SentinelFailover(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Force a failover as if the master was not reachable, and without asking for agreement to other Sentinels
+        /// Force a failover as if the master was not reachable, and without asking for agreement to other Sentinels 
         /// (however a new version of the configuration will be published so that the other Sentinels will update their configurations).
         /// </summary>
         /// <param name="serviceName">The sentinel service name.</param>
