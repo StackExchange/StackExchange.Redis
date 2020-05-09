@@ -48,6 +48,16 @@ namespace StackExchange.Redis.Profiling
         RedisValue[] Values { get; }
 
         /// <summary>
+        /// Gets a value indicating whether or not the command faulted.
+        /// </summary>
+        bool IsFaulted { get; }
+
+        /// <summary>
+        /// Gets the exception that was thrown, if any.
+        /// </summary>
+        Exception Exception { get; }
+
+        /// <summary>
         /// <para>
         /// When this command was *created*, will be approximately
         /// when the paired method of StackExchange.Redis was called but

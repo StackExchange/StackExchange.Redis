@@ -162,7 +162,7 @@ namespace StackExchange.Redis
 
             var oldPerformance = performance;
 
-            oldPerformance.SetCompleted();
+            oldPerformance.SetCompleted(null);
             performance = null;
 
             createdDateTime = DateTime.UtcNow;
@@ -221,6 +221,7 @@ namespace StackExchange.Redis
 
         public bool IsFireAndForget => (Flags & CommandFlags.FireAndForget) != 0;
         public bool IsInternalCall => (Flags & InternalCallFlag) != 0;
+        public bool HasPerformance => performance != null;
 
         public IResultBox ResultBox => resultBox;
 
@@ -466,7 +467,7 @@ namespace StackExchange.Redis
             var currBox = Interlocked.Exchange(ref resultBox, null);
 
             // set the completion/performance data
-            performance?.SetCompleted();
+            performance?.SetCompleted(currBox);
 
             currBox?.ActivateContinuations();
         }

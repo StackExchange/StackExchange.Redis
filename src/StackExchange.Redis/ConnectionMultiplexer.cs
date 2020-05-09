@@ -1556,7 +1556,7 @@ namespace StackExchange.Redis
 
                     int iterCount = first ? 2 : 1;
                     // this is fix for https://github.com/StackExchange/StackExchange.Redis/issues/300
-                    // auto discoverability of cluster nodes is made synchronous. 
+                    // auto discoverability of cluster nodes is made synchronous.
                     // we try to connect to endpoints specified inside the user provided configuration
                     // and when we encounter one such endpoint to which we are able to successfully connect,
                     // we get the list of cluster nodes from this endpoint and try to proactively connect
@@ -1646,7 +1646,7 @@ namespace StackExchange.Redis
 
                                     if (clusterCount > 0 && !encounteredConnectedClusterServer)
                                     {
-                                        // we have encountered a connected server with clustertype for the first time. 
+                                        // we have encountered a connected server with clustertype for the first time.
                                         // so we will get list of other nodes from this server using "CLUSTER NODES" command
                                         // and try to connect to these other nodes in the next iteration
                                         encounteredConnectedClusterServer = true;
@@ -2036,9 +2036,10 @@ namespace StackExchange.Redis
                 }
             }
 
+            var profilingSession = _profilingSessionProvider?.Invoke();
+
             if (server != null)
             {
-                var profilingSession = _profilingSessionProvider?.Invoke();
                 if (profilingSession != null)
                 {
                     message.SetProfileStorage(ProfiledCommand.NewWithContext(profilingSession, server));
@@ -2056,9 +2057,17 @@ namespace StackExchange.Redis
                 Trace("Queueing on server: " + message);
                 return true;
             }
-            Trace("No server or server unavailable - aborting: " + message);
-            return false;
+            else
+            {
+                if (profilingSession != null)
+                {
+                    message.SetProfileStorage(ProfiledCommand.NewWithContext(profilingSession, server));
+                }
+                Trace("No server or server unavailable - aborting: " + message);
+                return false;
+            }
         }
+
         private ValueTask<WriteResult> TryPushMessageToBridgeAsync<T>(Message message, ResultProcessor<T> processor, IResultBox<T> resultBox, ref ServerEndPoint server)
             => PrepareToPushMessageToBridge(message, processor, resultBox, ref server) ? server.TryWriteAsync(message) : new ValueTask<WriteResult>(WriteResult.NoConnectionAvailable);
 
@@ -2267,7 +2276,7 @@ namespace StackExchange.Redis
             try
             {
 
-                // Run a switch to make sure we have update-to-date 
+                // Run a switch to make sure we have update-to-date
                 // information about which master we should connect to
                 SwitchMaster(e.EndPoint, connection);
 
@@ -2369,7 +2378,7 @@ namespace StackExchange.Redis
                         connection.servers.Clear();
                         connection.RawConfig.EndPoints.Add(newMasterEndPoint);
                         Trace(string.Format("Switching master to {0}", newMasterEndPoint));
-                        // Trigger a reconfigure                            
+                        // Trigger a reconfigure
                         connection.ReconfigureAsync(false, false, logProxy, switchBlame, string.Format("master switch {0}", serviceName), false, CommandFlags.PreferMaster).Wait();
                     }
 
@@ -2518,16 +2527,22 @@ namespace StackExchange.Redis
             var write = TryPushMessageToBridgeAsync(message, processor, source, ref server);
             if (!write.IsCompletedSuccessfully) return ExecuteAsyncImpl_Awaited<T>(this, write, tcs, message, server);
 
+            var result = write.Result;
             if (tcs == null)
             {
+                if (result != WriteResult.Success && message.HasPerformance)
+                {
+                    var ex = GetException(result, message, server);
+                    message.SetExceptionAndComplete(ex, null);
+                }
                 return CompletedTask<T>.Default(null); // F+F explicitly does not get async-state
             }
             else
             {
-                var result = write.Result;
                 if (result != WriteResult.Success)
                 {
                     var ex = GetException(result, message, server);
+                    message.SetExceptionAndComplete(ex, null);
                     ThrowFailed(tcs, ex);
                 }
                 return tcs.Task;
@@ -2540,6 +2555,7 @@ namespace StackExchange.Redis
             if (result != WriteResult.Success)
             {
                 var ex = @this.GetException(result, message, server);
+                message.SetExceptionAndComplete(ex, null);
                 ThrowFailed(tcs, ex);
             }
             return tcs == null ? default(T) : await tcs.Task.ForAwait();
@@ -2586,42 +2602,54 @@ namespace StackExchange.Redis
             if (message.IsFireAndForget)
             {
 #pragma warning disable CS0618
-                TryPushMessageToBridgeSync(message, processor, null, ref server);
+                var result = TryPushMessageToBridgeSync(message, processor, null, ref server);
+                if (result != WriteResult.Success && message.HasPerformance)
+                {
+                    message.SetExceptionAndComplete(GetException(result, message, server), null);
+                }
 #pragma warning restore CS0618
                 Interlocked.Increment(ref fireAndForgets);
                 return default(T);
             }
             else
             {
-                var source = SimpleResultBox<T>.Get();
-
-                lock (source)
+                try
                 {
-#pragma warning disable CS0618
-                    var result = TryPushMessageToBridgeSync(message, processor, source, ref server);
-#pragma warning restore CS0618
-                    if (result != WriteResult.Success)
-                    {
-                        throw GetException(result, message, server);
-                    }
+                    var source = SimpleResultBox<T>.Get();
 
-                    if (Monitor.Wait(source, TimeoutMilliseconds))
+                    lock (source)
                     {
-                        Trace("Timeley response to " + message);
+#pragma warning disable CS0618
+                        var result = TryPushMessageToBridgeSync(message, processor, source, ref server);
+#pragma warning restore CS0618
+                        if (result != WriteResult.Success)
+                        {
+                            throw GetException(result, message, server);
+                        }
+
+                        if (Monitor.Wait(source, TimeoutMilliseconds))
+                        {
+                            Trace("Timeley response to " + message);
+                        }
+                        else
+                        {
+                            Trace("Timeout performing " + message);
+                            Interlocked.Increment(ref syncTimeouts);
+                            throw ExceptionFactory.Timeout(this, null, message, server);
+                            // very important not to return "source" to the pool here
+                        }
                     }
-                    else
-                    {
-                        Trace("Timeout performing " + message);
-                        Interlocked.Increment(ref syncTimeouts);
-                        throw ExceptionFactory.Timeout(this, null, message, server);
-                        // very important not to return "source" to the pool here
-                    }
+                    // snapshot these so that we can recycle the box
+                    var val = source.GetResult(out var ex, canRecycle: true); // now that we aren't locking it...
+                    if (ex != null) throw ex;
+                    Trace(message + " received " + val);
+                    return val;
                 }
-                // snapshot these so that we can recycle the box
-                var  val = source.GetResult(out var ex, canRecycle: true); // now that we aren't locking it...
-                if (ex != null) throw ex;
-                Trace(message + " received " + val);
-                return val;
+                catch (Exception ex)
+                {
+                    message.SetExceptionAndComplete(ex, null);
+                    throw;
+                }
             }
         }
 
