@@ -773,7 +773,7 @@ namespace StackExchange.Redis
         /// for the given service name.
         /// </summary>
         /// <param name="serviceName">the sentinel service name</param>
-        /// <param name="flags"></param>
+        /// <param name="flags">The command flags to use.</param>
         /// <returns>a list of the sentinel ips and ports</returns>
         EndPoint[] SentinelGetSentinelAddresses(string serviceName, CommandFlags flags = CommandFlags.None);
 
@@ -782,7 +782,7 @@ namespace StackExchange.Redis
         /// for the given service name.
         /// </summary>
         /// <param name="serviceName">the sentinel service name</param>
-        /// <param name="flags"></param>
+        /// <param name="flags">The command flags to use.</param>
         /// <returns>a list of the sentinel ips and ports</returns>
         Task<EndPoint[]> SentinelGetSentinelAddressesAsync(string serviceName, CommandFlags flags = CommandFlags.None);
 
@@ -791,7 +791,7 @@ namespace StackExchange.Redis
         /// for the given service name.
         /// </summary>
         /// <param name="serviceName">the sentinel service name</param>
-        /// <param name="flags"></param>
+        /// <param name="flags">The command flags to use.</param>
         /// <returns>a list of the slave ips and ports</returns>
         EndPoint[] SentinelGetSlaveAddresses(string serviceName, CommandFlags flags = CommandFlags.None);
 
@@ -800,7 +800,7 @@ namespace StackExchange.Redis
         /// for the given service name.
         /// </summary>
         /// <param name="serviceName">the sentinel service name</param>
-        /// <param name="flags"></param>
+        /// <param name="flags">The command flags to use.</param>
         /// <returns>a list of the slave ips and ports</returns>
         Task<EndPoint[]> SentinelGetSlaveAddressesAsync(string serviceName, CommandFlags flags = CommandFlags.None);
 

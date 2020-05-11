@@ -118,14 +118,14 @@ namespace StackExchange.Redis
 
             // misc (config, etc)
             databases = "databases",
+            master = "master",
             no = "no",
             normal = "normal",
             pubsub = "pubsub",
             replication = "replication",
-            server = "server",
-            master = "master",
-            slave = "slave",
             sentinel = "sentinel",
+            server = "server",
+            slave = "slave",
             slave_read_only = "slave-read-only",
             timeout = "timeout",
             yes = "yes";
