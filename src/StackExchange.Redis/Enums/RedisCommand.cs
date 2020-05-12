@@ -121,7 +121,6 @@
         RENAME,
         RENAMENX,
         RESTORE,
-        ROLE,
         RPOP,
         RPOPLPUSH,
         RPUSH,

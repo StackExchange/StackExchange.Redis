@@ -1086,7 +1086,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="configuration">The string configuration to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
-        public static ConnectionMultiplexer SentinelMasterConnect(string configuration, TextWriter log = null)
+        private static ConnectionMultiplexer SentinelMasterConnect(string configuration, TextWriter log = null)
         {
             return SentinelMasterConnect(PrepareConfig(configuration, sentinel: true), log);
         }
@@ -1097,7 +1097,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="configuration">The configuration options to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
-        public static ConnectionMultiplexer SentinelMasterConnect(ConfigurationOptions configuration, TextWriter log = null)
+        private static ConnectionMultiplexer SentinelMasterConnect(ConfigurationOptions configuration, TextWriter log = null)
         {
             var sentinelConnection = SentinelConnect(configuration, log);
 
@@ -1114,7 +1114,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="configuration">The string configuration to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
-        public static Task<ConnectionMultiplexer> SentinelMasterConnectAsync(string configuration, TextWriter log = null)
+        private static Task<ConnectionMultiplexer> SentinelMasterConnectAsync(string configuration, TextWriter log = null)
         {
             return SentinelMasterConnectAsync(PrepareConfig(configuration, sentinel: true), log);
         }
@@ -1125,7 +1125,7 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="configuration">The configuration options to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
-        public static async Task<ConnectionMultiplexer> SentinelMasterConnectAsync(ConfigurationOptions configuration, TextWriter log = null)
+        private static async Task<ConnectionMultiplexer> SentinelMasterConnectAsync(ConfigurationOptions configuration, TextWriter log = null)
         {
             var sentinelConnection = await SentinelConnectAsync(configuration, log).ForAwait();
 
