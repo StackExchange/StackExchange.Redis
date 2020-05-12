@@ -817,7 +817,7 @@ namespace StackExchange.Redis.Tests
             var sw = Stopwatch.StartNew();
             while (sw.Elapsed < TimeSpan.FromSeconds(30))
             {
-                if (await server.RoleAsync() == role)
+                if (server.Role() == role)
                     return true;
 
                 await Task.Delay(1000);

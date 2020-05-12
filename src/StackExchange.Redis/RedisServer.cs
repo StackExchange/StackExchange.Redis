@@ -543,18 +543,6 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.DateTime);
         }
 
-        public string Role(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.ROLE);
-            return ExecuteSync(msg, ResultProcessor.Role);
-        }
-
-        public Task<string> RoleAsync(CommandFlags flags = CommandFlags.None)
-        {
-            var msg = Message.Create(-1, flags, RedisCommand.ROLE);
-            return ExecuteAsync(msg, ResultProcessor.Role);
-        }
-
         internal static Message CreateSlaveOfMessage(EndPoint endpoint, CommandFlags flags = CommandFlags.None)
         {
             RedisValue host, port;

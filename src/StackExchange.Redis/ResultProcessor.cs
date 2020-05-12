@@ -85,9 +85,6 @@ namespace StackExchange.Redis
         public static readonly ResultProcessor<TimeSpan>
             ResponseTimer = new TimingProcessor();
 
-        public static readonly ResultProcessor<string>
-            Role = new RoleProcessor();
-
         public static readonly ResultProcessor<RedisResult>
             ScriptResult = new ScriptResultProcessor();
 
@@ -892,22 +889,6 @@ namespace StackExchange.Redis
                         catch
                         { /* tralalalala */}
                         SetResult(message, nodes);
-                        return true;
-                }
-                return false;
-            }
-        }
-
-        private sealed class RoleProcessor : ResultProcessor<string>
-        {
-            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
-            {
-                switch (result.Type)
-                {
-                    case ResultType.MultiBulk:
-                        var arr = result.GetItems();
-                        var role = arr[0].GetString();
-                        SetResult(message, role);
                         return true;
                 }
                 return false;

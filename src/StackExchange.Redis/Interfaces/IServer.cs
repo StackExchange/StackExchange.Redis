@@ -639,22 +639,6 @@ namespace StackExchange.Redis
         Task<DateTime> TimeAsync(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// The ROLE command returns the current server role which can be master, slave or sentinel.
-        /// </summary>
-        /// <param name="flags">The command flags to use.</param>
-        /// <returns>The server's current role.</returns>
-        /// <remarks>https://redis.io/commands/role</remarks>
-        string Role(CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
-        /// The ROLE command returns the current server role which can be master, slave or sentinel.
-        /// </summary>
-        /// <param name="flags">The command flags to use.</param>
-        /// <returns>The server's current role.</returns>
-        /// <remarks>https://redis.io/commands/role</remarks>
-        Task<string> RoleAsync(CommandFlags flags = CommandFlags.None);
-
-        /// <summary>
         /// Gets a text-based latency diagnostic
         /// </summary>
         /// <remarks>https://redis.io/topics/latency-monitor</remarks>
@@ -1001,5 +985,14 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="server">The server to simulate failure on.</param>
         public static void SimulateConnectionFailure(this IServer server) => (server as RedisServer)?.SimulateConnectionFailure();
+
+        public static string Role(this IServer server)
+        {
+            var result = (RedisResult[])server.Execute("ROLE");
+            if (result != null && result.Length > 0)
+                return result[0].ToString();
+
+            return null;
+        }
     }
 }

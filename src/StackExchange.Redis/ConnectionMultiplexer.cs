@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -2354,6 +2354,7 @@ namespace StackExchange.Redis
             bool success = false;
             ConnectionMultiplexer connection = null;
 
+            var sw = Stopwatch.StartNew();
             do
             {
                 attempts++;
@@ -2390,14 +2391,14 @@ namespace StackExchange.Redis
 
                 // verify role is master according to:
                 // https://redis.io/topics/sentinel-clients
-                if (connection.GetServer(newMasterEndPoint).Role() == RedisLiterals.master)
+                if (connection.GetServer(newMasterEndPoint)?.Role() == RedisLiterals.master)
                 {
                     success = true;
                     break;
                 }
 
                 Thread.Sleep(100);
-            } while (attempts < 3);
+            } while (sw.ElapsedMilliseconds < config.ConnectTimeout);
 
             if (!success)
             {
