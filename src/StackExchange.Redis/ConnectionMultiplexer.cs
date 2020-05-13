@@ -2350,15 +2350,12 @@ namespace StackExchange.Redis
                     return sentinelConnectionChildren[config.ServiceName];
             }
 
-            int attempts = 0;
             bool success = false;
             ConnectionMultiplexer connection = null;
 
             var sw = Stopwatch.StartNew();
             do
             {
-                attempts++;
-
                 // Get an initial endpoint - try twice
                 EndPoint newMasterEndPoint = GetConfiguredMasterForService(config.ServiceName)
                                              ?? GetConfiguredMasterForService(config.ServiceName);
