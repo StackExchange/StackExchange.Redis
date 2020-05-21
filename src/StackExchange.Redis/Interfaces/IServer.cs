@@ -209,7 +209,7 @@ namespace StackExchange.Redis
         /// <param name="database">The database ID.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/dbsize</remarks>
-        long DatabaseSize(int database = 0, CommandFlags flags = CommandFlags.None);
+        long DatabaseSize(int database = -1, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Return the number of keys in the database.
@@ -217,7 +217,7 @@ namespace StackExchange.Redis
         /// <param name="database">The database ID.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/dbsize</remarks>
-        Task<long> DatabaseSizeAsync(int database = 0, CommandFlags flags = CommandFlags.None);
+        Task<long> DatabaseSizeAsync(int database = -1, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Return the same message passed in.
@@ -301,7 +301,7 @@ namespace StackExchange.Redis
         /// <param name="database">The database ID.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/flushdb</remarks>
-        void FlushDatabase(int database = 0, CommandFlags flags = CommandFlags.None);
+        void FlushDatabase(int database = -1, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Delete all the keys of the database.
@@ -309,7 +309,7 @@ namespace StackExchange.Redis
         /// <param name="database">The database ID.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/flushdb</remarks>
-        Task FlushDatabaseAsync(int database = 0, CommandFlags flags = CommandFlags.None);
+        Task FlushDatabaseAsync(int database = -1, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Get summary statistics associates with this server
@@ -371,7 +371,7 @@ namespace StackExchange.Redis
         /// <remarks>Warning: consider KEYS as a command that should only be used in production environments with extreme care.</remarks>
         /// <remarks>https://redis.io/commands/keys</remarks>
         /// <remarks>https://redis.io/commands/scan</remarks>
-        IEnumerable<RedisKey> Keys(int database = 0, RedisValue pattern = default(RedisValue), int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None);
+        IEnumerable<RedisKey> Keys(int database = -1, RedisValue pattern = default(RedisValue), int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns all keys matching pattern; the KEYS or SCAN commands will be used based on the server capabilities; note: to resume an iteration via <i>cursor</i>, cast the original enumerable or enumerator to <i>IScanningCursor</i>.
@@ -385,7 +385,7 @@ namespace StackExchange.Redis
         /// <remarks>Warning: consider KEYS as a command that should only be used in production environments with extreme care.</remarks>
         /// <remarks>https://redis.io/commands/keys</remarks>
         /// <remarks>https://redis.io/commands/scan</remarks>
-        IAsyncEnumerable<RedisKey> KeysAsync(int database = 0, RedisValue pattern = default(RedisValue), int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None);
+        IAsyncEnumerable<RedisKey> KeysAsync(int database = -1, RedisValue pattern = default(RedisValue), int pageSize = RedisBase.CursorUtils.DefaultLibraryPageSize, long cursor = RedisBase.CursorUtils.Origin, int pageOffset = 0, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Return the time of the last DB save executed with success. A client may check if a BGSAVE command succeeded reading the LASTSAVE value, then issuing a BGSAVE command and checking at regular intervals every N seconds if LASTSAVE changed.
