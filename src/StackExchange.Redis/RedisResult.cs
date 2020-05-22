@@ -219,14 +219,15 @@ namespace StackExchange.Redis
         /// <summary>
         /// Interprets a multi-bulk result with successive key/name values as a dictionary keyed by name
         /// </summary>
+        /// <param name="comparer">The key comparator to use, or <see cref="StringComparer.InvariantCultureIgnoreCase"/> by default</param>
         public Dictionary<string, RedisResult> ToDictionary(IEqualityComparer<string> comparer = null)
         {
             var arr = AsRedisResultArray();
             int len = arr.Length / 2;
             var result = new Dictionary<string, RedisResult>(len, comparer ?? StringComparer.InvariantCultureIgnoreCase);
-            for (int i = 0; i < len;)
+            for (int i = 0; i < arr.Length; i += 2)
             {
-                result.Add(arr[i++].AsString(), arr[i++]);
+                result.Add(arr[i].AsString(), arr[i + 1]);
             }
             return result;
         }
