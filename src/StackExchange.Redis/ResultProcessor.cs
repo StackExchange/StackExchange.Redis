@@ -1566,18 +1566,23 @@ The coordinates as a two items x,y array (longitude,latitude).
                 //    4) (integer)2
                 //    5) pending
                 //    6) (integer)2
+                //    7) last-delivered-id
+                //    8) "1588152489012-0"
                 // 2) 1) name
                 //    2) "some-other-group"
                 //    3) consumers
                 //    4) (integer)1
                 //    5) pending
                 //    6) (integer)0
+                //    7) last - delivered - id
+                //    8) "1588152498034-0"
 
                 var arr = result.GetItems();
 
                 return new StreamGroupInfo(name: arr[1].AsRedisValue(),
                     consumerCount: (int)arr[3].AsRedisValue(),
-                    pendingMessageCount: (int)arr[5].AsRedisValue());
+                    pendingMessageCount: (int)arr[5].AsRedisValue(),
+                    lastDeliveredId: arr[7].AsRedisValue());
             }
         }
 

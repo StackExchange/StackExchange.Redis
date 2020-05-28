@@ -6,11 +6,12 @@ namespace StackExchange.Redis
     /// </summary>
     public readonly struct StreamGroupInfo
     {
-        internal StreamGroupInfo(string name, int consumerCount, int pendingMessageCount)
+        internal StreamGroupInfo(string name, int consumerCount, int pendingMessageCount, string lastDeliveredId)
         {
             Name = name;
             ConsumerCount = consumerCount;
             PendingMessageCount = pendingMessageCount;
+            LastDeliveredId = lastDeliveredId;
         }
 
         /// <summary>
@@ -28,5 +29,10 @@ namespace StackExchange.Redis
         /// received by a consumer but not yet acknowledged.
         /// </summary>
         public int PendingMessageCount { get; }
+
+        /// <summary>
+        /// The Id of the last message delivered to the group
+        /// </summary>
+        public string LastDeliveredId { get; }
     }
 }
