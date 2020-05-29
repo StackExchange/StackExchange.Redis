@@ -201,15 +201,15 @@ namespace StackExchange.Redis
             return task;
         }
 
-        public long DatabaseSize(int database = 0, CommandFlags flags = CommandFlags.None)
+        public long DatabaseSize(int database = -1, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(database, flags, RedisCommand.DBSIZE);
+            var msg = Message.Create(multiplexer.ApplyDefaultDatabase(database), flags, RedisCommand.DBSIZE);
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
-        public Task<long> DatabaseSizeAsync(int database = 0, CommandFlags flags = CommandFlags.None)
+        public Task<long> DatabaseSizeAsync(int database = -1, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(database, flags, RedisCommand.DBSIZE);
+            var msg = Message.Create(multiplexer.ApplyDefaultDatabase(database), flags, RedisCommand.DBSIZE);
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
@@ -237,15 +237,15 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.DemandOK);
         }
 
-        public void FlushDatabase(int database = 0, CommandFlags flags = CommandFlags.None)
+        public void FlushDatabase(int database = -1, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(database, flags, RedisCommand.FLUSHDB);
+            var msg = Message.Create(multiplexer.ApplyDefaultDatabase(database), flags, RedisCommand.FLUSHDB);
             ExecuteSync(msg, ResultProcessor.DemandOK);
         }
 
-        public Task FlushDatabaseAsync(int database = 0, CommandFlags flags = CommandFlags.None)
+        public Task FlushDatabaseAsync(int database = -1, CommandFlags flags = CommandFlags.None)
         {
-            var msg = Message.Create(database, flags, RedisCommand.FLUSHDB);
+            var msg = Message.Create(multiplexer.ApplyDefaultDatabase(database), flags, RedisCommand.FLUSHDB);
             return ExecuteAsync(msg, ResultProcessor.DemandOK);
         }
 
@@ -298,6 +298,7 @@ namespace StackExchange.Redis
 
         private CursorEnumerable<RedisKey> KeysAsync(int database, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
         {
+            database = multiplexer.ApplyDefaultDatabase(database);
             if (pageSize <= 0) throw new ArgumentOutOfRangeException(nameof(pageSize));
             if (CursorUtils.IsNil(pattern)) pattern = RedisLiterals.Wildcard;
 

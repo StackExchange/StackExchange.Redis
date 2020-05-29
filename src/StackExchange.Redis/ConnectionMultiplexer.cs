@@ -1252,6 +1252,26 @@ namespace StackExchange.Redis
             return new RedisSubscriber(this, asyncState);
         }
 
+        // applies common db number defaults and rules
+        internal int ApplyDefaultDatabase(int db)
+        {
+            if (db == -1)
+            {
+                db = RawConfig.DefaultDatabase.GetValueOrDefault();
+            }
+            else if (db < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(db));
+            }
+
+            if (db != 0 && RawConfig.Proxy == Proxy.Twemproxy)
+            {
+                throw new NotSupportedException("Twemproxy only supports database 0");
+            }
+
+            return db;
+        }
+
         /// <summary>
         /// Obtain an interactive connection to a database inside redis
         /// </summary>
@@ -1259,11 +1279,7 @@ namespace StackExchange.Redis
         /// <param name="asyncState">The async state to pass into the resulting <see cref="RedisDatabase"/>.</param>
         public IDatabase GetDatabase(int db = -1, object asyncState = null)
         {
-            if (db == -1)
-                db = RawConfig.DefaultDatabase ?? 0;
-
-            if (db < 0) throw new ArgumentOutOfRangeException(nameof(db));
-            if (db != 0 && RawConfig.Proxy == Proxy.Twemproxy) throw new NotSupportedException("Twemproxy only supports database 0");
+            db = ApplyDefaultDatabase(db);
 
             // if there's no async-state, and the DB is suitable, we can hand out a re-used instance
             return (asyncState == null && db <= MaxCachedDatabaseInstance)
