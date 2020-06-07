@@ -430,7 +430,7 @@ namespace StackExchange.Redis
                 }
             }
 
-            // de-replicate
+            // stop replicating, promote to a standalone primary
             log?.WriteLine($"Making {Format.ToString(srv.EndPoint)} a master...");
             try
             {
