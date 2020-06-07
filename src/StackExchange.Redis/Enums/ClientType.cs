@@ -14,7 +14,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Replication connections
         /// </summary>
-        [Obsolete(Messages.PreferReplica)]
+        [Obsolete("Slave is deprecated, please use " + nameof(Replica) + " instead.")]
         Slave = 1,
         /// <summary>
         /// Replication connections

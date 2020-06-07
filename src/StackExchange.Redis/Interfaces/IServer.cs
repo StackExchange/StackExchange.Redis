@@ -35,7 +35,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets whether the connected server is a replica
         /// </summary>
-        [Obsolete(Messages.PreferReplica)]
+        [Obsolete("IsSlave is deprecated, please use " + nameof(IsReplica) + " instead.")]
         bool IsSlave { get; }
 
         /// <summary>
@@ -46,7 +46,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Explicitly opt in for replica writes on writable replica
         /// </summary>
-        [Obsolete(Messages.PreferReplica)]
+        [Obsolete("AllowSlaveWrites is deprecated, please use " + nameof(AllowReplicaWrites) + " instead.")]
         bool AllowSlaveWrites { get; set; }
 
         /// <summary>
@@ -524,7 +524,7 @@ namespace StackExchange.Redis
         /// <param name="master">Endpoint of the new master to replicate from.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/replicaof</remarks>
-        [Obsolete(Messages.PreferReplica)]
+        [Obsolete("SlaveOf is deprecated, please use " + nameof(ReplicaOf) + " instead.")]
         void SlaveOf(EndPoint master, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -541,7 +541,7 @@ namespace StackExchange.Redis
         /// <param name="master">Endpoint of the new master to replicate from.</param>
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/replicaof</remarks>
-        [Obsolete(Messages.PreferReplica)]
+        [Obsolete("SlaveOfAsync is deprecated, please use " + nameof(ReplicaOfAsync) + " instead.")]
         Task SlaveOfAsync(EndPoint master, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -841,7 +841,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The command flags to use.</param>
         /// <returns>an array of replica state KeyValuePair arrays</returns>
         /// <remarks>https://redis.io/topics/sentinel</remarks>
-        [Obsolete(Messages.PreferReplica)]
+        [Obsolete("SentinelSlaves is deprecated, please use " + nameof(SentinelReplicas) + " instead.")]
         KeyValuePair<string, string>[][] SentinelSlaves(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -860,7 +860,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The command flags to use.</param>
         /// <returns>an array of replica state KeyValuePair arrays</returns>
         /// <remarks>https://redis.io/topics/sentinel</remarks>
-        [Obsolete(Messages.PreferReplica)]
+        [Obsolete("SentinelSlavesAsync is deprecated, please use " + nameof(SentinelReplicasAsync) + " instead.")]
         Task<KeyValuePair<string, string>[][]> SentinelSlavesAsync(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>

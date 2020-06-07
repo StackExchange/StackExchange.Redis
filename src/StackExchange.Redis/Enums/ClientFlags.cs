@@ -26,7 +26,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// the client is a replica in MONITOR mode
         /// </summary>
-        [Obsolete(Messages.PreferReplica)]
+        [Obsolete("SlaveMonitor is deprecated, please use " + nameof(ReplicaMonitor) + " instead.")]
         SlaveMonitor = 1,
         /// <summary>
         /// the client is a replica in MONITOR mode
@@ -35,7 +35,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// the client is a normal replica server
         /// </summary>
-        [Obsolete(Messages.PreferReplica)]
+        [Obsolete("Slave is deprecated, please use " + nameof(Replica) + " instead.")]
         Slave = 2,
         /// <summary>
         /// the client is a normal replica server

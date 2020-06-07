@@ -23,7 +23,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Issue a REPLICAOF to all other known nodes, making this this master of all
         /// </summary>
-        [Obsolete(Messages.PreferReplica)]
+        [Obsolete("EnslaveSubordinates is deprecated, please use " + nameof(ReplicateToSubordinates) + " instead.")]
         EnslaveSubordinates = 4,
         /// <summary>
         /// Issue a REPLICAOF to all other known nodes, making this this master of all
