@@ -642,7 +642,7 @@ namespace StackExchange.Redis
         internal string Summary()
         {
             var sb = new StringBuilder(Format.ToString(EndPoint))
-                .Append(": ").Append(serverType).Append(" v").Append(version).Append(", ").Append(isReplica ? "slave" : "master");
+                .Append(": ").Append(serverType).Append(" v").Append(version).Append(", ").Append(isReplica ? "replica" : "master");
 
             if (databases > 0) sb.Append("; ").Append(databases).Append(" databases");
             if (writeEverySeconds > 0)
