@@ -644,7 +644,7 @@ namespace NRediSearch.Test.ClientTests
             var payloads = cl.GetSuggestions(suggestion.String.Substring(0, 3), SuggestionOptions.Builder.With(WithOptions.PayloadsAndScores).Build());
             Assert.Equal(4, payloads.Length);
             Assert.True(payloads[2].Payload.Length > 0);
-            Assert.True(payloads[1].Score < .299);
+            Assert.True(payloads[1].Score < .299, "Actual score: " + payloads[1].Score);
         }
 
         [Fact]
@@ -699,7 +699,7 @@ namespace NRediSearch.Test.ClientTests
 
             cl.AddSuggestion(Suggestion.Builder.String("DIFF_WORD").Score(0.4).Payload("PAYLOADS ROCK ").Build(), true);
             var list = cl.GetSuggestions("DIF", SuggestionOptions.Builder.Max(2).With(WithOptions.Scores).Build());
-            Assert.True(list[0].Score <= .2);
+            Assert.True(list[0].Score <= .2, "Actual score: " + list[0].Score);
         }
 
         [Fact]
