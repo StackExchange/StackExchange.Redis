@@ -1,4 +1,5 @@
 ﻿using System;
+using System.ComponentModel;
 
 namespace StackExchange.Redis
 {
@@ -15,6 +16,7 @@ namespace StackExchange.Redis
         /// Replication connections
         /// </summary>
         [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(Replica) + " instead.")]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         Slave = 1,
         /// <summary>
         /// Replication connections

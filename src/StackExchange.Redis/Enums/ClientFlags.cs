@@ -1,4 +1,5 @@
 ﻿using System;
+using System.ComponentModel;
 
 namespace StackExchange.Redis
 {
@@ -27,6 +28,7 @@ namespace StackExchange.Redis
         /// the client is a replica in MONITOR mode
         /// </summary>
         [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(ReplicaMonitor) + " instead.")]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         SlaveMonitor = 1,
         /// <summary>
         /// the client is a replica in MONITOR mode
@@ -36,6 +38,7 @@ namespace StackExchange.Redis
         /// the client is a normal replica server
         /// </summary>
         [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(Replica) + " instead.")]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         Slave = 2,
         /// <summary>
         /// the client is a normal replica server

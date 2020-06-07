@@ -1,4 +1,5 @@
 ﻿using System;
+using System.ComponentModel;
 
 namespace StackExchange.Redis
 {
@@ -40,6 +41,7 @@ namespace StackExchange.Redis
         /// a master if no replicas are available. Suitable for read operations only.
         /// </summary>
         [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(PreferReplica) + " instead.")]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         PreferSlave = 8,
         /// <summary>
         /// This operation should be performed on the replica if it is available, but will be performed on
@@ -51,6 +53,7 @@ namespace StackExchange.Redis
         /// This operation should only be performed on a replica. Suitable for read operations only.
         /// </summary>
         [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(DemandReplica) + " instead.")]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         DemandSlave = 12,
         /// <summary>
         /// This operation should only be performed on a replica. Suitable for read operations only.

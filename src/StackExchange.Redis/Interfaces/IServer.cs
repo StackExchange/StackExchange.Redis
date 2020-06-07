@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -36,6 +37,7 @@ namespace StackExchange.Redis
         /// Gets whether the connected server is a replica
         /// </summary>
         [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(IsReplica) + " instead.")]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         bool IsSlave { get; }
 
         /// <summary>
@@ -47,6 +49,7 @@ namespace StackExchange.Redis
         /// Explicitly opt in for replica writes on writable replica
         /// </summary>
         [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(AllowReplicaWrites) + " instead.")]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         bool AllowSlaveWrites { get; set; }
 
         /// <summary>
@@ -525,6 +528,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/replicaof</remarks>
         [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(ReplicaOf) + " instead.")]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         void SlaveOf(EndPoint master, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -542,6 +546,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The command flags to use.</param>
         /// <remarks>https://redis.io/commands/replicaof</remarks>
         [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(ReplicaOfAsync) + " instead.")]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         Task SlaveOfAsync(EndPoint master, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -842,6 +847,7 @@ namespace StackExchange.Redis
         /// <returns>an array of replica state KeyValuePair arrays</returns>
         /// <remarks>https://redis.io/topics/sentinel</remarks>
         [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(SentinelReplicas) + " instead.")]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         KeyValuePair<string, string>[][] SentinelSlaves(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
@@ -861,6 +867,7 @@ namespace StackExchange.Redis
         /// <returns>an array of replica state KeyValuePair arrays</returns>
         /// <remarks>https://redis.io/topics/sentinel</remarks>
         [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(SentinelReplicasAsync) + " instead.")]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         Task<KeyValuePair<string, string>[][]> SentinelSlavesAsync(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -357,6 +358,7 @@ namespace StackExchange.Redis
         /// Gets whether this node is a replica
         /// </summary>
         [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(IsReplica) + " instead.")]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         public bool IsSlave => IsReplica;
         /// <summary>
         /// Gets whether this node is a replica
