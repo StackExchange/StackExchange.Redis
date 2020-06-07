@@ -76,10 +76,10 @@ namespace StackExchange.Redis
         /// <summary>
         /// the client is in readonly mode against a cluster node
         /// </summary>
-        ReadOnlyCluster = 512,
+        ReadOnlyCluster = 1024,
         /// <summary>
         /// the client is connected via a Unix domain socket
         /// </summary>
-        UnixDomainSocket = 512,
+        UnixDomainSocket = 2048,
     }
 }
