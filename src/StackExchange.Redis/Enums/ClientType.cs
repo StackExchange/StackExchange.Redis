@@ -15,13 +15,13 @@ namespace StackExchange.Redis
         /// <summary>
         /// Replication connections
         /// </summary>
-        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(Replica) + " instead.")]
-        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
-        Slave = 1,
+        Replica = 1, // / as an implementation detail, note that enum.ToString without [Flags] preferes *earlier* values
         /// <summary>
         /// Replication connections
         /// </summary>
-        Replica = 1, // as an implementation detail, note that enum.ToString prefers *later* options when naming Flags
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(Replica) + " instead.")]
+        [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
+        Slave = 1,
         /// <summary>
         /// Subscription connections
         /// </summary>

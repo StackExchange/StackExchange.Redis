@@ -33,7 +33,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// the client is a replica in MONITOR mode
         /// </summary>
-        ReplicaMonitor = 1, // as an implementation detail, note that enum.ToString prefers *later* options when naming Flags
+        ReplicaMonitor = 1, // as an implementation detail, note that enum.ToString on [Flags] prefers *later* options when naming Flags
         /// <summary>
         /// the client is a normal replica server
         /// </summary>
@@ -43,7 +43,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// the client is a normal replica server
         /// </summary>
-        Replica = 2, // as an implementation detail, note that enum.ToString prefers *later* options when naming Flags
+        Replica = 2, // as an implementation detail, note that enum.ToString on [Flags] prefers *later* options when naming Flags
         /// <summary>
         /// the client is a master
         /// </summary>
