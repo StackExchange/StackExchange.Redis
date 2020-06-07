@@ -135,7 +135,7 @@ namespace StackExchange.Redis
                         if (isMoved) message.SetInternalCall();
 
                         // note that everything so far is talking about MASTER nodes; we might be
-                        // wanting a SLAVE, so we'll check
+                        // wanting a REPLICA, so we'll check
                         ServerEndPoint resendVia = null;
                         var command = message.Command;
                         switch (Message.GetMasterReplicaFlags(message.Flags))
@@ -283,7 +283,7 @@ namespace StackExchange.Redis
             if (slot == NoSlot || (arr = map) == null) return Any(command, flags);
 
             ServerEndPoint endpoint = arr[slot], testing;
-            // but: ^^^ is the MASTER slots; if we want a slave, we need to do some thinking
+            // but: ^^^ is the MASTER slots; if we want a replica, we need to do some thinking
 
             if (endpoint != null)
             {

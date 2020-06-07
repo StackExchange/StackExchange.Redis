@@ -20,8 +20,10 @@ namespace StackExchange.Redis.Server
             var config = ServerConfiguration;
             config["timeout"] = "0";
             config["slave-read-only"] = "yes";
+            config["replica-read-only"] = "yes";
             config["databases"] = databases.ToString();
             config["slaveof"] = "";
+            config["replicaof"] = "";
         }
         protected override void AppendStats(StringBuilder sb)
         {

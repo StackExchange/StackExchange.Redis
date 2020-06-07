@@ -614,10 +614,10 @@ namespace StackExchange.Redis
         {
             if (master == server.EndPoint)
             {
-                throw new ArgumentException("Cannot slave to self");
+                throw new ArgumentException("Cannot replicate to self");
             }
-            // prepare the actual slaveof message (not sent yet)
-            var slaveofMsg = CreateReplicaOfMessage(server, master, flags);
+            // prepare the actual replicaof message (not sent yet)
+            var replicaOfMsg = CreateReplicaOfMessage(server, master, flags);
 
             var configuration = multiplexer.RawConfig;
 
@@ -632,7 +632,7 @@ namespace StackExchange.Redis
                 server.WriteDirectFireAndForgetSync(del, ResultProcessor.Boolean);
 #pragma warning restore CS0618
             }
-            ExecuteSync(slaveofMsg, ResultProcessor.DemandOK);
+            ExecuteSync(replicaOfMsg, ResultProcessor.DemandOK);
 
             // attempt to broadcast a reconfigure message to anybody listening to this server
             var channel = multiplexer.ConfigurationChangedChannel;
@@ -653,7 +653,7 @@ namespace StackExchange.Redis
             var msg = CreateReplicaOfMessage(server, master, flags);
             if (master == server.EndPoint)
             {
-                throw new ArgumentException("Cannot slave to self");
+                throw new ArgumentException("Cannot replicate to self");
             }
             return ExecuteAsync(msg, ResultProcessor.DemandOK);
         }

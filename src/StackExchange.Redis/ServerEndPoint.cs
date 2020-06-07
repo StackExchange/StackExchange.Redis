@@ -312,9 +312,9 @@ namespace StackExchange.Redis
             }
             else if (commandMap.IsAvailable(RedisCommand.SET))
             {
-                // this is a nasty way to find if we are a slave, and it will only work on up-level servers, but...
+                // this is a nasty way to find if we are a replica, and it will only work on up-level servers, but...
                 RedisKey key = Multiplexer.UniqueId;
-                msg = Message.Create(0, flags, RedisCommand.SET, key, RedisLiterals.slave_read_only, RedisLiterals.PX, 1, RedisLiterals.NX);
+                msg = Message.Create(0, flags, RedisCommand.SET, key, RedisLiterals.replica_read_only, RedisLiterals.PX, 1, RedisLiterals.NX);
                 msg.SetInternalCall();
                 WriteDirectOrQueueFireAndForgetSync(connection, msg, ResultProcessor.AutoConfigure);
             }

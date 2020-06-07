@@ -626,7 +626,7 @@ namespace StackExchange.Redis
                     if(bridge != null)
                     {
                         var server = bridge.ServerEndPoint;
-                        server.Multiplexer.Trace("Auto-configured role: slave");
+                        server.Multiplexer.Trace("Auto-configured role: replica");
                         server.IsReplica = true;
                     }
                 }
@@ -666,9 +666,10 @@ namespace StackExchange.Redis
                                                 server.IsReplica = false;
                                                 server.Multiplexer.Trace("Auto-configured role: master");
                                                 break;
+                                            case "replica":
                                             case "slave":
                                                 server.IsReplica = true;
-                                                server.Multiplexer.Trace("Auto-configured role: slave");
+                                                server.Multiplexer.Trace("Auto-configured role: replica");
                                                 break;
                                         }
                                     }
