@@ -33,14 +33,26 @@ namespace StackExchange.Redis
         bool IsConnected { get; }
 
         /// <summary>
-        /// Gets whether the connected server is a replica / slave
+        /// Gets whether the connected server is a replica
         /// </summary>
+        [Obsolete(Messages.PreferReplica)]
         bool IsSlave { get; }
 
         /// <summary>
-        /// Explicitly opt in for slave writes on writable slaves
+        /// Gets whether the connected server is a replica
         /// </summary>
+        bool IsReplica { get; }
+
+        /// <summary>
+        /// Explicitly opt in for replica writes on writable replica
+        /// </summary>
+        [Obsolete(Messages.PreferReplica)]
         bool AllowSlaveWrites { get; set; }
+
+        /// <summary>
+        /// Explicitly opt in for replica writes on writable replica
+        /// </summary>
+        bool AllowReplicaWrites { get; set; }
 
         /// <summary>
         /// Gets the operating mode of the connected server
@@ -507,20 +519,38 @@ namespace StackExchange.Redis
         void Shutdown(ShutdownMode shutdownMode = ShutdownMode.Default, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// The SLAVEOF command can change the replication settings of a slave on the fly. If a Redis server is already acting as slave, specifying a null master will turn off the replication, turning the Redis server into a MASTER. Specifying a non-null master will make the server a slave of another server listening at the specified hostname and port.
+        /// The REPLICAOF command can change the replication settings of a replica on the fly. If a Redis server is already acting as replica, specifying a null master will turn off the replication, turning the Redis server into a MASTER. Specifying a non-null master will make the server a replica of another server listening at the specified hostname and port.
         /// </summary>
-        /// <param name="master">Endpoint of the new master to slave to.</param>
+        /// <param name="master">Endpoint of the new master to replicate from.</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <remarks>https://redis.io/commands/slaveof</remarks>
+        /// <remarks>https://redis.io/commands/replicaof</remarks>
+        [Obsolete(Messages.PreferReplica)]
         void SlaveOf(EndPoint master, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// The SLAVEOF command can change the replication settings of a slave on the fly. If a Redis server is already acting as slave, specifying a null master will turn off the replication, turning the Redis server into a MASTER. Specifying a non-null master will make the server a slave of another server listening at the specified hostname and port.
+        /// The REPLICAOF command can change the replication settings of a replica on the fly. If a Redis server is already acting as replica, specifying a null master will turn off the replication, turning the Redis server into a MASTER. Specifying a non-null master will make the server a replica of another server listening at the specified hostname and port.
         /// </summary>
-        /// <param name="master">Endpoint of the new master to slave to.</param>
+        /// <param name="master">Endpoint of the new master to replicate from.</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <remarks>https://redis.io/commands/slaveof</remarks>
+        /// <remarks>https://redis.io/commands/replicaof</remarks>
+        void ReplicaOf(EndPoint master, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// The REPLICAOF command can change the replication settings of a replica on the fly. If a Redis server is already acting as replica, specifying a null master will turn off the replication, turning the Redis server into a MASTER. Specifying a non-null master will make the server a replica of another server listening at the specified hostname and port.
+        /// </summary>
+        /// <param name="master">Endpoint of the new master to replicate from.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/commands/replicaof</remarks>
+        [Obsolete(Messages.PreferReplica)]
         Task SlaveOfAsync(EndPoint master, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// The REPLICAOF command can change the replication settings of a replica on the fly. If a Redis server is already acting as replica, specifying a null master will turn off the replication, turning the Redis server into a MASTER. Specifying a non-null master will make the server a replica of another server listening at the specified hostname and port.
+        /// </summary>
+        /// <param name="master">Endpoint of the new master to replicate from.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <remarks>https://redis.io/commands/replicaof</remarks>
+        Task ReplicaOfAsync(EndPoint master, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// To read the slow log the SLOWLOG GET command is used, that returns every entry in the slow log. It is possible to return only the N most recent entries passing an additional argument to the command (for instance SLOWLOG GET 10).
@@ -734,7 +764,7 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Returns the ip and port number of the master with that name. 
-        /// If a failover is in progress or terminated successfully for this master it returns the address and port of the promoted slave.
+        /// If a failover is in progress or terminated successfully for this master it returns the address and port of the promoted replica.
         /// </summary>
         /// <param name="serviceName">The sentinel service name.</param>
         /// <param name="flags">The command flags to use.</param>
@@ -744,7 +774,7 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Returns the ip and port number of the master with that name. 
-        /// If a failover is in progress or terminated successfully for this master it returns the address and port of the promoted slave.
+        /// If a failover is in progress or terminated successfully for this master it returns the address and port of the promoted replica.
         /// </summary>
         /// <param name="serviceName">The sentinel service name.</param>
         /// <param name="flags">The command flags to use.</param>
@@ -805,22 +835,42 @@ namespace StackExchange.Redis
         Task<KeyValuePair<string, string>[][]> SentinelMastersAsync(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Show a list of slaves for this master, and their state.
+        /// Show a list of replicas for this master, and their state.
         /// </summary>
         /// <param name="serviceName">The sentinel service name.</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <returns>an array of slave state KeyValuePair arrays</returns>
+        /// <returns>an array of replica state KeyValuePair arrays</returns>
         /// <remarks>https://redis.io/topics/sentinel</remarks>
+        [Obsolete(Messages.PreferReplica)]
         KeyValuePair<string, string>[][] SentinelSlaves(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Show a list of slaves for this master, and their state.
+        /// Show a list of replicas for this master, and their state.
         /// </summary>
         /// <param name="serviceName">The sentinel service name.</param>
         /// <param name="flags">The command flags to use.</param>
-        /// <returns>an array of slave state KeyValuePair arrays</returns>
+        /// <returns>an array of replica state KeyValuePair arrays</returns>
         /// <remarks>https://redis.io/topics/sentinel</remarks>
+        KeyValuePair<string, string>[][] SentinelReplicas(string serviceName, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Show a list of replicas for this master, and their state.
+        /// </summary>
+        /// <param name="serviceName">The sentinel service name.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>an array of replica state KeyValuePair arrays</returns>
+        /// <remarks>https://redis.io/topics/sentinel</remarks>
+        [Obsolete(Messages.PreferReplica)]
         Task<KeyValuePair<string, string>[][]> SentinelSlavesAsync(string serviceName, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Show a list of replicas for this master, and their state.
+        /// </summary>
+        /// <param name="serviceName">The sentinel service name.</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>an array of replica state KeyValuePair arrays</returns>
+        /// <remarks>https://redis.io/topics/sentinel</remarks>
+        Task<KeyValuePair<string, string>[][]> SentinelReplicasAsync(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Force a failover as if the master was not reachable, and without asking for agreement to other Sentinels 

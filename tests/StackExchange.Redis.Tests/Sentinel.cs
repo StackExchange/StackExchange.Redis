@@ -301,14 +301,14 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void SentinelSlavesTest()
+        public void SentinelReplicasTest()
         {
-            var slaveConfigs = SentinelServerA.SentinelSlaves(ServiceName);
-            Assert.True(slaveConfigs.Length > 0);
-            Assert.True(slaveConfigs[0].ToDictionary().ContainsKey("name"));
-            Assert.StartsWith("slave", slaveConfigs[0].ToDictionary()["flags"]);
+            var replicaConfigs = SentinelServerA.SentinelReplicas(ServiceName);
+            Assert.True(replicaConfigs.Length > 0);
+            Assert.True(replicaConfigs[0].ToDictionary().ContainsKey("name"));
+            Assert.StartsWith("slave", replicaConfigs[0].ToDictionary()["flags"]);
 
-            foreach (var config in slaveConfigs)
+            foreach (var config in replicaConfigs)
             {
                 foreach (var kvp in config)
                 {
@@ -318,9 +318,9 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public async Task SentinelSlavesAsyncTest()
+        public async Task SentinelReplicasAsyncTest()
         {
-            var slaveConfigs = await SentinelServerA.SentinelSlavesAsync(ServiceName).ForAwait();
+            var slaveConfigs = await SentinelServerA.SentinelReplicasAsync(ServiceName).ForAwait();
             Assert.True(slaveConfigs.Length > 0);
             Assert.True(slaveConfigs[0].ToDictionary().ContainsKey("name"));
             Assert.StartsWith("slave", slaveConfigs[0].ToDictionary()["flags"]);
@@ -341,7 +341,7 @@ namespace StackExchange.Redis.Tests
             {
                 Log("Failover: " + i++);
                 var master = server.SentinelGetMasterAddressByName(ServiceName);
-                var slaves = server.SentinelSlaves(ServiceName);
+                var slaves = server.SentinelReplicas(ServiceName);
 
                 await Task.Delay(1000).ForAwait();
                 try
@@ -361,7 +361,7 @@ namespace StackExchange.Redis.Tests
                 await Task.Delay(2000).ForAwait();
 
                 var newMaster = server.SentinelGetMasterAddressByName(ServiceName);
-                var newSlave = server.SentinelSlaves(ServiceName);
+                var newSlave = server.SentinelReplicas(ServiceName);
 
                 Assert.Equal(slaves[0].ToDictionary()["name"], newMaster.ToString());
                 Assert.Equal(master.ToString(), newSlave[0].ToDictionary()["name"]);
@@ -376,7 +376,7 @@ namespace StackExchange.Redis.Tests
             {
                 Log("Failover: " + i++);
                 var master = server.SentinelGetMasterAddressByName(ServiceName);
-                var slaves = server.SentinelSlaves(ServiceName);
+                var slaves = server.SentinelReplicas(ServiceName);
 
                 await Task.Delay(1000).ForAwait();
                 try
@@ -396,7 +396,7 @@ namespace StackExchange.Redis.Tests
                 await Task.Delay(2000).ForAwait();
 
                 var newMaster = server.SentinelGetMasterAddressByName(ServiceName);
-                var newSlave = server.SentinelSlaves(ServiceName);
+                var newSlave = server.SentinelReplicas(ServiceName);
 
                 Assert.Equal(slaves[0].ToDictionary()["name"], newMaster.ToString());
                 Assert.Equal(master.ToString(), newSlave[0].ToDictionary()["name"]);
@@ -479,7 +479,7 @@ namespace StackExchange.Redis.Tests
                 Log("  Endpoint: " + server.EndPoint);
             }
             Log("Conn Slaves:");
-            foreach (var slaves in SentinelServerA.SentinelSlaves(ServiceName))
+            foreach (var slaves in SentinelServerA.SentinelReplicas(ServiceName))
             {
                 foreach(var pair in slaves)
                 {
@@ -494,8 +494,8 @@ namespace StackExchange.Redis.Tests
             {
                 Log("  Server: " + server.EndPoint);
                 Log("    Master Endpoint: " + server.MasterEndPoint);
-                Log("    IsSlave: " + server.IsSlave);
-                Log("    SlaveReadOnly: " + server.SlaveReadOnly);
+                Log("    IsSlave: " + server.IsReplica);
+                Log("    SlaveReadOnly: " + server.ReplicaReadOnly);
                 var info = conn.GetServer(server.EndPoint).Info("Replication");
                 foreach (var section in info)
                 {
@@ -578,16 +578,16 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public async Task ReadOnlyConnectionSlavesTest()
+        public async Task ReadOnlyConnectionReplicasTest()
         {
-            var slaves = SentinelServerA.SentinelSlaves(ServiceName);
+            var replicas = SentinelServerA.SentinelReplicas(ServiceName);
             var config = new ConfigurationOptions
             {
                 TieBreaker = "",
                 ServiceName = TestConfig.Current.SentinelSeviceName,
             };
 
-            foreach (var kv in slaves)
+            foreach (var kv in replicas)
             {
                 Assert.Equal("slave", kv.ToDictionary()["flags"]);
                 config.EndPoints.Add(kv.ToDictionary()["name"]);

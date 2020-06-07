@@ -1,4 +1,6 @@
-﻿namespace StackExchange.Redis
+﻿using System;
+
+namespace StackExchange.Redis
 {
     /// <summary>
     /// The class of the connection
@@ -8,14 +10,19 @@
         /// <summary>
         /// Regular connections, including MONITOR connections
         /// </summary>
-        Normal,
+        Normal = 0,
         /// <summary>
         /// Replication connections
         /// </summary>
-        Slave,
+        [Obsolete(Messages.PreferReplica)]
+        Slave = 1,
+        /// <summary>
+        /// Replication connections
+        /// </summary>
+        Replica = 1,
         /// <summary>
         /// Subscription connections
         /// </summary>
-        PubSub
+        PubSub = 2,
     }
 }

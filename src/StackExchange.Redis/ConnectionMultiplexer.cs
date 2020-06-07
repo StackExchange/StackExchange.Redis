@@ -384,14 +384,15 @@ namespace StackExchange.Redis
 
         internal void MakeMaster(ServerEndPoint server, ReplicationChangeOptions options, LogProxy log)
         {
-            CommandMap.AssertAvailable(RedisCommand.SLAVEOF);
-            if (!RawConfig.AllowAdmin) throw ExceptionFactory.AdminModeNotEnabled(IncludeDetailInExceptions, RedisCommand.SLAVEOF, null, server);
+            var cmd = server.GetFeatures().PreferReplica ? RedisCommand.REPLICAOF : RedisCommand.SLAVEOF;
+            CommandMap.AssertAvailable(cmd);
+
+            if (!RawConfig.AllowAdmin) throw ExceptionFactory.AdminModeNotEnabled(IncludeDetailInExceptions, cmd, null, server);
 
             if (server == null) throw new ArgumentNullException(nameof(server));
             var srv = new RedisServer(this, server, null);
-            if (!srv.IsConnected) throw ExceptionFactory.NoConnectionAvailable(this, null, server, GetServerSnapshot(), command: RedisCommand.SLAVEOF);
+            if (!srv.IsConnected) throw ExceptionFactory.NoConnectionAvailable(this, null, server, GetServerSnapshot(), command: cmd);
 
-            CommandMap.AssertAvailable(RedisCommand.SLAVEOF);
 #pragma warning disable CS0618
             const CommandFlags flags = CommandFlags.NoRedirect | CommandFlags.HighPriority;
 #pragma warning restore CS0618
@@ -429,11 +430,11 @@ namespace StackExchange.Redis
                 }
             }
 
-            // deslave...
+            // de-replicate
             log?.WriteLine($"Making {Format.ToString(srv.EndPoint)} a master...");
             try
             {
-                srv.SlaveOf(null, flags);
+                srv.ReplicaOf(null, flags);
             }
             catch (Exception ex)
             {
@@ -441,7 +442,7 @@ namespace StackExchange.Redis
                 throw;
             }
 
-            // also, in case it was a slave a moment ago, and hasn't got the tie-breaker yet, we re-send the tie-breaker to this one
+            // also, in case it was a replica a moment ago, and hasn't got the tie-breaker yet, we re-send the tie-breaker to this one
             if (!tieBreakerKey.IsNull)
             {
                 log?.WriteLine($"Resending tie-breaker to {Format.ToString(server.EndPoint)}...");
@@ -480,17 +481,17 @@ namespace StackExchange.Redis
                 }
             }
 
-            // Send a message before it happens - because afterwards a new slave may be unresponsive
+            // Send a message before it happens - because afterwards a new replica may be unresponsive
             Broadcast(nodes);
 
-            if ((options & ReplicationChangeOptions.EnslaveSubordinates) != 0)
+            if ((options & ReplicationChangeOptions.ReplicateToSubordinates) != 0)
             {
                 foreach (var node in nodes)
                 {
                     if (node == server || node.ServerType != ServerType.Standalone) continue;
 
-                    log?.WriteLine($"Enslaving {Format.ToString(node.EndPoint)}...");
-                    msg = RedisServer.CreateSlaveOfMessage(server.EndPoint, flags);
+                    log?.WriteLine($"Replicating to {Format.ToString(node.EndPoint)}...");
+                    msg = RedisServer.CreateReplicaOfMessage(node, server.EndPoint, flags);
 #pragma warning disable CS0618
                     node.WriteDirectFireAndForgetSync(msg, ResultProcessor.DemandOK);
 #pragma warning restore CS0618
@@ -565,7 +566,7 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Raised when nodes are explicitly requested to reconfigure via broadcast;
-        /// this usually means master/slave changes
+        /// this usually means master/replica changes
         /// </summary>
         public event EventHandler<EndPointEventArgs> ConfigurationChangedBroadcast;
 
@@ -799,12 +800,12 @@ namespace StackExchange.Redis
                 var server = tmp[(int)(((uint)i + startOffset) % len)];
                 if (server != null && server.ServerType == serverType && server.IsSelectable(command))
                 {
-                    if (server.IsSlave)
+                    if (server.IsReplica)
                     {
                         switch (flags)
                         {
-                            case CommandFlags.DemandSlave:
-                            case CommandFlags.PreferSlave:
+                            case CommandFlags.DemandReplica:
+                            case CommandFlags.PreferReplica:
                                 return server;
                             case CommandFlags.PreferMaster:
                                 fallback = server;
@@ -818,7 +819,7 @@ namespace StackExchange.Redis
                             case CommandFlags.DemandMaster:
                             case CommandFlags.PreferMaster:
                                 return server;
-                            case CommandFlags.PreferSlave:
+                            case CommandFlags.PreferReplica:
                                 fallback = server;
                                 break;
                         }
@@ -1677,7 +1678,7 @@ namespace StackExchange.Redis
                                         case ServerType.Standalone:
                                         case ServerType.Cluster:
                                             servers[i].ClearUnselectable(UnselectableFlags.ServerType);
-                                            if (server.IsSlave)
+                                            if (server.IsReplica)
                                             {
                                                 servers[i].ClearUnselectable(UnselectableFlags.RedundantMaster);
                                             }
@@ -1999,7 +2000,7 @@ namespace StackExchange.Redis
             if (configuration == null) return;
             foreach (var node in configuration.Nodes)
             {
-                if (node.IsSlave || node.Slots.Count == 0) continue;
+                if (node.IsReplica || node.Slots.Count == 0) continue;
                 foreach (var slot in node.Slots)
                 {
                     var server = GetServerEndPoint(node.EndPoint);
@@ -2031,7 +2032,7 @@ namespace StackExchange.Redis
             }
             else // a server was specified; do we trust their choice, though?
             {
-                if (message.IsMasterOnly() && server.IsSlave)
+                if (message.IsMasterOnly() && server.IsReplica)
                 {
                     throw ExceptionFactory.MasterOnly(IncludeDetailInExceptions, message.Command, message, server);
                 }
@@ -2291,7 +2292,7 @@ namespace StackExchange.Redis
                 {
                     // Verify that the reconnected endpoint is a master,
                     // and the correct one otherwise we should reconnect
-                    if (connection.GetServer(e.EndPoint).IsSlave || e.EndPoint != connection.currentSentinelMasterEndPoint)
+                    if (connection.GetServer(e.EndPoint).IsReplica || e.EndPoint != connection.currentSentinelMasterEndPoint)
                     {
                         // This isn't a master, so try connecting again
                         SwitchMaster(e.EndPoint, connection);

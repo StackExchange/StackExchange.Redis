@@ -26,7 +26,7 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// This operation should be performed on the master if it is available, but read operations may
-        /// be performed on a slave if no master is available. This is the default option.
+        /// be performed on a replica if no master is available. This is the default option.
         /// </summary>
         PreferMaster = 0,
 
@@ -36,15 +36,26 @@ namespace StackExchange.Redis
         DemandMaster = 4,
 
         /// <summary>
-        /// This operation should be performed on the slave if it is available, but will be performed on
-        /// a master if no slaves are available. Suitable for read operations only.
+        /// This operation should be performed on the replica if it is available, but will be performed on
+        /// a master if no replicas are available. Suitable for read operations only.
         /// </summary>
+        [Obsolete(Messages.PreferReplica)]
         PreferSlave = 8,
+        /// <summary>
+        /// This operation should be performed on the replica if it is available, but will be performed on
+        /// a master if no replicas are available. Suitable for read operations only.
+        /// </summary>
+        PreferReplica = 8, // note: ToString prefers *later* matches
 
         /// <summary>
-        /// This operation should only be performed on a slave. Suitable for read operations only.
+        /// This operation should only be performed on a replica. Suitable for read operations only.
         /// </summary>
+        [Obsolete(Messages.PreferReplica)]
         DemandSlave = 12,
+        /// <summary>
+        /// This operation should only be performed on a replica. Suitable for read operations only.
+        /// </summary>
+        DemandReplica = 12, // note: ToString prefers *later* matches
 
         // 16: reserved for additional "demand/prefer" options
 

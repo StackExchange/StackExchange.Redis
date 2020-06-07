@@ -33,17 +33,20 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// The client flags can be a combination of:
-        /// O: the client is a slave in MONITOR mode
-        /// S: the client is a normal slave server
-        /// M: the client is a master
-        /// x: the client is in a MULTI/EXEC context
-        /// b: the client is waiting in a blocking operation
-        /// i: the client is waiting for a VM I/O (deprecated)
-        /// d: a watched keys has been modified - EXEC will fail
-        /// c: connection to be closed after writing entire reply
-        /// u: the client is unblocked
+        ///
         /// A: connection to be closed ASAP
+        /// b: the client is waiting in a blocking operation
+        /// c: connection to be closed after writing entire reply
+        /// d: a watched keys has been modified - EXEC will fail
+        /// i: the client is waiting for a VM I/O (deprecated)
+        /// M: the client is a master
         /// N: no specific flag set
+        /// O: the client is a replica in MONITOR mode
+        /// P: the client is a Pub/Sub subscriber
+        /// r: the client is in readonly mode against a cluster node
+        /// S: the client is a normal replica server
+        /// U: the client is connected via a Unix domain socket
+        /// x: the client is in a MULTI/EXEC context
         /// </summary>
         public string FlagsRaw { get; private set; }
 
@@ -114,7 +117,7 @@ namespace StackExchange.Redis
             get
             {
                 if (SubscriptionCount != 0 || PatternSubscriptionCount != 0) return ClientType.PubSub;
-                if ((Flags & ClientFlags.Slave) != 0) return ClientType.Slave;
+                if ((Flags & ClientFlags.Replica) != 0) return ClientType.Replica;
                 return ClientType.Normal;
             }
         }
@@ -155,15 +158,21 @@ namespace StackExchange.Redis
                             case "flags":
                                 client.FlagsRaw = value;
                                 ClientFlags flags = ClientFlags.None;
-                                AddFlag(ref flags, value, ClientFlags.SlaveMonitor, 'O');
-                                AddFlag(ref flags, value, ClientFlags.Slave, 'S');
-                                AddFlag(ref flags, value, ClientFlags.Master, 'M');
-                                AddFlag(ref flags, value, ClientFlags.Transaction, 'x');
-                                AddFlag(ref flags, value, ClientFlags.Blocked, 'b');
-                                AddFlag(ref flags, value, ClientFlags.TransactionDoomed, 'd');
-                                AddFlag(ref flags, value, ClientFlags.Closing, 'c');
-                                AddFlag(ref flags, value, ClientFlags.Unblocked, 'u');
                                 AddFlag(ref flags, value, ClientFlags.CloseASAP, 'A');
+                                AddFlag(ref flags, value, ClientFlags.Blocked, 'b');
+                                AddFlag(ref flags, value, ClientFlags.Closing, 'c');
+                                AddFlag(ref flags, value, ClientFlags.TransactionDoomed, 'd');
+                                // i: deprecated
+                                AddFlag(ref flags, value, ClientFlags.Master, 'M');
+                                // N: not needed
+                                AddFlag(ref flags, value, ClientFlags.ReplicaMonitor, 'O');
+                                AddFlag(ref flags, value, ClientFlags.PubSubSubscriber, 'P');
+                                AddFlag(ref flags, value, ClientFlags.ReadOnlyCluster, 'r');
+                                AddFlag(ref flags, value, ClientFlags.Replica, 'S');
+                                AddFlag(ref flags, value, ClientFlags.Unblocked, 'u');
+                                AddFlag(ref flags, value, ClientFlags.UnixDomainSocket, 'U');
+                                AddFlag(ref flags, value, ClientFlags.Transaction, 'x');
+                                
                                 client.Flags = flags;
                                 break;
                             case "id": client.Id = Format.ParseInt64(value); break;

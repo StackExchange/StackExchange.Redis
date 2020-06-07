@@ -627,7 +627,7 @@ namespace StackExchange.Redis
                     {
                         var server = bridge.ServerEndPoint;
                         server.Multiplexer.Trace("Auto-configured role: slave");
-                        server.IsSlave = true;
+                        server.IsReplica = true;
                     }
                 }
                 return base.SetResult(connection, message, result);
@@ -663,11 +663,11 @@ namespace StackExchange.Redis
                                         switch (val)
                                         {
                                             case "master":
-                                                server.IsSlave = false;
+                                                server.IsReplica = false;
                                                 server.Multiplexer.Trace("Auto-configured role: master");
                                                 break;
                                             case "slave":
-                                                server.IsSlave = true;
+                                                server.IsReplica = true;
                                                 server.Multiplexer.Trace("Auto-configured role: slave");
                                                 break;
                                         }
@@ -758,17 +758,17 @@ namespace StackExchange.Redis
                                     server.Multiplexer.Trace("Auto-configured databases: " + dbCount);
                                     server.Databases = dbCount;
                                 }
-                                else if (key.IsEqual(CommonReplies.slave_read_only))
+                                else if (key.IsEqual(CommonReplies.slave_read_only) || key.IsEqual(CommonReplies.replica_read_only))
                                 {
                                     if (val.IsEqual(CommonReplies.yes))
                                     {
-                                        server.SlaveReadOnly = true;
-                                        server.Multiplexer.Trace("Auto-configured slave-read-only: true");
+                                        server.ReplicaReadOnly = true;
+                                        server.Multiplexer.Trace("Auto-configured replica-read-only: true");
                                     }
                                     else if (val.IsEqual(CommonReplies.no))
                                     {
-                                        server.SlaveReadOnly = false;
-                                        server.Multiplexer.Trace("Auto-configured slave-read-only: false");
+                                        server.ReplicaReadOnly = false;
+                                        server.Multiplexer.Trace("Auto-configured replica-read-only: false");
                                     }
                                 }
                             }

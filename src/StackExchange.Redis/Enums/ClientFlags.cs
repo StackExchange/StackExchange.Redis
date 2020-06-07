@@ -4,8 +4,8 @@ namespace StackExchange.Redis
 {
     /// <summary>
     /// The client flags can be a combination of:
-    /// O: the client is a slave in MONITOR mode
-    /// S: the client is a normal slave server
+    /// O: the client is a replica in MONITOR mode
+    /// S: the client is a normal replica server
     /// M: the client is a master
     /// x: the client is in a MULTI/EXEC context
     /// b: the client is waiting in a blocking operation
@@ -24,13 +24,23 @@ namespace StackExchange.Redis
         /// </summary>
         None = 0,
         /// <summary>
-        /// the client is a slave in MONITOR mode
+        /// the client is a replica in MONITOR mode
         /// </summary>
+        [Obsolete(Messages.PreferReplica)]
         SlaveMonitor = 1,
         /// <summary>
-        /// the client is a normal slave server
+        /// the client is a replica in MONITOR mode
         /// </summary>
+        ReplicaMonitor = 1, // as an implementation detail, note that enum.ToString prefers *later* options when naming Flags
+        /// <summary>
+        /// the client is a normal replica server
+        /// </summary>
+        [Obsolete(Messages.PreferReplica)]
         Slave = 2,
+        /// <summary>
+        /// the client is a normal replica server
+        /// </summary>
+        Replica = 2, // as an implementation detail, note that enum.ToString prefers *later* options when naming Flags
         /// <summary>
         /// the client is a master
         /// </summary>
@@ -59,5 +69,17 @@ namespace StackExchange.Redis
         /// connection to be closed ASAP
         /// </summary>
         CloseASAP = 256,
+        /// <summary>
+        /// the client is a Pub/Sub subscriber
+        /// </summary>
+        PubSubSubscriber = 512,
+        /// <summary>
+        /// the client is in readonly mode against a cluster node
+        /// </summary>
+        ReadOnlyCluster = 512,
+        /// <summary>
+        /// the client is connected via a Unix domain socket
+        /// </summary>
+        UnixDomainSocket = 512,
     }
 }

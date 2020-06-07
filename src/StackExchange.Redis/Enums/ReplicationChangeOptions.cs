@@ -21,12 +21,17 @@ namespace StackExchange.Redis
         /// </summary>
         Broadcast = 2,
         /// <summary>
-        /// Issue a SLAVEOF to all other known nodes, making this this master of all
+        /// Issue a REPLICAOF to all other known nodes, making this this master of all
         /// </summary>
+        [Obsolete(Messages.PreferReplica)]
         EnslaveSubordinates = 4,
+        /// <summary>
+        /// Issue a REPLICAOF to all other known nodes, making this this master of all
+        /// </summary>
+        ReplicateToSubordinates = 4, // note ToString prefers *later* options
         /// <summary>
         /// All additional operations
         /// </summary>
-        All = SetTiebreaker | Broadcast | EnslaveSubordinates
+        All = SetTiebreaker | Broadcast | ReplicateToSubordinates,
     }
 }

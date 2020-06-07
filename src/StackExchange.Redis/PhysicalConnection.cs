@@ -511,7 +511,7 @@ namespace StackExchange.Redis
                 }
             }
             else if (currentReadMode == ReadMode.ReadOnly)
-            { // we don't need it (because we're not a cluster, or not a slave),
+            { // we don't need it (because we're not a cluster, or not a replica),
                 // but we are in read-only mode; switch to read-write
                 currentReadMode = ReadMode.ReadWrite;
                 return ReusableReadWriteCommand;

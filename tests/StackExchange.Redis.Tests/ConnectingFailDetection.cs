@@ -10,7 +10,7 @@ namespace StackExchange.Redis.Tests
     {
         public ConnectingFailDetection(ITestOutputHelper output) : base (output) { }
 
-        protected override string GetConfiguration() => TestConfig.Current.MasterServerAndPort + "," + TestConfig.Current.SlaveServerAndPort;
+        protected override string GetConfiguration() => TestConfig.Current.MasterServerAndPort + "," + TestConfig.Current.ReplicaServerAndPort;
 
 #if DEBUG
         [Fact]

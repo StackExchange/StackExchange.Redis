@@ -170,7 +170,7 @@ namespace StackExchange.Redis
                     if (string.IsNullOrWhiteSpace(line)) continue;
                     var node = new ClusterNode(this, line, origin);
 
-                    // Be resilient to ":0 {master,slave},fail,noaddr" nodes, and nodes where the endpoint doesn't parse
+                    // Be resilient to ":0 {master,replica},fail,noaddr" nodes, and nodes where the endpoint doesn't parse
                     if (node.IsNoAddr || node.EndPoint == null)
                         continue;
 
@@ -250,7 +250,7 @@ namespace StackExchange.Redis
         {
             foreach(var node in Nodes)
             {
-                if (!node.IsSlave && node.ServesSlot(slot)) return node;
+                if (!node.IsReplica && node.ServesSlot(slot)) return node;
             }
             return null;
         }
@@ -305,7 +305,7 @@ namespace StackExchange.Redis
             }
 
             NodeId = parts[0];
-            IsSlave = flags.Contains("slave");
+            IsReplica = flags.Contains("slave") || flags.Contains("replica");
             IsNoAddr = flags.Contains("noaddr");
             ParentNodeId = string.IsNullOrWhiteSpace(parts[3]) ? null : parts[3];
 
@@ -354,9 +354,14 @@ namespace StackExchange.Redis
         public bool IsMyself { get; }
 
         /// <summary>
-        /// Gets whether this node is a slave
+        /// Gets whether this node is a replica
         /// </summary>
-        public bool IsSlave { get; }
+        [Obsolete(Messages.PreferReplica)]
+        public bool IsSlave => IsReplica;
+        /// <summary>
+        /// Gets whether this node is a replica
+        /// </summary>
+        public bool IsReplica { get; }
 
         /// <summary>
         /// Gets whether this node is flagged as noaddr
@@ -410,9 +415,9 @@ namespace StackExchange.Redis
         {
             if (other == null) return -1;
 
-            if (IsSlave != other.IsSlave) return IsSlave ? 1 : -1; // masters first
+            if (IsReplica != other.IsReplica) return IsReplica ? 1 : -1; // masters first
 
-            if (IsSlave) // both slaves? compare by parent, so we get masters A, B, C and then slaves of A, B, C
+            if (IsReplica) // both replicas? compare by parent, so we get masters A, B, C and then replicas of A, B, C
             {
                 int i = string.CompareOrdinal(ParentNodeId, other.ParentNodeId);
                 if (i != 0) return i;
@@ -449,9 +454,9 @@ namespace StackExchange.Redis
         {
             if (toString != null) return toString;
             var sb = new StringBuilder().Append(NodeId).Append(" at ").Append(EndPoint);
-            if(IsSlave)
+            if (IsReplica)
             {
-                sb.Append(", slave of ").Append(ParentNodeId);
+                sb.Append(", replica of ").Append(ParentNodeId);
                 var parent = Parent;
                 if (parent != null) sb.Append(" at ").Append(parent.EndPoint);
             }
@@ -459,8 +464,8 @@ namespace StackExchange.Redis
             switch(childCount)
             {
                 case 0: break;
-                case 1: sb.Append(", 1 slave"); break;
-                default: sb.Append(", ").Append(childCount).Append(" slaves"); break;
+                case 1: sb.Append(", 1 replica"); break;
+                default: sb.Append(", ").Append(childCount).Append(" replicas"); break;
             }
             if(Slots.Count != 0)
             {

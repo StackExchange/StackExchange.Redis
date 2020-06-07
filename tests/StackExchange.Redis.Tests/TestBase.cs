@@ -199,7 +199,7 @@ namespace StackExchange.Redis.Tests
             foreach (var endpoint in endpoints)
             {
                 var server = muxer.GetServer(endpoint);
-                if (server.IsSlave || !server.IsConnected) continue;
+                if (server.IsReplica || !server.IsConnected) continue;
                 if (result != null) throw new InvalidOperationException("Requires exactly one master endpoint (found " + server.EndPoint + " and " + result.EndPoint + ")");
                 result = server;
             }
@@ -212,7 +212,7 @@ namespace StackExchange.Redis.Tests
             foreach (var endpoint in muxer.GetEndPoints())
             {
                 var server = muxer.GetServer(endpoint);
-                if (!server.IsSlave) return server;
+                if (!server.IsReplica) return server;
             }
             throw new InvalidOperationException("Requires a master endpoint (found none)");
         }
