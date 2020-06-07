@@ -19,7 +19,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Replication connections
         /// </summary>
-        Replica = 1,
+        Replica = 1, // as an implementation detail, note that enum.ToString prefers *later* options when naming Flags
         /// <summary>
         /// Subscription connections
         /// </summary>
