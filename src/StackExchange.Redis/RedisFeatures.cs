@@ -185,7 +185,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Is PFCOUNT supported on replicas?
         /// </summary>
-        [Obsolete("HyperLogLogCountSlaveSafe is deprecated, please use " + nameof(HyperLogLogCountReplicaSafe) + " instead.")]
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(HyperLogLogCountReplicaSafe) + " instead.")]
         public bool HyperLogLogCountSlaveSafe => HyperLogLogCountReplicaSafe;
 
         /// <summary>

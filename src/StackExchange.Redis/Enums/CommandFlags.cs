@@ -39,7 +39,7 @@ namespace StackExchange.Redis
         /// This operation should be performed on the replica if it is available, but will be performed on
         /// a master if no replicas are available. Suitable for read operations only.
         /// </summary>
-        [Obsolete("PreferSlave is deprecated, please use " + nameof(PreferReplica) + " instead.")]
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(PreferReplica) + " instead.")]
         PreferSlave = 8,
         /// <summary>
         /// This operation should be performed on the replica if it is available, but will be performed on
@@ -50,7 +50,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// This operation should only be performed on a replica. Suitable for read operations only.
         /// </summary>
-        [Obsolete("DemandSlave is deprecated, please use " + nameof(DemandReplica) + " instead.")]
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(DemandReplica) + " instead.")]
         DemandSlave = 12,
         /// <summary>
         /// This operation should only be performed on a replica. Suitable for read operations only.

@@ -356,7 +356,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Gets whether this node is a replica
         /// </summary>
-        [Obsolete("IsSlave is deprecated, please use " + nameof(IsReplica) + " instead.")]
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(IsReplica) + " instead.")]
         public bool IsSlave => IsReplica;
         /// <summary>
         /// Gets whether this node is a replica

@@ -14,7 +14,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Replication connections
         /// </summary>
-        [Obsolete("Slave is deprecated, please use " + nameof(Replica) + " instead.")]
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(Replica) + " instead.")]
         Slave = 1,
         /// <summary>
         /// Replication connections
