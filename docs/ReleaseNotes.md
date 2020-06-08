@@ -2,7 +2,11 @@
 
 ## pending
 
+- add: bind direct to sentinel-managed instances from a configuration string/object (#1431 via ejsmith)
+- add last-delivered-id to `StreamGroupInfo` (#1477 via AndyPook)
+- update naming of replication-related commands to reflect Redis 5 naming (#1488/#945)
 - fix: the `IServer` commands that are database-specific (`DBSIZE`, `FLUSHDB`, `KEYS`, `SCAN`) now respect the default database on the config (#1460)
+- library updates
 
 ## 2.1.39
 
