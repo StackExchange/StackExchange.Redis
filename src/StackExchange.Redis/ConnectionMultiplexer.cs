@@ -2524,7 +2524,7 @@ namespace StackExchange.Redis
                 .AsParallel()
                 .Select(s =>
                 {
-                    try { return GetServer(s.EndPoint).SentinelGetSlaveAddresses(serviceName); }
+                    try { return GetServer(s.EndPoint).SentinelGetReplicaAddresses(serviceName); }
                     catch { return null; }
                 })
                 .FirstOrDefault(r => r != null);

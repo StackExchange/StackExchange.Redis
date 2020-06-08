@@ -830,13 +830,13 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.SentinelAddressesEndPoints);
         }
 
-        public EndPoint[] SentinelGetSlaveAddresses(string serviceName, CommandFlags flags = CommandFlags.None)
+        public EndPoint[] SentinelGetReplicaAddresses(string serviceName, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.SLAVES, (RedisValue)serviceName);
             return ExecuteSync(msg, ResultProcessor.SentinelAddressesEndPoints);
         }
 
-        public Task<EndPoint[]> SentinelGetSlaveAddressesAsync(string serviceName, CommandFlags flags = CommandFlags.None)
+        public Task<EndPoint[]> SentinelGetReplicaAddressesAsync(string serviceName, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.SLAVES, (RedisValue)serviceName);
             return ExecuteAsync(msg, ResultProcessor.SentinelAddressesEndPoints);

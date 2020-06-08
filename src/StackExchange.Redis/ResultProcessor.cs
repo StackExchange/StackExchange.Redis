@@ -129,7 +129,7 @@ namespace StackExchange.Redis
             SentinelAddressesEndPoints = new SentinelGetSentinelAddresses();
 
         public static readonly ResultProcessor<EndPoint[]>
-            SentinelSlaveEndPoints = new SentinelGetSlaveAddresses();
+            SentinelReplicaEndPoints = new SentinelGetReplicaAddresses();
 
         public static readonly ResultProcessor<KeyValuePair<string, string>[][]>
             SentinelArrayOfArrays = new SentinelArrayOfArraysProcessor();
@@ -2094,7 +2094,7 @@ The coordinates as a two items x,y array (longitude,latitude).
             }
         }
 
-        private sealed class SentinelGetSlaveAddresses : ResultProcessor<EndPoint[]>
+        private sealed class SentinelGetReplicaAddresses : ResultProcessor<EndPoint[]>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
