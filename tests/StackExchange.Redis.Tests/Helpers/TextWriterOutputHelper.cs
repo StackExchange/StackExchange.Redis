@@ -11,7 +11,11 @@ namespace StackExchange.Redis.Tests.Helpers
         public override Encoding Encoding => Encoding.UTF8;
         private readonly ITestOutputHelper Output;
         private readonly bool ToConsole;
-        public TextWriterOutputHelper(ITestOutputHelper outputHelper, bool echoToConsole) => (Output, ToConsole) = (outputHelper, echoToConsole);
+        public TextWriterOutputHelper(ITestOutputHelper outputHelper, bool echoToConsole)
+        {
+            Output = outputHelper;
+            ToConsole = echoToConsole;
+        }
 
         public override void WriteLine(string value)
         {

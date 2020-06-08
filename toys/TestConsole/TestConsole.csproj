@@ -13,5 +13,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\StackExchange.Redis\StackExchange.Redis.csproj" />
+    <PackageReference Include="System.IO.Compression" />
   </ItemGroup>
 </Project>

@@ -16,8 +16,9 @@
     <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" />
     <PackageReference Include="Pipelines.Sockets.Unofficial" />
     <PackageReference Include="System.Diagnostics.PerformanceCounter" />
-    <!-- net472 needs this for ZipArchive; I have no idea why this changed, but... meh -->
-    <PackageReference Include="System.IO.Compression" Condition="'$(TargetFramework)' == 'net472'" />
+    <!-- net472/net461 needs this for ZipArchive; I have no idea why this changed, but... meh -->
+    <PackageReference Include="System.IO.Compression" Condition="'$(TargetFramework)' == 'net461' or '$(TargetFramework)' == 'net472'" />
+    <PackageReference Include="System.Runtime.InteropServices.RuntimeInformation" Condition="'$(TargetFramework)' == 'net461'" />
     <PackageReference Include="System.IO.Pipelines" />
     <PackageReference Include="System.Threading.Channels" />
   </ItemGroup>
