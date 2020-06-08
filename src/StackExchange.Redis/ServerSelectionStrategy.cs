@@ -135,22 +135,22 @@ namespace StackExchange.Redis
                         if (isMoved) message.SetInternalCall();
 
                         // note that everything so far is talking about MASTER nodes; we might be
-                        // wanting a SLAVE, so we'll check
+                        // wanting a REPLICA, so we'll check
                         ServerEndPoint resendVia = null;
                         var command = message.Command;
-                        switch (Message.GetMasterSlaveFlags(message.Flags))
+                        switch (Message.GetMasterReplicaFlags(message.Flags))
                         {
                             case CommandFlags.DemandMaster:
                                 resendVia = server.IsSelectable(command, isMoved) ? server : null;
                                 break;
                             case CommandFlags.PreferMaster:
-                                resendVia = server.IsSelectable(command, isMoved) ? server : FindSlave(server, command);
+                                resendVia = server.IsSelectable(command, isMoved) ? server : FindReplica(server, command);
                                 break;
-                            case CommandFlags.PreferSlave:
-                                resendVia = FindSlave(server, command, isMoved) ?? (server.IsSelectable(command, isMoved) ? server : null);
+                            case CommandFlags.PreferReplica:
+                                resendVia = FindReplica(server, command, isMoved) ?? (server.IsSelectable(command, isMoved) ? server : null);
                                 break;
-                            case CommandFlags.DemandSlave:
-                                resendVia = FindSlave(server, command, isMoved);
+                            case CommandFlags.DemandReplica:
+                                resendVia = FindReplica(server, command, isMoved);
                                 break;
                         }
                         if (resendVia == null)
@@ -239,24 +239,24 @@ namespace StackExchange.Redis
             int max = 5;
             do
             {
-                if (!endpoint.IsSlave && endpoint.IsSelectable(command)) return endpoint;
+                if (!endpoint.IsReplica && endpoint.IsSelectable(command)) return endpoint;
 
                 endpoint = endpoint.Master;
             } while (endpoint != null && --max != 0);
             return null;
         }
 
-        private ServerEndPoint FindSlave(ServerEndPoint endpoint, RedisCommand command, bool allowDisconnected = false)
+        private ServerEndPoint FindReplica(ServerEndPoint endpoint, RedisCommand command, bool allowDisconnected = false)
         {
-            if (endpoint.IsSlave && endpoint.IsSelectable(command, allowDisconnected)) return endpoint;
+            if (endpoint.IsReplica && endpoint.IsSelectable(command, allowDisconnected)) return endpoint;
 
-            var slaves = endpoint.Slaves;
-            var len = slaves.Length;
+            var replicas = endpoint.Replicas;
+            var len = replicas.Length;
             uint startOffset = len <= 1 ? 0 : endpoint.NextReplicaOffset();
             for (int i = 0; i < len; i++)
             {
-                endpoint = slaves[(int)(((uint)i + startOffset) % len)];
-                if (endpoint.IsSlave && endpoint.IsSelectable(command, allowDisconnected)) return endpoint;
+                endpoint = replicas[(int)(((uint)i + startOffset) % len)];
+                if (endpoint.IsReplica && endpoint.IsSelectable(command, allowDisconnected)) return endpoint;
             }
             return null;
         }
@@ -277,22 +277,22 @@ namespace StackExchange.Redis
 
         private ServerEndPoint Select(int slot, RedisCommand command, CommandFlags flags)
         {
-            flags = Message.GetMasterSlaveFlags(flags); // only intersted in master/slave preferences
+            flags = Message.GetMasterReplicaFlags(flags); // only intersted in master/replica preferences
 
             ServerEndPoint[] arr;
             if (slot == NoSlot || (arr = map) == null) return Any(command, flags);
 
             ServerEndPoint endpoint = arr[slot], testing;
-            // but: ^^^ is the MASTER slots; if we want a slave, we need to do some thinking
+            // but: ^^^ is the MASTER slots; if we want a replica, we need to do some thinking
 
             if (endpoint != null)
             {
                 switch (flags)
                 {
-                    case CommandFlags.DemandSlave:
-                        return FindSlave(endpoint, command) ?? Any(command, flags);
-                    case CommandFlags.PreferSlave:
-                        testing = FindSlave(endpoint, command);
+                    case CommandFlags.DemandReplica:
+                        return FindReplica(endpoint, command) ?? Any(command, flags);
+                    case CommandFlags.PreferReplica:
+                        testing = FindReplica(endpoint, command);
                         if (testing != null) return testing;
                         break;
                     case CommandFlags.DemandMaster:

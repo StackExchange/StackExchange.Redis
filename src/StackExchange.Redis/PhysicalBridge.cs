@@ -166,7 +166,7 @@ namespace StackExchange.Redis
         }
 
         [Obsolete("prefer async")]
-        public WriteResult TryWriteSync(Message message, bool isSlave)
+        public WriteResult TryWriteSync(Message message, bool isReplica)
         {
             if (isDisposed) throw new ObjectDisposedException(Name);
             if (!IsConnected) return QueueOrFailMessage(message);
@@ -177,11 +177,11 @@ namespace StackExchange.Redis
 #pragma warning disable CS0618
             var result = WriteMessageTakingWriteLockSync(physical, message);
 #pragma warning restore CS0618
-            LogNonPreferred(message.Flags, isSlave);
+            LogNonPreferred(message.Flags, isReplica);
             return result;
         }
 
-        public ValueTask<WriteResult> TryWriteAsync(Message message, bool isSlave)
+        public ValueTask<WriteResult> TryWriteAsync(Message message, bool isReplica)
         {
             if (isDisposed) throw new ObjectDisposedException(Name);
             if (!IsConnected) return new ValueTask<WriteResult>(QueueOrFailMessage(message));
@@ -190,7 +190,7 @@ namespace StackExchange.Redis
             if (physical == null) return new ValueTask<WriteResult>(FailDueToNoConnection(message));
 
             var result = WriteMessageTakingWriteLockAsync(physical, message);
-            LogNonPreferred(message.Flags, isSlave);
+            LogNonPreferred(message.Flags, isReplica);
             return result;
         }
 
@@ -272,7 +272,7 @@ namespace StackExchange.Redis
                 {
                     try
                     {
-                        if ((await TryWriteAsync(next.Message, next.IsSlave).ForAwait()) != WriteResult.Success)
+                        if ((await TryWriteAsync(next.Message, next.IsReplica).ForAwait()) != WriteResult.Success)
                         {
                             next.Abort();
                         }
@@ -371,7 +371,7 @@ namespace StackExchange.Redis
                 Multiplexer.OnInfoMessage($"heartbeat ({physical?.LastWriteSecondsAgo}s >= {ServerEndPoint?.WriteEverySeconds}s, {physical?.GetSentAwaitingResponseCount()} waiting) '{msg.CommandAndKey}' on '{PhysicalName}' (v{features.Version})");
                 physical?.UpdateLastWriteTime(); // pre-emptively
 #pragma warning disable CS0618
-                var result = TryWriteSync(msg, ServerEndPoint.IsSlave);
+                var result = TryWriteSync(msg, ServerEndPoint.IsReplica);
 #pragma warning restore CS0618
 
                 if (result != WriteResult.Success)
@@ -612,7 +612,7 @@ namespace StackExchange.Redis
             if (condition) Multiplexer.Trace(message, ToString());
         }
 
-        internal bool TryEnqueue(List<Message> messages, bool isSlave)
+        internal bool TryEnqueue(List<Message> messages, bool isReplica)
         {
             if (messages == null || messages.Count == 0) return true;
 
@@ -632,7 +632,7 @@ namespace StackExchange.Redis
 #pragma warning disable CS0618
                 WriteMessageTakingWriteLockSync(physical, message);
 #pragma warning restore CS0618
-                LogNonPreferred(message.Flags, isSlave);
+                LogNonPreferred(message.Flags, isReplica);
             }
             return true;
         }
@@ -1146,18 +1146,18 @@ namespace StackExchange.Redis
             return physical;
         }
 
-        private void LogNonPreferred(CommandFlags flags, bool isSlave)
+        private void LogNonPreferred(CommandFlags flags, bool isReplica)
         {
             if ((flags & Message.InternalCallFlag) == 0) // don't log internal-call
             {
-                if (isSlave)
+                if (isReplica)
                 {
-                    if (Message.GetMasterSlaveFlags(flags) == CommandFlags.PreferMaster)
+                    if (Message.GetMasterReplicaFlags(flags) == CommandFlags.PreferMaster)
                         Interlocked.Increment(ref nonPreferredEndpointCount);
                 }
                 else
                 {
-                    if (Message.GetMasterSlaveFlags(flags) == CommandFlags.PreferSlave)
+                    if (Message.GetMasterReplicaFlags(flags) == CommandFlags.PreferReplica)
                         Interlocked.Increment(ref nonPreferredEndpointCount);
                 }
             }
@@ -1195,7 +1195,7 @@ namespace StackExchange.Redis
                 LastCommand = cmd;
                 bool isMasterOnly = message.IsMasterOnly();
 
-                if (isMasterOnly && ServerEndPoint.IsSlave && (ServerEndPoint.SlaveReadOnly || !ServerEndPoint.AllowSlaveWrites))
+                if (isMasterOnly && ServerEndPoint.IsReplica && (ServerEndPoint.ReplicaReadOnly || !ServerEndPoint.AllowReplicaWrites))
                 {
                     throw ExceptionFactory.MasterOnly(Multiplexer.IncludeDetailInExceptions, message.Command, message, ServerEndPoint);
                 }

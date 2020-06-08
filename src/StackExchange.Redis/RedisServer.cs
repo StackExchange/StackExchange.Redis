@@ -33,12 +33,18 @@ namespace StackExchange.Redis
 
         public bool IsConnected => server.IsConnected;
 
-        public bool IsSlave => server.IsSlave;
+        bool IServer.IsSlave => IsReplica;
+        public bool IsReplica => server.IsReplica;
 
-        public bool AllowSlaveWrites
+        bool IServer.AllowSlaveWrites
         {
-            get => server.AllowSlaveWrites;
-            set => server.AllowSlaveWrites = value;
+            get => AllowReplicaWrites;
+            set => AllowReplicaWrites = value;
+        }
+        public bool AllowReplicaWrites
+        {
+            get => server.AllowReplicaWrites;
+            set => server.AllowReplicaWrites = value;
         }
 
         public ServerType ServerType => server.ServerType;
@@ -88,8 +94,8 @@ namespace StackExchange.Redis
                     case ClientType.Normal:
                         parts.Add(RedisLiterals.normal);
                         break;
-                    case ClientType.Slave:
-                        parts.Add(RedisLiterals.slave);
+                    case ClientType.Replica:
+                        parts.Add(Features.ReplicaCommands ? RedisLiterals.replica : RedisLiterals.slave);
                         break;
                     case ClientType.PubSub:
                         parts.Add(RedisLiterals.pubsub);
@@ -544,27 +550,27 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.DateTime);
         }
 
-        internal static Message CreateSlaveOfMessage(EndPoint endpoint, CommandFlags flags = CommandFlags.None)
+        internal static Message CreateReplicaOfMessage(ServerEndPoint sendMessageTo, EndPoint masterEndpoint, CommandFlags flags = CommandFlags.None)
         {
             RedisValue host, port;
-            if (endpoint == null)
+            if (masterEndpoint == null)
             {
                 host = "NO";
                 port = "ONE";
             }
             else
             {
-                if (Format.TryGetHostPort(endpoint, out string hostRaw, out int portRaw))
+                if (Format.TryGetHostPort(masterEndpoint, out string hostRaw, out int portRaw))
                 {
                     host = hostRaw;
                     port = portRaw;
                 }
                 else
                 {
-                    throw new NotSupportedException("Unknown endpoint type: " + endpoint.GetType().Name);
+                    throw new NotSupportedException("Unknown endpoint type: " + masterEndpoint.GetType().Name);
                 }
             }
-            return Message.Create(-1, flags, RedisCommand.SLAVEOF, host, port);
+            return Message.Create(-1, flags, sendMessageTo.GetFeatures().ReplicaCommands ? RedisCommand.REPLICAOF : RedisCommand.SLAVEOF, host, port);
         }
 
         internal override Task<T> ExecuteAsync<T>(Message message, ResultProcessor<T> processor, ServerEndPoint server = null)
@@ -599,17 +605,19 @@ namespace StackExchange.Redis
         internal override RedisFeatures GetFeatures(in RedisKey key, CommandFlags flags, out ServerEndPoint server)
         {
             server = this.server;
-            return new RedisFeatures(server.Version);
+            return server.GetFeatures();
         }
 
-        public void SlaveOf(EndPoint master, CommandFlags flags = CommandFlags.None)
+        void IServer.SlaveOf(EndPoint master, CommandFlags flags) => ReplicaOf(master, flags);
+
+        public void ReplicaOf(EndPoint master, CommandFlags flags = CommandFlags.None)
         {
             if (master == server.EndPoint)
             {
-                throw new ArgumentException("Cannot slave to self");
+                throw new ArgumentException("Cannot replicate to self");
             }
-            // prepare the actual slaveof message (not sent yet)
-            var slaveofMsg = CreateSlaveOfMessage(master, flags);
+            // prepare the actual replicaof message (not sent yet)
+            var replicaOfMsg = CreateReplicaOfMessage(server, master, flags);
 
             var configuration = multiplexer.RawConfig;
 
@@ -624,7 +632,7 @@ namespace StackExchange.Redis
                 server.WriteDirectFireAndForgetSync(del, ResultProcessor.Boolean);
 #pragma warning restore CS0618
             }
-            ExecuteSync(slaveofMsg, ResultProcessor.DemandOK);
+            ExecuteSync(replicaOfMsg, ResultProcessor.DemandOK);
 
             // attempt to broadcast a reconfigure message to anybody listening to this server
             var channel = multiplexer.ConfigurationChangedChannel;
@@ -638,12 +646,14 @@ namespace StackExchange.Redis
             }
         }
 
-        public Task SlaveOfAsync(EndPoint master, CommandFlags flags = CommandFlags.None)
+        Task IServer.SlaveOfAsync(EndPoint master, CommandFlags flags) => ReplicaOfAsync(master, flags);
+
+        public Task ReplicaOfAsync(EndPoint master, CommandFlags flags = CommandFlags.None)
         {
-            var msg = CreateSlaveOfMessage(master, flags);
+            var msg = CreateReplicaOfMessage(server, master, flags);
             if (master == server.EndPoint)
             {
-                throw new ArgumentException("Cannot slave to self");
+                throw new ArgumentException("Cannot replicate to self");
             }
             return ExecuteAsync(msg, ResultProcessor.DemandOK);
         }
@@ -653,13 +663,13 @@ namespace StackExchange.Redis
             // since the server is specified explicitly, we don't want defaults
             // to make the "non-preferred-endpoint" counters look artificially
             // inflated; note we only change *prefer* options
-            switch (Message.GetMasterSlaveFlags(message.Flags))
+            switch (Message.GetMasterReplicaFlags(message.Flags))
             {
                 case CommandFlags.PreferMaster:
-                    if (server.IsSlave) message.SetPreferSlave();
+                    if (server.IsReplica) message.SetPreferReplica();
                     break;
-                case CommandFlags.PreferSlave:
-                    if (!server.IsSlave) message.SetPreferMaster();
+                case CommandFlags.PreferReplica:
+                    if (!server.IsReplica) message.SetPreferMaster();
                     break;
             }
         }
@@ -856,14 +866,22 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.SentinelArrayOfArrays);
         }
 
-        public KeyValuePair<string, string>[][] SentinelSlaves(string serviceName, CommandFlags flags = CommandFlags.None)
+        KeyValuePair<string, string>[][] IServer.SentinelSlaves(string serviceName, CommandFlags flags)
+            => SentinelReplicas(serviceName, flags);
+
+        public KeyValuePair<string, string>[][] SentinelReplicas(string serviceName, CommandFlags flags = CommandFlags.None)
         {
+            // note: sentinel does not have "replicas" terminology at the current time
             var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.SLAVES, (RedisValue)serviceName);
             return ExecuteSync(msg, ResultProcessor.SentinelArrayOfArrays);
         }
 
-        public Task<KeyValuePair<string, string>[][]> SentinelSlavesAsync(string serviceName, CommandFlags flags = CommandFlags.None)
+        Task<KeyValuePair<string, string>[][]> IServer.SentinelSlavesAsync(string serviceName, CommandFlags flags)
+            => SentinelReplicasAsync(serviceName, flags);
+
+        public Task<KeyValuePair<string, string>[][]> SentinelReplicasAsync(string serviceName, CommandFlags flags = CommandFlags.None)
         {
+            // note: sentinel does not have "replicas" terminology at the current time
             var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.SLAVES, (RedisValue)serviceName);
             return ExecuteAsync(msg, ResultProcessor.SentinelArrayOfArrays);
         }

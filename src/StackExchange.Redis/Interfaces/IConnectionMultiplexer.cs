@@ -107,7 +107,7 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Raised when nodes are explicitly requested to reconfigure via broadcast;
-        /// this usually means master/slave changes
+        /// this usually means master/replica changes
         /// </summary>
         event EventHandler<EndPointEventArgs> ConfigurationChangedBroadcast;
 

@@ -56,7 +56,7 @@ namespace StackExchange.Redis
 
             foreach (var pair in byBridge)
             {
-                if (!pair.Key.TryEnqueue(pair.Value, pair.Key.ServerEndPoint.IsSlave))
+                if (!pair.Key.TryEnqueue(pair.Value, pair.Key.ServerEndPoint.IsReplica))
                 {
                     FailNoServer(pair.Value);
                 }

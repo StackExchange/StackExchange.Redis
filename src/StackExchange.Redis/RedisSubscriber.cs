@@ -226,7 +226,7 @@ namespace StackExchange.Redis
                 if (bridge == null) return null;
 
                 // note: check we can create the message validly *before* we swap the owner over (Interlocked)
-                var state = PendingSubscriptionState.Create(channel, this, flags, true, internalCall, asyncState, selected.IsSlave);
+                var state = PendingSubscriptionState.Create(channel, this, flags, true, internalCall, asyncState, selected.IsReplica);
 
                 if (Interlocked.CompareExchange(ref owner, selected, null) != null) return null;
                 try
@@ -252,7 +252,7 @@ namespace StackExchange.Redis
                 var bridge = oldOwner?.GetBridge(ConnectionType.Subscription, false);
                 if (bridge == null) return null;
 
-                var state = PendingSubscriptionState.Create(channel, this, flags, false, internalCall, asyncState, oldOwner.IsSlave);
+                var state = PendingSubscriptionState.Create(channel, this, flags, false, internalCall, asyncState, oldOwner.IsReplica);
 
                 if (!bridge.TryEnqueueBackgroundSubscriptionWrite(state))
                 {
@@ -267,17 +267,17 @@ namespace StackExchange.Redis
                 public override string ToString() => Message.ToString();
                 public Subscription Subscription { get; }
                 public Message Message { get; }
-                public bool IsSlave { get; }
+                public bool IsReplica { get; }
                 public Task Task => _taskSource.Task;
                 private readonly TaskCompletionSource<bool> _taskSource;
 
-                public static PendingSubscriptionState Create(RedisChannel channel, Subscription subscription, CommandFlags flags, bool subscribe, bool internalCall, object asyncState, bool isSlave)
-                    => new PendingSubscriptionState(asyncState, channel, subscription, flags, subscribe, internalCall, isSlave);
+                public static PendingSubscriptionState Create(RedisChannel channel, Subscription subscription, CommandFlags flags, bool subscribe, bool internalCall, object asyncState, bool isReplica)
+                    => new PendingSubscriptionState(asyncState, channel, subscription, flags, subscribe, internalCall, isReplica);
 
                 public void Abort() => _taskSource.TrySetCanceled();
                 public void Fail(Exception ex) => _taskSource.TrySetException(ex);
 
-                private PendingSubscriptionState(object asyncState, RedisChannel channel, Subscription subscription, CommandFlags flags, bool subscribe, bool internalCall, bool isSlave)
+                private PendingSubscriptionState(object asyncState, RedisChannel channel, Subscription subscription, CommandFlags flags, bool subscribe, bool internalCall, bool isReplica)
                 {
                     var cmd = subscribe
                         ? (channel.IsPatternBased ? RedisCommand.PSUBSCRIBE : RedisCommand.SUBSCRIBE)
@@ -290,7 +290,7 @@ namespace StackExchange.Redis
 
                     Subscription = subscription;
                     Message = msg;
-                    IsSlave = isSlave;
+                    IsReplica = isReplica;
                 }
             }
 

@@ -26,7 +26,7 @@ namespace StackExchange.Redis
     internal sealed partial class ServerEndPoint : IDisposable
     {
         internal volatile ServerEndPoint Master;
-        internal volatile ServerEndPoint[] Slaves = Array.Empty<ServerEndPoint>();
+        internal volatile ServerEndPoint[] Replicas = Array.Empty<ServerEndPoint>();
         private static readonly Regex nameSanitizer = new Regex("[^!-~]", RegexOptions.Compiled);
 
         private readonly Hashtable knownScripts = new Hashtable(StringComparer.Ordinal);
@@ -35,7 +35,7 @@ namespace StackExchange.Redis
         private PhysicalBridge interactive, subscription;
         private bool isDisposed;
         private ServerType serverType;
-        private bool slaveReadOnly, isSlave;
+        private bool replicaReadOnly, isReplica;
         private volatile UnselectableFlags unselectableReasons;
         private Version version;
 
@@ -51,8 +51,8 @@ namespace StackExchange.Redis
             EndPoint = endpoint;
             var config = multiplexer.RawConfig;
             version = config.DefaultVersion;
-            slaveReadOnly = true;
-            isSlave = false;
+            replicaReadOnly = true;
+            isReplica = false;
             databases = 0;
             writeEverySeconds = config.KeepAlive > 0 ? config.KeepAlive : 60;
             serverType = ServerType.Standalone;
@@ -103,7 +103,7 @@ namespace StackExchange.Redis
             }
         }
 
-        public bool IsSlave { get { return isSlave; } set { SetConfig(ref isSlave, value); } }
+        public bool IsReplica { get { return isReplica; } set { SetConfig(ref isReplica, value); } }
 
         public long OperationCount
         {
@@ -118,13 +118,13 @@ namespace StackExchange.Redis
             }
         }
 
-        public bool RequiresReadMode => serverType == ServerType.Cluster && IsSlave;
+        public bool RequiresReadMode => serverType == ServerType.Cluster && IsReplica;
 
         public ServerType ServerType { get { return serverType; } set { SetConfig(ref serverType, value); } }
 
-        public bool SlaveReadOnly { get { return slaveReadOnly; } set { SetConfig(ref slaveReadOnly, value); } }
+        public bool ReplicaReadOnly { get { return replicaReadOnly; } set { SetConfig(ref replicaReadOnly, value); } }
 
-        public bool AllowSlaveWrites { get; set; }
+        public bool AllowReplicaWrites { get; set; }
 
         public Version Version { get { return version; } set { SetConfig(ref version, value); } }
 
@@ -199,7 +199,7 @@ namespace StackExchange.Redis
                 var thisNode = configuration.Nodes.FirstOrDefault(x => x.EndPoint.Equals(EndPoint));
                 if (thisNode != null)
                 {
-                    List<ServerEndPoint> slaves = null;
+                    List<ServerEndPoint> replicas = null;
                     ServerEndPoint master = null;
                     foreach (var node in configuration.Nodes)
                     {
@@ -209,11 +209,11 @@ namespace StackExchange.Redis
                         }
                         else if (node.ParentNodeId == thisNode.NodeId)
                         {
-                            (slaves ?? (slaves = new List<ServerEndPoint>())).Add(Multiplexer.GetServerEndPoint(node.EndPoint));
+                            (replicas ?? (replicas = new List<ServerEndPoint>())).Add(Multiplexer.GetServerEndPoint(node.EndPoint));
                         }
                     }
                     Master = master;
-                    Slaves = slaves?.ToArray() ?? Array.Empty<ServerEndPoint>();
+                    Replicas = replicas?.ToArray() ?? Array.Empty<ServerEndPoint>();
                 }
                 Multiplexer.Trace("Cluster configured");
             }
@@ -235,9 +235,9 @@ namespace StackExchange.Redis
         public override string ToString() => Format.ToString(EndPoint);
 
         [Obsolete("prefer async")]
-        public WriteResult TryWriteSync(Message message) => GetBridge(message.Command)?.TryWriteSync(message, isSlave) ?? WriteResult.NoConnectionAvailable;
+        public WriteResult TryWriteSync(Message message) => GetBridge(message.Command)?.TryWriteSync(message, isReplica) ?? WriteResult.NoConnectionAvailable;
 
-        public ValueTask<WriteResult> TryWriteAsync(Message message) => GetBridge(message.Command)?.TryWriteAsync(message, isSlave) ?? new ValueTask<WriteResult>(WriteResult.NoConnectionAvailable);
+        public ValueTask<WriteResult> TryWriteAsync(Message message) => GetBridge(message.Command)?.TryWriteAsync(message, isReplica) ?? new ValueTask<WriteResult>(WriteResult.NoConnectionAvailable);
 
         internal void Activate(ConnectionType type, LogProxy log)
         {
@@ -257,7 +257,7 @@ namespace StackExchange.Redis
             if (serverType == ServerType.Twemproxy)
             {
                 // don't try to detect configuration; all the config commands are disabled, and
-                // the fallback master/slave detection won't help
+                // the fallback master/replica detection won't help
                 return;
             }
 
@@ -277,7 +277,7 @@ namespace StackExchange.Redis
                     msg.SetInternalCall();
                     WriteDirectOrQueueFireAndForgetSync(connection, msg, ResultProcessor.AutoConfigure);
                 }
-                msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.GET, RedisLiterals.slave_read_only);
+                msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.GET, features.ReplicaCommands ? RedisLiterals.replica_read_only : RedisLiterals.slave_read_only);
                 msg.SetInternalCall();
                 WriteDirectOrQueueFireAndForgetSync(connection, msg, ResultProcessor.AutoConfigure);
                 msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.GET, RedisLiterals.databases);
@@ -312,9 +312,11 @@ namespace StackExchange.Redis
             }
             else if (commandMap.IsAvailable(RedisCommand.SET))
             {
-                // this is a nasty way to find if we are a slave, and it will only work on up-level servers, but...
+                // this is a nasty way to find if we are a replica, and it will only work on up-level servers, but...
                 RedisKey key = Multiplexer.UniqueId;
-                msg = Message.Create(0, flags, RedisCommand.SET, key, RedisLiterals.slave_read_only, RedisLiterals.PX, 1, RedisLiterals.NX);
+                // the actual value here doesn't matter (we detect the error code if it fails); the value here is to at least give some
+                // indication to anyone watching via "monitor", but we could send two guids (key/value) and it would work the same
+                msg = Message.Create(0, flags, RedisCommand.SET, key, RedisLiterals.replica_read_only, RedisLiterals.PX, 1, RedisLiterals.NX);
                 msg.SetInternalCall();
                 WriteDirectOrQueueFireAndForgetSync(connection, msg, ResultProcessor.AutoConfigure);
             }
@@ -600,7 +602,7 @@ namespace StackExchange.Redis
             }
             else
             {
-                var write = bridge.TryWriteAsync(message, isSlave);
+                var write = bridge.TryWriteAsync(message, isReplica);
                 if (!write.IsCompletedSuccessfully) return WriteDirectAsync_Awaited<T>(this, message, write, tcs);
                 result = write.Result;
             }
@@ -621,7 +623,7 @@ namespace StackExchange.Redis
                 message.SetSource(processor, null);
                 Multiplexer.Trace("Enqueue: " + message);
 #pragma warning disable CS0618
-                (bridge ?? GetBridge(message.Command)).TryWriteSync(message, isSlave);
+                (bridge ?? GetBridge(message.Command)).TryWriteSync(message, isReplica);
 #pragma warning restore CS0618
             }
         }
@@ -642,7 +644,7 @@ namespace StackExchange.Redis
         internal string Summary()
         {
             var sb = new StringBuilder(Format.ToString(EndPoint))
-                .Append(": ").Append(serverType).Append(" v").Append(version).Append(", ").Append(isSlave ? "slave" : "master");
+                .Append(": ").Append(serverType).Append(" v").Append(version).Append(", ").Append(isReplica ? "replica" : "master");
 
             if (databases > 0) sb.Append("; ").Append(databases).Append(" databases");
             if (writeEverySeconds > 0)
@@ -683,7 +685,7 @@ namespace StackExchange.Redis
                 if (connection == null)
                 {
                     Multiplexer.Trace("Enqueue: " + message);
-                    result = GetBridge(message.Command).TryWriteAsync(message, isSlave);
+                    result = GetBridge(message.Command).TryWriteAsync(message, isReplica);
                 }
                 else
                 {
@@ -714,7 +716,7 @@ namespace StackExchange.Redis
                 {
                     Multiplexer.Trace("Enqueue: " + message);
 #pragma warning disable CS0618
-                    GetBridge(message.Command).TryWriteSync(message, isSlave);
+                    GetBridge(message.Command).TryWriteSync(message, isReplica);
 #pragma warning restore CS0618
                 }
                 else
