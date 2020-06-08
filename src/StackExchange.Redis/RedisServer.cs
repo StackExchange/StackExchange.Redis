@@ -95,7 +95,7 @@ namespace StackExchange.Redis
                         parts.Add(RedisLiterals.normal);
                         break;
                     case ClientType.Replica:
-                        parts.Add(Features.PreferReplica ? RedisLiterals.replica : RedisLiterals.slave);
+                        parts.Add(Features.ReplicaCommands ? RedisLiterals.replica : RedisLiterals.slave);
                         break;
                     case ClientType.PubSub:
                         parts.Add(RedisLiterals.pubsub);
@@ -570,7 +570,7 @@ namespace StackExchange.Redis
                     throw new NotSupportedException("Unknown endpoint type: " + masterEndpoint.GetType().Name);
                 }
             }
-            return Message.Create(-1, flags, sendMessageTo.GetFeatures().PreferReplica ? RedisCommand.REPLICAOF : RedisCommand.SLAVEOF, host, port);
+            return Message.Create(-1, flags, sendMessageTo.GetFeatures().ReplicaCommands ? RedisCommand.REPLICAOF : RedisCommand.SLAVEOF, host, port);
         }
 
         internal override Task<T> ExecuteAsync<T>(Message message, ResultProcessor<T> processor, ServerEndPoint server = null)

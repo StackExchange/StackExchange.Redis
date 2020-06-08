@@ -277,7 +277,7 @@ namespace StackExchange.Redis
                     msg.SetInternalCall();
                     WriteDirectOrQueueFireAndForgetSync(connection, msg, ResultProcessor.AutoConfigure);
                 }
-                msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.GET, features.PreferReplica ? RedisLiterals.replica_read_only : RedisLiterals.slave_read_only);
+                msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.GET, features.ReplicaCommands ? RedisLiterals.replica_read_only : RedisLiterals.slave_read_only);
                 msg.SetInternalCall();
                 WriteDirectOrQueueFireAndForgetSync(connection, msg, ResultProcessor.AutoConfigure);
                 msg = Message.Create(-1, flags, RedisCommand.CONFIG, RedisLiterals.GET, RedisLiterals.databases);

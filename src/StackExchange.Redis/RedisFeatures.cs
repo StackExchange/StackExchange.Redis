@@ -221,9 +221,9 @@ namespace StackExchange.Redis
         public bool KeyTouch => Version >= v3_2_1;
 
         /// <summary>
-        /// Does the server prefer 'replica' terminology?
+        /// Does the server prefer 'replica' terminology - 'REPLICAOF', etc?
         /// </summary>
-        public bool PreferReplica => Version >= v5_0_0;
+        public bool ReplicaCommands => Version >= v5_0_0;
 
         /// <summary>
         /// Create a string representation of the available features

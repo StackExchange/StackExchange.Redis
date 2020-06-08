@@ -384,7 +384,7 @@ namespace StackExchange.Redis
 
         internal void MakeMaster(ServerEndPoint server, ReplicationChangeOptions options, LogProxy log)
         {
-            var cmd = server.GetFeatures().PreferReplica ? RedisCommand.REPLICAOF : RedisCommand.SLAVEOF;
+            var cmd = server.GetFeatures().ReplicaCommands ? RedisCommand.REPLICAOF : RedisCommand.SLAVEOF;
             CommandMap.AssertAvailable(cmd);
 
             if (!RawConfig.AllowAdmin) throw ExceptionFactory.AdminModeNotEnabled(IncludeDetailInExceptions, cmd, null, server);
