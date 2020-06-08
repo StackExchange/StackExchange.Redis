@@ -334,10 +334,8 @@ namespace StackExchange.Redis
 
         public void MakeMaster(ReplicationChangeOptions options, TextWriter log = null)
         {
-            using (var proxy = LogProxy.TryCreate(log))
-            {
-                multiplexer.MakeMaster(server, options, proxy);
-            }
+            using var proxy = LogProxy.TryCreate(log);
+            multiplexer.MakeMaster(server, options, proxy);
         }
 
         public void Save(SaveType type, CommandFlags flags = CommandFlags.None)
@@ -414,21 +412,13 @@ namespace StackExchange.Redis
 
         public void Shutdown(ShutdownMode shutdownMode = ShutdownMode.Default, CommandFlags flags = CommandFlags.None)
         {
-            Message msg;
-            switch (shutdownMode)
+            Message msg = shutdownMode switch
             {
-                case ShutdownMode.Default:
-                    msg = Message.Create(-1, flags, RedisCommand.SHUTDOWN);
-                    break;
-                case ShutdownMode.Always:
-                    msg = Message.Create(-1, flags, RedisCommand.SHUTDOWN, RedisLiterals.SAVE);
-                    break;
-                case ShutdownMode.Never:
-                    msg = Message.Create(-1, flags, RedisCommand.SHUTDOWN, RedisLiterals.NOSAVE);
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(shutdownMode));
-            }
+                ShutdownMode.Default => Message.Create(-1, flags, RedisCommand.SHUTDOWN),
+                ShutdownMode.Always => Message.Create(-1, flags, RedisCommand.SHUTDOWN, RedisLiterals.SAVE),
+                ShutdownMode.Never => Message.Create(-1, flags, RedisCommand.SHUTDOWN, RedisLiterals.NOSAVE),
+                _ => throw new ArgumentOutOfRangeException(nameof(shutdownMode)),
+            };
             try
             {
                 ExecuteSync(msg, ResultProcessor.DemandOK);
@@ -720,11 +710,9 @@ namespace StackExchange.Redis
             public static RedisValue Hash(string value)
             {
                 if (value == null) return default(RedisValue);
-                using (var sha1 = SHA1.Create())
-                {
-                    var bytes = sha1.ComputeHash(Encoding.UTF8.GetBytes(value));
-                    return Encode(bytes);
-                }
+                using var sha1 = SHA1.Create();
+                var bytes = sha1.ComputeHash(Encoding.UTF8.GetBytes(value));
+                return Encode(bytes);
             }
         }
 

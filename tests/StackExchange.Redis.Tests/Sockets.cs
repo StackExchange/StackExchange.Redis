@@ -14,11 +14,9 @@ namespace StackExchange.Redis.Tests
             const int count = 2000;
             for (var i = 0; i < count; i++)
             {
-                using (var conn = Create(clientName: "Test: " + i))
-                {
-                    // Intentionally just creating and disposing to leak sockets here
-                    // ...so we can figure out what's happening.
-                }
+                using var conn = Create(clientName: "Test: " + i);
+                // Intentionally just creating and disposing to leak sockets here
+                // ...so we can figure out what's happening.
             }
             // Force GC before memory dump in debug below...
             CollectGarbage();

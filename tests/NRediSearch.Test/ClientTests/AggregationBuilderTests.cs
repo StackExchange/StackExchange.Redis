@@ -167,7 +167,7 @@ namespace NRediSearch.Test.ClientTests
             }
             catch (RedisException) { }
 
-            AggregationBuilder r2 = new AggregationBuilder()
+            _ = new AggregationBuilder()
                 .GroupBy("@name", Reducers.Sum("@count").As("sum"))
                 .SortBy(10, SortedField.Descending("@sum"))
                 .Cursor(1, 1000);

@@ -17,32 +17,30 @@ namespace StackExchange.Redis.Tests
         {
             var fromConfig = new ConfigurationOptions { EndPoints = { { TestConfig.Current.SecureServer, TestConfig.Current.SecurePort } }, Password = TestConfig.Current.SecurePassword, AllowAdmin = true };
             var toConfig = new ConfigurationOptions { EndPoints = { { TestConfig.Current.MasterServer, TestConfig.Current.MasterPort } }, AllowAdmin = true };
-            using (var from = ConnectionMultiplexer.Connect(fromConfig))
-            using (var to = ConnectionMultiplexer.Connect(toConfig))
-            {
-                if (await IsWindows(from) || await IsWindows(to))
-                    Skip.Inconclusive("'migrate' is unreliable on redis-64");
+            using var from = ConnectionMultiplexer.Connect(fromConfig);
+            using var to = ConnectionMultiplexer.Connect(toConfig);
+            if (await IsWindows(from) || await IsWindows(to))
+                Skip.Inconclusive("'migrate' is unreliable on redis-64");
 
-                RedisKey key = Me();
-                var fromDb = from.GetDatabase();
-                var toDb = to.GetDatabase();
-                fromDb.KeyDelete(key, CommandFlags.FireAndForget);
-                toDb.KeyDelete(key, CommandFlags.FireAndForget);
-                fromDb.StringSet(key, "foo", flags: CommandFlags.FireAndForget);
-                var dest = to.GetEndPoints(true).Single();
-                fromDb.KeyMigrate(key, dest, migrateOptions: MigrateOptions.Replace);
+            RedisKey key = Me();
+            var fromDb = from.GetDatabase();
+            var toDb = to.GetDatabase();
+            fromDb.KeyDelete(key, CommandFlags.FireAndForget);
+            toDb.KeyDelete(key, CommandFlags.FireAndForget);
+            fromDb.StringSet(key, "foo", flags: CommandFlags.FireAndForget);
+            var dest = to.GetEndPoints(true).Single();
+            fromDb.KeyMigrate(key, dest, migrateOptions: MigrateOptions.Replace);
 
-                // this is *meant* to be synchronous at the redis level, but
-                // we keep seeing it fail on the CI server where the key has *left* the origin, but
-                // has *not* yet arrived at the destination; adding a pause while we investigate with
-                // the redis folks
-                await UntilCondition(TimeSpan.FromSeconds(5), () => !fromDb.KeyExists(key) && toDb.KeyExists(key));
+            // this is *meant* to be synchronous at the redis level, but
+            // we keep seeing it fail on the CI server where the key has *left* the origin, but
+            // has *not* yet arrived at the destination; adding a pause while we investigate with
+            // the redis folks
+            await UntilCondition(TimeSpan.FromSeconds(5), () => !fromDb.KeyExists(key) && toDb.KeyExists(key));
 
-                Assert.False(fromDb.KeyExists(key));
-                Assert.True(toDb.KeyExists(key));
-                string s = toDb.StringGet(key);
-                Assert.Equal("foo", s);
-            }
+            Assert.False(fromDb.KeyExists(key));
+            Assert.True(toDb.KeyExists(key));
+            string s = toDb.StringGet(key);
+            Assert.Equal("foo", s);
         }
 
         private async Task<bool> IsWindows(ConnectionMultiplexer conn)

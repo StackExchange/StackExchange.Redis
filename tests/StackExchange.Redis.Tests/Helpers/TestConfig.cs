@@ -24,15 +24,11 @@ namespace StackExchange.Redis.Tests
             Current = new Config();
             try
             {
-                using (var stream = typeof(TestConfig).Assembly.GetManifestResourceStream("StackExchange.Redis.Tests." + FileName))
+                using var stream = typeof(TestConfig).Assembly.GetManifestResourceStream("StackExchange.Redis.Tests." + FileName);
+                if (stream != null)
                 {
-                    if (stream != null)
-                    {
-                        using (var reader = new StreamReader(stream))
-                        {
-                            Current = JsonConvert.DeserializeObject<Config>(reader.ReadToEnd());
-                        }
-                    }
+                    using var reader = new StreamReader(stream);
+                    Current = JsonConvert.DeserializeObject<Config>(reader.ReadToEnd());
                 }
             }
             catch (Exception ex)

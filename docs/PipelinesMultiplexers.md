@@ -98,7 +98,7 @@ It should be noted that the pipeline / multiplexer / future-value approach also 
 
 ```csharp
 string value = await db.StringGetAsync(key);
-if (value == null) {
+if (value is null) {
     value = await ComputeValueFromDatabase(...);
     db.StringSet(key, value, flags: CommandFlags.FireAndForget);
 }

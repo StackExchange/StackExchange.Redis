@@ -46,7 +46,7 @@ namespace NRediSearch
 
             internal override void SerializeRedisArgs(List<object> args)
             {
-                RedisValue FormatNum(double num, bool exclude)
+                static RedisValue FormatNum(double num, bool exclude)
                 {
                     if (!exclude || double.IsInfinity(num))
                     {
@@ -413,7 +413,7 @@ namespace NRediSearch
         public Query HighlightFields(params string[] fields) => HighlightFieldsImpl(null, fields);
         private Query HighlightFieldsImpl(HighlightTags? tags, string[] fields)
         {
-            if (fields == null || fields.Length > 0)
+            if (fields is null || fields.Length > 0)
             {
                 _highlightFields = fields;
             }
@@ -424,7 +424,7 @@ namespace NRediSearch
 
         public Query SummarizeFields(int contextLen, int fragmentCount, string separator, params string[] fields)
         {
-            if (fields == null || fields.Length > 0)
+            if (fields is null || fields.Length > 0)
             {
                 _summarizeFields = fields;
             }

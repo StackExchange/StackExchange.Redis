@@ -18,30 +18,28 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task ExplicitPublishMode()
         {
-            using (var mx = Create(channelPrefix: "foo:"))
-            {
-                var pub = mx.GetSubscriber();
-                int a = 0, b = 0, c = 0, d = 0;
-                pub.Subscribe(new RedisChannel("*bcd", RedisChannel.PatternMode.Literal), (x, y) => Interlocked.Increment(ref a));
-                pub.Subscribe(new RedisChannel("a*cd", RedisChannel.PatternMode.Pattern), (x, y) => Interlocked.Increment(ref b));
-                pub.Subscribe(new RedisChannel("ab*d", RedisChannel.PatternMode.Auto), (x, y) => Interlocked.Increment(ref c));
-                pub.Subscribe("abc*", (x, y) => Interlocked.Increment(ref d));
+            using var mx = Create(channelPrefix: "foo:");
+            var pub = mx.GetSubscriber();
+            int a = 0, b = 0, c = 0, d = 0;
+            pub.Subscribe(new RedisChannel("*bcd", RedisChannel.PatternMode.Literal), (x, y) => Interlocked.Increment(ref a));
+            pub.Subscribe(new RedisChannel("a*cd", RedisChannel.PatternMode.Pattern), (x, y) => Interlocked.Increment(ref b));
+            pub.Subscribe(new RedisChannel("ab*d", RedisChannel.PatternMode.Auto), (x, y) => Interlocked.Increment(ref c));
+            pub.Subscribe("abc*", (x, y) => Interlocked.Increment(ref d));
 
-                await Task.Delay(1000).ForAwait();
-                pub.Publish("abcd", "efg");
-                await UntilCondition(TimeSpan.FromSeconds(10),
-                    () => Thread.VolatileRead(ref b) == 1
-                       && Thread.VolatileRead(ref c) == 1
-                       && Thread.VolatileRead(ref d) == 1);
-                Assert.Equal(0, Thread.VolatileRead(ref a));
-                Assert.Equal(1, Thread.VolatileRead(ref b));
-                Assert.Equal(1, Thread.VolatileRead(ref c));
-                Assert.Equal(1, Thread.VolatileRead(ref d));
+            await Task.Delay(1000).ForAwait();
+            pub.Publish("abcd", "efg");
+            await UntilCondition(TimeSpan.FromSeconds(10),
+                () => Thread.VolatileRead(ref b) == 1
+                   && Thread.VolatileRead(ref c) == 1
+                   && Thread.VolatileRead(ref d) == 1);
+            Assert.Equal(0, Thread.VolatileRead(ref a));
+            Assert.Equal(1, Thread.VolatileRead(ref b));
+            Assert.Equal(1, Thread.VolatileRead(ref c));
+            Assert.Equal(1, Thread.VolatileRead(ref d));
 
-                pub.Publish("*bcd", "efg");
-                await UntilCondition(TimeSpan.FromSeconds(10), () => Thread.VolatileRead(ref a) == 1);
-                Assert.Equal(1, Thread.VolatileRead(ref a));
-            }
+            pub.Publish("*bcd", "efg");
+            await UntilCondition(TimeSpan.FromSeconds(10), () => Thread.VolatileRead(ref a) == 1);
+            Assert.Equal(1, Thread.VolatileRead(ref a));
         }
 
         [Theory]
@@ -53,123 +51,119 @@ namespace StackExchange.Redis.Tests
         [InlineData("Foo:", true, "f")]
         public async Task TestBasicPubSub(string channelPrefix, bool wildCard, string breaker)
         {
-            using (var muxer = Create(channelPrefix: channelPrefix))
+            using var muxer = Create(channelPrefix: channelPrefix);
+            var pub = GetAnyMaster(muxer);
+            var sub = muxer.GetSubscriber();
+            await PingAsync(muxer, pub, sub).ForAwait();
+            HashSet<string> received = new HashSet<string>();
+            int secondHandler = 0;
+            string subChannel = (wildCard ? "a*c" : "abc") + breaker;
+            string pubChannel = "abc" + breaker;
+            Action<RedisChannel, RedisValue> handler1 = (channel, payload) =>
             {
-                var pub = GetAnyMaster(muxer);
-                var sub = muxer.GetSubscriber();
-                await PingAsync(muxer, pub, sub).ForAwait();
-                HashSet<string> received = new HashSet<string>();
-                int secondHandler = 0;
-                string subChannel = (wildCard ? "a*c" : "abc") + breaker;
-                string pubChannel = "abc" + breaker;
-                Action<RedisChannel, RedisValue> handler1 = (channel, payload) =>
+                lock (received)
                 {
-                    lock (received)
+                    if (channel == pubChannel)
                     {
-                        if (channel == pubChannel)
-                        {
-                            received.Add(payload);
-                        }
-                        else
-                        {
-                            Log((string)channel);
-                        }
+                        received.Add(payload);
+                    }
+                    else
+                    {
+                        Log((string)channel);
                     }
                 }
-                , handler2 = (_, __) => Interlocked.Increment(ref secondHandler);
-                sub.Subscribe(subChannel, handler1);
-                sub.Subscribe(subChannel, handler2);
-
-                lock (received)
-                {
-                    Assert.Empty(received);
-                }
-                Assert.Equal(0, Thread.VolatileRead(ref secondHandler));
-                var count = sub.Publish(pubChannel, "def");
-
-                await PingAsync(muxer, pub, sub, 3).ForAwait();
-
-                lock (received)
-                {
-                    Assert.Single(received);
-                }
-                Assert.Equal(1, Thread.VolatileRead(ref secondHandler));
-
-                // unsubscribe from first; should still see second
-                sub.Unsubscribe(subChannel, handler1);
-                count = sub.Publish(pubChannel, "ghi");
-                await PingAsync(muxer, pub, sub).ForAwait();
-                lock (received)
-                {
-                    Assert.Single(received);
-                }
-                Assert.Equal(2, Thread.VolatileRead(ref secondHandler));
-                Assert.Equal(1, count);
-
-                // unsubscribe from second; should see nothing this time
-                sub.Unsubscribe(subChannel, handler2);
-                count = sub.Publish(pubChannel, "ghi");
-                await PingAsync(muxer, pub, sub).ForAwait();
-                lock (received)
-                {
-                    Assert.Single(received);
-                }
-                Assert.Equal(2, Thread.VolatileRead(ref secondHandler));
-                Assert.Equal(0, count);
             }
+            , handler2 = (_, __) => Interlocked.Increment(ref secondHandler);
+            sub.Subscribe(subChannel, handler1);
+            sub.Subscribe(subChannel, handler2);
+
+            lock (received)
+            {
+                Assert.Empty(received);
+            }
+            Assert.Equal(0, Thread.VolatileRead(ref secondHandler));
+            var count = sub.Publish(pubChannel, "def");
+
+            await PingAsync(muxer, pub, sub, 3).ForAwait();
+
+            lock (received)
+            {
+                Assert.Single(received);
+            }
+            Assert.Equal(1, Thread.VolatileRead(ref secondHandler));
+
+            // unsubscribe from first; should still see second
+            sub.Unsubscribe(subChannel, handler1);
+            count = sub.Publish(pubChannel, "ghi");
+            await PingAsync(muxer, pub, sub).ForAwait();
+            lock (received)
+            {
+                Assert.Single(received);
+            }
+            Assert.Equal(2, Thread.VolatileRead(ref secondHandler));
+            Assert.Equal(1, count);
+
+            // unsubscribe from second; should see nothing this time
+            sub.Unsubscribe(subChannel, handler2);
+            count = sub.Publish(pubChannel, "ghi");
+            await PingAsync(muxer, pub, sub).ForAwait();
+            lock (received)
+            {
+                Assert.Single(received);
+            }
+            Assert.Equal(2, Thread.VolatileRead(ref secondHandler));
+            Assert.Equal(0, count);
         }
 
         [Fact]
         public async Task TestBasicPubSubFireAndForget()
         {
-            using (var muxer = Create())
+            using var muxer = Create();
+            var pub = GetAnyMaster(muxer);
+            var sub = muxer.GetSubscriber();
+
+            RedisChannel key = Guid.NewGuid().ToString();
+            HashSet<string> received = new HashSet<string>();
+            int secondHandler = 0;
+            await PingAsync(muxer, pub, sub).ForAwait();
+            sub.Subscribe(key, (channel, payload) =>
             {
-                var pub = GetAnyMaster(muxer);
-                var sub = muxer.GetSubscriber();
-
-                RedisChannel key = Guid.NewGuid().ToString();
-                HashSet<string> received = new HashSet<string>();
-                int secondHandler = 0;
-                await PingAsync(muxer, pub, sub).ForAwait();
-                sub.Subscribe(key, (channel, payload) =>
+                lock (received)
                 {
-                    lock (received)
+                    if (channel == key)
                     {
-                        if (channel == key)
-                        {
-                            received.Add(payload);
-                        }
+                        received.Add(payload);
                     }
-                }, CommandFlags.FireAndForget);
-
-                sub.Subscribe(key, (_, __) => Interlocked.Increment(ref secondHandler), CommandFlags.FireAndForget);
-
-                lock (received)
-                {
-                    Assert.Empty(received);
                 }
-                Assert.Equal(0, Thread.VolatileRead(ref secondHandler));
-                await PingAsync(muxer, pub, sub).ForAwait();
-                var count = sub.Publish(key, "def", CommandFlags.FireAndForget);
-                await PingAsync(muxer, pub, sub).ForAwait();
+            }, CommandFlags.FireAndForget);
 
-                lock (received)
-                {
-                    Assert.Single(received);
-                }
-                Assert.Equal(1, Thread.VolatileRead(ref secondHandler));
+            sub.Subscribe(key, (_, __) => Interlocked.Increment(ref secondHandler), CommandFlags.FireAndForget);
 
-                sub.Unsubscribe(key);
-                count = sub.Publish(key, "ghi", CommandFlags.FireAndForget);
-
-                await PingAsync(muxer, pub, sub).ForAwait();
-
-                lock (received)
-                {
-                    Assert.Single(received);
-                }
-                Assert.Equal(0, count);
+            lock (received)
+            {
+                Assert.Empty(received);
             }
+            Assert.Equal(0, Thread.VolatileRead(ref secondHandler));
+            await PingAsync(muxer, pub, sub).ForAwait();
+            var count = sub.Publish(key, "def", CommandFlags.FireAndForget);
+            await PingAsync(muxer, pub, sub).ForAwait();
+
+            lock (received)
+            {
+                Assert.Single(received);
+            }
+            Assert.Equal(1, Thread.VolatileRead(ref secondHandler));
+
+            sub.Unsubscribe(key);
+            count = sub.Publish(key, "ghi", CommandFlags.FireAndForget);
+
+            await PingAsync(muxer, pub, sub).ForAwait();
+
+            lock (received)
+            {
+                Assert.Single(received);
+            }
+            Assert.Equal(0, count);
         }
 
         private static async Task PingAsync(IConnectionMultiplexer muxer, IServer pub, ISubscriber sub, int times = 1)
@@ -189,82 +183,74 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task TestPatternPubSub()
         {
-            using (var muxer = Create())
+            using var muxer = Create();
+            var pub = GetAnyMaster(muxer);
+            var sub = muxer.GetSubscriber();
+
+            HashSet<string> received = new HashSet<string>();
+            int secondHandler = 0;
+            sub.Subscribe("a*c", (channel, payload) =>
             {
-                var pub = GetAnyMaster(muxer);
-                var sub = muxer.GetSubscriber();
-
-                HashSet<string> received = new HashSet<string>();
-                int secondHandler = 0;
-                sub.Subscribe("a*c", (channel, payload) =>
+                lock (received)
                 {
-                    lock (received)
+                    if (channel == "abc")
                     {
-                        if (channel == "abc")
-                        {
-                            received.Add(payload);
-                        }
+                        received.Add(payload);
                     }
-                });
-
-                sub.Subscribe("a*c", (_, __) => Interlocked.Increment(ref secondHandler));
-                lock (received)
-                {
-                    Assert.Empty(received);
                 }
-                Assert.Equal(0, Thread.VolatileRead(ref secondHandler));
+            });
 
-                await PingAsync(muxer, pub, sub).ForAwait();
-                var count = sub.Publish("abc", "def");
-                await PingAsync(muxer, pub, sub).ForAwait();
-
-                lock (received)
-                {
-                    Assert.Single(received);
-                }
-                Assert.Equal(1, Thread.VolatileRead(ref secondHandler));
-
-                sub.Unsubscribe("a*c");
-                count = sub.Publish("abc", "ghi");
-
-                await PingAsync(muxer, pub, sub).ForAwait();
-
-                lock (received)
-                {
-                    Assert.Single(received);
-                }
-                Assert.Equal(0, count);
+            sub.Subscribe("a*c", (_, __) => Interlocked.Increment(ref secondHandler));
+            lock (received)
+            {
+                Assert.Empty(received);
             }
+            Assert.Equal(0, Thread.VolatileRead(ref secondHandler));
+
+            await PingAsync(muxer, pub, sub).ForAwait();
+            var count = sub.Publish("abc", "def");
+            await PingAsync(muxer, pub, sub).ForAwait();
+
+            lock (received)
+            {
+                Assert.Single(received);
+            }
+            Assert.Equal(1, Thread.VolatileRead(ref secondHandler));
+
+            sub.Unsubscribe("a*c");
+            count = sub.Publish("abc", "ghi");
+
+            await PingAsync(muxer, pub, sub).ForAwait();
+
+            lock (received)
+            {
+                Assert.Single(received);
+            }
+            Assert.Equal(0, count);
         }
 
         [Fact]
         public void TestPublishWithNoSubscribers()
         {
-            using (var muxer = Create())
-            {
-                var conn = muxer.GetSubscriber();
-                Assert.Equal(0, conn.Publish(Me() + "channel", "message"));
-            }
+            using var muxer = Create();
+            var conn = muxer.GetSubscriber();
+            Assert.Equal(0, conn.Publish(Me() + "channel", "message"));
         }
 
         [FactLongRunning]
         public void TestMassivePublishWithWithoutFlush_Local()
         {
-            using (var muxer = Create())
-            {
-                var conn = muxer.GetSubscriber();
-                TestMassivePublish(conn, Me(), "local");
-            }
+            using var muxer = Create();
+            var conn = muxer.GetSubscriber();
+            TestMassivePublish(conn, Me(), "local");
         }
 
         [FactLongRunning]
         public void TestMassivePublishWithWithoutFlush_Remote()
         {
-            using (var muxer = Create(configuration: TestConfig.Current.RemoteServerAndPort))
-            {
-                var conn = muxer.GetSubscriber();
-                TestMassivePublish(conn, Me(), "remote");
-            }
+            using var muxer = Create(configuration: TestConfig.Current.RemoteServerAndPort);
+            var conn = muxer.GetSubscriber();
+            TestMassivePublish(conn, Me(), "remote");
         }
 
         private void TestMassivePublish(ISubscriber conn, string channel, string caption)
@@ -298,47 +284,45 @@ namespace StackExchange.Redis.Tests
         [FactLongRunning]
         public async Task PubSubGetAllAnyOrder()
         {
-            using (var muxer = Create(syncTimeout: 20000))
+            using var muxer = Create(syncTimeout: 20000);
+            var sub = muxer.GetSubscriber();
+            RedisChannel channel = Me();
+            const int count = 1000;
+            var syncLock = new object();
+
+            var data = new HashSet<int>();
+            await sub.SubscribeAsync(channel, (_, val) =>
             {
-                var sub = muxer.GetSubscriber();
-                RedisChannel channel = Me();
-                const int count = 1000;
-                var syncLock = new object();
-
-                var data = new HashSet<int>();
-                await sub.SubscribeAsync(channel, (_, val) =>
+                bool pulse;
+                lock (data)
                 {
-                    bool pulse;
-                    lock (data)
-                    {
-                        data.Add(int.Parse(Encoding.UTF8.GetString(val)));
-                        pulse = data.Count == count;
-                        if ((data.Count % 100) == 99) Log(data.Count.ToString());
-                    }
-                    if (pulse)
-                    {
-                        lock (syncLock)
-                        {
-                            Monitor.PulseAll(syncLock);
-                        }
-                    }
-                }).ForAwait();
-
-                lock (syncLock)
+                    data.Add(int.Parse(Encoding.UTF8.GetString(val)));
+                    pulse = data.Count == count;
+                    if ((data.Count % 100) == 99) Log(data.Count.ToString());
+                }
+                if (pulse)
                 {
-                    for (int i = 0; i < count; i++)
+                    lock (syncLock)
                     {
-                        sub.Publish(channel, i.ToString(), CommandFlags.FireAndForget);
+                        Monitor.PulseAll(syncLock);
                     }
-                    sub.Ping();
-                    if (!Monitor.Wait(syncLock, 20000))
-                    {
-                        throw new TimeoutException("Items: " + data.Count);
-                    }
-                    for (int i = 0; i < count; i++)
-                    {
-                        Assert.Contains(i, data);
-                    }
+                }
+            }).ForAwait();
+
+            lock (syncLock)
+            {
+                for (int i = 0; i < count; i++)
+                {
+                    sub.Publish(channel, i.ToString(), CommandFlags.FireAndForget);
+                }
+                sub.Ping();
+                if (!Monitor.Wait(syncLock, 20000))
+                {
+                    throw new TimeoutException("Items: " + data.Count);
+                }
+                for (int i = 0; i < count; i++)
+                {
+                    Assert.Contains(i, data);
                 }
             }
         }
@@ -558,86 +542,80 @@ namespace StackExchange.Redis.Tests
         public async Task TestPublishWithSubscribers()
         {
             var channel = Me();
-            using (var muxerA = Create(shared: false))
-            using (var muxerB = Create(shared: false))
-            using (var conn = Create())
-            {
-                var listenA = muxerA.GetSubscriber();
-                var listenB = muxerB.GetSubscriber();
-                var t1 = listenA.SubscribeAsync(channel, delegate { });
-                var t2 = listenB.SubscribeAsync(channel, delegate { });
+            using var muxerA = Create(shared: false);
+            using var muxerB = Create(shared: false);
+            using var conn = Create();
+            var listenA = muxerA.GetSubscriber();
+            var listenB = muxerB.GetSubscriber();
+            var t1 = listenA.SubscribeAsync(channel, delegate { });
+            var t2 = listenB.SubscribeAsync(channel, delegate { });
 
-                await Task.WhenAll(t1, t2).ForAwait();
+            await Task.WhenAll(t1, t2).ForAwait();
 
-                // subscribe is just a thread-race-mess
-                await listenA.PingAsync();
-                await listenB.PingAsync();
+            // subscribe is just a thread-race-mess
+            await listenA.PingAsync();
+            await listenB.PingAsync();
 
-                var pub = conn.GetSubscriber().PublishAsync(channel, "message");
-                Assert.Equal(2, await pub); // delivery count
-            }
+            var pub = conn.GetSubscriber().PublishAsync(channel, "message");
+            Assert.Equal(2, await pub); // delivery count
         }
 
         [Fact]
         public async Task TestMultipleSubscribersGetMessage()
         {
             var channel = Me();
-            using (var muxerA = Create(shared: false))
-            using (var muxerB = Create(shared: false))
-            using (var conn = Create())
-            {
-                var listenA = muxerA.GetSubscriber();
-                var listenB = muxerB.GetSubscriber();
-                conn.GetDatabase().Ping();
-                var pub = conn.GetSubscriber();
-                int gotA = 0, gotB = 0;
-                var tA = listenA.SubscribeAsync(channel, (_, msg) => { if (msg == "message") Interlocked.Increment(ref gotA); });
-                var tB = listenB.SubscribeAsync(channel, (_, msg) => { if (msg == "message") Interlocked.Increment(ref gotB); });
-                await Task.WhenAll(tA, tB).ForAwait();
-                Assert.Equal(2, pub.Publish(channel, "message"));
-                await AllowReasonableTimeToPublishAndProcess().ForAwait();
-                Assert.Equal(1, Interlocked.CompareExchange(ref gotA, 0, 0));
-                Assert.Equal(1, Interlocked.CompareExchange(ref gotB, 0, 0));
+            using var muxerA = Create(shared: false);
+            using var muxerB = Create(shared: false);
+            using var conn = Create();
+            var listenA = muxerA.GetSubscriber();
+            var listenB = muxerB.GetSubscriber();
+            conn.GetDatabase().Ping();
+            var pub = conn.GetSubscriber();
+            int gotA = 0, gotB = 0;
+            var tA = listenA.SubscribeAsync(channel, (_, msg) => { if (msg == "message") Interlocked.Increment(ref gotA); });
+            var tB = listenB.SubscribeAsync(channel, (_, msg) => { if (msg == "message") Interlocked.Increment(ref gotB); });
+            await Task.WhenAll(tA, tB).ForAwait();
+            Assert.Equal(2, pub.Publish(channel, "message"));
+            await AllowReasonableTimeToPublishAndProcess().ForAwait();
+            Assert.Equal(1, Interlocked.CompareExchange(ref gotA, 0, 0));
+            Assert.Equal(1, Interlocked.CompareExchange(ref gotB, 0, 0));
 
-                // and unsubscibe...
-                tA = listenA.UnsubscribeAsync(channel);
-                await tA;
-                Assert.Equal(1, pub.Publish(channel, "message"));
-                await AllowReasonableTimeToPublishAndProcess().ForAwait();
-                Assert.Equal(1, Interlocked.CompareExchange(ref gotA, 0, 0));
-                Assert.Equal(2, Interlocked.CompareExchange(ref gotB, 0, 0));
-            }
+            // and unsubscibe...
+            tA = listenA.UnsubscribeAsync(channel);
+            await tA;
+            Assert.Equal(1, pub.Publish(channel, "message"));
+            await AllowReasonableTimeToPublishAndProcess().ForAwait();
+            Assert.Equal(1, Interlocked.CompareExchange(ref gotA, 0, 0));
+            Assert.Equal(2, Interlocked.CompareExchange(ref gotB, 0, 0));
         }
 
         [Fact]
         public async Task Issue38()
         {
             // https://code.google.com/p/booksleeve/issues/detail?id=38
-            using (var pub = Create())
-            {
-                var sub = pub.GetSubscriber();
-                int count = 0;
-                var prefix = Me();
-                void handler(RedisChannel _, RedisValue __) => Interlocked.Increment(ref count);
-                var a0 = sub.SubscribeAsync(prefix + "foo", handler);
-                var a1 = sub.SubscribeAsync(prefix + "bar", handler);
-                var b0 = sub.SubscribeAsync(prefix + "f*o", handler);
-                var b1 = sub.SubscribeAsync(prefix + "b*r", handler);
-                await Task.WhenAll(a0, a1, b0, b1).ForAwait();
+            using var pub = Create();
+            var sub = pub.GetSubscriber();
+            int count = 0;
+            var prefix = Me();
+            void handler(RedisChannel _, RedisValue __) => Interlocked.Increment(ref count);
+            var a0 = sub.SubscribeAsync(prefix + "foo", handler);
+            var a1 = sub.SubscribeAsync(prefix + "bar", handler);
+            var b0 = sub.SubscribeAsync(prefix + "f*o", handler);
+            var b1 = sub.SubscribeAsync(prefix + "b*r", handler);
+            await Task.WhenAll(a0, a1, b0, b1).ForAwait();
 
-                var c = sub.PublishAsync(prefix + "foo", "foo");
-                var d = sub.PublishAsync(prefix + "f@o", "f@o");
-                var e = sub.PublishAsync(prefix + "bar", "bar");
-                var f = sub.PublishAsync(prefix + "b@r", "b@r");
-                await Task.WhenAll(c, d, e, f).ForAwait();
+            var c = sub.PublishAsync(prefix + "foo", "foo");
+            var d = sub.PublishAsync(prefix + "f@o", "f@o");
+            var e = sub.PublishAsync(prefix + "bar", "bar");
+            var f = sub.PublishAsync(prefix + "b@r", "b@r");
+            await Task.WhenAll(c, d, e, f).ForAwait();
 
-                long total = c.Result + d.Result + e.Result + f.Result;
+            long total = c.Result + d.Result + e.Result + f.Result;
 
-                await AllowReasonableTimeToPublishAndProcess().ForAwait();
+            await AllowReasonableTimeToPublishAndProcess().ForAwait();
 
-                Assert.Equal(6, total); // sent
-                Assert.Equal(6, Interlocked.CompareExchange(ref count, 0, 0)); // received
-            }
+            Assert.Equal(6, total); // sent
+            Assert.Equal(6, Interlocked.CompareExchange(ref count, 0, 0)); // received
         }
 
         internal static Task AllowReasonableTimeToPublishAndProcess() => Task.Delay(100);
@@ -645,64 +623,60 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task TestPartialSubscriberGetMessage()
         {
-            using (var muxerA = Create())
-            using (var muxerB = Create())
-            using (var conn = Create())
-            {
-                int gotA = 0, gotB = 0;
-                var listenA = muxerA.GetSubscriber();
-                var listenB = muxerB.GetSubscriber();
-                var pub = conn.GetSubscriber();
-                var prefix = Me();
-                var tA = listenA.SubscribeAsync(prefix + "channel", (s, msg) => { if (s == prefix + "channel" && msg == "message") Interlocked.Increment(ref gotA); });
-                var tB = listenB.SubscribeAsync(prefix + "chann*", (s, msg) => { if (s == prefix + "channel" && msg == "message") Interlocked.Increment(ref gotB); });
-                await Task.WhenAll(tA, tB).ForAwait();
-                Assert.Equal(2, pub.Publish(prefix + "channel", "message"));
-                await AllowReasonableTimeToPublishAndProcess().ForAwait();
-                Assert.Equal(1, Interlocked.CompareExchange(ref gotA, 0, 0));
-                Assert.Equal(1, Interlocked.CompareExchange(ref gotB, 0, 0));
+            using var muxerA = Create();
+            using var muxerB = Create();
+            using var conn = Create();
+            int gotA = 0, gotB = 0;
+            var listenA = muxerA.GetSubscriber();
+            var listenB = muxerB.GetSubscriber();
+            var pub = conn.GetSubscriber();
+            var prefix = Me();
+            var tA = listenA.SubscribeAsync(prefix + "channel", (s, msg) => { if (s == prefix + "channel" && msg == "message") Interlocked.Increment(ref gotA); });
+            var tB = listenB.SubscribeAsync(prefix + "chann*", (s, msg) => { if (s == prefix + "channel" && msg == "message") Interlocked.Increment(ref gotB); });
+            await Task.WhenAll(tA, tB).ForAwait();
+            Assert.Equal(2, pub.Publish(prefix + "channel", "message"));
+            await AllowReasonableTimeToPublishAndProcess().ForAwait();
+            Assert.Equal(1, Interlocked.CompareExchange(ref gotA, 0, 0));
+            Assert.Equal(1, Interlocked.CompareExchange(ref gotB, 0, 0));
 
-                // and unsubscibe...
-                tB = listenB.UnsubscribeAsync(prefix + "chann*", null);
-                await tB;
-                Assert.Equal(1, pub.Publish(prefix + "channel", "message"));
-                await AllowReasonableTimeToPublishAndProcess().ForAwait();
-                Assert.Equal(2, Interlocked.CompareExchange(ref gotA, 0, 0));
-                Assert.Equal(1, Interlocked.CompareExchange(ref gotB, 0, 0));
-            }
+            // and unsubscibe...
+            tB = listenB.UnsubscribeAsync(prefix + "chann*", null);
+            await tB;
+            Assert.Equal(1, pub.Publish(prefix + "channel", "message"));
+            await AllowReasonableTimeToPublishAndProcess().ForAwait();
+            Assert.Equal(2, Interlocked.CompareExchange(ref gotA, 0, 0));
+            Assert.Equal(1, Interlocked.CompareExchange(ref gotB, 0, 0));
         }
 
         [Fact]
         public async Task TestSubscribeUnsubscribeAndSubscribeAgain()
         {
-            using (var pubMuxer = Create())
-            using (var subMuxer = Create())
-            {
-                var prefix = Me();
-                var pub = pubMuxer.GetSubscriber();
-                var sub = subMuxer.GetSubscriber();
-                int x = 0, y = 0;
-                var t1 = sub.SubscribeAsync(prefix + "abc", delegate { Interlocked.Increment(ref x); });
-                var t2 = sub.SubscribeAsync(prefix + "ab*", delegate { Interlocked.Increment(ref y); });
-                await Task.WhenAll(t1, t2).ForAwait();
-                pub.Publish(prefix + "abc", "");
-                await AllowReasonableTimeToPublishAndProcess().ForAwait();
-                Assert.Equal(1, Volatile.Read(ref x));
-                Assert.Equal(1, Volatile.Read(ref y));
-                t1 = sub.UnsubscribeAsync(prefix + "abc", null);
-                t2 = sub.UnsubscribeAsync(prefix + "ab*", null);
-                await Task.WhenAll(t1, t2).ForAwait();
-                pub.Publish(prefix + "abc", "");
-                Assert.Equal(1, Volatile.Read(ref x));
-                Assert.Equal(1, Volatile.Read(ref y));
-                t1 = sub.SubscribeAsync(prefix + "abc", delegate { Interlocked.Increment(ref x); });
-                t2 = sub.SubscribeAsync(prefix + "ab*", delegate { Interlocked.Increment(ref y); });
-                await Task.WhenAll(t1, t2).ForAwait();
-                pub.Publish(prefix + "abc", "");
-                await AllowReasonableTimeToPublishAndProcess().ForAwait();
-                Assert.Equal(2, Volatile.Read(ref x));
-                Assert.Equal(2, Volatile.Read(ref y));
-            }
+            using var pubMuxer = Create();
+            using var subMuxer = Create();
+            var prefix = Me();
+            var pub = pubMuxer.GetSubscriber();
+            var sub = subMuxer.GetSubscriber();
+            int x = 0, y = 0;
+            var t1 = sub.SubscribeAsync(prefix + "abc", delegate { Interlocked.Increment(ref x); });
+            var t2 = sub.SubscribeAsync(prefix + "ab*", delegate { Interlocked.Increment(ref y); });
+            await Task.WhenAll(t1, t2).ForAwait();
+            pub.Publish(prefix + "abc", "");
+            await AllowReasonableTimeToPublishAndProcess().ForAwait();
+            Assert.Equal(1, Volatile.Read(ref x));
+            Assert.Equal(1, Volatile.Read(ref y));
+            t1 = sub.UnsubscribeAsync(prefix + "abc", null);
+            t2 = sub.UnsubscribeAsync(prefix + "ab*", null);
+            await Task.WhenAll(t1, t2).ForAwait();
+            pub.Publish(prefix + "abc", "");
+            Assert.Equal(1, Volatile.Read(ref x));
+            Assert.Equal(1, Volatile.Read(ref y));
+            t1 = sub.SubscribeAsync(prefix + "abc", delegate { Interlocked.Increment(ref x); });
+            t2 = sub.SubscribeAsync(prefix + "ab*", delegate { Interlocked.Increment(ref y); });
+            await Task.WhenAll(t1, t2).ForAwait();
+            pub.Publish(prefix + "abc", "");
+            await AllowReasonableTimeToPublishAndProcess().ForAwait();
+            Assert.Equal(2, Volatile.Read(ref x));
+            Assert.Equal(2, Volatile.Read(ref y));
         }
 
 #if DEBUG

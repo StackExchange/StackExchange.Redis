@@ -63,7 +63,7 @@ namespace NRediSearch
 
         internal static Document Parse(string docId, RedisResult result)
         {
-            if (result == null || result.IsNull) return null;
+            if (result is null || result.IsNull) return null;
             var arr = (RedisResult[])result;
             var doc = new Document(docId);
 

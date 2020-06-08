@@ -650,72 +650,70 @@ namespace StackExchange.Redis
                             }
                             string masterHost = null, masterPort = null;
                             bool roleSeen = false;
-                            using (var reader = new StringReader(info))
+                            using var reader = new StringReader(info);
+                            while ((line = reader.ReadLine()) != null)
                             {
-                                while ((line = reader.ReadLine()) != null)
-                                {
-                                    if (string.IsNullOrWhiteSpace(line) || line.StartsWith("# ")) continue;
+                                if (string.IsNullOrWhiteSpace(line) || line.StartsWith("# ")) continue;
 
-                                    string val;
-                                    if ((val = Extract(line, "role:")) != null)
+                                string val;
+                                if ((val = Extract(line, "role:")) != null)
+                                {
+                                    roleSeen = true;
+                                    switch (val)
                                     {
-                                        roleSeen = true;
-                                        switch (val)
-                                        {
-                                            case "master":
-                                                server.IsReplica = false;
-                                                server.Multiplexer.Trace("Auto-configured role: master");
-                                                break;
-                                            case "replica":
-                                            case "slave":
-                                                server.IsReplica = true;
-                                                server.Multiplexer.Trace("Auto-configured role: replica");
-                                                break;
-                                        }
-                                    }
-                                    else if ((val = Extract(line, "master_host:")) != null)
-                                    {
-                                        masterHost = val;
-                                    }
-                                    else if ((val = Extract(line, "master_port:")) != null)
-                                    {
-                                        masterPort = val;
-                                    }
-                                    else if ((val = Extract(line, "redis_version:")) != null)
-                                    {
-                                        if (Version.TryParse(val, out Version version))
-                                        {
-                                            server.Version = version;
-                                            server.Multiplexer.Trace("Auto-configured version: " + version);
-                                        }
-                                    }
-                                    else if ((val = Extract(line, "redis_mode:")) != null)
-                                    {
-                                        switch (val)
-                                        {
-                                            case "standalone":
-                                                server.ServerType = ServerType.Standalone;
-                                                server.Multiplexer.Trace("Auto-configured server-type: standalone");
-                                                break;
-                                            case "cluster":
-                                                server.ServerType = ServerType.Cluster;
-                                                server.Multiplexer.Trace("Auto-configured server-type: cluster");
-                                                break;
-                                            case "sentinel":
-                                                server.ServerType = ServerType.Sentinel;
-                                                server.Multiplexer.Trace("Auto-configured server-type: sentinel");
-                                                break;
-                                        }
-                                    }
-                                    else if ((val = Extract(line, "run_id:")) != null)
-                                    {
-                                        server.RunId = val;
+                                        case "master":
+                                            server.IsReplica = false;
+                                            server.Multiplexer.Trace("Auto-configured role: master");
+                                            break;
+                                        case "replica":
+                                        case "slave":
+                                            server.IsReplica = true;
+                                            server.Multiplexer.Trace("Auto-configured role: replica");
+                                            break;
                                     }
                                 }
-                                if (roleSeen)
-                                { // these are in the same section, if presnt
-                                    server.MasterEndPoint = Format.TryParseEndPoint(masterHost, masterPort);
+                                else if ((val = Extract(line, "master_host:")) != null)
+                                {
+                                    masterHost = val;
                                 }
+                                else if ((val = Extract(line, "master_port:")) != null)
+                                {
+                                    masterPort = val;
+                                }
+                                else if ((val = Extract(line, "redis_version:")) != null)
+                                {
+                                    if (Version.TryParse(val, out Version version))
+                                    {
+                                        server.Version = version;
+                                        server.Multiplexer.Trace("Auto-configured version: " + version);
+                                    }
+                                }
+                                else if ((val = Extract(line, "redis_mode:")) != null)
+                                {
+                                    switch (val)
+                                    {
+                                        case "standalone":
+                                            server.ServerType = ServerType.Standalone;
+                                            server.Multiplexer.Trace("Auto-configured server-type: standalone");
+                                            break;
+                                        case "cluster":
+                                            server.ServerType = ServerType.Cluster;
+                                            server.Multiplexer.Trace("Auto-configured server-type: cluster");
+                                            break;
+                                        case "sentinel":
+                                            server.ServerType = ServerType.Sentinel;
+                                            server.Multiplexer.Trace("Auto-configured server-type: sentinel");
+                                            break;
+                                    }
+                                }
+                                else if ((val = Extract(line, "run_id:")) != null)
+                                {
+                                    server.RunId = val;
+                                }
+                            }
+                            if (roleSeen)
+                            { // these are in the same section, if presnt
+                                server.MasterEndPoint = Format.TryParseEndPoint(masterHost, masterPort);
                             }
                         }
                         else if (message?.Command == RedisCommand.SENTINEL)
@@ -1304,7 +1302,7 @@ namespace StackExchange.Redis
                 {
                     case ResultType.MultiBulk:
                         var typed = result.ToArray(
-                            (in RawResult item, in GeoRadiusOptions options) => Parse(item, options), this.options);
+                            (in RawResult item, in GeoRadiusOptions options) => Parse(item, options), options);
                         SetResult(message, typed);
                         return true;
                 }
@@ -1946,6 +1944,7 @@ The coordinates as a two items x,y array (longitude,latitude).
                 return final;
             }
 
+            [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0071:Simplify interpolation", Justification = "boxing")]
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
                 bool happy;

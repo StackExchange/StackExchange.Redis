@@ -31,7 +31,7 @@ namespace NRediSearch.Aggregation.Reducers
             return As(_field);
         }
 
-        protected virtual int GetOwnArgsCount() => _field == null ? 0 : 1;
+        protected virtual int GetOwnArgsCount() => _field is null ? 0 : 1;
         protected virtual void AddOwnArgs(List<object> args)
         {
             if (_field != null) args.Add(_field);

@@ -50,7 +50,7 @@ class AsyncLocalProfiler
     public ProfilingSession GetSession()
     {
         var val = perThreadSession.Value;
-        if (val == null)
+        if (val is null)
         {
             perThreadSession.Value = val = new ProfilingSession();
         }
@@ -184,7 +184,7 @@ public class RedisProfiler
     public ProfilingSession GetSession()
     {
         var ctx = HttpContext.Current;
-        if (ctx == null) return null;
+        if (ctx is null) return null;
 
         return (ProfilingSession)ctx.Items[RequestContextKey];
     }

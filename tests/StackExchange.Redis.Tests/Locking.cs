@@ -69,11 +69,9 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void TestOpCountByVersionLocal_UpLevel()
         {
-            using (var conn = Create())
-            {
-                TestLockOpCountByVersion(conn, 1, false);
-                TestLockOpCountByVersion(conn, 1, true);
-            }
+            using var conn = Create();
+            TestLockOpCountByVersion(conn, 1, false);
+            TestLockOpCountByVersion(conn, 1, true);
         }
 
         private void TestLockOpCountByVersion(IConnectionMultiplexer conn, int expectedOps, bool existFirst)
@@ -105,70 +103,64 @@ namespace StackExchange.Redis.Tests
 
         private IConnectionMultiplexer Create(TestMode mode)
         {
-            switch (mode)
+            return mode switch
             {
-                case TestMode.MultiExec:
-                    return Create();
-                case TestMode.NoMultiExec:
-                    return Create(disabledCommands: new[] { "multi", "exec" });
-                case TestMode.Twemproxy:
-                    return Create(proxy: Proxy.Twemproxy);
-                default:
-                    throw new NotSupportedException(mode.ToString());
-            }
+                TestMode.MultiExec => Create(),
+                TestMode.NoMultiExec => Create(disabledCommands: new[] { "multi", "exec" }),
+                TestMode.Twemproxy => Create(proxy: Proxy.Twemproxy),
+                _ => throw new NotSupportedException(mode.ToString()),
+            };
         }
 
         [Theory, MemberData(nameof(TestModes))]
         public async Task TakeLockAndExtend(TestMode mode)
         {
             bool withTran = mode == TestMode.MultiExec;
-            using (var conn = Create(mode))
-            {
-                RedisValue right = Guid.NewGuid().ToString(),
-                    wrong = Guid.NewGuid().ToString();
+            using var conn = Create(mode);
+            RedisValue right = Guid.NewGuid().ToString(),
+                wrong = Guid.NewGuid().ToString();
 
-                int DB = mode == TestMode.Twemproxy ? 0 : 7;
-                RedisKey Key = Me();
+            int DB = mode == TestMode.Twemproxy ? 0 : 7;
+            RedisKey Key = Me();
 
-                var db = conn.GetDatabase(DB);
+            var db = conn.GetDatabase(DB);
 
-                db.KeyDelete(Key, CommandFlags.FireAndForget);
+            db.KeyDelete(Key, CommandFlags.FireAndForget);
 
-                var t1 = db.LockTakeAsync(Key, right, TimeSpan.FromSeconds(20));
-                var t1b = db.LockTakeAsync(Key, wrong, TimeSpan.FromSeconds(10));
-                var t2 = db.LockQueryAsync(Key);
-                var t3 = withTran ? db.LockReleaseAsync(Key, wrong) : null;
-                var t4 = db.LockQueryAsync(Key);
-                var t5 = withTran ? db.LockExtendAsync(Key, wrong, TimeSpan.FromSeconds(60)) : null;
-                var t6 = db.LockQueryAsync(Key);
-                var t7 = db.KeyTimeToLiveAsync(Key);
-                var t8 = db.LockExtendAsync(Key, right, TimeSpan.FromSeconds(60));
-                var t9 = db.LockQueryAsync(Key);
-                var t10 = db.KeyTimeToLiveAsync(Key);
-                var t11 = db.LockReleaseAsync(Key, right);
-                var t12 = db.LockQueryAsync(Key);
-                var t13 = db.LockTakeAsync(Key, wrong, TimeSpan.FromSeconds(10));
+            var t1 = db.LockTakeAsync(Key, right, TimeSpan.FromSeconds(20));
+            var t1b = db.LockTakeAsync(Key, wrong, TimeSpan.FromSeconds(10));
+            var t2 = db.LockQueryAsync(Key);
+            var t3 = withTran ? db.LockReleaseAsync(Key, wrong) : null;
+            var t4 = db.LockQueryAsync(Key);
+            var t5 = withTran ? db.LockExtendAsync(Key, wrong, TimeSpan.FromSeconds(60)) : null;
+            var t6 = db.LockQueryAsync(Key);
+            var t7 = db.KeyTimeToLiveAsync(Key);
+            var t8 = db.LockExtendAsync(Key, right, TimeSpan.FromSeconds(60));
+            var t9 = db.LockQueryAsync(Key);
+            var t10 = db.KeyTimeToLiveAsync(Key);
+            var t11 = db.LockReleaseAsync(Key, right);
+            var t12 = db.LockQueryAsync(Key);
+            var t13 = db.LockTakeAsync(Key, wrong, TimeSpan.FromSeconds(10));
 
-                Assert.NotEqual(default(RedisValue), right);
-                Assert.NotEqual(default(RedisValue), wrong);
-                Assert.NotEqual(right, wrong);
-                Assert.True(await t1, "1");
-                Assert.False(await t1b, "1b");
-                Assert.Equal(right, await t2);
-                if (withTran) Assert.False(await t3, "3");
-                Assert.Equal(right, await t4);
-                if (withTran) Assert.False(await t5, "5");
-                Assert.Equal(right, await t6);
-                var ttl = (await t7).Value.TotalSeconds;
-                Assert.True(ttl > 0 && ttl <= 20, "7");
-                Assert.True(await t8, "8");
-                Assert.Equal(right, await t9);
-                ttl = (await t10).Value.TotalSeconds;
-                Assert.True(ttl > 50 && ttl <= 60, "10");
-                Assert.True(await t11, "11");
-                Assert.Null((string)await t12);
-                Assert.True(await t13, "13");
-            }
+            Assert.NotEqual(default(RedisValue), right);
+            Assert.NotEqual(default(RedisValue), wrong);
+            Assert.NotEqual(right, wrong);
+            Assert.True(await t1, "1");
+            Assert.False(await t1b, "1b");
+            Assert.Equal(right, await t2);
+            if (withTran) Assert.False(await t3, "3");
+            Assert.Equal(right, await t4);
+            if (withTran) Assert.False(await t5, "5");
+            Assert.Equal(right, await t6);
+            var ttl = (await t7).Value.TotalSeconds;
+            Assert.True(ttl > 0 && ttl <= 20, "7");
+            Assert.True(await t8, "8");
+            Assert.Equal(right, await t9);
+            ttl = (await t10).Value.TotalSeconds;
+            Assert.True(ttl > 50 && ttl <= 60, "10");
+            Assert.True(await t11, "11");
+            Assert.Null((string)await t12);
+            Assert.True(await t13, "13");
         }
 
         //public void TestManualLockOpCountByVersion(RedisConnection conn, int expected, bool existFirst)
@@ -202,51 +194,47 @@ namespace StackExchange.Redis.Tests
         [Theory, MemberData(nameof(TestModes))]
         public async Task TestBasicLockNotTaken(TestMode testMode)
         {
-            using (var conn = Create(testMode))
+            using var conn = Create(testMode);
+            int errorCount = 0;
+            conn.ErrorMessage += delegate { Interlocked.Increment(ref errorCount); };
+            Task<bool> taken = null;
+            Task<RedisValue> newValue = null;
+            Task<TimeSpan?> ttl = null;
+
+            const int LOOP = 50;
+            var db = conn.GetDatabase();
+            var key = Me();
+            for (int i = 0; i < LOOP; i++)
             {
-                int errorCount = 0;
-                conn.ErrorMessage += delegate { Interlocked.Increment(ref errorCount); };
-                Task<bool> taken = null;
-                Task<RedisValue> newValue = null;
-                Task<TimeSpan?> ttl = null;
-
-                const int LOOP = 50;
-                var db = conn.GetDatabase();
-                var key = Me();
-                for (int i = 0; i < LOOP; i++)
-                {
-                    var d = db.KeyDeleteAsync(key);
-                    taken = db.LockTakeAsync(key, "new-value", TimeSpan.FromSeconds(10));
-                    newValue = db.StringGetAsync(key);
-                    ttl = db.KeyTimeToLiveAsync(key);
-                }
-                Assert.True(await taken, "taken");
-                Assert.Equal("new-value", (string)await newValue);
-                var ttlValue = (await ttl).Value.TotalSeconds;
-                Assert.True(ttlValue >= 8 && ttlValue <= 10, "ttl");
-
-                Assert.Equal(0, errorCount);
+                var d = db.KeyDeleteAsync(key);
+                taken = db.LockTakeAsync(key, "new-value", TimeSpan.FromSeconds(10));
+                newValue = db.StringGetAsync(key);
+                ttl = db.KeyTimeToLiveAsync(key);
             }
+            Assert.True(await taken, "taken");
+            Assert.Equal("new-value", (string)await newValue);
+            var ttlValue = (await ttl).Value.TotalSeconds;
+            Assert.True(ttlValue >= 8 && ttlValue <= 10, "ttl");
+
+            Assert.Equal(0, errorCount);
         }
 
         [Theory, MemberData(nameof(TestModes))]
         public async Task TestBasicLockTaken(TestMode testMode)
         {
-            using (var conn = Create(testMode))
-            {
-                var db = conn.GetDatabase();
-                var key = Me();
-                db.KeyDelete(key, CommandFlags.FireAndForget);
-                db.StringSet(key, "old-value", TimeSpan.FromSeconds(20), flags: CommandFlags.FireAndForget);
-                var taken = db.LockTakeAsync(key, "new-value", TimeSpan.FromSeconds(10));
-                var newValue = db.StringGetAsync(key);
-                var ttl = db.KeyTimeToLiveAsync(key);
+            using var conn = Create(testMode);
+            var db = conn.GetDatabase();
+            var key = Me();
+            db.KeyDelete(key, CommandFlags.FireAndForget);
+            db.StringSet(key, "old-value", TimeSpan.FromSeconds(20), flags: CommandFlags.FireAndForget);
+            var taken = db.LockTakeAsync(key, "new-value", TimeSpan.FromSeconds(10));
+            var newValue = db.StringGetAsync(key);
+            var ttl = db.KeyTimeToLiveAsync(key);
 
-                Assert.False(await taken, "taken");
-                Assert.Equal("old-value", (string)await newValue);
-                var ttlValue = (await ttl).Value.TotalSeconds;
-                Assert.True(ttlValue >= 18 && ttlValue <= 20, "ttl");
-            }
+            Assert.False(await taken, "taken");
+            Assert.Equal("old-value", (string)await newValue);
+            var ttlValue = (await ttl).Value.TotalSeconds;
+            Assert.True(ttlValue >= 18 && ttlValue <= 20, "ttl");
         }
     }
 }

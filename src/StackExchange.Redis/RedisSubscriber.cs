@@ -98,10 +98,9 @@ namespace StackExchange.Redis
         {
             ICompletable completable = null;
             ChannelMessageQueue queues = null;
-            Subscription sub;
             lock (subscriptions)
             {
-                if (subscriptions.TryGetValue(subscription, out sub))
+                if (subscriptions.TryGetValue(subscription, out var sub))
                 {
                     completable = sub.ForInvoke(channel, payload, out queues);
                 }

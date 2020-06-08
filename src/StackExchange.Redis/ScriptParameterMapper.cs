@@ -174,7 +174,7 @@ namespace StackExchange.Redis
                     return false;
                 }
 
-                var memberType = member is FieldInfo ? ((FieldInfo)member).FieldType : ((PropertyInfo)member).PropertyType;
+                var memberType = member is FieldInfo field ? field.FieldType : ((PropertyInfo)member).PropertyType;
                 if (!ConvertableTypes.Contains(memberType))
                 {
                     missingMember = null;
@@ -208,17 +208,14 @@ namespace StackExchange.Redis
         {
             if (!IsValidParameterHash(t, script, out _, out _)) throw new Exception("Shouldn't be possible");
 
-            Expression GetMember(Expression root, MemberInfo member)
+            static Expression GetMember(Expression root, MemberInfo member)
             {
-                switch (member.MemberType)
+                return member.MemberType switch
                 {
-                    case MemberTypes.Property:
-                        return Expression.Property(root, (PropertyInfo)member);
-                    case MemberTypes.Field:
-                        return Expression.Field(root, (FieldInfo)member);
-                    default:
-                        throw new ArgumentException(nameof(member));
-                }
+                    MemberTypes.Property => Expression.Property(root, (PropertyInfo)member),
+                    MemberTypes.Field => Expression.Field(root, (FieldInfo)member),
+                    _ => throw new ArgumentException(nameof(member)),
+                };
             }
             var keys = new List<MemberInfo>();
             var args = new List<MemberInfo>();
@@ -228,7 +225,7 @@ namespace StackExchange.Redis
                 var argName = script.Arguments[i];
                 var member = t.GetMember(argName).SingleOrDefault(m => m is PropertyInfo || m is FieldInfo);
 
-                var memberType = member is FieldInfo ? ((FieldInfo)member).FieldType : ((PropertyInfo)member).PropertyType;
+                var memberType = member is FieldInfo field ? field.FieldType : ((PropertyInfo)member).PropertyType;
 
                 if (memberType == typeof(RedisKey))
                 {

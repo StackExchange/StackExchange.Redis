@@ -143,10 +143,10 @@ namespace StackExchange.Redis
         private static string defaultClientName;
         private static string GetDefaultClientName()
         {
-            return defaultClientName ?? (defaultClientName = TryGetAzureRoleInstanceIdNoThrow()
+            return defaultClientName ??= TryGetAzureRoleInstanceIdNoThrow()
                     ?? Environment.MachineName
                     ?? Environment.GetEnvironmentVariable("ComputerName")
-                    ?? "StackExchange.Redis");
+                    ?? "StackExchange.Redis";
         }
 
         /// <summary>
@@ -276,23 +276,21 @@ namespace StackExchange.Redis
         private static void Write<T>(ZipArchive zip, string name, Task task, Action<T, StreamWriter> callback)
         {
             var entry = zip.CreateEntry(name, CompressionLevel.Optimal);
-            using (var stream = entry.Open())
-            using (var writer = new StreamWriter(stream))
+            using var stream = entry.Open();
+            using var writer = new StreamWriter(stream);
+            TaskStatus status = task.Status;
+            switch (status)
             {
-                TaskStatus status = task.Status;
-                switch (status)
-                {
-                    case TaskStatus.RanToCompletion:
-                        T val = ((Task<T>)task).Result;
-                        callback(val, writer);
-                        break;
-                    case TaskStatus.Faulted:
-                        writer.WriteLine(string.Join(", ", task.Exception.InnerExceptions.Select(x => x.Message)));
-                        break;
-                    default:
-                        writer.WriteLine(status.ToString());
-                        break;
-                }
+                case TaskStatus.RanToCompletion:
+                    T val = ((Task<T>)task).Result;
+                    callback(val, writer);
+                    break;
+                case TaskStatus.Faulted:
+                    writer.WriteLine(string.Join(", ", task.Exception.InnerExceptions.Select(x => x.Message)));
+                    break;
+                default:
+                    writer.WriteLine(status.ToString());
+                    break;
             }
         }
         /// <summary>
@@ -312,72 +310,70 @@ namespace StackExchange.Redis
             if (CommandMap.IsAvailable(RedisCommand.CLUSTER)) mask |= ExportOptions.Cluster;
             options &= mask;
 
-            using (var zip = new ZipArchive(destination, ZipArchiveMode.Create, true))
+            using var zip = new ZipArchive(destination, ZipArchiveMode.Create, true);
+            var arr = GetServerSnapshot();
+            foreach (var server in arr)
             {
-                var arr = GetServerSnapshot();
-                foreach (var server in arr)
+                const CommandFlags flags = CommandFlags.None;
+                if (!server.IsConnected) continue;
+                var api = GetServer(server.EndPoint);
+
+                List<Task> tasks = new List<Task>();
+                if ((options & ExportOptions.Info) != 0)
                 {
-                    const CommandFlags flags = CommandFlags.None;
-                    if (!server.IsConnected) continue;
-                    var api = GetServer(server.EndPoint);
+                    tasks.Add(api.InfoRawAsync(flags: flags));
+                }
+                if ((options & ExportOptions.Config) != 0)
+                {
+                    tasks.Add(api.ConfigGetAsync(flags: flags));
+                }
+                if ((options & ExportOptions.Client) != 0)
+                {
+                    tasks.Add(api.ClientListAsync(flags: flags));
+                }
+                if ((options & ExportOptions.Cluster) != 0)
+                {
+                    tasks.Add(api.ClusterNodesRawAsync(flags: flags));
+                }
 
-                    List<Task> tasks = new List<Task>();
-                    if ((options & ExportOptions.Info) != 0)
-                    {
-                        tasks.Add(api.InfoRawAsync(flags: flags));
-                    }
-                    if ((options & ExportOptions.Config) != 0)
-                    {
-                        tasks.Add(api.ConfigGetAsync(flags: flags));
-                    }
-                    if ((options & ExportOptions.Client) != 0)
-                    {
-                        tasks.Add(api.ClientListAsync(flags: flags));
-                    }
-                    if ((options & ExportOptions.Cluster) != 0)
-                    {
-                        tasks.Add(api.ClusterNodesRawAsync(flags: flags));
-                    }
+                WaitAllIgnoreErrors(tasks.ToArray());
 
-                    WaitAllIgnoreErrors(tasks.ToArray());
-
-                    int index = 0;
-                    var prefix = Format.ToString(server.EndPoint);
-                    if ((options & ExportOptions.Info) != 0)
+                int index = 0;
+                var prefix = Format.ToString(server.EndPoint);
+                if ((options & ExportOptions.Info) != 0)
+                {
+                    Write<string>(zip, prefix + "/info.txt", tasks[index++], WriteNormalizingLineEndings);
+                }
+                if ((options & ExportOptions.Config) != 0)
+                {
+                    Write<KeyValuePair<string, string>[]>(zip, prefix + "/config.txt", tasks[index++], (settings, writer) =>
                     {
-                        Write<string>(zip, prefix + "/info.txt", tasks[index++], WriteNormalizingLineEndings);
-                    }
-                    if ((options & ExportOptions.Config) != 0)
-                    {
-                        Write<KeyValuePair<string, string>[]>(zip, prefix + "/config.txt", tasks[index++], (settings, writer) =>
+                        foreach (var setting in settings)
                         {
-                            foreach (var setting in settings)
-                            {
-                                writer.WriteLine("{0}={1}", setting.Key, setting.Value);
-                            }
-                        });
-                    }
-                    if ((options & ExportOptions.Client) != 0)
+                            writer.WriteLine("{0}={1}", setting.Key, setting.Value);
+                        }
+                    });
+                }
+                if ((options & ExportOptions.Client) != 0)
+                {
+                    Write<ClientInfo[]>(zip, prefix + "/clients.txt", tasks[index++], (clients, writer) =>
                     {
-                        Write<ClientInfo[]>(zip, prefix + "/clients.txt", tasks[index++], (clients, writer) =>
+                        if (clients == null)
                         {
-                            if (clients == null)
+                            writer.WriteLine(NoContent);
+                        }
+                        else
+                        {
+                            foreach (var client in clients)
                             {
-                                writer.WriteLine(NoContent);
+                                writer.WriteLine(client.Raw);
                             }
-                            else
-                            {
-                                foreach (var client in clients)
-                                {
-                                    writer.WriteLine(client.Raw);
-                                }
-                            }
-                        });
-                    }
-                    if ((options & ExportOptions.Cluster) != 0)
-                    {
-                        Write<string>(zip, prefix + "/nodes.txt", tasks[index++], WriteNormalizingLineEndings);
-                    }
+                        }
+                    });
+                }
+                if ((options & ExportOptions.Cluster) != 0)
+                {
+                    Write<string>(zip, prefix + "/nodes.txt", tasks[index++], WriteNormalizingLineEndings);
                 }
             }
         }
@@ -535,12 +531,10 @@ namespace StackExchange.Redis
             }
             else
             {
-                using (var reader = new StringReader(source))
-                {
-                    string line;
-                    while ((line = reader.ReadLine()) != null)
-                        writer.WriteLine(line); // normalize line endings
-                }
+                using var reader = new StringReader(source);
+                string line;
+                while ((line = reader.ReadLine()) != null)
+                    writer.WriteLine(line); // normalize line endings
             }
         }
 
@@ -848,27 +842,25 @@ namespace StackExchange.Redis
             IDisposable killMe = null;
             EventHandler<ConnectionFailedEventArgs> connectHandler = null;
             ConnectionMultiplexer muxer = null;
-            using (var logProxy = LogProxy.TryCreate(log))
+            using var logProxy = LogProxy.TryCreate(log);
+            try
             {
-                try
+                muxer = CreateMultiplexer(configuration, logProxy, out connectHandler);
+                killMe = muxer;
+                Interlocked.Increment(ref muxer._connectAttemptCount);
+                bool configured = await muxer.ReconfigureAsync(true, false, logProxy, null, "connect").ObserveErrors().ForAwait();
+                if (!configured)
                 {
-                    muxer = CreateMultiplexer(configuration, logProxy, out connectHandler);
-                    killMe = muxer;
-                    Interlocked.Increment(ref muxer._connectAttemptCount);
-                    bool configured = await muxer.ReconfigureAsync(true, false, logProxy, null, "connect").ObserveErrors().ForAwait();
-                    if (!configured)
-                    {
-                        throw ExceptionFactory.UnableToConnect(muxer, muxer.failureMessage);
-                    }
-                    killMe = null;
-                    Interlocked.Increment(ref muxer._connectCompletedCount);
-                    return muxer;
+                    throw ExceptionFactory.UnableToConnect(muxer, muxer.failureMessage);
                 }
-                finally
-                {
-                    if (connectHandler != null) muxer.ConnectionFailed -= connectHandler;
-                    if (killMe != null) try { killMe.Dispose(); } catch { }
-                }
+                killMe = null;
+                Interlocked.Increment(ref muxer._connectCompletedCount);
+                return muxer;
+            }
+            finally
+            {
+                if (connectHandler != null) muxer.ConnectionFailed -= connectHandler;
+                if (killMe != null) try { killMe.Dispose(); } catch { }
             }
         }
 
@@ -1008,45 +1000,43 @@ namespace StackExchange.Redis
             IDisposable killMe = null;
             EventHandler<ConnectionFailedEventArgs> connectHandler = null;
             ConnectionMultiplexer muxer = null;
-            using (var logProxy = LogProxy.TryCreate(log))
+            using var logProxy = LogProxy.TryCreate(log);
+            try
             {
-                try
+                muxer = CreateMultiplexer(configuration, logProxy, out connectHandler);
+                killMe = muxer;
+                Interlocked.Increment(ref muxer._connectAttemptCount);
+                // note that task has timeouts internally, so it might take *just over* the regular timeout
+                var task = muxer.ReconfigureAsync(true, false, logProxy, null, "connect");
+
+                if (!task.Wait(muxer.SyncConnectTimeout(true)))
                 {
-                    muxer = CreateMultiplexer(configuration, logProxy, out connectHandler);
-                    killMe = muxer;
-                    Interlocked.Increment(ref muxer._connectAttemptCount);
-                    // note that task has timeouts internally, so it might take *just over* the regular timeout
-                    var task = muxer.ReconfigureAsync(true, false, logProxy, null, "connect");
-
-                    if (!task.Wait(muxer.SyncConnectTimeout(true)))
+                    task.ObserveErrors();
+                    if (muxer.RawConfig.AbortOnConnectFail)
                     {
-                        task.ObserveErrors();
-                        if (muxer.RawConfig.AbortOnConnectFail)
-                        {
-                            throw ExceptionFactory.UnableToConnect(muxer, "ConnectTimeout");
-                        }
-                        else
-                        {
-                            muxer.LastException = ExceptionFactory.UnableToConnect(muxer, "ConnectTimeout");
-                        }
+                        throw ExceptionFactory.UnableToConnect(muxer, "ConnectTimeout");
                     }
-
-                    if (!task.Result) throw ExceptionFactory.UnableToConnect(muxer, muxer.failureMessage);
-                    killMe = null;
-                    Interlocked.Increment(ref muxer._connectCompletedCount);
-
-                    if (muxer.ServerSelectionStrategy.ServerType == ServerType.Sentinel)
+                    else
                     {
-                        // Initialize the Sentinel handlers
-                        muxer.InitializeSentinel(logProxy);
+                        muxer.LastException = ExceptionFactory.UnableToConnect(muxer, "ConnectTimeout");
                     }
-                    return muxer;
                 }
-                finally
+
+                if (!task.Result) throw ExceptionFactory.UnableToConnect(muxer, muxer.failureMessage);
+                killMe = null;
+                Interlocked.Increment(ref muxer._connectCompletedCount);
+
+                if (muxer.ServerSelectionStrategy.ServerType == ServerType.Sentinel)
                 {
-                    if (connectHandler != null) muxer.ConnectionFailed -= connectHandler;
-                    if (killMe != null) try { killMe.Dispose(); } catch { }
+                    // Initialize the Sentinel handlers
+                    muxer.InitializeSentinel(logProxy);
                 }
+                return muxer;
+            }
+            finally
+            {
+                if (connectHandler != null) muxer.ConnectionFailed -= connectHandler;
+                if (killMe != null) try { killMe.Dispose(); } catch { }
             }
         }
 
@@ -1299,9 +1289,9 @@ namespace StackExchange.Redis
             // different instances, one of which (arbitrarily) ends up cached for later use
             if (db == 0)
             {
-                return dbCacheZero ?? (dbCacheZero = new RedisDatabase(this, 0, null));
+                return dbCacheZero ??= new RedisDatabase(this, 0, null);
             }
-            var arr = dbCacheLow ?? (dbCacheLow = new IDatabase[MaxCachedDatabaseInstance]);
+            var arr = dbCacheLow ??= new IDatabase[MaxCachedDatabaseInstance];
             return arr[db - 1] ?? (arr[db - 1] = new RedisDatabase(this, db, null));
         }
 
@@ -1411,10 +1401,8 @@ namespace StackExchange.Redis
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
         public async Task<bool> ConfigureAsync(TextWriter log = null)
         {
-            using (var logProxy = LogProxy.TryCreate(log))
-            {
-                return await ReconfigureAsync(false, true, logProxy, null, "configure").ObserveErrors();
-            }
+            using var logProxy = LogProxy.TryCreate(log);
+            return await ReconfigureAsync(false, true, logProxy, null, "configure").ObserveErrors();
         }
 
         /// <summary>
@@ -1425,24 +1413,22 @@ namespace StackExchange.Redis
         {
             // note we expect ReconfigureAsync to internally allow [n] duration,
             // so to avoid near misses, here we wait 2*[n]
-            using (var logProxy = LogProxy.TryCreate(log))
+            using var logProxy = LogProxy.TryCreate(log);
+            var task = ReconfigureAsync(false, true, logProxy, null, "configure");
+            if (!task.Wait(SyncConnectTimeout(false)))
             {
-                var task = ReconfigureAsync(false, true, logProxy, null, "configure");
-                if (!task.Wait(SyncConnectTimeout(false)))
+                task.ObserveErrors();
+                if (RawConfig.AbortOnConnectFail)
                 {
-                    task.ObserveErrors();
-                    if (RawConfig.AbortOnConnectFail)
-                    {
-                        throw new TimeoutException();
-                    }
-                    else
-                    {
-                        LastException = new TimeoutException("ConnectTimeout");
-                    }
-                    return false;
+                    throw new TimeoutException();
                 }
-                return task.Result;
+                else
+                {
+                    LastException = new TimeoutException("ConnectTimeout");
+                }
+                return false;
             }
+            return task.Result;
         }
 
         internal int SyncConnectTimeout(bool forConnect)
@@ -1463,11 +1449,9 @@ namespace StackExchange.Redis
         /// </summary>
         public string GetStatus()
         {
-            using (var sw = new StringWriter())
-            {
-                GetStatus(sw);
-                return sw.ToString();
-            }
+            using var sw = new StringWriter();
+            GetStatus(sw);
+            return sw.ToString();
         }
 
         /// <summary>
@@ -1476,10 +1460,8 @@ namespace StackExchange.Redis
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
         public void GetStatus(TextWriter log)
         {
-            using (var proxy = LogProxy.TryCreate(log))
-            {
-                GetStatus(proxy);
-            }
+            using var proxy = LogProxy.TryCreate(log);
+            GetStatus(proxy);
         }
         internal void GetStatus(LogProxy log)
         {
@@ -1612,7 +1594,7 @@ namespace StackExchange.Redis
                             }
                         }
 
-                        watch = watch ?? Stopwatch.StartNew();
+                        watch ??= Stopwatch.StartNew();
                         var remaining = RawConfig.ConnectTimeout - checked((int)watch.ElapsedMilliseconds);
                         log?.WriteLine($"Allowing endpoints {TimeSpan.FromMilliseconds(remaining)} to respond...");
                         Trace("Allowing endpoints " + TimeSpan.FromMilliseconds(remaining) + " to respond...");
@@ -2362,36 +2344,34 @@ namespace StackExchange.Redis
         {
             if (log == null) log = TextWriter.Null;
 
-            using (var logProxy = LogProxy.TryCreate(log))
+            using var logProxy = LogProxy.TryCreate(log);
+            string serviceName = connection.RawConfig.ServiceName;
+
+            // Get new master - try twice
+            EndPoint newMasterEndPoint = GetConfiguredMasterForService(serviceName)
+                                      ?? GetConfiguredMasterForService(serviceName);
+
+            if (newMasterEndPoint == null)
             {
-                string serviceName = connection.RawConfig.ServiceName;
+                throw new RedisConnectionException(ConnectionFailureType.UnableToConnect,
+                    $"Sentinel: Failed connecting to switch master for service: {serviceName}");
+            }
 
-                // Get new master - try twice
-                EndPoint newMasterEndPoint = GetConfiguredMasterForService(serviceName)
-                                          ?? GetConfiguredMasterForService(serviceName);
+            if (newMasterEndPoint != null)
+            {
+                connection.currentSentinelMasterEndPoint = newMasterEndPoint;
 
-                if (newMasterEndPoint == null)
+                if (!connection.servers.Contains(newMasterEndPoint))
                 {
-                    throw new RedisConnectionException(ConnectionFailureType.UnableToConnect,
-                        $"Sentinel: Failed connecting to switch master for service: {serviceName}");
+                    connection.RawConfig.EndPoints.Clear();
+                    connection.servers.Clear();
+                    connection.RawConfig.EndPoints.Add(newMasterEndPoint);
+                    Trace(string.Format("Switching master to {0}", newMasterEndPoint));
+                    // Trigger a reconfigure                            
+                    connection.ReconfigureAsync(false, false, logProxy, switchBlame, string.Format("master switch {0}", serviceName), false, CommandFlags.PreferMaster).Wait();
                 }
 
-                if (newMasterEndPoint != null)
-                {
-                    connection.currentSentinelMasterEndPoint = newMasterEndPoint;
-
-                    if (!connection.servers.Contains(newMasterEndPoint))
-                    {
-                        connection.RawConfig.EndPoints.Clear();
-                        connection.servers.Clear();
-                        connection.RawConfig.EndPoints.Add(newMasterEndPoint);
-                        Trace(string.Format("Switching master to {0}", newMasterEndPoint));
-                        // Trigger a reconfigure                            
-                        connection.ReconfigureAsync(false, false, logProxy, switchBlame, string.Format("master switch {0}", serviceName), false, CommandFlags.PreferMaster).Wait();
-                    }
-
-                    UpdateSentinelAddressList(serviceName);
-                }
+                UpdateSentinelAddressList(serviceName);
             }
         }
 
@@ -2564,17 +2544,13 @@ namespace StackExchange.Redis
 
         internal Exception GetException(WriteResult result, Message message, ServerEndPoint server)
         {
-            switch (result)
+            return result switch
             {
-                case WriteResult.Success: return null;
-                case WriteResult.NoConnectionAvailable:
-                    return ExceptionFactory.NoConnectionAvailable(this, message, server);
-                case WriteResult.TimeoutBeforeWrite:
-                    return ExceptionFactory.Timeout(this, "The timeout was reached before the message could be written to the output buffer, and it was not sent", message, server, result);
-                case WriteResult.WriteFailure:
-                default:
-                    return ExceptionFactory.ConnectionFailure(IncludeDetailInExceptions, ConnectionFailureType.ProtocolFailure, "An unknown error occurred when writing the message", server);
-            }
+                WriteResult.Success => null,
+                WriteResult.NoConnectionAvailable => ExceptionFactory.NoConnectionAvailable(this, message, server),
+                WriteResult.TimeoutBeforeWrite => ExceptionFactory.Timeout(this, "The timeout was reached before the message could be written to the output buffer, and it was not sent", message, server, result),
+                _ => ExceptionFactory.ConnectionFailure(IncludeDetailInExceptions, ConnectionFailureType.ProtocolFailure, "An unknown error occurred when writing the message", server),
+            };
         }
 
         internal static void ThrowFailed<T>(TaskCompletionSource<T> source, Exception unthrownException)

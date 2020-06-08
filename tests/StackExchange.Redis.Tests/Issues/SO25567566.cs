@@ -13,12 +13,10 @@ namespace StackExchange.Redis.Tests.Issues
         [FactLongRunning]
         public async Task Execute()
         {
-            using (var conn = ConnectionMultiplexer.Connect(GetConfiguration())) // Create())
+            using var conn = ConnectionMultiplexer.Connect(GetConfiguration());
+            for (int i = 0; i < 100; i++)
             {
-                for (int i = 0; i < 100; i++)
-                {
-                    Assert.Equal("ok", await DoStuff(conn).ForAwait());
-                }
+                Assert.Equal("ok", await DoStuff(conn).ForAwait());
             }
         }
 

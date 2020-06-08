@@ -160,14 +160,12 @@ namespace StackExchange.Redis
         public PhysicalBridge GetBridge(ConnectionType type, bool create = true, LogProxy log = null)
         {
             if (isDisposed) return null;
-            switch (type)
+            return type switch
             {
-                case ConnectionType.Interactive:
-                    return interactive ?? (create ? interactive = CreateBridge(ConnectionType.Interactive, log) : null);
-                case ConnectionType.Subscription:
-                    return subscription ?? (create ? subscription = CreateBridge(ConnectionType.Subscription, log) : null);
-            }
-            return null;
+                ConnectionType.Interactive => interactive ?? (create ? interactive = CreateBridge(ConnectionType.Interactive, log) : null),
+                ConnectionType.Subscription => subscription ?? (create ? subscription = CreateBridge(ConnectionType.Subscription, log) : null),
+                _ => null,
+            };
         }
 
         public PhysicalBridge GetBridge(RedisCommand command, bool create = true)
@@ -209,7 +207,7 @@ namespace StackExchange.Redis
                         }
                         else if (node.ParentNodeId == thisNode.NodeId)
                         {
-                            (replicas ?? (replicas = new List<ServerEndPoint>())).Add(Multiplexer.GetServerEndPoint(node.EndPoint));
+                            (replicas ??= new List<ServerEndPoint>()).Add(Multiplexer.GetServerEndPoint(node.EndPoint));
                         }
                     }
                     Master = master;
@@ -676,7 +674,7 @@ namespace StackExchange.Redis
 
         internal ValueTask WriteDirectOrQueueFireAndForgetAsync<T>(PhysicalConnection connection, Message message, ResultProcessor<T> processor)
         {
-            async ValueTask Awaited(ValueTask<WriteResult> l_result) => await l_result.ForAwait();
+            static async ValueTask Awaited(ValueTask<WriteResult> l_result) => await l_result.ForAwait();
 
             if (message != null)
             {

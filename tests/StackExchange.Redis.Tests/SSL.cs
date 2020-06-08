@@ -42,11 +42,9 @@ namespace StackExchange.Redis.Tests
             options.Ssl = ssl;
             options.Password = TestConfig.Current.AzureCachePassword;
             Log(options.ToString());
-            using (var connection = ConnectionMultiplexer.Connect(options))
-            {
-                var ttl = connection.GetDatabase().Ping();
-                Log(ttl.ToString());
-            }
+            using var connection = ConnectionMultiplexer.Connect(options);
+            var ttl = connection.GetDatabase().Ping();
+            Log(ttl.ToString());
         }
 
         [Theory]
@@ -104,58 +102,56 @@ namespace StackExchange.Redis.Tests
             var clone = ConfigurationOptions.Parse(configString);
             Assert.Equal(configString, clone.ToString());
 
-            using (var log = new StringWriter())
-            using (var muxer = ConnectionMultiplexer.Connect(config, log))
+            using var log = new StringWriter();
+            using var muxer = ConnectionMultiplexer.Connect(config, log);
+            Log("Connect log:");
+            lock (log)
             {
-                Log("Connect log:");
-                lock (log)
-                {
-                    Log(log.ToString());
-                }
-                Log("====");
-                muxer.ConnectionFailed += OnConnectionFailed;
-                muxer.InternalError += OnInternalError;
-                var db = muxer.GetDatabase();
-                await db.PingAsync().ForAwait();
-                using (var file = File.Create("ssl-" + useSsl + "-" + specifyHost + ".zip"))
-                {
-                    muxer.ExportConfiguration(file);
-                }
-                RedisKey key = "SE.Redis";
-
-                const int AsyncLoop = 2000;
-                // perf; async
-                await db.KeyDeleteAsync(key).ForAwait();
-                var watch = Stopwatch.StartNew();
-                for (int i = 0; i < AsyncLoop; i++)
-                {
-                    try
-                    {
-                        await db.StringIncrementAsync(key, flags: CommandFlags.FireAndForget).ForAwait();
-                    }
-                    catch (Exception ex)
-                    {
-                        Log($"Failure on i={i}: {ex.Message}");
-                        throw;
-                    }
-                }
-                // need to do this inside the timer to measure the TTLB
-                long value = (long)await db.StringGetAsync(key).ForAwait();
-                watch.Stop();
-                Assert.Equal(AsyncLoop, value);
-                Log("F&F: {0} INCR, {1:###,##0}ms, {2} ops/s; final value: {3}",
-                    AsyncLoop,
-                    (long)watch.ElapsedMilliseconds,
-                    (long)(AsyncLoop / watch.Elapsed.TotalSeconds),
-                    value);
-
-                // perf: sync/multi-threaded
-                // TestConcurrent(db, key, 30, 10);
-                //TestConcurrent(db, key, 30, 20);
-                //TestConcurrent(db, key, 30, 30);
-                //TestConcurrent(db, key, 30, 40);
-                //TestConcurrent(db, key, 30, 50);
+                Log(log.ToString());
             }
+            Log("====");
+            muxer.ConnectionFailed += OnConnectionFailed;
+            muxer.InternalError += OnInternalError;
+            var db = muxer.GetDatabase();
+            await db.PingAsync().ForAwait();
+            using (var file = File.Create("ssl-" + useSsl + "-" + specifyHost + ".zip"))
+            {
+                muxer.ExportConfiguration(file);
+            }
+            RedisKey key = "SE.Redis";
+
+            const int AsyncLoop = 2000;
+            // perf; async
+            await db.KeyDeleteAsync(key).ForAwait();
+            var watch = Stopwatch.StartNew();
+            for (int i = 0; i < AsyncLoop; i++)
+            {
+                try
+                {
+                    await db.StringIncrementAsync(key, flags: CommandFlags.FireAndForget).ForAwait();
+                }
+                catch (Exception ex)
+                {
+                    Log($"Failure on i={i}: {ex.Message}");
+                    throw;
+                }
+            }
+            // need to do this inside the timer to measure the TTLB
+            long value = (long)await db.StringGetAsync(key).ForAwait();
+            watch.Stop();
+            Assert.Equal(AsyncLoop, value);
+            Log("F&F: {0} INCR, {1:###,##0}ms, {2} ops/s; final value: {3}",
+                AsyncLoop,
+                (long)watch.ElapsedMilliseconds,
+                (long)(AsyncLoop / watch.Elapsed.TotalSeconds),
+                value);
+
+            // perf: sync/multi-threaded
+            // TestConcurrent(db, key, 30, 10);
+            //TestConcurrent(db, key, 30, 20);
+            //TestConcurrent(db, key, 30, 30);
+            //TestConcurrent(db, key, 30, 40);
+            //TestConcurrent(db, key, 30, 50);
         }
 
         //private void TestConcurrent(IDatabase db, RedisKey key, int SyncLoop, int Threads)
@@ -212,24 +208,20 @@ namespace StackExchange.Redis.Tests
                 return cert;
             };
             RedisKey key = Me();
-            using (var conn = ConnectionMultiplexer.Connect(options))
-            {
-                var db = conn.GetDatabase();
-                db.KeyDelete(key, CommandFlags.FireAndForget);
-                string s = db.StringGet(key);
-                Assert.Null(s);
-                db.StringSet(key, "abc", flags: CommandFlags.FireAndForget);
-                s = db.StringGet(key);
-                Assert.Equal("abc", s);
+            using var conn = ConnectionMultiplexer.Connect(options);
+            var db = conn.GetDatabase();
+            db.KeyDelete(key, CommandFlags.FireAndForget);
+            string s = db.StringGet(key);
+            Assert.Null(s);
+            db.StringSet(key, "abc", flags: CommandFlags.FireAndForget);
+            s = db.StringGet(key);
+            Assert.Equal("abc", s);
 
-                var latency = db.Ping();
-                Log("RedisLabs latency: {0:###,##0.##}ms", latency.TotalMilliseconds);
+            var latency = db.Ping();
+            Log("RedisLabs latency: {0:###,##0.##}ms", latency.TotalMilliseconds);
 
-                using (var file = File.Create("RedisLabs.zip"))
-                {
-                    conn.ExportConfiguration(file);
-                }
-            }
+            using var file = File.Create("RedisLabs.zip");
+            conn.ExportConfiguration(file);
         }
 
         [Theory]
@@ -268,26 +260,22 @@ namespace StackExchange.Redis.Tests
 #endif
                 options.Ssl = true;
                 RedisKey key = Me();
-                using (var conn = ConnectionMultiplexer.Connect(options))
-                {
-                    if (!setEnv) Assert.True(false, "Could not set environment");
+                using var conn = ConnectionMultiplexer.Connect(options);
+                if (!setEnv) Assert.True(false, "Could not set environment");
 
-                    var db = conn.GetDatabase();
-                    db.KeyDelete(key, CommandFlags.FireAndForget);
-                    string s = db.StringGet(key);
-                    Assert.Null(s);
-                    db.StringSet(key, "abc");
-                    s = db.StringGet(key);
-                    Assert.Equal("abc", s);
+                var db = conn.GetDatabase();
+                db.KeyDelete(key, CommandFlags.FireAndForget);
+                string s = db.StringGet(key);
+                Assert.Null(s);
+                db.StringSet(key, "abc");
+                s = db.StringGet(key);
+                Assert.Equal("abc", s);
 
-                    var latency = db.Ping();
-                    Log("RedisLabs latency: {0:###,##0.##}ms", latency.TotalMilliseconds);
+                var latency = db.Ping();
+                Log("RedisLabs latency: {0:###,##0.##}ms", latency.TotalMilliseconds);
 
-                    using (var file = File.Create("RedisLabs.zip"))
-                    {
-                        conn.ExportConfiguration(file);
-                    }
-                }
+                using var file = File.Create("RedisLabs.zip");
+                conn.ExportConfiguration(file);
             }
             catch (RedisConnectionException ex)
             {
@@ -397,10 +385,8 @@ namespace StackExchange.Redis.Tests
                 Password = TestConfig.Current.AzureCachePassword
             };
             options.CertificateValidation += ShowCertFailures(Writer);
-            using (var conn = ConnectionMultiplexer.Connect(options))
-            {
-                conn.GetDatabase().Ping();
-            }
+            using var conn = ConnectionMultiplexer.Connect(options);
+            conn.GetDatabase().Ping();
         }
 
         public static RemoteCertificateValidationCallback ShowCertFailures(TextWriterOutputHelper output) {
@@ -455,10 +441,8 @@ namespace StackExchange.Redis.Tests
             var configString = $"{TestConfig.Current.AzureCacheServer}:6380,password={TestConfig.Current.AzureCachePassword},connectRetry=3,connectTimeout=5000,syncTimeout=5000,defaultDatabase=0,ssl=true,abortConnect=false";
             var options = ConfigurationOptions.Parse(configString);
             options.CertificateValidation += ShowCertFailures(Writer);
-            using (var conn = ConnectionMultiplexer.Connect(options))
-            {
-                conn.GetDatabase().Ping();
-            }
+            using var conn = ConnectionMultiplexer.Connect(options);
+            conn.GetDatabase().Ping();
         }
 
         [Fact]

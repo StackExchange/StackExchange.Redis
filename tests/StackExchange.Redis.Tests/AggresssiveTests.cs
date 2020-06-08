@@ -77,26 +77,24 @@ namespace StackExchange.Redis.Tests
         [FactLongRunning]
         public void RunCompetingBatchesOnSameMuxer()
         {
-            using (var muxer = Create())
+            using var muxer = Create();
+            var db = muxer.GetDatabase();
+
+            Thread x = new Thread(state => BatchRunPings((IDatabase)state))
             {
-                var db = muxer.GetDatabase();
+                Name = nameof(BatchRunPings)
+            };
+            Thread y = new Thread(state => BatchRunIntegers((IDatabase)state))
+            {
+                Name = nameof(BatchRunIntegers)
+            };
 
-                Thread x = new Thread(state => BatchRunPings((IDatabase)state))
-                {
-                    Name = nameof(BatchRunPings)
-                };
-                Thread y = new Thread(state => BatchRunIntegers((IDatabase)state))
-                {
-                    Name = nameof(BatchRunIntegers)
-                };
+            x.Start(db);
+            y.Start(db);
+            x.Join();
+            y.Join();
 
-                x.Start(db);
-                y.Start(db);
-                x.Join();
-                y.Join();
-
-                Writer.WriteLine(muxer.GetCounters().Interactive);
-            }
+            Writer.WriteLine(muxer.GetCounters().Interactive);
         }
 
         private void BatchRunIntegers(IDatabase db)
@@ -138,18 +136,16 @@ namespace StackExchange.Redis.Tests
         [FactLongRunning]
         public async Task RunCompetingBatchesOnSameMuxerAsync()
         {
-            using (var muxer = Create())
-            {
-                var db = muxer.GetDatabase();
+            using var muxer = Create();
+            var db = muxer.GetDatabase();
 
-                var x = Task.Run(() => BatchRunPingsAsync(db));
-                var y = Task.Run(() => BatchRunIntegersAsync(db));
+            var x = Task.Run(() => BatchRunPingsAsync(db));
+            var y = Task.Run(() => BatchRunIntegersAsync(db));
 
-                await x;
-                await y;
+            await x;
+            await y;
 
-                Writer.WriteLine(muxer.GetCounters().Interactive);
-            }
+            Writer.WriteLine(muxer.GetCounters().Interactive);
         }
 
         private async Task BatchRunIntegersAsync(IDatabase db)
@@ -197,26 +193,24 @@ namespace StackExchange.Redis.Tests
         [FactLongRunning]
         public void RunCompetingTransactionsOnSameMuxer()
         {
-            using (var muxer = Create(logTransactionData: false))
+            using var muxer = Create(logTransactionData: false);
+            var db = muxer.GetDatabase();
+
+            Thread x = new Thread(state => TranRunPings((IDatabase)state))
             {
-                var db = muxer.GetDatabase();
+                Name = nameof(BatchRunPings)
+            };
+            Thread y = new Thread(state => TranRunIntegers((IDatabase)state))
+            {
+                Name = nameof(BatchRunIntegers)
+            };
 
-                Thread x = new Thread(state => TranRunPings((IDatabase)state))
-                {
-                    Name = nameof(BatchRunPings)
-                };
-                Thread y = new Thread(state => TranRunIntegers((IDatabase)state))
-                {
-                    Name = nameof(BatchRunIntegers)
-                };
+            x.Start(db);
+            y.Start(db);
+            x.Join();
+            y.Join();
 
-                x.Start(db);
-                y.Start(db);
-                x.Join();
-                y.Join();
-
-                Writer.WriteLine(muxer.GetCounters().Interactive);
-            }
+            Writer.WriteLine(muxer.GetCounters().Interactive);
         }
 
         private void TranRunIntegers(IDatabase db)
@@ -262,18 +256,16 @@ namespace StackExchange.Redis.Tests
         [FactLongRunning]
         public async Task RunCompetingTransactionsOnSameMuxerAsync()
         {
-            using (var muxer = Create(logTransactionData: false))
-            {
-                var db = muxer.GetDatabase();
+            using var muxer = Create(logTransactionData: false);
+            var db = muxer.GetDatabase();
 
-                var x = Task.Run(() => TranRunPingsAsync(db));
-                var y = Task.Run(() => TranRunIntegersAsync(db));
+            var x = Task.Run(() => TranRunPingsAsync(db));
+            var y = Task.Run(() => TranRunIntegersAsync(db));
 
-                await x;
-                await y;
+            await x;
+            await y;
 
-                Writer.WriteLine(muxer.GetCounters().Interactive);
-            }
+            Writer.WriteLine(muxer.GetCounters().Interactive);
         }
 
         private async Task TranRunIntegersAsync(IDatabase db)

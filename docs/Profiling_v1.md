@@ -163,7 +163,7 @@ public class RedisProfiler : IProfiler
     public object GetContext()
     {
         var ctx = HttpContext.Current;
-        if (ctx == null) return null;
+        if (ctx is null) return null;
 
         return ctx.Items[RequestContextKey];
     }
@@ -171,7 +171,7 @@ public class RedisProfiler : IProfiler
     public object CreateContextForCurrentRequest()
     {
         var ctx = HttpContext.Current;
-        if (ctx == null) return null;
+        if (ctx is null) return null;
 
         object ret;
         ctx.Items[RequestContextKey] = ret = new object();

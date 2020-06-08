@@ -12,73 +12,65 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task CanCallDoctor()
         {
-            using (var conn = Create())
-            {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Memory), r => r.Streams);
-                var server = conn.GetServer(conn.GetEndPoints()[0]);
-                string doctor = server.MemoryDoctor();
-                Assert.NotNull(doctor);
-                Assert.NotEqual("", doctor);
+            using var conn = Create();
+            Skip.IfMissingFeature(conn, nameof(RedisFeatures.Memory), r => r.Streams);
+            var server = conn.GetServer(conn.GetEndPoints()[0]);
+            string doctor = server.MemoryDoctor();
+            Assert.NotNull(doctor);
+            Assert.NotEqual("", doctor);
 
-                doctor = await server.MemoryDoctorAsync();
-                Assert.NotNull(doctor);
-                Assert.NotEqual("", doctor);
-            }
+            doctor = await server.MemoryDoctorAsync();
+            Assert.NotNull(doctor);
+            Assert.NotEqual("", doctor);
         }
 
         [Fact]
         public async Task CanPurge()
         {
-            using (var conn = Create())
-            {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Memory), r => r.Streams);
-                var server = conn.GetServer(conn.GetEndPoints()[0]);
-                server.MemoryPurge();
-                await server.MemoryPurgeAsync();
+            using var conn = Create();
+            Skip.IfMissingFeature(conn, nameof(RedisFeatures.Memory), r => r.Streams);
+            var server = conn.GetServer(conn.GetEndPoints()[0]);
+            server.MemoryPurge();
+            await server.MemoryPurgeAsync();
 
-                await server.MemoryPurgeAsync();
-            }
+            await server.MemoryPurgeAsync();
         }
 
         [Fact]
         public async Task GetAllocatorStats()
         {
-            using (var conn = Create())
-            {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Memory), r => r.Streams);
-                var server = conn.GetServer(conn.GetEndPoints()[0]);
+            using var conn = Create();
+            Skip.IfMissingFeature(conn, nameof(RedisFeatures.Memory), r => r.Streams);
+            var server = conn.GetServer(conn.GetEndPoints()[0]);
 
-                var stats = server.MemoryAllocatorStats();
-                Assert.False(string.IsNullOrWhiteSpace(stats));
+            var stats = server.MemoryAllocatorStats();
+            Assert.False(string.IsNullOrWhiteSpace(stats));
 
-                stats = await server.MemoryAllocatorStatsAsync();
-                Assert.False(string.IsNullOrWhiteSpace(stats));
-            }
+            stats = await server.MemoryAllocatorStatsAsync();
+            Assert.False(string.IsNullOrWhiteSpace(stats));
         }
 
         [Fact]
         public async Task GetStats()
         {
-            using (var conn = Create())
-            {
-                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Memory), r => r.Streams);
-                var server = conn.GetServer(conn.GetEndPoints()[0]);
-                var stats = server.MemoryStats();
-                Assert.Equal(ResultType.MultiBulk, stats.Type);
+            using var conn = Create();
+            Skip.IfMissingFeature(conn, nameof(RedisFeatures.Memory), r => r.Streams);
+            var server = conn.GetServer(conn.GetEndPoints()[0]);
+            var stats = server.MemoryStats();
+            Assert.Equal(ResultType.MultiBulk, stats.Type);
 
-                var parsed = stats.ToDictionary();
+            var parsed = stats.ToDictionary();
 
-                var alloc = parsed["total.allocated"];
-                Assert.Equal(ResultType.Integer, alloc.Type);
-                Assert.True(alloc.AsInt64() > 0);
+            var alloc = parsed["total.allocated"];
+            Assert.Equal(ResultType.Integer, alloc.Type);
+            Assert.True(alloc.AsInt64() > 0);
 
-                stats = await server.MemoryStatsAsync();
-                Assert.Equal(ResultType.MultiBulk, stats.Type);
+            stats = await server.MemoryStatsAsync();
+            Assert.Equal(ResultType.MultiBulk, stats.Type);
 
-                alloc = parsed["total.allocated"];
-                Assert.Equal(ResultType.Integer, alloc.Type);
-                Assert.True(alloc.AsInt64() > 0);
-            }
+            alloc = parsed["total.allocated"];
+            Assert.Equal(ResultType.Integer, alloc.Type);
+            Assert.True(alloc.AsInt64() > 0);
         }
     }
 }

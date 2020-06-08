@@ -130,13 +130,11 @@ namespace StackExchange.Redis.Tests
         {
             try
             {
-                using (var muxer = Create(keepAlive: 1, connectTimeout: 3000))
-                {
-                    var conn = muxer.GetDatabase();
-                    conn.Ping();
+                using var muxer = Create(keepAlive: 1, connectTimeout: 3000);
+                var conn = muxer.GetDatabase();
+                conn.Ping();
 
-                    Assert.True(muxer.IsConnected);
-                }
+                Assert.True(muxer.IsConnected);
             }
             finally
             {

@@ -15,47 +15,43 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void SubscriberCount()
         {
-            using (var conn = Create())
-            {
-                RedisChannel channel = Me() + Guid.NewGuid();
-                var server = conn.GetServer(conn.GetEndPoints()[0]);
+            using var conn = Create();
+            RedisChannel channel = Me() + Guid.NewGuid();
+            var server = conn.GetServer(conn.GetEndPoints()[0]);
 
-                var channels = server.SubscriptionChannels(Me() + "*");
-                Assert.DoesNotContain(channel, channels);
+            var channels = server.SubscriptionChannels(Me() + "*");
+            Assert.DoesNotContain(channel, channels);
 
-                long justWork = server.SubscriptionPatternCount();
-                var count = server.SubscriptionSubscriberCount(channel);
-                Assert.Equal(0, count);
-                conn.GetSubscriber().Subscribe(channel, delegate { });
-                count = server.SubscriptionSubscriberCount(channel);
-                Assert.Equal(1, count);
+            long justWork = server.SubscriptionPatternCount();
+            var count = server.SubscriptionSubscriberCount(channel);
+            Assert.Equal(0, count);
+            conn.GetSubscriber().Subscribe(channel, delegate { });
+            count = server.SubscriptionSubscriberCount(channel);
+            Assert.Equal(1, count);
 
-                channels = server.SubscriptionChannels(Me() + "*");
-                Assert.Contains(channel, channels);
-            }
+            channels = server.SubscriptionChannels(Me() + "*");
+            Assert.Contains(channel, channels);
         }
 
         [Fact]
         public async Task SubscriberCountAsync()
         {
-            using (var conn = Create())
-            {
-                RedisChannel channel = Me() + Guid.NewGuid();
-                var server = conn.GetServer(conn.GetEndPoints()[0]);
+            using var conn = Create();
+            RedisChannel channel = Me() + Guid.NewGuid();
+            var server = conn.GetServer(conn.GetEndPoints()[0]);
 
-                var channels = await server.SubscriptionChannelsAsync(Me() + "*").WithTimeout(2000);
-                Assert.DoesNotContain(channel, channels);
+            var channels = await server.SubscriptionChannelsAsync(Me() + "*").WithTimeout(2000);
+            Assert.DoesNotContain(channel, channels);
 
-                long justWork = await server.SubscriptionPatternCountAsync().WithTimeout(2000);
-                var count = await server.SubscriptionSubscriberCountAsync(channel).WithTimeout(2000);
-                Assert.Equal(0, count);
-                await conn.GetSubscriber().SubscribeAsync(channel, delegate { }).WithTimeout(2000);
-                count = await server.SubscriptionSubscriberCountAsync(channel).WithTimeout(2000);
-                Assert.Equal(1, count);
+            long justWork = await server.SubscriptionPatternCountAsync().WithTimeout(2000);
+            var count = await server.SubscriptionSubscriberCountAsync(channel).WithTimeout(2000);
+            Assert.Equal(0, count);
+            await conn.GetSubscriber().SubscribeAsync(channel, delegate { }).WithTimeout(2000);
+            count = await server.SubscriptionSubscriberCountAsync(channel).WithTimeout(2000);
+            Assert.Equal(1, count);
 
-                channels = await server.SubscriptionChannelsAsync(Me() + "*").WithTimeout(2000);
-                Assert.Contains(channel, channels);
-            }
+            channels = await server.SubscriptionChannelsAsync(Me() + "*").WithTimeout(2000);
+            Assert.Contains(channel, channels);
         }
     }
     static class Util

@@ -13,23 +13,19 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void BlankPrefixYieldsSame_Bytes()
         {
-            using (var conn = Create())
-            {
-                var raw = conn.GetDatabase();
-                var prefixed = raw.WithKeyPrefix(new byte[0]);
-                Assert.Same(raw, prefixed);
-            }
+            using var conn = Create();
+            var raw = conn.GetDatabase();
+            var prefixed = raw.WithKeyPrefix(new byte[0]);
+            Assert.Same(raw, prefixed);
         }
 
         [Fact]
         public void BlankPrefixYieldsSame_String()
         {
-            using (var conn = Create())
-            {
-                var raw = conn.GetDatabase();
-                var prefixed = raw.WithKeyPrefix("");
-                Assert.Same(raw, prefixed);
-            }
+            using var conn = Create();
+            var raw = conn.GetDatabase();
+            var prefixed = raw.WithKeyPrefix("");
+            Assert.Same(raw, prefixed);
         }
 
         [Fact]
@@ -37,11 +33,9 @@ namespace StackExchange.Redis.Tests
         {
             Assert.Throws<ArgumentNullException>(() =>
             {
-                using (var conn = Create())
-                {
-                    var raw = conn.GetDatabase();
-                    var prefixed = raw.WithKeyPrefix((byte[])null);
-                }
+                using var conn = Create();
+                var raw = conn.GetDatabase();
+                var prefixed = raw.WithKeyPrefix((byte[])null);
             });
         }
 
@@ -50,11 +44,9 @@ namespace StackExchange.Redis.Tests
         {
             Assert.Throws<ArgumentNullException>(() =>
             {
-                using (var conn = Create())
-                {
-                    var raw = conn.GetDatabase();
-                    var prefixed = raw.WithKeyPrefix((string)null);
-                }
+                using var conn = Create();
+                var raw = conn.GetDatabase();
+                var prefixed = raw.WithKeyPrefix((string)null);
             });
         }
 
@@ -74,70 +66,66 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void BasicSmokeTest()
         {
-            using (var conn = Create())
-            {
-                var raw = conn.GetDatabase();
+            using var conn = Create();
+            var raw = conn.GetDatabase();
 
-                var prefix = Me();
-                var foo = raw.WithKeyPrefix(prefix);
-                var foobar = foo.WithKeyPrefix("bar");
+            var prefix = Me();
+            var foo = raw.WithKeyPrefix(prefix);
+            var foobar = foo.WithKeyPrefix("bar");
 
-                string key = Me();
+            string key = Me();
 
-                string s = Guid.NewGuid().ToString(), t = Guid.NewGuid().ToString();
+            string s = Guid.NewGuid().ToString(), t = Guid.NewGuid().ToString();
 
-                foo.StringSet(key, s, flags: CommandFlags.FireAndForget);
-                var val = (string)foo.StringGet(key);
-                Assert.Equal(s, val); // fooBasicSmokeTest
+            foo.StringSet(key, s, flags: CommandFlags.FireAndForget);
+            var val = (string)foo.StringGet(key);
+            Assert.Equal(s, val); // fooBasicSmokeTest
 
-                foobar.StringSet(key, t, flags: CommandFlags.FireAndForget);
-                val = (string)foobar.StringGet(key);
-                Assert.Equal(t, val); // foobarBasicSmokeTest
+            foobar.StringSet(key, t, flags: CommandFlags.FireAndForget);
+            val = (string)foobar.StringGet(key);
+            Assert.Equal(t, val); // foobarBasicSmokeTest
 
-                val = (string)foo.StringGet("bar" + key);
-                Assert.Equal(t, val); // foobarBasicSmokeTest
+            val = (string)foo.StringGet("bar" + key);
+            Assert.Equal(t, val); // foobarBasicSmokeTest
 
-                val = (string)raw.StringGet(prefix + key);
-                Assert.Equal(s, val); // fooBasicSmokeTest
+            val = (string)raw.StringGet(prefix + key);
+            Assert.Equal(s, val); // fooBasicSmokeTest
 
-                val = (string)raw.StringGet(prefix + "bar" + key);
-                Assert.Equal(t, val); // foobarBasicSmokeTest
-            }
+            val = (string)raw.StringGet(prefix + "bar" + key);
+            Assert.Equal(t, val); // foobarBasicSmokeTest
         }
 
         [Fact]
         public void ConditionTest()
         {
-            using (var conn = Create())
-            {
-                var raw = conn.GetDatabase();
+            using var conn = Create();
+            var raw = conn.GetDatabase();
 
-                var prefix = Me() + ":";
-                var foo = raw.WithKeyPrefix(prefix);
+            var prefix = Me() + ":";
+            var foo = raw.WithKeyPrefix(prefix);
 
-                raw.KeyDelete(prefix + "abc", CommandFlags.FireAndForget);
-                raw.KeyDelete(prefix + "i", CommandFlags.FireAndForget);
+            raw.KeyDelete(prefix + "abc", CommandFlags.FireAndForget);
+            raw.KeyDelete(prefix + "i", CommandFlags.FireAndForget);
 
-                // execute while key exists
-                raw.StringSet(prefix + "abc", "def", flags: CommandFlags.FireAndForget);
-                var tran = foo.CreateTransaction();
-                tran.AddCondition(Condition.KeyExists("abc"));
-                tran.StringIncrementAsync("i");
-                tran.Execute();
+            // execute while key exists
+            raw.StringSet(prefix + "abc", "def", flags: CommandFlags.FireAndForget);
+            var tran = foo.CreateTransaction();
+            tran.AddCondition(Condition.KeyExists("abc"));
+            tran.StringIncrementAsync("i");
+            tran.Execute();
 
-                int i = (int)raw.StringGet(prefix + "i");
-                Assert.Equal(1, i);
+            int i = (int)raw.StringGet(prefix + "i");
+            Assert.Equal(1, i);
 
-                // repeat without key
-                raw.KeyDelete(prefix + "abc", CommandFlags.FireAndForget);
-                tran = foo.CreateTransaction();
-                tran.AddCondition(Condition.KeyExists("abc"));
-                tran.StringIncrementAsync("i");
-                tran.Execute();
+            // repeat without key
+            raw.KeyDelete(prefix + "abc", CommandFlags.FireAndForget);
+            tran = foo.CreateTransaction();
+            tran.AddCondition(Condition.KeyExists("abc"));
+            tran.StringIncrementAsync("i");
+            tran.Execute();
 
-                i = (int)raw.StringGet(prefix + "i");
-                Assert.Equal(1, i);
-            }
+            i = (int)raw.StringGet(prefix + "i");
+            Assert.Equal(1, i);
         }
     }
 }

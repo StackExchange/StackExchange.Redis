@@ -135,10 +135,10 @@ namespace StackExchange.Redis
             if (RedisValue.Equals(keyPrefix0, keyPrefix1))
             {
                 if (keyValue0 == keyValue1) return true; // ref equal
-                if (keyValue0 == null || keyValue1 == null) return false; // null vs non-null
+                if (keyValue0 is null || keyValue1 is null) return false; // null vs non-null
 
-                if (keyValue0 is string && keyValue1 is string) return ((string)keyValue0) == ((string)keyValue1);
-                if (keyValue0 is byte[] && keyValue1 is byte[]) return RedisValue.Equals((byte[])keyValue0, (byte[])keyValue1);
+                if (keyValue0 is string sx && keyValue1 is string sy) return sx == sy;
+                if (keyValue0 is byte[] bx && keyValue1 is byte[] by) return RedisValue.Equals(bx, by);
             }
 
             return RedisValue.Equals(ConcatenateBytes(keyPrefix0, keyValue0, null), ConcatenateBytes(keyPrefix1, keyValue1, null));
@@ -162,7 +162,7 @@ namespace StackExchange.Redis
 
         internal RedisValue AsRedisValue()
         {
-            if (KeyPrefix == null && KeyValue is string) return (string)KeyValue;
+            if (KeyPrefix is null && KeyValue is string value) return value;
             return (byte[])this;
         }
 
@@ -203,11 +203,11 @@ namespace StackExchange.Redis
         public static implicit operator string(RedisKey key)
         {
             byte[] arr;
-            if (key.KeyPrefix == null)
+            if (key.KeyPrefix is null)
             {
-                if (key.KeyValue == null) return null;
+                if (key.KeyValue is null) return null;
 
-                if (key.KeyValue is string) return (string)key.KeyValue;
+                if (key.KeyValue is string s) return s;
 
                 arr = (byte[])key.KeyValue;
             }
@@ -215,7 +215,7 @@ namespace StackExchange.Redis
             {
                 arr = (byte[])key;
             }
-            if (arr == null) return null;
+            if (arr is null) return null;
             try
             {
                 return Encoding.UTF8.GetString(arr);
@@ -260,8 +260,8 @@ namespace StackExchange.Redis
             }
 
             int aLen = a?.Length ?? 0,
-                bLen = b == null ? 0 : (b is string
-                ? Encoding.UTF8.GetByteCount((string)b)
+                bLen = b == null ? 0 : (b is string s2
+                ? Encoding.UTF8.GetByteCount(s2)
                 : ((byte[])b).Length),
                 cLen = c?.Length ?? 0;
 

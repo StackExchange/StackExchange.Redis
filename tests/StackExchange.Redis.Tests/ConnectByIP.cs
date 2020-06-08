@@ -37,12 +37,10 @@ namespace StackExchange.Redis.Tests
             {
                 EndPoints = { { TestConfig.Current.IPv4Server, TestConfig.Current.IPv4Port } }
             };
-            using (var conn = ConnectionMultiplexer.Connect(config))
-            {
-                var server = conn.GetServer(config.EndPoints[0]);
-                Assert.Equal(AddressFamily.InterNetwork, server.EndPoint.AddressFamily);
-                server.Ping();
-            }
+            using var conn = ConnectionMultiplexer.Connect(config);
+            var server = conn.GetServer(config.EndPoints[0]);
+            Assert.Equal(AddressFamily.InterNetwork, server.EndPoint.AddressFamily);
+            server.Ping();
         }
 
         [Fact]
@@ -52,12 +50,10 @@ namespace StackExchange.Redis.Tests
             {
                 EndPoints = { { TestConfig.Current.IPv6Server, TestConfig.Current.IPv6Port } }
             };
-            using (var conn = ConnectionMultiplexer.Connect(config))
-            {
-                var server = conn.GetServer(config.EndPoints[0]);
-                Assert.Equal(AddressFamily.InterNetworkV6, server.EndPoint.AddressFamily);
-                server.Ping();
-            }
+            using var conn = ConnectionMultiplexer.Connect(config);
+            var server = conn.GetServer(config.EndPoints[0]);
+            Assert.Equal(AddressFamily.InterNetworkV6, server.EndPoint.AddressFamily);
+            server.Ping();
         }
 
         [Theory]
@@ -71,12 +67,10 @@ namespace StackExchange.Redis.Tests
             };
             if (ep.AddressFamily != AddressFamily.InterNetworkV6) // I don't have IPv6 servers
             {
-                using (var conn = ConnectionMultiplexer.Connect(config))
-                {
-                    var actual = conn.GetEndPoints().Single();
-                    var server = conn.GetServer(actual);
-                    server.Ping();
-                }
+                using var conn = ConnectionMultiplexer.Connect(config);
+                var actual = conn.GetEndPoints().Single();
+                var server = conn.GetServer(actual);
+                server.Ping();
             }
         }
 

@@ -84,15 +84,14 @@ namespace StackExchange.Redis
     {
         internal static string GetRedisUnit(GeoUnit unit)
         {
-            switch (unit)
+            return unit switch
             {
-                case GeoUnit.Meters: return "m";
-                case GeoUnit.Kilometers: return "km";
-                case GeoUnit.Miles: return "mi";
-                case GeoUnit.Feet: return "ft";
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(unit));
-            }
+                GeoUnit.Meters => "m",
+                GeoUnit.Kilometers => "km",
+                GeoUnit.Miles => "mi",
+                GeoUnit.Feet => "ft",
+                _ => throw new ArgumentOutOfRangeException(nameof(unit)),
+            };
         }
 
         /// <summary>

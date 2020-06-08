@@ -36,16 +36,16 @@ namespace NRediSearch
 
             internal virtual void SerializeRedisArgs(List<object> args)
             {
-                object GetForRedis(FieldType type)
+                static object GetForRedis(FieldType type)
                 {
-                    switch (type)
+                    return type switch
                     {
-                        case FieldType.FullText: return "TEXT".Literal();
-                        case FieldType.Geo: return "GEO".Literal();
-                        case FieldType.Numeric: return "NUMERIC".Literal();
-                        case FieldType.Tag: return "TAG".Literal();
-                        default: throw new ArgumentOutOfRangeException(nameof(type));
-                    }
+                        FieldType.FullText => "TEXT".Literal(),
+                        FieldType.Geo => "GEO".Literal(),
+                        FieldType.Numeric => "NUMERIC".Literal(),
+                        FieldType.Tag => "TAG".Literal(),
+                        _ => throw new ArgumentOutOfRangeException(nameof(type)),
+                    };
                 }
                 args.Add(Name);
                 args.Add(GetForRedis(Type));

@@ -20,15 +20,15 @@ namespace NRediSearch
         /// <remarks>This should only be used for fixed values, not user data (the cache is never reclaimed, so it will be a memory leak)</remarks>
         public static object Literal(this string value)
         {
-            if (value == null) return _null;
+            if (value is null) return _null;
 
             object boxed = _boxed[value];
-            if (boxed == null)
+            if (boxed is null)
             {
                 lock (_boxed)
                 {
                     boxed = _boxed[value];
-                    if (boxed == null)
+                    if (boxed is null)
                     {
                         boxed = (RedisValue)value;
                         _boxed.Add(value, boxed);

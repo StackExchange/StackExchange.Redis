@@ -87,7 +87,7 @@ namespace StackExchange.Redis
             // (there is no task for the inner command)
             lock (SyncLock)
             {
-                (_pending ?? (_pending = new List<QueuedMessage>())).Add(queued);
+                (_pending ??= new List<QueuedMessage>()).Add(queued);
 
                 switch (message.Command)
                 {
@@ -456,7 +456,6 @@ namespace StackExchange.Redis
                 connection?.BridgeCouldBeNull?.Multiplexer?.OnTransactionLog($"got {result} for {message.CommandAndKey}");
                 if (message is TransactionMessage tran)
                 {
-                    var bridge = connection.BridgeCouldBeNull;
                     var wrapped = tran.InnerOperations;
                     switch (result.Type)
                     {

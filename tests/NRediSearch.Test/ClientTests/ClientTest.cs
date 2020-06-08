@@ -359,9 +359,11 @@ namespace NRediSearch.Test.ClientTests
             Assert.True(cl.AlterIndex(new TagField("tags", ","), new TextField("name", 0.5)));
             for (int i = 0; i < 100; i++)
             {
-                var fields2 = new Dictionary<string, RedisValue>();
-                fields2.Add("name", $"name{i}");
-                fields2.Add("tags", $"tagA,tagB,tag{i}");
+                var fields2 = new Dictionary<string, RedisValue>
+                {
+                    { "name", $"name{i}" },
+                    { "tags", $"tagA,tagB,tag{i}" }
+                };
                 Assert.True(cl.UpdateDocument($"doc{i}", fields2, 1.0));
             }
             SearchResult res2 = cl.Search(new Query("@tags:{tagA}"));
@@ -616,8 +618,8 @@ namespace NRediSearch.Test.ClientTests
             Suggestion suggestion = Suggestion.Builder.String("ANOTHER_WORD").Score(1).Build();
             Suggestion noMatch = Suggestion.Builder.String("_WORD MISSED").Score(1).Build();
 
-            Assert.True(cl.AddSuggestion(suggestion, false) > 0, $"{suggestion.ToString()} should of inserted at least 1");
-            Assert.True(cl.AddSuggestion(noMatch, false) > 0, $"{noMatch.ToString()} should of inserted at least 1");
+            Assert.True(cl.AddSuggestion(suggestion, false) > 0, $"{suggestion} should of inserted at least 1");
+            Assert.True(cl.AddSuggestion(noMatch, false) > 0, $"{noMatch} should of inserted at least 1");
 
             // test that with a partial part of that string will have the entire word returned SuggestionOptions.builder().build()
             Assert.Single(cl.GetSuggestions(suggestion.String.Substring(0, 3), SuggestionOptions.Builder.Fuzzy().Build()));
@@ -634,7 +636,7 @@ namespace NRediSearch.Test.ClientTests
             Client cl = GetClient();
 
             Suggestion suggestion = Suggestion.Builder.String("COUNT_ME TOO").Payload("PAYLOADS ROCK ").Score(0.2).Build();
-            Assert.True(cl.AddSuggestion(suggestion, false) > 0, $"{suggestion.ToString()} insert should of at least returned 1");
+            Assert.True(cl.AddSuggestion(suggestion, false) > 0, $"{suggestion} insert should of at least returned 1");
             Assert.True(cl.AddSuggestion(suggestion.ToBuilder().String("COUNT").Payload("My PAYLOAD is better").Build(), false) > 1, "Count single added should return more than 1");
             Assert.True(cl.AddSuggestion(suggestion.ToBuilder().String("COUNT_ANOTHER").Score(1).Payload(null).Build(), false) > 1, "Count single added should return more than 1");
 
@@ -727,21 +729,29 @@ namespace NRediSearch.Test.ClientTests
             Output.WriteLine("Initial search: " + search.TotalResults);
             Assert.Equal(0, search.TotalResults);
 
-            var fields1 = new Dictionary<string, RedisValue>();
-            fields1.Add("title", "hello world");
-            fields1.Add("category", "red");
+            var fields1 = new Dictionary<string, RedisValue>
+            {
+                { "title", "hello world" },
+                { "category", "red" }
+            };
             Assert.True(cl.AddDocument("foo", fields1));
-            var fields2 = new Dictionary<string, RedisValue>();
-            fields2.Add("title", "hello world");
-            fields2.Add("category", "blue");
+            var fields2 = new Dictionary<string, RedisValue>
+            {
+                { "title", "hello world" },
+                { "category", "blue" }
+            };
             Assert.True(cl.AddDocument("bar", fields2));
-            var fields3 = new Dictionary<string, RedisValue>();
-            fields3.Add("title", "hello world");
-            fields3.Add("category", "green,yellow");
+            var fields3 = new Dictionary<string, RedisValue>
+            {
+                { "title", "hello world" },
+                { "category", "green,yellow" }
+            };
             Assert.True(cl.AddDocument("baz", fields3));
-            var fields4 = new Dictionary<string, RedisValue>();
-            fields4.Add("title", "hello world");
-            fields4.Add("category", "orange;purple");
+            var fields4 = new Dictionary<string, RedisValue>
+            {
+                { "title", "hello world" },
+                { "category", "orange;purple" }
+            };
             Assert.True(cl.AddDocument("qux", fields4));
 
             Assert.Equal(1, cl.Search(new Query("@category:{red}")).TotalResults);
@@ -769,21 +779,29 @@ namespace NRediSearch.Test.ClientTests
                     .AddTagField("category", ";");
 
             Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
-            var fields1 = new Dictionary<string, RedisValue>();
-            fields1.Add("title", "hello world");
-            fields1.Add("category", "red");
+            var fields1 = new Dictionary<string, RedisValue>
+            {
+                { "title", "hello world" },
+                { "category", "red" }
+            };
             Assert.True(cl.AddDocument("foo", fields1));
-            var fields2 = new Dictionary<string, RedisValue>();
-            fields2.Add("title", "hello world");
-            fields2.Add("category", "blue");
+            var fields2 = new Dictionary<string, RedisValue>
+            {
+                { "title", "hello world" },
+                { "category", "blue" }
+            };
             Assert.True(cl.AddDocument("bar", fields2));
-            var fields3 = new Dictionary<string, RedisValue>();
-            fields3.Add("title", "hello world");
-            fields3.Add("category", "green;yellow");
+            var fields3 = new Dictionary<string, RedisValue>
+            {
+                { "title", "hello world" },
+                { "category", "green;yellow" }
+            };
             Assert.True(cl.AddDocument("baz", fields3));
-            var fields4 = new Dictionary<string, RedisValue>();
-            fields4.Add("title", "hello world");
-            fields4.Add("category", "orange,purple");
+            var fields4 = new Dictionary<string, RedisValue>
+            {
+                { "title", "hello world" },
+                { "category", "orange,purple" }
+            };
             Assert.True(cl.AddDocument("qux", fields4));
 
             Assert.Equal(1, cl.Search(new Query("@category:{red}")).TotalResults);
@@ -804,9 +822,11 @@ namespace NRediSearch.Test.ClientTests
 
             Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
 
-            var fields = new Dictionary<string, RedisValue>();
-            fields.Add("title", "hello world");
-            fields.Add("body", "lorem ipsum");
+            var fields = new Dictionary<string, RedisValue>
+            {
+                { "title", "hello world" },
+                { "body", "lorem ipsum" }
+            };
 
             var results = cl.AddDocuments(new Document("doc1", fields), new Document("doc2", fields), new Document("doc3", fields));
 
@@ -830,9 +850,11 @@ namespace NRediSearch.Test.ClientTests
             Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
 
 
-            var doc = new Dictionary<string, RedisValue>();
-            doc.Add("field1", "value1");
-            doc.Add("field2", "value2");
+            var doc = new Dictionary<string, RedisValue>
+            {
+                { "field1", "value1" },
+                { "field2", "value2" }
+            };
             // Store it
             Assert.True(cl.AddDocument("doc", doc));
 
@@ -850,9 +872,11 @@ namespace NRediSearch.Test.ClientTests
             Schema sc = new Schema().AddTextField("field1", 1.0).AddTextField("field2", 1.0);
             Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
 
-            var doc = new Dictionary<string, RedisValue>();
-            doc.Add("field1", "value");
-            doc.Add("field2", "not");
+            var doc = new Dictionary<string, RedisValue>
+            {
+                { "field1", "value" },
+                { "field2", "not" }
+            };
 
             // Store it
             Assert.True(cl.AddDocument("doc1", doc));

@@ -45,7 +45,7 @@ namespace StackExchange.Redis.Server
             string s = pattern;
             foreach (var pair in _cache)
             {
-                if (IsMatch(pattern, pair.Key)) yield return pair.Key;
+                if (IsMatch(s, pair.Key)) yield return pair.Key;
             }
         }
         protected override bool Sadd(int database, RedisKey key, RedisValue value)
@@ -115,17 +115,15 @@ namespace StackExchange.Redis.Server
         {
             var stack = GetStack(key, false);
 
-            using (var iter = stack.GetEnumerator())
-            {
-                // skip
-                while (start-- > 0) if (!iter.MoveNext()) ThrowArgumentOutOfRangeException();
+            using var iter = stack.GetEnumerator();
+            // skip
+            while (start-- > 0) if (!iter.MoveNext()) ThrowArgumentOutOfRangeException();
 
-                // take
-                for (int i = 0; i < arr.Length; i++)
-                {
-                    if (!iter.MoveNext()) ThrowArgumentOutOfRangeException();
-                    arr[i] = TypedRedisValue.BulkString(iter.Current);
-                }
+            // take
+            for (int i = 0; i < arr.Length; i++)
+            {
+                if (!iter.MoveNext()) ThrowArgumentOutOfRangeException();
+                arr[i] = TypedRedisValue.BulkString(iter.Current);
             }
         }
 

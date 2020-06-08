@@ -12,11 +12,9 @@ namespace StackExchange.Redis.Tests.Issues
         [InlineData(SaveType.BackgroundRewriteAppendOnlyFile)]
         public void ShouldntThrowException(SaveType saveType)
         {
-            using (var conn = Create(null, null, true))
-            {
-                var Server = GetServer(conn);
-                Server.Save(saveType);
-            }
+            using var conn = Create(null, null, true);
+            var Server = GetServer(conn);
+            Server.Save(saveType);
         }
     }
 }

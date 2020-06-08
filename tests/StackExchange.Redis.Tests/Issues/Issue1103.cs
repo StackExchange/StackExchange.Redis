@@ -19,27 +19,25 @@ namespace StackExchange.Redis.Tests.Issues
         public void LargeUInt64StoredCorrectly(ulong value, int storageType)
         {
             RedisKey key = Me();
-            using (var muxer = Create())
-            {
-                var db = muxer.GetDatabase();
-                RedisValue typed = value;
+            using var muxer = Create();
+            var db = muxer.GetDatabase();
+            RedisValue typed = value;
 
-                // only need UInt64 for 64-bits
-                Assert.Equal((StorageType)storageType, typed.Type);
-                db.StringSet(key, typed);
-                var fromRedis = db.StringGet(key);
+            // only need UInt64 for 64-bits
+            Assert.Equal((StorageType)storageType, typed.Type);
+            db.StringSet(key, typed);
+            var fromRedis = db.StringGet(key);
 
-                Log($"{fromRedis.Type}: {fromRedis}");
-                Assert.Equal(StorageType.Raw, fromRedis.Type);
-                Assert.Equal(value, (ulong)fromRedis);
-                Assert.Equal(value.ToString(CultureInfo.InvariantCulture), fromRedis.ToString());
+            Log($"{fromRedis.Type}: {fromRedis}");
+            Assert.Equal(StorageType.Raw, fromRedis.Type);
+            Assert.Equal(value, (ulong)fromRedis);
+            Assert.Equal(value.ToString(CultureInfo.InvariantCulture), fromRedis.ToString());
 
-                var simplified = fromRedis.Simplify();
-                Log($"{simplified.Type}: {simplified}");
-                Assert.Equal((StorageType)storageType, typed.Type);
-                Assert.Equal(value, (ulong)simplified);
-                Assert.Equal(value.ToString(CultureInfo.InvariantCulture), fromRedis.ToString());
-            }
+            var simplified = fromRedis.Simplify();
+            Log($"{simplified.Type}: {simplified}");
+            Assert.Equal((StorageType)storageType, typed.Type);
+            Assert.Equal(value, (ulong)simplified);
+            Assert.Equal(value.ToString(CultureInfo.InvariantCulture), fromRedis.ToString());
         }
 
         [Fact]

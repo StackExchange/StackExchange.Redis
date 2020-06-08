@@ -176,7 +176,6 @@ namespace StackExchange.Redis
                 if (haveTrailingCR)
                 {
                     if (span[0] == '\n') return totalSkipped - 1;
-                    haveTrailingCR = false;
                 }
 
                 int found = span.VectorSafeIndexOfCRLF();

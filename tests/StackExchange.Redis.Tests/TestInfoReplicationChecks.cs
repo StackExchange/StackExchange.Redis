@@ -16,16 +16,14 @@ namespace StackExchange.Redis.Tests
         {
             Skip.Inconclusive("need to think about CompletedSynchronously");
 
-            using(var conn = Create())
-            {
-                var parsed = ConfigurationOptions.Parse(conn.Configuration);
-                Assert.Equal(2, parsed.ConfigCheckSeconds);
-                var before = conn.GetCounters();
-                await Task.Delay(7000).ForAwait();
-                var after = conn.GetCounters();
-                int done = (int)(after.Interactive.CompletedSynchronously - before.Interactive.CompletedSynchronously);
-                Assert.True(done >= 2, $"expected >=2, got {done}");
-            }
+            using var conn = Create();
+            var parsed = ConfigurationOptions.Parse(conn.Configuration);
+            Assert.Equal(2, parsed.ConfigCheckSeconds);
+            var before = conn.GetCounters();
+            await Task.Delay(7000).ForAwait();
+            var after = conn.GetCounters();
+            int done = (int)(after.Interactive.CompletedSynchronously - before.Interactive.CompletedSynchronously);
+            Assert.True(done >= 2, $"expected >=2, got {done}");
         }
     }
 }

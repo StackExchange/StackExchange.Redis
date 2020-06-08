@@ -103,80 +103,78 @@ namespace StackExchange.Redis
             CancellationTokenSource timeoutSource = null;
             try
             {
-                using (var args = new SocketAwaitableEventArgs
+                using var args = new SocketAwaitableEventArgs
                 {
                     RemoteEndPoint = endpoint,
-                })
+                };
+                var x = VolatileSocket;
+                if (x == null)
                 {
-                    var x = VolatileSocket;
+                    args.Abort();
+                }
+                else if (x.ConnectAsync(args))
+                {   // asynchronous operation is pending
+                    timeoutSource = ConfigureTimeout(args, bridge.Multiplexer.RawConfig.ConnectTimeout);
+                }
+                else
+                {   // completed synchronously
+                    args.Complete();
+                }
+
+                // Complete connection
+                try
+                {
+                    // If we're told to ignore connect, abort here
+                    if (BridgeCouldBeNull?.Multiplexer?.IgnoreConnect ?? false) return;
+
+                    await args; // wait for the connect to complete or fail (will throw)
+                    if (timeoutSource != null)
+                    {
+                        timeoutSource.Cancel();
+                        timeoutSource.Dispose();
+                    }
+
+                    x = VolatileSocket;
                     if (x == null)
                     {
-                        args.Abort();
+                        ConnectionMultiplexer.TraceWithoutContext("Socket was already aborted");
                     }
-                    else if (x.ConnectAsync(args))
-                    {   // asynchronous operation is pending
-                        timeoutSource = ConfigureTimeout(args, bridge.Multiplexer.RawConfig.ConnectTimeout);
-                    }
-                    else
-                    {   // completed synchronously
-                        args.Complete();
-                    }
-
-                    // Complete connection
-                    try
+                    else if (await ConnectedAsync(x, log, bridge.Multiplexer.SocketManager).ForAwait())
                     {
-                        // If we're told to ignore connect, abort here
-                        if (BridgeCouldBeNull?.Multiplexer?.IgnoreConnect ?? false) return;
-
-                        await args; // wait for the connect to complete or fail (will throw)
-                        if (timeoutSource != null)
+                        log?.WriteLine("Starting read");
+                        try
                         {
-                            timeoutSource.Cancel();
-                            timeoutSource.Dispose();
+                            StartReading();
+                            // Normal return
                         }
-
-                        x = VolatileSocket;
-                        if (x == null)
+                        catch (Exception ex)
                         {
-                            ConnectionMultiplexer.TraceWithoutContext("Socket was already aborted");
-                        }
-                        else if (await ConnectedAsync(x, log, bridge.Multiplexer.SocketManager).ForAwait())
-                        {
-                            log?.WriteLine("Starting read");
-                            try
-                            {
-                                StartReading();
-                                // Normal return
-                            }
-                            catch (Exception ex)
-                            {
-                                ConnectionMultiplexer.TraceWithoutContext(ex.Message);
-                                Shutdown();
-                            }
-                        }
-                        else
-                        {
-                            ConnectionMultiplexer.TraceWithoutContext("Aborting socket");
+                            ConnectionMultiplexer.TraceWithoutContext(ex.Message);
                             Shutdown();
                         }
                     }
-                    catch (ObjectDisposedException)
+                    else
                     {
-                        log?.WriteLine("(socket shutdown)");
-                        try { RecordConnectionFailed(ConnectionFailureType.UnableToConnect, isInitialConnect: true); }
-                        catch (Exception inner)
-                        {
-                            ConnectionMultiplexer.TraceWithoutContext(inner.Message);
-                        }
+                        ConnectionMultiplexer.TraceWithoutContext("Aborting socket");
+                        Shutdown();
                     }
-                    catch (Exception outer)
+                }
+                catch (ObjectDisposedException)
+                {
+                    log?.WriteLine("(socket shutdown)");
+                    try { RecordConnectionFailed(ConnectionFailureType.UnableToConnect, isInitialConnect: true); }
+                    catch (Exception inner)
                     {
-                        ConnectionMultiplexer.TraceWithoutContext(outer.Message);
-                        try { RecordConnectionFailed(ConnectionFailureType.UnableToConnect, isInitialConnect: true); }
-                        catch (Exception inner)
-                        {
-                            ConnectionMultiplexer.TraceWithoutContext(inner.Message);
-                        }
+                        ConnectionMultiplexer.TraceWithoutContext(inner.Message);
+                    }
+                }
+                catch (Exception outer)
+                {
+                    ConnectionMultiplexer.TraceWithoutContext(outer.Message);
+                    try { RecordConnectionFailed(ConnectionFailureType.UnableToConnect, isInitialConnect: true); }
+                    catch (Exception inner)
+                    {
+                        ConnectionMultiplexer.TraceWithoutContext(inner.Message);
                     }
                 }
             }
@@ -883,7 +881,7 @@ namespace StackExchange.Redis
             }
             return flush.Result;
 
-            void ThrowTimeout()
+            static void ThrowTimeout()
             {
 #if DEBUG
                 if (millisecondsTimeout > _maxFlushTime) _maxFlushTime = millisecondsTimeout; // a fair bet even if we didn't measure

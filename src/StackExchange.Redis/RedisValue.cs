@@ -342,13 +342,13 @@ namespace StackExchange.Redis
         /// </summary>
         public long Length()
         {
-            switch (Type)
+            return Type switch
             {
-                case StorageType.Null: return 0;
-                case StorageType.Raw: return _memory.Length;
-                case StorageType.String: return Encoding.UTF8.GetByteCount((string)_objectOrSentinel);
-                default: throw new InvalidOperationException("Unable to compute length of type: " + Type);
-            }
+                StorageType.Null => 0,
+                StorageType.Raw => _memory.Length,
+                StorageType.String => Encoding.UTF8.GetByteCount((string)_objectOrSentinel),
+                _ => throw new InvalidOperationException("Unable to compute length of type: " + Type),
+            };
         }
 
         /// <summary>
@@ -581,12 +581,12 @@ namespace StackExchange.Redis
         /// <param name="value">The <see cref="RedisValue"/> to convert.</param>
         public static explicit operator bool(RedisValue value)
         {
-            switch ((long)value)
+            return ((long)value) switch
             {
-                case 0: return false;
-                case 1: return true;
-                default: throw new InvalidCastException();
-            }
+                0 => false,
+                1 => true,
+                _ => throw new InvalidCastException(),
+            };
         }
 
         /// <summary>
@@ -603,16 +603,13 @@ namespace StackExchange.Redis
         public static explicit operator long(RedisValue value)
         {
             value = value.Simplify();
-            switch (value.Type)
+            return value.Type switch
             {
-                case StorageType.Null:
-                    return 0; // in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
-                case StorageType.Int64:
-                    return value.OverlappedValueInt64;
-                case StorageType.UInt64:
-                    return checked((long)value.OverlappedValueUInt64); // this will throw since unsigned is always 64-bit
-            }
-            throw new InvalidCastException($"Unable to cast from {value.Type} to long: '{value}'");
+                StorageType.Null => 0,// in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
+                StorageType.Int64 => value.OverlappedValueInt64,
+                StorageType.UInt64 => checked((long)value.OverlappedValueUInt64),// this will throw since unsigned is always 64-bit
+                _ => throw new InvalidCastException($"Unable to cast from {value.Type} to long: '{value}'"),
+            };
         }
 
         /// <summary>
@@ -623,16 +620,13 @@ namespace StackExchange.Redis
         public static explicit operator uint(RedisValue value)
         {
             value = value.Simplify();
-            switch (value.Type)
+            return value.Type switch
             {
-                case StorageType.Null:
-                    return 0; // in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
-                case StorageType.Int64:
-                    return checked((uint)value.OverlappedValueInt64);
-                case StorageType.UInt64:
-                    return checked((uint)value.OverlappedValueUInt64);
-            }
-            throw new InvalidCastException($"Unable to cast from {value.Type} to uint: '{value}'");
+                StorageType.Null => 0,// in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
+                StorageType.Int64 => checked((uint)value.OverlappedValueInt64),
+                StorageType.UInt64 => checked((uint)value.OverlappedValueUInt64),
+                _ => throw new InvalidCastException($"Unable to cast from {value.Type} to uint: '{value}'"),
+            };
         }
 
         /// <summary>
@@ -643,16 +637,13 @@ namespace StackExchange.Redis
         public static explicit operator ulong(RedisValue value)
         {
             value = value.Simplify();
-            switch (value.Type)
+            return value.Type switch
             {
-                case StorageType.Null:
-                    return 0; // in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
-                case StorageType.Int64:
-                    return checked((ulong)value.OverlappedValueInt64); // throw if negative
-                case StorageType.UInt64:
-                    return value.OverlappedValueUInt64;
-            }
-            throw new InvalidCastException($"Unable to cast from {value.Type} to ulong: '{value}'");
+                StorageType.Null => 0,// in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
+                StorageType.Int64 => checked((ulong)value.OverlappedValueInt64),// throw if negative
+                StorageType.UInt64 => value.OverlappedValueUInt64,
+                _ => throw new InvalidCastException($"Unable to cast from {value.Type} to ulong: '{value}'"),
+            };
         }
 
         /// <summary>
@@ -662,18 +653,14 @@ namespace StackExchange.Redis
         public static explicit operator double(RedisValue value)
         {
             value = value.Simplify();
-            switch (value.Type)
+            return value.Type switch
             {
-                case StorageType.Null:
-                    return 0; // in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
-                case StorageType.Int64:
-                    return value.OverlappedValueInt64;
-                case StorageType.UInt64:
-                    return value.OverlappedValueUInt64;
-                case StorageType.Double:
-                    return value.OverlappedValueDouble;
-            }
-            throw new InvalidCastException($"Unable to cast from {value.Type} to double: '{value}'");
+                StorageType.Null => 0,// in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
+                StorageType.Int64 => value.OverlappedValueInt64,
+                StorageType.UInt64 => value.OverlappedValueUInt64,
+                StorageType.Double => value.OverlappedValueDouble,
+                _ => throw new InvalidCastException($"Unable to cast from {value.Type} to double: '{value}'"),
+            };
         }
 
         /// <summary>
@@ -683,18 +670,14 @@ namespace StackExchange.Redis
         public static explicit operator decimal(RedisValue value)
         {
             value = value.Simplify();
-            switch (value.Type)
+            return value.Type switch
             {
-                case StorageType.Null:
-                    return 0; // in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
-                case StorageType.Int64:
-                    return value.OverlappedValueInt64;
-                case StorageType.UInt64:
-                    return value.OverlappedValueUInt64;
-                case StorageType.Double:
-                    return (decimal)value.OverlappedValueDouble;
-            }
-            throw new InvalidCastException($"Unable to cast from {value.Type} to decimal: '{value}'");
+                StorageType.Null => 0,// in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
+                StorageType.Int64 => value.OverlappedValueInt64,
+                StorageType.UInt64 => value.OverlappedValueUInt64,
+                StorageType.Double => (decimal)value.OverlappedValueDouble,
+                _ => throw new InvalidCastException($"Unable to cast from {value.Type} to decimal: '{value}'"),
+            };
         }
 
         /// <summary>
@@ -704,18 +687,14 @@ namespace StackExchange.Redis
         public static explicit operator float(RedisValue value)
         {
             value = value.Simplify();
-            switch (value.Type)
+            return value.Type switch
             {
-                case StorageType.Null:
-                    return 0; // in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
-                case StorageType.Int64:
-                    return value.OverlappedValueInt64;
-                case StorageType.UInt64:
-                    return value.OverlappedValueUInt64;
-                case StorageType.Double:
-                    return (float)value.OverlappedValueDouble;
-            }
-            throw new InvalidCastException($"Unable to cast from {value.Type} to double: '{value}'");
+                StorageType.Null => 0,// in redis, an arithmetic zero is kinda the same thing as not-exists (think "incr")
+                StorageType.Int64 => value.OverlappedValueInt64,
+                StorageType.UInt64 => value.OverlappedValueUInt64,
+                StorageType.Double => (float)value.OverlappedValueDouble,
+                _ => throw new InvalidCastException($"Unable to cast from {value.Type} to double: '{value}'"),
+            };
         }
 
         private static bool TryParseDouble(ReadOnlySpan<byte> blob, out double value)
@@ -909,27 +888,26 @@ namespace StackExchange.Redis
             if (conversionType == typeof(byte[])) return (byte[])this;
             if (conversionType == typeof(ReadOnlyMemory<byte>)) return (ReadOnlyMemory<byte>)this;
             if (conversionType == typeof(RedisValue)) return this;
-            switch (System.Type.GetTypeCode(conversionType))
+            return (System.Type.GetTypeCode(conversionType)) switch
             {
-                case TypeCode.Boolean: return (bool)this;
-                case TypeCode.Byte: return checked((byte)(uint)this);
-                case TypeCode.Char: return checked((char)(uint)this);
-                case TypeCode.DateTime: return DateTime.Parse((string)this, provider);
-                case TypeCode.Decimal: return (decimal)this;
-                case TypeCode.Double: return (double)this;
-                case TypeCode.Int16: return (short)this;
-                case TypeCode.Int32: return (int)this;
-                case TypeCode.Int64: return (long)this;
-                case TypeCode.SByte: return (sbyte)this;
-                case TypeCode.Single: return (float)this;
-                case TypeCode.String: return (string)this;
-                case TypeCode.UInt16: return checked((ushort)(uint)this);
-                case TypeCode.UInt32: return (uint)this;
-                case TypeCode.UInt64: return (ulong)this;
-                case TypeCode.Object: return this;
-                default:
-                    throw new NotSupportedException();
-            }
+                TypeCode.Boolean => (bool)this,
+                TypeCode.Byte => checked((byte)(uint)this),
+                TypeCode.Char => checked((char)(uint)this),
+                TypeCode.DateTime => DateTime.Parse((string)this, provider),
+                TypeCode.Decimal => (decimal)this,
+                TypeCode.Double => (double)this,
+                TypeCode.Int16 => (short)this,
+                TypeCode.Int32 => (int)this,
+                TypeCode.Int64 => (long)this,
+                TypeCode.SByte => (sbyte)this,
+                TypeCode.Single => (float)this,
+                TypeCode.String => (string)this,
+                TypeCode.UInt16 => checked((ushort)(uint)this),
+                TypeCode.UInt32 => (uint)this,
+                TypeCode.UInt64 => (ulong)this,
+                TypeCode.Object => this,
+                _ => throw new NotSupportedException(),
+            };
         }
 
         ushort IConvertible.ToUInt16(IFormatProvider provider) => checked((ushort)(uint)this);

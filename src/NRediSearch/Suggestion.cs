@@ -89,9 +89,10 @@ namespace NRediSearch
                 return this;
             }
 
+            [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0071:Simplify interpolation", Justification = "boxing")]
             public Suggestion Build()
             {
-                bool isStringMissing = _string == null;
+                bool isStringMissing = _string is null;
                 bool isScoreOutOfRange = (_score < 0.0 || _score > 1.0);
 
                 if (isStringMissing || isScoreOutOfRange)

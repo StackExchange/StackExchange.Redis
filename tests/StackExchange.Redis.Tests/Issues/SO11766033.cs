@@ -10,32 +10,28 @@ namespace StackExchange.Redis.Tests.Issues
         [Fact]
         public void TestNullString()
         {
-            using (var muxer = Create())
-            {
-                var redis = muxer.GetDatabase();
-                const string expectedTestValue = null;
-                var uid = Me();
-                redis.StringSetAsync(uid, "abc");
-                redis.StringSetAsync(uid, expectedTestValue);
-                string testValue = redis.StringGet(uid);
-                Assert.Null(testValue);
-            }
+            using var muxer = Create();
+            var redis = muxer.GetDatabase();
+            const string expectedTestValue = null;
+            var uid = Me();
+            redis.StringSetAsync(uid, "abc");
+            redis.StringSetAsync(uid, expectedTestValue);
+            string testValue = redis.StringGet(uid);
+            Assert.Null(testValue);
         }
 
         [Fact]
         public void TestEmptyString()
         {
-            using (var muxer = Create())
-            {
-                var redis = muxer.GetDatabase();
-                const string expectedTestValue = "";
-                var uid = Me();
+            using var muxer = Create();
+            var redis = muxer.GetDatabase();
+            const string expectedTestValue = "";
+            var uid = Me();
 
-                redis.StringSetAsync(uid, expectedTestValue);
-                string testValue = redis.StringGet(uid);
+            redis.StringSetAsync(uid, expectedTestValue);
+            string testValue = redis.StringGet(uid);
 
-                Assert.Equal(expectedTestValue, testValue);
-            }
+            Assert.Equal(expectedTestValue, testValue);
         }
     }
 }

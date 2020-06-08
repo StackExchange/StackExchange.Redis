@@ -25,14 +25,14 @@ namespace NRediSearch
         }
         internal static string AsRedisString(this GeoUnit value)
         {
-            switch (value)
+            return value switch
             {
-                case GeoUnit.Feet: return "ft";
-                case GeoUnit.Kilometers: return "km";
-                case GeoUnit.Meters: return "m";
-                case GeoUnit.Miles: return "mi";
-                default: throw new InvalidOperationException($"Unknown unit: {value}");
-            }
+                GeoUnit.Feet => "ft",
+                GeoUnit.Kilometers => "km",
+                GeoUnit.Meters => "m",
+                GeoUnit.Miles => "mi",
+                _ => throw new InvalidOperationException($"Unknown unit: {value}"),
+            };
         }
     }
 }

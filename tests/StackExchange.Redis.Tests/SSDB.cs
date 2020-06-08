@@ -18,14 +18,12 @@ namespace StackExchange.Redis.Tests
                 CommandMap = CommandMap.SSDB
             };
             RedisKey key = Me();
-            using (var conn = ConnectionMultiplexer.Connect(config))
-            {
-                var db = conn.GetDatabase();
-                db.KeyDelete(key, CommandFlags.FireAndForget);
-                Assert.True(db.StringGet(key).IsNull);
-                db.StringSet(key, "abc", flags: CommandFlags.FireAndForget);
-                Assert.Equal("abc", db.StringGet(key));
-            }
+            using var conn = ConnectionMultiplexer.Connect(config);
+            var db = conn.GetDatabase();
+            db.KeyDelete(key, CommandFlags.FireAndForget);
+            Assert.True(db.StringGet(key).IsNull);
+            db.StringSet(key, "abc", flags: CommandFlags.FireAndForget);
+            Assert.Equal("abc", db.StringGet(key));
         }
     }
 }

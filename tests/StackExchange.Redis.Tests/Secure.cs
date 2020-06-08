@@ -17,24 +17,22 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void MassiveBulkOpsFireAndForgetSecure()
         {
-            using (var muxer = Create())
+            using var muxer = Create();
+            RedisKey key = "MBOF";
+            var conn = muxer.GetDatabase();
+            conn.Ping();
+
+            var watch = Stopwatch.StartNew();
+
+            for (int i = 0; i <= AsyncOpsQty; i++)
             {
-                RedisKey key = "MBOF";
-                var conn = muxer.GetDatabase();
-                conn.Ping();
-
-                var watch = Stopwatch.StartNew();
-
-                for (int i = 0; i <= AsyncOpsQty; i++)
-                {
-                    conn.StringSet(key, i, flags: CommandFlags.FireAndForget);
-                }
-                int val = (int)conn.StringGet(key);
-                Assert.Equal(AsyncOpsQty, val);
-                watch.Stop();
-                Log("{2}: Time for {0} ops: {1}ms (any order); ops/s: {3}", AsyncOpsQty, watch.ElapsedMilliseconds, Me(),
-                    AsyncOpsQty / watch.Elapsed.TotalSeconds);
+                conn.StringSet(key, i, flags: CommandFlags.FireAndForget);
             }
+            int val = (int)conn.StringGet(key);
+            Assert.Equal(AsyncOpsQty, val);
+            watch.Stop();
+            Log("{2}: Time for {0} ops: {1}ms (any order); ops/s: {3}", AsyncOpsQty, watch.ElapsedMilliseconds, Me(),
+                AsyncOpsQty / watch.Elapsed.TotalSeconds);
         }
 
         [Fact]
@@ -52,10 +50,8 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void Connect()
         {
-            using (var server = Create())
-            {
-                server.GetDatabase().Ping();
-            }
+            using var server = Create();
+            server.GetDatabase().Ping();
         }
 
         [Theory]
@@ -70,10 +66,8 @@ namespace StackExchange.Redis.Tests
             var ex = await Assert.ThrowsAsync<RedisConnectionException>(async () =>
             {
                 SetExpectedAmbientFailureCount(-1);
-                using (var conn = await ConnectionMultiplexer.ConnectAsync(config, Writer).ConfigureAwait(false))
-                {
-                    conn.GetDatabase().Ping();
-                }
+                using var conn = await ConnectionMultiplexer.ConnectAsync(config, Writer).ConfigureAwait(false);
+                conn.GetDatabase().Ping();
             }).ConfigureAwait(false);
             Log("Exception: " + ex.Message);
             Assert.StartsWith("It was not possible to connect to the redis server(s). There was an authentication failure; check that passwords (or client certificates) are configured correctly.", ex.Message);

@@ -23,7 +23,7 @@ namespace StackExchange.Redis.Tests.Issues
         [Fact]
         public void UnkonwnKeywordHandling_Ignore()
         {
-            var options = ConfigurationOptions.Parse("ssl2=true", true);
+            _ = ConfigurationOptions.Parse("ssl2=true", true);
         }
 
         [Fact]

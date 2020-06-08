@@ -10,13 +10,11 @@ namespace StackExchange.Redis.Tests.Issues
         [Fact]
         public void ShouldWorkWithoutEchoOrPing()
         {
-            using(var conn = Create(proxy: Proxy.Twemproxy))
-            {
-                Log("config: " + conn.Configuration);
-                var db = conn.GetDatabase();
-                var time = db.Ping();
-                Log("ping time: " + time);
-            }
+            using var conn = Create(proxy: Proxy.Twemproxy);
+            Log("config: " + conn.Configuration);
+            var db = conn.GetDatabase();
+            var time = db.Ping();
+            Log("ping time: " + time);
         }
     }
 }

@@ -23,11 +23,9 @@ namespace StackExchange.Redis.Tests.Issues
             for (int i = 0; i < COUNT; i++)
             {
                 Trace.WriteLine("### incr:" + i);
-                using (var muxer = Create())
-                {
-                    var conn = muxer.GetDatabase();
-                    Assert.Equal(i + 1, conn.StringIncrement(key));
-                }
+                using var muxer = Create();
+                var conn = muxer.GetDatabase();
+                Assert.Equal(i + 1, conn.StringIncrement(key));
             }
             Trace.WriteLine("### close");
             using (var muxer = Create())
@@ -40,23 +38,21 @@ namespace StackExchange.Redis.Tests.Issues
         [Fact]
         public void ExecuteWithEmptyStartingPoint()
         {
-            using (var muxer = Create())
-            {
-                var conn = muxer.GetDatabase();
-                var key = Me();
-                var task = new { priority = 3 };
-                conn.KeyDeleteAsync(key);
-                conn.HashSetAsync(key, "something else", "abc");
-                conn.HashSetAsync(key, "priority", task.priority.ToString());
+            using var muxer = Create();
+            var conn = muxer.GetDatabase();
+            var key = Me();
+            var task = new { priority = 3 };
+            conn.KeyDeleteAsync(key);
+            conn.HashSetAsync(key, "something else", "abc");
+            conn.HashSetAsync(key, "priority", task.priority.ToString());
 
-                var taskResult = conn.HashGetAsync(key, "priority");
+            var taskResult = conn.HashGetAsync(key, "priority");
 
-                conn.Wait(taskResult);
+            conn.Wait(taskResult);
 
-                var priority = int.Parse(taskResult.Result);
+            var priority = int.Parse(taskResult.Result);
 
-                Assert.Equal(3, priority);
-            }
+            Assert.Equal(3, priority);
         }
 
         [Fact]
@@ -65,25 +61,23 @@ namespace StackExchange.Redis.Tests.Issues
             var key = Me();
             Assert.Throws<RedisServerException>(() =>
             {
-                using (var muxer = Create())
+                using var muxer = Create();
+                var conn = muxer.GetDatabase();
+                var task = new { priority = 3 };
+                conn.KeyDeleteAsync(key);
+                conn.StringSetAsync(key, "not a hash");
+                conn.HashSetAsync(key, "priority", task.priority.ToString());
+
+                var taskResult = conn.HashGetAsync(key, "priority");
+
+                try
                 {
-                    var conn = muxer.GetDatabase();
-                    var task = new { priority = 3 };
-                    conn.KeyDeleteAsync(key);
-                    conn.StringSetAsync(key, "not a hash");
-                    conn.HashSetAsync(key, "priority", task.priority.ToString());
-
-                    var taskResult = conn.HashGetAsync(key, "priority");
-
-                    try
-                    {
-                        conn.Wait(taskResult);
-                        Assert.True(false, "Should throw a WRONGTYPE");
-                    }
-                    catch (AggregateException ex)
-                    {
-                        throw ex.InnerExceptions[0];
-                    }
+                    conn.Wait(taskResult);
+                    Assert.True(false, "Should throw a WRONGTYPE");
+                }
+                catch (AggregateException ex)
+                {
+                    throw ex.InnerExceptions[0];
                 }
             }); // WRONGTYPE Operation against a key holding the wrong kind of value
         }

@@ -13,22 +13,20 @@ namespace StackExchange.Redis.Tests
 
         public Failover(ITestOutputHelper output) : base(output)
         {
-            using (var mutex = Create())
+            using var mutex = Create();
+            var shouldBeMaster = mutex.GetServer(TestConfig.Current.FailoverMasterServerAndPort);
+            if (shouldBeMaster.IsReplica)
             {
-                var shouldBeMaster = mutex.GetServer(TestConfig.Current.FailoverMasterServerAndPort);
-                if (shouldBeMaster.IsReplica)
-                {
-                    Log(shouldBeMaster.EndPoint + " should be master, fixing...");
-                    shouldBeMaster.MakeMaster(ReplicationChangeOptions.SetTiebreaker);
-                }
+                Log(shouldBeMaster.EndPoint + " should be master, fixing...");
+                shouldBeMaster.MakeMaster(ReplicationChangeOptions.SetTiebreaker);
+            }
 
-                var shouldBeReplica = mutex.GetServer(TestConfig.Current.FailoverReplicaServerAndPort);
-                if (!shouldBeReplica.IsReplica)
-                {
-                    Log(shouldBeReplica.EndPoint + " should be a replica, fixing...");
-                    shouldBeReplica.ReplicaOf(shouldBeMaster.EndPoint);
-                    Thread.Sleep(2000);
-                }
+            var shouldBeReplica = mutex.GetServer(TestConfig.Current.FailoverReplicaServerAndPort);
+            if (!shouldBeReplica.IsReplica)
+            {
+                Log(shouldBeReplica.EndPoint + " should be a replica, fixing...");
+                shouldBeReplica.ReplicaOf(shouldBeMaster.EndPoint);
+                Thread.Sleep(2000);
             }
         }
 
@@ -49,59 +47,53 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task ConfigureAsync()
         {
-            using (var muxer = Create())
-            {
-                await Task.Delay(1000).ForAwait();
-                Log("About to reconfigure.....");
-                await muxer.ConfigureAsync().ForAwait();
-                Log("Reconfigured");
-            }
+            using var muxer = Create();
+            await Task.Delay(1000).ForAwait();
+            Log("About to reconfigure.....");
+            await muxer.ConfigureAsync().ForAwait();
+            Log("Reconfigured");
         }
 
         [Fact]
         public async Task ConfigureSync()
         {
-            using (var muxer = Create())
-            {
-                await Task.Delay(1000).ForAwait();
-                Log("About to reconfigure.....");
-                muxer.Configure();
-                Log("Reconfigured");
-            }
+            using var muxer = Create();
+            await Task.Delay(1000).ForAwait();
+            Log("About to reconfigure.....");
+            muxer.Configure();
+            Log("Reconfigured");
         }
 
         [Fact]
         public async Task ConfigVerifyReceiveConfigChangeBroadcast()
         {
             var config = GetConfiguration();
-            using (var sender = Create(allowAdmin: true))
-            using (var receiver = Create(syncTimeout: 2000))
+            using var sender = Create(allowAdmin: true);
+            using var receiver = Create(syncTimeout: 2000);
+            int total = 0;
+            receiver.ConfigurationChangedBroadcast += (s, a) =>
             {
-                int total = 0;
-                receiver.ConfigurationChangedBroadcast += (s, a) =>
-                {
-                    Log("Config changed: " + (a.EndPoint == null ? "(none)" : a.EndPoint.ToString()));
-                    Interlocked.Increment(ref total);
-                };
-                // send a reconfigure/reconnect message
-                long count = sender.PublishReconfigure();
-                GetServer(receiver).Ping();
-                GetServer(receiver).Ping();
-                await Task.Delay(100).ConfigureAwait(false);
-                Assert.True(count == -1 || count >= 2, "subscribers");
-                Assert.True(Interlocked.CompareExchange(ref total, 0, 0) >= 1, "total (1st)");
+                Log("Config changed: " + (a.EndPoint == null ? "(none)" : a.EndPoint.ToString()));
+                Interlocked.Increment(ref total);
+            };
+            // send a reconfigure/reconnect message
+            long count = sender.PublishReconfigure();
+            GetServer(receiver).Ping();
+            GetServer(receiver).Ping();
+            await Task.Delay(100).ConfigureAwait(false);
+            Assert.True(count == -1 || count >= 2, "subscribers");
+            Assert.True(Interlocked.CompareExchange(ref total, 0, 0) >= 1, "total (1st)");
 
-                Interlocked.Exchange(ref total, 0);
+            Interlocked.Exchange(ref total, 0);
 
-                // and send a second time via a re-master operation
-                var server = GetServer(sender);
-                if (server.IsReplica) Skip.Inconclusive("didn't expect a replica");
-                server.MakeMaster(ReplicationChangeOptions.Broadcast);
-                await Task.Delay(100).ConfigureAwait(false);
-                GetServer(receiver).Ping();
-                GetServer(receiver).Ping();
-                Assert.True(Interlocked.CompareExchange(ref total, 0, 0) >= 1, "total (2nd)");
-            }
+            // and send a second time via a re-master operation
+            var server = GetServer(sender);
+            if (server.IsReplica) Skip.Inconclusive("didn't expect a replica");
+            server.MakeMaster(ReplicationChangeOptions.Broadcast);
+            await Task.Delay(100).ConfigureAwait(false);
+            GetServer(receiver).Ping();
+            GetServer(receiver).Ping();
+            Assert.True(Interlocked.CompareExchange(ref total, 0, 0) >= 1, "total (2nd)");
         }
 
 
@@ -109,90 +101,88 @@ namespace StackExchange.Redis.Tests
         public async Task DereplicateGoesToPrimary()
         {
             ConfigurationOptions config = GetMasterReplicaConfig();
-            using (var conn = ConnectionMultiplexer.Connect(config))
+            using var conn = ConnectionMultiplexer.Connect(config);
+            var primary = conn.GetServer(TestConfig.Current.FailoverMasterServerAndPort);
+            var secondary = conn.GetServer(TestConfig.Current.FailoverReplicaServerAndPort);
+
+            primary.Ping();
+            secondary.Ping();
+
+            primary.MakeMaster(ReplicationChangeOptions.SetTiebreaker);
+            secondary.MakeMaster(ReplicationChangeOptions.None);
+
+            await Task.Delay(100).ConfigureAwait(false);
+
+            primary.Ping();
+            secondary.Ping();
+
+            using (var writer = new StringWriter())
             {
-                var primary = conn.GetServer(TestConfig.Current.FailoverMasterServerAndPort);
-                var secondary = conn.GetServer(TestConfig.Current.FailoverReplicaServerAndPort);
-
-                primary.Ping();
-                secondary.Ping();
-
-                primary.MakeMaster(ReplicationChangeOptions.SetTiebreaker);
-                secondary.MakeMaster(ReplicationChangeOptions.None);
-
-                await Task.Delay(100).ConfigureAwait(false);
-
-                primary.Ping();
-                secondary.Ping();
-
-                using (var writer = new StringWriter())
-                {
-                    conn.Configure(writer);
-                    string log = writer.ToString();
-                    Writer.WriteLine(log);
-                    bool isUnanimous = log.Contains("tie-break is unanimous at " + TestConfig.Current.FailoverMasterServerAndPort);
-                    if (!isUnanimous) Skip.Inconclusive("this is timing sensitive; unable to verify this time");
-                }
-                // k, so we know everyone loves 6379; is that what we get?
-
-                var db = conn.GetDatabase();
-                RedisKey key = Me();
-
-                Assert.Equal(primary.EndPoint, db.IdentifyEndpoint(key, CommandFlags.PreferMaster));
-                Assert.Equal(primary.EndPoint, db.IdentifyEndpoint(key, CommandFlags.DemandMaster));
-                Assert.Equal(primary.EndPoint, db.IdentifyEndpoint(key, CommandFlags.PreferReplica));
-
-                var ex = Assert.Throws<RedisConnectionException>(() => db.IdentifyEndpoint(key, CommandFlags.DemandReplica));
-                Assert.StartsWith("No connection is active/available to service this operation: EXISTS " + Me(), ex.Message);
-                Writer.WriteLine("Invoking MakeMaster()...");
-                primary.MakeMaster(ReplicationChangeOptions.Broadcast | ReplicationChangeOptions.ReplicateToOtherEndpoints | ReplicationChangeOptions.SetTiebreaker, Writer);
-                Writer.WriteLine("Finished MakeMaster() call.");
-
-                await Task.Delay(100).ConfigureAwait(false);
-
-                Writer.WriteLine("Invoking Ping() (post-master)");
-                primary.Ping();
-                secondary.Ping();
-                Writer.WriteLine("Finished Ping() (post-master)");
-
-                Assert.True(primary.IsConnected, $"{primary.EndPoint} is not connected.");
-                Assert.True(secondary.IsConnected, $"{secondary.EndPoint} is not connected.");
-
-                Writer.WriteLine($"{primary.EndPoint}: {primary.ServerType}, Mode: {(primary.IsReplica ? "Replica" : "Master")}");
-                Writer.WriteLine($"{secondary.EndPoint}: {secondary.ServerType}, Mode: {(secondary.IsReplica ? "Replica" : "Master")}");
-
-                // Create a separate multiplexer with a valid view of the world to distinguish between failures of
-                // server topology changes from failures to recognize those changes
-                Writer.WriteLine("Connecting to secondary validation connection.");
-                using (var conn2 = ConnectionMultiplexer.Connect(config))
-                {
-                    var primary2 = conn2.GetServer(TestConfig.Current.FailoverMasterServerAndPort);
-                    var secondary2 = conn2.GetServer(TestConfig.Current.FailoverReplicaServerAndPort);
-
-                    Writer.WriteLine($"Check: {primary2.EndPoint}: {primary2.ServerType}, Mode: {(primary2.IsReplica ? "Replica" : "Master")}");
-                    Writer.WriteLine($"Check: {secondary2.EndPoint}: {secondary2.ServerType}, Mode: {(secondary2.IsReplica ? "Replica" : "Master")}");
-
-                    Assert.False(primary2.IsReplica, $"{primary2.EndPoint} should be a master (verification connection).");
-                    Assert.True(secondary2.IsReplica, $"{secondary2.EndPoint} should be a replica (verification connection).");
-
-                    var db2 = conn2.GetDatabase();
-
-                    Assert.Equal(primary2.EndPoint, db2.IdentifyEndpoint(key, CommandFlags.PreferMaster));
-                    Assert.Equal(primary2.EndPoint, db2.IdentifyEndpoint(key, CommandFlags.DemandMaster));
-                    Assert.Equal(secondary2.EndPoint, db2.IdentifyEndpoint(key, CommandFlags.PreferReplica));
-                    Assert.Equal(secondary2.EndPoint, db2.IdentifyEndpoint(key, CommandFlags.DemandReplica));
-                }
-
-                await UntilCondition(TimeSpan.FromSeconds(20), () => !primary.IsReplica && secondary.IsReplica);
-
-                Assert.False(primary.IsReplica, $"{primary.EndPoint} should be a master.");
-                Assert.True(secondary.IsReplica, $"{secondary.EndPoint} should be a replica.");
-
-                Assert.Equal(primary.EndPoint, db.IdentifyEndpoint(key, CommandFlags.PreferMaster));
-                Assert.Equal(primary.EndPoint, db.IdentifyEndpoint(key, CommandFlags.DemandMaster));
-                Assert.Equal(secondary.EndPoint, db.IdentifyEndpoint(key, CommandFlags.PreferReplica));
-                Assert.Equal(secondary.EndPoint, db.IdentifyEndpoint(key, CommandFlags.DemandReplica));
+                conn.Configure(writer);
+                string log = writer.ToString();
+                Writer.WriteLine(log);
+                bool isUnanimous = log.Contains("tie-break is unanimous at " + TestConfig.Current.FailoverMasterServerAndPort);
+                if (!isUnanimous) Skip.Inconclusive("this is timing sensitive; unable to verify this time");
             }
+            // k, so we know everyone loves 6379; is that what we get?
+
+            var db = conn.GetDatabase();
+            RedisKey key = Me();
+
+            Assert.Equal(primary.EndPoint, db.IdentifyEndpoint(key, CommandFlags.PreferMaster));
+            Assert.Equal(primary.EndPoint, db.IdentifyEndpoint(key, CommandFlags.DemandMaster));
+            Assert.Equal(primary.EndPoint, db.IdentifyEndpoint(key, CommandFlags.PreferReplica));
+
+            var ex = Assert.Throws<RedisConnectionException>(() => db.IdentifyEndpoint(key, CommandFlags.DemandReplica));
+            Assert.StartsWith("No connection is active/available to service this operation: EXISTS " + Me(), ex.Message);
+            Writer.WriteLine("Invoking MakeMaster()...");
+            primary.MakeMaster(ReplicationChangeOptions.Broadcast | ReplicationChangeOptions.ReplicateToOtherEndpoints | ReplicationChangeOptions.SetTiebreaker, Writer);
+            Writer.WriteLine("Finished MakeMaster() call.");
+
+            await Task.Delay(100).ConfigureAwait(false);
+
+            Writer.WriteLine("Invoking Ping() (post-master)");
+            primary.Ping();
+            secondary.Ping();
+            Writer.WriteLine("Finished Ping() (post-master)");
+
+            Assert.True(primary.IsConnected, $"{primary.EndPoint} is not connected.");
+            Assert.True(secondary.IsConnected, $"{secondary.EndPoint} is not connected.");
+
+            Writer.WriteLine($"{primary.EndPoint}: {primary.ServerType}, Mode: {(primary.IsReplica ? "Replica" : "Master")}");
+            Writer.WriteLine($"{secondary.EndPoint}: {secondary.ServerType}, Mode: {(secondary.IsReplica ? "Replica" : "Master")}");
+
+            // Create a separate multiplexer with a valid view of the world to distinguish between failures of
+            // server topology changes from failures to recognize those changes
+            Writer.WriteLine("Connecting to secondary validation connection.");
+            using (var conn2 = ConnectionMultiplexer.Connect(config))
+            {
+                var primary2 = conn2.GetServer(TestConfig.Current.FailoverMasterServerAndPort);
+                var secondary2 = conn2.GetServer(TestConfig.Current.FailoverReplicaServerAndPort);
+
+                Writer.WriteLine($"Check: {primary2.EndPoint}: {primary2.ServerType}, Mode: {(primary2.IsReplica ? "Replica" : "Master")}");
+                Writer.WriteLine($"Check: {secondary2.EndPoint}: {secondary2.ServerType}, Mode: {(secondary2.IsReplica ? "Replica" : "Master")}");
+
+                Assert.False(primary2.IsReplica, $"{primary2.EndPoint} should be a master (verification connection).");
+                Assert.True(secondary2.IsReplica, $"{secondary2.EndPoint} should be a replica (verification connection).");
+
+                var db2 = conn2.GetDatabase();
+
+                Assert.Equal(primary2.EndPoint, db2.IdentifyEndpoint(key, CommandFlags.PreferMaster));
+                Assert.Equal(primary2.EndPoint, db2.IdentifyEndpoint(key, CommandFlags.DemandMaster));
+                Assert.Equal(secondary2.EndPoint, db2.IdentifyEndpoint(key, CommandFlags.PreferReplica));
+                Assert.Equal(secondary2.EndPoint, db2.IdentifyEndpoint(key, CommandFlags.DemandReplica));
+            }
+
+            await UntilCondition(TimeSpan.FromSeconds(20), () => !primary.IsReplica && secondary.IsReplica);
+
+            Assert.False(primary.IsReplica, $"{primary.EndPoint} should be a master.");
+            Assert.True(secondary.IsReplica, $"{secondary.EndPoint} should be a replica.");
+
+            Assert.Equal(primary.EndPoint, db.IdentifyEndpoint(key, CommandFlags.PreferMaster));
+            Assert.Equal(primary.EndPoint, db.IdentifyEndpoint(key, CommandFlags.DemandMaster));
+            Assert.Equal(secondary.EndPoint, db.IdentifyEndpoint(key, CommandFlags.PreferReplica));
+            Assert.Equal(secondary.EndPoint, db.IdentifyEndpoint(key, CommandFlags.DemandReplica));
         }
 
 #if DEBUG

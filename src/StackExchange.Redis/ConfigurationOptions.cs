@@ -247,13 +247,11 @@ namespace StackExchange.Redis
             get
             {
                 if (commandMap != null) return commandMap;
-                switch (Proxy)
+                return Proxy switch
                 {
-                    case Proxy.Twemproxy:
-                        return CommandMap.Twemproxy;
-                    default:
-                        return CommandMap.Default;
-                }
+                    Proxy.Twemproxy => CommandMap.Twemproxy,
+                    _ => CommandMap.Default,
+                };
             }
             set
             {
@@ -335,7 +333,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// The retry policy to be used for connection reconnects
         /// </summary>
-        public IReconnectRetryPolicy ReconnectRetryPolicy { get { return reconnectRetryPolicy ?? (reconnectRetryPolicy = new LinearRetry(ConnectTimeout)); } set { reconnectRetryPolicy = value; } }
+        public IReconnectRetryPolicy ReconnectRetryPolicy { get { return reconnectRetryPolicy ??= new LinearRetry(ConnectTimeout); } set { reconnectRetryPolicy = value; } }
 
         /// <summary>
         /// Indicates whether endpoints should be resolved via DNS before connecting.

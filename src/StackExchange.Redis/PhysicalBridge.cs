@@ -290,7 +290,7 @@ namespace StackExchange.Redis
         }
 
         internal bool TryEnqueueBackgroundSubscriptionWrite(in PendingSubscriptionState state)
-            => isDisposed ? false : (_subscriptionBackgroundQueue ?? GetSubscriptionQueue()).Writer.TryWrite(state);
+            => !isDisposed && (_subscriptionBackgroundQueue ?? GetSubscriptionQueue()).Writer.TryWrite(state);
 
         internal void GetOutstandingCount(out int inst, out int qs, out long @in, out int qu, out bool aw, out long toRead, out long toWrite,
             out BacklogStatus bs, out PhysicalConnection.ReadStatus rs, out PhysicalConnection.WriteStatus ws)
@@ -657,10 +657,10 @@ namespace StackExchange.Redis
             {
                 physical.SetWriting();
                 var messageIsSent = false;
-                if (message is IMultiMessage)
+                if (message is IMultiMessage multi)
                 {
                     SelectDatabaseInsideWriteLock(physical, message); // need to switch database *before* the transaction
-                    foreach (var subCommand in ((IMultiMessage)message).GetMessages(physical))
+                    foreach (var subCommand in multi.GetMessages(physical))
                     {
                         result = WriteMessageToServerInsideWriteLock(physical, subCommand);
                         if (result != WriteResult.Success)
@@ -1028,26 +1028,24 @@ namespace StackExchange.Redis
         {
             try
             {
-                using (var token = await pending.ForAwait())
-                {
-                    if (!token.Success) return TimedOutBeforeWrite(message);
+                using var token = await pending.ForAwait();
+                if (!token.Success) return TimedOutBeforeWrite(message);
 #if DEBUG
                     int lockTaken = Environment.TickCount;
 #endif
-                    var result = WriteMessageInsideLock(physical, message);
+                var result = WriteMessageInsideLock(physical, message);
 
-                    if (result == WriteResult.Success)
-                    {
-                        result = await physical.FlushAsync(false).ForAwait();
-                    }
-                    
-                    physical.SetIdle();
+                if (result == WriteResult.Success)
+                {
+                    result = await physical.FlushAsync(false).ForAwait();
+                }
+
+                physical.SetIdle();
 
 #if DEBUG
                     RecordLockDuration(lockTaken);
 #endif
-                    return result;
-                }
+                return result;
             }
             catch (Exception ex)
             {

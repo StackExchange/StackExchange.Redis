@@ -82,7 +82,7 @@ namespace StackExchange.Redis
             }
 
             // store it
-            (pending ?? (pending = new List<Message>())).Add(message);
+            (pending ??= new List<Message>()).Add(message);
             return task;
         }
 

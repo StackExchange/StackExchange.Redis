@@ -35,10 +35,8 @@ namespace StackExchange.Redis.Tests
         public void ParseAsSingleChunk(string ascii, int expected)
         {
             var buffer = new ReadOnlySequence<byte>(Encoding.ASCII.GetBytes(ascii));
-            using (var arena = new Arena<RawResult>())
-            {
-                ProcessMessages(arena, buffer, expected);
-            }
+            using var arena = new Arena<RawResult>();
+            ProcessMessages(arena, buffer, expected);
         }
 
         [Theory]
@@ -62,10 +60,8 @@ namespace StackExchange.Redis.Tests
             }
             var buffer = new ReadOnlySequence<byte>(chain, 0, tail, 1);
             Assert.Equal(bytes.Length, buffer.Length);
-            using (var arena = new Arena<RawResult>())
-            {
-                ProcessMessages(arena, buffer, expected);
-            }
+            using var arena = new Arena<RawResult>();
+            ProcessMessages(arena, buffer, expected);
         }
 
         private void ProcessMessages(Arena<RawResult> arena, ReadOnlySequence<byte> buffer, int expected)

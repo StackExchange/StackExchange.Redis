@@ -163,50 +163,48 @@ namespace StackExchange.Redis
             // Beware: Any exception thrown here will wreak silent havoc like inability to connect to cluster nodes or non returning calls
             this.serverSelectionStrategy = serverSelectionStrategy;
             Origin = origin;
-            using (var reader = new StringReader(nodes))
+            using var reader = new StringReader(nodes);
+            string line;
+            while ((line = reader.ReadLine()) != null)
             {
-                string line;
-                while ((line = reader.ReadLine()) != null)
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                var node = new ClusterNode(this, line, origin);
+
+                // Be resilient to ":0 {master,replica},fail,noaddr" nodes, and nodes where the endpoint doesn't parse
+                if (node.IsNoAddr || node.EndPoint == null)
+                    continue;
+
+                // Override the origin value with the endpoint advertised with the target node to
+                // make sure that things like clusterConfiguration[clusterConfiguration.Origin]
+                // will work as expected.
+                if (node.IsMyself)
+                    Origin = node.EndPoint;
+
+                if (nodeLookup.ContainsKey(node.EndPoint))
                 {
-                    if (string.IsNullOrWhiteSpace(line)) continue;
-                    var node = new ClusterNode(this, line, origin);
-
-                    // Be resilient to ":0 {master,replica},fail,noaddr" nodes, and nodes where the endpoint doesn't parse
-                    if (node.IsNoAddr || node.EndPoint == null)
-                        continue;
-
-                    // Override the origin value with the endpoint advertised with the target node to
-                    // make sure that things like clusterConfiguration[clusterConfiguration.Origin]
-                    // will work as expected.
-                    if (node.IsMyself)
-                        Origin = node.EndPoint;
-
-                    if (nodeLookup.ContainsKey(node.EndPoint))
+                    // Deal with conflicting node entries for the same endpoint
+                    // This can happen in dynamic environments when a node goes down and a new one is created
+                    // to replace it.
+                    if (!node.IsConnected)
                     {
-                        // Deal with conflicting node entries for the same endpoint
-                        // This can happen in dynamic environments when a node goes down and a new one is created
-                        // to replace it.
-                        if (!node.IsConnected)
-                        {
-                            // The node we're trying to add is probably about to become stale. Ignore it.
-                            continue;
-                        }
-                        else if (!nodeLookup[node.EndPoint].IsConnected)
-                        {
-                            // The node we registered previously is probably stale. Replace it with a known good node.
-                            nodeLookup[node.EndPoint] = node;
-                        }
-                        else
-                        {
-                            // We have conflicting connected nodes. There's nothing much we can do other than
-                            // wait for the cluster state to converge and refresh on the next pass.
-                            // The same is true if we have multiple disconnected nodes.
-                        }
+                        // The node we're trying to add is probably about to become stale. Ignore it.
+                        continue;
+                    }
+                    else if (!nodeLookup[node.EndPoint].IsConnected)
+                    {
+                        // The node we registered previously is probably stale. Replace it with a known good node.
+                        nodeLookup[node.EndPoint] = node;
                     }
                     else
                     {
-                        nodeLookup.Add(node.EndPoint, node);
+                        // We have conflicting connected nodes. There's nothing much we can do other than
+                        // wait for the cluster state to converge and refresh on the next pass.
+                        // The same is true if we have multiple disconnected nodes.
                     }
+                }
+                else
+                {
+                    nodeLookup.Add(node.EndPoint, node);
                 }
             }
         }
@@ -316,7 +314,7 @@ namespace StackExchange.Redis
             {
                 if (SlotRange.TryParse(parts[i], out SlotRange range))
                 {
-                    (slots ?? (slots = new List<SlotRange>(parts.Length - i))).Add(range);
+                    (slots ??= new List<SlotRange>(parts.Length - i)).Add(range);
                 }
             }
             Slots = slots?.AsReadOnly() ?? (IList<SlotRange>)Array.Empty<SlotRange>();
@@ -336,7 +334,7 @@ namespace StackExchange.Redis
                 {
                     if (node.ParentNodeId == NodeId)
                     {
-                        (nodes ?? (nodes = new List<ClusterNode>())).Add(node);
+                        (nodes ??= new List<ClusterNode>()).Add(node);
                     }
                 }
                 children = nodes?.AsReadOnly() ?? (IList<ClusterNode>)Array.Empty<ClusterNode>();

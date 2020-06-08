@@ -19,7 +19,7 @@ using(var tran = conn.BeginTran())
 {
 	var cust = GetCustomer(conn, custId, tran);
 	var uniqueId = cust.UniqueID;
-	if(uniqueId == null)
+	if(uniqueId is null)
 	{
 		cust.UniqueId = newId;
 		SaveCustomer(conn, cust, tran);

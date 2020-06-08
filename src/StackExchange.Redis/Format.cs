@@ -229,7 +229,7 @@ namespace StackExchange.Redis
             // Link: https://github.com/aspnet/BasicMiddleware/blob/f320511b63da35571e890d53f3906c7761cd00a1/src/Microsoft.AspNetCore.HttpOverrides/Internal/IPEndPointParser.cs#L8
             // Copyright (c) .NET Foundation. All rights reserved.
             // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
-            string addressPart = null;
+            string addressPart;
             string portPart = null;
             if (string.IsNullOrEmpty(addressWithPort)) return null;
 
