@@ -878,6 +878,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.SentinelArrayOfArrays);
         }
 
+        // For previous compat only
         KeyValuePair<string, string>[][] IServer.SentinelSlaves(string serviceName, CommandFlags flags)
             => SentinelReplicas(serviceName, flags);
 
@@ -888,6 +889,7 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.SentinelArrayOfArrays);
         }
 
+        // For previous compat only
         Task<KeyValuePair<string, string>[][]> IServer.SentinelSlavesAsync(string serviceName, CommandFlags flags)
             => SentinelReplicasAsync(serviceName, flags);
 

@@ -2383,8 +2383,8 @@ namespace StackExchange.Redis
                         $"Sentinel: Failed connecting to configured master for service: {config.ServiceName}");
                 }
 
-                EndPoint[] slaveEndPoints = GetSlavesForService(config.ServiceName)
-                                            ?? GetSlavesForService(config.ServiceName);
+                EndPoint[] replicaEndPoints = GetReplicasForService(config.ServiceName)
+                                           ?? GetReplicasForService(config.ServiceName);
 
                 // Replace the master endpoint, if we found another one
                 // If not, assume the last state is the best we have and minimize the race
@@ -2398,8 +2398,10 @@ namespace StackExchange.Redis
                     config.EndPoints.TryAdd(newMasterEndPoint);
                 }
 
-                foreach (var slaveEndPoint in slaveEndPoints)
-                    config.EndPoints.TryAdd(slaveEndPoint);
+                foreach (var replicaEndPoint in replicaEndPoints)
+                {
+                    config.EndPoints.TryAdd(replicaEndPoint);
+                }
 
                 connection = ConnectImpl(config, log);
 
@@ -2517,7 +2519,7 @@ namespace StackExchange.Redis
 
         internal EndPoint currentSentinelMasterEndPoint;
 
-        internal EndPoint[] GetSlavesForService(string serviceName) =>
+        internal EndPoint[] GetReplicasForService(string serviceName) =>
             GetServerSnapshot()
                 .ToArray()
                 .Where(s => s.ServerType == ServerType.Sentinel)
@@ -2557,14 +2559,16 @@ namespace StackExchange.Redis
 
                 if (!connection.servers.Contains(newMasterEndPoint))
                 {
-                    EndPoint[] slaveEndPoints = GetSlavesForService(serviceName)
-                                                ?? GetSlavesForService(serviceName);
+                    EndPoint[] replicaEndPoints = GetReplicasForService(serviceName)
+                                               ?? GetReplicasForService(serviceName);
 
                     connection.servers.Clear();
                     connection.RawConfig.EndPoints.Clear();
                     connection.RawConfig.EndPoints.TryAdd(newMasterEndPoint);
-                    foreach (var slaveEndPoint in slaveEndPoints)
-                        connection.RawConfig.EndPoints.TryAdd(slaveEndPoint);
+                    foreach (var replicaEndPoint in replicaEndPoints)
+                    {
+                        connection.RawConfig.EndPoints.TryAdd(replicaEndPoint);
+                    }|
                     Trace(string.Format("Switching master to {0}", newMasterEndPoint));
                     // Trigger a reconfigure
                     connection.ReconfigureAsync(false, false, logProxy, switchBlame,
