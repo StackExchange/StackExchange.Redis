@@ -145,7 +145,7 @@ namespace StackExchange.Redis.Tests
                 var ex = Assert.Throws<RedisConnectionException>(() => db.IdentifyEndpoint(key, CommandFlags.DemandReplica));
                 Assert.StartsWith("No connection is active/available to service this operation: EXISTS " + Me(), ex.Message);
                 Writer.WriteLine("Invoking MakeMaster()...");
-                primary.MakeMaster(ReplicationChangeOptions.Broadcast | ReplicationChangeOptions.ReplicateToSubordinates | ReplicationChangeOptions.SetTiebreaker, Writer);
+                primary.MakeMaster(ReplicationChangeOptions.Broadcast | ReplicationChangeOptions.ReplicateToOtherEndpoints | ReplicationChangeOptions.SetTiebreaker, Writer);
                 Writer.WriteLine("Finished MakeMaster() call.");
 
                 await Task.Delay(100).ConfigureAwait(false);

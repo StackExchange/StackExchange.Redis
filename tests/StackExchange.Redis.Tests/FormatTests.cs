@@ -65,5 +65,13 @@ namespace StackExchange.Redis.Tests
         [InlineData(ClientFlags.Transaction | ClientFlags.ReplicaMonitor | ClientFlags.UnixDomainSocket, "ReplicaMonitor, Transaction, UnixDomainSocket")]
         public void ClientFlagsFormatting(ClientFlags value, string expected)
             => Assert.Equal(expected, value.ToString());
+
+        [Theory]
+        [InlineData(ReplicationChangeOptions.None, "None")]
+        [InlineData(ReplicationChangeOptions.ReplicateToOtherEndpoints, "ReplicateToOtherEndpoints")]
+        [InlineData(ReplicationChangeOptions.SetTiebreaker | ReplicationChangeOptions.ReplicateToOtherEndpoints, "SetTiebreaker, ReplicateToOtherEndpoints")]
+        [InlineData(ReplicationChangeOptions.Broadcast | ReplicationChangeOptions.SetTiebreaker | ReplicationChangeOptions.ReplicateToOtherEndpoints, "All")]
+        public void ReplicationChangeOptionsFormatting(ReplicationChangeOptions value, string expected)
+            => Assert.Equal(expected, value.ToString());
     }
 }

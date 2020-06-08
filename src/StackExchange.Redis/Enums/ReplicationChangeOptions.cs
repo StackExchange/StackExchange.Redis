@@ -24,16 +24,16 @@ namespace StackExchange.Redis
         /// <summary>
         /// Issue a REPLICAOF to all other known nodes, making this this master of all
         /// </summary>
-        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(ReplicateToSubordinates) + " instead.")]
+        [Obsolete("Starting with Redis version 5, Redis has moved to 'replica' terminology. Please use " + nameof(ReplicateToOtherEndpoints) + " instead.")]
         [Browsable(false), EditorBrowsable(EditorBrowsableState.Never)]
         EnslaveSubordinates = 4,
         /// <summary>
         /// Issue a REPLICAOF to all other known nodes, making this this master of all
         /// </summary>
-        ReplicateToSubordinates = 4, // note ToString prefers *later* options
+        ReplicateToOtherEndpoints = 4, // note ToString prefers *later* options
         /// <summary>
         /// All additional operations
         /// </summary>
-        All = SetTiebreaker | Broadcast | ReplicateToSubordinates,
+        All = SetTiebreaker | Broadcast | ReplicateToOtherEndpoints,
     }
 }

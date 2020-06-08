@@ -484,7 +484,7 @@ namespace StackExchange.Redis
             // Send a message before it happens - because afterwards a new replica may be unresponsive
             Broadcast(nodes);
 
-            if ((options & ReplicationChangeOptions.ReplicateToSubordinates) != 0)
+            if ((options & ReplicationChangeOptions.ReplicateToOtherEndpoints) != 0)
             {
                 foreach (var node in nodes)
                 {
