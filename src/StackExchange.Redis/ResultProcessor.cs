@@ -126,10 +126,10 @@ namespace StackExchange.Redis
             SentinelMasterEndpoint = new SentinelGetMasterAddressByNameProcessor();
 
         public static readonly ResultProcessor<EndPoint[]>
-            SentinelAddressesEndPoints = new SentinelGetSentinelAddresses();
+            SentinelAddressesEndPoints = new SentinelGetSentinelAddressesProcessor();
 
         public static readonly ResultProcessor<EndPoint[]>
-            SentinelReplicaEndPoints = new SentinelGetReplicaAddresses();
+            SentinelReplicaEndPoints = new SentinelGetReplicaAddressesProcessor();
 
         public static readonly ResultProcessor<KeyValuePair<string, string>[][]>
             SentinelArrayOfArrays = new SentinelArrayOfArraysProcessor();
@@ -2039,7 +2039,7 @@ The coordinates as a two items x,y array (longitude,latitude).
             }
         }
 
-        private sealed class SentinelGetSentinelAddresses : ResultProcessor<EndPoint[]>
+        private sealed class SentinelGetSentinelAddressesProcessor : ResultProcessor<EndPoint[]>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
@@ -2094,7 +2094,7 @@ The coordinates as a two items x,y array (longitude,latitude).
             }
         }
 
-        private sealed class SentinelGetReplicaAddresses : ResultProcessor<EndPoint[]>
+        private sealed class SentinelGetReplicaAddressesProcessor : ResultProcessor<EndPoint[]>
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
