@@ -1552,18 +1552,19 @@ The coordinates as a two items x,y array (longitude,latitude).
                 string name = default;
                 int pendingMessageCount = default, idleTimeInMilliseconds = default;
 
-                StreamInfoKeys.TryRead(arr, StreamInfoKeys.Name, ref name);
-                StreamInfoKeys.TryRead(arr, StreamInfoKeys.Pending, ref pendingMessageCount);
-                StreamInfoKeys.TryRead(arr, StreamInfoKeys.Idle, ref idleTimeInMilliseconds);
+                KeyValuePairParser.TryRead(arr, KeyValuePairParser.Name, ref name);
+                KeyValuePairParser.TryRead(arr, KeyValuePairParser.Pending, ref pendingMessageCount);
+                KeyValuePairParser.TryRead(arr, KeyValuePairParser.Idle, ref idleTimeInMilliseconds);
 
                 return new StreamConsumerInfo(name, pendingMessageCount, idleTimeInMilliseconds);
             }
         }
 
-        private static class StreamInfoKeys
+        private static class KeyValuePairParser
         {
             internal static readonly CommandBytes
-                Name = "name", Consumers = "consumers", Pending = "pending", Idle = "idle", LastDeliveredId = "last-delivered-id";
+                Name = "name", Consumers = "consumers", Pending = "pending", Idle = "idle", LastDeliveredId = "last-delivered-id",
+                IP = "ip", Port = "port";
 
             internal static bool TryRead(Sequence<RawResult> pairs, in CommandBytes key, ref int value)
             {
@@ -1623,10 +1624,10 @@ The coordinates as a two items x,y array (longitude,latitude).
                 string name = default, lastDeliveredId = default;
                 int consumerCount = default, pendingMessageCount = default;
 
-                StreamInfoKeys.TryRead(arr, StreamInfoKeys.Name, ref name);
-                StreamInfoKeys.TryRead(arr, StreamInfoKeys.Consumers, ref consumerCount);
-                StreamInfoKeys.TryRead(arr, StreamInfoKeys.Pending, ref pendingMessageCount);
-                StreamInfoKeys.TryRead(arr, StreamInfoKeys.LastDeliveredId, ref lastDeliveredId);
+                KeyValuePairParser.TryRead(arr, KeyValuePairParser.Name, ref name);
+                KeyValuePairParser.TryRead(arr, KeyValuePairParser.Consumers, ref consumerCount);
+                KeyValuePairParser.TryRead(arr, KeyValuePairParser.Pending, ref pendingMessageCount);
+                KeyValuePairParser.TryRead(arr, KeyValuePairParser.LastDeliveredId, ref lastDeliveredId);
 
                 return new StreamGroupInfo(name, consumerCount, pendingMessageCount, lastDeliveredId);
             }
@@ -2012,23 +2013,20 @@ The coordinates as a two items x,y array (longitude,latitude).
         {
             protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
             {
-                // To repro timeout fail:
-                // if (result.Type == ResultType.MultiBulk) throw new Exception("Woops");
                 switch (result.Type)
                 {
                     case ResultType.MultiBulk:
-                        var arr = result.GetItemsAsValues();
-
+                        var items = result.GetItems();
                         if (result.IsNull)
                         {
                             return true;
                         }
-                        else if (arr.Length == 2 && Format.TryParseInt32(arr[1], out var port))
+                        else if (items.Length == 2 && items[1].TryGetInt64(out var port))
                         {
-                            SetResult(message, Format.ParseEndPoint(arr[0], port));
+                            SetResult(message, Format.ParseEndPoint(items[0].GetString(), checked((int)port)));
                             return true;
                         }
-                        else if (arr.Length == 0)
+                        else if (items.Length == 0)
                         {
                             SetResult(message, null);
                             return true;
@@ -2050,27 +2048,11 @@ The coordinates as a two items x,y array (longitude,latitude).
                     case ResultType.MultiBulk:
                         foreach (RawResult item in result.GetItems())
                         {
-                            var arr = item.GetItemsAsValues();
+                            var pairs = item.GetItems();
                             string ip = null;
-                            string portStr = null;
-
-                            for (int i = 0; i < arr.Length && (ip == null || portStr == null); i += 2)
-                            {
-                                string name = arr[i];
-                                string value = arr[i + 1];
-
-                                switch (name)
-                                {
-                                    case "ip":
-                                        ip = value;
-                                        break;
-                                    case "port":
-                                        portStr = value;
-                                        break;
-                                }
-                            }
-
-                            if (ip != null && portStr != null && int.TryParse(portStr, out int port))
+                            int port = default;
+                            if (KeyValuePairParser.TryRead(pairs, in KeyValuePairParser.IP, ref ip)
+                                && KeyValuePairParser.TryRead(pairs, in KeyValuePairParser.Port, ref port))
                             {
                                 endPoints.Add(Format.ParseEndPoint(ip, port));
                             }
@@ -2105,27 +2087,11 @@ The coordinates as a two items x,y array (longitude,latitude).
                     case ResultType.MultiBulk:
                         foreach (RawResult item in result.GetItems())
                         {
-                            var arr = item.GetItemsAsValues();
+                            var pairs = item.GetItems();
                             string ip = null;
-                            string portStr = null;
-
-                            for (int i = 0; i < arr.Length && (ip == null || portStr == null); i += 2)
-                            {
-                                string name = arr[i];
-                                string value = arr[i + 1];
-
-                                switch (name)
-                                {
-                                    case "ip":
-                                        ip = value;
-                                        break;
-                                    case "port":
-                                        portStr = value;
-                                        break;
-                                }
-                            }
-
-                            if (ip != null && portStr != null && int.TryParse(portStr, out int port))
+                            int port = default;
+                            if (KeyValuePairParser.TryRead(pairs, in KeyValuePairParser.IP, ref ip)
+                                && KeyValuePairParser.TryRead(pairs, in KeyValuePairParser.Port, ref port))
                             {
                                 endPoints.Add(Format.ParseEndPoint(ip, port));
                             }
