@@ -2568,7 +2568,7 @@ namespace StackExchange.Redis
                     foreach (var replicaEndPoint in replicaEndPoints)
                     {
                         connection.RawConfig.EndPoints.TryAdd(replicaEndPoint);
-                    }|
+                    }
                     Trace(string.Format("Switching master to {0}", newMasterEndPoint));
                     // Trigger a reconfigure
                     connection.ReconfigureAsync(false, false, logProxy, switchBlame,
