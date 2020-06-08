@@ -1,6 +1,6 @@
 # Release Notes
 
-## pending
+## 2.1.50
 
 - add: bind direct to sentinel-managed instances from a configuration string/object (#1431 via ejsmith)
 - add last-delivered-id to `StreamGroupInfo` (#1477 via AndyPook)
