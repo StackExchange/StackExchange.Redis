@@ -792,7 +792,7 @@ namespace StackExchange.Redis
         /// for the given service name.
         /// </summary>
         /// <param name="serviceName">the sentinel service name</param>
-        /// <param name="flags"></param>
+        /// <param name="flags">The command flags to use.</param>
         /// <returns>a list of the sentinel ips and ports</returns>
         EndPoint[] SentinelGetSentinelAddresses(string serviceName, CommandFlags flags = CommandFlags.None);
 
@@ -801,9 +801,27 @@ namespace StackExchange.Redis
         /// for the given service name.
         /// </summary>
         /// <param name="serviceName">the sentinel service name</param>
-        /// <param name="flags"></param>
+        /// <param name="flags">The command flags to use.</param>
         /// <returns>a list of the sentinel ips and ports</returns>
         Task<EndPoint[]> SentinelGetSentinelAddressesAsync(string serviceName, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns the ip and port numbers of all known Sentinel replicas
+        /// for the given service name.
+        /// </summary>
+        /// <param name="serviceName">the sentinel service name</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>a list of the replica ips and ports</returns>
+        EndPoint[] SentinelGetReplicaAddresses(string serviceName, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Returns the ip and port numbers of all known Sentinel replicas
+        /// for the given service name.
+        /// </summary>
+        /// <param name="serviceName">the sentinel service name</param>
+        /// <param name="flags">The command flags to use.</param>
+        /// <returns>a list of the replica ips and ports</returns>
+        Task<EndPoint[]> SentinelGetReplicaAddressesAsync(string serviceName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Show the state and info of the specified master.
@@ -1024,5 +1042,14 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="server">The server to simulate failure on.</param>
         public static void SimulateConnectionFailure(this IServer server) => (server as RedisServer)?.SimulateConnectionFailure();
+
+        public static string Role(this IServer server)
+        {
+            var result = (RedisResult[])server.Execute("ROLE");
+            if (result != null && result.Length > 0)
+                return result[0].ToString();
+
+            return null;
+        }
     }
 }

@@ -840,10 +840,10 @@ namespace StackExchange.Redis
         public static Task<ConnectionMultiplexer> ConnectAsync(string configuration, TextWriter log = null)
         {
             SocketConnection.AssertDependencies();
-            return ConnectImplAsync(configuration, log);
+            return ConnectAsync(PrepareConfig(configuration), log);
         }
 
-        private static async Task<ConnectionMultiplexer> ConnectImplAsync(object configuration, TextWriter log = null)
+        private static async Task<ConnectionMultiplexer> ConnectImplAsync(ConfigurationOptions configuration, TextWriter log = null)
         {
             IDisposable killMe = null;
             EventHandler<ConnectionFailedEventArgs> connectHandler = null;
@@ -862,6 +862,12 @@ namespace StackExchange.Redis
                     }
                     killMe = null;
                     Interlocked.Increment(ref muxer._connectCompletedCount);
+
+                    if (muxer.ServerSelectionStrategy.ServerType == ServerType.Sentinel)
+                    {
+                        // Initialize the Sentinel handlers
+                        muxer.InitializeSentinel(logProxy);
+                    }
                     return muxer;
                 }
                 finally
@@ -880,10 +886,19 @@ namespace StackExchange.Redis
         public static Task<ConnectionMultiplexer> ConnectAsync(ConfigurationOptions configuration, TextWriter log = null)
         {
             SocketConnection.AssertDependencies();
-            return ConnectImplAsync(configuration, log);
+
+            if (IsSentinel(configuration))
+                return SentinelMasterConnectAsync(configuration, log);
+
+            return ConnectImplAsync(PrepareConfig(configuration), log);
         }
 
-        internal static ConfigurationOptions PrepareConfig(object configuration)
+        private static bool IsSentinel(ConfigurationOptions configuration)
+        {
+            return !string.IsNullOrEmpty(configuration?.ServiceName);
+        }
+
+        internal static ConfigurationOptions PrepareConfig(object configuration, bool sentinel = false)
         {
             if (configuration == null) throw new ArgumentNullException(nameof(configuration));
             ConfigurationOptions config;
@@ -900,7 +915,21 @@ namespace StackExchange.Redis
                 throw new ArgumentException("Invalid configuration object", nameof(configuration));
             }
             if (config.EndPoints.Count == 0) throw new ArgumentException("No endpoints specified", nameof(configuration));
+
+            if (sentinel)
+            {
+                // this is required when connecting to sentinel servers
+                config.TieBreaker = "";
+                config.CommandMap = CommandMap.Sentinel;
+
+                // use default sentinel port
+                config.EndPoints.SetDefaultPorts(26379);
+
+                return config;
+            }
+
             config.SetDefaultPorts();
+
             return config;
         }
 
@@ -953,9 +982,9 @@ namespace StackExchange.Redis
                 }
             }
         }
-        private static ConnectionMultiplexer CreateMultiplexer(object configuration, LogProxy log, out EventHandler<ConnectionFailedEventArgs> connectHandler)
+        private static ConnectionMultiplexer CreateMultiplexer(ConfigurationOptions configuration, LogProxy log, out EventHandler<ConnectionFailedEventArgs> connectHandler)
         {
-            var muxer = new ConnectionMultiplexer(PrepareConfig(configuration));
+            var muxer = new ConnectionMultiplexer(configuration);
             connectHandler = null;
             if (log != null)
             {
@@ -988,22 +1017,127 @@ namespace StackExchange.Redis
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
         public static ConnectionMultiplexer Connect(string configuration, TextWriter log = null)
         {
-            SocketConnection.AssertDependencies();
-            return ConnectImpl(configuration, log);
+            return Connect(PrepareConfig(configuration), log);
         }
 
         /// <summary>
         /// Create a new ConnectionMultiplexer instance
         /// </summary>
-        /// <param name="configuration">The configurtion options to use for this multiplexer.</param>
+        /// <param name="configuration">The configuration options to use for this multiplexer.</param>
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
         public static ConnectionMultiplexer Connect(ConfigurationOptions configuration, TextWriter log = null)
         {
             SocketConnection.AssertDependencies();
-            return ConnectImpl(configuration, log);
+
+            if (IsSentinel(configuration))
+            {
+                return SentinelMasterConnect(configuration, log);
+            }
+
+            return ConnectImpl(PrepareConfig(configuration), log);
         }
 
-        private static ConnectionMultiplexer ConnectImpl(object configuration, TextWriter log)
+        /// <summary>
+        /// Create a new ConnectionMultiplexer instance that connects to a sentinel server
+        /// </summary>
+        /// <param name="configuration">The string configuration to use for this multiplexer.</param>
+        /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
+        public static ConnectionMultiplexer SentinelConnect(string configuration, TextWriter log = null)
+        {
+            SocketConnection.AssertDependencies();
+            return ConnectImpl(PrepareConfig(configuration, sentinel: true), log);
+        }
+
+        /// <summary>
+        /// Create a new ConnectionMultiplexer instance that connects to a sentinel server
+        /// </summary>
+        /// <param name="configuration">The string configuration to use for this multiplexer.</param>
+        /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
+        public static Task<ConnectionMultiplexer> SentinelConnectAsync(string configuration, TextWriter log = null)
+        {
+            SocketConnection.AssertDependencies();
+            return ConnectImplAsync(PrepareConfig(configuration, sentinel: true), log);
+        }
+
+        /// <summary>
+        /// Create a new ConnectionMultiplexer instance that connects to a sentinel server
+        /// </summary>
+        /// <param name="configuration">The configuration options to use for this multiplexer.</param>
+        /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
+        public static ConnectionMultiplexer SentinelConnect(ConfigurationOptions configuration, TextWriter log = null)
+        {
+            SocketConnection.AssertDependencies();
+            return ConnectImpl(PrepareConfig(configuration, sentinel: true), log);
+        }
+
+        /// <summary>
+        /// Create a new ConnectionMultiplexer instance that connects to a sentinel server
+        /// </summary>
+        /// <param name="configuration">The configuration options to use for this multiplexer.</param>
+        /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
+        public static Task<ConnectionMultiplexer> SentinelConnectAsync(ConfigurationOptions configuration, TextWriter log = null)
+        {
+            SocketConnection.AssertDependencies();
+            return ConnectImplAsync(PrepareConfig(configuration, sentinel: true), log);
+        }
+
+        /// <summary>
+        /// Create a new ConnectionMultiplexer instance that connects to a sentinel server, discovers the current master server
+        /// for the specified ServiceName in the config and returns a managed connection to the current master server
+        /// </summary>
+        /// <param name="configuration">The string configuration to use for this multiplexer.</param>
+        /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
+        private static ConnectionMultiplexer SentinelMasterConnect(string configuration, TextWriter log = null)
+        {
+            return SentinelMasterConnect(PrepareConfig(configuration, sentinel: true), log);
+        }
+
+        /// <summary>
+        /// Create a new ConnectionMultiplexer instance that connects to a sentinel server, discovers the current master server
+        /// for the specified ServiceName in the config and returns a managed connection to the current master server
+        /// </summary>
+        /// <param name="configuration">The configuration options to use for this multiplexer.</param>
+        /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
+        private static ConnectionMultiplexer SentinelMasterConnect(ConfigurationOptions configuration, TextWriter log = null)
+        {
+            var sentinelConnection = SentinelConnect(configuration, log);
+
+            var muxer = sentinelConnection.GetSentinelMasterConnection(configuration, log);
+            // set reference to sentinel connection so that we can dispose it
+            muxer.sentinelConnection = sentinelConnection;
+
+            return muxer;
+        }
+
+        /// <summary>
+        /// Create a new ConnectionMultiplexer instance that connects to a sentinel server, discovers the current master server
+        /// for the specified ServiceName in the config and returns a managed connection to the current master server
+        /// </summary>
+        /// <param name="configuration">The string configuration to use for this multiplexer.</param>
+        /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
+        private static Task<ConnectionMultiplexer> SentinelMasterConnectAsync(string configuration, TextWriter log = null)
+        {
+            return SentinelMasterConnectAsync(PrepareConfig(configuration, sentinel: true), log);
+        }
+
+        /// <summary>
+        /// Create a new ConnectionMultiplexer instance that connects to a sentinel server, discovers the current master server
+        /// for the specified ServiceName in the config and returns a managed connection to the current master server
+        /// </summary>
+        /// <param name="configuration">The configuration options to use for this multiplexer.</param>
+        /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
+        private static async Task<ConnectionMultiplexer> SentinelMasterConnectAsync(ConfigurationOptions configuration, TextWriter log = null)
+        {
+            var sentinelConnection = await SentinelConnectAsync(configuration, log).ForAwait();
+
+            var muxer = sentinelConnection.GetSentinelMasterConnection(configuration, log);
+            // set reference to sentinel connection so that we can dispose it
+            muxer.sentinelConnection = sentinelConnection;
+
+            return muxer;
+        }
+
+        private static ConnectionMultiplexer ConnectImpl(ConfigurationOptions configuration, TextWriter log)
         {
             IDisposable killMe = null;
             EventHandler<ConnectionFailedEventArgs> connectHandler = null;
@@ -1044,7 +1178,7 @@ namespace StackExchange.Redis
                 }
                 finally
                 {
-                    if (connectHandler != null) muxer.ConnectionFailed -= connectHandler;
+                    if (connectHandler != null && muxer != null) muxer.ConnectionFailed -= connectHandler;
                     if (killMe != null) try { killMe.Dispose(); } catch { }
                 }
             }
@@ -1573,7 +1707,7 @@ namespace StackExchange.Redis
 
                     int iterCount = first ? 2 : 1;
                     // this is fix for https://github.com/StackExchange/StackExchange.Redis/issues/300
-                    // auto discoverability of cluster nodes is made synchronous. 
+                    // auto discoverability of cluster nodes is made synchronous.
                     // we try to connect to endpoints specified inside the user provided configuration
                     // and when we encounter one such endpoint to which we are able to successfully connect,
                     // we get the list of cluster nodes from this endpoint and try to proactively connect
@@ -1663,7 +1797,7 @@ namespace StackExchange.Redis
 
                                     if (clusterCount > 0 && !encounteredConnectedClusterServer)
                                     {
-                                        // we have encountered a connected server with clustertype for the first time. 
+                                        // we have encountered a connected server with clustertype for the first time.
                                         // so we will get list of other nodes from this server using "CLUSTER NODES" command
                                         // and try to connect to these other nodes in the next iteration
                                         encounteredConnectedClusterServer = true;
@@ -2143,6 +2277,7 @@ namespace StackExchange.Redis
         internal Timer sentinelMasterReconnectTimer;
 
         internal Dictionary<string, ConnectionMultiplexer> sentinelConnectionChildren;
+        internal ConnectionMultiplexer sentinelConnection = null;
 
         /// <summary>
         /// Initializes the connection as a Sentinel connection and adds
@@ -2161,6 +2296,7 @@ namespace StackExchange.Redis
 
             // Subscribe to sentinel change events
             ISubscriber sub = GetSubscriber();
+
             if (sub.SubscribedEndpoint("+switch-master") == null)
             {
                 sub.Subscribe("+switch-master", (channel, message) =>
@@ -2231,29 +2367,60 @@ namespace StackExchange.Redis
                     return sentinelConnectionChildren[config.ServiceName];
             }
 
-            // Get an initial endpoint - try twice
-            EndPoint newMasterEndPoint = GetConfiguredMasterForService(config.ServiceName)
-                                      ?? GetConfiguredMasterForService(config.ServiceName);
+            bool success = false;
+            ConnectionMultiplexer connection = null;
 
-            if (newMasterEndPoint == null)
+            var sw = Stopwatch.StartNew();
+            do
+            {
+                // Get an initial endpoint - try twice
+                EndPoint newMasterEndPoint = GetConfiguredMasterForService(config.ServiceName)
+                                             ?? GetConfiguredMasterForService(config.ServiceName);
+
+                if (newMasterEndPoint == null)
+                {
+                    throw new RedisConnectionException(ConnectionFailureType.UnableToConnect,
+                        $"Sentinel: Failed connecting to configured master for service: {config.ServiceName}");
+                }
+
+                EndPoint[] replicaEndPoints = GetReplicasForService(config.ServiceName)
+                                           ?? GetReplicasForService(config.ServiceName);
+
+                // Replace the master endpoint, if we found another one
+                // If not, assume the last state is the best we have and minimize the race
+                if (config.EndPoints.Count == 1)
+                {
+                    config.EndPoints[0] = newMasterEndPoint;
+                }
+                else
+                {
+                    config.EndPoints.Clear();
+                    config.EndPoints.TryAdd(newMasterEndPoint);
+                }
+
+                foreach (var replicaEndPoint in replicaEndPoints)
+                {
+                    config.EndPoints.TryAdd(replicaEndPoint);
+                }
+
+                connection = ConnectImpl(config, log);
+
+                // verify role is master according to:
+                // https://redis.io/topics/sentinel-clients
+                if (connection.GetServer(newMasterEndPoint)?.Role() == RedisLiterals.master)
+                {
+                    success = true;
+                    break;
+                }
+
+                Thread.Sleep(100);
+            } while (sw.ElapsedMilliseconds < config.ConnectTimeout);
+
+            if (!success)
             {
                 throw new RedisConnectionException(ConnectionFailureType.UnableToConnect,
                     $"Sentinel: Failed connecting to configured master for service: {config.ServiceName}");
             }
-
-            // Replace the master endpoint, if we found another one
-            // If not, assume the last state is the best we have and minimize the race
-            if (config.EndPoints.Count == 1)
-            {
-                config.EndPoints[0] = newMasterEndPoint;
-            }
-            else
-            {
-                config.EndPoints.Clear();
-                config.EndPoints.Add(newMasterEndPoint);
-            }
-
-            ConnectionMultiplexer connection = Connect(config, log);
 
             // Attach to reconnect event to ensure proper connection to the new master
             connection.ConnectionRestored += OnManagedConnectionRestored;
@@ -2284,7 +2451,7 @@ namespace StackExchange.Redis
             try
             {
 
-                // Run a switch to make sure we have update-to-date 
+                // Run a switch to make sure we have update-to-date
                 // information about which master we should connect to
                 SwitchMaster(e.EndPoint, connection);
 
@@ -2352,10 +2519,22 @@ namespace StackExchange.Redis
 
         internal EndPoint currentSentinelMasterEndPoint;
 
+        internal EndPoint[] GetReplicasForService(string serviceName) =>
+            GetServerSnapshot()
+                .ToArray()
+                .Where(s => s.ServerType == ServerType.Sentinel)
+                .AsParallel()
+                .Select(s =>
+                {
+                    try { return GetServer(s.EndPoint).SentinelGetReplicaAddresses(serviceName); }
+                    catch { return null; }
+                })
+                .FirstOrDefault(r => r != null);
+
         /// <summary>
         /// Switches the SentinelMasterConnection over to a new master.
         /// </summary>
-        /// <param name="switchBlame">The endpoing responsible for the switch</param>
+        /// <param name="switchBlame">The endpoint responsible for the switch</param>
         /// <param name="connection">The connection that should be switched over to a new master endpoint</param>
         /// <param name="log">Log to write to, if any</param>
         internal void SwitchMaster(EndPoint switchBlame, ConnectionMultiplexer connection, TextWriter log = null)
@@ -2376,19 +2555,24 @@ namespace StackExchange.Redis
                         $"Sentinel: Failed connecting to switch master for service: {serviceName}");
                 }
 
-                if (newMasterEndPoint != null)
-                {
-                    connection.currentSentinelMasterEndPoint = newMasterEndPoint;
+                connection.currentSentinelMasterEndPoint = newMasterEndPoint;
 
-                    if (!connection.servers.Contains(newMasterEndPoint))
+                if (!connection.servers.Contains(newMasterEndPoint))
+                {
+                    EndPoint[] replicaEndPoints = GetReplicasForService(serviceName)
+                                               ?? GetReplicasForService(serviceName);
+
+                    connection.servers.Clear();
+                    connection.RawConfig.EndPoints.Clear();
+                    connection.RawConfig.EndPoints.TryAdd(newMasterEndPoint);
+                    foreach (var replicaEndPoint in replicaEndPoints)
                     {
-                        connection.RawConfig.EndPoints.Clear();
-                        connection.servers.Clear();
-                        connection.RawConfig.EndPoints.Add(newMasterEndPoint);
-                        Trace(string.Format("Switching master to {0}", newMasterEndPoint));
-                        // Trigger a reconfigure                            
-                        connection.ReconfigureAsync(false, false, logProxy, switchBlame, string.Format("master switch {0}", serviceName), false, CommandFlags.PreferMaster).Wait();
+                        connection.RawConfig.EndPoints.TryAdd(replicaEndPoint);
                     }
+                    Trace(string.Format("Switching master to {0}", newMasterEndPoint));
+                    // Trigger a reconfigure
+                    connection.ReconfigureAsync(false, false, logProxy, switchBlame,
+                        string.Format("master switch {0}", serviceName), false, CommandFlags.PreferMaster).Wait();
 
                     UpdateSentinelAddressList(serviceName);
                 }
@@ -2417,7 +2601,7 @@ namespace StackExchange.Redis
             foreach (EndPoint newSentinel in firstCompleteRequest.Where(x => !RawConfig.EndPoints.Contains(x)))
             {
                 hasNew = true;
-                RawConfig.EndPoints.Add(newSentinel);
+                RawConfig.EndPoints.TryAdd(newSentinel);
             }
 
             if (hasNew)
@@ -2515,6 +2699,7 @@ namespace StackExchange.Redis
         {
             GC.SuppressFinalize(this);
             Close(!_isDisposed);
+            sentinelConnection?.Dispose();
         }
 
         internal Task<T> ExecuteAsyncImpl<T>(Message message, ResultProcessor<T> processor, object state, ServerEndPoint server)

@@ -119,12 +119,14 @@ namespace StackExchange.Redis
 
             // misc (config, etc)
             databases = "databases",
+            master = "master",
             no = "no",
             normal = "normal",
             pubsub = "pubsub",
             replica = "replica",
             replica_read_only = "replica-read-only",
             replication = "replication",
+            sentinel = "sentinel",
             server = "server",
             slave = "slave",
             slave_read_only = "slave-read-only",

@@ -830,6 +830,18 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.SentinelAddressesEndPoints);
         }
 
+        public EndPoint[] SentinelGetReplicaAddresses(string serviceName, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.SLAVES, (RedisValue)serviceName);
+            return ExecuteSync(msg, ResultProcessor.SentinelAddressesEndPoints);
+        }
+
+        public Task<EndPoint[]> SentinelGetReplicaAddressesAsync(string serviceName, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.SLAVES, (RedisValue)serviceName);
+            return ExecuteAsync(msg, ResultProcessor.SentinelAddressesEndPoints);
+        }
+
         public KeyValuePair<string, string>[] SentinelMaster(string serviceName, CommandFlags flags = CommandFlags.None)
         {
             var msg = Message.Create(-1, flags, RedisCommand.SENTINEL, RedisLiterals.MASTER, (RedisValue)serviceName);
@@ -866,6 +878,7 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.SentinelArrayOfArrays);
         }
 
+        // For previous compat only
         KeyValuePair<string, string>[][] IServer.SentinelSlaves(string serviceName, CommandFlags flags)
             => SentinelReplicas(serviceName, flags);
 
@@ -876,6 +889,7 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.SentinelArrayOfArrays);
         }
 
+        // For previous compat only
         Task<KeyValuePair<string, string>[][]> IServer.SentinelSlavesAsync(string serviceName, CommandFlags flags)
             => SentinelReplicasAsync(serviceName, flags);
 
