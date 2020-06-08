@@ -314,6 +314,8 @@ namespace StackExchange.Redis
             {
                 // this is a nasty way to find if we are a replica, and it will only work on up-level servers, but...
                 RedisKey key = Multiplexer.UniqueId;
+                // the actual value here doesn't matter (we detect the error code if it fails); the value here is to at least give some
+                // indication to anyone watching via "monitor", but we could send two guids (key/value) and it would work the same
                 msg = Message.Create(0, flags, RedisCommand.SET, key, RedisLiterals.replica_read_only, RedisLiterals.PX, 1, RedisLiterals.NX);
                 msg.SetInternalCall();
                 WriteDirectOrQueueFireAndForgetSync(connection, msg, ResultProcessor.AutoConfigure);
