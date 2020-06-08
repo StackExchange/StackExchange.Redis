@@ -107,7 +107,7 @@ Tokens starting with `$` are taken to represent command maps, for example: `$con
 Automatic and Manual Configuration
 ---
 
-In many common scenarios, StackExchange.Redis will automatically configure a lot of settings, including the server type and version, connection timeouts, and master/slave relationships. Sometimes, though, the commands for this have been disabled on the redis server. In this case, it is useful to provide more information:
+In many common scenarios, StackExchange.Redis will automatically configure a lot of settings, including the server type and version, connection timeouts, and master/replica relationships. Sometimes, though, the commands for this have been disabled on the redis server. In this case, it is useful to provide more information:
 
 ```csharp
 ConfigurationOptions config = new ConfigurationOptions
@@ -172,13 +172,13 @@ var options = new ConfigurationOptions
 Tiebreakers and Configuration Change Announcements
 ---
 
-Normally StackExchange.Redis will resolve master/slave nodes automatically. However, if you are not using a management tool such as redis-sentinel or redis cluster, there is a chance that occasionally you will get multiple master nodes (for example, while resetting a node for maintenance it may reappear on the network as a master). To help with this, StackExchange.Redis can use the notion of a *tie-breaker* - which is only used when multiple masters are detected (not including redis cluster, where multiple masters are *expected*). For compatibility with BookSleeve, this defaults to the key named `"__Booksleeve_TieBreak"` (always in database 0). This is used as a crude voting mechanism to help determine the *preferred* master, so that work is routed correctly.
+Normally StackExchange.Redis will resolve master/replica nodes automatically. However, if you are not using a management tool such as redis-sentinel or redis cluster, there is a chance that occasionally you will get multiple master nodes (for example, while resetting a node for maintenance it may reappear on the network as a master). To help with this, StackExchange.Redis can use the notion of a *tie-breaker* - which is only used when multiple masters are detected (not including redis cluster, where multiple masters are *expected*). For compatibility with BookSleeve, this defaults to the key named `"__Booksleeve_TieBreak"` (always in database 0). This is used as a crude voting mechanism to help determine the *preferred* master, so that work is routed correctly.
 
-Likewise, when the configuration is changed (especially the master/slave configuration), it will be important for connected instances to make themselves aware of the new situation (via `INFO`, `CONFIG`, etc - where available). StackExchange.Redis does this by automatically subscribing to a pub/sub channel upon which such notifications may be sent. For similar reasons, this defaults to `"__Booksleeve_MasterChanged"`.
+Likewise, when the configuration is changed (especially the master/replica configuration), it will be important for connected instances to make themselves aware of the new situation (via `INFO`, `CONFIG`, etc - where available). StackExchange.Redis does this by automatically subscribing to a pub/sub channel upon which such notifications may be sent. For similar reasons, this defaults to `"__Booksleeve_MasterChanged"`.
 
 Both options can be customized or disabled (set to `""`), via the `.ConfigurationChannel` and `.TieBreaker` configuration properties.
 
-These settings are also used by the `IServer.MakeMaster()` method, which can set the tie-breaker in the database and broadcast the configuration change message. The configuration message can also be used separately to master/slave changes simply to request all nodes to refresh their configurations, via the `ConnectionMultiplexer.PublishReconfigure` method.
+These settings are also used by the `IServer.MakeMaster()` method, which can set the tie-breaker in the database and broadcast the configuration change message. The configuration message can also be used separately to master/replica changes simply to request all nodes to refresh their configurations, via the `ConnectionMultiplexer.PublishReconfigure` method.
 
 ReconnectRetryPolicy
 ---

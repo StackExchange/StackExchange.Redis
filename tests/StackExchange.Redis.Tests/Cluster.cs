@@ -110,7 +110,7 @@ namespace StackExchange.Redis.Tests
                 }
 
                 Assert.Equal(TestConfig.Current.ClusterServerCount, endpoints.Length);
-                int masters = 0, slaves = 0;
+                int masters = 0, replicas = 0;
                 var failed = new List<EndPoint>();
                 foreach (var endpoint in endpoints)
                 {
@@ -131,7 +131,7 @@ namespace StackExchange.Redis.Tests
                     Log("server-type:" + endpoint);
                     Assert.Equal(ServerType.Cluster, server.ServerType);
 
-                    if (server.IsSlave) slaves++;
+                    if (server.IsReplica) replicas++;
                     else masters++;
                 }
                 if (failed.Count != 0)
@@ -144,7 +144,7 @@ namespace StackExchange.Redis.Tests
                     Assert.True(false, "not all servers connected");
                 }
 
-                Assert.Equal(TestConfig.Current.ClusterServerCount / 2, slaves);
+                Assert.Equal(TestConfig.Current.ClusterServerCount / 2, replicas);
                 Assert.Equal(TestConfig.Current.ClusterServerCount / 2, masters);
             }
         }
@@ -187,7 +187,7 @@ namespace StackExchange.Redis.Tests
                 string a = StringGet(conn.GetServer(rightMasterNode.EndPoint), key);
                 Assert.Equal(value, a); // right master
 
-                var node = config.Nodes.FirstOrDefault(x => !x.IsSlave && x.NodeId != rightMasterNode.NodeId);
+                var node = config.Nodes.FirstOrDefault(x => !x.IsReplica && x.NodeId != rightMasterNode.NodeId);
                 Assert.NotNull(node);
                 Log("Using Master: {0}", node.EndPoint, node.NodeId);
                 if (node != null)
@@ -199,20 +199,20 @@ namespace StackExchange.Redis.Tests
                     Assert.StartsWith($"Key has MOVED to Endpoint {rightMasterNode.EndPoint} and hashslot {slot}", ex.Message);
                 }
 
-                node = config.Nodes.FirstOrDefault(x => x.IsSlave && x.ParentNodeId == rightMasterNode.NodeId);
+                node = config.Nodes.FirstOrDefault(x => x.IsReplica && x.ParentNodeId == rightMasterNode.NodeId);
                 Assert.NotNull(node);
                 if (node != null)
                 {
                     string d = StringGet(conn.GetServer(node.EndPoint), key);
-                    Assert.Equal(value, d); // right slave
+                    Assert.Equal(value, d); // right replica
                 }
 
-                node = config.Nodes.FirstOrDefault(x => x.IsSlave && x.ParentNodeId != rightMasterNode.NodeId);
+                node = config.Nodes.FirstOrDefault(x => x.IsReplica && x.ParentNodeId != rightMasterNode.NodeId);
                 Assert.NotNull(node);
                 if (node != null)
                 {
                     string e = StringGet(conn.GetServer(node.EndPoint), key);
-                    Assert.Equal(value, e); // wrong slave, allow redirect
+                    Assert.Equal(value, e); // wrong replica, allow redirect
 
                     var ex = Assert.Throws<RedisServerException>(() => StringGet(conn.GetServer(node.EndPoint), key, CommandFlags.NoRedirect));
                     Assert.StartsWith($"Key has MOVED to Endpoint {rightMasterNode.EndPoint} and hashslot {slot}", ex.Message);
@@ -390,7 +390,7 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create(allowAdmin: true))
             {
                 var cluster = conn.GetDatabase();
-                var server = conn.GetEndPoints().Select(x => conn.GetServer(x)).First(x => !x.IsSlave);
+                var server = conn.GetEndPoints().Select(x => conn.GetServer(x)).First(x => !x.IsReplica);
                 server.FlushAllDatabases();
                 try
                 {
@@ -507,7 +507,7 @@ namespace StackExchange.Redis.Tests
                 var servers = conn.GetEndPoints().Select(x => conn.GetServer(x));
                 foreach (var server in servers)
                 {
-                    if (!server.IsSlave)
+                    if (!server.IsReplica)
                     {
                         server.Ping();
                         server.FlushAllDatabases();
@@ -540,7 +540,7 @@ namespace StackExchange.Redis.Tests
                 int total = 0;
                 Parallel.ForEach(servers, server =>
                 {
-                    if (!server.IsSlave)
+                    if (!server.IsReplica)
                     {
                         int count = server.Keys(pageSize: 100).Count();
                         Log("{0} has {1} keys", server.EndPoint, count);
@@ -561,10 +561,10 @@ namespace StackExchange.Redis.Tests
 
         [Theory]
         [InlineData(CommandFlags.DemandMaster, false)]
-        [InlineData(CommandFlags.DemandSlave, true)]
+        [InlineData(CommandFlags.DemandReplica, true)]
         [InlineData(CommandFlags.PreferMaster, false)]
-        [InlineData(CommandFlags.PreferSlave, true)]
-        public void GetFromRightNodeBasedOnFlags(CommandFlags flags, bool isSlave)
+        [InlineData(CommandFlags.PreferReplica, true)]
+        public void GetFromRightNodeBasedOnFlags(CommandFlags flags, bool isReplica)
         {
             using (var muxer = Create(allowAdmin: true))
             {
@@ -574,7 +574,7 @@ namespace StackExchange.Redis.Tests
                     var key = Guid.NewGuid().ToString();
                     var endpoint = db.IdentifyEndpoint(key, flags);
                     var server = muxer.GetServer(endpoint);
-                    Assert.Equal(isSlave, server.IsSlave);
+                    Assert.Equal(isReplica, server.IsReplica);
                 }
             }
         }
@@ -703,7 +703,7 @@ namespace StackExchange.Redis.Tests
                 string a = (string)conn.GetServer(rightMasterNode.EndPoint).Execute("GET", Key);
                 Assert.Equal(Value, a); // right master
 
-                var wrongMasterNode = config.Nodes.FirstOrDefault(x => !x.IsSlave && x.NodeId != rightMasterNode.NodeId);
+                var wrongMasterNode = config.Nodes.FirstOrDefault(x => !x.IsReplica && x.NodeId != rightMasterNode.NodeId);
                 Assert.NotNull(wrongMasterNode);
 
                 string b = (string)conn.GetServer(wrongMasterNode.EndPoint).Execute("GET", Key);
@@ -713,7 +713,7 @@ namespace StackExchange.Redis.Tests
 
                 // verify that things actually got recorded properly, and the retransmission profilings are connected as expected
                 {
-                    // expect 1 DEL, 1 SET, 1 GET (to right master), 1 GET (to wrong master) that was responded to by an ASK, and 1 GET (to right master or a slave of it)
+                    // expect 1 DEL, 1 SET, 1 GET (to right master), 1 GET (to wrong master) that was responded to by an ASK, and 1 GET (to right master or a replica of it)
                     Assert.Equal(5, msgs.Count);
                     Assert.Equal(1, msgs.Count(c => c.Command == "DEL" || c.Command == "UNLINK"));
                     Assert.Equal(1, msgs.Count(c => c.Command == "SET"));
@@ -725,11 +725,11 @@ namespace StackExchange.Redis.Tests
                     var toWrongMasterWithoutRetransmission = msgs.Where(m => m.Command == "GET" && m.EndPoint.Equals(wrongMasterNode.EndPoint) && m.RetransmissionOf == null);
                     Assert.Single(toWrongMasterWithoutRetransmission);
 
-                    var toRightMasterOrSlaveAsRetransmission = msgs.Where(m => m.Command == "GET" && (m.EndPoint.Equals(rightMasterNode.EndPoint) || rightMasterNode.Children.Any(c => m.EndPoint.Equals(c.EndPoint))) && m.RetransmissionOf != null);
-                    Assert.Single(toRightMasterOrSlaveAsRetransmission);
+                    var toRightMasterOrReplicaAsRetransmission = msgs.Where(m => m.Command == "GET" && (m.EndPoint.Equals(rightMasterNode.EndPoint) || rightMasterNode.Children.Any(c => m.EndPoint.Equals(c.EndPoint))) && m.RetransmissionOf != null);
+                    Assert.Single(toRightMasterOrReplicaAsRetransmission);
 
                     var originalWrongMaster = toWrongMasterWithoutRetransmission.Single();
-                    var retransmissionToRight = toRightMasterOrSlaveAsRetransmission.Single();
+                    var retransmissionToRight = toRightMasterOrReplicaAsRetransmission.Single();
 
                     Assert.True(object.ReferenceEquals(originalWrongMaster, retransmissionToRight.RetransmissionOf));
                 }

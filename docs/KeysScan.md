@@ -17,7 +17,7 @@ The key word here, oddly enough, is the last one: database. Because StackExchang
 - `CLIENT`
 - `CLUSTER`
 - `CONFIG` / `INFO` / `TIME`
-- `SLAVEOF`
+- `REPLICAOF`
 - `SAVE` / `BGSAVE` / `LASTSAVE`
 - `SCRIPT` (not to be confused with `EVAL` / `EVALSHA`)
 - `SHUTDOWN`
@@ -53,9 +53,9 @@ server.FlushDatabase();
 
 Note that unlike the `IDatabase` API (where the target database has already been selected in the `GetDatabase()` call), these methods take an optional parameter for the database, or it defaults to `0`.
 
-The `Keys(...)` method deserves special mention: it is unusual in that it does not have an `*Async` counterpart. The reason for this is that behind the scenes, the system will determine the most appropriate method to use (`KEYS` vs `SCAN`, based on the server version), and if possible will use the `SCAN` approach to hand you back an `IEnumerable<RedisKey>` that does all the paging internally - so you never need to see the implementation details of the cursor operations. If `SCAN` is not available, it will use `KEYS`, which can cause blockages at the server. Either way, both `SCAN` and `KEYS` will need to sweep the entire keyspace, so should be avoided on production servers - or at least, targeted at slaves.
+The `Keys(...)` method deserves special mention: it is unusual in that it does not have an `*Async` counterpart. The reason for this is that behind the scenes, the system will determine the most appropriate method to use (`KEYS` vs `SCAN`, based on the server version), and if possible will use the `SCAN` approach to hand you back an `IEnumerable<RedisKey>` that does all the paging internally - so you never need to see the implementation details of the cursor operations. If `SCAN` is not available, it will use `KEYS`, which can cause blockages at the server. Either way, both `SCAN` and `KEYS` will need to sweep the entire keyspace, so should be avoided on production servers - or at least, targeted at replicas.
 
 So I need to remember which server I connected to? That sucks!
 ---
 
-No, not quite. You can use `conn.GetEndPoints()` to list the endpoints (either all known, or the ones specified in the original configuration - these are not necessarily the same thing), and iterate with `GetServer()` to find the server you want (for example, selecting a slave).
+No, not quite. You can use `conn.GetEndPoints()` to list the endpoints (either all known, or the ones specified in the original configuration - these are not necessarily the same thing), and iterate with `GetServer()` to find the server you want (for example, selecting a replica).

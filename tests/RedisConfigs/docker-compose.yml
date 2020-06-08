@@ -1,6 +1,10 @@
 version: '2.4'
 
 services:
+  redisearch:
+    image: redislabs/redisearch
+    ports:
+      - 6385:6379
   redis:
     build:
       context: .

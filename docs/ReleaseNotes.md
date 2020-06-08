@@ -1,5 +1,9 @@
 # Release Notes
 
+## pending
+
+- fix: the `IServer` commands that are database-specific (`DBSIZE`, `FLUSHDB`, `KEYS`, `SCAN`) now respect the default database on the config (#1460)
+
 ## 2.1.39
 
 - fix: mutex around connection was not "fair"; in specific scenario could lead to out-of-order commands (#1440)

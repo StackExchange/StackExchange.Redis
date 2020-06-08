@@ -51,9 +51,9 @@ namespace StackExchange.Redis.Tests
             public int MasterPort { get; set; } = 6379;
             public string MasterServerAndPort => MasterServer + ":" + MasterPort.ToString();
 
-            public string SlaveServer { get; set; } = "127.0.0.1";
-            public int SlavePort { get; set; } = 6380;
-            public string SlaveServerAndPort => SlaveServer + ":" + SlavePort.ToString();
+            public string ReplicaServer { get; set; } = "127.0.0.1";
+            public int ReplicaPort { get; set; } = 6380;
+            public string ReplicaServerAndPort => ReplicaServer + ":" + ReplicaPort.ToString();
 
             public string SecureServer { get; set; } = "127.0.0.1";
             public int SecurePort { get; set; } = 6381;
@@ -65,9 +65,13 @@ namespace StackExchange.Redis.Tests
             public int FailoverMasterPort { get; set; } = 6382;
             public string FailoverMasterServerAndPort => FailoverMasterServer + ":" + FailoverMasterPort.ToString();
 
-            public string FailoverSlaveServer { get; set; } = "127.0.0.1";
-            public int FailoverSlavePort { get; set; } = 6383;
-            public string FailoverSlaveServerAndPort => FailoverSlaveServer + ":" + FailoverSlavePort.ToString();
+            public string FailoverReplicaServer { get; set; } = "127.0.0.1";
+            public int FailoverReplicaPort { get; set; } = 6383;
+            public string FailoverReplicaServerAndPort => FailoverReplicaServer + ":" + FailoverReplicaPort.ToString();
+
+            public string RediSearchServer { get; set; } = "127.0.0.1";
+            public int RediSearchPort { get; set; } = 6385;
+            public string RediSearchServerAndPort => RediSearchServer + ":" + RediSearchPort.ToString();
 
             public string IPv4Server { get; set; } = "127.0.0.1";
             public int IPv4Port { get; set; } = 6379;

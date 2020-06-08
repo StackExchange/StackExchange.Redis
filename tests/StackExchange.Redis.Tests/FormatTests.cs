@@ -1,9 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using System.Collections.Generic;
 using System.Net;
-using System.Text;
-using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -46,5 +42,36 @@ namespace StackExchange.Redis.Tests
             var result = Format.TryParseEndPoint(data);
             Assert.Equal(expected, result);
         }
+
+        [Theory]
+        [InlineData(CommandFlags.None, "None")]
+        [InlineData(CommandFlags.PreferReplica, "PreferMaster, PreferReplica")] // 2-bit flag is hit-and-miss
+        [InlineData(CommandFlags.DemandReplica, "PreferMaster, DemandReplica")] // 2-bit flag is hit-and-miss
+        [InlineData(CommandFlags.PreferReplica | CommandFlags.FireAndForget, "PreferMaster, FireAndForget, PreferReplica")] // 2-bit flag is hit-and-miss
+        [InlineData(CommandFlags.DemandReplica | CommandFlags.FireAndForget, "PreferMaster, FireAndForget, DemandReplica")] // 2-bit flag is hit-and-miss
+        public void CommandFlagsFormatting(CommandFlags value, string expected)
+            => Assert.Equal(expected, value.ToString());
+
+        [Theory]
+        [InlineData(ClientType.Normal, "Normal")]
+        [InlineData(ClientType.Replica, "Replica")]
+        [InlineData(ClientType.PubSub, "PubSub")]
+        public void ClientTypeFormatting(ClientType value, string expected)
+            => Assert.Equal(expected, value.ToString());
+
+        [Theory]
+        [InlineData(ClientFlags.None, "None")]
+        [InlineData(ClientFlags.Replica | ClientFlags.Transaction, "Replica, Transaction")]
+        [InlineData(ClientFlags.Transaction | ClientFlags.ReplicaMonitor | ClientFlags.UnixDomainSocket, "ReplicaMonitor, Transaction, UnixDomainSocket")]
+        public void ClientFlagsFormatting(ClientFlags value, string expected)
+            => Assert.Equal(expected, value.ToString());
+
+        [Theory]
+        [InlineData(ReplicationChangeOptions.None, "None")]
+        [InlineData(ReplicationChangeOptions.ReplicateToOtherEndpoints, "ReplicateToOtherEndpoints")]
+        [InlineData(ReplicationChangeOptions.SetTiebreaker | ReplicationChangeOptions.ReplicateToOtherEndpoints, "SetTiebreaker, ReplicateToOtherEndpoints")]
+        [InlineData(ReplicationChangeOptions.Broadcast | ReplicationChangeOptions.SetTiebreaker | ReplicationChangeOptions.ReplicateToOtherEndpoints, "All")]
+        public void ReplicationChangeOptionsFormatting(ReplicationChangeOptions value, string expected)
+            => Assert.Equal(expected, value.ToString());
     }
 }

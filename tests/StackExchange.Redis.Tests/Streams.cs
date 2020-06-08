@@ -992,9 +992,17 @@ namespace StackExchange.Redis.Tests
 
                 Assert.Equal(group1, groupInfoList[0].Name);
                 Assert.Equal(1, groupInfoList[0].PendingMessageCount);
+                Assert.True(IsMessageId(groupInfoList[0].LastDeliveredId)); // can't test actual - will vary
 
                 Assert.Equal(group2, groupInfoList[1].Name);
                 Assert.Equal(4, groupInfoList[1].PendingMessageCount);
+                Assert.True(IsMessageId(groupInfoList[1].LastDeliveredId)); // can't test actual - will vary
+            }
+
+            static bool IsMessageId(string value)
+            {
+                if (string.IsNullOrWhiteSpace(value)) return false;
+                return value.Length >= 3 && value.Contains("-");
             }
         }
 

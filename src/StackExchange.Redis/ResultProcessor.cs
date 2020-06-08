@@ -1,5 +1,4 @@
-﻿using Pipelines.Sockets.Unofficial.Arenas;
-using System;
+﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -7,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text.RegularExpressions;
+using Pipelines.Sockets.Unofficial.Arenas;
 
 namespace StackExchange.Redis
 {
@@ -629,8 +629,8 @@ namespace StackExchange.Redis
                     if(bridge != null)
                     {
                         var server = bridge.ServerEndPoint;
-                        server.Multiplexer.Trace("Auto-configured role: slave");
-                        server.IsSlave = true;
+                        server.Multiplexer.Trace("Auto-configured role: replica");
+                        server.IsReplica = true;
                     }
                 }
                 return base.SetResult(connection, message, result);
@@ -666,12 +666,13 @@ namespace StackExchange.Redis
                                         switch (val)
                                         {
                                             case "master":
-                                                server.IsSlave = false;
+                                                server.IsReplica = false;
                                                 server.Multiplexer.Trace("Auto-configured role: master");
                                                 break;
+                                            case "replica":
                                             case "slave":
-                                                server.IsSlave = true;
-                                                server.Multiplexer.Trace("Auto-configured role: slave");
+                                                server.IsReplica = true;
+                                                server.Multiplexer.Trace("Auto-configured role: replica");
                                                 break;
                                         }
                                     }
@@ -761,17 +762,17 @@ namespace StackExchange.Redis
                                     server.Multiplexer.Trace("Auto-configured databases: " + dbCount);
                                     server.Databases = dbCount;
                                 }
-                                else if (key.IsEqual(CommonReplies.slave_read_only))
+                                else if (key.IsEqual(CommonReplies.slave_read_only) || key.IsEqual(CommonReplies.replica_read_only))
                                 {
                                     if (val.IsEqual(CommonReplies.yes))
                                     {
-                                        server.SlaveReadOnly = true;
-                                        server.Multiplexer.Trace("Auto-configured slave-read-only: true");
+                                        server.ReplicaReadOnly = true;
+                                        server.Multiplexer.Trace("Auto-configured read-only replica: true");
                                     }
                                     else if (val.IsEqual(CommonReplies.no))
                                     {
-                                        server.SlaveReadOnly = false;
-                                        server.Multiplexer.Trace("Auto-configured slave-read-only: false");
+                                        server.ReplicaReadOnly = false;
+                                        server.Multiplexer.Trace("Auto-configured read-only replica: false");
                                     }
                                 }
                             }
@@ -1548,10 +1549,48 @@ The coordinates as a two items x,y array (longitude,latitude).
                 //    6) (integer)83841983
 
                 var arr = result.GetItems();
+                string name = default;
+                int pendingMessageCount = default, idleTimeInMilliseconds = default;
 
-                return new StreamConsumerInfo(name: arr[1].AsRedisValue(),
-                            pendingMessageCount: (int)arr[3].AsRedisValue(),
-                            idleTimeInMilliseconds: (long)arr[5].AsRedisValue());
+                StreamInfoKeys.TryRead(arr, StreamInfoKeys.Name, ref name);
+                StreamInfoKeys.TryRead(arr, StreamInfoKeys.Pending, ref pendingMessageCount);
+                StreamInfoKeys.TryRead(arr, StreamInfoKeys.Idle, ref idleTimeInMilliseconds);
+
+                return new StreamConsumerInfo(name, pendingMessageCount, idleTimeInMilliseconds);
+            }
+        }
+
+        private static class StreamInfoKeys
+        {
+            internal static readonly CommandBytes
+                Name = "name", Consumers = "consumers", Pending = "pending", Idle = "idle", LastDeliveredId = "last-delivered-id";
+
+            internal static bool TryRead(Sequence<RawResult> pairs, in CommandBytes key, ref int value)
+            {
+                var len = pairs.Length / 2;
+                for (int i = 0; i < len; i++)
+                {
+                    if (pairs[i * 2].IsEqual(key) && pairs[(i * 2) + 1].TryGetInt64(out var tmp))
+                    {
+                        value = checked((int)tmp);
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            internal static bool TryRead(Sequence<RawResult> pairs, in CommandBytes key, ref string value)
+            {
+                var len = pairs.Length / 2;
+                for (int i = 0; i < len; i++)
+                {
+                    if (pairs[i * 2].IsEqual(key))
+                    {
+                        value = pairs[(i * 2) + 1].GetString();
+                        return true;
+                    }
+                }
+                return false;
             }
         }
 
@@ -1569,18 +1608,27 @@ The coordinates as a two items x,y array (longitude,latitude).
                 //    4) (integer)2
                 //    5) pending
                 //    6) (integer)2
+                //    7) last-delivered-id
+                //    8) "1588152489012-0"
                 // 2) 1) name
                 //    2) "some-other-group"
                 //    3) consumers
                 //    4) (integer)1
                 //    5) pending
                 //    6) (integer)0
+                //    7) last-delivered-id
+                //    8) "1588152498034-0"
 
                 var arr = result.GetItems();
+                string name = default, lastDeliveredId = default;
+                int consumerCount = default, pendingMessageCount = default;
 
-                return new StreamGroupInfo(name: arr[1].AsRedisValue(),
-                    consumerCount: (int)arr[3].AsRedisValue(),
-                    pendingMessageCount: (int)arr[5].AsRedisValue());
+                StreamInfoKeys.TryRead(arr, StreamInfoKeys.Name, ref name);
+                StreamInfoKeys.TryRead(arr, StreamInfoKeys.Consumers, ref consumerCount);
+                StreamInfoKeys.TryRead(arr, StreamInfoKeys.Pending, ref pendingMessageCount);
+                StreamInfoKeys.TryRead(arr, StreamInfoKeys.LastDeliveredId, ref lastDeliveredId);
+
+                return new StreamGroupInfo(name, consumerCount, pendingMessageCount, lastDeliveredId);
             }
         }
 

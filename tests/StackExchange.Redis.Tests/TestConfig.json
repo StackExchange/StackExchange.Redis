@@ -1,6 +1,6 @@
 ﻿{
   //"LogToConsole": false,
   //"MasterServer": "[::1]",
-  //"SlaveServer": "[::1]",
+  //"ReplicaServer": "[::1]",
   //"SecureServer": "[::1]"
 }

@@ -120,6 +120,7 @@
         READWRITE,
         RENAME,
         RENAMENX,
+        REPLICAOF,
         RESTORE,
         RPOP,
         RPOPLPUSH,

@@ -50,7 +50,7 @@ namespace StackExchange.Redis.Tests
             SentinelServerC = Conn.GetServer(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortC);
             SentinelsServers = new[] { SentinelServerA, SentinelServerB, SentinelServerC };
 
-            // wait until we are in a state of a single master and slave
+            // wait until we are in a state of a single master and replica
             WaitForReady();
         }
 
@@ -69,11 +69,11 @@ namespace StackExchange.Redis.Tests
             var servers = endpoints.Select(e => conn.GetServer(e)).ToArray();
             Assert.Equal(2, servers.Length);
 
-            var master = servers.FirstOrDefault(s => !s.IsSlave);
+            var master = servers.FirstOrDefault(s => !s.IsReplica);
             Assert.NotNull(master);
-            var slave = servers.FirstOrDefault(s => s.IsSlave);
-            Assert.NotNull(slave);
-            Assert.NotEqual(master.EndPoint.ToString(), slave.EndPoint.ToString());
+            var replica = servers.FirstOrDefault(s => s.IsReplica);
+            Assert.NotNull(replica);
+            Assert.NotEqual(master.EndPoint.ToString(), replica.EndPoint.ToString());
 
             var expected = DateTime.Now.Ticks.ToString();
             Log("Tick Key: " + expected);
@@ -84,9 +84,9 @@ namespace StackExchange.Redis.Tests
             var value = db.StringGet(key);
             Assert.Equal(expected, value);
 
-            // force read from slave, replication has some lag
+            // force read from replica, replication has some lag
             WaitForReplication(servers.First());
-            value = db.StringGet(key, CommandFlags.DemandSlave);
+            value = db.StringGet(key, CommandFlags.DemandReplica);
             Assert.Equal(expected, value);
         }
 
@@ -105,11 +105,11 @@ namespace StackExchange.Redis.Tests
             var servers = endpoints.Select(e => conn.GetServer(e)).ToArray();
             Assert.Equal(2, servers.Length);
 
-            var master = servers.FirstOrDefault(s => !s.IsSlave);
+            var master = servers.FirstOrDefault(s => !s.IsReplica);
             Assert.NotNull(master);
-            var slave = servers.FirstOrDefault(s => s.IsSlave);
-            Assert.NotNull(slave);
-            Assert.NotEqual(master.EndPoint.ToString(), slave.EndPoint.ToString());
+            var replica = servers.FirstOrDefault(s => s.IsReplica);
+            Assert.NotNull(replica);
+            Assert.NotEqual(master.EndPoint.ToString(), replica.EndPoint.ToString());
 
             var expected = DateTime.Now.Ticks.ToString();
             Log("Tick Key: " + expected);
@@ -120,9 +120,9 @@ namespace StackExchange.Redis.Tests
             var value = await db.StringGetAsync(key);
             Assert.Equal(expected, value);
 
-            // force read from slave, replication has some lag
+            // force read from replica, replication has some lag
             WaitForReplication(servers.First());
-            value = await db.StringGetAsync(key, CommandFlags.DemandSlave);
+            value = await db.StringGetAsync(key, CommandFlags.DemandReplica);
             Assert.Equal(expected, value);
         }
 
@@ -144,11 +144,11 @@ namespace StackExchange.Redis.Tests
             var servers = endpoints.Select(e => conn.GetServer(e)).ToArray();
             Assert.Equal(2, servers.Length);
 
-            var master = servers.FirstOrDefault(s => !s.IsSlave);
+            var master = servers.FirstOrDefault(s => !s.IsReplica);
             Assert.NotNull(master);
-            var slave = servers.FirstOrDefault(s => s.IsSlave);
-            Assert.NotNull(slave);
-            Assert.NotEqual(master.EndPoint.ToString(), slave.EndPoint.ToString());
+            var replica = servers.FirstOrDefault(s => s.IsReplica);
+            Assert.NotNull(replica);
+            Assert.NotEqual(master.EndPoint.ToString(), replica.EndPoint.ToString());
 
             // set string value on current master
             var expected = DateTime.Now.Ticks.ToString();
@@ -160,9 +160,9 @@ namespace StackExchange.Redis.Tests
             var value = await db.StringGetAsync(key);
             Assert.Equal(expected, value);
 
-            // force read from slave, replication has some lag
+            // force read from replica, replication has some lag
             WaitForReplication(servers.First());
-            value = await db.StringGetAsync(key, CommandFlags.DemandSlave);
+            value = await db.StringGetAsync(key, CommandFlags.DemandReplica);
             Assert.Equal(expected, value);
 
             // forces and verifies failover
@@ -174,20 +174,20 @@ namespace StackExchange.Redis.Tests
             servers = endpoints.Select(e => conn.GetServer(e)).ToArray();
             Assert.Equal(2, servers.Length);
 
-            var newMaster = servers.FirstOrDefault(s => !s.IsSlave);
+            var newMaster = servers.FirstOrDefault(s => !s.IsReplica);
             Assert.NotNull(newMaster);
-            Assert.Equal(slave.EndPoint.ToString(), newMaster.EndPoint.ToString());
-            var newSlave = servers.FirstOrDefault(s => s.IsSlave);
-            Assert.NotNull(newSlave);
-            Assert.Equal(master.EndPoint.ToString(), newSlave.EndPoint.ToString());
-            Assert.NotEqual(master.EndPoint.ToString(), slave.EndPoint.ToString());
+            Assert.Equal(replica.EndPoint.ToString(), newMaster.EndPoint.ToString());
+            var newReplica = servers.FirstOrDefault(s => s.IsReplica);
+            Assert.NotNull(newReplica);
+            Assert.Equal(master.EndPoint.ToString(), newReplica.EndPoint.ToString());
+            Assert.NotEqual(master.EndPoint.ToString(), replica.EndPoint.ToString());
 
             value = await db.StringGetAsync(key);
             Assert.Equal(expected, value);
 
-            // force read from slave, replication has some lag
+            // force read from replica, replication has some lag
             WaitForReplication(newMaster);
-            value = await db.StringGetAsync(key, CommandFlags.DemandSlave);
+            value = await db.StringGetAsync(key, CommandFlags.DemandReplica);
             Assert.Equal(expected, value);
         }
 
@@ -463,14 +463,14 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public void SentinelSlavesTest()
+        public void SentinelReplicasTest()
         {
-            var slaveConfigs = SentinelServerA.SentinelSlaves(ServiceName);
-            Assert.True(slaveConfigs.Length > 0);
-            Assert.True(slaveConfigs[0].ToDictionary().ContainsKey("name"));
-            Assert.StartsWith("slave", slaveConfigs[0].ToDictionary()["flags"]);
+            var replicaConfigs = SentinelServerA.SentinelReplicas(ServiceName);
+            Assert.True(replicaConfigs.Length > 0);
+            Assert.True(replicaConfigs[0].ToDictionary().ContainsKey("name"));
+            Assert.StartsWith("slave", replicaConfigs[0].ToDictionary()["flags"]);
 
-            foreach (var config in slaveConfigs)
+            foreach (var config in replicaConfigs)
             {
                 foreach (var kvp in config)
                 {
@@ -480,13 +480,13 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public async Task SentinelSlavesAsyncTest()
+        public async Task SentinelReplicasAsyncTest()
         {
-            var slaveConfigs = await SentinelServerA.SentinelSlavesAsync(ServiceName).ForAwait();
-            Assert.True(slaveConfigs.Length > 0);
-            Assert.True(slaveConfigs[0].ToDictionary().ContainsKey("name"));
-            Assert.StartsWith("slave", slaveConfigs[0].ToDictionary()["flags"]);
-            foreach (var config in slaveConfigs)
+            var replicaConfigs = await SentinelServerA.SentinelReplicasAsync(ServiceName).ForAwait();
+            Assert.True(replicaConfigs.Length > 0);
+            Assert.True(replicaConfigs[0].ToDictionary().ContainsKey("name"));
+            Assert.StartsWith("slave", replicaConfigs[0].ToDictionary()["flags"]);
+            foreach (var config in replicaConfigs)
             {
                 foreach (var kvp in config)
                 {
@@ -512,14 +512,14 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
-        public async Task ReadOnlyConnectionSlavesTest()
+        public async Task ReadOnlyConnectionReplicasTest()
         {
-            var slaves = SentinelServerA.SentinelGetSlaveAddresses(ServiceName);
+            var replicas = SentinelServerA.SentinelGetReplicaAddresses(ServiceName);
             var config = new ConfigurationOptions();
 
-            foreach (var slave in slaves)
+            foreach (var replica in replicas)
             {
-                config.EndPoints.Add(slave);
+                config.EndPoints.Add(replica);
             }
 
             var readonlyConn = await ConnectionMultiplexer.ConnectAsync(config);
@@ -531,22 +531,21 @@ namespace StackExchange.Redis.Tests
             Assert.True(s.IsNullOrEmpty);
             //var ex = Assert.Throws<RedisConnectionException>(() => db.StringSet("test", "try write to read only instance"));
             //Assert.StartsWith("No connection is available to service this operation", ex.Message);
-
         }
 
         private void DoFailover()
         {
             WaitForReady();
 
-            // capture current slave
-            var slaves = SentinelServerA.SentinelGetSlaveAddresses(ServiceName);
+            // capture current replica
+            var replicas = SentinelServerA.SentinelGetReplicaAddresses(ServiceName);
 
             Log("Starting failover...");
             var sw = Stopwatch.StartNew();
             SentinelServerA.SentinelFailover(ServiceName);
 
-            // wait until the slave becomes the master
-            WaitForReady(expectedMaster: slaves[0]);
+            // wait until the replica becomes the master
+            WaitForReady(expectedMaster: replicas[0]);
             Log($"Time to failover: {sw.Elapsed}");
         }
 
@@ -556,7 +555,7 @@ namespace StackExchange.Redis.Tests
 
             var sw = Stopwatch.StartNew();
 
-            // wait until we have 1 master and 1 slave and have verified their roles
+            // wait until we have 1 master and 1 replica and have verified their roles
             var master = SentinelServerA.SentinelGetMasterAddressByName(ServiceName);
             if (expectedMaster != null && expectedMaster.ToString() != master.ToString())
             {
@@ -579,11 +578,11 @@ namespace StackExchange.Redis.Tests
                 throw new RedisException($"Master was expected to be {expectedMaster}");
             Log($"Master is {master}");
 
-            var slaves = SentinelServerA.SentinelGetSlaveAddresses(ServiceName);
+            var replicas = SentinelServerA.SentinelGetReplicaAddresses(ServiceName);
             var checkConn = Conn.GetSentinelMasterConnection(ServiceOptions);
 
             WaitForRole(checkConn.GetServer(master), "master", duration.Value.Subtract(sw.Elapsed));
-            WaitForRole(checkConn.GetServer(slaves[0]), "slave", duration.Value.Subtract(sw.Elapsed));
+            WaitForRole(checkConn.GetServer(replicas[0]), "slave", duration.Value.Subtract(sw.Elapsed));
 
             if (waitForReplication)
             {
@@ -622,28 +621,28 @@ namespace StackExchange.Redis.Tests
         {
             duration ??= TimeSpan.FromSeconds(10);
 
-            Log("Waiting for master/slave replication to be in sync...");
+            Log("Waiting for master/replica replication to be in sync...");
             var sw = Stopwatch.StartNew();
             while (sw.Elapsed < duration.Value)
             {
                 var info = master.Info("replication");
                 var replicationInfo = info.FirstOrDefault(f => f.Key == "Replication")?.ToArray().ToDictionary();
-                var slaveInfo = replicationInfo?.FirstOrDefault(i => i.Key.StartsWith("slave")).Value?.Split(',').ToDictionary(i => i.Split('=').First(), i => i.Split('=').Last());
-                var slaveOffset = slaveInfo?["offset"];
+                var replicaInfo = replicationInfo?.FirstOrDefault(i => i.Key.StartsWith("slave")).Value?.Split(',').ToDictionary(i => i.Split('=').First(), i => i.Split('=').Last());
+                var replicaOffset = replicaInfo?["offset"];
                 var masterOffset = replicationInfo?["master_repl_offset"];
 
-                if (slaveOffset == masterOffset)
+                if (replicaOffset == masterOffset)
                 {
-                    Log($"Done waiting for master ({masterOffset}) / slave ({slaveOffset}) replication to be in sync");
+                    Log($"Done waiting for master ({masterOffset}) / replica ({replicaOffset}) replication to be in sync");
                     return;
                 }
 
-                Log($"Waiting for master ({masterOffset}) / slave ({slaveOffset}) replication to be in sync...");
+                Log($"Waiting for master ({masterOffset}) / replica ({replicaOffset}) replication to be in sync...");
 
                 Thread.Sleep(250);
             }
 
-            throw new RedisException("Timeout waiting for test servers master/slave replication to be in sync.");
+            throw new RedisException("Timeout waiting for test servers master/replica replication to be in sync.");
         }
     }
 }

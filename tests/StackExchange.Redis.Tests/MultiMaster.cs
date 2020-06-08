@@ -13,19 +13,19 @@ namespace StackExchange.Redis.Tests
         public MultiMaster(ITestOutputHelper output) : base (output) { }
 
         [Fact]
-        public void CannotFlushSlave()
+        public void CannotFlushReplica()
         {
             var ex = Assert.Throws<RedisCommandException>(() =>
             {
-                using (var conn = ConnectionMultiplexer.Connect(TestConfig.Current.SlaveServerAndPort + ",allowAdmin=true"))
+                using (var conn = ConnectionMultiplexer.Connect(TestConfig.Current.ReplicaServerAndPort + ",allowAdmin=true"))
                 {
                     var servers = conn.GetEndPoints().Select(e => conn.GetServer(e));
-                    var slave = servers.FirstOrDefault(x => x.IsSlave);
-                    Assert.NotNull(slave); // Slave not found, ruh roh
-                    slave.FlushDatabase();
+                    var replica = servers.FirstOrDefault(x => x.IsReplica);
+                    Assert.NotNull(replica); // replica not found, ruh roh
+                    replica.FlushDatabase();
                 }
             });
-            Assert.Equal("Command cannot be issued to a slave: FLUSHDB", ex.Message);
+            Assert.Equal("Command cannot be issued to a replica: FLUSHDB", ex.Message);
         }
 
         [Fact]
