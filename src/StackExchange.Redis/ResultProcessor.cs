@@ -764,12 +764,12 @@ namespace StackExchange.Redis
                                     if (val.IsEqual(CommonReplies.yes))
                                     {
                                         server.ReplicaReadOnly = true;
-                                        server.Multiplexer.Trace("Auto-configured replica-read-only: true");
+                                        server.Multiplexer.Trace("Auto-configured read-only replica: true");
                                     }
                                     else if (val.IsEqual(CommonReplies.no))
                                     {
                                         server.ReplicaReadOnly = false;
-                                        server.Multiplexer.Trace("Auto-configured replica-read-only: false");
+                                        server.Multiplexer.Trace("Auto-configured read-only replica: false");
                                     }
                                 }
                             }
