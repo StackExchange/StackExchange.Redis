@@ -6,7 +6,7 @@ using System.Threading;
 
 namespace StackExchange.Redis
 {
-    internal static class ExceptionFactory
+    internal static partial class ExceptionFactory
     {
         private const string
             DataCommandKey = "redis-command",
@@ -392,6 +392,7 @@ namespace StackExchange.Redis
         internal static Exception UnableToConnect(ConnectionMultiplexer muxer, string failureMessage=null)
         {
             var sb = new StringBuilder("It was not possible to connect to the redis server(s).");
+            AppendNetfxPipelinesWarning(sb);
             if (muxer != null)
             {
                 if (muxer.AuthSuspect) sb.Append(" There was an authentication failure; check that passwords (or client certificates) are configured correctly.");
@@ -401,6 +402,18 @@ namespace StackExchange.Redis
 
             return new RedisConnectionException(ConnectionFailureType.UnableToConnect, sb.ToString());
         }
+
+        static partial void AppendNetfxPipelinesWarning(StringBuilder sb);
+#if NET461 || NET472
+        static partial void AppendNetfxPipelinesWarning(StringBuilder sb)
+        {
+            if (typeof(System.IO.Pipelines.PipeWriter).Assembly.GetName().Version == s_472)
+            {
+                sb.Append(" There is a known incompatibility with System.IO.Pipelines 4.7.2 (aka 4.0.2.1) on .NET Framework; we are investigating.");
+            }
+        }
+        private static readonly Version s_472 = new Version(4, 0, 2, 1);
+#endif
 
         internal static Exception BeganProfilingWithDuplicateContext(object forContext)
         {
