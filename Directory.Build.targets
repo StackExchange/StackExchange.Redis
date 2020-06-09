@@ -15,7 +15,7 @@
       <PackageReference Update="Pipelines.Sockets.Unofficial" Version="2.1.14" />
       <PackageReference Update="System.Diagnostics.PerformanceCounter" Version="4.7.0" />
       <PackageReference Update="System.IO.Compression" Version="4.3.0" />
-      <PackageReference Update="System.IO.Pipelines" Version="4.7.1" />
+      <PackageReference Update="System.IO.Pipelines" Version="4.7.2" />
       <PackageReference Update="System.Runtime.InteropServices.RuntimeInformation" Version="4.3.0" />
       <PackageReference Update="System.Threading.Channels" Version="4.7.1" />
       <PackageReference Update="Newtonsoft.Json" Version="12.0.3" />
