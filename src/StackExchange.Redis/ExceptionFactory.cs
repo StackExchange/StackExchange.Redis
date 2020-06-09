@@ -397,22 +397,26 @@ namespace StackExchange.Redis
                 if (muxer.AuthSuspect) sb.Append(" There was an authentication failure; check that passwords (or client certificates) are configured correctly.");
                 else if (!muxer.RawConfig.AbortOnConnectFail) sb.Append(" Error connecting right now. To allow this multiplexer to continue retrying until it's able to connect, use abortConnect=false in your connection string or AbortOnConnectFail=false; in your code.");
             }
-            AppendNetfxPipelinesWarning(sb);
+            TryAppendNetfxPipelinesWarning(sb);
             if (!string.IsNullOrWhiteSpace(failureMessage)) sb.Append(" ").Append(failureMessage.Trim());
 
             return new RedisConnectionException(ConnectionFailureType.UnableToConnect, sb.ToString());
         }
 
-        static partial void AppendNetfxPipelinesWarning(StringBuilder sb);
+        static partial void TryAppendNetfxPipelinesWarning(StringBuilder sb);
 #if NET461 || NET472
-        static partial void AppendNetfxPipelinesWarning(StringBuilder sb)
+        static partial void TryAppendNetfxPipelinesWarning(StringBuilder sb)
         {
-            if (typeof(System.IO.Pipelines.PipeWriter).Assembly.GetName().Version == s_472)
+            try
             {
-                sb.Append(" There is a known incompatibility with System.IO.Pipelines 4.7.2 (aka 4.0.2.1) on .NET Framework; we are investigating.");
+                if (typeof(System.IO.Pipelines.PipeWriter).Assembly.GetCustomAttribute(typeof(AssemblyFileVersionAttribute)) is AssemblyFileVersionAttribute afva
+                    && afva.Version == "4.700.20.21406")
+                {
+                    sb.Append(" There is a known incompatibility with System.IO.Pipelines 4.7.2 on .NET Framework; we are investigating.");
+                }
             }
+            catch { }
         }
-        private static readonly Version s_472 = new Version(4, 0, 2, 1);
 #endif
 
         internal static Exception BeganProfilingWithDuplicateContext(object forContext)
