@@ -1,5 +1,9 @@
 # Release Notes
 
+## 2.1.55
+
+- identify assembly binding problem on .NET Framework; drops `System.IO.Pipelines` to 4.7.1, and identifies new `System.Buffers` binding failure on 4.7.2
+
 ## 2.1.50
 
 - add: bind direct to sentinel-managed instances from a configuration string/object (#1431 via ejsmith)
