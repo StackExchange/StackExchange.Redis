@@ -12,14 +12,18 @@
       <PackageReference Update="Microsoft.NET.Test.Sdk" Version="16.6.1" />
       <PackageReference Update="Moq" Version="4.14.1" />
       <PackageReference Update="NSubstitute" Version="4.2.1" />
-      <PackageReference Update="Pipelines.Sockets.Unofficial" Version="2.1.14" />
+      <PackageReference Update="Pipelines.Sockets.Unofficial" Version="2.1.16" />
       <PackageReference Update="System.Diagnostics.PerformanceCounter" Version="4.7.0" />
       <PackageReference Update="System.IO.Compression" Version="4.3.0" />
-      <PackageReference Update="System.IO.Pipelines" Version="4.7.1" />
       <PackageReference Update="System.Runtime.InteropServices.RuntimeInformation" Version="4.3.0" />
       <PackageReference Update="System.Threading.Channels" Version="4.7.1" />
       <PackageReference Update="Newtonsoft.Json" Version="12.0.3" />
       <PackageReference Update="xunit" Version="2.4.1" />
       <PackageReference Update="xunit.runner.visualstudio" Version="2.4.2" />
+
+      <!-- note that it is only the tests that have a dependency on this; the main lib takes the
+      transitive dependency from Pipelines.Sockets.Unofficial; this is for testing some binding
+      redirect problems (something new and different for us!) -->
+      <PackageReference Update="System.IO.Pipelines" Version="4.7.2" />
   </ItemGroup>
 </Project>
