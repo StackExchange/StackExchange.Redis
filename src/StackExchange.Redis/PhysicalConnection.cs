@@ -888,6 +888,7 @@ namespace StackExchange.Redis
 #if DEBUG
                 if (millisecondsTimeout > _maxFlushTime) _maxFlushTime = millisecondsTimeout; // a fair bet even if we didn't measure
 #endif
+                TemporaryDebugHelper.LastThrownFlushSyncTimeoutUtc = DateTime.UtcNow;
                 throw new TimeoutException("timeout while synchronously flushing");
             }
         }
@@ -903,15 +904,24 @@ namespace StackExchange.Redis
                 long flushBytes = -1;
                 if (_ioPipe is SocketConnection sc) flushBytes = sc.GetCounters().BytesWaitingToBeSent;
 #endif
-                var flush = tmp.FlushAsync();
-                if (!flush.IsCompletedSuccessfully) return FlushAsync_Awaited(this, flush, throwOnFailure
+                try
+                {
+                    var flush = tmp.FlushAsync();
+                    if (!flush.IsCompletedSuccessfully) return FlushAsync_Awaited(this, flush, throwOnFailure
 #if DEBUG
-                    , startFlush, flushBytes
+                            , startFlush, flushBytes
 #endif
-                );
+                        );
 #if DEBUG
-                RecordEndFlush(startFlush, flushBytes);
+                    RecordEndFlush(startFlush, flushBytes);
 #endif
+                }
+                catch (InvalidOperationException ex) when (ex.Message.Contains("Concurrent reads or writes are not supported"))
+                {
+                    // Throw with more detailed error information
+                    throw TemporaryDebugHelper.CreateDetailedException($"{nameof(FlushAsync)}: tmp.GetHashCode()={tmp.GetHashCode()}, physicalConnectionHashCode:{GetHashCode()}", ex);
+                }
+
                 _writeStatus = WriteStatus.Flushed;
                 UpdateLastWriteTime();
                 return new ValueTask<WriteResult>(WriteResult.Success);

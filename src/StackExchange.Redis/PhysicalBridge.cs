@@ -733,9 +733,17 @@ namespace StackExchange.Redis
 
                 if (result == WriteResult.Success)
                 {
+                    try
+                    {
 #pragma warning disable CS0618
-                    result = physical.FlushSync(false, TimeoutMilliseconds);
+                        result = physical.FlushSync(false, TimeoutMilliseconds);
 #pragma warning restore CS0618
+                    }
+                    catch (InvalidOperationException ex) when (ex.Message.Contains("Concurrent reads or writes are not supported"))
+                    {
+                        // Throw with more detailed error information
+                        throw TemporaryDebugHelper.CreateDetailedException($"{nameof(WriteMessageTakingWriteLockSync)}: token={token}, bridgeHashCode={GetHashCode()}, physicalConnectionHashCode={physical.GetHashCode()}", ex);
+                    }
                 }
 
                 physical.SetIdle();
@@ -885,6 +893,7 @@ namespace StackExchange.Redis
                             if (result == WriteResult.Success)
                             {
                                 _backlogStatus = BacklogStatus.Flushing;
+                                
 #pragma warning disable CS0618
                                 result = physical.FlushSync(false, timeout);
 #pragma warning restore CS0618
