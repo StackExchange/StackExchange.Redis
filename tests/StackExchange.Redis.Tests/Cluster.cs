@@ -756,5 +756,54 @@ namespace StackExchange.Redis.Tests
                 }
             }
         }
+
+        [Fact]
+        public void DatabaseCountOne()
+        {
+            using (var conn = Create())
+            {
+                foreach(var ep in conn.GetEndPoints())
+                {
+                    var server = conn.GetServer(ep);
+                    Log($"{Format.ToString(ep)}: {server.DatabaseCount}");
+                    Assert.Equal(1, server.DatabaseCount);
+                }
+            }
+        }
+
+        [Theory]
+        [InlineData(-2)]
+        [InlineData(-42)]
+        public void ClusterDatabaseShouldFailAtGetDatabase(int dbNumber)
+        {
+            using var conn = Create();
+            var ex = Assert.Throws<ArgumentOutOfRangeException>(
+                () => conn.GetDatabase(dbNumber));
+            Log(ex.Message);
+            Assert.StartsWith("Specified argument was out of the range of valid values.", ex.Message);
+        }
+        [Theory]
+        [InlineData(-1)] // means: default from config
+        [InlineData(0)]
+        public void ClusterDatabaseShouldWork(int dbNumber)
+        {
+            using var conn = Create();
+            var db = conn.GetDatabase(dbNumber);
+            _ = db.StringGet(Me());
+        }
+
+        [Theory]
+        [InlineData(1)]
+        [InlineData(2)]
+        [InlineData(42)]
+        public void ClusterDatabaseShouldFailCleanlyWhenUsed(int dbNumber)
+        {
+            using var conn = Create();
+            var db = conn.GetDatabase(dbNumber);
+            var ex = Assert.ThrowsAny<Exception>(
+                () => db.StringGet(Me()));
+            Log(ex.Message);
+            Assert.Equal($"The database does not exist on the server: {dbNumber}; the server does not support multiple databases", ex.Message);
+        }
     }
 }

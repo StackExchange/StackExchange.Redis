@@ -47,7 +47,9 @@ namespace StackExchange.Redis
 
         internal static Exception DatabaseOutfRange(bool includeDetail, int targetDatabase, Message message, ServerEndPoint server)
         {
-            var ex = new RedisCommandException("The database does not exist on the server: " + targetDatabase);
+            var ex = new RedisCommandException(
+               "The database does not exist on the server: " + targetDatabase.ToString()
+               + (server.HasDatabases ? "" : "; the server does not support multiple databases"));
             if (includeDetail) AddExceptionDetail(ex, message, server, null);
             return ex;
         }

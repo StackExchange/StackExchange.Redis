@@ -702,6 +702,7 @@ namespace StackExchange.Redis
                                                 break;
                                             case "cluster":
                                                 server.ServerType = ServerType.Cluster;
+                                                server.Databases = 1;
                                                 server.Multiplexer.Trace("Auto-configured server-type: cluster");
                                                 break;
                                             case "sentinel":
