@@ -3578,7 +3578,7 @@ namespace StackExchange.Redis
             private readonly RedisValue pattern;
             private readonly RedisCommand command;
 
-            public ScanEnumerable(RedisDatabase database, ServerEndPoint server, RedisKey key, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags,
+            public ScanEnumerable(RedisDatabase database, ServerEndPoint server, RedisKey key, in RedisValue pattern, int pageSize, in RedisValue cursor, int pageOffset, CommandFlags flags,
                 RedisCommand command, ResultProcessor<ScanResult> processor)
                 : base(database, server, database.Database, pageSize, cursor, pageOffset, flags)
             {
@@ -3590,7 +3590,7 @@ namespace StackExchange.Redis
 
             private protected override ResultProcessor<CursorEnumerable<T>.ScanResult> Processor { get; }
 
-            private protected override Message CreateMessage(long cursor)
+            private protected override Message CreateMessage(in RedisValue cursor)
             {
                 if (CursorUtils.IsNil(pattern))
                 {

@@ -732,13 +732,13 @@ namespace StackExchange.Redis
         {
             private readonly RedisValue pattern;
 
-            public KeysScanEnumerable(RedisServer server, int db, RedisValue pattern, int pageSize, long cursor, int pageOffset, CommandFlags flags)
+            public KeysScanEnumerable(RedisServer server, int db, in RedisValue pattern, int pageSize, in RedisValue cursor, int pageOffset, CommandFlags flags)
                 : base(server, server.server, db, pageSize, cursor, pageOffset, flags)
             {
                 this.pattern = pattern;
             }
 
-            private protected override Message CreateMessage(long cursor)
+            private protected override Message CreateMessage(in RedisValue cursor)
             {
                 if (CursorUtils.IsNil(pattern))
                 {
@@ -766,8 +766,8 @@ namespace StackExchange.Redis
 
             private protected override ResultProcessor<ScanResult> Processor => processor;
 
-            public static readonly ResultProcessor<ScanResult> processor = new KeysResultProcessor();
-            private class KeysResultProcessor : ResultProcessor<ScanResult>
+            public static readonly ResultProcessor<ScanResult> processor = new ScanResultProcessor();
+            private class ScanResultProcessor : ResultProcessor<ScanResult>
             {
                 protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
                 {
@@ -775,9 +775,8 @@ namespace StackExchange.Redis
                     {
                         case ResultType.MultiBulk:
                             var arr = result.GetItems();
-                            long i64;
                             RawResult inner;
-                            if (arr.Length == 2 && (inner = arr[1]).Type == ResultType.MultiBulk && arr[0].TryGetInt64(out i64))
+                            if (arr.Length == 2 && (inner = arr[1]).Type == ResultType.MultiBulk)
                             {
                                 var items = inner.GetItems();
                                 RedisKey[] keys;
@@ -793,7 +792,7 @@ namespace StackExchange.Redis
                                     keys = ArrayPool<RedisKey>.Shared.Rent(count);
                                     items.CopyTo(keys, (in RawResult r) => r.AsRedisKey());
                                 }
-                                var keysResult = new ScanResult(i64, keys, count, true);
+                                var keysResult = new ScanResult(arr[0].AsRedisValue(), keys, count, true);
                                 SetResult(message, keysResult);
                                 return true;
                             }

@@ -115,8 +115,8 @@ namespace StackExchange.Redis
 
         internal static class CursorUtils
         {
+            internal const long Origin = 0;
             internal const int
-                Origin = 0,
                 DefaultRedisPageSize = 10,
                 DefaultLibraryPageSize = 250;
             internal static bool IsNil(in RedisValue pattern)
