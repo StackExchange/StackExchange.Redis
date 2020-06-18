@@ -78,7 +78,7 @@ namespace StackExchange.Redis
         /// </summary>
         public class Enumerator : IEnumerator<T>, IScanningCursor, IAsyncEnumerator<T>
         {
-            private CursorEnumerable<T> parent;
+            private readonly CursorEnumerable<T> parent;
             private readonly CancellationToken cancellationToken;
             internal Enumerator(CursorEnumerable<T> parent, CancellationToken cancellationToken)
             {
@@ -106,7 +106,6 @@ namespace StackExchange.Redis
             {
                 _state = State.Disposed;
                 SetComplete();
-                parent = null;
             }
 
             private void SetComplete()
@@ -256,8 +255,8 @@ namespace StackExchange.Redis
                 try
                 {
                     var data = ex.Data;
-                    data["pageSize"] = parent.pageSize;
-                    data["pageIndex"] = _pageIndex;
+                    data["Redis-page-size"] = parent.pageSize;
+                    data["Redis-page-index"] = _pageIndex;
                 }
                 catch { }
             }
