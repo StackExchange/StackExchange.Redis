@@ -1,5 +1,11 @@
 # Release Notes
 
+## 2.1.58
+
+- fix: `[*]SCAN` - fix possible NRE scenario if the iterator is disposed with an incomplete operation in flight
+- fix: `[*]SCAN` - treat the cursor as an opaque value whenever possible, for compatibility with `redis-cluster-proxy`
+- add: `[*]SCAN` - include additional exception data in the case of faults
+
 ## 2.1.55
 
 - identify assembly binding problem on .NET Framework; drops `System.IO.Pipelines` to 4.7.1, and identifies new `System.Buffers` binding failure on 4.7.2
