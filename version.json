@@ -1,9 +1,9 @@
 {
   "version": "2.1",
-  "versionHeightOffset": 20,
+  "versionHeightOffset": 60,
   "assemblyVersion": "2.0",
   "publicReleaseRefSpec": [
-    "^refs/heads/master$",
+    "^refs/heads/main$",
     "^refs/tags/v\\d+\\.\\d+"
   ],
   "nugetPackageVersion": {
