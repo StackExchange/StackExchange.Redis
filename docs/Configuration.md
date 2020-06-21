@@ -86,7 +86,6 @@ The `ConfigurationOptions` object has a wide range of properties, all of which a
 | user={string}          | `User`                 | `null`                       | User for the redis server (for use with ACLs on redis 6 and above)                                        |
 | proxy={proxy type}     | `Proxy`                | `Proxy.None`                 | Type of proxy in use (if any); for example "twemproxy"                                                    |
 | resolveDns={bool}      | `ResolveDns`           | `false`                      | Specifies that DNS resolution should be explicit and eager, rather than implicit                          |
-| **Obsolete**<br/> responseTimeout={int} | `ResponseTimeout`      | `SyncTimeout`                | Time (ms) to decide whether the socket is unhealthy                                      |
 | serviceName={string}   | `ServiceName`          | `null`                       | Used for connecting to a sentinel master service                                                          |
 | ssl={bool}             | `Ssl`                  | `false`                      | Specifies that SSL encryption should be used                                                              |
 | sslHost={string}       | `SslHost`              | `null`                       | Enforces a particular SSL host identity on the server's certificate                                       |
@@ -95,7 +94,6 @@ The `ConfigurationOptions` object has a wide range of properties, all of which a
 | asyncTimeout={int}     | `AsyncTimeout`          | `SyncTimeout`               | Time (ms) to allow for asynchronous operations                                                            |
 | tiebreaker={string}    | `TieBreaker`           | `__Booksleeve_TieBreak`      | Key to use for selecting a server in an ambiguous master scenario                                         |
 | version={string}       | `DefaultVersion`       | (`3.0` in Azure, else `2.0`) | Redis version level (useful when the server does not make this available)                                 |
-| **Obsolete**<br/> writeBuffer={int} | `WriteBuffer`          | `4096`                       | Size of the output buffer                                                                    |
 |                        | `CheckCertificateRevocation` | `true`                 | A Boolean value that specifies whether the certificate revocation list is checked during authentication.  |
 
 Additional code-only options:
@@ -103,6 +101,14 @@ Additional code-only options:
 
 Tokens in the configuration string are comma-separated; any without an `=` sign are assumed to be redis server endpoints. Endpoints without an explicit port will use 6379 if ssl is not enabled, and 6380 if ssl is enabled.
 Tokens starting with `$` are taken to represent command maps, for example: `$config=cfg`.
+
+Obsolete Configuration Options
+---
+These options are parsed in connection strings for backwards compatibility (meaning they do not error as invalid), but no longer have any effect.
+| Configuration string   | `ConfigurationOptions` | Previous Default | Previous Meaning |
+| ---------------------- | ---------------------- | ---------------------------- | --------------------------------------------------------------------------------------------------------- |
+| responseTimeout={int} | `ResponseTimeout` | `SyncTimeout` | Time (ms) to decide whether the socket is unhealthy |
+| writeBuffer={int} | `WriteBuffer` | `4096` | Size of the output buffer |
 
 Automatic and Manual Configuration
 ---
