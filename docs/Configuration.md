@@ -105,6 +105,7 @@ Tokens starting with `$` are taken to represent command maps, for example: `$con
 Obsolete Configuration Options
 ---
 These options are parsed in connection strings for backwards compatibility (meaning they do not error as invalid), but no longer have any effect.
+
 | Configuration string   | `ConfigurationOptions` | Previous Default | Previous Meaning |
 | ---------------------- | ---------------------- | ---------------------------- | --------------------------------------------------------------------------------------------------------- |
 | responseTimeout={int} | `ResponseTimeout` | `SyncTimeout` | Time (ms) to decide whether the socket is unhealthy |
