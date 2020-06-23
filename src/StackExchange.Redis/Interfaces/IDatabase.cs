@@ -255,7 +255,7 @@ namespace StackExchange.Redis
         /// For every field that does not exist in the hash, a nil value is returned.Because a non-existing keys are treated as empty hashes, running HMGET against a non-existing key will return a list of nil values.
         /// </summary>
         /// <param name="key">The key of the hash.</param>
-        /// <param name="hashFields">The fields in the hash to delete.</param>
+        /// <param name="hashFields">The fields in the hash to get.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>List of values associated with the given fields, in the same order as they are requested.</returns>
         /// <remarks>https://redis.io/commands/hmget</remarks>
