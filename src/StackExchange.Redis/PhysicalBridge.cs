@@ -429,6 +429,8 @@ namespace StackExchange.Redis
             oldState = default(State); // only defined when isCurrent = true
             if (isCurrent = (physical == connection))
             {
+                Multiplexer.MarkServerEndpointsForReplicationRoleRefresh();
+
                 Trace("Bridge noting disconnect from active connection" + (isDisposed ? " (disposed)" : ""));
                 oldState = ChangeState(State.Disconnected);
                 physical = null;
@@ -540,7 +542,7 @@ namespace StackExchange.Redis
                                 checkConfigSeconds = Multiplexer.RawConfig.ConfigCheckSeconds;
 
                             if (state == (int)State.ConnectedEstablished && ConnectionType == ConnectionType.Interactive
-                                && checkConfigSeconds > 0 && ServerEndPoint.LastInfoReplicationCheckSecondsAgo >= checkConfigSeconds
+                                && ((checkConfigSeconds > 0 && ServerEndPoint.LastInfoReplicationCheckSecondsAgo >= checkConfigSeconds) || ServerEndPoint.ForceReplicationCheck)
                                 && ServerEndPoint.CheckInfoReplication())
                             {
                                 // that serves as a keep-alive, if it is accepted
