@@ -840,7 +840,7 @@ namespace StackExchange.Redis
         public static Task<ConnectionMultiplexer> ConnectAsync(string configuration, TextWriter log = null)
         {
             SocketConnection.AssertDependencies();
-            return ConnectAsync(PrepareConfig(configuration), log);
+            return ConnectAsync(ConfigurationOptions.Parse(configuration), log);
         }
 
         private static async Task<ConnectionMultiplexer> ConnectImplAsync(ConfigurationOptions configuration, TextWriter log = null)
@@ -918,12 +918,7 @@ namespace StackExchange.Redis
 
             if (sentinel)
             {
-                // this is required when connecting to sentinel servers
-                config.TieBreaker = "";
-                config.CommandMap = CommandMap.Sentinel;
-
-                // use default sentinel port
-                config.EndPoints.SetDefaultPorts(26379);
+                config.SetSentinelDefaults();
 
                 return config;
             }
@@ -1017,7 +1012,7 @@ namespace StackExchange.Redis
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
         public static ConnectionMultiplexer Connect(string configuration, TextWriter log = null)
         {
-            return Connect(PrepareConfig(configuration), log);
+            return Connect(ConfigurationOptions.Parse(configuration), log);
         }
 
         /// <summary>
