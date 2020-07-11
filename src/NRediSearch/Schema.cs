@@ -58,22 +58,35 @@ namespace NRediSearch
         {
             public double Weight { get; }
             public bool NoStem { get; }
+            public string Phonetic { get; }
 
-            public TextField(string name, double weight = 1.0, bool sortable = false, bool noStem = false, bool noIndex = false) : base(name, FieldType.FullText, sortable, noIndex)
+            public TextField(string name, double weight = 1.0, bool sortable = false, bool noStem = false, bool noIndex = false, string phonetic = null) : base(name, FieldType.FullText, sortable, noIndex)
             {
                 Weight = weight;
                 NoStem = noStem;
+                Phonetic = phonetic;
             }
 
             internal override void SerializeRedisArgs(List<object> args)
             {
                 base.SerializeRedisArgs(args);
+
                 if (Weight != 1.0)
                 {
                     args.Add("WEIGHT".Literal());
                     args.Add(Weight);
                 }
-                if (NoStem) args.Add("NOSTEM".Literal());
+
+                if (NoStem)
+                {
+                    args.Add("NOSTEM".Literal());
+                }
+                    
+                if (Phonetic != null)
+                {
+                    args.Add("PHOENETIC".Literal());
+                    args.Add(Phonetic);
+                }
             }
         }
 
