@@ -197,5 +197,17 @@ namespace NRediSearch
             Fields.Add(new TagField(name, separator));
             return this;
         }
+
+        /// <summary>
+        /// Add a TAG field that can be sorted on.
+        /// </summary>
+        /// <param name="name">The field's name.</param>
+        /// <param name="seperator">The tag separator.</param>
+        /// <returns>The <see cref="Schema"/> object.</returns>
+        public Schema AddSortableTagField(string name, string seperator = ",")
+        {
+            Fields.Add(new TagField(name, seperator, true));
+            return this;
+        }
     }
 }
