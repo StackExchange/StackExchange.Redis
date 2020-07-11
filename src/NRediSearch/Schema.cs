@@ -52,6 +52,9 @@ namespace NRediSearch
                 if (Sortable) { args.Add("SORTABLE".Literal()); }
                 if (NoIndex) { args.Add("NOINDEX".Literal()); }
             }
+
+            public override string ToString() =>
+                $"Field{{name='{Name}', type={Type}, sortable={Sortable}, noindex={NoIndex}}}";
         }
 
         public class TextField : Field
