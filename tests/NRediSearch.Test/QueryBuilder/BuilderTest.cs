@@ -76,11 +76,16 @@ namespace NRediSearch.Test.QueryBuilder
             Assert.Equal("(@name:(mark|dvir) @time:[100.0 200.0] -@created:[-inf (1000.0])", n.ToString());
         }
 
-        private static string GetArgsString(AggregationRequest request)
+        [Fact]
+        public void TestOptional()
         {
-            var args = new List<object>();
-            request.SerializeRedisArgs(args);
-            return string.Join(" ", args);
+            var n = Optional("name", Tags("foo", "bar"));
+
+            Assert.Equal("~@name:{foo | bar}", n.ToString());
+
+            n = Optional(n, n);
+
+            Assert.Equal("~(~@name:{foo | bar} ~@name:{foo | bar})", n.ToString());
         }
 
         [Fact]
@@ -135,6 +140,13 @@ namespace NRediSearch.Test.QueryBuilder
                 .SortBy(Descending("@count"))
                 .Limit(0, 2);
             Assert.Equal("* LOAD 1 @count APPLY @count%1000 AS thousands SORTBY 2 @count DESC LIMIT 0 2", r3.GetArgsString());
+        }
+
+        private static string GetArgsString(AggregationRequest request)
+        {
+            var args = new List<object>();
+            request.SerializeRedisArgs(args);
+            return string.Join(" ", args);
         }
     }
 }
