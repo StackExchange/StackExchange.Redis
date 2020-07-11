@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using NRediSearch.Aggregation;
 using StackExchange.Redis;
@@ -251,6 +252,44 @@ namespace NRediSearch
 
             var resp = (RedisResult[])await _db.ExecuteAsync("FT.SEARCH", args).ConfigureAwait(false);
             return new SearchResult(resp, !q.NoContent, q.WithScores, q.WithPayloads, q.ExplainScore);
+        }
+
+        /// <summary>
+        /// Search the index with a batch of queries. 
+        /// </summary>
+        /// <param name="queries">a <see cref="Query"/> object with the query string and optional parameters</param>
+        /// <returns>a collection of <see cref="SearchResult"/> objects with the results</returns>
+        public SearchResult[] SearchBatch(params Query[] queries)
+        {
+            var pipelinedQueryResults = new Task<SearchResult>[queries.Length];
+
+            for (var i = 0; i < queries.Length; i++)
+            {
+                pipelinedQueryResults[i] = SearchAsync(queries[i]);
+            }
+
+            Task.WaitAll(pipelinedQueryResults);
+
+            return pipelinedQueryResults.Select(qr => qr.Result).ToArray();
+        }
+
+        /// <summary>
+        /// Search the index with a batch of queries. 
+        /// </summary>
+        /// <param name="queries">a <see cref="Query"/> object with the query string and optional parameters</param>
+        /// <returns>a collection of <see cref="SearchResult"/> objects with the results</returns>
+        public async Task<SearchResult[]> SearchBatchAsync(params Query[] queries)
+        {
+            var pipelinedQueryResults = new Task<SearchResult>[queries.Length];
+
+            for (var i = 0; i < queries.Length; i++)
+            {
+                pipelinedQueryResults[i] = SearchAsync(queries[i]);
+            }
+
+            await Task.WhenAll(pipelinedQueryResults);
+
+            return pipelinedQueryResults.Select(qr => qr.Result).ToArray();
         }
 
         /// <summary>
@@ -846,7 +885,7 @@ namespace NRediSearch
 
             var result = new string[suggestions.Length];
 
-            for(var i = 0; i < suggestions.Length; i++)
+            for (var i = 0; i < suggestions.Length; i++)
             {
                 result[i] = suggestions[i].String;
             }
