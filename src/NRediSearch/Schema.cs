@@ -88,6 +88,9 @@ namespace NRediSearch
                     args.Add(Phonetic);
                 }
             }
+
+            public override string ToString() =>
+                $"TextField{{name='{Name}', type={Type}, sortable={Sortable}, noindex={NoIndex}, weight={Weight}, nostem={NoStem}, phoenetic='{Phonetic}'}}";
         }
 
         public List<Field> Fields { get; } = new List<Field>();
