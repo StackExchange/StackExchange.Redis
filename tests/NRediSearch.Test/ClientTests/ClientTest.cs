@@ -55,6 +55,52 @@ namespace NRediSearch.Test.ClientTests
         }
 
         [Fact]
+        public void SearchBatch()
+        {
+            Client cl = GetClient();
+
+            Schema sc = new Schema().AddTextField("title", 1.0).AddTextField("body", 1.0);
+
+            Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
+
+            var fields = new Dictionary<string, RedisValue>
+            {
+                {"title", "hello world" },
+                {"body", "lorem ipsum" }
+            };
+
+            for (var i = 0; i < 50; i++)
+            {
+                Assert.True(cl.AddDocument($"doc{i}", fields, (double)i / 100.0));
+            }
+
+            fields["title"] = "good night";
+
+            for (var i = 50; i < 100; i++)
+            {
+                Assert.True(cl.AddDocument($"doc{i}", fields, (double)i / 100.0));
+            }
+
+            SearchResult[] res = cl.SearchBatch(
+                new Query("hello world").Limit(0, 5).SetWithScores(),
+                new Query("good night").Limit(0, 5).SetWithScores()
+            );
+
+            Assert.Equal(2, res.Length);
+            Assert.Equal(50, res[0].TotalResults);
+            Assert.Equal(50, res[1].TotalResults);
+            Assert.Equal(5, res[0].Documents.Count);
+
+            foreach(var d in res[0].Documents)
+            {
+                Assert.StartsWith("doc", d.Id);
+                Assert.True(d.Score < 100);
+
+                Assert.Equal($"{{\"id\":\"{d.Id}\",\"score\":{d.Score},\"properties\":{{\"title\":\"hello world\",\"body\":\"lorem ipsum\"}}", d.ToString());
+            }
+        }
+
+        [Fact]
         public void TestNumericFilter()
         {
             Client cl = GetClient();
