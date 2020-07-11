@@ -166,7 +166,8 @@ namespace NRediSearch
         public class TagField : Field
         {
             public string Separator { get; }
-            internal TagField(string name, string separator = ",") : base(name, FieldType.Tag, false)
+
+            internal TagField(string name, string separator = ",", bool sortable = false) : base(name, FieldType.Tag, sortable)
             {
                 Separator = separator;
             }
@@ -180,6 +181,9 @@ namespace NRediSearch
                     args.Add(Separator);
                 }
             }
+
+            public override string ToString() =>
+                $"TagField{{name='{Name}', type={Type}, sortable={Sortable}, noindex={NoIndex}, separator='{Separator}'}}";
         }
 
         /// <summary>
