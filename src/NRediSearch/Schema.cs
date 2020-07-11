@@ -81,7 +81,7 @@ namespace NRediSearch
                 {
                     args.Add("NOSTEM".Literal());
                 }
-                    
+
                 if (Phonetic != null)
                 {
                     args.Add("PHOENETIC".Literal());
@@ -209,5 +209,8 @@ namespace NRediSearch
             Fields.Add(new TagField(name, seperator, true));
             return this;
         }
+
+        public override string ToString() =>
+            $"Schema{{fields=[{string.Join(",", Fields)}]}}";
     }
 }

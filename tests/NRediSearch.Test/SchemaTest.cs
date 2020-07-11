@@ -7,19 +7,18 @@ namespace NRediSearch.Test
         [Fact]
         public void PrintSchemaTest()
         {
-            var sc = new Schema();
-
-            sc.AddTextField("title", 5.0);
-            sc.AddSortableTextField("plot", 1.0);
-            sc.AddSortableTagField("genre", ",");
-            sc.AddSortableNumericField("release_year");
-            sc.AddSortableNumericField("rating");
-            sc.AddSortableNumericField("votes");
+            var sc = new Schema()
+                .AddTextField("title", 5.0)
+                .AddSortableTextField("plot", 1.0)
+                .AddSortableTagField("genre", ",")
+                .AddSortableNumericField("release_year")
+                .AddSortableNumericField("rating")
+                .AddSortableNumericField("votes");
 
             var schemaPrint = sc.ToString();
 
             Assert.StartsWith("Schema{fields=[TextField{name='title'", schemaPrint);
-            Assert.Contains("{name='release_year', type=Numeric, sortable=true, noindex=false}", schemaPrint);
+            Assert.Contains("{name='release_year', type=Numeric, sortable=True, noindex=False}", schemaPrint);
         }
     }
 }
