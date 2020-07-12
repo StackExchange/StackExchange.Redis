@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System.Linq;
+using System.Collections.Generic;
 using System.Text;
 using StackExchange.Redis;
 using Xunit;
@@ -90,14 +91,6 @@ namespace NRediSearch.Test.ClientTests
             Assert.Equal(50, res[0].TotalResults);
             Assert.Equal(50, res[1].TotalResults);
             Assert.Equal(5, res[0].Documents.Count);
-
-            foreach(var d in res[0].Documents)
-            {
-                Assert.StartsWith("doc", d.Id);
-                Assert.True(d.Score < 100);
-
-                Assert.Equal($"{{\"id\":\"{d.Id}\",\"score\":{d.Score},\"properties\":{{\"title\":\"hello world\",\"body\":\"lorem ipsum\"}}", d.ToString());
-            }
         }
 
         [Fact]
