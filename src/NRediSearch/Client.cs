@@ -465,7 +465,15 @@ namespace NRediSearch
             foreach (var ent in fields)
             {
                 args.Add(ent.Key);
-                args.Add(ent.Value);
+
+                if (ent.Value == RedisValue.Null)
+                {
+                    throw new NullReferenceException($"Document attribute '{ent.Key}' is null. (Remove it, or set a value)");
+                }
+                else
+                {
+                    args.Add(ent.Value);
+                }
             }
             return args;
         }

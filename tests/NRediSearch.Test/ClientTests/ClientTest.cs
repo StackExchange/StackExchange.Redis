@@ -7,6 +7,7 @@ using Xunit.Abstractions;
 using static NRediSearch.Client;
 using static NRediSearch.Schema;
 using static NRediSearch.SuggestionOptions;
+using System;
 
 namespace NRediSearch.Test.ClientTests
 {
@@ -343,6 +344,66 @@ namespace NRediSearch.Test.ClientTests
             SearchResult res = cl.Search(new Query("hello world").SetVerbatim());
             Assert.Equal(1, res.TotalResults);
             Assert.Equal(hashKey, res.Documents[0].Id);
+        }
+
+        [Fact]
+        public void TestNullField()
+        {
+            Client cl = GetClient();
+            Schema sc = new Schema()
+                    .AddTextField("title", 1.0)
+                    .AddTextField("genre", 1.0)
+                    .AddTextField("plot", 1.0)
+                    .AddSortableNumericField("release_year")
+                    .AddTagField("tag")
+                    .AddGeoField("loc");
+
+            Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
+
+            // create a document with a field set to null
+            var fields = new Dictionary<string, RedisValue>();
+            fields.Add("title", "another test with title ");
+            fields.Add("genre", "Comedy");
+            fields.Add("plot", "this is the plot for the test");
+            fields.Add("tag", "fun");
+            fields.Add("release_year", 2019);
+            fields.Add("loc", "-0.1,51.2");
+
+            cl.AddDocument("doc1", fields);
+            SearchResult res = cl.Search(new Query("title"));
+            Assert.Equal(1, res.TotalResults);
+
+            fields = new Dictionary<string, RedisValue>();
+            fields.Add("title", "another title another test");
+            fields.Add("genre", "Action");
+            fields.Add("plot", RedisValue.Null);
+            fields.Add("tag", RedisValue.Null);
+
+            var thrownException = Assert.Throws<NullReferenceException>(() =>
+            {
+                cl.AddDocument("doc2", fields);
+            });
+
+            Assert.Equal("Document attribute 'plot' is null. (Remove it, or set a value)", thrownException.Message);
+
+            res = cl.Search(new Query("title"));
+            Assert.Equal(1, res.TotalResults);
+
+            // Testing with numerical value
+            fields = new Dictionary<string, RedisValue>();
+            fields.Add("title", "another title another test");
+            fields.Add("genre", "Action");
+            fields.Add("release_year", RedisValue.Null);
+
+            thrownException = Assert.Throws<NullReferenceException>(() =>
+            {
+                cl.AddDocument("doc2", fields);
+            });
+
+            Assert.Equal("Document attribute 'release_year' is null. (Remove it, or set a value)", thrownException.Message);
+
+            res = cl.Search(new Query("title"));
+            Assert.Equal(1, res.TotalResults);
         }
 
         [Fact]
