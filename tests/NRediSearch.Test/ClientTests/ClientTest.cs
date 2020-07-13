@@ -499,6 +499,40 @@ namespace NRediSearch.Test.ClientTests
         }
 
         [Fact]
+        public void TestPhoneticMatch()
+        {
+            Client cl = GetClient();
+
+            Reset(cl);
+
+            Schema sc = new Schema()
+                .AddTextField("noPhonetic", 1.0)
+                .AddField(new TextField("withPhonetic", 1.0, false, false, false, "dm:en"));
+
+            Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
+
+            var doc = new Dictionary<string, RedisValue>();
+            doc.Add("noPhonetic", "morfix");
+            doc.Add("withPhonetic", "morfix");
+
+            // Store it
+            Assert.True(cl.AddDocument("doc", doc));
+
+            // Query
+            SearchResult res = cl.Search(new Query("@withPhonetic:morphix=>{$phonetic:true}"));
+            Assert.Equal(1, res.TotalResults);
+
+            Assert.Throws<RedisServerException>(() =>
+            {
+                /*field does not support phonetics*/
+                cl.Search(new Query("@noPhonetic:morphix=>{$phonetic:true}"));
+            });
+
+            SearchResult res3 = cl.Search(new Query("@withPhonetic:morphix=>{$phonetic:false}"));
+            Assert.Equal(0, res3.TotalResults);
+        }
+
+        [Fact]
         public void TestInfoParsed()
         {
             Client cl = GetClient();

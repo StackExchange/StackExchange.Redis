@@ -87,7 +87,7 @@ namespace NRediSearch
 
                 if (Phonetic != null)
                 {
-                    args.Add("PHOENETIC".Literal());
+                    args.Add("PHONETIC".Literal());
                     args.Add(Phonetic);
                 }
             }
