@@ -2057,19 +2057,14 @@ The coordinates as a two items x,y array (longitude,latitude).
                                 endPoints.Add(Format.ParseEndPoint(ip, port));
                             }
                         }
-                        break;
+                        SetResult(message, endPoints.ToArray());
+                        return true;
 
                     case ResultType.SimpleString:
                         //We don't want to blow up if the master is not found
                         if (result.IsNull)
                             return true;
                         break;
-                }
-
-                if (endPoints.Count > 0)
-                {
-                    SetResult(message, endPoints.ToArray());
-                    return true;
                 }
 
                 return false;
