@@ -317,9 +317,9 @@ namespace NRediSearch
         /// <param name="noSave">if set, we only index the document and do not save its contents. This allows fetching just doc ids</param>
         /// <param name="replace">if set, and the document already exists, we reindex and update it</param>
         /// <param name="payload">if set, we can save a payload in the index to be retrieved or evaluated by scoring functions on the server</param>
-        public bool AddDocument(string docId, Dictionary<string, RedisValue> fields, double score = 1.0, bool noSave = false, bool replace = false, byte[] payload = null)
+        public bool AddDocument(string docId, Dictionary<string, RedisValue> fields, double score = 1.0, bool noSave = false, bool replace = false, byte[] payload = null, string filter = null)
         {
-            var args = BuildAddDocumentArgs(docId, fields, score, noSave, replace, payload);
+            var args = BuildAddDocumentArgs(docId, fields, score, noSave, replace, payload, filter);
             return (string)DbSync.Execute("FT.ADD", args) == "OK";
         }
 
@@ -333,9 +333,9 @@ namespace NRediSearch
         /// <param name="replace">if set, and the document already exists, we reindex and update it</param>
         /// <param name="payload">if set, we can save a payload in the index to be retrieved or evaluated by scoring functions on the server</param>
         /// <returns>true if the operation succeeded, false otherwise</returns>
-        public async Task<bool> AddDocumentAsync(string docId, Dictionary<string, RedisValue> fields, double score = 1.0, bool noSave = false, bool replace = false, byte[] payload = null)
+        public async Task<bool> AddDocumentAsync(string docId, Dictionary<string, RedisValue> fields, double score = 1.0, bool noSave = false, bool replace = false, byte[] payload = null, string filter = null)
         {
-            var args = BuildAddDocumentArgs(docId, fields, score, noSave, replace, payload);
+            var args = BuildAddDocumentArgs(docId, fields, score, noSave, replace, payload, filter);
 
             try
             {
@@ -355,7 +355,7 @@ namespace NRediSearch
         /// <returns>true if the operation succeeded, false otherwise</returns>
         public bool AddDocument(Document doc, AddOptions options = null)
         {
-            var args = BuildAddDocumentArgs(doc.Id, doc._properties, doc.Score, options?.NoSave ?? false, options?.ReplacePolicy ?? AddOptions.ReplacementPolicy.None, doc.Payload, options?.Language);
+            var args = BuildAddDocumentArgs(doc.Id, doc._properties, doc.Score, options?.NoSave ?? false, options?.ReplacePolicy ?? AddOptions.ReplacementPolicy.None, doc.Payload, options?.Language, null);
 
             try
             {
@@ -376,7 +376,7 @@ namespace NRediSearch
         /// <returns>true if the operation succeeded, false otherwise. Note that if the operation fails, an exception will be thrown</returns>
         public async Task<bool> AddDocumentAsync(Document doc, AddOptions options = null)
         {
-            var args = BuildAddDocumentArgs(doc.Id, doc._properties, doc.Score, options?.NoSave ?? false, options?.ReplacePolicy ?? AddOptions.ReplacementPolicy.None, doc.Payload, options?.Language);
+            var args = BuildAddDocumentArgs(doc.Id, doc._properties, doc.Score, options?.NoSave ?? false, options?.ReplacePolicy ?? AddOptions.ReplacementPolicy.None, doc.Payload, options?.Language, null);
             return (string)await _db.ExecuteAsync("FT.ADD", args).ConfigureAwait(false) == "OK";
         }
 
@@ -432,9 +432,10 @@ namespace NRediSearch
             return result;
         }
 
-        private List<object> BuildAddDocumentArgs(string docId, Dictionary<string, RedisValue> fields, double score, bool noSave, bool replace, byte[] payload)
-            => BuildAddDocumentArgs(docId, fields, score, noSave, replace ? AddOptions.ReplacementPolicy.Full : AddOptions.ReplacementPolicy.None, payload, null);
-        private List<object> BuildAddDocumentArgs(string docId, Dictionary<string, RedisValue> fields, double score, bool noSave, AddOptions.ReplacementPolicy replacementPolicy, byte[] payload, string language)
+        private List<object> BuildAddDocumentArgs(string docId, Dictionary<string, RedisValue> fields, double score, bool noSave, bool replace, byte[] payload, string filter)
+            => BuildAddDocumentArgs(docId, fields, score, noSave, replace ? AddOptions.ReplacementPolicy.Full : AddOptions.ReplacementPolicy.None, payload, null, filter);
+
+        private List<object> BuildAddDocumentArgs(string docId, Dictionary<string, RedisValue> fields, double score, bool noSave, AddOptions.ReplacementPolicy replacementPolicy, byte[] payload, string language, string filter)
         {
             var args = new List<object> { _boxedIndexName, docId, score };
             if (noSave)
@@ -447,6 +448,12 @@ namespace NRediSearch
                 if (replacementPolicy == AddOptions.ReplacementPolicy.Partial)
                 {
                     args.Add("PARTIAL".Literal());
+                }
+
+                if (filter != null)
+                {
+                    args.Add("IF".Literal());
+                    args.Add(filter);
                 }
             }
             if (!string.IsNullOrWhiteSpace(language))
@@ -485,8 +492,9 @@ namespace NRediSearch
         /// <param name="fields">The document fields.</param>
         /// <param name="score">The new score.</param>
         /// <param name="payload">The new payload.</param>
-        public bool ReplaceDocument(string docId, Dictionary<string, RedisValue> fields, double score = 1.0, byte[] payload = null)
-            => AddDocument(docId, fields, score, false, true, payload);
+         /// <param name="filter">replaces the document only if a boolean expression applies to the document</param>
+        public bool ReplaceDocument(string docId, Dictionary<string, RedisValue> fields, double score = 1.0, byte[] payload = null, string filter = null)
+            => AddDocument(docId, fields, score, false, true, payload, filter);
 
         /// <summary>
         /// Convenience method for calling AddDocumentAsync with replace=true.
@@ -495,8 +503,9 @@ namespace NRediSearch
         /// <param name="fields">The document fields.</param>
         /// <param name="score">The new score.</param>
         /// <param name="payload">The new payload.</param>
-        public Task<bool> ReplaceDocumentAsync(string docId, Dictionary<string, RedisValue> fields, double score = 1.0, byte[] payload = null)
-            => AddDocumentAsync(docId, fields, score, false, true, payload);
+        /// <param name="filter">replaces the document only if a boolean expression applies to the document</param>
+        public Task<bool> ReplaceDocumentAsync(string docId, Dictionary<string, RedisValue> fields, double score = 1.0, byte[] payload = null, string filter = null)
+            => AddDocumentAsync(docId, fields, score, false, true, payload, filter);
 
         /// <summary>
         /// Index a document already in redis as a HASH key.
@@ -1271,9 +1280,10 @@ namespace NRediSearch
         /// <param name="docId">The ID of the document.</param>
         /// <param name="fields">The fields and values to update.</param>
         /// <param name="score">The new score of the document.</param>
-        public bool UpdateDocument(string docId, Dictionary<string, RedisValue> fields, double score = 1.0)
+        /// <param name="filter">Updates the document only if a boolean expression applies to the document</param>
+        public bool UpdateDocument(string docId, Dictionary<string, RedisValue> fields, double score = 1.0, string filter = null)
         {
-            var args = BuildAddDocumentArgs(docId, fields, score, false, AddOptions.ReplacementPolicy.Partial, null, null);
+            var args = BuildAddDocumentArgs(docId, fields, score, false, AddOptions.ReplacementPolicy.Partial, null, null, filter);
             return (string)DbSync.Execute("FT.ADD", args) == "OK";
         }
 
@@ -1285,9 +1295,9 @@ namespace NRediSearch
         /// <param name="docId">The ID of the document.</param>
         /// <param name="fields">The fields and values to update.</param>
         /// <param name="score">The new score of the document.</param>
-        public async Task<bool> UpdateDocumentAsync(string docId, Dictionary<string, RedisValue> fields, double score = 1.0)
+        public async Task<bool> UpdateDocumentAsync(string docId, Dictionary<string, RedisValue> fields, double score = 1.0, string filter = null)
         {
-            var args = BuildAddDocumentArgs(docId, fields, score, false, AddOptions.ReplacementPolicy.Partial, null, null);
+            var args = BuildAddDocumentArgs(docId, fields, score, false, AddOptions.ReplacementPolicy.Partial, null, null, filter);
             return (string)await _db.ExecuteAsync("FT.ADD", args).ConfigureAwait(false) == "OK";
         }
 

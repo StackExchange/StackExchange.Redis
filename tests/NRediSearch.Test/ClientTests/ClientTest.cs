@@ -628,6 +628,51 @@ namespace NRediSearch.Test.ClientTests
         }
 
         [Fact]
+        public void TestReplaceIf()
+        {
+            Client cl = GetClient();
+
+            Schema sc = new Schema()
+                    .AddTextField("f1", 1.0)
+                    .AddTextField("f2", 1.0)
+                    .AddTextField("f3", 1.0);
+
+            Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
+
+            var mm = new Dictionary<string, RedisValue>();
+            mm.Add("f1", "v1_val");
+            mm.Add("f2", "v2_val");
+
+            Assert.True(cl.AddDocument("doc1", mm));
+            Assert.True(cl.AddDocument("doc2", mm));
+
+            mm.Clear();
+            mm.Add("f3", "v3_val");
+
+            Assert.False(cl.UpdateDocument("doc1", mm, 1.0, "@f1=='vv1_val'"));
+            // Search for f3 value. No documents should not have it.
+            SearchResult res1 = cl.Search(new Query("@f3:f3_Val"));
+            Assert.Equal(0, res1.TotalResults);
+
+            Assert.True(cl.UpdateDocument("doc1", mm, 1.0, "@f2=='v2_val'"));
+            // Search for f3 value. All documents should have it.
+            SearchResult res2 = cl.Search(new Query(("@f3:v3_Val")));
+            Assert.Equal(1, res2.TotalResults);
+
+            Assert.False(cl.ReplaceDocument("doc2", mm, 1.0, filter: "@f1=='vv3_Val'"));
+
+            // Search for f3 value. Only one document should have it.
+            SearchResult res3 = cl.Search(new Query(("@f3:v3_Val")));
+            Assert.Equal(1, res3.TotalResults);
+
+            Assert.True(cl.ReplaceDocument("doc2", mm, 1.0, filter: "@f1=='v1_val'"));
+
+            // Search for f3 value. All documents should have it.
+            SearchResult res4 = cl.Search(new Query(("@f3:v3_Val")));
+            Assert.Equal(2, res4.TotalResults);
+        }
+
+        [Fact]
         public void TestExplain()
         {
             Client cl = GetClient();
