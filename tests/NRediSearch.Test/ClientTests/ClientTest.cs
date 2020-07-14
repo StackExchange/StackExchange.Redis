@@ -1090,7 +1090,7 @@ namespace NRediSearch.Test.ClientTests
             Assert.True(cl.AddDocument("doc1", doc));
 
             // Query
-            SearchResult res = cl.Search(new Query("value"), false);
+            SearchResult res = cl.Search(new Query("value"));
 
             Assert.Equal(1, res.TotalResults);
             Assert.Equal("doc1", res.Documents[0].Id);
