@@ -1117,47 +1117,45 @@ namespace NRediSearch.Test.ClientTests
             Assert.False(cl.SetConfig(ConfigOption.ON_TIMEOUT, "null"));
         }
 
-        //[Fact]
-        //public void TestAlias()
-        //{
-        //    Client cl = GetClient();
+        [Fact]
+        public void TestAlias()
+        {
+            Client cl = GetClient();
 
-        //    Reset(cl);
+            Reset(cl);
 
+            Schema sc = new Schema().AddTextField("field1", 1.0);
+            Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
+            var doc = new Dictionary<string, RedisValue>();
+            doc.Add("field1", "value");
+            Assert.True(cl.AddDocument("doc1", doc));
 
-        //    Schema sc = new Schema().AddTextField("field1", 1.0);
-        //    Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
-        //    var doc = new Dictionary<string, RedisValue>();
-        //    doc.Add("field1", "value");
-        //    Assert.True(cl.AddDocument("doc1", doc));
+            Assert.True(cl.AddAlias("ALIAS1:TestAlias"));
+            Client alias1 = GetClient("ALIAS1", reset: false);
+            SearchResult res1 = alias1.Search(new Query("*").ReturnFields("field1"));
+            Assert.Equal(1, res1.TotalResults);
+            Assert.Equal("value", res1.Documents[0]["field1"]);
 
-        //    Assert.True(cl.AddAlias("ALIAS1"));
-        //    Client alias1 = GetClient("ALIAS1");
-        //    SearchResult res1 = alias1.Search(new Query("*").ReturnFields("field1"));
-        //    Assert.Equal(1, res1.TotalResults);
-        //    Assert.Equal("value", res1.Documents[0]["field1"]);
+            Assert.True(cl.UpdateAlias("ALIAS2:TestAlias"));
+            Client alias2 = GetClient("ALIAS2", reset: false);
+            SearchResult res2 = alias2.Search(new Query("*").ReturnFields("field1"));
+            Assert.Equal(1, res2.TotalResults);
+            Assert.Equal("value", res2.Documents[0]["field1"]);
 
-        //    Assert.True(cl.UpdateAlias("ALIAS2"));
-        //    Client alias2 = GetClient("ALIAS2");
-        //    SearchResult res2 = alias2.Search(new Query("*").ReturnFields("field1"));
-        //    Assert.Equal(1, res2.TotalResults);
-        //    Assert.Equal("value", res2.Documents[0]["field1"]);
+            Assert.Throws<RedisServerException>(() =>
+            {
+                // Should throw because the alias doesn't exist. 
+                cl.DeleteAlias("ALIAS3:TestAlias");
+            });
 
+            Assert.True(cl.DeleteAlias("ALIAS2:TestAlias"));
 
-        //    Assert.Throws<RedisServerException>(() =>
-        //    {
-        //        // Should throw because the alias doesn't exist. 
-        //        cl.DeleteAlias("ALIAS3");
-        //    });
-
-        //    Assert.True(cl.DeleteAlias("ALIAS2"));
-
-        //    Assert.Throws<RedisServerException>(() =>
-        //    {
-        //        // Should throw because the alias doesn't exist.
-        //        cl.DeleteAlias("ALIAS2");
-        //    });
-        //}
+            Assert.Throws<RedisServerException>(() =>
+            {
+                // Should throw because the alias doesn't exist.
+                cl.DeleteAlias("ALIAS2:TestAlias");
+            });
+        }
 
         //[Fact]
         //public void TestSyn()

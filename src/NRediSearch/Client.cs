@@ -1361,6 +1361,60 @@ namespace NRediSearch
             return (string)((RedisResult[])result[0])[1];
         }
 
+        /// <summary>
+        /// Add an alias to the current index. 
+        /// </summary>
+        /// <param name="name">Name of the alias.</param>
+        public bool AddAlias(string name)
+        {
+            return (string)DbSync.Execute("FT.ALIASADD", name, IndexName) == "OK";
+        }
+
+        /// <summary>
+        /// Add an alias to the current index.
+        /// </summary>
+        /// <param name="name">Name of the alias.</param>
+        public async Task<bool> AddAliasAsync(string name)
+        {
+            return (string)await _db.ExecuteAsync("FT.ALIASADD", name, IndexName).ConfigureAwait(false) == "OK";
+        }
+
+        /// <summary>
+        /// Update an alias on the current index.
+        /// </summary>
+        /// <param name="name">Name of the alias.</param>
+        public bool UpdateAlias(string name)
+        {
+            return (string)DbSync.Execute("FT.ALIASUPDATE", name, IndexName) == "OK";
+        }
+
+        /// <summary>
+        /// Update an alias on the current index.
+        /// </summary>
+        /// <param name="name">Name of the alias.</param>
+        public async Task<bool> UpdateAliasAsync(string name)
+        {
+            return (string)await _db.ExecuteAsync("FT.ALIASUPDATE", name, IndexName).ConfigureAwait(false) == "OK";
+        }
+
+        /// <summary>
+        /// Delete an alias on the current index.
+        /// </summary>
+        /// <param name="name">Name of the alias.</param>
+        public bool DeleteAlias(string name)
+        {
+            return (string)DbSync.Execute("FT.ALIASDEL", name) == "OK";
+        }
+
+        /// <summary>
+        /// Delete an alias on the current index.
+        /// </summary>
+        /// <param name="name">Name of the alias.</param>
+        public async Task<bool> DeleteAliasAsync(string name)
+        {
+            return (string)await _db.ExecuteAsync("FT.ALIASDEL", name).ConfigureAwait(false) == "OK";
+        }
+
         private static Suggestion[] GetSuggestionsNoOptions(RedisResult[] results)
         {
             var suggestions = new Suggestion[results.Length];
