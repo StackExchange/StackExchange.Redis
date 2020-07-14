@@ -720,13 +720,13 @@ namespace NRediSearch
         }
 
         /// <summary>
-        /// Get the size of an autoc-complete suggestion dictionary
+        /// Get the size of an auto-complete suggestion dictionary
         /// </summary>
         public long CountSuggestions()
             => (long)DbSync.Execute("FT.SUGLEN", _boxedIndexName);
 
         /// <summary>
-        /// Get the size of an autoc-complete suggestion dictionary
+        /// Get the size of an auto-complete suggestion dictionary
         /// </summary>
         public async Task<long> CountSuggestionsAsync()
             => (long)await _db.ExecuteAsync("FT.SUGLEN", _boxedIndexName).ConfigureAwait(false);

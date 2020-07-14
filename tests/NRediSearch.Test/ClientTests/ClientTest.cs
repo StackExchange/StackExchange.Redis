@@ -898,13 +898,11 @@ namespace NRediSearch.Test.ClientTests
             cl.AddSuggestion(Suggestion.Builder.String("TOPIC OF WORDS").Score(1).Build(), true);
             cl.AddSuggestion(Suggestion.Builder.String("ANOTHER ENTRY").Score(1).Build(), true);
 
-            long result = cl.DeleteSuggestion("ANOTHER ENTRY");
-            Assert.Equal(1, result);
-            Assert.Equal(1, cl.GetSuggestionLength());
+            Assert.True(cl.DeleteSuggestion("ANOTHER ENTRY"));
+            Assert.Equal(1, cl.CountSuggestions());
 
-            result = cl.DeleteSuggestion("ANOTHER ENTRY THAT IS NOT PRESENT");
-            Assert.Equal(0, result);
-            Assert.Equal(1, cl.GetSuggestionLength());
+            Assert.False(cl.DeleteSuggestion("ANOTHER ENTRY THAT IS NOT PRESENT"));
+            Assert.Equal(1, cl.CountSuggestions());
         }
 
         [Fact]
@@ -913,10 +911,10 @@ namespace NRediSearch.Test.ClientTests
             Client cl = GetClient();
             cl.AddSuggestion(Suggestion.Builder.String("TOPIC OF WORDS").Score(1).Build(), true);
             cl.AddSuggestion(Suggestion.Builder.String("ANOTHER ENTRY").Score(1).Build(), true);
-            Assert.Equal(2, cl.GetSuggestionLength());
+            Assert.Equal(2, cl.CountSuggestions());
 
             cl.AddSuggestion(Suggestion.Builder.String("FINAL ENTRY").Score(1).Build(), true);
-            Assert.True(3, cl.GetSuggestionLength()); 
+            Assert.Equal(3, cl.CountSuggestions());
         }
 
         [Fact]
@@ -1071,5 +1069,126 @@ namespace NRediSearch.Test.ClientTests
             Assert.Equal("value", res.Documents[0]["field1"]);
             Assert.Null((string)res.Documents[0]["value"]);
         }
+
+        [Fact]
+        public void TestBlobField()
+        {
+            Client cl = GetClient();
+
+            Reset(cl);
+
+            Schema sc = new Schema().AddTextField("field1", 1.0);
+            Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
+
+            byte[] blob = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 };
+
+            var doc = new Dictionary<string, RedisValue>();
+            doc.Add("field1", "value");
+            doc.Add("field2", blob);
+
+            // Store it
+            Assert.True(cl.AddDocument("doc1", doc));
+
+            // Query
+            SearchResult res = cl.Search(new Query("value"), false);
+
+            Assert.Equal(1, res.TotalResults);
+            Assert.Equal("doc1", res.Documents[0].Id);
+            Assert.Equal("value", res.Documents[0]["field1"]);
+            Assert.Equal(blob, (byte[])res.Documents[0]["field2"]);
+        }
+
+        //[Fact]
+        //public void TestConfig()
+        //{
+        //    Client cl = GetClient();
+
+        //    Reset(cl);
+
+        //    Assert.True(cl.SetConfig(ConfigOption.TIMEOUT, "100"));
+
+        //    Dictionary<string, string> configMap = cl.GetAllConfig();
+        //    Assert.Equal("100", configMap[ConfigOption.TIMEOUT]);
+        //    Assert.Equal("100", cl.GetConfig(ConfigOption.TIMEOUT));
+
+        //    cl.SetConfig(ConfigOption.ON_TIMEOUT, "fail");
+        //    Assert.Equal("fail", cl.GetConfig(ConfigOption.ON_TIMEOUT));
+
+        //    Assert.False(cl.SetConfig(ConfigOption.ON_TIMEOUT, "null"));
+        //}
+
+        //[Fact]
+        //public void TestAlias()
+        //{
+        //    Client cl = GetClient();
+
+        //    Reset(cl);
+
+
+        //    Schema sc = new Schema().AddTextField("field1", 1.0);
+        //    Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
+        //    var doc = new Dictionary<string, RedisValue>();
+        //    doc.Add("field1", "value");
+        //    Assert.True(cl.AddDocument("doc1", doc));
+
+        //    Assert.True(cl.AddAlias("ALIAS1"));
+        //    Client alias1 = GetClient("ALIAS1");
+        //    SearchResult res1 = alias1.Search(new Query("*").ReturnFields("field1"));
+        //    Assert.Equal(1, res1.TotalResults);
+        //    Assert.Equal("value", res1.Documents[0]["field1"]);
+
+        //    Assert.True(cl.UpdateAlias("ALIAS2"));
+        //    Client alias2 = GetClient("ALIAS2");
+        //    SearchResult res2 = alias2.Search(new Query("*").ReturnFields("field1"));
+        //    Assert.Equal(1, res2.TotalResults);
+        //    Assert.Equal("value", res2.Documents[0]["field1"]);
+
+
+        //    Assert.Throws<RedisServerException>(() =>
+        //    {
+        //        // Should throw because the alias doesn't exist. 
+        //        cl.DeleteAlias("ALIAS3");
+        //    });
+
+        //    Assert.True(cl.DeleteAlias("ALIAS2"));
+
+        //    Assert.Throws<RedisServerException>(() =>
+        //    {
+        //        // Should throw because the alias doesn't exist.
+        //        cl.DeleteAlias("ALIAS2");
+        //    });
+        //}
+
+        //[Fact]
+        //public void TestSyn()
+        //{
+        //    Client cl = GetClient();
+        //    Reset(cl);
+
+        //    Schema sc = new Schema().AddTextField("name", 1.0).AddTextField("addr", 1.0);
+        //    Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
+
+
+        //    long group1 = cl.AddSynonym("girl", "baby");
+        //    Assert.True(cl.UpdateSynonym(group1, "child"));
+
+        //    long group2 = cl.AddSynonym("child");
+
+        //    Assert.NotEqual(group1, group2);
+
+        //    //Map<String, List<Long>> dump = cl.dumpSynonym();
+        //    Dictionary<string, List<long>> dump = cl.DumpSynonym();
+
+        //    //Map<String, List<Long>> expected = new HashMap<>();
+        //    Dictionary<string, List<long>> expected = new Dictionary<string, List<long>>();
+        //    //expected.put("girl", Arrays.asList(group1));
+        //    expected.Add("girl", new List<long> { group1 });
+        //    //expected.put("baby", Arrays.asList(group1));
+        //    expected.Add("baby", new List<long> { group1 });
+        //    //expected.put("child", Arrays.asList(group1, group2));
+        //    expected.Add("child", new List<long> { group1, group2 });
+
+        //    Assert.Equal(expected, dump);
+        //}
     }
 }
