@@ -492,7 +492,7 @@ namespace NRediSearch
         /// <param name="fields">The document fields.</param>
         /// <param name="score">The new score.</param>
         /// <param name="payload">The new payload.</param>
-         /// <param name="filter">replaces the document only if a boolean expression applies to the document</param>
+        /// <param name="filter">replaces the document only if a boolean expression applies to the document</param>
         public bool ReplaceDocument(string docId, Dictionary<string, RedisValue> fields, double score = 1.0, byte[] payload = null, string filter = null)
             => AddDocument(docId, fields, score, false, true, payload, filter);
 
@@ -1299,6 +1299,46 @@ namespace NRediSearch
         {
             var args = BuildAddDocumentArgs(docId, fields, score, false, AddOptions.ReplacementPolicy.Partial, null, null, filter);
             return (string)await _db.ExecuteAsync("FT.ADD", args).ConfigureAwait(false) == "OK";
+        }
+
+        /// <summary>
+        /// Set a runtime configuration option.
+        /// </summary>
+        /// <param name="option">The option to set.</param>
+        /// <param name="value">The value for the option.</param>
+        public bool SetConfig(ConfigOption option, string value)
+        {
+            return (string)DbSync.Execute("FT.CONFIG", "SET".Literal(), option.Value, value) == "OK";
+        }
+
+        /// <summary>
+        /// Set a runtime configuration option.
+        /// </summary>
+        /// <param name="option">The option to set.</param>
+        /// <param name="value">The value for the option.</param>
+        public async Task<bool> SetConfigAsync(ConfigOption option, string value)
+        {
+            return (string)await _db.ExecuteAsync("FT.CONFIG", "SET".Literal(), option.Value, value) == "OK";
+        }
+
+        public Dictionary<ConfigOption, string> GetAllConfig()
+        {
+            return default;
+        }
+
+        public Task<Dictionary<ConfigOption, string>> GetAllConfigAsync()
+        {
+            return default;
+        }
+
+        public string GetConfig(ConfigOption option)
+        {
+            return default;
+        }
+
+        public Task<string> GetConfigAsync(ConfigOption option)
+        {
+            return default;
         }
 
         private static Suggestion[] GetSuggestionsNoOptions(RedisResult[] results)

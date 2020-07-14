@@ -1098,24 +1098,24 @@ namespace NRediSearch.Test.ClientTests
             Assert.Equal(blob, (byte[])res.Documents[0]["field2"]);
         }
 
-        //[Fact]
-        //public void TestConfig()
-        //{
-        //    Client cl = GetClient();
+        [Fact]
+        public void TestConfig()
+        {
+            Client cl = GetClient();
 
-        //    Reset(cl);
+            Reset(cl);
 
-        //    Assert.True(cl.SetConfig(ConfigOption.TIMEOUT, "100"));
+            Assert.True(cl.SetConfig(ConfigOption.TIMEOUT, "100"));
 
-        //    Dictionary<string, string> configMap = cl.GetAllConfig();
-        //    Assert.Equal("100", configMap[ConfigOption.TIMEOUT]);
-        //    Assert.Equal("100", cl.GetConfig(ConfigOption.TIMEOUT));
+            Dictionary<ConfigOption, string> configMap = cl.GetAllConfig();
+            Assert.Equal("100", configMap[ConfigOption.TIMEOUT]);
+            Assert.Equal("100", cl.GetConfig(ConfigOption.TIMEOUT));
 
-        //    cl.SetConfig(ConfigOption.ON_TIMEOUT, "fail");
-        //    Assert.Equal("fail", cl.GetConfig(ConfigOption.ON_TIMEOUT));
+            cl.SetConfig(ConfigOption.ON_TIMEOUT, "fail");
+            Assert.Equal("fail", cl.GetConfig(ConfigOption.ON_TIMEOUT));
 
-        //    Assert.False(cl.SetConfig(ConfigOption.ON_TIMEOUT, "null"));
-        //}
+            Assert.False(cl.SetConfig(ConfigOption.ON_TIMEOUT, "null"));
+        }
 
         //[Fact]
         //public void TestAlias()
