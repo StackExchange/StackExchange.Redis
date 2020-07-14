@@ -1,4 +1,4 @@
-﻿using System.Linq;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 using StackExchange.Redis;
@@ -7,7 +7,6 @@ using Xunit.Abstractions;
 using static NRediSearch.Client;
 using static NRediSearch.Schema;
 using static NRediSearch.SuggestionOptions;
-using System;
 
 namespace NRediSearch.Test.ClientTests
 {
@@ -890,6 +889,34 @@ namespace NRediSearch.Test.ClientTests
 
             var none = cl.GetSuggestions("DIF", SuggestionOptions.Builder.Max(3).With(WithOptions.Scores).Build());
             Assert.Empty(none);
+        }
+
+        [Fact]
+        public void TestAddSuggestionDeleteSuggestionLength()
+        {
+            Client cl = GetClient();
+            cl.AddSuggestion(Suggestion.Builder.String("TOPIC OF WORDS").Score(1).Build(), true);
+            cl.AddSuggestion(Suggestion.Builder.String("ANOTHER ENTRY").Score(1).Build(), true);
+
+            long result = cl.DeleteSuggestion("ANOTHER ENTRY");
+            Assert.Equal(1, result);
+            Assert.Equal(1, cl.GetSuggestionLength());
+
+            result = cl.DeleteSuggestion("ANOTHER ENTRY THAT IS NOT PRESENT");
+            Assert.Equal(0, result);
+            Assert.Equal(1, cl.GetSuggestionLength());
+        }
+
+        [Fact]
+        public void TestAddSuggtionGetSuggestionLength()
+        {
+            Client cl = GetClient();
+            cl.AddSuggestion(Suggestion.Builder.String("TOPIC OF WORDS").Score(1).Build(), true);
+            cl.AddSuggestion(Suggestion.Builder.String("ANOTHER ENTRY").Score(1).Build(), true);
+            Assert.Equal(2, cl.GetSuggestionLength());
+
+            cl.AddSuggestion(Suggestion.Builder.String("FINAL ENTRY").Score(1).Build(), true);
+            Assert.True(3, cl.GetSuggestionLength()); 
         }
 
         [Fact]
