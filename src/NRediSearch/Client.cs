@@ -1318,27 +1318,47 @@ namespace NRediSearch
         /// <param name="value">The value for the option.</param>
         public async Task<bool> SetConfigAsync(ConfigOption option, string value)
         {
-            return (string)await _db.ExecuteAsync("FT.CONFIG", "SET".Literal(), option.Value, value) == "OK";
+            return (string)await _db.ExecuteAsync("FT.CONFIG", "SET".Literal(), option.Value, value).ConfigureAwait(false) == "OK";
         }
 
+        /// <summary>
+        /// Get all configuration options. 
+        /// </summary>
         public Dictionary<ConfigOption, string> GetAllConfig()
         {
-            return default;
+            var rawConfiguration = (RedisResult[])DbSync.Execute("FT.CONFIG", "GET".Literal(), ConfigOption.ALL.Value);
+
+            return HandleGetAllConfigResult(rawConfiguration);
         }
 
-        public Task<Dictionary<ConfigOption, string>> GetAllConfigAsync()
+        /// <summary>
+        /// Get all configuration options.
+        /// </summary>
+        public async Task<Dictionary<ConfigOption, string>> GetAllConfigAsync()
         {
-            return default;
+            var rawConfiguration = (RedisResult[])await _db.ExecuteAsync("FT.CONFIG", "GET".Literal(), ConfigOption.ALL.Value).ConfigureAwait(false);
+
+            return HandleGetAllConfigResult(rawConfiguration);
         }
 
+        /// <summary>
+        /// Get runtime configuration option value.
+        /// </summary>
+        /// <param name="option">The name of the configuration option.</param>
         public string GetConfig(ConfigOption option)
         {
-            return default;
+            var result = (RedisResult[])DbSync.Execute("FT.CONFIG", "GET".Literal(), option.Value);
+            return (string)((RedisResult[])result[0])[1];
         }
 
-        public Task<string> GetConfigAsync(ConfigOption option)
+        /// <summary>
+        /// Get runtime configuration option value. 
+        /// </summary>
+        /// <param name="option">The name of the configuration option.</param>
+        public async Task<RedisValue> GetConfigAsync(ConfigOption option)
         {
-            return default;
+            var result = (RedisResult[])await _db.ExecuteAsync("FT.CONFIG", "GET".Literal(), option.Value).ConfigureAwait(false);
+            return (string)((RedisResult[])result[0])[1];
         }
 
         private static Suggestion[] GetSuggestionsNoOptions(RedisResult[] results)
@@ -1403,6 +1423,24 @@ namespace NRediSearch
             }
 
             return suggestions;
+        }
+
+        private static Dictionary<ConfigOption, string> HandleGetAllConfigResult(RedisResult[] rawResult)
+        {
+            var result = new Dictionary<ConfigOption, string>();
+
+            for (var i = 0; i < rawResult.Length; i++)
+            {
+                var r = (RedisResult[])rawResult[i];
+                var option = ConfigOption.FromRedisResult(r[0]);
+
+                if (option != null)
+                {
+                    result.Add(option, (string)r[1]);
+                }
+            }
+
+            return result;
         }
     }
 }

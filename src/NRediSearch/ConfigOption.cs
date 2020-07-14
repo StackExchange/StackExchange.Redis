@@ -1,4 +1,6 @@
-﻿namespace NRediSearch
+﻿using StackExchange.Redis;
+
+namespace NRediSearch
 {
     public sealed class ConfigOption
     {
@@ -15,6 +17,27 @@
         private ConfigOption(string value)
         {
             Value = value.Literal();
+        }
+
+        internal static ConfigOption FromRedisResult(RedisResult value)
+        {
+            switch((string)value)
+            {
+                case nameof(NOGC):
+                    return NOGC;
+                case nameof(MINPREFIX):
+                    return MINPREFIX;
+                case nameof(MAXEXPANSIONS):
+                    return MAXEXPANSIONS;
+                case nameof(TIMEOUT):
+                    return TIMEOUT;
+                case nameof(ON_TIMEOUT):
+                    return ON_TIMEOUT;
+                case nameof(MIN_PHONETIC_TERM_LEN):
+                    return MIN_PHONETIC_TERM_LEN;
+                default:
+                    return null;
+            }
         }
     }
 }
