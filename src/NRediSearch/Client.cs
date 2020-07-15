@@ -189,8 +189,8 @@ namespace NRediSearch
             var args = new List<object>
             {
                 _boxedIndexName,
-		"ON",
-		"HASH",
+                "ON",
+                "HASH",
                 "SCHEMA".Literal(),
                 "ADD".Literal()
             };
@@ -213,8 +213,8 @@ namespace NRediSearch
             var args = new List<object>
             {
                 _boxedIndexName,
-		"ON",
-		"HASH",
+                "ON",
+                "HASH",
                 "SCHEMA".Literal(),
                 "ADD".Literal()
             };
