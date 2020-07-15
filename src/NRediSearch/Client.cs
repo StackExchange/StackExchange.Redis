@@ -1422,11 +1422,9 @@ namespace NRediSearch
         /// <returns>ID of the synonym group.</returns>
         public long AddSynonym(params string[] terms)
         {
-            var args = new object[terms.Length + 1];
+            var args = new List<object> { _boxedIndexName };
 
-            args[0] = _boxedIndexName;
-
-            Array.Copy(terms, 0, args, 1, terms.Length);
+            args.AddRange(terms);
 
             return (long)DbSync.Execute("FT.SYNADD", args);
         }
@@ -1438,11 +1436,9 @@ namespace NRediSearch
         /// <returns>ID of the synonym group.</returns>
         public async Task<long> AddSynonymAsync(params string[] terms)
         {
-            var args = new object[terms.Length + 1];
+            var args = new List<object> { _boxedIndexName };
 
-            args[0] = _boxedIndexName;
-
-            Array.Copy(terms, 0, args, 1, terms.Length);
+            args.AddRange(terms);
 
             return (long)await _db.ExecuteAsync("FT.SYNADD", args).ConfigureAwait(false);
         }
@@ -1454,12 +1450,9 @@ namespace NRediSearch
         /// <param name="term">Additional terms to add.</param>
         public bool UpdateSynonym(long groupId, params string[] terms)
         {
-            var args = new object[terms.Length + 2];
+            var args = new List<object> { _boxedIndexName, groupId };
 
-            args[0] = IndexName;
-            args[1] = groupId;
-
-            Array.Copy(terms, 0, args, 2, terms.Length);
+            args.AddRange(terms);
 
             return (string)DbSync.Execute("FT.SYNUPDATE", args) == "OK";
         }
@@ -1471,12 +1464,9 @@ namespace NRediSearch
         /// <param name="term">Additionals terms to add.</param>
         public async Task<bool> UpdateSynonymAsync(long groupId, params string[] terms)
         {
-            var args = new object[terms.Length + 2];
+            var args = new List<object> { _boxedIndexName, groupId };
 
-            args[0] = _boxedIndexName;
-            args[1] = groupId;
-
-            Array.Copy(terms, 0, args, 2, terms.Length);
+            args.AddRange(terms);
 
             return (string)await _db.ExecuteAsync("FT.SYNUPDATE", args).ConfigureAwait(false) == "OK";
         }
