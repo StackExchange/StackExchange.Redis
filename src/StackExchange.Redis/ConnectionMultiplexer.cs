@@ -1725,7 +1725,7 @@ namespace StackExchange.Redis
                         {
                             ServerSelectionStrategy.ServerType = ServerType.Sentinel;
                         }
-                        else
+                        else if (standaloneCount > 0)
                         {
                             ServerSelectionStrategy.ServerType = ServerType.Standalone;
                         }
