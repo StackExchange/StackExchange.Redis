@@ -41,37 +41,7 @@ namespace StackExchange.Redis.Tests
             }
         }
 
-        [Fact]
-        public void AddHashEveryWay()
-        {
-            using (var conn = Create())
-            {
-                var db = conn.GetDatabase();
 
-                RedisKey key = Me();
-                db.KeyDelete(key, CommandFlags.FireAndForget);
-                db.HashSet(key, "a", 1, flags: CommandFlags.FireAndForget);
-                db.HashSet(key, new[] {
-                    new HashEntry("b", 2) }, CommandFlags.FireAndForget);
-                db.HashSet(key, new[] {
-                    new HashEntry("c", 3),
-                    new HashEntry("d", 4)}, CommandFlags.FireAndForget);
-                db.HashSet(key, new[] {
-                    new HashEntry("e", 5),
-                    new HashEntry("f", 6),
-                    new HashEntry("g", 7)}, CommandFlags.FireAndForget);
-                db.HashSet(key, new[] {
-                    new HashEntry("h", 8),
-                    new HashEntry("i", 9),
-                    new HashEntry("j", 10),
-                    new HashEntry("k", 11)}, CommandFlags.FireAndForget);
-                var vals = db.HashGetAll(key);
-                string s = string.Join(",", vals.OrderByDescending(x => (double)x.Value).Select(x => x.Name));
-                Assert.Equal("k,j,i,h,g,f,e,d,c,b,a", s);
-                s = string.Join(",", vals.OrderBy(x => (double)x.Value).Select(x => x.Value));
-                Assert.Equal("1,2,3,4,5,6,7,8,9,10,11", s);
-            }
-        }
 
         [Fact]
         public void AddSetEveryWay()

@@ -139,7 +139,9 @@ namespace NRediSearch
         {
             var args = new List<object>
             {
-                _boxedIndexName
+                _boxedIndexName,
+                "ON",
+                "HASH"
             };
             options.SerializeRedisArgs(args);
             args.Add("SCHEMA".Literal());
@@ -162,7 +164,9 @@ namespace NRediSearch
         {
             var args = new List<object>
             {
-                _boxedIndexName
+                _boxedIndexName,
+                "ON",
+                "HASH"
             };
             options.SerializeRedisArgs(args);
             args.Add("SCHEMA".Literal());
@@ -185,6 +189,8 @@ namespace NRediSearch
             var args = new List<object>
             {
                 _boxedIndexName,
+		"ON",
+		"HASH",
                 "SCHEMA".Literal(),
                 "ADD".Literal()
             };
@@ -207,6 +213,8 @@ namespace NRediSearch
             var args = new List<object>
             {
                 _boxedIndexName,
+		"ON",
+		"HASH",
                 "SCHEMA".Literal(),
                 "ADD".Literal()
             };
@@ -451,60 +459,7 @@ namespace NRediSearch
         public Task<bool> ReplaceDocumentAsync(string docId, Dictionary<string, RedisValue> fields, double score = 1.0, byte[] payload = null)
             => AddDocumentAsync(docId, fields, score, false, true, payload);
 
-        /// <summary>
-        /// Index a document already in redis as a HASH key.
-        /// </summary>
-        /// <param name="docId">the id of the document in redis. This must match an existing, unindexed HASH key</param>
-        /// <param name="score">the document's index score, between 0 and 1</param>
-        /// <param name="replace">if set, and the document already exists, we reindex and update it</param>
-        /// <returns>true on success</returns>
-        public bool AddHash(string docId, double score, bool replace) => AddHash((RedisKey)docId, score, replace);
-
-        /// <summary>
-        /// Index a document already in redis as a HASH key.
-        /// </summary>
-        /// <param name="docId">the id of the document in redis. This must match an existing, unindexed HASH key</param>
-        /// <param name="score">the document's index score, between 0 and 1</param>
-        /// <param name="replace">if set, and the document already exists, we reindex and update it</param>
-        /// <returns>true on success</returns>
-        public bool AddHash(RedisKey docId, double score, bool replace)
-        {
-            var args = new List<object> { _boxedIndexName, docId, score };
-            if (replace)
-            {
-                args.Add("REPLACE".Literal());
-            }
-            return (string)DbSync.Execute("FT.ADDHASH", args) == "OK";
-        }
-
-        /// <summary>
-        /// Index a document already in redis as a HASH key.
-        /// </summary>
-        /// <param name="docId">the id of the document in redis. This must match an existing, unindexed HASH key</param>
-        /// <param name="score">the document's index score, between 0 and 1</param>
-        /// <param name="replace">if set, and the document already exists, we reindex and update it</param>
-        /// <returns>true on success</returns>
-        public Task<bool> AddHashAsync(string docId, double score, bool replace) => AddHashAsync((RedisKey)docId, score, replace);
-
-        /// <summary>
-        /// Index a document already in redis as a HASH key.
-        /// </summary>
-        /// <param name="docId">the id of the document in redis. This must match an existing, unindexed HASH key</param>
-        /// <param name="score">the document's index score, between 0 and 1</param>
-        /// <param name="replace">if set, and the document already exists, we reindex and update it</param>
-        /// <returns>true on success</returns>
-        public async Task<bool> AddHashAsync(RedisKey docId, double score, bool replace)
-        {
-            var args = new List<object> { _boxedIndexName, docId, score };
-            if (replace)
-            {
-                args.Add("REPLACE".Literal());
-            }
-            return (string)await _db.ExecuteAsync("FT.ADDHASH", args).ConfigureAwait(false) == "OK";
-        }
-
-        /// <summary>
-        /// Get the index info, including memory consumption and other statistics
+        /// Get the index info, including memory consumption and other statistics.
         /// </summary>
         /// <returns>a map of key/value pairs</returns>
         public Dictionary<string, RedisValue> GetInfo() =>
