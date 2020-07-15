@@ -1415,6 +1415,92 @@ namespace NRediSearch
             return (string)await _db.ExecuteAsync("FT.ALIASDEL", name).ConfigureAwait(false) == "OK";
         }
 
+        /// <summary>
+        /// Create a new synonyms group.
+        /// </summary>
+        /// <param name="terms">Terms to add to the synonym group.</param>
+        /// <returns>ID of the synonym group.</returns>
+        public long AddSynonym(params string[] terms)
+        {
+            var args = new object[terms.Length + 1];
+
+            args[0] = _boxedIndexName;
+
+            Array.Copy(terms, 0, args, 1, terms.Length);
+
+            return (long)DbSync.Execute("FT.SYNADD", args);
+        }
+
+        /// <summary>
+        /// Create a new synonyms group.
+        /// </summary>
+        /// <param name="terms">Terms to add to the synonym group.</param>
+        /// <returns>ID of the synonym group.</returns>
+        public async Task<long> AddSynonymAsync(params string[] terms)
+        {
+            var args = new object[terms.Length + 1];
+
+            args[0] = _boxedIndexName;
+
+            Array.Copy(terms, 0, args, 1, terms.Length);
+
+            return (long)await _db.ExecuteAsync("FT.SYNADD", args).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Update an existing synonym group.
+        /// </summary>
+        /// <param name="groupId">ID of the synonym group.</param>
+        /// <param name="term">Additional terms to add.</param>
+        public bool UpdateSynonym(long groupId, params string[] terms)
+        {
+            var args = new object[terms.Length + 2];
+
+            args[0] = IndexName;
+            args[1] = groupId;
+
+            Array.Copy(terms, 0, args, 2, terms.Length);
+
+            return (string)DbSync.Execute("FT.SYNUPDATE", args) == "OK";
+        }
+
+        /// <summary>
+        /// Update an existing synonym group.
+        /// </summary>
+        /// <param name="groupId">ID of the synonym group.</param>
+        /// <param name="term">Additionals terms to add.</param>
+        public async Task<bool> UpdateSynonymAsync(long groupId, params string[] terms)
+        {
+            var args = new object[terms.Length + 2];
+
+            args[0] = _boxedIndexName;
+            args[1] = groupId;
+
+            Array.Copy(terms, 0, args, 2, terms.Length);
+
+            return (string)await _db.ExecuteAsync("FT.SYNUPDATE", args).ConfigureAwait(false) == "OK";
+        }
+
+        /// <summary>
+        /// Dumps the entire contents of a synonym group. 
+        /// </summary>
+        public Dictionary<string, long[]> DumpSynonym()
+        {
+            var rawResult = (RedisResult[])DbSync.Execute("FT.SYNDUMP", _boxedIndexName);
+
+            return HandleDumpSynonymResult(rawResult);
+        }
+
+        /// <summary>
+        /// Dumps the entire contents of a synonym group. 
+        /// </summary>
+        public async Task<Dictionary<string, long[]>> DumpSynonymAsync()
+        {
+            var rawResult = (RedisResult[])await _db.ExecuteAsync("FT.SYNDUMP", _boxedIndexName).ConfigureAwait(false);
+
+            return HandleDumpSynonymResult(rawResult);
+        }
+
         private static Suggestion[] GetSuggestionsNoOptions(RedisResult[] results)
         {
             var suggestions = new Suggestion[results.Length];
@@ -1492,6 +1578,21 @@ namespace NRediSearch
                 {
                     result.Add(option, (string)r[1]);
                 }
+            }
+
+            return result;
+        }
+
+        private static Dictionary<string , long[]> HandleDumpSynonymResult(RedisResult[] rawResult)
+        {
+            var result = new Dictionary<string, long[]>();
+
+            for (var i = 0; i < rawResult.Length; i += 2)
+            {
+                var term = (string)rawResult[i];
+                var ids = (long[])rawResult[i + 1];
+
+                result.Add(term, ids);
             }
 
             return result;

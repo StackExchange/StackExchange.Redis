@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Runtime.CompilerServices;
 using StackExchange.Redis;
 using StackExchange.Redis.Tests;
@@ -62,6 +61,7 @@ namespace NRediSearch.Test
             try
             {
                 var result = client.DropIndex(); // tests create them
+
                 Output.WriteLine("  Result: " + result);
                 return result;
             }

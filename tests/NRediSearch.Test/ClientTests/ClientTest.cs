@@ -778,6 +778,9 @@ namespace NRediSearch.Test.ClientTests
         public void TestAddSuggestionGetSuggestionFuzzy()
         {
             Client cl = GetClient();
+
+            Db.KeyDelete(cl.IndexName);
+
             Suggestion suggestion = Suggestion.Builder.String("TOPIC OF WORDS").Score(1).Build();
             // test can add a suggestion string
             Assert.True(cl.AddSuggestion(suggestion, true) > 0, $"{suggestion} insert should of returned at least 1");
@@ -791,6 +794,9 @@ namespace NRediSearch.Test.ClientTests
         public void TestAddSuggestionGetSuggestion()
         {
             Client cl = GetClient();
+
+            Db.KeyDelete(cl.IndexName);
+
             Suggestion suggestion = Suggestion.Builder.String("ANOTHER_WORD").Score(1).Build();
             Suggestion noMatch = Suggestion.Builder.String("_WORD MISSED").Score(1).Build();
 
@@ -811,6 +817,8 @@ namespace NRediSearch.Test.ClientTests
         {
             Client cl = GetClient();
 
+            Db.KeyDelete(cl.IndexName);
+
             Suggestion suggestion = Suggestion.Builder.String("COUNT_ME TOO").Payload("PAYLOADS ROCK ").Score(0.2).Build();
             Assert.True(cl.AddSuggestion(suggestion, false) > 0, $"{suggestion.ToString()} insert should of at least returned 1");
             Assert.True(cl.AddSuggestion(suggestion.ToBuilder().String("COUNT").Payload("My PAYLOAD is better").Build(), false) > 1, "Count single added should return more than 1");
@@ -829,6 +837,9 @@ namespace NRediSearch.Test.ClientTests
         public void TestAddSuggestionGetSuggestionPayload()
         {
             Client cl = GetClient();
+
+            Db.KeyDelete(cl.IndexName);
+
             cl.AddSuggestion(Suggestion.Builder.String("COUNT_ME TOO").Payload("PAYLOADS ROCK ").Build(), false);
             cl.AddSuggestion(Suggestion.Builder.String("COUNT").Payload("ANOTHER PAYLOAD ").Build(), false);
             cl.AddSuggestion(Suggestion.Builder.String("COUNTNO PAYLOAD OR COUNT").Build(), false);
@@ -842,6 +853,8 @@ namespace NRediSearch.Test.ClientTests
         public void TestGetSuggestionNoPayloadTwoOnly()
         {
             Client cl = GetClient();
+
+            Db.KeyDelete(cl.IndexName);
 
             cl.AddSuggestion(Suggestion.Builder.String("DIFF_WORD").Score(0.4).Payload("PAYLOADS ROCK ").Build(), false);
             cl.AddSuggestion(Suggestion.Builder.String("DIFF wording").Score(0.5).Payload("ANOTHER PAYLOAD ").Build(), false);
@@ -859,6 +872,8 @@ namespace NRediSearch.Test.ClientTests
         {
             Client cl = GetClient();
 
+            Db.KeyDelete(cl.IndexName);
+
             cl.AddSuggestion(Suggestion.Builder.String("DIFF_WORD").Score(0.4).Payload("PAYLOADS ROCK ").Build(), false);
             cl.AddSuggestion(Suggestion.Builder.String("DIFF wording").Score(0.5).Payload("ANOTHER PAYLOAD ").Build(), false);
             cl.AddSuggestion(Suggestion.Builder.String("DIFFERENT").Score(0.7).Payload("I am a payload").Build(), false);
@@ -875,6 +890,8 @@ namespace NRediSearch.Test.ClientTests
         {
             Client cl = GetClient();
 
+            Db.KeyDelete(cl.IndexName);
+
             cl.AddSuggestion(Suggestion.Builder.String("DIFF_WORD").Score(0.4).Payload("PAYLOADS ROCK ").Build(), true);
             var list = cl.GetSuggestions("DIF", SuggestionOptions.Builder.Max(2).With(WithOptions.Scores).Build());
             Assert.True(list[0].Score <= .2, "Actual score: " + list[0].Score);
@@ -884,6 +901,8 @@ namespace NRediSearch.Test.ClientTests
         public void TestGetSuggestionAllNoHit()
         {
             Client cl = GetClient();
+
+            Db.KeyDelete(cl.IndexName);
 
             cl.AddSuggestion(Suggestion.Builder.String("NO WORD").Score(0.4).Build(), false);
 
@@ -895,6 +914,9 @@ namespace NRediSearch.Test.ClientTests
         public void TestAddSuggestionDeleteSuggestionLength()
         {
             Client cl = GetClient();
+
+            Db.KeyDelete(cl.IndexName);
+
             cl.AddSuggestion(Suggestion.Builder.String("TOPIC OF WORDS").Score(1).Build(), true);
             cl.AddSuggestion(Suggestion.Builder.String("ANOTHER ENTRY").Score(1).Build(), true);
 
@@ -909,6 +931,13 @@ namespace NRediSearch.Test.ClientTests
         public void TestAddSuggtionGetSuggestionLength()
         {
             Client cl = GetClient();
+
+            Db.KeyDelete(cl.IndexName);
+
+            cl.DeleteSuggestion("TOPIC OF WORDS");
+            cl.DeleteSuggestion("ANOTHER ENTRY");
+            cl.DeleteSuggestion("FINAL ENTRY");
+
             cl.AddSuggestion(Suggestion.Builder.String("TOPIC OF WORDS").Score(1).Build(), true);
             cl.AddSuggestion(Suggestion.Builder.String("ANOTHER ENTRY").Score(1).Build(), true);
             Assert.Equal(2, cl.CountSuggestions());
@@ -1157,36 +1186,31 @@ namespace NRediSearch.Test.ClientTests
             });
         }
 
-        //[Fact]
-        //public void TestSyn()
-        //{
-        //    Client cl = GetClient();
-        //    Reset(cl);
+        [Fact]
+        public void TestSyn()
+        {
+            Client cl = GetClient();
+            Reset(cl);
 
-        //    Schema sc = new Schema().AddTextField("name", 1.0).AddTextField("addr", 1.0);
-        //    Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
+            Schema sc = new Schema().AddTextField("name", 1.0).AddTextField("addr", 1.0);
+            Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
 
 
-        //    long group1 = cl.AddSynonym("girl", "baby");
-        //    Assert.True(cl.UpdateSynonym(group1, "child"));
+            long group1 = cl.AddSynonym("girl", "baby");
+            Assert.True(cl.UpdateSynonym(group1, "child"));
 
-        //    long group2 = cl.AddSynonym("child");
+            long group2 = cl.AddSynonym("child");
 
-        //    Assert.NotEqual(group1, group2);
+            Assert.NotEqual(group1, group2);
 
-        //    //Map<String, List<Long>> dump = cl.dumpSynonym();
-        //    Dictionary<string, List<long>> dump = cl.DumpSynonym();
+            Dictionary<string, long[]> dump = cl.DumpSynonym();
 
-        //    //Map<String, List<Long>> expected = new HashMap<>();
-        //    Dictionary<string, List<long>> expected = new Dictionary<string, List<long>>();
-        //    //expected.put("girl", Arrays.asList(group1));
-        //    expected.Add("girl", new List<long> { group1 });
-        //    //expected.put("baby", Arrays.asList(group1));
-        //    expected.Add("baby", new List<long> { group1 });
-        //    //expected.put("child", Arrays.asList(group1, group2));
-        //    expected.Add("child", new List<long> { group1, group2 });
+            Dictionary<string, long[]> expected = new Dictionary<string, long[]>();
+            expected.Add("girl", new[] { group1 });
+            expected.Add("baby", new[] { group1 });
+            expected.Add("child", new[] { group1, group2 });
 
-        //    Assert.Equal(expected, dump);
-        //}
+            Assert.Equal(expected, dump);
+        }
     }
 }
