@@ -287,7 +287,7 @@ namespace NRediSearch
                 pipelinedQueryResults[i] = SearchAsync(queries[i]);
             }
 
-            await Task.WhenAll(pipelinedQueryResults);
+            await Task.WhenAll(pipelinedQueryResults).ConfigureAwait(false);
 
             return pipelinedQueryResults.Select(qr => qr.Result).ToArray();
         }
