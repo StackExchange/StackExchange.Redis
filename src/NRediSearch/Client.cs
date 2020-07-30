@@ -50,6 +50,83 @@ namespace NRediSearch
             KeepTermFrequencies = 16
         }
 
+        public sealed class IndexDefinition
+        {
+            public enum IndexType
+            {
+                /// <summary>
+                /// Used to indicates that the index should follow the keys of type Hash changes
+                /// </summary>
+                HASH
+            }
+
+            internal readonly IndexType _type = IndexType.HASH;
+            internal readonly bool _async; 
+            internal readonly string[] _prefixes;
+            internal readonly string? _filter;
+            internal readonly string? _languageField;
+            internal readonly string? _language;
+            internal readonly string? _scoreFiled;
+            internal readonly double _score;
+            internal readonly string? _payloadField;
+
+            public IndexDefinition(bool async = false, string[] prefixes = null,
+            string? filter = null, string? languageField = null, string? language = null, 
+            string? scoreFiled = null, double score = 1.0, string? payloadField = null)
+            {
+                _async = async;
+                _prefixes = prefixes;
+                _filter = filter;
+                _languageField = languageField;
+                _language = language;
+                _scoreFiled = scoreFiled;
+                _score = score;
+                _payloadField = payloadField;
+            }
+
+            internal void SerializeRedisArgs(List<object> args)
+            {
+                args.Add("ON".Literal());
+                args.Add(_type);
+                if (_async)
+                {
+                    args.Add("ASYNC".Literal());
+                }
+                if (_prefixes?.Length > 0) 
+                {
+                    args.Add("PREFIX".Literal());
+                    args.Add(_prefixes.Length.ToString());
+                    args.AddRange(_prefixes);
+                }
+                if (_filter != null) 
+                {
+                    args.Add("FILTER".Literal());
+                    args.Add(_filter);
+                }                
+                if (_languageField != null) {
+                    args.Add("LANGUAGE_FIELD".Literal());
+                    args.Add(_languageField);      
+                }                
+                if (_language != null) {
+                    args.Add("LANGUAGE".Literal());
+                    args.Add(_language);      
+                }                
+                if (_scoreFiled != null) {
+                    args.Add("SCORE_FIELD".Literal());
+                    args.Add(_scoreFiled);      
+                }                
+                if (_score != 1.0) {
+                    args.Add("SCORE".Literal());
+                    args.Add(_score.ToString());      
+                }
+                if (_payloadField != null) {
+                    args.Add("PAYLOAD_FIELD".Literal());
+                    args.Add(_payloadField);      
+                }
+            }
+
+        }
+
         public sealed class ConfiguredIndexOptions
         {
             // This news up a enum which results in the 0 equivalent.
@@ -57,10 +134,12 @@ namespace NRediSearch
             public static IndexOptions Default => new IndexOptions();
 
             private IndexOptions _options;
+            private IndexDefinition _definition;
             private string[] _stopwords;
-            public ConfiguredIndexOptions(IndexOptions options = IndexOptions.Default)
+            public ConfiguredIndexOptions(IndexOptions options = IndexOptions.Default, IndexDefinition definition = null)
             {
                 _options = options;
+                _definition = definition;
             }
 
             /// <summary>
@@ -84,8 +163,8 @@ namespace NRediSearch
 
             internal void SerializeRedisArgs(List<object> args)
             {
-                SerializeRedisArgs(_options, args);
-                if (_stopwords != null && _stopwords.Length != 0)
+                SerializeRedisArgs(_options, args, _definition);
+                if (_stopwords?.Length > 0)
                 {
                     args.Add("STOPWORDS".Literal());
                     args.Add(_stopwords.Length.Boxed());
@@ -93,8 +172,12 @@ namespace NRediSearch
                 }
             }
 
-            internal static void SerializeRedisArgs(IndexOptions options, List<object> args)
+            internal static void SerializeRedisArgs(IndexOptions options, List<object> args, IndexDefinition definition)
             {
+                if (definition != null)
+                {
+                    definition.SerializeRedisArgs(args);
+                } 
                 if ((options & IndexOptions.UseTermOffsets) == 0)
                 {
                     args.Add("NOOFFSETS".Literal());
