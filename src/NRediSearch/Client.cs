@@ -63,16 +63,16 @@ namespace NRediSearch
             internal readonly IndexType _type = IndexType.HASH;
             internal readonly bool _async; 
             internal readonly string[] _prefixes;
-            internal readonly string? _filter;
-            internal readonly string? _languageField;
-            internal readonly string? _language;
-            internal readonly string? _scoreFiled;
+            internal readonly string _filter;
+            internal readonly string _languageField;
+            internal readonly string _language;
+            internal readonly string _scoreFiled;
             internal readonly double _score;
-            internal readonly string? _payloadField;
+            internal readonly string _payloadField;
 
             public IndexDefinition(bool async = false, string[] prefixes = null,
-            string? filter = null, string? languageField = null, string? language = null, 
-            string? scoreFiled = null, double score = 1.0, string? payloadField = null)
+            string filter = null, string languageField = null, string language = null, 
+            string scoreFiled = null, double score = 1.0, string payloadField = null)
             {
                 _async = async;
                 _prefixes = prefixes;
