@@ -2407,7 +2407,7 @@ namespace StackExchange.Redis
 
                 // verify role is master according to:
                 // https://redis.io/topics/sentinel-clients
-                if (connection.GetServer(newMasterEndPoint)?.Role() == RedisLiterals.master)
+                if (connection.GetServer(newMasterEndPoint)?.Role().Value == RedisLiterals.master)
                 {
                     success = true;
                     break;

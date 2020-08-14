@@ -10,18 +10,26 @@ namespace StackExchange.Redis
     /// Result of the ROLE command. Values depend on the role: master, replica, or sentinel.
     /// </summary>
     /// <remarks>https://redis.io/commands/role</remarks>
-    public abstract class ServerRole
+    public abstract class Role
     {
+        /// <summary>
+        /// One of "master", "slave" (aka replica), or "sentinel".
+        /// </summary>
+        public string Value { get; }
+
+        private Role(string role) => Value = role;
+
         /// <summary>
         /// Result of the ROLE command for a master node.
         /// </summary>
         /// <remarks>https://redis.io/commands/role#master-output</remarks>
-        public sealed class Master : ServerRole
+        public sealed class Master : Role
         {
             /// <summary>
             /// The replication offset. To be consumed by replica nodes.
             /// </summary>
-            public long ReplicationOffset { get; }
+            [CLSCompliant(false)]
+            public ulong ReplicationOffset { get; }
 
             /// <summary>
             /// Connected replica nodes.
@@ -41,12 +49,26 @@ namespace StackExchange.Redis
                 /// <summary>
                 /// The port number of this replica node.
                 /// </summary>
-                public int Port { get; }
+                public string Port { get; }
 
                 /// <summary>
                 /// The last replication offset acked by this replica node.
                 /// </summary>
-                public long ReplicationOffset { get; }
+                [CLSCompliant(false)]
+                public ulong ReplicationOffset { get; }
+
+                internal Replica(string ip, string port, ulong replicationOffset)
+                {
+                    Ip = ip;
+                    Port = port;
+                    ReplicationOffset = replicationOffset;
+                }
+            }
+
+            internal Master(ulong replicationOffset, ICollection<Replica> replicas) : base(RedisLiterals.master)
+            {
+                ReplicationOffset = replicationOffset;
+                Replicas = replicas;
             }
         }
 
@@ -54,7 +76,7 @@ namespace StackExchange.Redis
         /// Result of the ROLE command for a replica node.
         /// </summary>
         /// <remarks>https://redis.io/commands/role#output-of-the-command-on-replicas</remarks>
-        public sealed class Replica : ServerRole
+        public sealed class Replica : Role
         {
             /// <summary>
             /// The IP address of the master node for this replica.
@@ -64,17 +86,18 @@ namespace StackExchange.Redis
             /// <summary>
             /// The port number of the master node for this replica.
             /// </summary>
-            public int MasterPort { get; }
+            public string MasterPort { get; }
 
             /// <summary>
-            /// This replica's replication state as known by the master node.
+            /// This replica's replication state.
             /// </summary>
             public ReplicationState State { get; }
 
             /// <summary>
-            /// Data received from the master node relative to the master's replication offset.
+            /// The last replication offset received by this replica.
             /// </summary>
-            public long Received { get; }
+            [CLSCompliant(false)]
+            public ulong ReceivedReplicationOffset { get; }
 
             /// <summary>
             /// The state of a replica node.
@@ -101,20 +124,26 @@ namespace StackExchange.Redis
                 /// </summary>
                 Connected,
             }
+
+            internal Replica() : base(RedisLiterals.slave)
+            {
+            }
         }
 
         /// <summary>
         /// Result of the ROLE command for a sentinel node.
         /// </summary>
         /// <remarks>https://redis.io/commands/role#sentinel-output</remarks>
-        public sealed class Sentinel : ServerRole
+        public sealed class Sentinel : Role
         {
             /// <summary>
             /// Master names monitored by this sentinel node.
             /// </summary>
             public ICollection<string> MonitoredMasters { get; }
-        }
 
-        private ServerRole() { } // prevent other derived types
+            internal Sentinel() : base(RedisLiterals.sentinel)
+            {
+            }
+        }
     }
 }

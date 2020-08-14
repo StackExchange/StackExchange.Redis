@@ -85,6 +85,9 @@ namespace StackExchange.Redis
         public static readonly ResultProcessor<TimeSpan>
             ResponseTimer = new TimingProcessor();
 
+        public static readonly ResultProcessor<Role>
+            Role = new RoleProcessor();
+
         public static readonly ResultProcessor<RedisResult>
             ScriptResult = new ScriptResultProcessor();
 
@@ -1360,6 +1363,90 @@ The coordinates as a two items x,y array (longitude,latitude).
                         return true;
                 }
                 return false;
+            }
+        }
+
+        private sealed class RoleProcessor : ResultProcessor<Role>
+        {
+            protected override bool SetResultCore(PhysicalConnection connection, Message message, in RawResult result)
+            {
+                var items = result.GetItems();
+                if (items.IsEmpty)
+                {
+                    return false;
+                }
+                ref var role = ref items[0];
+                if (role.IsEqual(RedisLiterals.master)) return TryParseMaster(message, items);
+                else if (role.IsEqual(RedisLiterals.slave)) return TryParseReplica(message, items);
+                else if (role.IsEqual(RedisLiterals.sentinel)) return TryParseSentinel(message, items);
+                else return false;
+            }
+
+            private bool TryParseMaster(Message message, in Sequence<RawResult> items)
+            {
+                if (items.Length < 3)
+                {
+                    return false;
+                }
+
+                if (!items[1].TryGetUInt64(out var offset))
+                {
+                    return false;
+                }
+
+                var replicaItems = items[2].GetItems();
+                ICollection<Role.Master.Replica> replicas;
+                if (replicaItems.IsEmpty)
+                {
+                    replicas = Array.Empty<Role.Master.Replica>();
+                }
+                else
+                {
+                    replicas = new List<Role.Master.Replica>((int)replicaItems.Length);
+                    for (int i = 0; i < replicaItems.Length; i++)
+                    {
+                        if (TryParseMasterReplica(replicaItems[i].GetItems(), out var replica))
+                        {
+                            replicas.Add(replica);
+                        }
+                        else
+                        {
+                            return false;
+                        }
+                    }
+                }                
+
+                var role = new Role.Master(offset, replicas);
+                SetResult(message, role);
+                return true;
+            }
+
+            private static bool TryParseMasterReplica(in Sequence<RawResult> items, out Role.Master.Replica replica)
+            {
+                if (items.Length < 3)
+                {
+                    replica = default;
+                    return false;
+                }
+                var masterIp = items[0].GetString();
+                var masterPort = items[1].GetString();
+                if (!items[2].TryGetUInt64(out var replicationOffset))
+                {
+                    replica = default;
+                    return false;
+                }
+                replica = new Role.Master.Replica(masterIp, masterPort, replicationOffset);
+                return true;
+            }
+
+            private bool TryParseReplica(Message message, in Sequence<RawResult> items)
+            {
+                throw new NotImplementedException();
+            }
+
+            private bool TryParseSentinel(Message message, in Sequence<RawResult> items)
+            {
+                throw new NotImplementedException();
             }
         }
 

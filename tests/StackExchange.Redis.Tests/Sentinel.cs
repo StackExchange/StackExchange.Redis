@@ -600,7 +600,7 @@ namespace StackExchange.Redis.Tests
             {
                 try
                 {
-                    if (server.Role() == role)
+                    if (server.Role().Value == role)
                     {
                         Log($"Done waiting for server ({server.EndPoint}) role to be \"{role}\"");
                         return;

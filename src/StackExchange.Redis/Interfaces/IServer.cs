@@ -428,13 +428,13 @@ namespace StackExchange.Redis
         /// Returns the role info for the current server.
         /// </summary>
         /// <remarks>https://redis.io/commands/role</remarks>
-        ServerRole RoleGet();
+        Role Role(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Returns the role info for the current server.
         /// </summary>
         /// <remarks>https://redis.io/commands/role</remarks>
-        Task<ServerRole> RoleGetAsync();
+        Task<Role> RoleAsync(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Explicitly request the database to persist the current state to disk
@@ -1055,14 +1055,5 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="server">The server to simulate failure on.</param>
         public static void SimulateConnectionFailure(this IServer server) => (server as RedisServer)?.SimulateConnectionFailure();
-
-        public static string Role(this IServer server)
-        {
-            var result = (RedisResult[])server.Execute("ROLE");
-            if (result != null && result.Length > 0)
-                return result[0].ToString();
-
-            return null;
-        }
     }
 }
