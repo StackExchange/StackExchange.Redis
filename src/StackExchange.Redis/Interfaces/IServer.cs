@@ -330,6 +330,7 @@ namespace StackExchange.Redis
         /// Get summary statistics associates with this server
         /// </summary>
         ServerCounters GetCounters();
+
         /// <summary>
         /// The INFO command returns information and statistics about the server in a format that is simple to parse by computers and easy to read by humans.
         /// </summary>
@@ -422,6 +423,18 @@ namespace StackExchange.Redis
         /// <param name="options">The options to use for this topology change.</param>
         /// <param name="log">The log to write output to.</param>
         void MakeMaster(ReplicationChangeOptions options, TextWriter log = null);
+
+        /// <summary>
+        /// Returns the role info for the current server.
+        /// </summary>
+        /// <remarks>https://redis.io/commands/role</remarks>
+        ServerRole RoleGet();
+
+        /// <summary>
+        /// Returns the role info for the current server.
+        /// </summary>
+        /// <remarks>https://redis.io/commands/role</remarks>
+        Task<ServerRole> RoleGetAsync();
 
         /// <summary>
         /// Explicitly request the database to persist the current state to disk
