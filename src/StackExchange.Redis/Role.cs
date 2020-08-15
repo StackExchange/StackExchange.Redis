@@ -28,8 +28,7 @@ namespace StackExchange.Redis
             /// <summary>
             /// The replication offset. To be consumed by replica nodes.
             /// </summary>
-            [CLSCompliant(false)]
-            public ulong ReplicationOffset { get; }
+            public long ReplicationOffset { get; }
 
             /// <summary>
             /// Connected replica nodes.
@@ -49,25 +48,24 @@ namespace StackExchange.Redis
                 /// <summary>
                 /// The port number of this replica node.
                 /// </summary>
-                public string Port { get; }
+                public int Port { get; }
 
                 /// <summary>
                 /// The last replication offset acked by this replica node.
                 /// </summary>
-                [CLSCompliant(false)]
-                public ulong ReplicationOffset { get; }
+                public long ReplicationOffset { get; }
 
-                internal Replica(string ip, string port, ulong replicationOffset)
+                internal Replica(string ip, int port, long offset)
                 {
                     Ip = ip;
                     Port = port;
-                    ReplicationOffset = replicationOffset;
+                    ReplicationOffset = offset;
                 }
             }
 
-            internal Master(ulong replicationOffset, ICollection<Replica> replicas) : base(RedisLiterals.master)
+            internal Master(long offset, ICollection<Replica> replicas) : base(RedisLiterals.master)
             {
-                ReplicationOffset = replicationOffset;
+                ReplicationOffset = offset;
                 Replicas = replicas;
             }
         }
@@ -86,47 +84,24 @@ namespace StackExchange.Redis
             /// <summary>
             /// The port number of the master node for this replica.
             /// </summary>
-            public string MasterPort { get; }
+            public int MasterPort { get; }
 
             /// <summary>
             /// This replica's replication state.
             /// </summary>
-            public ReplicationState State { get; }
+            public string State { get; }
 
             /// <summary>
             /// The last replication offset received by this replica.
             /// </summary>
-            [CLSCompliant(false)]
-            public ulong ReceivedReplicationOffset { get; }
+            public long ReplicationOffset { get; }
 
-            /// <summary>
-            /// The state of a replica node.
-            /// </summary>
-            public enum ReplicationState
+            internal Replica(string role, string ip, int port, string state, long offset) : base(role)
             {
-                /// <summary>
-                /// Not connected to the master node.
-                /// </summary>
-                NotConnected,
-
-                /// <summary>
-                /// Attempting to connect to the master node.
-                /// </summary>
-                Connecting,
-
-                /// <summary>
-                /// Connected to the master node and syncing commands to catch up.
-                /// </summary>
-                Syncing,
-
-                /// <summary>
-                /// Connected to the master node and up-to-date.
-                /// </summary>
-                Connected,
-            }
-
-            internal Replica() : base(RedisLiterals.slave)
-            {
+                MasterIp = ip;
+                MasterPort = port;
+                State = state;
+                ReplicationOffset = offset;
             }
         }
 
@@ -141,9 +116,18 @@ namespace StackExchange.Redis
             /// </summary>
             public ICollection<string> MonitoredMasters { get; }
 
-            internal Sentinel() : base(RedisLiterals.sentinel)
+            internal Sentinel(ICollection<string> masters) : base(RedisLiterals.sentinel)
             {
+                MonitoredMasters = masters;
             }
+        }
+
+        /// <summary>
+        /// An unexpected result of the ROLE command.
+        /// </summary>
+        public sealed class Unknown : Role
+        {
+            internal Unknown(string role) : base(role) { }
         }
     }
 }

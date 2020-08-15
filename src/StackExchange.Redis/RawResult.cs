@@ -371,11 +371,9 @@ namespace StackExchange.Redis
             return Format.TryParseDouble(GetString(), out val);
         }
 
-        private bool CanContainInt64 => !IsNull && !Payload.IsEmpty && Payload.Length <= PhysicalConnection.MaxInt64TextLen;
-
         internal bool TryGetInt64(out long value)
         {
-            if (!CanContainInt64)
+            if (IsNull || Payload.IsEmpty || Payload.Length > PhysicalConnection.MaxInt64TextLen)
             {
                 value = 0;
                 return false;
@@ -386,21 +384,6 @@ namespace StackExchange.Redis
             Span<byte> span = stackalloc byte[(int)Payload.Length]; // we already checked the length was <= MaxInt64TextLen
             Payload.CopyTo(span);
             return Format.TryParseInt64(span, out value);
-        }
-
-        internal bool TryGetUInt64(out ulong value)
-        {
-            if (!CanContainInt64)
-            {
-                value = 0;
-                return false;
-            }
-
-            if (Payload.IsSingleSegment) return Format.TryParseUInt64(Payload.First.Span, out value);
-
-            Span<byte> span = stackalloc byte[(int)Payload.Length]; // we already checked the length was <= MaxInt64TextLen
-            Payload.CopyTo(span);
-            return Format.TryParseUInt64(span, out value);
         }
     }
 }

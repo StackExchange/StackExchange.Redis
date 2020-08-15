@@ -1375,23 +1375,30 @@ The coordinates as a two items x,y array (longitude,latitude).
                 {
                     return false;
                 }
-                ref var role = ref items[0];
-                if (role.IsEqual(RedisLiterals.master)) return TryParseMaster(message, items);
-                else if (role.IsEqual(RedisLiterals.slave)) return TryParseReplica(message, items);
-                else if (role.IsEqual(RedisLiterals.sentinel)) return TryParseSentinel(message, items);
-                else return false;
+
+                ref var val = ref items[0];
+                Role role;
+                if (val.IsEqual(RedisLiterals.master)) role = ParseMaster(items);
+                else if (val.IsEqual(RedisLiterals.slave)) role = ParseReplica(items, RedisLiterals.slave);
+                else if (val.IsEqual(RedisLiterals.replica)) role = ParseReplica(items, RedisLiterals.replica); // for when "slave" is deprecated
+                else if (val.IsEqual(RedisLiterals.sentinel)) role = ParseSentinel(items);
+                else role = new Role.Unknown(val.GetString());
+
+                if (role is null) return false;
+                SetResult(message, role);
+                return true;
             }
 
-            private bool TryParseMaster(Message message, in Sequence<RawResult> items)
+            private static Role ParseMaster(in Sequence<RawResult> items)
             {
                 if (items.Length < 3)
                 {
-                    return false;
+                    return null;
                 }
 
-                if (!items[1].TryGetUInt64(out var offset))
+                if (!items[1].TryGetInt64(out var offset))
                 {
-                    return false;
+                    return null;
                 }
 
                 var replicaItems = items[2].GetItems();
@@ -1411,14 +1418,12 @@ The coordinates as a two items x,y array (longitude,latitude).
                         }
                         else
                         {
-                            return false;
+                            return null;
                         }
                     }
                 }                
 
-                var role = new Role.Master(offset, replicas);
-                SetResult(message, role);
-                return true;
+                return new Role.Master(offset, replicas);
             }
 
             private static bool TryParseMasterReplica(in Sequence<RawResult> items, out Role.Master.Replica replica)
@@ -1428,25 +1433,65 @@ The coordinates as a two items x,y array (longitude,latitude).
                     replica = default;
                     return false;
                 }
+
                 var masterIp = items[0].GetString();
-                var masterPort = items[1].GetString();
-                if (!items[2].TryGetUInt64(out var replicationOffset))
+
+                if (!items[1].TryGetInt64(out var masterPort) || masterPort > int.MaxValue)
                 {
                     replica = default;
                     return false;
                 }
-                replica = new Role.Master.Replica(masterIp, masterPort, replicationOffset);
+
+                if (!items[2].TryGetInt64(out var replicationOffset))
+                {
+                    replica = default;
+                    return false;
+                }
+
+                replica = new Role.Master.Replica(masterIp, (int)masterPort, replicationOffset);
                 return true;
             }
 
-            private bool TryParseReplica(Message message, in Sequence<RawResult> items)
+            private static Role ParseReplica(in Sequence<RawResult> items, string role)
             {
-                throw new NotImplementedException();
+                if (items.Length < 5)
+                {
+                    return null;
+                }
+
+                var masterIp = items[1].GetString();
+
+                if (!items[2].TryGetInt64(out var masterPort) || masterPort > int.MaxValue)
+                {
+                    return null;
+                }
+
+                ref var val = ref items[3];
+                string replicationState;
+                if (val.IsEqual(RedisLiterals.connect)) replicationState = RedisLiterals.connect;
+                else if (val.IsEqual(RedisLiterals.connecting)) replicationState = RedisLiterals.connecting;
+                else if (val.IsEqual(RedisLiterals.sync)) replicationState = RedisLiterals.sync;
+                else if (val.IsEqual(RedisLiterals.connected)) replicationState = RedisLiterals.connected;
+                else if (val.IsEqual(RedisLiterals.none)) replicationState = RedisLiterals.none;
+                else if (val.IsEqual(RedisLiterals.handshake)) replicationState = RedisLiterals.handshake;
+                else replicationState = val.GetString();
+
+                if (!items[4].TryGetInt64(out var replicationOffset))
+                {
+                    return null;
+                }
+
+                return new Role.Replica(role, masterIp, (int)masterPort, replicationState, replicationOffset);
             }
 
-            private bool TryParseSentinel(Message message, in Sequence<RawResult> items)
+            private static Role ParseSentinel(in Sequence<RawResult> items)
             {
-                throw new NotImplementedException();
+                if (items.Length < 2)
+                {
+                    return null;
+                }
+                var masters = items[1].GetItemsAsStrings();
+                return new Role.Sentinel(masters);
             }
         }
 

@@ -220,6 +220,18 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void SentinelRole()
+        {
+            foreach (var server in SentinelsServers)
+            {
+                var role = server.Role();
+                Assert.Equal(role.Value, RedisLiterals.sentinel);
+                var sentinel = role as Role.Sentinel;
+                Assert.NotNull(sentinel);
+            }
+        }
+
+        [Fact]
         public void PingTest()
         {
             var test = SentinelServerA.Ping();
