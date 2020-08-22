@@ -4,16 +4,16 @@ services:
   redisearch:
     image: redislabs/redisearch
     ports:
-      - 6385:6379
+      - 6485:6379
   redis:
     build:
       context: .
     image: stackexchange/redis-tests:latest
     platform: linux
     ports:
-      - 6379-6383:6379-6383
+      - 6479-6483:6479-6483
       - 7000-7006:7000-7006
       - 7010-7011:7010-7011
-      - 26379-26381:26379-26381
+      - 26479-26481:26479-26481
     sysctls :
       net.core.somaxconn: '511'

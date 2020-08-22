@@ -47,9 +47,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Sentinel", "Sentinel", "{36
 	ProjectSection(SolutionItems) = preProject
 		tests\RedisConfigs\Sentinel\redis-7010.conf = tests\RedisConfigs\Sentinel\redis-7010.conf
 		tests\RedisConfigs\Sentinel\redis-7011.conf = tests\RedisConfigs\Sentinel\redis-7011.conf
-		tests\RedisConfigs\Sentinel\sentinel-26379.conf = tests\RedisConfigs\Sentinel\sentinel-26379.conf
-		tests\RedisConfigs\Sentinel\sentinel-26380.conf = tests\RedisConfigs\Sentinel\sentinel-26380.conf
-		tests\RedisConfigs\Sentinel\sentinel-26381.conf = tests\RedisConfigs\Sentinel\sentinel-26381.conf
+		tests\RedisConfigs\Sentinel\sentinel-26479.conf = tests\RedisConfigs\Sentinel\sentinel-26479.conf
+		tests\RedisConfigs\Sentinel\sentinel-26480.conf = tests\RedisConfigs\Sentinel\sentinel-26480.conf
+		tests\RedisConfigs\Sentinel\sentinel-26481.conf = tests\RedisConfigs\Sentinel\sentinel-26481.conf
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Cluster", "Cluster", "{A3B4B972-5BD2-4D90-981F-7E51E350E628}"
@@ -70,9 +70,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Cluster", "Cluster", "{A3B4
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Basic", "Basic", "{38BDEEED-7BEB-4B1F-9CE0-256D63F9C502}"
 	ProjectSection(SolutionItems) = preProject
-		tests\RedisConfigs\Basic\master-6379.conf = tests\RedisConfigs\Basic\master-6379.conf
-		tests\RedisConfigs\Basic\secure-6381.conf = tests\RedisConfigs\Basic\secure-6381.conf
-		tests\RedisConfigs\Basic\slave-6380.conf = tests\RedisConfigs\Basic\slave-6380.conf
+		tests\RedisConfigs\Basic\master-6479.conf = tests\RedisConfigs\Basic\master-6479.conf
+		tests\RedisConfigs\Basic\secure-6481.conf = tests\RedisConfigs\Basic\secure-6481.conf
+		tests\RedisConfigs\Basic\replica-6480.conf = tests\RedisConfigs\Basic\replica-6480.conf
 	EndProjectSection
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BasicTestBaseline", "tests\BasicTestBaseline\BasicTestBaseline.csproj", "{8FDB623D-779B-4A84-BC6B-75106E41D8A4}"
@@ -81,8 +81,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TestConsole", "toys\TestCon
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Failover", "Failover", "{D082703F-1652-4C35-840D-7D377F6B9979}"
 	ProjectSection(SolutionItems) = preProject
-		tests\RedisConfigs\Failover\master-6382.conf = tests\RedisConfigs\Failover\master-6382.conf
-		tests\RedisConfigs\Failover\slave-6383.conf = tests\RedisConfigs\Failover\slave-6383.conf
+		tests\RedisConfigs\Failover\master-6482.conf = tests\RedisConfigs\Failover\master-6482.conf
+		tests\RedisConfigs\Failover\replica-6483.conf = tests\RedisConfigs\Failover\replica-6483.conf
 	EndProjectSection
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "StackExchange.Redis.Server", "toys\StackExchange.Redis.Server\StackExchange.Redis.Server.csproj", "{8375813E-FBAF-4DA3-A2C7-E4645B39B931}"

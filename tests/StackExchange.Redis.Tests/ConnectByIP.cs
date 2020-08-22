@@ -82,27 +82,27 @@ namespace StackExchange.Redis.Tests
 
         public static IEnumerable<object[]> ConnectByVariousEndpointsData()
         {
-            yield return new object[] { new IPEndPoint(IPAddress.Loopback, 6379), AddressFamily.InterNetwork };
+            yield return new object[] { new IPEndPoint(IPAddress.Loopback, 6479), AddressFamily.InterNetwork };
 
-            yield return new object[] { new IPEndPoint(IPAddress.IPv6Loopback, 6379), AddressFamily.InterNetworkV6 };
+            yield return new object[] { new IPEndPoint(IPAddress.IPv6Loopback, 6479), AddressFamily.InterNetworkV6 };
 
-            yield return new object[] { new DnsEndPoint("localhost", 6379), AddressFamily.Unspecified };
+            yield return new object[] { new DnsEndPoint("localhost", 6479), AddressFamily.Unspecified };
 
-            yield return new object[] { new DnsEndPoint("localhost", 6379, AddressFamily.InterNetwork), AddressFamily.InterNetwork };
+            yield return new object[] { new DnsEndPoint("localhost", 6479, AddressFamily.InterNetwork), AddressFamily.InterNetwork };
 
-            yield return new object[] { new DnsEndPoint("localhost", 6379, AddressFamily.InterNetworkV6), AddressFamily.InterNetworkV6 };
+            yield return new object[] { new DnsEndPoint("localhost", 6479, AddressFamily.InterNetworkV6), AddressFamily.InterNetworkV6 };
 
-            yield return new object[] { ConfigurationOptions.Parse("localhost:6379").EndPoints.Single(), AddressFamily.Unspecified };
+            yield return new object[] { ConfigurationOptions.Parse("localhost:6479").EndPoints.Single(), AddressFamily.Unspecified };
 
             yield return new object[] { ConfigurationOptions.Parse("localhost").EndPoints.Single(), AddressFamily.Unspecified };
 
-            yield return new object[] { ConfigurationOptions.Parse("127.0.0.1:6379").EndPoints.Single(), AddressFamily.InterNetwork };
+            yield return new object[] { ConfigurationOptions.Parse("127.0.0.1:6479").EndPoints.Single(), AddressFamily.InterNetwork };
 
             yield return new object[] { ConfigurationOptions.Parse("127.0.0.1").EndPoints.Single(), AddressFamily.InterNetwork };
 
             yield return new object[] { ConfigurationOptions.Parse("[::1]").EndPoints.Single(), AddressFamily.InterNetworkV6 };
 
-            yield return new object[] { ConfigurationOptions.Parse("[::1]:6379").EndPoints.Single(), AddressFamily.InterNetworkV6 };
+            yield return new object[] { ConfigurationOptions.Parse("[::1]:6479").EndPoints.Single(), AddressFamily.InterNetworkV6 };
         }
     }
 }

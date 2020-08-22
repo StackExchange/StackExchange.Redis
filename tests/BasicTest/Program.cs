@@ -62,7 +62,7 @@ namespace BasicTest
         {
             // Pipelines.Sockets.Unofficial.SocketConnection.AssertDependencies();
 
-            var options = ConfigurationOptions.Parse("127.0.0.1:6379");
+            var options = ConfigurationOptions.Parse("127.0.0.1:6479");
             connection = ConnectionMultiplexer.Connect(options);
             db = connection.GetDatabase(3);
 
@@ -226,7 +226,7 @@ namespace BasicTest
         public void Dispose() => mux?.Dispose();
         public Issue898()
         {
-            mux = ConnectionMultiplexer.Connect("127.0.0.1:6379");
+            mux = ConnectionMultiplexer.Connect("127.0.0.1:6479");
             db = mux.GetDatabase();
         }
 

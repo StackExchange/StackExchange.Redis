@@ -12,15 +12,15 @@ install:
 - cmd: >-
     cd tests\RedisConfigs\3.0.503
 
-    redis-server.exe --service-install --service-name "redis-6379" "..\Basic\master-6379.conf"
+    redis-server.exe --service-install --service-name "redis-6479" "..\Basic\master-6479.conf"
 
-    redis-server.exe --service-install --service-name "redis-6380" "..\Basic\replica-6380.conf"
+    redis-server.exe --service-install --service-name "redis-6480" "..\Basic\replica-6480.conf"
 
-    redis-server.exe --service-install --service-name "redis-6381" "..\Basic\secure-6381.conf"
+    redis-server.exe --service-install --service-name "redis-6481" "..\Basic\secure-6481.conf"
 
-    redis-server.exe --service-install --service-name "redis-6382" "..\Failover\master-6382.conf"
+    redis-server.exe --service-install --service-name "redis-6482" "..\Failover\master-6482.conf"
 
-    redis-server.exe --service-install --service-name "redis-6383" "..\Failover\replica-6383.conf"
+    redis-server.exe --service-install --service-name "redis-6483" "..\Failover\replica-6483.conf"
 
     redis-server.exe --service-install --service-name "redis-7000" "..\Cluster\cluster-7000.conf" --dir "..\Cluster"
 
@@ -38,11 +38,11 @@ install:
 
     redis-server.exe --service-install --service-name "redis-7011" "..\Sentinel\redis-7011.conf"
 
-    redis-server.exe --service-install --service-name "redis-26379" "..\Sentinel\sentinel-26379.conf" --sentinel
+    redis-server.exe --service-install --service-name "redis-26479" "..\Sentinel\sentinel-26479.conf" --sentinel
 
-    redis-server.exe --service-install --service-name "redis-26380" "..\Sentinel\sentinel-26380.conf" --sentinel
+    redis-server.exe --service-install --service-name "redis-26480" "..\Sentinel\sentinel-26480.conf" --sentinel
     
-    redis-server.exe --service-install --service-name "redis-26381" "..\Sentinel\sentinel-26381.conf" --sentinel
+    redis-server.exe --service-install --service-name "redis-26481" "..\Sentinel\sentinel-26481.conf" --sentinel
 
     cd ..\..\..
 - sh: >-
