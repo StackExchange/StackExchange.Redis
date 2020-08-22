@@ -23,7 +23,7 @@ namespace StackExchange.Redis.Tests
                 var channels = server.SubscriptionChannels(Me() + "*");
                 Assert.DoesNotContain(channel, channels);
 
-                long justWork = server.SubscriptionPatternCount();
+                _ = server.SubscriptionPatternCount();
                 var count = server.SubscriptionSubscriberCount(channel);
                 Assert.Equal(0, count);
                 conn.GetSubscriber().Subscribe(channel, delegate { });
@@ -46,7 +46,7 @@ namespace StackExchange.Redis.Tests
                 var channels = await server.SubscriptionChannelsAsync(Me() + "*").WithTimeout(2000);
                 Assert.DoesNotContain(channel, channels);
 
-                long justWork = await server.SubscriptionPatternCountAsync().WithTimeout(2000);
+                _ = await server.SubscriptionPatternCountAsync().WithTimeout(2000);
                 var count = await server.SubscriptionSubscriberCountAsync(channel).WithTimeout(2000);
                 Assert.Equal(0, count);
                 await conn.GetSubscriber().SubscribeAsync(channel, delegate { }).WithTimeout(2000);

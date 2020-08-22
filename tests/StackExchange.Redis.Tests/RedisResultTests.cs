@@ -35,7 +35,7 @@ namespace StackExchange.Redis.Tests
         public void ToDictionaryWorksWhenNested()
         {
             var redisArrayResult = RedisResult.Create(
-                new RedisResult[]
+                new []
                 {
                     RedisResult.Create((RedisValue)"one"),
                     RedisResult.Create(new RedisValue[]{"two", 2, "three", 3}),

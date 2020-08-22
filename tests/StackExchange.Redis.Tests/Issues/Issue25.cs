@@ -23,14 +23,14 @@ namespace StackExchange.Redis.Tests.Issues
         [Fact]
         public void UnkonwnKeywordHandling_Ignore()
         {
-            var options = ConfigurationOptions.Parse("ssl2=true", true);
+            ConfigurationOptions.Parse("ssl2=true", true);
         }
 
         [Fact]
         public void UnkonwnKeywordHandling_ExplicitFail()
         {
             var ex = Assert.Throws<ArgumentException>(() => {
-                var options = ConfigurationOptions.Parse("ssl2=true", false);
+                ConfigurationOptions.Parse("ssl2=true", false);
             });
             Assert.Equal("Keyword 'ssl2' is not supported", ex.Message);
         }
@@ -39,7 +39,7 @@ namespace StackExchange.Redis.Tests.Issues
         public void UnkonwnKeywordHandling_ImplicitFail()
         {
             var ex = Assert.Throws<ArgumentException>(() => {
-                var options = ConfigurationOptions.Parse("ssl2=true");
+                ConfigurationOptions.Parse("ssl2=true");
             });
             Assert.Equal("Keyword 'ssl2' is not supported", ex.Message);
         }

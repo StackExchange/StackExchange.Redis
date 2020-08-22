@@ -37,15 +37,15 @@ namespace StackExchange.Redis.Tests
             var arr = Encoding.UTF8.GetBytes("hello world");
             var ms = new MemoryStream(arr);
             var val = RedisValue.CreateFrom(ms);
-            Assert.Equal("hello world", (string)val);
+            Assert.Equal("hello world", val);
 
             ms = new MemoryStream(arr, 1, 6, false, false);
             val = RedisValue.CreateFrom(ms);
-            Assert.Equal("ello w", (string)val);
+            Assert.Equal("ello w", val);
 
             ms = new MemoryStream(arr, 2, 6, false, true);
             val = RedisValue.CreateFrom(ms);
-            Assert.Equal("llo wo", (string)val);
+            Assert.Equal("llo wo", val);
         }
     }
 }

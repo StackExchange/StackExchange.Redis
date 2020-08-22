@@ -41,7 +41,7 @@ namespace StackExchange.Redis.Tests
             var tran = connection.CreateTransaction();
             { // check hasn't changed
                 tran.AddCondition(Condition.StringEqual(key, oldVal));
-                var t = tran.StringSetAsync(key, newVal);
+                _ = tran.StringSetAsync(key, newVal);
                 if (!await tran.ExecuteAsync().ForAwait()) return null; // aborted
                 return newVal;
             }

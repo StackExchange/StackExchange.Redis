@@ -918,7 +918,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamMessagesDelete()
         {
-            var messageIds = new RedisValue[0] { };
+            var messageIds = new RedisValue[] { };
             wrapper.StreamDelete("key", messageIds, CommandFlags.None);
             mock.Verify(_ => _.StreamDelete("prefix:key", messageIds, CommandFlags.None));
         }
@@ -961,7 +961,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamRead_1()
         {
-            var streamPositions = new StreamPosition[0] { };
+            var streamPositions = new StreamPosition[] { };
             wrapper.StreamRead(streamPositions, null, CommandFlags.None);
             mock.Verify(_ => _.StreamRead(streamPositions, null, CommandFlags.None));
         }
@@ -983,7 +983,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamStreamReadGroup_2()
         {
-            var streamPositions = new StreamPosition[0] { };
+            var streamPositions = new StreamPosition[] { };
             wrapper.StreamReadGroup(streamPositions, "group", "consumer", 10, false, CommandFlags.None);
             mock.Verify(_ => _.StreamReadGroup(streamPositions, "group", "consumer", 10, false, CommandFlags.None));
         }

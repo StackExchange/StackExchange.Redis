@@ -81,31 +81,31 @@ namespace StackExchange.Redis.Tests
                 // simple
                 RedisKey key = "world";
                 var ret = key.Prepend("hello");
-                Assert.Equal("helloworld", (string)ret);
+                Assert.Equal("helloworld", ret);
             }
 
             {
                 RedisKey key1 = "world";
                 RedisKey key2 = Encoding.UTF8.GetBytes("hello");
                 var key3 = key1.Prepend(key2);
-                Assert.True(object.ReferenceEquals(key1.KeyValue, key3.KeyValue));
-                Assert.True(object.ReferenceEquals(key2.KeyValue, key3.KeyPrefix));
-                Assert.Equal("helloworld", (string)key3);
+                Assert.True(ReferenceEquals(key1.KeyValue, key3.KeyValue));
+                Assert.True(ReferenceEquals(key2.KeyValue, key3.KeyPrefix));
+                Assert.Equal("helloworld", key3);
             }
 
             {
                 RedisKey key = "hello";
                 var ret = key.Append("world");
-                Assert.Equal("helloworld", (string)ret);
+                Assert.Equal("helloworld", ret);
             }
 
             {
                 RedisKey key1 = Encoding.UTF8.GetBytes("hello");
                 RedisKey key2 = "world";
                 var key3 = key1.Append(key2);
-                Assert.True(object.ReferenceEquals(key2.KeyValue, key3.KeyValue));
-                Assert.True(object.ReferenceEquals(key1.KeyValue, key3.KeyPrefix));
-                Assert.Equal("helloworld", (string)key3);
+                Assert.True(ReferenceEquals(key2.KeyValue, key3.KeyValue));
+                Assert.True(ReferenceEquals(key1.KeyValue, key3.KeyPrefix));
+                Assert.Equal("helloworld", key3);
             }
         }
 
@@ -205,7 +205,7 @@ namespace StackExchange.Redis.Tests
             using (var muxer = Create())
             {
                 Skip.IfMissingFeature(muxer, nameof(RedisFeatures.KeyTouch), r => r.KeyTouch);
-                
+
                 RedisKey key = Me();
                 var db = muxer.GetDatabase();
                 db.KeyDelete(key, CommandFlags.FireAndForget);

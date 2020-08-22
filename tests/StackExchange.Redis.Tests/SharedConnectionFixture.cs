@@ -313,8 +313,8 @@ namespace StackExchange.Redis.Tests
 
         public void Teardown(TextWriter output)
         {
-            var privateFailCount = Interlocked.Exchange(ref this.privateFailCount, 0);
-            if (privateFailCount != 0)
+            var innerPrivateFailCount = Interlocked.Exchange(ref privateFailCount, 0);
+            if (innerPrivateFailCount != 0)
             {
                 lock (privateExceptions)
                 {
