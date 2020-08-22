@@ -411,7 +411,7 @@ namespace StackExchange.Redis.Tests
         {
             var config = new ConfigurationOptions
             {
-                EndPoints = { { IPAddress.Loopback, 6379 } },
+                EndPoints = { { TestConfig.Current.MasterServer, TestConfig.Current.MasterPort } },
                 SocketManager = SocketManager.ThreadPool
             };
             using var muxer = ConnectionMultiplexer.Connect(config);
@@ -423,7 +423,7 @@ namespace StackExchange.Redis.Tests
         {
             var config = new ConfigurationOptions
             {
-                EndPoints = { { IPAddress.Loopback, 6379 } },
+                EndPoints = { { TestConfig.Current.MasterServer, TestConfig.Current.MasterPort } },
             };
             using var muxer = ConnectionMultiplexer.Connect(config);
             Assert.Same(SocketManager.Shared.Scheduler, muxer.SocketManager.Scheduler);

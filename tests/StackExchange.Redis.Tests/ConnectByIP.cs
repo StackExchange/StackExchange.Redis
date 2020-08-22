@@ -98,9 +98,10 @@ namespace StackExchange.Redis.Tests
 
             yield return new object[] { ConfigurationOptions.Parse("127.0.0.1:6479").EndPoints.Single(), AddressFamily.InterNetwork };
 
-            yield return new object[] { ConfigurationOptions.Parse("127.0.0.1").EndPoints.Single(), AddressFamily.InterNetwork };
+            // Non-default ports in use for testing
+            //yield return new object[] { ConfigurationOptions.Parse("127.0.0.1").EndPoints.Single(), AddressFamily.InterNetwork };
 
-            yield return new object[] { ConfigurationOptions.Parse("[::1]").EndPoints.Single(), AddressFamily.InterNetworkV6 };
+            //yield return new object[] { ConfigurationOptions.Parse("[::1]").EndPoints.Single(), AddressFamily.InterNetworkV6 };
 
             yield return new object[] { ConfigurationOptions.Parse("[::1]:6479").EndPoints.Single(), AddressFamily.InterNetworkV6 };
         }
