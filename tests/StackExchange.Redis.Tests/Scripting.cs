@@ -112,7 +112,7 @@ namespace StackExchange.Redis.Tests
                 conn.StringSet(key + "foo", "bar", flags: CommandFlags.FireAndForget);
                 var result = (long)conn.ScriptEvaluate(@"
 redis.call('psetex', KEYS[1], 60000, 'timing')
-for i = 1,10000 do
+for i = 1,5000 do
     redis.call('set', 'ignore','abc')
 end
 local timeTaken = 60000 - redis.call('pttl', KEYS[1])
