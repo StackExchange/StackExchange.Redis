@@ -15,7 +15,7 @@ namespace NRediSearch.Test.ClientTests
         [Obsolete]
         public void TestAggregations()
         {
-            /**
+            /*
              127.0.0.1:6379> FT.CREATE test_index SCHEMA name TEXT SORTABLE count NUMERIC SORTABLE
              OK
              127.0.0.1:6379> FT.ADD test_index data1 1.0 FIELDS name abc count 10

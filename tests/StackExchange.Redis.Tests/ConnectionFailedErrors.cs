@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Linq;
 using System.Security.Authentication;
-using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
@@ -29,7 +28,7 @@ namespace StackExchange.Redis.Tests
 
             using (var connection = ConnectionMultiplexer.Connect(options))
             {
-                connection.ConnectionFailed += (object sender, ConnectionFailedEventArgs e) =>
+                connection.ConnectionFailed += (sender, e) =>
                     Assert.Equal(ConnectionFailureType.AuthenticationFailure, e.FailureType);
                 if (!isCertValidationSucceeded)
                 {
@@ -68,7 +67,7 @@ namespace StackExchange.Redis.Tests
             options.CertificateValidation += SSL.ShowCertFailures(Writer);
             using (var muxer = ConnectionMultiplexer.Connect(options))
             {
-                muxer.ConnectionFailed += (object sender, ConnectionFailedEventArgs e) =>
+                muxer.ConnectionFailed += (sender, e) =>
                 {
                     if (e.FailureType == ConnectionFailureType.SocketFailure) Skip.Inconclusive("socket fail"); // this is OK too
                     Assert.Equal(ConnectionFailureType.AuthenticationFailure, e.FailureType);
@@ -160,7 +159,7 @@ namespace StackExchange.Redis.Tests
             {
                 using (var muxer = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true))
                 {
-                    var conn = muxer.GetDatabase();
+                    muxer.GetDatabase();
                     var server = muxer.GetServer(muxer.GetEndPoints()[0]);
 
                     muxer.AllowConnect = false;

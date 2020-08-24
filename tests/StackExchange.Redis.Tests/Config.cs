@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Globalization;
 using System.IO;
 using System.IO.Pipelines;
 using System.Linq;
@@ -6,7 +7,6 @@ using System.Net;
 using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Threading.Tasks;
-using Pipelines.Sockets.Unofficial;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -20,14 +20,14 @@ namespace StackExchange.Redis.Tests
         public void SslProtocols_SingleValue()
         {
             var options = ConfigurationOptions.Parse("myhost,sslProtocols=Tls11");
-            Assert.Equal(SslProtocols.Tls11, options.SslProtocols.Value);
+            Assert.Equal(SslProtocols.Tls11, options.SslProtocols.GetValueOrDefault());
         }
 
         [Fact]
         public void SslProtocols_MultipleValues()
         {
             var options = ConfigurationOptions.Parse("myhost,sslProtocols=Tls11|Tls12");
-            Assert.Equal(SslProtocols.Tls11 | SslProtocols.Tls12, options.SslProtocols.Value);
+            Assert.Equal(SslProtocols.Tls11 | SslProtocols.Tls12, options.SslProtocols.GetValueOrDefault());
         }
 
         [Fact]
@@ -38,7 +38,7 @@ namespace StackExchange.Redis.Tests
             // but the OS has been patched with support
             const int integerValue = (int)(SslProtocols.Tls11 | SslProtocols.Tls12);
             var options = ConfigurationOptions.Parse("myhost,sslProtocols=" + integerValue);
-            Assert.Equal(SslProtocols.Tls11 | SslProtocols.Tls12, options.SslProtocols.Value);
+            Assert.Equal(SslProtocols.Tls11 | SslProtocols.Tls12, options.SslProtocols.GetValueOrDefault());
         }
 
         [Fact]
@@ -261,7 +261,7 @@ namespace StackExchange.Redis.Tests
             {
                 var server = GetAnyMaster(muxer);
                 var serverTime = server.Time();
-                Log(serverTime.ToString());
+                Log(serverTime.ToString(CultureInfo.InvariantCulture));
                 var delta = Math.Abs((DateTime.UtcNow - serverTime).TotalSeconds);
 
                 Assert.True(delta < 5);
@@ -345,7 +345,7 @@ namespace StackExchange.Redis.Tests
             using (var muxer = Create(allowAdmin: true))
             {
                 var server = GetAnyMaster(muxer);
-                var slowlog = server.SlowlogGet();
+                server.SlowlogGet();
                 server.SlowlogReset();
             }
         }
@@ -358,7 +358,7 @@ namespace StackExchange.Redis.Tests
             {
                 try
                 {
-                    var conn = configMuxer.GetDatabase();
+                    configMuxer.GetDatabase();
                     var srv = GetAnyMaster(configMuxer);
                     oldTimeout = srv.ConfigGet("timeout")[0].Value;
                     srv.ConfigSet("timeout", 5);

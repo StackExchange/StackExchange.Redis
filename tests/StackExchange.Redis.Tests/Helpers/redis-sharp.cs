@@ -625,7 +625,7 @@ namespace RedisSharp
         public string[] GetKeys(string pattern)
         {
             if (pattern == null)
-                throw new ArgumentNullException("key");
+                throw new ArgumentNullException(nameof(pattern));
             var keys = SendExpectData(null, "KEYS {0}\r\n", pattern);
             if (keys.Length == 0)
                 return new string[0];
@@ -635,7 +635,7 @@ namespace RedisSharp
         public byte[][] GetKeys(params string[] keys)
         {
             if (keys == null)
-                throw new ArgumentNullException("key1");
+                throw new ArgumentNullException(nameof(keys));
             if (keys.Length == 0)
                 throw new ArgumentException("keys");
 

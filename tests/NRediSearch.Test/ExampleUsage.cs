@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using StackExchange.Redis;
 using Xunit;
@@ -17,7 +16,7 @@ namespace NRediSearch.Test
         {
             var client = GetClient();
 
-            try { client.DropIndex(); } catch { } // reset DB
+            try { client.DropIndex(); } catch { /* Intentionally ignored */ } // reset DB
 
             // Defining a schema for an index and creating it:
             var sc = new Schema()
@@ -35,8 +34,8 @@ namespace NRediSearch.Test
                 // TODO: Convert to Skip
                 if (ex.Message == "ERR unknown command 'FT.CREATE'")
                 {
-                    Console.WriteLine(ex.Message);
-                    Console.WriteLine("Module not installed, aborting");
+                    Output.WriteLine(ex.Message);
+                    Output.WriteLine("Module not installed, aborting");
                 }
                 throw;
             }
@@ -73,8 +72,8 @@ namespace NRediSearch.Test
             Assert.True(item.HasProperty("price"));
             Assert.False(item.HasProperty("blap"));
 
-            Assert.Equal("hello world", (string)item["title"]);
-            Assert.Equal("lorem ipsum", (string)item["body"]);
+            Assert.Equal("hello world", item["title"]);
+            Assert.Equal("lorem ipsum", item["body"]);
             Assert.Equal(1337, (int)item["price"]);
         }
 
@@ -83,13 +82,13 @@ namespace NRediSearch.Test
         {
             var client = GetClient();
 
-            try { client.DropIndex(); } catch { } // reset DB
+            try { client.DropIndex(); } catch { /* Intentionally ignored */ } // reset DB
 
             CreateSchema(client);
 
             var term = "petit*";
 
-            var query = new NRediSearch.Query(term);
+            var query = new Query(term);
             query.Limit(0, 10);
             query.WithScores = true;
 
@@ -108,13 +107,13 @@ namespace NRediSearch.Test
         {
             var client = GetClient();
 
-            try { client.DropIndex(); } catch { } // reset DB
+            try { client.DropIndex(); } catch { /* Intentionally ignored */ } // reset DB
 
             CreateSchema(client);
 
             var term = "petit*";
 
-            var query = new NRediSearch.Query(term);
+            var query = new Query(term);
             query.Limit(0, 10);
             query.WithScores = true;
             query.Scoring = "TFIDF";
@@ -138,13 +137,13 @@ namespace NRediSearch.Test
         {
             var client = GetClient();
 
-            try { client.DropIndex(); } catch { } // reset DB
+            try { client.DropIndex(); } catch { /* Intentionally ignored */ } // reset DB
 
             CreateSchema(client);
 
             var term = "petit*";
 
-            var query = new NRediSearch.Query(term);
+            var query = new Query(term);
             query.Limit(0, 10);
             query.WithScores = true;
             query.Scoring = "TFIDF.DOCNORM";
@@ -165,7 +164,7 @@ namespace NRediSearch.Test
 
         private void CreateSchema(Client client)
         {
-            var schema = new NRediSearch.Schema();
+            var schema = new Schema();
 
             schema
                 .AddSortableTextField("title")
@@ -176,7 +175,7 @@ namespace NRediSearch.Test
 
             client.CreateIndex(schema, new ConfiguredIndexOptions());
 
-            var doc = new NRediSearch.Document("1");
+            var doc = new Document("1");
 
             doc
                 .Set("title", "Le Petit Prince")

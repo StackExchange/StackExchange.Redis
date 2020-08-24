@@ -30,7 +30,7 @@ namespace KestrelRedisServer
                         ((IApplicationLifetime)s).StopApplication();
                     }
                 }
-                catch { }
+                catch { /* Don't go boom on shutdown */ }
             }, lifetime);
 
             if (env.IsDevelopment()) app.UseDeveloperExceptionPage();

@@ -148,7 +148,7 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal("b", await b); // db:1
 
                 var server = GetServer(muxer);
-                var swap = server.SwapDatabasesAsync(db0id, db1id).ForAwait();
+                _ = server.SwapDatabasesAsync(db0id, db1id).ForAwait();
 
                 var aNew = db1.StringGetAsync(key);
                 var bNew = db0.StringGetAsync(key);

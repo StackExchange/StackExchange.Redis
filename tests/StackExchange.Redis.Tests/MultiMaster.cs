@@ -32,7 +32,7 @@ namespace StackExchange.Redis.Tests
         public void TestMultiNoTieBreak()
         {
             using (var log = new StringWriter())
-            using (var conn = Create(log: log, tieBreaker: ""))
+            using (Create(log: log, tieBreaker: ""))
             {
                 Log(log.ToString());
                 Assert.Contains("Choosing master arbitrarily", log.ToString());
@@ -69,7 +69,7 @@ namespace StackExchange.Redis.Tests
 
             // see what happens
             using (var log = new StringWriter())
-            using (var conn = Create(log: log, tieBreaker: TieBreak))
+            using (Create(log: log, tieBreaker: TieBreak))
             {
                 string text = log.ToString();
                 Log(text);

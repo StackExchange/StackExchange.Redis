@@ -130,14 +130,14 @@ namespace StackExchange.Redis.Tests
             wrapper.HashSetAsync("key", "hashField", "value", When.Exists, CommandFlags.None);
             mock.Verify(_ => _.HashSetAsync("prefix:key", "hashField", "value", When.Exists, CommandFlags.None));
         }
-        
+
         [Fact]
         public void HashStringLengthAsync()
         {
             wrapper.HashStringLengthAsync("key","field", CommandFlags.None);
             mock.Verify(_ => _.HashStringLengthAsync("prefix:key", "field", CommandFlags.None));
         }
-        
+
         [Fact]
         public void HashValuesAsync()
         {
@@ -855,7 +855,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamMessagesDeleteAsync()
         {
-            var messageIds = new RedisValue[0] { };
+            var messageIds = new RedisValue[] { };
             wrapper.StreamDeleteAsync("key", messageIds, CommandFlags.None);
             mock.Verify(_ => _.StreamDeleteAsync("prefix:key", messageIds, CommandFlags.None));
         }
@@ -898,7 +898,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamReadAsync_1()
         {
-            var streamPositions = new StreamPosition[0] { };
+            var streamPositions = new StreamPosition[] { };
             wrapper.StreamReadAsync(streamPositions, null, CommandFlags.None);
             mock.Verify(_ => _.StreamReadAsync(streamPositions, null, CommandFlags.None));
         }
@@ -920,7 +920,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void StreamStreamReadGroupAsync_2()
         {
-            var streamPositions = new StreamPosition[0] { };
+            var streamPositions = new StreamPosition[] { };
             wrapper.StreamReadGroupAsync(streamPositions, "group", "consumer", 10, false, CommandFlags.None);
             mock.Verify(_ => _.StreamReadGroupAsync(streamPositions, "group", "consumer", 10, false, CommandFlags.None));
         }
