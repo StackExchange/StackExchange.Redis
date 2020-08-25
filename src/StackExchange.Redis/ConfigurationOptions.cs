@@ -24,27 +24,27 @@ namespace StackExchange.Redis
         {
             public static int ParseInt32(string key, string value, int minValue = int.MinValue, int maxValue = int.MaxValue)
             {
-                if (!Format.TryParseInt32(value, out int tmp)) throw new ArgumentOutOfRangeException("Keyword '" + key + "' requires an integer value");
-                if (tmp < minValue) throw new ArgumentOutOfRangeException("Keyword '" + key + "' has a minimum value of " + minValue);
-                if (tmp > maxValue) throw new ArgumentOutOfRangeException("Keyword '" + key + "' has a maximum value of " + maxValue);
+                if (!Format.TryParseInt32(value, out int tmp)) throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' requires an integer value; the value '{value}' is not recognised.");
+                if (tmp < minValue) throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' has a minimum value of '{minValue}'; the value '{tmp}' is not permitted.");
+                if (tmp > maxValue) throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' has a maximum value of '{maxValue}'; the value '{tmp}' is not permitted.");
                 return tmp;
             }
 
             internal static bool ParseBoolean(string key, string value)
             {
-                if (!Format.TryParseBoolean(value, out bool tmp)) throw new ArgumentOutOfRangeException("Keyword '" + key + "' requires a boolean value");
+                if (!Format.TryParseBoolean(value, out bool tmp)) throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' requires a boolean value; the value '{value}' is not recognised.");
                 return tmp;
             }
 
             internal static Version ParseVersion(string key, string value)
             {
-                if (!System.Version.TryParse(value, out Version tmp)) throw new ArgumentOutOfRangeException("Keyword '" + key + "' requires a version value");
+                if (!System.Version.TryParse(value, out Version tmp)) throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' requires a version value; the value '{value}' is not recognised.");
                 return tmp;
             }
 
             internal static Proxy ParseProxy(string key, string value)
             {
-                if (!Enum.TryParse(value, true, out Proxy tmp)) throw new ArgumentOutOfRangeException("Keyword '" + key + "' requires a proxy value");
+                if (!Enum.TryParse(value, true, out Proxy tmp)) throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' requires a proxy value; the value '{value}' is not recognised.");
                 return tmp;
             }
 
@@ -53,14 +53,14 @@ namespace StackExchange.Redis
                 //Flags expect commas as separators, but we need to use '|' since commas are already used in the connection string to mean something else
                 value = value?.Replace("|", ",");
 
-                if (!Enum.TryParse(value, true, out SslProtocols tmp)) throw new ArgumentOutOfRangeException("Keyword '" + key + "' requires an SslProtocol value (multiple values separated by '|').");
+                if (!Enum.TryParse(value, true, out SslProtocols tmp)) throw new ArgumentOutOfRangeException(key, $"Keyword '{key}' requires an SslProtocol value (multiple values separated by '|'); the value '{value}' is not recognised.");
 
                 return tmp;
             }
 
             internal static void Unknown(string key)
             {
-                throw new ArgumentException("Keyword '" + key + "' is not supported");
+                throw new ArgumentException("Keyword '" + key + "' is not supported", key);
             }
 
             internal const string

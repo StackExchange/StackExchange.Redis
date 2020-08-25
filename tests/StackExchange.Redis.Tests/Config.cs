@@ -428,5 +428,31 @@ namespace StackExchange.Redis.Tests
             using var muxer = ConnectionMultiplexer.Connect(config);
             Assert.Same(SocketManager.Shared.Scheduler, muxer.SocketManager.Scheduler);
         }
+
+        [Theory]
+        [InlineData("myDNS:myPort,password=myPassword,connectRetry=3,connectTimeout=15000,syncTimeout=15000,defaultDatabase=0,abortConnect=false,ssl=true,sslProtocols=Tls12", SslProtocols.Tls12)]
+        [InlineData("myDNS:myPort,password=myPassword,abortConnect=false,ssl=true,sslProtocols=Tls12", SslProtocols.Tls12)]
+#pragma warning disable CS0618 // obsolete
+        [InlineData("myDNS:myPort,password=myPassword,abortConnect=false,ssl=true,sslProtocols=Ssl3", SslProtocols.Ssl3)]
+#pragma warning restore CS0618 // obsolete
+        [InlineData("myDNS:myPort,password=myPassword,abortConnect=false,ssl=true,sslProtocols=Tls12 ", SslProtocols.Tls12)]
+        public void ParseTlsWithoutTrailingComma(string configString, SslProtocols expected)
+        {
+            var config = ConfigurationOptions.Parse(configString);
+            Assert.Equal(expected, config.SslProtocols);
+        }
+
+        [Theory]
+        [InlineData("foo,sslProtocols=NotAThing", "Keyword 'sslProtocols' requires an SslProtocol value (multiple values separated by '|'); the value 'NotAThing' is not recognised.")]
+        [InlineData("foo,SyncTimeout=ten", "Keyword 'SyncTimeout' requires an integer value; the value 'ten' is not recognised.")]
+        [InlineData("foo,SyncTimeout=-42", "Keyword 'SyncTimeout' has a minimum value of '1'; the value '-42' is not permitted.")]
+        [InlineData("foo,AllowAdmin=maybe", "Keyword 'AllowAdmin' requires a boolean value; the value 'maybe' is not recognised.")]
+        [InlineData("foo,Version=current", "Keyword 'Version' requires a version value; the value 'current' is not recognised.")]
+        [InlineData("foo,proxy=epoxy", "Keyword 'proxy' requires a proxy value; the value 'epoxy' is not recognised.")]
+        public void ConfigStringErrorsGiveMeaningfulMessages(string configString, string expected)
+        {
+            var ex = Assert.Throws<ArgumentOutOfRangeException>(() => ConfigurationOptions.Parse(configString));
+            Assert.StartsWith(expected, ex.Message); // param name gets concatenated sometimes
+        }
     }
 }
