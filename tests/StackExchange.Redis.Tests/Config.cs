@@ -443,16 +443,17 @@ namespace StackExchange.Redis.Tests
         }
 
         [Theory]
-        [InlineData("foo,sslProtocols=NotAThing", "Keyword 'sslProtocols' requires an SslProtocol value (multiple values separated by '|'); the value 'NotAThing' is not recognised.")]
-        [InlineData("foo,SyncTimeout=ten", "Keyword 'SyncTimeout' requires an integer value; the value 'ten' is not recognised.")]
-        [InlineData("foo,SyncTimeout=-42", "Keyword 'SyncTimeout' has a minimum value of '1'; the value '-42' is not permitted.")]
-        [InlineData("foo,AllowAdmin=maybe", "Keyword 'AllowAdmin' requires a boolean value; the value 'maybe' is not recognised.")]
-        [InlineData("foo,Version=current", "Keyword 'Version' requires a version value; the value 'current' is not recognised.")]
-        [InlineData("foo,proxy=epoxy", "Keyword 'proxy' requires a proxy value; the value 'epoxy' is not recognised.")]
-        public void ConfigStringErrorsGiveMeaningfulMessages(string configString, string expected)
+        [InlineData("foo,sslProtocols=NotAThing", "Keyword 'sslProtocols' requires an SslProtocol value (multiple values separated by '|'); the value 'NotAThing' is not recognised.", "sslProtocols")]
+        [InlineData("foo,SyncTimeout=ten", "Keyword 'SyncTimeout' requires an integer value; the value 'ten' is not recognised.", "SyncTimeout")]
+        [InlineData("foo,syncTimeout=-42", "Keyword 'syncTimeout' has a minimum value of '1'; the value '-42' is not permitted.", "syncTimeout")]
+        [InlineData("foo,AllowAdmin=maybe", "Keyword 'AllowAdmin' requires a boolean value; the value 'maybe' is not recognised.", "AllowAdmin")]
+        [InlineData("foo,Version=current", "Keyword 'Version' requires a version value; the value 'current' is not recognised.", "Version")]
+        [InlineData("foo,proxy=epoxy", "Keyword 'proxy' requires a proxy value; the value 'epoxy' is not recognised.", "proxy")]
+        public void ConfigStringErrorsGiveMeaningfulMessages(string configString, string expected, string paramName)
         {
             var ex = Assert.Throws<ArgumentOutOfRangeException>(() => ConfigurationOptions.Parse(configString));
             Assert.StartsWith(expected, ex.Message); // param name gets concatenated sometimes
+            Assert.Equal(paramName, ex.ParamName); // param name gets concatenated sometimes
         }
 
         [Fact]
@@ -460,6 +461,7 @@ namespace StackExchange.Redis.Tests
         {
             var ex = Assert.Throws<ArgumentException>(() => ConfigurationOptions.Parse("foo,flibble=value"));
             Assert.StartsWith("Keyword 'flibble' is not supported.", ex.Message); // param name gets concatenated sometimes
+            Assert.Equal("flibble", ex.ParamName);
         }
     }
 }
