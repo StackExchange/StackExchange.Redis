@@ -41,7 +41,8 @@ namespace StackExchange.Redis.Tests.Issues
             var ex = Assert.Throws<ArgumentException>(() => {
                 ConfigurationOptions.Parse("ssl2=true");
             });
-            Assert.Equal("Keyword 'ssl2' is not supported", ex.Message);
+            Assert.StartsWith("Keyword 'ssl2' is not supported", ex.Message);
+            Assert.Equal("ssl2", ex.ParamName);
         }
     }
 }
