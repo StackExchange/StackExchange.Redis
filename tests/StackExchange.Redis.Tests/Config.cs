@@ -454,5 +454,12 @@ namespace StackExchange.Redis.Tests
             var ex = Assert.Throws<ArgumentOutOfRangeException>(() => ConfigurationOptions.Parse(configString));
             Assert.StartsWith(expected, ex.Message); // param name gets concatenated sometimes
         }
+
+        [Fact]
+        public void ConfigStringInvalidOptionErrorGiveMeaningfulMessages()
+        {
+            var ex = Assert.Throws<ArgumentException>(() => ConfigurationOptions.Parse("foo,flibble=value"));
+            Assert.StartsWith("Keyword 'flibble' is not supported.", ex.Message); // param name gets concatenated sometimes
+        }
     }
 }

@@ -60,7 +60,7 @@ namespace StackExchange.Redis
 
             internal static void Unknown(string key)
             {
-                throw new ArgumentException("Keyword '" + key + "' is not supported", key);
+                throw new ArgumentException($"Keyword '{key}' is not supported.", key);
             }
 
             internal const string
