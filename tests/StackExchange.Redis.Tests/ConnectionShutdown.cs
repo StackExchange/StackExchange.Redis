@@ -20,12 +20,12 @@ namespace StackExchange.Redis.Tests
                 Stopwatch watch = Stopwatch.StartNew();
                 conn.ConnectionFailed += (sender, args) =>
                 {
-                    Log(watch.Elapsed + ": failed: " + EndPointCollection.ToString(args.EndPoint) + "/" + args.ConnectionType + ": " + args.ToString());
+                    Log(watch.Elapsed + ": failed: " + EndPointCollection.ToString(args.EndPoint) + "/" + args.ConnectionType + ": " + args);
                     Interlocked.Increment(ref failed);
                 };
                 conn.ConnectionRestored += (sender, args) =>
                 {
-                    Log(watch.Elapsed + ": restored: " + EndPointCollection.ToString(args.EndPoint) + "/" + args.ConnectionType + ": " + args.ToString());
+                    Log(watch.Elapsed + ": restored: " + EndPointCollection.ToString(args.EndPoint) + "/" + args.ConnectionType + ": " + args);
                     Interlocked.Increment(ref restored);
                 };
                 var db = conn.GetDatabase();

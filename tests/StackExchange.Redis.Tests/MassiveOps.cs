@@ -1,5 +1,4 @@
-﻿using System;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
@@ -24,7 +23,7 @@ namespace StackExchange.Redis.Tests
                 for (var i = 0; i < 200; i++)
                 {
                     var val = await db.StringGetAsync(key).ForAwait();
-                    Assert.Equal("test value", (string)val);
+                    Assert.Equal("test value", val);
                     await Task.Delay(50).ForAwait();
                 }
             }
@@ -37,7 +36,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create())
             {
-                RedisKey key = "MBOA";
+                RedisKey key = Me();
                 var conn = muxer.GetDatabase();
                 await conn.PingAsync().ForAwait();
                 void nonTrivial(Task _)
@@ -69,7 +68,7 @@ namespace StackExchange.Redis.Tests
             int workPerThread = SyncOpsQty / threads;
             using (var muxer = Create(syncTimeout: 30000))
             {
-                RedisKey key = "MBOS";
+                RedisKey key = Me();
                 var conn = muxer.GetDatabase();
                 conn.KeyDelete(key, CommandFlags.FireAndForget);
                 var timeTaken = RunConcurrent(delegate
@@ -94,7 +93,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create(syncTimeout: 30000))
             {
-                RedisKey key = "MBOF";
+                RedisKey key = Me();
                 var conn = muxer.GetDatabase();
                 conn.Ping();
 

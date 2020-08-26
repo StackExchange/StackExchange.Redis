@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Runtime.CompilerServices;
 using StackExchange.Redis;
 using StackExchange.Redis.Tests;
@@ -75,7 +74,7 @@ namespace NRediSearch.Test
             }
         }
 
-        private static bool instanceMissing = false;
+        private static bool instanceMissing;
 
         internal static ConnectionMultiplexer GetWithFT(ITestOutputHelper output)
         {

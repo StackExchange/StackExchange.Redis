@@ -66,7 +66,7 @@ namespace StackExchange.Redis.Tests
                 var ms = Stopwatch.StartNew();
                 var ex = await Assert.ThrowsAsync<RedisTimeoutException>(async () =>
                 {
-                    var actual = await db.StringGetAsync(key).ForAwait(); // but *subsequent* operations are paused
+                    await db.StringGetAsync(key).ForAwait(); // but *subsequent* operations are paused
                     ms.Stop();
                     Writer.WriteLine($"Unexpectedly succeeded after {ms.ElapsedMilliseconds}ms");
                 }).ForAwait();

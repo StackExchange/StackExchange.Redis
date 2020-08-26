@@ -1,9 +1,6 @@
 ﻿#pragma warning disable RCS1090 // Call 'ConfigureAwait(false)'.
 
 using System;
-using System.IO;
-using System.Runtime.CompilerServices;
-using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
@@ -38,7 +35,6 @@ namespace StackExchange.Redis.Tests
             using (var muxer = Create())
             {
                 var db = muxer.GetDatabase();
-                object asyncState = new object();
                 var tran = db.CreateTransaction();
                 var redisTransaction = Assert.IsType<RedisTransaction>(tran);
                 Assert.Throws<NotSupportedException>(() => redisTransaction.CreateTransaction(null));
@@ -73,7 +69,7 @@ namespace StackExchange.Redis.Tests
                 {
                     Assert.True(await exec, "eq: exec");
                     Assert.True(cond.WasSatisfied, "eq: was satisfied");
-                    Assert.Equal(1, await incr); // eq: incr                    
+                    Assert.Equal(1, await incr); // eq: incr
                     Assert.Equal(1, (long)get); // eq: get
                 }
                 else
@@ -109,7 +105,7 @@ namespace StackExchange.Redis.Tests
 
                 if (value != null) db.StringSet(key2, value, flags: CommandFlags.FireAndForget);
                 Assert.False(db.KeyExists(key));
-                Assert.Equal(value, (string)db.StringGet(key2));
+                Assert.Equal(value, db.StringGet(key2));
 
                 var tran = db.CreateTransaction();
                 var cond = tran.AddCondition(expectEqual ? Condition.StringEqual(key2, expected) : Condition.StringNotEqual(key2, expected));
@@ -201,7 +197,7 @@ namespace StackExchange.Redis.Tests
                 RedisValue hashField = "field";
                 if (value != null) db.HashSet(key2, hashField, value, flags: CommandFlags.FireAndForget);
                 Assert.False(db.KeyExists(key));
-                Assert.Equal(value, (string)db.HashGet(key2, hashField));
+                Assert.Equal(value, db.HashGet(key2, hashField));
 
                 var tran = db.CreateTransaction();
                 var cond = tran.AddCondition(expectEqual ? Condition.HashEqual(key2, hashField, expected) : Condition.HashNotEqual(key2, hashField, expected));
@@ -278,7 +274,7 @@ namespace StackExchange.Redis.Tests
                     Assert.True(await exec, "eq: exec");
                     Assert.True(cond.WasSatisfied, "eq: was satisfied");
                     Assert.Equal(1, await push); // eq: push
-                    Assert.Equal("any value", (string)get); // eq: get
+                    Assert.Equal("any value", get); // eq: get
                 }
                 else
                 {
@@ -313,7 +309,7 @@ namespace StackExchange.Redis.Tests
 
                 if (value != null) db.ListRightPush(key2, value, flags: CommandFlags.FireAndForget);
                 Assert.False(db.KeyExists(key));
-                Assert.Equal(value, (string)db.ListGetByIndex(key2, 0));
+                Assert.Equal(value, db.ListGetByIndex(key2, 0));
 
                 var tran = db.CreateTransaction();
                 var cond = tran.AddCondition(expectEqual ? Condition.ListIndexEqual(key2, 0, expected) : Condition.ListIndexNotEqual(key2, 0, expected));
@@ -1217,12 +1213,12 @@ namespace StackExchange.Redis.Tests
                 {
                     RedisKey key = Me();
                     await db.KeyDeleteAsync(key);
-                    HashEntry[] hashEntries = new HashEntry[]
+                    HashEntry[] hashEntries = new []
                     {
                         new HashEntry("blah", DateTime.UtcNow.ToString("R"))
                     };
                     ITransaction transaction = db.CreateTransaction();
-                    ConditionResult keyNotExists = transaction.AddCondition(Condition.KeyNotExists(key));
+                    transaction.AddCondition(Condition.KeyNotExists(key));
                     Task hashSetTask = transaction.HashSetAsync(key, hashEntries);
                     Task<bool> expireTask = transaction.KeyExpireAsync(key, TimeSpan.FromSeconds(30));
                     bool committed = await transaction.ExecuteAsync();

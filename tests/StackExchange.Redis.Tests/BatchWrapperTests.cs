@@ -1,7 +1,6 @@
 ﻿using Moq;
 using StackExchange.Redis.KeyspaceIsolation;
 using System.Text;
-using Xunit;
 
 namespace StackExchange.Redis.Tests
 {

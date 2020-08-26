@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
@@ -25,7 +24,7 @@ namespace StackExchange.Redis.Tests
                     ConnectTimeout = timeout
                 };
 
-                using (var muxer = ConnectionMultiplexer.Connect(config, Writer))
+                using (ConnectionMultiplexer.Connect(config, Writer))
                 {
                     await Task.Delay(10000).ForAwait();
                 }
@@ -46,7 +45,7 @@ namespace StackExchange.Redis.Tests
         {
             var ex = Assert.Throws<RedisConnectionException>(() =>
             {
-                using (var conn = ConnectionMultiplexer.Connect(TestConfig.Current.MasterServer + ":6500,connectTimeout=1000", Writer)) { }
+                using (ConnectionMultiplexer.Connect(TestConfig.Current.MasterServer + ":6500,connectTimeout=1000", Writer)) { }
             });
             Log(ex.ToString());
         }
@@ -56,7 +55,7 @@ namespace StackExchange.Redis.Tests
         {
             var ex = await Assert.ThrowsAsync<RedisConnectionException>(async () =>
             {
-                using (var conn = await ConnectionMultiplexer.ConnectAsync($"doesnot.exist.ds.{Guid.NewGuid():N}.com:6500,connectTimeout=1000", Writer).ForAwait()) { }
+                using (await ConnectionMultiplexer.ConnectAsync($"doesnot.exist.ds.{Guid.NewGuid():N}.com:6500,connectTimeout=1000", Writer).ForAwait()) { }
             }).ForAwait();
             Log(ex.ToString());
         }

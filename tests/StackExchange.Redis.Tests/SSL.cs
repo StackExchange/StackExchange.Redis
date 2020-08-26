@@ -145,7 +145,7 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(AsyncLoop, value);
                 Log("F&F: {0} INCR, {1:###,##0}ms, {2} ops/s; final value: {3}",
                     AsyncLoop,
-                    (long)watch.ElapsedMilliseconds,
+                    watch.ElapsedMilliseconds,
                     (long)(AsyncLoop / watch.Elapsed.TotalSeconds),
                     value);
 
@@ -366,7 +366,7 @@ namespace StackExchange.Redis.Tests
 
                     var fields = typeof(ConfigurationOptions).GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
                     Writer.WriteLine($"Comparing {fields.Length} fields...");
-                    Array.Sort(fields, (x, y) => string.Compare(x.Name, y.Name));
+                    Array.Sort(fields, (x, y) => string.CompareOrdinal(x.Name, y.Name));
                     foreach (var field in fields)
                     {
                         Check(field.Name, field.GetValue(a), field.GetValue(b));
@@ -406,7 +406,7 @@ namespace StackExchange.Redis.Tests
         public static RemoteCertificateValidationCallback ShowCertFailures(TextWriterOutputHelper output) {
             if (output == null) return null;
 
-            return (object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors) =>
+            return (sender, certificate, chain, sslPolicyErrors) =>
             {
                 void WriteStatus(X509ChainStatus[] status)
                 {

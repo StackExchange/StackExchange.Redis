@@ -8,7 +8,6 @@ using BenchmarkDotNet.Diagnosers;
 using BenchmarkDotNet.Environments;
 using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Running;
-using BenchmarkDotNet.Toolchains.InProcess;
 using BenchmarkDotNet.Validators;
 using StackExchange.Redis;
 
@@ -42,7 +41,6 @@ namespace BasicTest
             => j.WithLaunchCount(1)
                 .WithWarmupCount(1)
                 .WithIterationCount(5);
-        public SlowConfig() { }
     }
     /// <summary>
     /// The tests

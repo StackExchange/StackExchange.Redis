@@ -149,24 +149,6 @@ namespace StackExchange.Redis.Tests
 
                 if (name.EndsWith("Async")) huntName = name.Substring(0, name.Length - 5);
                 else huntName = name + "Async";
-
-                Type huntType;
-                if (method.ReturnType == null || method.ReturnType == typeof(void))
-                {
-                    huntType = typeof(Task);
-                }
-                else if (method.ReturnType == typeof(Task))
-                {
-                    huntType = null;
-                }
-                else if (method.ReturnType.IsSubclassOf(typeof(Task)))
-                {
-                    huntType = method.ReturnType.GetGenericArguments()[0];
-                }
-                else
-                {
-                    huntType = typeof(Task<>).MakeGenericType(method.ReturnType);
-                }
                 var pFrom = method.GetParameters();
                 Type[] args = pFrom.Select(x => x.ParameterType).ToArray();
                 Log("Checking: {0}.{1}", from.Name, method.Name);
