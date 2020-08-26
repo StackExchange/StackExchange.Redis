@@ -261,10 +261,10 @@ namespace StackExchange.Redis.Tests
             {
                 var server = GetAnyMaster(muxer);
                 var serverTime = server.Time();
-                Log(serverTime.ToString());
-                var delta = Math.Abs((DateTime.UtcNow - serverTime).TotalSeconds);
-
-                Assert.True(delta < 5);
+                var localTime = DateTime.UtcNow;
+                Log("Server: " + serverTime.ToString());
+                Log("Local: " + localTime.ToString());
+                Assert.Equal(localTime, serverTime, TimeSpan.FromSeconds(10));
             }
         }
 
