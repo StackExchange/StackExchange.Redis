@@ -486,6 +486,19 @@ namespace StackExchange.Redis
         }
 
         /// <summary>
+        /// Sets default config settings required for sentinel usage
+        /// </summary>
+        internal void SetSentinelDefaults()
+        {
+            // this is required when connecting to sentinel servers
+            TieBreaker = "";
+            CommandMap = CommandMap.Sentinel;
+
+            // use default sentinel port
+            EndPoints.SetDefaultPorts(26379);
+        }
+
+        /// <summary>
         /// Returns the effective configuration string for this configuration, including Redis credentials.
         /// </summary>
         /// <remarks>
