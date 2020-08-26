@@ -488,7 +488,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Sets default config settings required for sentinel usage
         /// </summary>
-        public void SetSentinelDefaults()
+        internal void SetSentinelDefaults()
         {
             // this is required when connecting to sentinel servers
             TieBreaker = "";
