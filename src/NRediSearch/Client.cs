@@ -136,9 +136,15 @@ namespace NRediSearch
             private IndexOptions _options;
             private IndexDefinition _definition;
             private string[] _stopwords;
-            public ConfiguredIndexOptions(IndexOptions options = IndexOptions.Default, IndexDefinition definition = null)
+
+            public ConfiguredIndexOptions(IndexOptions options = IndexOptions.Default)
             {
                 _options = options;
+            }
+
+            public ConfiguredIndexOptions(IndexDefinition definition, IndexOptions options = IndexOptions.Default) 
+            : this(options)
+            {
                 _definition = definition;
             }
 
