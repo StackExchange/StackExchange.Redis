@@ -548,7 +548,6 @@ namespace NRediSearch
         /// <param name="replace">if set, and the document already exists, we reindex and update it</param>
         /// <returns>true on success</returns>
         /// [Deprecated] Use IDatabase.HashSet instead.
-        [Obsolete("Use IDatabase.HashSet instead")]
         public bool AddHash(string docId, double score, bool replace) => AddHash((RedisKey)docId, score, replace);
 
         /// <summary>
@@ -559,7 +558,6 @@ namespace NRediSearch
         /// <param name="replace">if set, and the document already exists, we reindex and update it</param>
         /// <returns>true on success</returns>
         /// [Deprecated] Use IDatabase.HashSet instead.
-        [Obsolete("Use IDatabase.HashSet instead")]
         public bool AddHash(RedisKey docId, double score, bool replace)
         {
             var args = new List<object> { _boxedIndexName, docId, score };
@@ -578,7 +576,6 @@ namespace NRediSearch
         /// <param name="replace">if set, and the document already exists, we reindex and update it</param>
         /// <returns>true on success</returns>
         /// [Deprecated] Use IDatabase.HashSet instead.
-        [Obsolete("Use IDatabase.HashSet instead")]
         public Task<bool> AddHashAsync(string docId, double score, bool replace) => AddHashAsync((RedisKey)docId, score, replace);
 
         /// <summary>
@@ -589,7 +586,6 @@ namespace NRediSearch
         /// <param name="replace">if set, and the document already exists, we reindex and update it</param>
         /// <returns>true on success</returns>
         /// [Deprecated] Use IDatabase.HashSet instead.
-        [Obsolete("Use IDatabase.HashSet instead")]
         public async Task<bool> AddHashAsync(RedisKey docId, double score, bool replace)
         {
             var args = new List<object> { _boxedIndexName, docId, score };
