@@ -296,7 +296,7 @@ namespace NRediSearch.Test.ClientTests
 
             Schema sc = new Schema().AddTextField("title", 1.0);
             ConfiguredIndexOptions options = new ConfiguredIndexOptions(
-                new IndexOptions( prefixes = new string[]{cl.IndexName}));
+                new IndexDefinition( prefixes = new string[]{cl.IndexName}));
             Assert.True(cl.CreateIndex(sc, options));
 
             RedisKey hashKey = (string)cl.IndexName + ":foo";
