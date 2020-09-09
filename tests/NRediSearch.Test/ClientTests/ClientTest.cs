@@ -290,6 +290,25 @@ namespace NRediSearch.Test.ClientTests
         }
 
         [Fact]
+        public void TestIndexDefinition()
+        {
+            Client cl = GetClient();
+
+            Schema sc = new Schema().AddTextField("title", 1.0);
+            ConfiguredIndexOptions options = new ConfiguredIndexOptions(
+                new IndexOptions( prefixes = new string[]{cl.IndexName}));
+            Assert.True(cl.CreateIndex(sc, options));
+
+            RedisKey hashKey = (string)cl.IndexName + ":foo";
+            Db.KeyDelete(hashKey);
+            Db.HashSet(hashKey, "title", "hello world");
+
+            SearchResult res = cl.Search(new Query("hello world").SetVerbatim());
+            Assert.Equal(1, res.TotalResults);
+            Assert.Equal(hashKey, res.Documents[0].Id);
+        }
+
+        [Fact]
         public void TestAddHash()
         {
             Client cl = GetClient();
