@@ -215,13 +215,13 @@ namespace StackExchange.Redis.Tests
                 var key = Me();
                 for (int i = 0; i < LOOP; i++)
                 {
-                    var d = db.KeyDeleteAsync(key);
+                    _ = db.KeyDeleteAsync(key);
                     taken = db.LockTakeAsync(key, "new-value", TimeSpan.FromSeconds(10));
                     newValue = db.StringGetAsync(key);
                     ttl = db.KeyTimeToLiveAsync(key);
                 }
                 Assert.True(await taken, "taken");
-                Assert.Equal("new-value", (string)await newValue);
+                Assert.Equal("new-value", await newValue);
                 var ttlValue = (await ttl).Value.TotalSeconds;
                 Assert.True(ttlValue >= 8 && ttlValue <= 10, "ttl");
 
@@ -243,7 +243,7 @@ namespace StackExchange.Redis.Tests
                 var ttl = db.KeyTimeToLiveAsync(key);
 
                 Assert.False(await taken, "taken");
-                Assert.Equal("old-value", (string)await newValue);
+                Assert.Equal("old-value", await newValue);
                 var ttlValue = (await ttl).Value.TotalSeconds;
                 Assert.True(ttlValue >= 18 && ttlValue <= 20, "ttl");
             }

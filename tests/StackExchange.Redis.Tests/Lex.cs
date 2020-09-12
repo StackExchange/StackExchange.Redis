@@ -18,7 +18,7 @@ namespace StackExchange.Redis.Tests
                 db.KeyDelete(key, CommandFlags.FireAndForget);
 
                 db.SortedSetAdd(key,
-                    new SortedSetEntry[]
+                    new []
                 {
                     new SortedSetEntry("a", 0),
                     new SortedSetEntry("b", 0),
@@ -62,7 +62,7 @@ namespace StackExchange.Redis.Tests
                 db.KeyDelete(key, CommandFlags.FireAndForget);
 
                 db.SortedSetAdd(key,
-                    new SortedSetEntry[]
+                    new []
                 {
                     new SortedSetEntry("aaaa", 0),
                     new SortedSetEntry("b", 0),
@@ -71,7 +71,7 @@ namespace StackExchange.Redis.Tests
                     new SortedSetEntry("e", 0),
                 }, CommandFlags.FireAndForget);
                 db.SortedSetAdd(key,
-                    new SortedSetEntry[]
+                    new []
                 {
                     new SortedSetEntry("foo", 0),
                     new SortedSetEntry("zap", 0),
@@ -97,7 +97,7 @@ namespace StackExchange.Redis.Tests
             Assert.Equal(expected.Length, actual.Length);
             for (int i = 0; i < actual.Length; i++)
             {
-                Assert.Equal(expected[i], (string)actual[i]);
+                Assert.Equal(expected[i], actual[i]);
             }
         }
     }

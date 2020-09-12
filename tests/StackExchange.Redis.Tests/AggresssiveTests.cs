@@ -1,5 +1,4 @@
-﻿using System;
-using System.Threading;
+﻿using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Abstractions;
@@ -31,7 +30,6 @@ namespace StackExchange.Redis.Tests
                 for (int i = 0; i < tasks.Length; i++)
                 {
                     var scopedDb = muxers[i % Muxers].GetDatabase();
-                    var rand = new Random(i);
                     tasks[i] = Task.Run(async () =>
                     {
                         for (int j = 0; j < PerThread; j++)
@@ -67,7 +65,8 @@ namespace StackExchange.Redis.Tests
             {
                 for (int i = 0; i < muxers.Length; i++)
                 {
-                    try { muxers[i]?.Dispose(); } catch { }
+                    try { muxers[i]?.Dispose(); }
+                    catch { /* Don't care */ }
                 }
             }
         }

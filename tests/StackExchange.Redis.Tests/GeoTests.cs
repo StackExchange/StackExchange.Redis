@@ -29,12 +29,12 @@ namespace StackExchange.Redis.Tests
 
                 // add while not there
                 Assert.True(db.GeoAdd(key, cefalù.Longitude, cefalù.Latitude, cefalù.Member));
-                Assert.Equal(2, db.GeoAdd(key, new GeoEntry[] { palermo, catania }));
+                Assert.Equal(2, db.GeoAdd(key, new [] { palermo, catania }));
                 Assert.True(db.GeoAdd(key, agrigento));
 
                 // now add again
                 Assert.False(db.GeoAdd(key, cefalù.Longitude, cefalù.Latitude, cefalù.Member));
-                Assert.Equal(0, db.GeoAdd(key, new GeoEntry[] { palermo, catania }));
+                Assert.Equal(0, db.GeoAdd(key, new [] { palermo, catania }));
                 Assert.False(db.GeoAdd(key, agrigento));
 
                 // Validate
@@ -57,7 +57,6 @@ namespace StackExchange.Redis.Tests
                 db.GeoAdd(key, all, CommandFlags.FireAndForget);
                 var val = db.GeoDistance(key, "Palermo", "Catania", GeoUnit.Meters);
                 Assert.True(val.HasValue);
-                var rounded = Math.Round(val.Value, 10);
                 Assert.Equal(166274.1516, val);
 
                 val = db.GeoDistance(key, "Palermo", "Nowhere", GeoUnit.Meters);

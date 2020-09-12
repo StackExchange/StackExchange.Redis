@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Globalization;
 using System.IO;
 using System.IO.Pipelines;
 using System.Linq;
@@ -6,7 +7,6 @@ using System.Net;
 using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Threading.Tasks;
-using Pipelines.Sockets.Unofficial;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -20,14 +20,14 @@ namespace StackExchange.Redis.Tests
         public void SslProtocols_SingleValue()
         {
             var options = ConfigurationOptions.Parse("myhost,sslProtocols=Tls11");
-            Assert.Equal(SslProtocols.Tls11, options.SslProtocols.Value);
+            Assert.Equal(SslProtocols.Tls11, options.SslProtocols.GetValueOrDefault());
         }
 
         [Fact]
         public void SslProtocols_MultipleValues()
         {
             var options = ConfigurationOptions.Parse("myhost,sslProtocols=Tls11|Tls12");
-            Assert.Equal(SslProtocols.Tls11 | SslProtocols.Tls12, options.SslProtocols.Value);
+            Assert.Equal(SslProtocols.Tls11 | SslProtocols.Tls12, options.SslProtocols.GetValueOrDefault());
         }
 
         [Fact]
@@ -38,7 +38,7 @@ namespace StackExchange.Redis.Tests
             // but the OS has been patched with support
             const int integerValue = (int)(SslProtocols.Tls11 | SslProtocols.Tls12);
             var options = ConfigurationOptions.Parse("myhost,sslProtocols=" + integerValue);
-            Assert.Equal(SslProtocols.Tls11 | SslProtocols.Tls12, options.SslProtocols.Value);
+            Assert.Equal(SslProtocols.Tls11 | SslProtocols.Tls12, options.SslProtocols.GetValueOrDefault());
         }
 
         [Fact]
@@ -261,10 +261,10 @@ namespace StackExchange.Redis.Tests
             {
                 var server = GetAnyMaster(muxer);
                 var serverTime = server.Time();
-                Log(serverTime.ToString());
-                var delta = Math.Abs((DateTime.UtcNow - serverTime).TotalSeconds);
-
-                Assert.True(delta < 5);
+                var localTime = DateTime.UtcNow;
+                Log("Server: " + serverTime.ToString(CultureInfo.InvariantCulture));
+                Log("Local: " + localTime.ToString(CultureInfo.InvariantCulture));
+                Assert.Equal(localTime, serverTime, TimeSpan.FromSeconds(10));
             }
         }
 
@@ -345,7 +345,7 @@ namespace StackExchange.Redis.Tests
             using (var muxer = Create(allowAdmin: true))
             {
                 var server = GetAnyMaster(muxer);
-                var slowlog = server.SlowlogGet();
+                server.SlowlogGet();
                 server.SlowlogReset();
             }
         }
@@ -358,7 +358,7 @@ namespace StackExchange.Redis.Tests
             {
                 try
                 {
-                    var conn = configMuxer.GetDatabase();
+                    configMuxer.GetDatabase();
                     var srv = GetAnyMaster(configMuxer);
                     oldTimeout = srv.ConfigGet("timeout")[0].Value;
                     srv.ConfigSet("timeout", 5);
@@ -427,6 +427,41 @@ namespace StackExchange.Redis.Tests
             };
             using var muxer = ConnectionMultiplexer.Connect(config);
             Assert.Same(SocketManager.Shared.Scheduler, muxer.SocketManager.Scheduler);
+        }
+
+        [Theory]
+        [InlineData("myDNS:myPort,password=myPassword,connectRetry=3,connectTimeout=15000,syncTimeout=15000,defaultDatabase=0,abortConnect=false,ssl=true,sslProtocols=Tls12", SslProtocols.Tls12)]
+        [InlineData("myDNS:myPort,password=myPassword,abortConnect=false,ssl=true,sslProtocols=Tls12", SslProtocols.Tls12)]
+#pragma warning disable CS0618 // obsolete
+        [InlineData("myDNS:myPort,password=myPassword,abortConnect=false,ssl=true,sslProtocols=Ssl3", SslProtocols.Ssl3)]
+#pragma warning restore CS0618 // obsolete
+        [InlineData("myDNS:myPort,password=myPassword,abortConnect=false,ssl=true,sslProtocols=Tls12 ", SslProtocols.Tls12)]
+        public void ParseTlsWithoutTrailingComma(string configString, SslProtocols expected)
+        {
+            var config = ConfigurationOptions.Parse(configString);
+            Assert.Equal(expected, config.SslProtocols);
+        }
+
+        [Theory]
+        [InlineData("foo,sslProtocols=NotAThing", "Keyword 'sslProtocols' requires an SslProtocol value (multiple values separated by '|'); the value 'NotAThing' is not recognised.", "sslProtocols")]
+        [InlineData("foo,SyncTimeout=ten", "Keyword 'SyncTimeout' requires an integer value; the value 'ten' is not recognised.", "SyncTimeout")]
+        [InlineData("foo,syncTimeout=-42", "Keyword 'syncTimeout' has a minimum value of '1'; the value '-42' is not permitted.", "syncTimeout")]
+        [InlineData("foo,AllowAdmin=maybe", "Keyword 'AllowAdmin' requires a boolean value; the value 'maybe' is not recognised.", "AllowAdmin")]
+        [InlineData("foo,Version=current", "Keyword 'Version' requires a version value; the value 'current' is not recognised.", "Version")]
+        [InlineData("foo,proxy=epoxy", "Keyword 'proxy' requires a proxy value; the value 'epoxy' is not recognised.", "proxy")]
+        public void ConfigStringErrorsGiveMeaningfulMessages(string configString, string expected, string paramName)
+        {
+            var ex = Assert.Throws<ArgumentOutOfRangeException>(() => ConfigurationOptions.Parse(configString));
+            Assert.StartsWith(expected, ex.Message); // param name gets concatenated sometimes
+            Assert.Equal(paramName, ex.ParamName); // param name gets concatenated sometimes
+        }
+
+        [Fact]
+        public void ConfigStringInvalidOptionErrorGiveMeaningfulMessages()
+        {
+            var ex = Assert.Throws<ArgumentException>(() => ConfigurationOptions.Parse("foo,flibble=value"));
+            Assert.StartsWith("Keyword 'flibble' is not supported.", ex.Message); // param name gets concatenated sometimes
+            Assert.Equal("flibble", ex.ParamName);
         }
     }
 }

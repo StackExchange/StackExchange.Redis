@@ -1682,7 +1682,8 @@ The coordinates as a two items x,y array (longitude,latitude).
 
                 var arr = result.GetItems();
                 string name = default;
-                int pendingMessageCount = default, idleTimeInMilliseconds = default;
+                int pendingMessageCount = default;
+                long idleTimeInMilliseconds = default;
 
                 KeyValuePairParser.TryRead(arr, KeyValuePairParser.Name, ref name);
                 KeyValuePairParser.TryRead(arr, KeyValuePairParser.Pending, ref pendingMessageCount);
@@ -1698,16 +1699,26 @@ The coordinates as a two items x,y array (longitude,latitude).
                 Name = "name", Consumers = "consumers", Pending = "pending", Idle = "idle", LastDeliveredId = "last-delivered-id",
                 IP = "ip", Port = "port";
 
-            internal static bool TryRead(Sequence<RawResult> pairs, in CommandBytes key, ref int value)
+            internal static bool TryRead(Sequence<RawResult> pairs, in CommandBytes key, ref long value)
             {
                 var len = pairs.Length / 2;
                 for (int i = 0; i < len; i++)
                 {
                     if (pairs[i * 2].IsEqual(key) && pairs[(i * 2) + 1].TryGetInt64(out var tmp))
                     {
-                        value = checked((int)tmp);
+                        value = tmp;
                         return true;
                     }
+                }
+                return false;
+            }
+
+            internal static bool TryRead(Sequence<RawResult> pairs, in CommandBytes key, ref int value)
+            {
+                long tmp = default;
+                if(TryRead(pairs, key, ref tmp)) {
+                    value = checked((int)tmp);
+                    return true;
                 }
                 return false;
             }

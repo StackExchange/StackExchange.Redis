@@ -57,7 +57,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public void MasterConnectTest()
         {
-            var connectionString = $"{TestConfig.Current.SentinelServer}:{TestConfig.Current.SentinelPortA},serviceName={ServiceOptions.ServiceName},allowAdmin=true";
+            var connectionString = $"{TestConfig.Current.SentinelServer},serviceName={ServiceOptions.ServiceName},allowAdmin=true";
             var conn = ConnectionMultiplexer.Connect(connectionString);
 
             var db = conn.GetDatabase();
@@ -93,7 +93,7 @@ namespace StackExchange.Redis.Tests
         [Fact]
         public async Task MasterConnectAsyncTest()
         {
-            var connectionString = $"{TestConfig.Current.SentinelServer}:{TestConfig.Current.SentinelPortA},serviceName={ServiceOptions.ServiceName},allowAdmin=true";
+            var connectionString = $"{TestConfig.Current.SentinelServer},serviceName={ServiceOptions.ServiceName},allowAdmin=true";
             var conn = await ConnectionMultiplexer.ConnectAsync(connectionString);
 
             var db = conn.GetDatabase();

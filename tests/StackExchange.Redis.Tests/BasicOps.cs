@@ -191,7 +191,7 @@ namespace StackExchange.Redis.Tests
                 Assert.Null((string)g1);
                 Assert.True(g1.IsNull);
 
-                Assert.Equal("123", (string)g2);
+                Assert.Equal("123", g2);
                 Assert.Equal(123, (int)g2);
                 Assert.False(g2.IsNull);
                 Assert.True(d2);
@@ -222,10 +222,10 @@ namespace StackExchange.Redis.Tests
 
                 if (exists)
                 {
-                    Assert.Equal("val", (string)asyncResult.Value);
+                    Assert.Equal("val", asyncResult.Value);
                     Assert.Equal(hasExpiry, asyncResult.Expiry.HasValue);
                     if (hasExpiry) Assert.True(asyncResult.Expiry.Value.TotalMinutes >= 4.9 && asyncResult.Expiry.Value.TotalMinutes <= 5);
-                    Assert.Equal("val", (string)syncResult.Value);
+                    Assert.Equal("val", syncResult.Value);
                     Assert.Equal(hasExpiry, syncResult.Expiry.HasValue);
                     if (hasExpiry) Assert.True(syncResult.Expiry.Value.TotalMinutes >= 4.9 && syncResult.Expiry.Value.TotalMinutes <= 5);
                 }
@@ -246,14 +246,14 @@ namespace StackExchange.Redis.Tests
             {
                 var db = conn.GetDatabase();
                 RedisKey key = Me();
-                var del = db.KeyDeleteAsync(key);
-                var add = db.SetAddAsync(key, "abc");
+                _ = db.KeyDeleteAsync(key);
+                _ = db.SetAddAsync(key, "abc");
                 var ex = await Assert.ThrowsAsync<RedisServerException>(async () =>
                 {
                     try
                     {
                         Log("Key: " + (string)key);
-                        var async = await db.StringGetWithExpiryAsync(key).ForAwait();
+                        await db.StringGetWithExpiryAsync(key).ForAwait();
                     }
                     catch (AggregateException e)
                     {
@@ -289,7 +289,7 @@ namespace StackExchange.Redis.Tests
             using (var muxer = Create(allowAdmin: true))
             {
                 var db = muxer.GetDatabase();
-                string key = Guid.NewGuid().ToString();
+                string key = Me();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
                 db.StringSet(key, key, flags: CommandFlags.FireAndForget);
                 var server = GetServer(muxer);
@@ -435,7 +435,7 @@ namespace StackExchange.Redis.Tests
             {
                 var db = muxer.GetDatabase();
                 var key = Me();
-                var ss = db.StringSetAsync(key, "Heyyyyy");
+                _ = db.StringSetAsync(key, "Heyyyyy");
                 var ke1 = db.KeyExistsAsync(key).ForAwait();
                 var ku1 = db.KeyDelete(key);
                 var ke2 = db.KeyExistsAsync(key).ForAwait();
@@ -452,7 +452,7 @@ namespace StackExchange.Redis.Tests
             {
                 var db = muxer.GetDatabase();
                 var key = Me();
-                var ss = db.StringSetAsync(key, "Heyyyyy");
+                _ = db.StringSetAsync(key, "Heyyyyy");
                 var ke1 = db.KeyExistsAsync(key).ForAwait();
                 var ku1 = db.KeyDeleteAsync(key).ForAwait();
                 var ke2 = db.KeyExistsAsync(key).ForAwait();
@@ -471,8 +471,8 @@ namespace StackExchange.Redis.Tests
                 var key1 = Me();
                 var key2 = Me() + "2";
                 var key3 = Me() + "3";
-                var ss = db.StringSetAsync(key1, "Heyyyyy");
-                var ss2 = db.StringSetAsync(key2, "Heyyyyy");
+                _ = db.StringSetAsync(key1, "Heyyyyy");
+                _ = db.StringSetAsync(key2, "Heyyyyy");
                 // key 3 not set
                 var ku1 = db.KeyDelete(new RedisKey[] { key1, key2, key3 });
                 var ke1 = db.KeyExistsAsync(key1).ForAwait();
@@ -492,8 +492,8 @@ namespace StackExchange.Redis.Tests
                 var key1 = Me();
                 var key2 = Me() + "2";
                 var key3 = Me() + "3";
-                var ss = db.StringSetAsync(key1, "Heyyyyy");
-                var ss2 = db.StringSetAsync(key2, "Heyyyyy");
+                _ = db.StringSetAsync(key1, "Heyyyyy");
+                _ = db.StringSetAsync(key2, "Heyyyyy");
                 // key 3 not set
                 var ku1 = db.KeyDeleteAsync(new RedisKey[] { key1, key2, key3 }).ForAwait();
                 var ke1 = db.KeyExistsAsync(key1).ForAwait();

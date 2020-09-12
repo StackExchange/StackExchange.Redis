@@ -139,9 +139,10 @@ namespace StackExchange.Redis.Tests
             Assert.Equal((byte)'2', blob[1]);
             Assert.Equal((byte)'3', blob[2]);
 
-            Assert.Equal((double)123, Convert.ToDouble(o));
+            Assert.Equal(123, Convert.ToDouble(o));
 
             IConvertible c = (IConvertible)o;
+            // ReSharper disable RedundantCast
             Assert.Equal((short)123, c.ToInt16(CultureInfo.InvariantCulture));
             Assert.Equal((int)123, c.ToInt32(CultureInfo.InvariantCulture));
             Assert.Equal((long)123, c.ToInt64(CultureInfo.InvariantCulture));
