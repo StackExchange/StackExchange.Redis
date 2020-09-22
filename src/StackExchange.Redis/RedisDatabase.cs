@@ -3522,7 +3522,7 @@ namespace StackExchange.Redis
 
         private static void ReverseLimits(Order order, ref Exclude exclude, ref RedisValue start, ref RedisValue stop)
         {
-            bool reverseLimits = (order == Order.Ascending) == start.CompareTo(stop) > 0;
+            bool reverseLimits = (order == Order.Ascending) == (stop != default(RedisValue) && start.CompareTo(stop) > 0);
             if (reverseLimits)
             {
                 var tmp = start;
