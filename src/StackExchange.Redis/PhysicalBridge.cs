@@ -850,14 +850,20 @@ namespace StackExchange.Redis
                 // so now we are the writer; write some things!
                 Message message;
                 var timeout = TimeoutMilliseconds;
-                while(true)
+                var messages = new Queue<Message>();
+
+                _backlogStatus = BacklogStatus.CheckingForWork;
+                lock (_backlog)
                 {
-                    _backlogStatus = BacklogStatus.CheckingForWork;
-                    lock (_backlog)
+                    while (_backlog.Count > 0)
                     {
-                        if (_backlog.Count == 0) break; // all done
-                        message = _backlog.Dequeue();
+                        messages.Enqueue(_backlog.Dequeue());
                     }
+                }
+
+                while (messages.Count > 0)
+                {
+                    message = messages.Dequeue();
 
                     try
                     {
