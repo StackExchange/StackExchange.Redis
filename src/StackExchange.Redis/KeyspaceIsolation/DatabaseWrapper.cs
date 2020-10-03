@@ -306,6 +306,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.ListLeftPush(ToInner(key), values, flags);
         }
 
+        public long ListLeftPush(RedisKey key, RedisValue[] values, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.ListLeftPush(ToInner(key), values, when, flags);
+        }
+
         public long ListLeftPush(RedisKey key, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None)
         {
             return Inner.ListLeftPush(ToInner(key), value, when, flags);
@@ -339,6 +344,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
         public long ListRightPush(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
         {
             return Inner.ListRightPush(ToInner(key), values, flags);
+        }
+
+        public long ListRightPush(RedisKey key, RedisValue[] values, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.ListRightPush(ToInner(key), values, when, flags);
         }
 
         public long ListRightPush(RedisKey key, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None)

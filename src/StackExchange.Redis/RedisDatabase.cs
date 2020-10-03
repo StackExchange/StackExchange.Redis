@@ -935,6 +935,15 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
+        public long ListLeftPush(RedisKey key, RedisValue[] values, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            WhenAlwaysOrExists(when);
+            if (values == null) throw new ArgumentNullException(nameof(values));
+            var command = when == When.Always ? RedisCommand.LPUSH : RedisCommand.LPUSHX;
+            var msg = values.Length == 0 ? Message.Create(Database, flags, RedisCommand.LLEN, key) : Message.Create(Database, flags, command, key, values);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+
         public long ListLeftPush(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
         {
             if (values == null) throw new ArgumentNullException(nameof(values));
@@ -946,6 +955,15 @@ namespace StackExchange.Redis
         {
             WhenAlwaysOrExists(when);
             var msg = Message.Create(Database, flags, when == When.Always ? RedisCommand.LPUSH : RedisCommand.LPUSHX, key, value);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
+
+        public Task<long> ListLeftPushAsync(RedisKey key, RedisValue[] values, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            WhenAlwaysOrExists(when);
+            if (values == null) throw new ArgumentNullException(nameof(values));
+            var command = when == When.Always ? RedisCommand.LPUSH : RedisCommand.LPUSHX;
+            var msg = values.Length == 0 ? Message.Create(Database, flags, RedisCommand.LLEN, key) : Message.Create(Database, flags, command, key, values);
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
@@ -1023,6 +1041,15 @@ namespace StackExchange.Redis
             return ExecuteSync(msg, ResultProcessor.Int64);
         }
 
+        public long ListRightPush(RedisKey key, RedisValue[] values, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            WhenAlwaysOrExists(when);
+            if (values == null) throw new ArgumentNullException(nameof(values));
+            var command = when == When.Always ? RedisCommand.RPUSH : RedisCommand.RPUSHX;
+            var msg = values.Length == 0 ? Message.Create(Database, flags, RedisCommand.LLEN, key) : Message.Create(Database, flags, command, key, values);
+            return ExecuteSync(msg, ResultProcessor.Int64);
+        }
+
         public long ListRightPush(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None)
         {
             if (values == null) throw new ArgumentNullException(nameof(values));
@@ -1034,6 +1061,15 @@ namespace StackExchange.Redis
         {
             WhenAlwaysOrExists(when);
             var msg = Message.Create(Database, flags, when == When.Always ? RedisCommand.RPUSH : RedisCommand.RPUSHX, key, value);
+            return ExecuteAsync(msg, ResultProcessor.Int64);
+        }
+
+        public Task<long> ListRightPushAsync(RedisKey key, RedisValue[] values, When when = When.Always, CommandFlags flags = CommandFlags.None)
+        {
+            WhenAlwaysOrExists(when);
+            if (values == null) throw new ArgumentNullException(nameof(values));
+            var command = when == When.Always ? RedisCommand.RPUSH : RedisCommand.RPUSHX;
+            var msg = values.Length == 0 ? Message.Create(Database, flags, RedisCommand.LLEN, key) : Message.Create(Database, flags, command, key, values);
             return ExecuteAsync(msg, ResultProcessor.Int64);
         }
 
