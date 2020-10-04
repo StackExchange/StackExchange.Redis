@@ -116,7 +116,7 @@ namespace NRediSearch.Test
             foreach (var module in arr)
             {
                 var parsed = Parse(module);
-                if (parsed.TryGetValue("name", out var val) && val == "ft")
+                if (parsed.TryGetValue("name", out var val) && (val == "ft" || val == "search"))
                 {
                     found = true;
                     if (parsed.TryGetValue("ver", out val))
