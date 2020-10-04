@@ -293,7 +293,6 @@ namespace NRediSearch.Test.ClientTests
         public void TestIndexDefinition()
         {
             Client cl = GetClient();
-
             Schema sc = new Schema().AddTextField("title", 1.0);
             ConfiguredIndexOptions options = new ConfiguredIndexOptions(
                 new IndexDefinition( prefixes: new string[]{cl.IndexName}));
