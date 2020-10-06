@@ -87,7 +87,7 @@ namespace NRediSearch
             internal void SerializeRedisArgs(List<object> args)
             {
                 args.Add("ON".Literal());
-                args.Add(_type);
+                args.Add(_type.ToString("g"));
                 if (_async)
                 {
                     args.Add("ASYNC".Literal());
