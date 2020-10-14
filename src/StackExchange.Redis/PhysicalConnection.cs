@@ -875,11 +875,23 @@ namespace StackExchange.Redis
         [Obsolete("this is an anti-pattern; work to reduce reliance on this is in progress")]
         internal WriteResult FlushSync(bool throwOnFailure, int millisecondsTimeout)
         {
-            var flush = FlushAsync(throwOnFailure);
+            CancellationTokenSource source = new CancellationTokenSource();
+            source.CancelAfter(TimeSpan.FromMilliseconds(millisecondsTimeout));
+            var flush = FlushAsync(throwOnFailure, source.Token);
             if (!flush.IsCompletedSuccessfully)
             {
-                // here lies the evil
-                if (!flush.AsTask().Wait(millisecondsTimeout)) ThrowTimeout();
+                try
+                {
+                    // here lies the evil
+                    flush.AsTask().Wait();
+                }
+                catch (AggregateException ex)
+                {
+                    if (ex.InnerExceptions.Any(e => e is TaskCanceledException))
+                    {
+                        ThrowTimeout();
+                    }
+                }
             }
             return flush.Result;
 
@@ -891,7 +903,7 @@ namespace StackExchange.Redis
                 throw new TimeoutException("timeout while synchronously flushing");
             }
         }
-        internal ValueTask<WriteResult> FlushAsync(bool throwOnFailure)
+        internal ValueTask<WriteResult> FlushAsync(bool throwOnFailure, CancellationToken cancellationToken = default)
         {
             var tmp = _ioPipe?.Output;
             if (tmp == null) return new ValueTask<WriteResult>(WriteResult.NoConnectionAvailable);
@@ -903,7 +915,7 @@ namespace StackExchange.Redis
                 long flushBytes = -1;
                 if (_ioPipe is SocketConnection sc) flushBytes = sc.GetCounters().BytesWaitingToBeSent;
 #endif
-                var flush = tmp.FlushAsync();
+                var flush = tmp.FlushAsync(cancellationToken);
                 if (!flush.IsCompletedSuccessfully) return FlushAsync_Awaited(this, flush, throwOnFailure
 #if DEBUG
                     , startFlush, flushBytes
