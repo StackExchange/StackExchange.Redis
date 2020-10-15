@@ -875,26 +875,27 @@ namespace StackExchange.Redis
         [Obsolete("this is an anti-pattern; work to reduce reliance on this is in progress")]
         internal WriteResult FlushSync(bool throwOnFailure, int millisecondsTimeout)
         {
-            CancellationTokenSource source = new CancellationTokenSource();
-            source.CancelAfter(TimeSpan.FromMilliseconds(millisecondsTimeout));
-            var flush = FlushAsync(throwOnFailure, source.Token);
-            if (!flush.IsCompletedSuccessfully)
+            using (var source = new CancellationTokenSource())
             {
-                try
+                source.CancelAfter(TimeSpan.FromMilliseconds(millisecondsTimeout));
+                var flush = FlushAsync(throwOnFailure, source.Token);
+                if (!flush.IsCompletedSuccessfully)
                 {
-                    // here lies the evil
-                    flush.AsTask().Wait();
-                }
-                catch (AggregateException ex)
-                {
-                    if (ex.InnerExceptions.Any(e => e is TaskCanceledException))
+                    try
                     {
-                        ThrowTimeout();
+                        // here lies the evil
+                        flush.AsTask().Wait();
+                    }
+                    catch (AggregateException ex)
+                    {
+                        if (ex.InnerExceptions.Any(e => e is TaskCanceledException))
+                        {
+                            ThrowTimeout();
+                        }
                     }
                 }
+                return flush.Result;
             }
-            return flush.Result;
-
             void ThrowTimeout()
             {
 #if DEBUG
