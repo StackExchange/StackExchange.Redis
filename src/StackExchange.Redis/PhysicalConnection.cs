@@ -892,6 +892,7 @@ namespace StackExchange.Redis
                         {
                             ThrowTimeout();
                         }
+                        throw;
                     }
                 }
                 return flush.Result;
