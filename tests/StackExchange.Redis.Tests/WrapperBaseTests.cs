@@ -345,6 +345,14 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void ListLeftPushAsync_3()
+        {
+            RedisValue[] values = new RedisValue[] { "value1", "value2" };
+            wrapper.ListLeftPushAsync("key", values, When.Exists, CommandFlags.None);
+            mock.Verify(_ => _.ListLeftPushAsync("prefix:key", values, When.Exists, CommandFlags.None));
+        }
+
+        [Fact]
         public void ListLengthAsync()
         {
             wrapper.ListLengthAsync("key", CommandFlags.None);
@@ -392,6 +400,14 @@ namespace StackExchange.Redis.Tests
             RedisValue[] values = new RedisValue[0];
             wrapper.ListRightPushAsync("key", values, CommandFlags.None);
             mock.Verify(_ => _.ListRightPushAsync("prefix:key", values, CommandFlags.None));
+        }
+
+        [Fact]
+        public void ListRightPushAsync_3()
+        {
+            RedisValue[] values = new RedisValue[] { "value1", "value2" };
+            wrapper.ListRightPushAsync("key", values, When.Exists, CommandFlags.None);
+            mock.Verify(_ => _.ListRightPushAsync("prefix:key", values, When.Exists, CommandFlags.None));
         }
 
         [Fact]
