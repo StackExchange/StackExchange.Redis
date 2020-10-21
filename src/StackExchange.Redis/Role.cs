@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Collections.Generic;
 
 namespace StackExchange.Redis
 {
@@ -16,6 +12,9 @@ namespace StackExchange.Redis
         /// One of "master", "slave" (aka replica), or "sentinel".
         /// </summary>
         public string Value { get; }
+
+        /// <inheritdoc/>
+        public override string ToString() => Value;
 
         private Role(string role) => Value = role;
 
