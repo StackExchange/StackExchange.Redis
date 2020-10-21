@@ -340,6 +340,18 @@ namespace StackExchange.Redis
             }
         }
 
+        public Role Role(CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.ROLE);
+            return ExecuteSync(msg, ResultProcessor.Role);
+        }
+
+        public Task<Role> RoleAsync(CommandFlags flags = CommandFlags.None)
+        {
+            var msg = Message.Create(-1, flags, RedisCommand.ROLE);
+            return ExecuteAsync(msg, ResultProcessor.Role);
+        }
+
         public void Save(SaveType type, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetSaveMessage(type, flags);
