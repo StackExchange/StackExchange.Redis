@@ -7,6 +7,7 @@ using static NRediSearch.Client;
 
 namespace NRediSearch.Test.ClientTests
 {
+    [Collection("Sequential")]
     public class AggregationTest : RediSearchTestBase
     {
         public AggregationTest(ITestOutputHelper output) : base(output) { }

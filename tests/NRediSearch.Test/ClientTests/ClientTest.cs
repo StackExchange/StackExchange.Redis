@@ -9,7 +9,7 @@ using static NRediSearch.SuggestionOptions;
 
 namespace NRediSearch.Test.ClientTests
 {
-[Collection("Sequential")]
+    [Collection("Sequential")]
     public class ClientTest : RediSearchTestBase
     {
         public ClientTest(ITestOutputHelper output) : base(output) { }

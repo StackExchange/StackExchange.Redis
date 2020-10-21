@@ -8,6 +8,7 @@ using static NRediSearch.Client;
 
 namespace NRediSearch.Test.ClientTests
 {
+    [Collection("Sequential")]
     public class AggregationBuilderTests : RediSearchTestBase
     {
         public AggregationBuilderTests(ITestOutputHelper output) : base(output)
