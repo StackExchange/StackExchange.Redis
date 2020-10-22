@@ -45,8 +45,13 @@ namespace StackExchange.Redis.Tests
 
         [Theory]
         [InlineData(CommandFlags.None, "None")]
+#if NET472
         [InlineData(CommandFlags.PreferReplica, "PreferMaster, PreferReplica")] // 2-bit flag is hit-and-miss
         [InlineData(CommandFlags.DemandReplica, "PreferMaster, DemandReplica")] // 2-bit flag is hit-and-miss
+#else
+        [InlineData(CommandFlags.PreferReplica, "PreferReplica")] // 2-bit flag is hit-and-miss
+        [InlineData(CommandFlags.DemandReplica, "DemandReplica")] // 2-bit flag is hit-and-miss
+#endif
         [InlineData(CommandFlags.PreferReplica | CommandFlags.FireAndForget, "PreferMaster, FireAndForget, PreferReplica")] // 2-bit flag is hit-and-miss
         [InlineData(CommandFlags.DemandReplica | CommandFlags.FireAndForget, "PreferMaster, FireAndForget, DemandReplica")] // 2-bit flag is hit-and-miss
         public void CommandFlagsFormatting(CommandFlags value, string expected)
