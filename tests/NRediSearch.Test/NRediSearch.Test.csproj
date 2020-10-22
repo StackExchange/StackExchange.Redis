@@ -3,10 +3,12 @@
     <OutputType>Library</OutputType>
     <TargetFrameworks>netcoreapp3.1</TargetFrameworks>
     <SignAssembly>true</SignAssembly>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\NRediSearch\NRediSearch.csproj" />
     <ProjectReference Include="..\StackExchange.Redis.Tests\StackExchange.Redis.Tests.csproj" />
+    <PackageReference Include="GitHubActionsTestLogger" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
   </ItemGroup>
 </Project>

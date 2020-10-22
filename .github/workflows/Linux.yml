@@ -22,8 +22,6 @@ jobs:
       working-directory: ./tests/RedisConfigs
       run: docker-compose -f docker-compose.yml up -d
     - name: .NET Test
-      run: dotnet test Build.csproj -c Release --no-build /p:CI=true
-      env:
-        EnableTestLogging: true
+      run: dotnet test Build.csproj -c Release --logger GitHubActions /p:CI=true
     - name: .NET Lib Pack
       run: dotnet pack Build.csproj --no-build -c Release /p:Packing=true /p:PackageOutputPath=%CD%\.nupkgs /p:CI=true
