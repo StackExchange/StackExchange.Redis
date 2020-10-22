@@ -21,9 +21,9 @@ jobs:
     - name: Start Redis Services
       working-directory: ./tests/RedisConfigs
       run: docker-compose -f docker-compose.yml up -d
+    - name: Set environmental variables why even bother with YAML
+      run: echo "EnableTestLogging=true" >> $GITHUB_ENV
     - name: .NET Test
       run: dotnet test Build.csproj -c Release --no-build /p:CI=true
-      env:
-        EnableTestLogging: true
     - name: .NET Lib Pack
       run: dotnet pack Build.csproj --no-build -c Release /p:Packing=true /p:PackageOutputPath=%CD%\.nupkgs /p:CI=true
