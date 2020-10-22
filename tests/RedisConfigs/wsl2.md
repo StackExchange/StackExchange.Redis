@@ -1,5 +1,5 @@
 If you're using WSL2, then the WSL2 instance is now a full VM with a separate IP address rather than being part of the current machine;
-this means that you may need to use:
+this means that *for basic testing* you may need to use:
 
 ``` txt
 ~$ ip addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}'
@@ -21,3 +21,6 @@ to get the server's address, and update the entries in `TestConfig.json`, for ex
   "IPv4Server": "172.17.168.110"
 }
 ```
+
+Note that the cluster configuration is rigid and will advertise 127.0.0.1 as the server addresses, which *will not work*; hence cluster
+testing can only be performed directly on the hosted VM, or with port forwarding configured (good luck!)
