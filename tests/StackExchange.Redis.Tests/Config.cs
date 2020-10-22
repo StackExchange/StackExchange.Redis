@@ -31,13 +31,15 @@ namespace StackExchange.Redis.Tests
         }
 
         [Theory]
-        [InlineData("host,checkCertificateRevocation=false", false)]
-        [InlineData("host,checkCertificateRevocation=true", true)]
-        [InlineData("host", true)]
+        [InlineData("checkCertificateRevocation=false", false)]
+        [InlineData("checkCertificateRevocation=true", true)]
+        [InlineData("", true)]
         public void ConfigurationOption_CheckCertificateRevocation(string conString, bool expectedValue)
         {
-            var options = ConfigurationOptions.Parse(conString);
+            var options = ConfigurationOptions.Parse($"host,{conString}");
             Assert.Equal(expectedValue, options.CheckCertificateRevocation);
+            var toString = options.ToString();
+            Assert.True(toString.IndexOf(conString, StringComparison.CurrentCultureIgnoreCase) >= 0);
         }
 
         [Fact]

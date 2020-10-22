@@ -535,6 +535,7 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.WriteBuffer, writeBuffer);
             Append(sb, OptionKeys.Ssl, ssl);
             Append(sb, OptionKeys.SslProtocols, SslProtocols?.ToString().Replace(',', '|'));
+            Append(sb, OptionKeys.CheckCertificateRevocation, checkCertificateRevocation);
             Append(sb, OptionKeys.SslHost, sslHost);
             Append(sb, OptionKeys.HighPrioritySocketThreads, highPrioritySocketThreads);
             Append(sb, OptionKeys.ConfigChannel, configChannel);
