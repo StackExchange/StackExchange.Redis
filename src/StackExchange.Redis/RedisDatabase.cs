@@ -2990,7 +2990,7 @@ namespace StackExchange.Redis
             List<RedisValue> values = null;
             if (weights != null && weights.Length != 0)
             {
-                (values ?? (values = new List<RedisValue>())).Add(RedisLiterals.WEIGHTS);
+                (values ??= new List<RedisValue>()).Add(RedisLiterals.WEIGHTS);
                 foreach (var weight in weights)
                     values.Add(weight);
             }
@@ -2998,11 +2998,11 @@ namespace StackExchange.Redis
             {
                 case Aggregate.Sum: break; // default
                 case Aggregate.Min:
-                    (values ?? (values = new List<RedisValue>())).Add(RedisLiterals.AGGREGATE);
+                    (values ??= new List<RedisValue>()).Add(RedisLiterals.AGGREGATE);
                     values.Add(RedisLiterals.MIN);
                     break;
                 case Aggregate.Max:
-                    (values ?? (values = new List<RedisValue>())).Add(RedisLiterals.AGGREGATE);
+                    (values ??= new List<RedisValue>()).Add(RedisLiterals.AGGREGATE);
                     values.Add(RedisLiterals.MAX);
                     break;
                 default:

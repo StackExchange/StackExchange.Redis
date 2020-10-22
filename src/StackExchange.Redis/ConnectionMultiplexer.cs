@@ -143,10 +143,10 @@ namespace StackExchange.Redis
         private static string defaultClientName;
         private static string GetDefaultClientName()
         {
-            return defaultClientName ?? (defaultClientName = TryGetAzureRoleInstanceIdNoThrow()
+            return defaultClientName ??= TryGetAzureRoleInstanceIdNoThrow()
                     ?? Environment.MachineName
                     ?? Environment.GetEnvironmentVariable("ComputerName")
-                    ?? "StackExchange.Redis");
+                    ?? "StackExchange.Redis";
         }
 
         /// <summary>
@@ -1428,9 +1428,9 @@ namespace StackExchange.Redis
             // different instances, one of which (arbitrarily) ends up cached for later use
             if (db == 0)
             {
-                return dbCacheZero ?? (dbCacheZero = new RedisDatabase(this, 0, null));
+                return dbCacheZero ??= new RedisDatabase(this, 0, null);
             }
-            var arr = dbCacheLow ?? (dbCacheLow = new IDatabase[MaxCachedDatabaseInstance]);
+            var arr = dbCacheLow ??= new IDatabase[MaxCachedDatabaseInstance];
             return arr[db - 1] ?? (arr[db - 1] = new RedisDatabase(this, db, null));
         }
 
@@ -1741,7 +1741,7 @@ namespace StackExchange.Redis
                             }
                         }
 
-                        watch = watch ?? Stopwatch.StartNew();
+                        watch ??= Stopwatch.StartNew();
                         var remaining = RawConfig.ConnectTimeout - checked((int)watch.ElapsedMilliseconds);
                         log?.WriteLine($"Allowing endpoints {TimeSpan.FromMilliseconds(remaining)} to respond...");
                         Trace("Allowing endpoints " + TimeSpan.FromMilliseconds(remaining) + " to respond...");
@@ -2542,13 +2542,9 @@ namespace StackExchange.Redis
 
                 // Get new master - try twice
                 EndPoint newMasterEndPoint = GetConfiguredMasterForService(serviceName)
-                                          ?? GetConfiguredMasterForService(serviceName);
-
-                if (newMasterEndPoint == null)
-                {
-                    throw new RedisConnectionException(ConnectionFailureType.UnableToConnect,
-                        $"Sentinel: Failed connecting to switch master for service: {serviceName}");
-                }
+                                          ?? GetConfiguredMasterForService(serviceName)
+                                          ?? throw new RedisConnectionException(ConnectionFailureType.UnableToConnect,
+                                                $"Sentinel: Failed connecting to switch master for service: {serviceName}");
 
                 connection.currentSentinelMasterEndPoint = newMasterEndPoint;
 
