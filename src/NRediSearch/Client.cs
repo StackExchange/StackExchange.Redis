@@ -57,10 +57,10 @@ namespace NRediSearch
                 /// <summary>
                 /// Used to indicates that the index should follow the keys of type Hash changes
                 /// </summary>
-                HASH
+                Hash
             }
 
-            internal readonly IndexType _type = IndexType.HASH;
+            internal readonly IndexType _type = IndexType.Hash;
             internal readonly bool _async; 
             internal readonly string[] _prefixes;
             internal readonly string _filter;
@@ -180,10 +180,7 @@ namespace NRediSearch
 
             internal static void SerializeRedisArgs(IndexOptions options, List<object> args, IndexDefinition definition)
             {
-                if (definition != null)
-                {
-                    definition.SerializeRedisArgs(args);
-                } 
+                definition?.SerializeRedisArgs(args);
                 if ((options & IndexOptions.UseTermOffsets) == 0)
                 {
                     args.Add("NOOFFSETS".Literal());
@@ -542,22 +539,24 @@ namespace NRediSearch
 
         /// <summary>
         /// Index a document already in redis as a HASH key.
+        /// [Deprecated] Use IDatabase.HashSet instead.
         /// </summary>
         /// <param name="docId">the id of the document in redis. This must match an existing, unindexed HASH key</param>
         /// <param name="score">the document's index score, between 0 and 1</param>
         /// <param name="replace">if set, and the document already exists, we reindex and update it</param>
         /// <returns>true on success</returns>
-        /// [Deprecated] Use IDatabase.HashSet instead.
+        [Obsolete("Use IDatabase.HashSet instead.")]
         public bool AddHash(string docId, double score, bool replace) => AddHash((RedisKey)docId, score, replace);
 
         /// <summary>
         /// Index a document already in redis as a HASH key.
+        /// [Deprecated] Use IDatabase.HashSet instead.
         /// </summary>
         /// <param name="docId">the id of the document in redis. This must match an existing, unindexed HASH key</param>
         /// <param name="score">the document's index score, between 0 and 1</param>
         /// <param name="replace">if set, and the document already exists, we reindex and update it</param>
         /// <returns>true on success</returns>
-        /// [Deprecated] Use IDatabase.HashSet instead.
+        [Obsolete("Use IDatabase.HashSet instead.")]
         public bool AddHash(RedisKey docId, double score, bool replace)
         {
             var args = new List<object> { _boxedIndexName, docId, score };
@@ -570,22 +569,24 @@ namespace NRediSearch
 
         /// <summary>
         /// Index a document already in redis as a HASH key.
+        /// [Deprecated] Use IDatabase.HashSet instead.
         /// </summary>
         /// <param name="docId">the id of the document in redis. This must match an existing, unindexed HASH key</param>
         /// <param name="score">the document's index score, between 0 and 1</param>
         /// <param name="replace">if set, and the document already exists, we reindex and update it</param>
         /// <returns>true on success</returns>
-        /// [Deprecated] Use IDatabase.HashSet instead.
+        [Obsolete("Use IDatabase.HashSet instead.")]
         public Task<bool> AddHashAsync(string docId, double score, bool replace) => AddHashAsync((RedisKey)docId, score, replace);
 
         /// <summary>
         /// Index a document already in redis as a HASH key.
+        /// [Deprecated] Use IDatabase.HashSet instead.
         /// </summary>
         /// <param name="docId">the id of the document in redis. This must match an existing, unindexed HASH key</param>
         /// <param name="score">the document's index score, between 0 and 1</param>
         /// <param name="replace">if set, and the document already exists, we reindex and update it</param>
         /// <returns>true on success</returns>
-        /// [Deprecated] Use IDatabase.HashSet instead.
+        [Obsolete("Use IDatabase.HashSet instead.")]
         public async Task<bool> AddHashAsync(RedisKey docId, double score, bool replace)
         {
             var args = new List<object> { _boxedIndexName, docId, score };
