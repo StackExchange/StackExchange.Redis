@@ -2900,6 +2900,14 @@ namespace StackExchange.Redis
         /// </summary>
         /// <param name="key">The <see cref="RedisKey"/> to determine the hash slot for.</param>
         public int GetHashSlot(RedisKey key) => ServerSelectionStrategy.HashSlot(key);
+
+        internal void MarkServerEndpointsForReplicationRoleRefresh()
+        {
+            foreach (var s in servers.Values)
+            {
+                ((ServerEndPoint)s).ForceReplicationCheck = true;
+            }
+        }
     }
 
     internal enum WriteResult
