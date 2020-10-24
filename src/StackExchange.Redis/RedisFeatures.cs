@@ -226,6 +226,11 @@ namespace StackExchange.Redis
         public bool ReplicaCommands => Version >= v5_0_0;
 
         /// <summary>
+        /// Do list-push commands support multiple arguments?
+        /// </summary>
+        public bool PushMultiple => Version >= v4_0_0;
+
+        /// <summary>
         /// Create a string representation of the available features
         /// </summary>
         public override string ToString()

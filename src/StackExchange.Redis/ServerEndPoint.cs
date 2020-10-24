@@ -540,6 +540,7 @@ namespace StackExchange.Redis
         internal bool CheckInfoReplication()
         {
             lastInfoReplicationCheckTicks = Environment.TickCount;
+            ForceReplicationCheck = false;
             PhysicalBridge bridge;
             if (version >= RedisFeatures.v2_8_0 && Multiplexer.CommandMap.IsAvailable(RedisCommand.INFO)
                 && (bridge = GetBridge(ConnectionType.Interactive, false)) != null)
@@ -555,6 +556,7 @@ namespace StackExchange.Redis
         }
 
         private int lastInfoReplicationCheckTicks;
+        internal volatile bool ForceReplicationCheck;
 
         private int _heartBeatActive;
         internal void OnHeartbeat()
