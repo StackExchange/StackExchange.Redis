@@ -243,7 +243,7 @@ namespace StackExchange.Redis
         /// For every field that does not exist in the hash, a nil value is returned.Because a non-existing keys are treated as empty hashes, running HMGET against a non-existing key will return a list of nil values.
         /// </summary>
         /// <param name="key">The key of the hash.</param>
-        /// <param name="hashFields">The fields in the hash to delete.</param>
+        /// <param name="hashFields">The fields in the hash to get.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>List of values associated with the given fields, in the same order as they are requested.</returns>
         /// <remarks>https://redis.io/commands/hmget</remarks>
@@ -629,6 +629,18 @@ namespace StackExchange.Redis
         Task<long> ListLeftPushAsync(RedisKey key, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Insert the specified value at the head of the list stored at key. If key does not exist, it is created as empty list before performing the push operations.
+        /// </summary>
+        /// <param name="key">The key of the list.</param>
+        /// <param name="values">The value to add to the head of the list.</param>
+        /// <param name="when">Which conditions to add to the list under (defaults to always).</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The length of the list after the push operations.</returns>
+        /// <remarks>https://redis.io/commands/lpush</remarks>
+        /// <remarks>https://redis.io/commands/lpushx</remarks>
+        Task<long> ListLeftPushAsync(RedisKey key, RedisValue[] values, When when = When.Always, CommandFlags flags = CommandFlags.None);
+        
+        /// <summary>
         /// Insert all the specified values at the head of the list stored at key. If key does not exist, it is created as empty list before performing the push operations.
         /// Elements are inserted one after the other to the head of the list, from the leftmost element to the rightmost element. So for instance the command LPUSH mylist a b c will result into a list containing c as first element, b as second element and a as third element.
         /// </summary>
@@ -705,6 +717,18 @@ namespace StackExchange.Redis
         /// <remarks>https://redis.io/commands/rpush</remarks>
         /// <remarks>https://redis.io/commands/rpushx</remarks>
         Task<long> ListRightPushAsync(RedisKey key, RedisValue value, When when = When.Always, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
+        /// Insert the specified value at the tail of the list stored at key. If key does not exist, it is created as empty list before performing the push operation.
+        /// </summary>
+        /// <param name="key">The key of the list.</param>
+        /// <param name="values">The values to add to the tail of the list.</param>
+        /// <param name="when">Which conditions to add to the list under.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>The length of the list after the push operation.</returns>
+        /// <remarks>https://redis.io/commands/rpush</remarks>
+        /// <remarks>https://redis.io/commands/rpushx</remarks>
+        Task<long> ListRightPushAsync(RedisKey key, RedisValue[] values, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
         /// Insert all the specified values at the tail of the list stored at key. If key does not exist, it is created as empty list before performing the push operation. 

@@ -113,6 +113,14 @@ namespace StackExchange.Redis
             REMOVE = "REMOVE",
             //            SET = "SET",
 
+            // replication states
+            connect = "connect",
+            connected = "connected",
+            connecting = "connecting",
+            handshake = "handshake",
+            none = "none",
+            sync = "sync",
+
             MinusSymbol = "-",
             PlusSumbol = "+",
             Wildcard = "*",

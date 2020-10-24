@@ -36,7 +36,7 @@ namespace NRediSearch
 
             internal virtual void SerializeRedisArgs(List<object> args)
             {
-                object GetForRedis(FieldType type)
+                static object GetForRedis(FieldType type)
                 {
                     switch (type)
                     {

@@ -29,7 +29,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var conn = GetScriptConn())
             {
-                var result = conn.GetDatabase().ScriptEvaluate("return redis.call('info','server')", null, null);
+                _ = conn.GetDatabase().ScriptEvaluate("return redis.call('info','server')", null, null);
             }
         }
 
@@ -112,7 +112,7 @@ namespace StackExchange.Redis.Tests
                 conn.StringSet(key + "foo", "bar", flags: CommandFlags.FireAndForget);
                 var result = (long)conn.ScriptEvaluate(@"
 redis.call('psetex', KEYS[1], 60000, 'timing')
-for i = 1,100000 do
+for i = 1,5000 do
     redis.call('set', 'ignore','abc')
 end
 local timeTaken = 60000 - redis.call('pttl', KEYS[1])
@@ -329,7 +329,7 @@ return timeTaken
         {
             if (!task.IsCompleted)
             {
-                try { task.Wait(200); } catch { }
+                try { task.Wait(200); } catch { /* But don't error */ }
             }
             return task;
         }
@@ -390,12 +390,12 @@ return timeTaken
                 db.HashSet(key, "id", 123, flags: CommandFlags.FireAndForget);
 
                 var wasSet = (bool)db.ScriptEvaluate("if redis.call('hexists', KEYS[1], 'UniqueId') then return redis.call('hset', KEYS[1], 'UniqueId', ARGV[1]) else return 0 end",
-                    new RedisKey[] { key }, new RedisValue[] { newId });
+                    new [] { key }, new [] { newId });
 
                 Assert.True(wasSet);
 
                 wasSet = (bool)db.ScriptEvaluate("if redis.call('hexists', KEYS[1], 'UniqueId') then return redis.call('hset', KEYS[1], 'UniqueId', ARGV[1]) else return 0 end",
-                    new RedisKey[] { key }, new RedisValue[] { newId });
+                    new [] { key }, new [] { newId });
                 Assert.False(wasSet);
             }
         }
@@ -603,7 +603,7 @@ return timeTaken
                 Assert.Equal(123, (int)val);
 
                 // no super clean way to extract this; so just abuse InternalsVisibleTo
-                script.ExtractParameters(p, null, out RedisKey[] keys, out RedisValue[] args);
+                script.ExtractParameters(p, null, out RedisKey[] keys, out _);
                 Assert.NotNull(keys);
                 Assert.Single(keys);
                 Assert.Equal(key, keys[0]);
@@ -718,7 +718,7 @@ return timeTaken
                 Assert.Equal(123, (int)val);
 
                 // no super clean way to extract this; so just abuse InternalsVisibleTo
-                prepared.Original.ExtractParameters(p, null, out RedisKey[] keys, out RedisValue[] args);
+                prepared.Original.ExtractParameters(p, null, out RedisKey[] keys, out _);
                 Assert.NotNull(keys);
                 Assert.Single(keys);
                 Assert.Equal(key, keys[0]);
@@ -839,7 +839,7 @@ return timeTaken
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
                 var db = conn.GetDatabase();
-                var wrappedDb = KeyspaceIsolation.DatabaseExtensions.WithKeyPrefix(db, "prefix-");
+                var wrappedDb = DatabaseExtensions.WithKeyPrefix(db, "prefix-");
                 var key = Me();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
 
@@ -865,7 +865,7 @@ return timeTaken
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
                 var db = conn.GetDatabase();
-                var wrappedDb = KeyspaceIsolation.DatabaseExtensions.WithKeyPrefix(db, "prefix-");
+                var wrappedDb = DatabaseExtensions.WithKeyPrefix(db, "prefix-");
                 var key = Me();
                 await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
 
@@ -891,7 +891,7 @@ return timeTaken
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
                 var db = conn.GetDatabase();
-                var wrappedDb = KeyspaceIsolation.DatabaseExtensions.WithKeyPrefix(db, "prefix2-");
+                var wrappedDb = DatabaseExtensions.WithKeyPrefix(db, "prefix2-");
                 var key = Me();
                 db.KeyDelete(key, CommandFlags.FireAndForget);
 
@@ -918,7 +918,7 @@ return timeTaken
             {
                 Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
                 var db = conn.GetDatabase();
-                var wrappedDb = KeyspaceIsolation.DatabaseExtensions.WithKeyPrefix(db, "prefix2-");
+                var wrappedDb = DatabaseExtensions.WithKeyPrefix(db, "prefix2-");
                 var key = Me();
                 await db.KeyDeleteAsync(key, CommandFlags.FireAndForget);
 
@@ -952,9 +952,9 @@ arr[3] = @z;
 return arr;
 ");
                 var result = (RedisValue[])p.ScriptEvaluate(script, args);
-                Assert.Equal("abc", (string)result[0]);
-                Assert.Equal("prefix/def", (string)result[1]);
-                Assert.Equal("123", (string)result[2]);
+                Assert.Equal("abc", result[0]);
+                Assert.Equal("prefix/def", result[1]);
+                Assert.Equal("123", result[2]);
             }
         }
 
@@ -965,7 +965,6 @@ return arr;
             {
                 var p = conn.GetDatabase().WithKeyPrefix("prefix/");
 
-                var args = new { x = "abc", y = (RedisKey)"def", z = 123 };
                 const string script = @"
 local arr = {};
 arr[1] = ARGV[1];
@@ -974,9 +973,9 @@ arr[3] = ARGV[2];
 return arr;
 ";
                 var result = (RedisValue[])p.ScriptEvaluate(script, new RedisKey[] { "def" }, new RedisValue[] { "abc", 123 });
-                Assert.Equal("abc", (string)result[0]);
-                Assert.Equal("prefix/def", (string)result[1]);
-                Assert.Equal("123", (string)result[2]);
+                Assert.Equal("abc", result[0]);
+                Assert.Equal("prefix/def", result[1]);
+                Assert.Equal("123", result[2]);
             }
         }
 

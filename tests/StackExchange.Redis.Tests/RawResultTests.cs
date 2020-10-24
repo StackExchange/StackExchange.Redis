@@ -21,7 +21,7 @@ namespace StackExchange.Redis.Tests
             var value = result.AsRedisValue();
 
             Assert.True(value.IsNull);
-            string s = (string)value;
+            string s = value;
             Assert.Null(s);
 
             byte[] arr = (byte[])value;

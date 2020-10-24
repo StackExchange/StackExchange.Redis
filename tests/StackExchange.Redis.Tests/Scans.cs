@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Xunit;
 using Xunit.Abstractions;
+// ReSharper disable PossibleMultipleEnumeration
 
 namespace StackExchange.Redis.Tests
 {
@@ -133,7 +134,7 @@ namespace StackExchange.Redis.Tests
                     }
                     if (i >= 57)
                     {
-                        expected.Add((string)key);
+                        expected.Add(key);
                     }
                     i++;
                 }
@@ -177,7 +178,7 @@ namespace StackExchange.Redis.Tests
                 int count = 0;
                 foreach (var key in seq)
                 {
-                    expected.Remove((string)key);
+                    expected.Remove(key);
                     count++;
                 }
                 Assert.Empty(expected);
@@ -202,9 +203,9 @@ namespace StackExchange.Redis.Tests
                 db.SetAdd(key, "c", CommandFlags.FireAndForget);
                 var arr = db.SetScan(key).ToArray();
                 Assert.Equal(3, arr.Length);
-                Assert.True(arr.Contains("a"), "a");
-                Assert.True(arr.Contains("b"), "b");
-                Assert.True(arr.Contains("c"), "c");
+                Assert.Contains((RedisValue)"a", arr);
+                Assert.Contains((RedisValue)"b", arr);
+                Assert.Contains((RedisValue)"c", arr);
             }
         }
 
@@ -366,7 +367,7 @@ namespace StackExchange.Redis.Tests
             var found = false;
             var response = db.HashScan(key);
             var cursor = ((IScanningCursor)response);
-            foreach (var i in response)
+            foreach (var _ in response)
             {
                 if (cursor.Cursor > 0)
                 {

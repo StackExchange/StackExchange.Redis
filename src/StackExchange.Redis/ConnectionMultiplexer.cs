@@ -143,10 +143,10 @@ namespace StackExchange.Redis
         private static string defaultClientName;
         private static string GetDefaultClientName()
         {
-            return defaultClientName ?? (defaultClientName = TryGetAzureRoleInstanceIdNoThrow()
+            return defaultClientName ??= TryGetAzureRoleInstanceIdNoThrow()
                     ?? Environment.MachineName
                     ?? Environment.GetEnvironmentVariable("ComputerName")
-                    ?? "StackExchange.Redis");
+                    ?? "StackExchange.Redis";
         }
 
         /// <summary>
@@ -840,7 +840,7 @@ namespace StackExchange.Redis
         public static Task<ConnectionMultiplexer> ConnectAsync(string configuration, TextWriter log = null)
         {
             SocketConnection.AssertDependencies();
-            return ConnectAsync(PrepareConfig(configuration), log);
+            return ConnectAsync(ConfigurationOptions.Parse(configuration), log);
         }
 
         private static async Task<ConnectionMultiplexer> ConnectImplAsync(ConfigurationOptions configuration, TextWriter log = null)
@@ -918,12 +918,7 @@ namespace StackExchange.Redis
 
             if (sentinel)
             {
-                // this is required when connecting to sentinel servers
-                config.TieBreaker = "";
-                config.CommandMap = CommandMap.Sentinel;
-
-                // use default sentinel port
-                config.EndPoints.SetDefaultPorts(26379);
+                config.SetSentinelDefaults();
 
                 return config;
             }
@@ -1017,7 +1012,7 @@ namespace StackExchange.Redis
         /// <param name="log">The <see cref="TextWriter"/> to log to.</param>
         public static ConnectionMultiplexer Connect(string configuration, TextWriter log = null)
         {
-            return Connect(PrepareConfig(configuration), log);
+            return Connect(ConfigurationOptions.Parse(configuration), log);
         }
 
         /// <summary>
@@ -1433,9 +1428,9 @@ namespace StackExchange.Redis
             // different instances, one of which (arbitrarily) ends up cached for later use
             if (db == 0)
             {
-                return dbCacheZero ?? (dbCacheZero = new RedisDatabase(this, 0, null));
+                return dbCacheZero ??= new RedisDatabase(this, 0, null);
             }
-            var arr = dbCacheLow ?? (dbCacheLow = new IDatabase[MaxCachedDatabaseInstance]);
+            var arr = dbCacheLow ??= new IDatabase[MaxCachedDatabaseInstance];
             return arr[db - 1] ?? (arr[db - 1] = new RedisDatabase(this, db, null));
         }
 
@@ -1746,7 +1741,7 @@ namespace StackExchange.Redis
                             }
                         }
 
-                        watch = watch ?? Stopwatch.StartNew();
+                        watch ??= Stopwatch.StartNew();
                         var remaining = RawConfig.ConnectTimeout - checked((int)watch.ElapsedMilliseconds);
                         log?.WriteLine($"Allowing endpoints {TimeSpan.FromMilliseconds(remaining)} to respond...");
                         Trace("Allowing endpoints " + TimeSpan.FromMilliseconds(remaining) + " to respond...");
@@ -1860,7 +1855,7 @@ namespace StackExchange.Redis
                         {
                             ServerSelectionStrategy.ServerType = ServerType.Sentinel;
                         }
-                        else
+                        else if (standaloneCount > 0)
                         {
                             ServerSelectionStrategy.ServerType = ServerType.Standalone;
                         }
@@ -2407,7 +2402,7 @@ namespace StackExchange.Redis
 
                 // verify role is master according to:
                 // https://redis.io/topics/sentinel-clients
-                if (connection.GetServer(newMasterEndPoint)?.Role() == RedisLiterals.master)
+                if (connection.GetServer(newMasterEndPoint)?.Role().Value == RedisLiterals.master)
                 {
                     success = true;
                     break;
@@ -2547,13 +2542,9 @@ namespace StackExchange.Redis
 
                 // Get new master - try twice
                 EndPoint newMasterEndPoint = GetConfiguredMasterForService(serviceName)
-                                          ?? GetConfiguredMasterForService(serviceName);
-
-                if (newMasterEndPoint == null)
-                {
-                    throw new RedisConnectionException(ConnectionFailureType.UnableToConnect,
-                        $"Sentinel: Failed connecting to switch master for service: {serviceName}");
-                }
+                                          ?? GetConfiguredMasterForService(serviceName)
+                                          ?? throw new RedisConnectionException(ConnectionFailureType.UnableToConnect,
+                                                $"Sentinel: Failed connecting to switch master for service: {serviceName}");
 
                 connection.currentSentinelMasterEndPoint = newMasterEndPoint;
 

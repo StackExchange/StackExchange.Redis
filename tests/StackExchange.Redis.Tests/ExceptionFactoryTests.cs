@@ -13,7 +13,7 @@ namespace StackExchange.Redis.Tests
         {
             using (var muxer = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true))
             {
-                var conn = muxer.GetDatabase();
+                muxer.GetDatabase();
                 Assert.Null(muxer.GetServerSnapshot()[0].LastException);
                 var ex = ExceptionFactory.NoConnectionAvailable(muxer as ConnectionMultiplexer, null, null);
                 Assert.Null(ex.InnerException);
@@ -35,7 +35,7 @@ namespace StackExchange.Redis.Tests
             {
                 using (var muxer = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, shared: false))
                 {
-                    var conn = muxer.GetDatabase();
+                    muxer.GetDatabase();
                     muxer.AllowConnect = false;
 
                     foreach (var endpoint in muxer.GetEndPoints())
@@ -65,7 +65,7 @@ namespace StackExchange.Redis.Tests
             {
                 using (var muxer = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true, shared: false))
                 {
-                    var conn = muxer.GetDatabase();
+                    muxer.GetDatabase();
                     muxer.AllowConnect = false;
 
                     muxer.GetServer(muxer.GetEndPoints()[0]).SimulateConnectionFailure();
@@ -89,7 +89,7 @@ namespace StackExchange.Redis.Tests
             {
                 using (var muxer = Create(keepAlive: 1, connectTimeout: 10000, allowAdmin: true))
                 {
-                    var conn = muxer.GetDatabase();
+                    muxer.GetDatabase();
                     muxer.AllowConnect = false;
                     var ex = ExceptionFactory.NoConnectionAvailable(muxer as ConnectionMultiplexer, null, null);
                     Assert.IsType<RedisConnectionException>(ex);
@@ -122,7 +122,7 @@ namespace StackExchange.Redis.Tests
                     // Ensure our pipe numbers are in place
                     Assert.Contains("inst: 0, qu: 0, qs: 0, aw: False, in: 0, in-pipe: 0, out-pipe: 0", ex.Message);
                     Assert.Contains("mc: 1/1/0", ex.Message);
-                    Assert.Contains("serverEndpoint: " + server.EndPoint.ToString(), ex.Message);
+                    Assert.Contains("serverEndpoint: " + server.EndPoint, ex.Message);
                     Assert.DoesNotContain("Unspecified/", ex.Message);
                     Assert.EndsWith(" (Please take a look at this article for some common client-side issues that can cause timeouts: https://stackexchange.github.io/StackExchange.Redis/Timeouts)", ex.Message);
                     Assert.Null(ex.InnerException);

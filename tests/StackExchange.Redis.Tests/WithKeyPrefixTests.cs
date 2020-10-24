@@ -37,11 +37,9 @@ namespace StackExchange.Redis.Tests
         {
             Assert.Throws<ArgumentNullException>(() =>
             {
-                using (var conn = Create())
-                {
-                    var raw = conn.GetDatabase();
-                    var prefixed = raw.WithKeyPrefix((byte[])null);
-                }
+                using var conn = Create();
+                var raw = conn.GetDatabase();
+                raw.WithKeyPrefix((byte[])null);
             });
         }
 
@@ -50,11 +48,9 @@ namespace StackExchange.Redis.Tests
         {
             Assert.Throws<ArgumentNullException>(() =>
             {
-                using (var conn = Create())
-                {
-                    var raw = conn.GetDatabase();
-                    var prefixed = raw.WithKeyPrefix((string)null);
-                }
+                using var conn = Create();
+                var raw = conn.GetDatabase();
+                raw.WithKeyPrefix((string)null);
             });
         }
 
@@ -67,7 +63,7 @@ namespace StackExchange.Redis.Tests
             Assert.Throws<ArgumentNullException>(() =>
             {
                 IDatabase raw = null;
-                var prefixed = raw.WithKeyPrefix(prefix);
+                raw.WithKeyPrefix(prefix);
             });
         }
 
@@ -91,16 +87,16 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal(s, val); // fooBasicSmokeTest
 
                 foobar.StringSet(key, t, flags: CommandFlags.FireAndForget);
-                val = (string)foobar.StringGet(key);
+                val = foobar.StringGet(key);
                 Assert.Equal(t, val); // foobarBasicSmokeTest
 
-                val = (string)foo.StringGet("bar" + key);
+                val = foo.StringGet("bar" + key);
                 Assert.Equal(t, val); // foobarBasicSmokeTest
 
-                val = (string)raw.StringGet(prefix + key);
+                val = raw.StringGet(prefix + key);
                 Assert.Equal(s, val); // fooBasicSmokeTest
 
-                val = (string)raw.StringGet(prefix + "bar" + key);
+                val = raw.StringGet(prefix + "bar" + key);
                 Assert.Equal(t, val); // foobarBasicSmokeTest
             }
         }

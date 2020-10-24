@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFrameworks>netcoreapp2.1;net461;net462;net47;net472</TargetFrameworks>
+    <TargetFrameworks>netcoreapp3.1;net472</TargetFrameworks>
     <DefineConstants>SEV2</DefineConstants>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
   </PropertyGroup>
@@ -13,6 +13,5 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\StackExchange.Redis\StackExchange.Redis.csproj" />
-    <PackageReference Include="System.IO.Compression" />
   </ItemGroup>
 </Project>
