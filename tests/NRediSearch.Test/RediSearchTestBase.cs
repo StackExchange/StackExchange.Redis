@@ -3,10 +3,12 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using StackExchange.Redis;
 using StackExchange.Redis.Tests;
+using Xunit;
 using Xunit.Abstractions;
 
 namespace NRediSearch.Test
 {
+    [Collection(nameof(NonParallelCollection))]
     public abstract class RediSearchTestBase : IDisposable
     {
         protected readonly ITestOutputHelper Output;
@@ -157,4 +159,7 @@ namespace NRediSearch.Test
                 || ex.Message.Contains("no such index", StringComparison.InvariantCultureIgnoreCase);
         }
     }
+
+    [CollectionDefinition(nameof(NonParallelCollection), DisableParallelization = true)]
+    public class NonParallelCollection { }
 }
