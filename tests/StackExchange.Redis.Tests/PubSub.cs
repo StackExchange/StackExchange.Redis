@@ -519,6 +519,10 @@ namespace StackExchange.Redis.Tests
                 });
                 await sub.PingAsync().ForAwait();
 
+                // Waiting for the pub/sub channels to aligns
+                // cc @mgravell on long-term here, we don't have a good "okay, you can start your publish run" approach atm.
+                await Task.Delay(1000);
+
                 lock (syncLock)
                 {
                     for (int i = 0; i < count; i++)
