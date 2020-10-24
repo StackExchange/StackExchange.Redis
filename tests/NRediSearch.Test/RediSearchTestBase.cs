@@ -37,34 +37,58 @@ namespace NRediSearch.Test
 
             var indexName = $"{filePath}:{caller}";
             Output.WriteLine("Using Index: " + indexName);
-            var exists = Db.KeyExists("idx:" + indexName);
-            Output.WriteLine("Key existed: " + exists);
+            Output.WriteLine("  Key exists? (no prefix): " + Db.KeyExists(indexName));
+            Output.WriteLine("  Key exists? (idx prefix): " + Db.KeyExists("idx:" + indexName));
 
             var client = new Client(indexName, Db);
             var wasReset = Reset(client);
-            Output.WriteLine("Index was reset?: " + wasReset);
+            Output.WriteLine("  Index was reset?: " + wasReset);
             return client;
+        }
+
+        protected Dictionary<string, int> DocNames = new Dictionary<string, int>();
+
+        protected string UniqueDocName([CallerFilePath] string filePath = null, [CallerMemberName] string caller = null)
+        {
+            // Remove all that extra pathing
+            var offset = filePath?.IndexOf("NRediSearch.Test");
+            if (offset > -1)
+            {
+                filePath = filePath.Substring(offset.Value + "NRediSearch.Test".Length + 1);
+            }
+
+            var docKey = $"{filePath}:{caller}";
+            int counter;
+            if (DocNames.TryGetValue(docKey, out counter))
+            {
+                DocNames[docKey] = counter++;
+            }
+            else
+            {
+                DocNames[docKey] = counter = 1;
+            }
+            return docKey + counter;
         }
 
         protected bool Reset(Client client)
         {
-            Output.WriteLine("Resetting index");
+            Output.WriteLine("Resetting index " + (string)client.IndexName);
             try
             {
                 var result = client.DropIndex(); // tests create them
-                Output.WriteLine("  Result: " + result);
+                Output.WriteLine("  Index dropped?: " + result);
                 return result;
             }
             catch (RedisServerException ex)
             {
                 if (string.Equals("Unknown Index name", ex.Message, StringComparison.InvariantCultureIgnoreCase))
                 {
-                    Output.WriteLine("  Unknown index name");
+                    Output.WriteLine("  Not reset: Unknown index name");
                     return true;
                 }
                 if (string.Equals("no such index", ex.Message, StringComparison.InvariantCultureIgnoreCase))
                 {
-                    Output.WriteLine("  No such index");
+                    Output.WriteLine("  Not reset: No such index");
                     return true;
                 }
                 else

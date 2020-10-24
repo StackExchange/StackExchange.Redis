@@ -16,8 +16,6 @@ namespace NRediSearch.Test
         {
             var client = GetClient();
 
-            try { client.DropIndex(); } catch { /* Intentionally ignored */ } // reset DB
-
             // Defining a schema for an index and creating it:
             var sc = new Schema()
                 .AddTextField("title", 5.0)
@@ -53,7 +51,8 @@ namespace NRediSearch.Test
                 ["price"] = 1337
             };
 
-            Assert.True(client.AddDocument("doc1", fields));
+            var docName = UniqueDocName();
+            Assert.True(client.AddDocument(docName, fields));
 
             // Creating a complex query
             var q = new Query("hello world")
@@ -65,7 +64,7 @@ namespace NRediSearch.Test
 
             Assert.Equal(1, res.TotalResults);
             var item = res.Documents.Single();
-            Assert.Equal("doc1", item.Id);
+            Assert.Equal(docName, item.Id);
 
             Assert.True(item.HasProperty("title"));
             Assert.True(item.HasProperty("body"));
@@ -81,10 +80,7 @@ namespace NRediSearch.Test
         public void BasicScoringUsage()
         {
             var client = GetClient();
-
-            try { client.DropIndex(); } catch { /* Intentionally ignored */ } // reset DB
-
-            CreateSchema(client);
+            var docName = CreateSchema(client);
 
             var term = "petit*";
 
@@ -98,7 +94,7 @@ namespace NRediSearch.Test
 
             Assert.Equal(1, searchResult.TotalResults);
             Assert.NotEqual(0, docResult.Score);
-            Assert.Equal("1", docResult.Id);
+            Assert.Equal(docName, docResult.Id);
             Assert.Null(docResult.ScoreExplained);
         }
 
@@ -106,10 +102,7 @@ namespace NRediSearch.Test
         public void BasicScoringUsageWithExplainScore()
         {
             var client = GetClient();
-
-            try { client.DropIndex(); } catch { /* Intentionally ignored */ } // reset DB
-
-            CreateSchema(client);
+            var docName = CreateSchema(client);
 
             var term = "petit*";
 
@@ -125,7 +118,7 @@ namespace NRediSearch.Test
 
             Assert.Equal(1, searchResult.TotalResults);
             Assert.NotEqual(0, docResult.Score);
-            Assert.Equal("1", docResult.Id);
+            Assert.Equal(docName, docResult.Id);
             Assert.NotEmpty(docResult.ScoreExplained);
             Assert.Equal("Final TFIDF : words TFIDF 1.00 * document score 1.00 / norm 2 / slop 1", docResult.ScoreExplained[0]);
             Assert.Equal("(Weight 1.00 * total children TFIDF 1.00)", docResult.ScoreExplained[1]);
@@ -136,10 +129,7 @@ namespace NRediSearch.Test
         public void BasicScoringUsageWithExplainScoreDifferentScorer()
         {
             var client = GetClient();
-
-            try { client.DropIndex(); } catch { /* Intentionally ignored */ } // reset DB
-
-            CreateSchema(client);
+            var docName = CreateSchema(client);
 
             var term = "petit*";
 
@@ -155,14 +145,17 @@ namespace NRediSearch.Test
 
             Assert.Equal(1, searchResult.TotalResults);
             Assert.NotEqual(0, docResult.Score);
-            Assert.Equal("1", docResult.Id);
+            Assert.Equal(docName, docResult.Id);
             Assert.NotEmpty(docResult.ScoreExplained);
-            Assert.Equal("Final TFIDF : words TFIDF 1.00 * document score 1.00 / norm 20 / slop 1", docResult.ScoreExplained[0]);
+            Assert.Equal("Final TFIDF : words TFIDF 2.00 * document score 1.00 / norm 20 / slop 1", docResult.ScoreExplained[0]);
             Assert.Equal("(Weight 1.00 * total children TFIDF 1.00)", docResult.ScoreExplained[1]);
             Assert.Equal("(TFIDF 1.00 = Weight 1.00 * TF 1 * IDF 1.00)", docResult.ScoreExplained[2]);
         }
 
-        private void CreateSchema(Client client)
+        /// <summary>
+        /// Creates a schema, returning the first doc's name
+        /// </summary>
+        private string CreateSchema(Client client)
         {
             var schema = new Schema();
 
@@ -175,7 +168,7 @@ namespace NRediSearch.Test
 
             client.CreateIndex(schema, new ConfiguredIndexOptions());
 
-            var doc = new Document("1");
+            var doc = new Document(UniqueDocName());
 
             doc
                 .Set("title", "Le Petit Prince")
@@ -185,6 +178,8 @@ namespace NRediSearch.Test
                 .Set("aka", "The Little Prince, El Principito");
 
             client.AddDocument(doc);
+
+            return doc.Id;
         }
     }
 }
