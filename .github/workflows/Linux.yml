@@ -39,9 +39,6 @@ jobs:
       uses: actions/checkout@v1
     - name: .NET Build
       run: dotnet build Build.csproj -c Release /p:CI=true
-    - name: Start Redis Services
-      working-directory: ./tests/RedisConfigs
-      run: docker-compose -f docker-compose.yml up -d
     - name: NRedisSearch.Tests
       run: dotnet test tests/NRediSearch.Test/NRediSearch.Test.csproj -c Release --logger GitHubActions /p:CI=true
     - name: .NET Lib Pack
