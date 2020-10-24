@@ -594,7 +594,10 @@ namespace StackExchange.Redis.Tests
             var checkConn = Conn.GetSentinelMasterConnection(ServiceOptions);
 
             WaitForRole(checkConn.GetServer(master), "master", duration.Value.Subtract(sw.Elapsed));
-            WaitForRole(checkConn.GetServer(replicas[0]), "slave", duration.Value.Subtract(sw.Elapsed));
+            if (replicas.Length > 0)
+            {
+                WaitForRole(checkConn.GetServer(replicas[0]), "slave", duration.Value.Subtract(sw.Elapsed));
+            }
 
             if (waitForReplication)
             {

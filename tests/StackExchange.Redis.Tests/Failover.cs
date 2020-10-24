@@ -109,6 +109,7 @@ namespace StackExchange.Redis.Tests
         public async Task DereplicateGoesToPrimary()
         {
             ConfigurationOptions config = GetMasterReplicaConfig();
+            config.ConfigCheckSeconds = 5;
             using (var conn = ConnectionMultiplexer.Connect(config))
             {
                 var primary = conn.GetServer(TestConfig.Current.FailoverMasterServerAndPort);
