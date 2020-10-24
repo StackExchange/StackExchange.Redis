@@ -316,7 +316,7 @@ namespace StackExchange.Redis
             {
                 if (SlotRange.TryParse(parts[i], out SlotRange range))
                 {
-                    (slots ?? (slots = new List<SlotRange>(parts.Length - i))).Add(range);
+                    (slots ??= new List<SlotRange>(parts.Length - i)).Add(range);
                 }
             }
             Slots = slots?.AsReadOnly() ?? (IList<SlotRange>)Array.Empty<SlotRange>();
@@ -336,7 +336,7 @@ namespace StackExchange.Redis
                 {
                     if (node.ParentNodeId == NodeId)
                     {
-                        (nodes ?? (nodes = new List<ClusterNode>())).Add(node);
+                        (nodes ??= new List<ClusterNode>()).Add(node);
                     }
                 }
                 children = nodes?.AsReadOnly() ?? (IList<ClusterNode>)Array.Empty<ClusterNode>();

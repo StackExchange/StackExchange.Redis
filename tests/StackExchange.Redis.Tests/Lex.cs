@@ -49,6 +49,10 @@ namespace StackExchange.Redis.Tests
 
                 set = db.SortedSetRangeByValue(key, "g", "aaa", Exclude.Start, Order.Descending, 1, 3);
                 Equate(set, set.Length, "e", "d", "c");
+
+                set = db.SortedSetRangeByValue(key, "e", default(RedisValue));
+                count = db.SortedSetLengthByValue(key, "e", default(RedisValue));
+                Equate(set, count, "e", "f", "g");
             }
         }
 

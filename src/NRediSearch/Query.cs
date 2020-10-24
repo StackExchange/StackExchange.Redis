@@ -46,7 +46,7 @@ namespace NRediSearch
 
             internal override void SerializeRedisArgs(List<object> args)
             {
-                RedisValue FormatNum(double num, bool exclude)
+                static RedisValue FormatNum(double num, bool exclude)
                 {
                     if (!exclude || double.IsInfinity(num))
                     {
