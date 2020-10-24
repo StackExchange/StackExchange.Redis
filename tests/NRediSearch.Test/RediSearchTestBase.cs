@@ -15,6 +15,8 @@ namespace NRediSearch.Test
             muxer = GetWithFT(output);
             Output = output;
             Db = muxer.GetDatabase();
+            var server = muxer.GetServer(muxer.GetEndPoints()[0]);
+            server.FlushDatabase();
         }
         private ConnectionMultiplexer muxer;
         protected IDatabase Db { get; private set; }
