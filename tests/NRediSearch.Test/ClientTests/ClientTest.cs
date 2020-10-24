@@ -304,7 +304,9 @@ namespace NRediSearch.Test.ClientTests
 
             try
             {
+#pragma warning disable 0618
                 Assert.True(cl.AddHash(hashKey, 1, false));
+#pragma warning restore 0618
             }
             catch (RedisServerException e)
             {
