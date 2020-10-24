@@ -3,10 +3,12 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using StackExchange.Redis;
 using StackExchange.Redis.Tests;
+using Xunit;
 using Xunit.Abstractions;
 
 namespace NRediSearch.Test
 {
+    [Collection(nameof(NonParallelCollection))]
     public abstract class RediSearchTestBase : IDisposable
     {
         protected readonly ITestOutputHelper Output;
@@ -15,6 +17,8 @@ namespace NRediSearch.Test
             muxer = GetWithFT(output);
             Output = output;
             Db = muxer.GetDatabase();
+            var server = muxer.GetServer(muxer.GetEndPoints()[0]);
+            server.FlushDatabase();
         }
         private ConnectionMultiplexer muxer;
         protected IDatabase Db { get; private set; }
@@ -115,7 +119,7 @@ namespace NRediSearch.Test
             foreach (var module in arr)
             {
                 var parsed = Parse(module);
-                if (parsed.TryGetValue("name", out var val) && val == "ft")
+                if (parsed.TryGetValue("name", out var val) && (val == "ft" || val == "search"))
                 {
                     found = true;
                     if (parsed.TryGetValue("ver", out val))
@@ -155,4 +159,7 @@ namespace NRediSearch.Test
                 || ex.Message.Contains("no such index", StringComparison.InvariantCultureIgnoreCase);
         }
     }
+
+    [CollectionDefinition(nameof(NonParallelCollection), DisableParallelization = true)]
+    public class NonParallelCollection { }
 }

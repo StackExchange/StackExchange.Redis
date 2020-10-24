@@ -198,6 +198,7 @@ namespace StackExchange.Redis
                     case RedisCommand.KEYS:
                     case RedisCommand.MONITOR:
                     case RedisCommand.REPLICAOF:
+                    case RedisCommand.ROLE:
                     case RedisCommand.SAVE:
                     case RedisCommand.SHUTDOWN:
                     case RedisCommand.SLAVEOF:
@@ -573,6 +574,7 @@ namespace StackExchange.Redis
                 case RedisCommand.READONLY:
                 case RedisCommand.READWRITE:
                 case RedisCommand.REPLICAOF:
+                case RedisCommand.ROLE:
                 case RedisCommand.SAVE:
                 case RedisCommand.SCRIPT:
                 case RedisCommand.SHUTDOWN:
