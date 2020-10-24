@@ -300,7 +300,15 @@ namespace NRediSearch.Test.ClientTests
             Db.KeyDelete(hashKey);
             Db.HashSet(hashKey, "title", "hello world");
 
-            Assert.True(cl.AddHash(hashKey, 1, false));
+            try
+            {
+                Assert.True(cl.AddHash(hashKey, 1, false));
+            }
+            catch (RedisServerException e)
+            {
+                Assert.StartsWith("ERR unknown command `FT.ADDHASH`", e.Message);
+                return; // Starting from RediSearch 2.0 this command is not supported anymore
+            }
             SearchResult res = cl.Search(new Query("hello world").SetVerbatim());
             Assert.Equal(1, res.TotalResults);
             Assert.Equal(hashKey, res.Documents[0].Id);

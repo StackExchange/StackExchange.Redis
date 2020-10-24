@@ -10,8 +10,8 @@ on:
     - '!/docs/*' # Don't run workflow when files are only in the /docs directory
 
 jobs:
-  build:
-    name: Ubuntu
+  main:
+    name: StackExchange.Redis (Ubuntu)
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code
@@ -23,7 +23,23 @@ jobs:
       run: docker-compose -f docker-compose.yml up -d
     - name: StackExchange.Redis.Tests
       run: dotnet test tests/StackExchange.Redis.Tests/StackExchange.Redis.Tests.csproj -c Release --logger GitHubActions /p:CI=true
+    - name: .NET Lib Pack
+      run: dotnet pack src/StackExchange.Redis/StackExchange.Redis.csproj --no-build -c Release /p:Packing=true /p:PackageOutputPath=%CD%\.nupkgs /p:CI=true
+
+  nredisearch:
+    name: NRediSearch (Ubuntu)
+    runs-on: ubuntu-latest
+    services:
+      redisearch:
+        image: redislabs/redisearch:latest
+        ports:
+          - 6385:6379
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v1
+    - name: .NET Build
+      run: dotnet build Build.csproj -c Release /p:CI=true
     - name: NRedisSearch.Tests
       run: dotnet test tests/NRediSearch.Test/NRediSearch.Test.csproj -c Release --logger GitHubActions /p:CI=true
     - name: .NET Lib Pack
-      run: dotnet pack Build.csproj --no-build -c Release /p:Packing=true /p:PackageOutputPath=%CD%\.nupkgs /p:CI=true
+      run: dotnet pack src/NRediSearch/NRediSearch.csproj --no-build -c Release /p:Packing=true /p:PackageOutputPath=%CD%\.nupkgs /p:CI=true
