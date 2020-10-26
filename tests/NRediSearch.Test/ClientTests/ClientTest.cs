@@ -290,19 +290,23 @@ namespace NRediSearch.Test.ClientTests
         }
 
         [Fact]
-        public void TestAddHash()
+        public void TestIndexDefinition()
         {
             Client cl = GetClient();
-
             Schema sc = new Schema().AddTextField("title", 1.0);
-            Assert.True(cl.CreateIndex(sc, new ConfiguredIndexOptions()));
+            ConfiguredIndexOptions options = new ConfiguredIndexOptions(
+                new IndexDefinition( prefixes: new string[]{cl.IndexName}));
+            Assert.True(cl.CreateIndex(sc, options));
+
             RedisKey hashKey = (string)cl.IndexName + ":foo";
             Db.KeyDelete(hashKey);
             Db.HashSet(hashKey, "title", "hello world");
 
             try
             {
+#pragma warning disable 0618
                 Assert.True(cl.AddHash(hashKey, 1, false));
+#pragma warning restore 0618
             }
             catch (RedisServerException e)
             {
