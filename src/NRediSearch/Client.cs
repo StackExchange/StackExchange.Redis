@@ -1344,7 +1344,7 @@ namespace NRediSearch
 
             for (var i = 0; i < results.Length; i++)
             {
-                suggestions[i] = Suggestion.Builder.String((string)results[i]).Build();
+                suggestions[i] = Suggestion.Builder.String((string)results[i]).Build(true);
             }
 
             return suggestions;
@@ -1362,7 +1362,7 @@ namespace NRediSearch
                 suggestion.Score((double)results[i - 2]);
                 suggestion.Payload((string)results[i - 1]);
 
-                suggestions[(i / 3) - 1] = suggestion.Build();
+                suggestions[(i / 3) - 1] = suggestion.Build(true);
             }
 
             return suggestions;
@@ -1379,7 +1379,7 @@ namespace NRediSearch
                 suggestion.String((string)results[i - 2]);
                 suggestion.Payload((string)results[i - 1]);
 
-                suggestions[(i / 2) - 1] = suggestion.Build();
+                suggestions[(i / 2) - 1] = suggestion.Build(true);
             }
 
             return suggestions;
@@ -1396,7 +1396,7 @@ namespace NRediSearch
                 suggestion.String((string)results[i - 2]);
                 suggestion.Score((double)results[i - 1]);
 
-                suggestions[(i / 2) - 1] = suggestion.Build();
+                suggestions[(i / 2) - 1] = suggestion.Build(true);
             }
 
             return suggestions;
