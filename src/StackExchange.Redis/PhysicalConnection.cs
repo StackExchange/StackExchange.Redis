@@ -269,6 +269,7 @@ namespace StackExchange.Redis
             }
             OnCloseEcho();
             _arena.Dispose();
+            _reusableFlushSyncTokenSource?.Dispose();
             GC.SuppressFinalize(this);
         }
 
@@ -872,31 +873,37 @@ namespace StackExchange.Redis
             }
         }
 
+        CancellationTokenSource _reusableFlushSyncTokenSource;
         [Obsolete("this is an anti-pattern; work to reduce reliance on this is in progress")]
         internal WriteResult FlushSync(bool throwOnFailure, int millisecondsTimeout)
         {
-            using (var source = new CancellationTokenSource())
+            var cts = _reusableFlushSyncTokenSource ??= new CancellationTokenSource();
+            var flush = FlushAsync(throwOnFailure, cts.Token);
+            if (!flush.IsCompletedSuccessfully)
             {
-                source.CancelAfter(TimeSpan.FromMilliseconds(millisecondsTimeout));
-                var flush = FlushAsync(throwOnFailure, source.Token);
-                if (!flush.IsCompletedSuccessfully)
+                // only schedule cancellation if it doesn't complete synchronously; at this point, it is doomed
+                _reusableFlushSyncTokenSource = null;
+                cts.CancelAfter(TimeSpan.FromMilliseconds(millisecondsTimeout));
+                try
                 {
-                    try
-                    {
-                        // here lies the evil
-                        flush.AsTask().Wait();
-                    }
-                    catch (AggregateException ex)
-                    {
-                        if (ex.InnerExceptions.Any(e => e is TaskCanceledException))
-                        {
-                            ThrowTimeout();
-                        }
-                        throw;
-                    }
+                    // here lies the evil
+                    flush.AsTask().Wait();
                 }
-                return flush.Result;
+                catch (AggregateException ex)
+                {
+                    if (ex.InnerExceptions.Any(e => e is TaskCanceledException))
+                    {
+                        ThrowTimeout();
+                    }
+                    throw;
+                }
+                finally
+                {
+                    cts.Dispose();
+                }
             }
+            return flush.Result;
+
             void ThrowTimeout()
             {
 #if DEBUG
