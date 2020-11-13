@@ -269,6 +269,7 @@ namespace StackExchange.Redis
             }
             OnCloseEcho();
             _arena.Dispose();
+            _reusableFlushSyncTokenSource?.Dispose();
             GC.SuppressFinalize(this);
         }
 
@@ -872,14 +873,34 @@ namespace StackExchange.Redis
             }
         }
 
+        CancellationTokenSource _reusableFlushSyncTokenSource;
         [Obsolete("this is an anti-pattern; work to reduce reliance on this is in progress")]
         internal WriteResult FlushSync(bool throwOnFailure, int millisecondsTimeout)
         {
-            var flush = FlushAsync(throwOnFailure);
+            var cts = _reusableFlushSyncTokenSource ??= new CancellationTokenSource();
+            var flush = FlushAsync(throwOnFailure, cts.Token);
             if (!flush.IsCompletedSuccessfully)
             {
-                // here lies the evil
-                if (!flush.AsTask().Wait(millisecondsTimeout)) ThrowTimeout();
+                // only schedule cancellation if it doesn't complete synchronously; at this point, it is doomed
+                _reusableFlushSyncTokenSource = null;
+                cts.CancelAfter(TimeSpan.FromMilliseconds(millisecondsTimeout));
+                try
+                {
+                    // here lies the evil
+                    flush.AsTask().Wait();
+                }
+                catch (AggregateException ex)
+                {
+                    if (ex.InnerExceptions.Any(e => e is TaskCanceledException))
+                    {
+                        ThrowTimeout();
+                    }
+                    throw;
+                }
+                finally
+                {
+                    cts.Dispose();
+                }
             }
             return flush.Result;
 
@@ -891,7 +912,7 @@ namespace StackExchange.Redis
                 throw new TimeoutException("timeout while synchronously flushing");
             }
         }
-        internal ValueTask<WriteResult> FlushAsync(bool throwOnFailure)
+        internal ValueTask<WriteResult> FlushAsync(bool throwOnFailure, CancellationToken cancellationToken = default)
         {
             var tmp = _ioPipe?.Output;
             if (tmp == null) return new ValueTask<WriteResult>(WriteResult.NoConnectionAvailable);
@@ -903,7 +924,7 @@ namespace StackExchange.Redis
                 long flushBytes = -1;
                 if (_ioPipe is SocketConnection sc) flushBytes = sc.GetCounters().BytesWaitingToBeSent;
 #endif
-                var flush = tmp.FlushAsync();
+                var flush = tmp.FlushAsync(cancellationToken);
                 if (!flush.IsCompletedSuccessfully) return FlushAsync_Awaited(this, flush, throwOnFailure
 #if DEBUG
                     , startFlush, flushBytes
