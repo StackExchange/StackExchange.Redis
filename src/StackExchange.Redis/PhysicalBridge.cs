@@ -1,14 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
-using System.IO.Pipelines;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
-using Pipelines.Sockets.Unofficial;
 using Pipelines.Sockets.Unofficial.Threading;
 using static Pipelines.Sockets.Unofficial.Threading.MutexSlim;
 using static StackExchange.Redis.ConnectionMultiplexer;
@@ -56,9 +53,7 @@ namespace StackExchange.Redis
             Name = Format.ToString(serverEndPoint.EndPoint) + "/" + ConnectionType.ToString();
             TimeoutMilliseconds = timeoutMilliseconds;
             _singleWriterMutex = new MutexSlim(timeoutMilliseconds: timeoutMilliseconds);
-            _weakRefThis = new WeakReference(this);
         }
-        private readonly WeakReference _weakRefThis;
 
         private readonly int TimeoutMilliseconds;
 
@@ -771,21 +766,14 @@ namespace StackExchange.Redis
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void StartBacklogProcessor()
         {
-            var sched = Multiplexer.SocketManager?.Scheduler ?? PipeScheduler.ThreadPool;
 #if DEBUG
             _backlogProcessorRequestedTime = Environment.TickCount;
 #endif
-            sched.Schedule(s_ProcessBacklog, _weakRefThis);
+            Task.Run(ProcessBacklogAsync);
         }
 #if DEBUG
         private volatile int _backlogProcessorRequestedTime;
 #endif
-
-        private static readonly Action<object> s_ProcessBacklog = s =>
-        {
-            var wr = (WeakReference)s;
-            if (wr.Target is PhysicalBridge bridge) bridge.ProcessBacklog();
-        };
 
         private void CheckBacklogForTimeouts() // check the head of the backlog queue, consuming anything that looks dead
         {
@@ -810,6 +798,7 @@ namespace StackExchange.Redis
         internal enum BacklogStatus : byte
         {
             Inactive,
+            Starting,
             Started,
             CheckingForWork,
             CheckingForTimeout,
@@ -823,7 +812,7 @@ namespace StackExchange.Redis
             Faulted,
         }
         private volatile BacklogStatus _backlogStatus;
-        private void ProcessBacklog()
+        private async Task ProcessBacklogAsync()
         {
             LockToken token = default;
             try
@@ -833,12 +822,19 @@ namespace StackExchange.Redis
                 var msToStartWorker = unchecked(tryToAcquireTime - _backlogProcessorRequestedTime);
                 int failureCount = 0;
 #endif
-                while(true)
+                _backlogStatus = BacklogStatus.Starting;
+                while (true)
                 {
-                    // try and get the lock; if unsuccessful, check for termination
-                    token = _singleWriterMutex.TryWait();
-                    if (token) break; // got the lock
-                    lock (_backlog) { if (_backlog.Count == 0) return; }
+                    // check whether the backlog is empty *before* even trying to get the lock
+                    lock (_backlog)
+                    {
+                        if (_backlog.Count == 0) return; // nothing to do
+                    }
+
+                    // try and get the lock; if unsuccessful, retry
+                    token = await _singleWriterMutex.TryWaitAsync().ConfigureAwait(false);
+                    if (token.Success) break; // got the lock; now go do something with it
+
 #if DEBUG
                     failureCount++;
 #endif
@@ -887,9 +883,7 @@ namespace StackExchange.Redis
                             if (result == WriteResult.Success)
                             {
                                 _backlogStatus = BacklogStatus.Flushing;
-#pragma warning disable CS0618
-                                result = physical.FlushSync(false, timeout);
-#pragma warning restore CS0618
+                                result = await physical.FlushAsync(false).ConfigureAwait(false);
                             }
 
                             _backlogStatus = BacklogStatus.MarkingInactive;
