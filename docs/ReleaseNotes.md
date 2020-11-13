@@ -1,6 +1,6 @@
 # Release Notes
 
-## 2.2.0
+## 2.2.2
 
 - add .NET 5 target
 - fix mutex race condition (#1585 via arsnyder16)
@@ -13,6 +13,7 @@
 - fix `Int64` parse scenario (#1568 via arsnyder16)
 - force replication check during failover (via joroda)
 - documentation tweaks (multiple)
+- fix backlog contention issue (#1612, see also #1574 via devbv)
 
 ## 2.1.58
 
