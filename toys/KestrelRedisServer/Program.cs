@@ -14,7 +14,6 @@ namespace KestrelRedisServer
 
         public static IWebHostBuilder CreateWebHostBuilder(string[] args) =>
             WebHost.CreateDefaultBuilder(args)
-                .UseLibuv()
                 .UseKestrel(options =>
                 {
                     options.ApplicationSchedulingMode = SchedulingMode.Inline;
