@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <Description>StackExchange.Redis.BasicTest .NET Core</Description>
-    <TargetFrameworks>netcoreapp2.0;netcoreapp2.1;net472</TargetFrameworks>
+    <TargetFrameworks>net472;net5.0</TargetFrameworks>
     <AssemblyName>BasicTestBaseline</AssemblyName>
     <OutputType>Exe</OutputType>
     <PackageId>BasicTestBaseline</PackageId>

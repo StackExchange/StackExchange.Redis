@@ -1,5 +1,19 @@
 # Release Notes
 
+## 2.2.0
+
+- add .NET 5 target
+- fix mutex race condition (#1585 via arsnyder16)
+- allow `CheckCertificateRevocation` to be controlled via the config string (#1591 via lwlwalker)
+- fix range end-value inversion (#1573 via tombatron)
+- add `ROLE` support (#1551 via zmj)
+- add varadic `RPUSHX`/`LPUSHX` support (#1557 via dmytrohridin)
+- fix server-selection strategy race condition (#1532 via deepakverma)
+- fix sentinel default port (#1525 via ejsmith)
+- fix `Int64` parse scenario (#1568 via arsnyder16)
+- force replication check during failover (via joroda)
+- documentation tweaks (multiple)
+
 ## 2.1.58
 
 - fix: `[*]SCAN` - fix possible NRE scenario if the iterator is disposed with an incomplete operation in flight
