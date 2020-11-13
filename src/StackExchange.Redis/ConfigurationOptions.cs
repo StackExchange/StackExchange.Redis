@@ -89,7 +89,9 @@ namespace StackExchange.Redis
                 SyncTimeout = "syncTimeout",
                 TieBreaker = "tiebreaker",
                 Version = "version",
-                WriteBuffer = "writeBuffer";
+                WriteBuffer = "writeBuffer",
+                CheckCertificateRevocation = "checkCertificateRevocation";
+
 
             private static readonly Dictionary<string, string> normalizedOptions = new[]
             {
@@ -118,6 +120,7 @@ namespace StackExchange.Redis
                 TieBreaker,
                 Version,
                 WriteBuffer,
+                CheckCertificateRevocation
             }.ToDictionary(x => x, StringComparer.OrdinalIgnoreCase);
 
             public static string TryNormalize(string value)
@@ -189,7 +192,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// A Boolean value that specifies whether the certificate revocation list is checked during authentication.
         /// </summary>
-        public bool CheckCertificateRevocation {get { return checkCertificateRevocation ?? true; } set { checkCertificateRevocation = value; }}
+        public bool CheckCertificateRevocation { get { return checkCertificateRevocation ?? true; } set { checkCertificateRevocation = value; } }
 
         /// <summary>
         /// Create a certificate validation check that checks against the supplied issuer even if not known by the machine
@@ -532,6 +535,7 @@ namespace StackExchange.Redis
             Append(sb, OptionKeys.WriteBuffer, writeBuffer);
             Append(sb, OptionKeys.Ssl, ssl);
             Append(sb, OptionKeys.SslProtocols, SslProtocols?.ToString().Replace(',', '|'));
+            Append(sb, OptionKeys.CheckCertificateRevocation, checkCertificateRevocation);
             Append(sb, OptionKeys.SslHost, sslHost);
             Append(sb, OptionKeys.HighPrioritySocketThreads, highPrioritySocketThreads);
             Append(sb, OptionKeys.ConfigChannel, configChannel);
@@ -619,7 +623,7 @@ namespace StackExchange.Redis
 
         private void Clear()
         {
-            ClientName = ServiceName = User =Password = tieBreaker = sslHost = configChannel = null;
+            ClientName = ServiceName = User = Password = tieBreaker = sslHost = configChannel = null;
             keepAlive = syncTimeout = asyncTimeout = connectTimeout = writeBuffer = connectRetry = configCheckSeconds = DefaultDatabase = null;
             allowAdmin = abortOnConnectFail = highPrioritySocketThreads = resolveDns = ssl = null;
             SslProtocols = null;
@@ -667,6 +671,9 @@ namespace StackExchange.Redis
 
                     switch (OptionKeys.TryNormalize(key))
                     {
+                        case OptionKeys.CheckCertificateRevocation:
+                            CheckCertificateRevocation = OptionKeys.ParseBoolean(key, value);
+                            break;
                         case OptionKeys.SyncTimeout:
                             SyncTimeout = OptionKeys.ParseInt32(key, value, minValue: 1);
                             break;

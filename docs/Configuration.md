@@ -75,6 +75,7 @@ The `ConfigurationOptions` object has a wide range of properties, all of which a
 | abortConnect={bool}    | `AbortOnConnectFail`   | `true` (`false` on Azure)    | If true, `Connect` will not create a connection while no servers are available                            |
 | allowAdmin={bool}      | `AllowAdmin`           | `false`                      | Enables a range of commands that are considered risky                                                     |
 | channelPrefix={string} | `ChannelPrefix`        | `null`                       | Optional channel prefix for all pub/sub operations                                                        |
+| checkCertificateRevocation={bool} | `CheckCertificateRevocation`        | `true`                       | A Boolean value that specifies whether the certificate revocation list is checked during authentication.                                                        |
 | connectRetry={int}     | `ConnectRetry`         | `3`                          | The number of times to repeat connect attempts during initial `Connect`                                   |
 | connectTimeout={int}   | `ConnectTimeout`       | `5000`                       | Timeout (ms) for connect operations                                                                       |
 | configChannel={string} | `ConfigurationChannel` | `__Booksleeve_MasterChanged` | Broadcast channel name for communicating configuration changes                                            |
