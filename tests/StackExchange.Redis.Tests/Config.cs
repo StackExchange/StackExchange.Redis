@@ -30,6 +30,18 @@ namespace StackExchange.Redis.Tests
             Assert.Equal(SslProtocols.Tls11 | SslProtocols.Tls12, options.SslProtocols.GetValueOrDefault());
         }
 
+        [Theory]
+        [InlineData("checkCertificateRevocation=false", false)]
+        [InlineData("checkCertificateRevocation=true", true)]
+        [InlineData("", true)]
+        public void ConfigurationOption_CheckCertificateRevocation(string conString, bool expectedValue)
+        {
+            var options = ConfigurationOptions.Parse($"host,{conString}");
+            Assert.Equal(expectedValue, options.CheckCertificateRevocation);
+            var toString = options.ToString();
+            Assert.True(toString.IndexOf(conString, StringComparison.CurrentCultureIgnoreCase) >= 0);
+        }
+
         [Fact]
         public void SslProtocols_UsingIntegerValue()
         {

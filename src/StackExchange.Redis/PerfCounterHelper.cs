@@ -5,6 +5,7 @@ using System.Threading;
 
 namespace StackExchange.Redis
 {
+#pragma warning disable CA1416 // windows only APIs; we've guarded against that
     internal static class PerfCounterHelper
     {
         private static readonly object staticLock = new object();
@@ -78,4 +79,5 @@ namespace StackExchange.Redis
             return busyWorkerThreads;
         }
     }
+#pragma warning restore CA1416 // windows only APIs; we've guarded against that
 }
