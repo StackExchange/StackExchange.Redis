@@ -1,5 +1,0 @@
-﻿<Project Sdk="Microsoft.Build.NoTargets/1.0.94">
-  <PropertyGroup>
-    <TargetFramework>netcoreapp3.1</TargetFramework>
-  </PropertyGroup>
-</Project>
