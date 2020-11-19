@@ -1,6 +1,10 @@
 # Release Notes
 
-## 2.2.2
+## 2.2.4
+
+- fix ambiguous signature of the new `RPUSHX`/`LPUSHX` methods (#1620)
+
+## 2.2.3
 
 - add .NET 5 target
 - fix mutex race condition (#1585 via arsnyder16)
