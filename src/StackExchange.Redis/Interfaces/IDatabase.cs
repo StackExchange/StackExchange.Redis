@@ -672,7 +672,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The length of the list after the push operations.</returns>
         /// <remarks>https://redis.io/commands/lpush</remarks>
-        long ListLeftPush(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None);
+        long ListLeftPush(RedisKey key, RedisValue[] values, CommandFlags flags);
 
         /// <summary>
         /// Returns the length of the list stored at key. If key does not exist, it is interpreted as an empty list and 0 is returned. 
@@ -762,7 +762,7 @@ namespace StackExchange.Redis
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The length of the list after the push operation.</returns>
         /// <remarks>https://redis.io/commands/rpush</remarks>
-        long ListRightPush(RedisKey key, RedisValue[] values, CommandFlags flags = CommandFlags.None);
+        long ListRightPush(RedisKey key, RedisValue[] values, CommandFlags flags);
 
         /// <summary>
         /// Sets the list element at index to value. For more information on the index argument, see ListGetByIndex. An error is returned for out of range indexes.
