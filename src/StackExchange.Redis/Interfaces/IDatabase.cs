@@ -1734,6 +1734,18 @@ namespace StackExchange.Redis
         StreamEntry[] StreamRead(RedisKey key, RedisValue position, int? count = null, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
+        /// Read from a single stream.
+        /// </summary>
+        /// <param name="key">The key of the stream.</param>
+        /// <param name="position">The position from which to read the stream.</param>
+        /// <param name="timeout">The maximum number of messages to return.</param>
+        /// <param name="flags">The flags to use for this operation.</param>
+        /// <returns>Returns a value of <see cref="StreamEntry"/> for each message returned.</returns>
+        /// <remarks>Equivalent of calling XREAD Block timeout STREAMS key id.</remarks>
+        /// <remarks>https://redis.io/commands/xread</remarks>
+        StreamEntry[] StreamReadBlocking(RedisKey key, RedisValue position, int? timeout = null, CommandFlags flags = CommandFlags.None);
+
+        /// <summary>
         /// Read from multiple streams.
         /// </summary>
         /// <param name="streamPositions">Array of streams and the positions from which to begin reading for each stream.</param>

@@ -2204,6 +2204,26 @@ namespace StackExchange.Redis
             return ExecuteAsync(msg, ResultProcessor.SingleStreamWithNameSkip);
         }
 
+        public StreamEntry[] StreamReadBlocking(RedisKey key, RedisValue position, int? timeout = null, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetSingleStreamReadMessageBlocking(key,
+                StreamPosition.Resolve(position, RedisCommand.XREAD),
+                timeout,
+                flags);
+
+            return ExecuteSync(msg, ResultProcessor.SingleStreamWithNameSkip);
+        }
+
+        public Task<StreamEntry[]> StreamReadBlockingAsync(RedisKey key, RedisValue position, int? timeout = null, CommandFlags flags = CommandFlags.None)
+        {
+            var msg = GetSingleStreamReadMessageBlocking(key,
+                StreamPosition.Resolve(position, RedisCommand.XREAD),
+                timeout,
+                flags);
+
+            return ExecuteAsync(msg, ResultProcessor.SingleStreamWithNameSkip);
+        }
+
         public RedisStream[] StreamRead(StreamPosition[] streamPositions, int? countPerStream = null, CommandFlags flags = CommandFlags.None)
         {
             var msg = GetMultiStreamReadMessage(streamPositions, countPerStream, flags);
@@ -3349,6 +3369,33 @@ namespace StackExchange.Redis
             values[offset] = afterId;
 
             // Example: > XREAD COUNT 2 STREAMS writers 1526999352406-0
+            return Message.Create(Database,
+                flags,
+                RedisCommand.XREAD,
+                values);
+        }
+
+        private Message GetSingleStreamReadMessageBlocking(RedisKey key, RedisValue afterId, int? timeout, CommandFlags flags)
+        {
+            if (!timeout.HasValue)
+            {
+                timeout = 0;
+            }
+
+            var values = new RedisValue[3 + (timeout.HasValue ? 2 : 0)];
+            var offset = 0;
+
+            if (timeout.HasValue)
+            {
+                values[offset++] = StreamConstants.Block;
+                values[offset++] = timeout.Value;
+            }
+
+            values[offset++] = StreamConstants.Streams;
+            values[offset++] = key.AsRedisValue();
+            values[offset] = afterId;
+
+            // Example: > XREAD BLOCK 2 STREAMS writers 1526999352406-0
             return Message.Create(Database,
                 flags,
                 RedisCommand.XREAD,

@@ -736,6 +736,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StreamRead(ToInner(key), position, count, flags);
         }
 
+        public StreamEntry[] StreamReadBlocking(RedisKey key, RedisValue position, int? timeout = null, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StreamReadBlocking(ToInner(key), position, timeout, flags);
+        }
+
         public RedisStream[] StreamRead(StreamPosition[] streamPositions, int? countPerStream = null, CommandFlags flags = CommandFlags.None)
         {
             return Inner.StreamRead(streamPositions, countPerStream, flags);

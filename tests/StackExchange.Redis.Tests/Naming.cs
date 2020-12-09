@@ -87,6 +87,8 @@ namespace StackExchange.Redis.Tests
                     case nameof(IDatabase.ScriptEvaluate):
                     case nameof(IDatabaseAsync.ScriptEvaluateAsync):
                     case nameof(IDatabase.StreamRead):
+                    case nameof(IDatabase.StreamReadBlocking):
+                    case nameof(IDatabase.StreamReadBlockingAsync):
                     case nameof(IDatabase.StreamReadAsync):
                     case nameof(IDatabase.StreamReadGroup):
                     case nameof(IDatabase.StreamReadGroupAsync):

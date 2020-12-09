@@ -727,6 +727,11 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StreamReadAsync(ToInner(key), position, count, flags);
         }
 
+        public Task<StreamEntry[]> StreamReadBlockingAsync(RedisKey key, RedisValue position, int? count = null, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StreamReadBlockingAsync(ToInner(key), position, count, flags);
+        }
+
         public Task<RedisStream[]> StreamReadAsync(StreamPosition[] streamPositions, int? countPerStream = null, CommandFlags flags = CommandFlags.None)
         {
             return Inner.StreamReadAsync(streamPositions, countPerStream, flags);

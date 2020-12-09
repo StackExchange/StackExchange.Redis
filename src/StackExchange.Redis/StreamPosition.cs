@@ -44,7 +44,7 @@ namespace StackExchange.Redis
             {
                 switch (command)
                 {
-                    case RedisCommand.XREAD: throw new InvalidOperationException("StreamPosition.NewMessages cannot be used with StreamRead.");
+                    case RedisCommand.XREAD: return StreamConstants.NewMessages;//throw new InvalidOperationException("StreamPosition.NewMessages cannot be used with StreamRead.");
                     case RedisCommand.XREADGROUP: return StreamConstants.UndeliveredMessages;
                     case RedisCommand.XGROUP: return StreamConstants.NewMessages;
                     default: // new is only valid for the above
