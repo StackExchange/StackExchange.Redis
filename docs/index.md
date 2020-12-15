@@ -30,19 +30,19 @@ PM> Install-Package StackExchange.Redis
 Documentation
 ---
 
-- [Basic Usage](Basics) - getting started and basic usage
-- [Configuration](Configuration) - options available when connecting to redis
-- [Pipelines and Multiplexers](PipelinesMultiplexers) - what is a multiplexer?
-- [Keys, Values and Channels](KeysValues) - discusses the data-types used on the API
-- [Transactions](Transactions) - how atomic transactions work in redis
-- [Events](Events) - the events available for logging / information purposes
-- [Pub/Sub Message Order](PubSubOrder) - advice on sequential and concurrent processing
-- [Streams](Streams) - how to use the Stream data type
-- [Where are `KEYS` / `SCAN` / `FLUSH*`?](KeysScan) - how to use server-based commands
-- [Profiling](Profiling) - profiling interfaces, as well as how to profile in an `async` world
-- [Scripting](Scripting) - running Lua scripts with convenient named parameter replacement
-- [Testing](Testing) - running the `StackExchange.Redis.Tests` suite to validate changes
-- [Thread Theft](ThreadTheft) - guidance on avoiding TPL threading problems
+- [Basic Usage](Basics.md) - getting started and basic usage
+- [Configuration](Configuration.md) - options available when connecting to redis
+- [Pipelines and Multiplexers](PipelinesMultiplexers.md) - what is a multiplexer?
+- [Keys, Values and Channels](KeysValues.md) - discusses the data-types used on the API
+- [Transactions](Transactions.md) - how atomic transactions work in redis
+- [Events](Events.md) - the events available for logging / information purposes
+- [Pub/Sub Message Order](PubSubOrder.md) - advice on sequential and concurrent processing
+- [Streams](Streams.md) - how to use the Stream data type
+- [Where are `KEYS` / `SCAN` / `FLUSH*`?](KeysScan.md) - how to use server-based commands
+- [Profiling](Profiling.md) - profiling interfaces, as well as how to profile in an `async` world
+- [Scripting](Scripting.md) - running Lua scripts with convenient named parameter replacement
+- [Testing](Testing.md) - running the `StackExchange.Redis.Tests` suite to validate changes
+- [Thread Theft](ThreadTheft.md) - guidance on avoiding TPL threading problems
 
 Questions and Contributions
 ---
