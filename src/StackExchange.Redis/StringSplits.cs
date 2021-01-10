@@ -4,6 +4,9 @@
     {
         public static readonly char[]
             Space = { ' ' },
-            Comma = { ',' };
+            Comma = { ',' },
+            Colon = { ':' },
+            Ampersand = { '&' },
+            Equal = { '=' };
     }
 }

@@ -653,109 +653,79 @@ namespace StackExchange.Redis
 
             Clear();
 
-            // break it down by commas
-            var arr = configuration.Split(StringSplits.Comma);
-            Dictionary<string, string> map = null;
-            foreach (var paddedOption in arr)
+            if (configuration.TrimStart().StartsWith("redis://", StringComparison.InvariantCultureIgnoreCase))
             {
-                var option = paddedOption.Trim();
-
-                if (string.IsNullOrWhiteSpace(option)) continue;
-
-                // check for special tokens
-                int idx = option.IndexOf('=');
-                if (idx > 0)
+                if (!Uri.TryCreate(configuration, UriKind.Absolute, out Uri uri))
                 {
-                    var key = option.Substring(0, idx).Trim();
-                    var value = option.Substring(idx + 1).Trim();
+                    throw new ArgumentException("is not valid", nameof(configuration));
+                }
 
-                    switch (OptionKeys.TryNormalize(key))
+                var ep = Format.TryParseEndPoint(uri.Authority);
+                if (ep != null && !EndPoints.Contains(ep)) EndPoints.Add(ep);
+
+                var userParams = uri.UserInfo.Split(StringSplits.Colon);
+                if (userParams.Length > 2)
+                {
+                    throw new ArgumentException("credential section is not valid", nameof(configuration));
+                }
+
+                if (userParams.Length > 0 && !string.IsNullOrWhiteSpace(userParams[0]))
+                {
+                    User = userParams[0].Trim();
+                }
+
+                if (userParams.Length > 1 && !string.IsNullOrWhiteSpace(userParams[1]))
+                {
+                    Password = userParams[1].Trim();
+                }
+
+                if (int.TryParse(uri.AbsolutePath?.TrimEnd('/'), out int defaultDb))
+                {
+                    DefaultDatabase = defaultDb;
+                }
+
+                var collection = ParseQueryString(uri.Query.TrimStart('?'));
+                foreach (var key in collection.Keys)
+                {
+                    var isSet = false;
+                    var values = collection[key];
+                    if (values == null || values.Count == 0)
                     {
-                        case OptionKeys.CheckCertificateRevocation:
-                            CheckCertificateRevocation = OptionKeys.ParseBoolean(key, value);
-                            break;
-                        case OptionKeys.SyncTimeout:
-                            SyncTimeout = OptionKeys.ParseInt32(key, value, minValue: 1);
-                            break;
-                        case OptionKeys.AsyncTimeout:
-                            AsyncTimeout = OptionKeys.ParseInt32(key, value, minValue: 1);
-                            break;
-                        case OptionKeys.AllowAdmin:
-                            AllowAdmin = OptionKeys.ParseBoolean(key, value);
-                            break;
-                        case OptionKeys.AbortOnConnectFail:
-                            AbortOnConnectFail = OptionKeys.ParseBoolean(key, value);
-                            break;
-                        case OptionKeys.ResolveDns:
-                            ResolveDns = OptionKeys.ParseBoolean(key, value);
-                            break;
-                        case OptionKeys.ServiceName:
-                            ServiceName = value;
-                            break;
-                        case OptionKeys.ClientName:
-                            ClientName = value;
-                            break;
-                        case OptionKeys.ChannelPrefix:
-                            ChannelPrefix = value;
-                            break;
-                        case OptionKeys.ConfigChannel:
-                            ConfigurationChannel = value;
-                            break;
-                        case OptionKeys.KeepAlive:
-                            KeepAlive = OptionKeys.ParseInt32(key, value);
-                            break;
-                        case OptionKeys.ConnectTimeout:
-                            ConnectTimeout = OptionKeys.ParseInt32(key, value);
-                            break;
-                        case OptionKeys.ConnectRetry:
-                            ConnectRetry = OptionKeys.ParseInt32(key, value);
-                            break;
-                        case OptionKeys.ConfigCheckSeconds:
-                            ConfigCheckSeconds = OptionKeys.ParseInt32(key, value);
-                            break;
-                        case OptionKeys.Version:
-                            DefaultVersion = OptionKeys.ParseVersion(key, value);
-                            break;
-                        case OptionKeys.User:
-                            User = value;
-                            break;
-                        case OptionKeys.Password:
-                            Password = value;
-                            break;
-                        case OptionKeys.TieBreaker:
-                            TieBreaker = value;
-                            break;
-                        case OptionKeys.Ssl:
-                            Ssl = OptionKeys.ParseBoolean(key, value);
-                            break;
-                        case OptionKeys.SslHost:
-                            SslHost = value;
-                            break;
-                        case OptionKeys.HighPrioritySocketThreads:
-                            HighPrioritySocketThreads = OptionKeys.ParseBoolean(key, value);
-                            break;
-                        case OptionKeys.WriteBuffer:
-#pragma warning disable CS0618 // Type or member is obsolete
-                            WriteBuffer = OptionKeys.ParseInt32(key, value);
-#pragma warning restore CS0618 // Type or member is obsolete
-                            break;
-                        case OptionKeys.Proxy:
-                            Proxy = OptionKeys.ParseProxy(key, value);
-                            break;
-                        case OptionKeys.ResponseTimeout:
-#pragma warning disable CS0618 // Type or member is obsolete
-                            ResponseTimeout = OptionKeys.ParseInt32(key, value, minValue: 1);
-#pragma warning restore CS0618 // Type or member is obsolete
-                            break;
-                        case OptionKeys.DefaultDatabase:
-                            DefaultDatabase = OptionKeys.ParseInt32(key, value);
-                            break;
-                        case OptionKeys.PreserveAsyncOrder:
-                            break;
-                        case OptionKeys.SslProtocols:
-                            SslProtocols = OptionKeys.ParseSslProtocols(key, value);
-                            break;
-                        default:
+                        isSet = SetOption(key, null);
+                    }
+                    else if (values.Count == 1)
+                    {
+                        isSet = SetOption(key, values.First());
+                    }
+                    else
+                    {
+                        var joinedValues = string.Join("|", values);
+                        isSet = SetOption(key, joinedValues);
+                    }
+
+                    if (!isSet && !ignoreUnknown) OptionKeys.Unknown(key);
+                }
+            }
+            else
+            {
+                // break it down by commas
+                var arr = configuration.Split(StringSplits.Comma);
+                Dictionary<string, string> map = null;
+                foreach (var paddedOption in arr)
+                {
+                    var option = paddedOption.Trim();
+
+                    if (string.IsNullOrWhiteSpace(option)) continue;
+
+                    // check for special tokens
+                    int idx = option.IndexOf('=');
+                    if (idx > 0)
+                    {
+                        var key = option.Substring(0, idx).Trim();
+                        var value = option.Substring(idx + 1).Trim();
+
+                        if (!SetOption(key, value))
+                        {
                             if (!string.IsNullOrEmpty(key) && key[0] == '$')
                             {
                                 var cmdName = option.Substring(1, idx - 1);
@@ -769,19 +739,153 @@ namespace StackExchange.Redis
                             {
                                 if (!ignoreUnknown) OptionKeys.Unknown(key);
                             }
-                            break;
+                        }
                     }
+                    else
+                    {
+                        var ep = Format.TryParseEndPoint(option);
+                        if (ep != null && !EndPoints.Contains(ep)) EndPoints.Add(ep);
+                    }
+                }
+                if (map != null && map.Count != 0)
+                {
+                    CommandMap = CommandMap.Create(map);
+                }
+            }
+        }
+
+        private bool SetOption(string key, string value)
+        {
+            switch (OptionKeys.TryNormalize(key))
+            {
+                case OptionKeys.CheckCertificateRevocation:
+                    CheckCertificateRevocation = OptionKeys.ParseBoolean(key, value);
+                    break;
+                case OptionKeys.SyncTimeout:
+                    SyncTimeout = OptionKeys.ParseInt32(key, value, minValue: 1);
+                    break;
+                case OptionKeys.AsyncTimeout:
+                    AsyncTimeout = OptionKeys.ParseInt32(key, value, minValue: 1);
+                    break;
+                case OptionKeys.AllowAdmin:
+                    AllowAdmin = OptionKeys.ParseBoolean(key, value);
+                    break;
+                case OptionKeys.AbortOnConnectFail:
+                    AbortOnConnectFail = OptionKeys.ParseBoolean(key, value);
+                    break;
+                case OptionKeys.ResolveDns:
+                    ResolveDns = OptionKeys.ParseBoolean(key, value);
+                    break;
+                case OptionKeys.ServiceName:
+                    ServiceName = value;
+                    break;
+                case OptionKeys.ClientName:
+                    ClientName = value;
+                    break;
+                case OptionKeys.ChannelPrefix:
+                    ChannelPrefix = value;
+                    break;
+                case OptionKeys.ConfigChannel:
+                    ConfigurationChannel = value;
+                    break;
+                case OptionKeys.KeepAlive:
+                    KeepAlive = OptionKeys.ParseInt32(key, value);
+                    break;
+                case OptionKeys.ConnectTimeout:
+                    ConnectTimeout = OptionKeys.ParseInt32(key, value);
+                    break;
+                case OptionKeys.ConnectRetry:
+                    ConnectRetry = OptionKeys.ParseInt32(key, value);
+                    break;
+                case OptionKeys.ConfigCheckSeconds:
+                    ConfigCheckSeconds = OptionKeys.ParseInt32(key, value);
+                    break;
+                case OptionKeys.Version:
+                    DefaultVersion = OptionKeys.ParseVersion(key, value);
+                    break;
+                case OptionKeys.User:
+                    User = value;
+                    break;
+                case OptionKeys.Password:
+                    Password = value;
+                    break;
+                case OptionKeys.TieBreaker:
+                    TieBreaker = value;
+                    break;
+                case OptionKeys.Ssl:
+                    Ssl = OptionKeys.ParseBoolean(key, value);
+                    break;
+                case OptionKeys.SslHost:
+                    SslHost = value;
+                    break;
+                case OptionKeys.HighPrioritySocketThreads:
+                    HighPrioritySocketThreads = OptionKeys.ParseBoolean(key, value);
+                    break;
+                case OptionKeys.WriteBuffer:
+#pragma warning disable CS0618 // Type or member is obsolete
+                    WriteBuffer = OptionKeys.ParseInt32(key, value);
+#pragma warning restore CS0618 // Type or member is obsolete
+                    break;
+                case OptionKeys.Proxy:
+                    Proxy = OptionKeys.ParseProxy(key, value);
+                    break;
+                case OptionKeys.ResponseTimeout:
+#pragma warning disable CS0618 // Type or member is obsolete
+                    ResponseTimeout = OptionKeys.ParseInt32(key, value, minValue: 1);
+#pragma warning restore CS0618 // Type or member is obsolete
+                    break;
+                case OptionKeys.DefaultDatabase:
+                    DefaultDatabase = OptionKeys.ParseInt32(key, value);
+                    break;
+                case OptionKeys.PreserveAsyncOrder:
+                    break;
+                case OptionKeys.SslProtocols:
+                    SslProtocols = OptionKeys.ParseSslProtocols(key, value);
+                    break;
+                default:
+                    return false;
+            }
+
+            return true;
+        }
+
+        private static Dictionary<string, HashSet<string>> ParseQueryString(string qs)
+        {
+            var dict = new Dictionary<string, HashSet<string>>();
+            foreach (var p in qs.Trim().Split(StringSplits.Ampersand))
+            {
+                var pair = p.Split(StringSplits.Equal);
+
+                string key = string.Empty;
+                string value = string.Empty;
+
+                if (pair.Length > 0)
+                {
+                    key = pair[0];
+                }
+                if (pair.Length > 1)
+                {
+                    value = pair[1];
                 }
                 else
                 {
-                    var ep = Format.TryParseEndPoint(option);
-                    if (ep != null && !EndPoints.Contains(ep)) EndPoints.Add(ep);
+                    // ignore next possible value(s).
+                }
+
+                if (!string.IsNullOrWhiteSpace(key))
+                {
+                    if (!dict.ContainsKey(key))
+                    {
+                        dict[key] = new HashSet<string> { value };
+                    }
+                    else
+                    {
+                        dict[key].Add(value);
+                    }
                 }
             }
-            if (map != null && map.Count != 0)
-            {
-                CommandMap = CommandMap.Create(map);
-            }
+
+            return dict;
         }
 
         // Microsoft Azure team wants abortConnect=false by default
