@@ -115,18 +115,14 @@ namespace StackExchange.Redis
         {
             for (int i = 0; i < Count; i++)
             {
-                var endpoint = this[i];
-                var dns = endpoint as DnsEndPoint;
-                if (dns?.Port == 0)
+                switch (this[i])
                 {
-                    this[i] = new DnsEndPoint(dns.Host, defaultPort, dns.AddressFamily);
-                    continue;
-                }
-                var ip = endpoint as IPEndPoint;
-                if (ip?.Port == 0)
-                {
-                    this[i] = new IPEndPoint(ip.Address, defaultPort);
-                    continue;
+                    case DnsEndPoint dns when dns.Port == 0:
+                        this[i] = new DnsEndPoint(dns.Host, defaultPort, dns.AddressFamily);
+                        break;
+                    case IPEndPoint ip when ip.Port == 0:
+                        this[i] = new IPEndPoint(ip.Address, defaultPort);
+                        break;
                 }
             }
         }
