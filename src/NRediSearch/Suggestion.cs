@@ -89,10 +89,12 @@ namespace NRediSearch
                 return this;
             }
 
-            public Suggestion Build()
+            public Suggestion Build() => Build(false);
+
+            internal Suggestion Build(bool fromServer)
             {
                 bool isStringMissing = _string == null;
-                bool isScoreOutOfRange = (_score < 0.0 || _score > 1.0);
+                bool isScoreOutOfRange = !fromServer && (_score < 0.0 || _score > 1.0);
 
                 if (isStringMissing || isScoreOutOfRange)
                 {

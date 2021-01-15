@@ -50,6 +50,83 @@ namespace NRediSearch
             KeepTermFrequencies = 16
         }
 
+        public sealed class IndexDefinition
+        {
+            public enum IndexType
+            {
+                /// <summary>
+                /// Used to indicates that the index should follow the keys of type Hash changes
+                /// </summary>
+                Hash
+            }
+
+            internal readonly IndexType _type = IndexType.Hash;
+            internal readonly bool _async; 
+            internal readonly string[] _prefixes;
+            internal readonly string _filter;
+            internal readonly string _languageField;
+            internal readonly string _language;
+            internal readonly string _scoreFiled;
+            internal readonly double _score;
+            internal readonly string _payloadField;
+
+            public IndexDefinition(bool async = false, string[] prefixes = null,
+            string filter = null, string languageField = null, string language = null, 
+            string scoreFiled = null, double score = 1.0, string payloadField = null)
+            {
+                _async = async;
+                _prefixes = prefixes;
+                _filter = filter;
+                _languageField = languageField;
+                _language = language;
+                _scoreFiled = scoreFiled;
+                _score = score;
+                _payloadField = payloadField;
+            }
+
+            internal void SerializeRedisArgs(List<object> args)
+            {
+                args.Add("ON".Literal());
+                args.Add(_type.ToString("g"));
+                if (_async)
+                {
+                    args.Add("ASYNC".Literal());
+                }
+                if (_prefixes?.Length > 0) 
+                {
+                    args.Add("PREFIX".Literal());
+                    args.Add(_prefixes.Length.ToString());
+                    args.AddRange(_prefixes);
+                }
+                if (_filter != null) 
+                {
+                    args.Add("FILTER".Literal());
+                    args.Add(_filter);
+                }                
+                if (_languageField != null) {
+                    args.Add("LANGUAGE_FIELD".Literal());
+                    args.Add(_languageField);      
+                }                
+                if (_language != null) {
+                    args.Add("LANGUAGE".Literal());
+                    args.Add(_language);      
+                }                
+                if (_scoreFiled != null) {
+                    args.Add("SCORE_FIELD".Literal());
+                    args.Add(_scoreFiled);      
+                }                
+                if (_score != 1.0) {
+                    args.Add("SCORE".Literal());
+                    args.Add(_score.ToString());      
+                }
+                if (_payloadField != null) {
+                    args.Add("PAYLOAD_FIELD".Literal());
+                    args.Add(_payloadField);      
+                }
+            }
+
+        }
+
         public sealed class ConfiguredIndexOptions
         {
             // This news up a enum which results in the 0 equivalent.
@@ -57,10 +134,18 @@ namespace NRediSearch
             public static IndexOptions Default => new IndexOptions();
 
             private IndexOptions _options;
+            private IndexDefinition _definition;
             private string[] _stopwords;
+
             public ConfiguredIndexOptions(IndexOptions options = IndexOptions.Default)
             {
                 _options = options;
+            }
+
+            public ConfiguredIndexOptions(IndexDefinition definition, IndexOptions options = IndexOptions.Default) 
+            : this(options)
+            {
+                _definition = definition;
             }
 
             /// <summary>
@@ -84,8 +169,8 @@ namespace NRediSearch
 
             internal void SerializeRedisArgs(List<object> args)
             {
-                SerializeRedisArgs(_options, args);
-                if (_stopwords != null && _stopwords.Length != 0)
+                SerializeRedisArgs(_options, args, _definition);
+                if (_stopwords?.Length > 0)
                 {
                     args.Add("STOPWORDS".Literal());
                     args.Add(_stopwords.Length.Boxed());
@@ -93,8 +178,9 @@ namespace NRediSearch
                 }
             }
 
-            internal static void SerializeRedisArgs(IndexOptions options, List<object> args)
+            internal static void SerializeRedisArgs(IndexOptions options, List<object> args, IndexDefinition definition)
             {
+                definition?.SerializeRedisArgs(args);
                 if ((options & IndexOptions.UseTermOffsets) == 0)
                 {
                     args.Add("NOOFFSETS".Literal());
@@ -453,20 +539,24 @@ namespace NRediSearch
 
         /// <summary>
         /// Index a document already in redis as a HASH key.
+        /// [Deprecated] Use IDatabase.HashSet instead.
         /// </summary>
         /// <param name="docId">the id of the document in redis. This must match an existing, unindexed HASH key</param>
         /// <param name="score">the document's index score, between 0 and 1</param>
         /// <param name="replace">if set, and the document already exists, we reindex and update it</param>
         /// <returns>true on success</returns>
+        [Obsolete("Use IDatabase.HashSet instead.")]
         public bool AddHash(string docId, double score, bool replace) => AddHash((RedisKey)docId, score, replace);
 
         /// <summary>
         /// Index a document already in redis as a HASH key.
+        /// [Deprecated] Use IDatabase.HashSet instead.
         /// </summary>
         /// <param name="docId">the id of the document in redis. This must match an existing, unindexed HASH key</param>
         /// <param name="score">the document's index score, between 0 and 1</param>
         /// <param name="replace">if set, and the document already exists, we reindex and update it</param>
         /// <returns>true on success</returns>
+        [Obsolete("Use IDatabase.HashSet instead.")]
         public bool AddHash(RedisKey docId, double score, bool replace)
         {
             var args = new List<object> { _boxedIndexName, docId, score };
@@ -479,20 +569,24 @@ namespace NRediSearch
 
         /// <summary>
         /// Index a document already in redis as a HASH key.
+        /// [Deprecated] Use IDatabase.HashSet instead.
         /// </summary>
         /// <param name="docId">the id of the document in redis. This must match an existing, unindexed HASH key</param>
         /// <param name="score">the document's index score, between 0 and 1</param>
         /// <param name="replace">if set, and the document already exists, we reindex and update it</param>
         /// <returns>true on success</returns>
+        [Obsolete("Use IDatabase.HashSet instead.")]
         public Task<bool> AddHashAsync(string docId, double score, bool replace) => AddHashAsync((RedisKey)docId, score, replace);
 
         /// <summary>
         /// Index a document already in redis as a HASH key.
+        /// [Deprecated] Use IDatabase.HashSet instead.
         /// </summary>
         /// <param name="docId">the id of the document in redis. This must match an existing, unindexed HASH key</param>
         /// <param name="score">the document's index score, between 0 and 1</param>
         /// <param name="replace">if set, and the document already exists, we reindex and update it</param>
         /// <returns>true on success</returns>
+        [Obsolete("Use IDatabase.HashSet instead.")]
         public async Task<bool> AddHashAsync(RedisKey docId, double score, bool replace)
         {
             var args = new List<object> { _boxedIndexName, docId, score };
@@ -1250,7 +1344,7 @@ namespace NRediSearch
 
             for (var i = 0; i < results.Length; i++)
             {
-                suggestions[i] = Suggestion.Builder.String((string)results[i]).Build();
+                suggestions[i] = Suggestion.Builder.String((string)results[i]).Build(true);
             }
 
             return suggestions;
@@ -1268,7 +1362,7 @@ namespace NRediSearch
                 suggestion.Score((double)results[i - 2]);
                 suggestion.Payload((string)results[i - 1]);
 
-                suggestions[(i / 3) - 1] = suggestion.Build();
+                suggestions[(i / 3) - 1] = suggestion.Build(true);
             }
 
             return suggestions;
@@ -1285,7 +1379,7 @@ namespace NRediSearch
                 suggestion.String((string)results[i - 2]);
                 suggestion.Payload((string)results[i - 1]);
 
-                suggestions[(i / 2) - 1] = suggestion.Build();
+                suggestions[(i / 2) - 1] = suggestion.Build(true);
             }
 
             return suggestions;
@@ -1302,7 +1396,7 @@ namespace NRediSearch
                 suggestion.String((string)results[i - 2]);
                 suggestion.Score((double)results[i - 1]);
 
-                suggestions[(i / 2) - 1] = suggestion.Build();
+                suggestions[(i / 2) - 1] = suggestion.Build(true);
             }
 
             return suggestions;
