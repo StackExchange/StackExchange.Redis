@@ -13,10 +13,12 @@ namespace StackExchange.Redis.Tests
     {
         public Roles(ITestOutputHelper output, SharedConnectionFixture fixture) : base(output, fixture) { }
 
-        [Fact]
-        public void MasterRole()
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public void MasterRole(bool allowAdmin) // should work with or without admin now
         {
-            using var muxer = Create(allowAdmin: true);
+            using var muxer = Create(allowAdmin: allowAdmin);
             var server = muxer.GetServer(TestConfig.Current.MasterServerAndPort);
 
             var role = server.Role();
@@ -43,15 +45,6 @@ namespace StackExchange.Redis.Tests
             Assert.NotNull(replica);
             Assert.Equal(replica.MasterIp, TestConfig.Current.MasterServer);
             Assert.Equal(replica.MasterPort, TestConfig.Current.MasterPort);
-        }
-
-        [Fact]
-        public void RoleRequiresAdmin()
-        {
-            using var muxer = Create(allowAdmin: false);
-            var server = muxer.GetServer(TestConfig.Current.MasterServerAndPort);
-
-            Assert.Throws<RedisCommandException>(() => server.Role());
         }
     }
 }
