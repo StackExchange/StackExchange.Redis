@@ -24,6 +24,14 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void ConfigurationOptionsToString()
+        {
+            var options = ConfigurationOptions.Parse("rediss://localhost/0?checkCertificateRevocation=false");
+
+            Assert.Equal("rediss://localhost/0??checkCertificateRevocation=False&ssl=True&sslProtocols=Tls12|Tls13", options.ToString());
+        }
+
+        [Fact]
         public void SslProtocols_MultipleValues()
         {
             var options = ConfigurationOptions.Parse("redis://myhost?sslProtocols=Tls11&sslProtocols=Tls12");

@@ -2470,7 +2470,9 @@ namespace StackExchange.Redis
                     SwitchMaster(e.EndPoint, connection);
                 }
             }
+#pragma warning disable RCS1075 // Avoid empty catch clause that catches System.Exception.
             catch (Exception)
+#pragma warning restore RCS1075 // Avoid empty catch clause that catches System.Exception.
             {
                 // Log, but don't throw in an event handler
                 // TODO: Log via new event handler? a la ConnectionFailed?
@@ -2492,9 +2494,11 @@ namespace StackExchange.Redis
                         // Attempt, but do not fail here
                         SwitchMaster(e.EndPoint, connection);
                     }
+#pragma warning disable RCS1075 // Avoid empty catch clause that catches System.Exception.
                     catch (Exception)
+#pragma warning restore RCS1075 // Avoid empty catch clause that catches System.Exception.
                     {
-
+                        // TODO: Log via new event handler? 
                     }
                 }, null, TimeSpan.FromSeconds(0), TimeSpan.FromSeconds(1));
             }
