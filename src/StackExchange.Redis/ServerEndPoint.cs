@@ -196,26 +196,32 @@ namespace StackExchange.Redis
                 Multiplexer.Trace("Updating cluster ranges...");
                 Multiplexer.UpdateClusterRange(configuration);
                 Multiplexer.Trace("Resolving genealogy...");
-                var thisNode = configuration.Nodes.FirstOrDefault(x => x.EndPoint.Equals(EndPoint));
-                if (thisNode != null)
-                {
-                    List<ServerEndPoint> replicas = null;
-                    ServerEndPoint master = null;
-                    foreach (var node in configuration.Nodes)
-                    {
-                        if (node.NodeId == thisNode.ParentNodeId)
-                        {
-                            master = Multiplexer.GetServerEndPoint(node.EndPoint);
-                        }
-                        else if (node.ParentNodeId == thisNode.NodeId)
-                        {
-                            (replicas ?? (replicas = new List<ServerEndPoint>())).Add(Multiplexer.GetServerEndPoint(node.EndPoint));
-                        }
-                    }
-                    Master = master;
-                    Replicas = replicas?.ToArray() ?? Array.Empty<ServerEndPoint>();
-                }
+                UpdateNodeRelations(configuration);
                 Multiplexer.Trace("Cluster configured");
+            }
+        }
+
+        public void UpdateNodeRelations(ClusterConfiguration configuration)
+        {
+            var thisNode = configuration.Nodes.FirstOrDefault(x => x.EndPoint.Equals(EndPoint));
+            if (thisNode != null)
+            {
+                Multiplexer.Trace($"Updating node relations for {thisNode.EndPoint.ToString()}...");
+                List<ServerEndPoint> replicas = null;
+                ServerEndPoint master = null;
+                foreach (var node in configuration.Nodes)
+                {
+                    if (node.NodeId == thisNode.ParentNodeId)
+                    {
+                        master = Multiplexer.GetServerEndPoint(node.EndPoint);
+                    }
+                    else if (node.ParentNodeId == thisNode.NodeId)
+                    {
+                        (replicas ?? (replicas = new List<ServerEndPoint>())).Add(Multiplexer.GetServerEndPoint(node.EndPoint));
+                    }
+                }
+                Master = master;
+                Replicas = replicas?.ToArray() ?? Array.Empty<ServerEndPoint>();
             }
         }
 
