@@ -2351,7 +2351,8 @@ namespace StackExchange.Redis
         public ConnectionMultiplexer GetSentinelMasterConnection(ConfigurationOptions config, TextWriter log = null)
         {
             if (ServerSelectionStrategy.ServerType != ServerType.Sentinel)
-                throw new NotImplementedException("The ConnectionMultiplexer is not a Sentinel connection.");
+                throw new RedisConnectionException(ConnectionFailureType.UnableToConnect,
+                    "Sentinel: The ConnectionMultiplexer is not a Sentinel connection.");
 
             if (string.IsNullOrEmpty(config.ServiceName))
                 throw new ArgumentException("A ServiceName must be specified.");

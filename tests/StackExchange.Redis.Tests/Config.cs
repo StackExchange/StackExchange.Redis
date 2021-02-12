@@ -143,6 +143,22 @@ namespace StackExchange.Redis.Tests
         }
 
         [Fact]
+        public void CanParseAndFormatUnixDomainSocket()
+        {
+            const string ConfigString = "!/some/path,allowAdmin=True";
+#if NET472
+            var ex = Assert.Throws<PlatformNotSupportedException>(() => ConfigurationOptions.Parse(ConfigString));
+            Assert.Equal("Unix domain sockets require .NET Core 3 or above", ex.Message);
+#else
+            var config = ConfigurationOptions.Parse(ConfigString);
+            Assert.True(config.AllowAdmin);
+            var ep = Assert.IsType<UnixDomainSocketEndPoint>(Assert.Single(config.EndPoints));
+            Assert.Equal("/some/path", ep.ToString());
+            Assert.Equal(ConfigString, config.ToString());
+#endif
+        }
+
+        [Fact]
         public void TalkToNonsenseServer()
         {
             var config = new ConfigurationOptions
