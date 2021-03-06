@@ -2004,7 +2004,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the string.</param>
         /// <param name="value">The value to set.</param>
         /// <param name="expiry">The expiry to set.</param>
-        /// <param name="when">Which condition to set the value under (detaults to always).</param>
+        /// <param name="when">Which condition to set the value under (defaults to always).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>True if the string was set, false otherwise.</returns>
         /// <remarks>https://redis.io/commands/set</remarks>
@@ -2014,7 +2014,7 @@ namespace StackExchange.Redis
         /// Sets the given keys to their respective values. If "not exists" is specified, this will not perform any operation at all even if just a single key already exists.
         /// </summary>
         /// <param name="values">The keys and values to set.</param>
-        /// <param name="when">Which condition to set the value under (detaults to always).</param>
+        /// <param name="when">Which condition to set the value under (defaults to always).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>True if the keys were set, else False</returns>
         /// <remarks>https://redis.io/commands/mset</remarks>
