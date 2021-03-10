@@ -11,21 +11,22 @@
     <PublicSign Condition=" '$(OS)' != 'Windows_NT' ">true</PublicSign>
     <DefineConstants Condition="'$(TargetFramework)' != 'net461'">$(DefineConstants);VECTOR_SAFE</DefineConstants>
     <DefineConstants Condition="'$(TargetFramework)' != 'net461' and '$(TargetFramework)' != 'net472' and '$(TargetFramework)' != 'netstandard2.0'">$(DefineConstants);UNIX_SOCKET</DefineConstants>
+    <DefineConstants Condition="'$(TargetFramework)' != 'net461' and '$(TargetFramework)' != 'net472'">$(DefineConstants);XAMARIN</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
     <!-- needed everywhere -->
     <PackageReference Include="Pipelines.Sockets.Unofficial" />
-    <PackageReference Include="System.Diagnostics.PerformanceCounter" />
+    <PackageReference Include="System.Diagnostics.PerformanceCounter" Condition="'$(TargetFramework)' == 'net472' or '$(TargetFramework)' == 'net461'" />
 
     <!-- built into .NET core now -->
     <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Condition="'$(TargetFramework)' == 'net472' or '$(TargetFramework)' == 'net461' or '$(TargetFramework)' == 'netstandard2.0'" />
     <PackageReference Include="System.Threading.Channels" Condition="'$(TargetFramework)' == 'net472' or '$(TargetFramework)' == 'net461' or '$(TargetFramework)' == 'netstandard2.0'" />
 
     <!-- net461 needs this for OSPlatform et al -->
-    <PackageReference Include="System.Runtime.InteropServices.RuntimeInformation" Condition="'$(TargetFramework)' == 'net461' "/>
+    <PackageReference Include="System.Runtime.InteropServices.RuntimeInformation" Condition="'$(TargetFramework)' == 'net461' " />
     
     <!-- netfx needs this for ZipArchive -->
-    <PackageReference Include="System.IO.Compression" Condition="'$(TargetFramework)' == 'net472' or '$(TargetFramework)' == 'net461' "/>
+    <PackageReference Include="System.IO.Compression" Condition="'$(TargetFramework)' == 'net472' or '$(TargetFramework)' == 'net461' " />
   </ItemGroup>
 </Project>

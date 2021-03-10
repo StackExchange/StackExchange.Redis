@@ -9,13 +9,15 @@ namespace StackExchange.Redis
     internal static class PerfCounterHelper
     {
         private static readonly object staticLock = new object();
+#if !XAMARIN
         private static volatile PerformanceCounter _cpu;
+#endif
         private static volatile bool _disabled = !RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
 
         public static bool TryGetSystemCPU(out float value)
         {
             value = -1;
-
+#if !XAMARIN
             try
             {
                 if (!_disabled && _cpu == null)
@@ -48,6 +50,7 @@ namespace StackExchange.Redis
                 value = _cpu.NextValue();
                 return true;
             }
+#endif
             return false;
         }
 
