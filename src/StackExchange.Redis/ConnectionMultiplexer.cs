@@ -2439,11 +2439,9 @@ namespace StackExchange.Redis
         {
             ConnectionMultiplexer connection = (ConnectionMultiplexer)sender;
 
-            if (connection.sentinelMasterReconnectTimer != null)
-            {
-                connection.sentinelMasterReconnectTimer.Dispose();
-                connection.sentinelMasterReconnectTimer = null;
-            }
+            var oldTimer = Interlocked.Exchange(ref connection.sentinelMasterReconnectTimer, null);
+            oldTimer?.Dispose();
+
             try
             {
 
@@ -2486,7 +2484,7 @@ namespace StackExchange.Redis
             // or if we miss the published master change
             if (connection.sentinelMasterReconnectTimer == null)
             {
-                connection.sentinelMasterReconnectTimer = new Timer((_) =>
+                connection.sentinelMasterReconnectTimer = new Timer(_ =>
                 {
                     try
                     {
@@ -2495,9 +2493,12 @@ namespace StackExchange.Redis
                     }
                     catch (Exception)
                     {
-
                     }
-                }, null, TimeSpan.FromSeconds(0), TimeSpan.FromSeconds(1));
+                    finally
+                    {
+                        connection.sentinelMasterReconnectTimer?.Change(TimeSpan.FromSeconds(1), Timeout.InfiniteTimeSpan);
+                    }
+                }, null, TimeSpan.Zero, Timeout.InfiniteTimeSpan);
             }
         }
 
@@ -2692,6 +2693,8 @@ namespace StackExchange.Redis
             GC.SuppressFinalize(this);
             Close(!_isDisposed);
             sentinelConnection?.Dispose();
+            var oldTimer = Interlocked.Exchange(ref sentinelMasterReconnectTimer, null);
+            oldTimer?.Dispose();
         }
 
         internal Task<T> ExecuteAsyncImpl<T>(Message message, ResultProcessor<T> processor, object state, ServerEndPoint server)
