@@ -16,5 +16,17 @@ namespace StackExchange.Redis.Tests
             Assert.Equal("$PING=P", map.ToString());
             Assert.Equal(".:6379,$PING=P", config.ToString());
         }
+
+        [Theory]
+        [InlineData("redisql.CREATE_STATEMENT")]
+        [InlineData("INSERTINTOTABLE1STMT")]
+        public void CanHandleNonTrivialCommands(string command)
+        {
+            var cmd = new CommandBytes(command);
+            Assert.Equal(command.Length, cmd.Length);
+            Assert.Equal(command.ToUpperInvariant(), cmd.ToString());
+
+            Assert.Equal(31, CommandBytes.MaxLength);
+        }
     }
 }

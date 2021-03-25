@@ -32,8 +32,8 @@ namespace StackExchange.Redis
         // https://github.com/dotnet/coreclr/issues/19149
         //
         // note: this tries to use case insensitive comparison
-        private readonly ulong _0, _1, _2;
-        private const int ChunkLength = 3; // must reflect qty above
+        private readonly ulong _0, _1, _2, _3;
+        private const int ChunkLength = 4; // must reflect qty above
 
         public const int MaxLength = (ChunkLength * sizeof(ulong)) - 1;
 
@@ -42,13 +42,15 @@ namespace StackExchange.Redis
             var hashCode = -1923861349;
             hashCode = (hashCode * -1521134295) + _0.GetHashCode();
             hashCode = (hashCode * -1521134295) + _1.GetHashCode();
-            return (hashCode * -1521134295) + _2.GetHashCode();
+            hashCode = (hashCode * -1521134295) + _2.GetHashCode();
+            hashCode = (hashCode * -1521134295) + _3.GetHashCode();
+            return hashCode;
         }
         public override bool Equals(object obj) => obj is CommandBytes cb && Equals(cb);
 
-        bool IEquatable<CommandBytes>.Equals(CommandBytes other) => _0 == other._0 && _1 == other._1 && _2 == other._2;
+        bool IEquatable<CommandBytes>.Equals(CommandBytes other) => _0 == other._0 && _1 == other._1 && _2 == other._2 && _3 == other._3;
 
-        public bool Equals(in CommandBytes other) => _0 == other._0 && _1 == other._1 && _2 == other._2;
+        public bool Equals(in CommandBytes other) => _0 == other._0 && _1 == other._1 && _2 == other._2 && _3 == other._3;
 
         // note: don't add == operators; with the implicit op above, that invalidates "==null" compiler checks (which should report a failure!)
 
@@ -102,7 +104,7 @@ namespace StackExchange.Redis
 
         public unsafe CommandBytes(string value)
         {
-            _0 = _1 = _2 = 0L;
+            _0 = _1 = _2 = _3 = 0L;
             if (string.IsNullOrEmpty(value)) return;
 
             var len = Encoding.GetByteCount(value);
@@ -123,7 +125,7 @@ namespace StackExchange.Redis
 #pragma warning restore RCS1231 // Make parameter ref read-only.
         {
             if (value.Length > MaxLength) throw new ArgumentOutOfRangeException("Maximum command length exceeed: " + value.Length + " bytes");
-            _0 = _1 = _2 = 0L;
+            _0 = _1 = _2 = _3 = 0L;
             fixed (ulong* uPtr = &_0)
             {
                 byte* bPtr = (byte*)uPtr;
@@ -136,7 +138,7 @@ namespace StackExchange.Redis
         {
             if (value.Length > MaxLength) throw new ArgumentOutOfRangeException("Maximum command length exceeed");
             int len = unchecked((int)value.Length);
-            _0 = _1 = _2 = 0L;
+            _0 = _1 = _2 = _3 = 0L;
             fixed (ulong* uPtr = &_0)
             {
                 byte* bPtr = (byte*)uPtr;
@@ -160,7 +162,7 @@ namespace StackExchange.Redis
         private unsafe int UpperCasify(int len, byte* bPtr)
         {
             const ulong HighBits = 0x8080808080808080;
-            if (((_0 | _1 | _2) & HighBits) == 0)
+            if (((_0 | _1 | _2 | _3) & HighBits) == 0)
             {
                 // no unicode; use ASCII bit bricks
                 for (int i = 0; i < len; i++)
