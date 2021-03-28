@@ -147,6 +147,7 @@ namespace StackExchange.Redis
                 typeof(double?),
                 typeof(string),
                 typeof(byte[]),
+                typeof(ReadOnlyMemory<byte>),
                 typeof(bool),
                 typeof(bool?),
 
