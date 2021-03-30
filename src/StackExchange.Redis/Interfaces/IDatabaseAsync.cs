@@ -250,7 +250,7 @@ namespace StackExchange.Redis
         Task<RedisValue[]> HashGetAsync(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Returns all fields and values of the hash stored at key. 
+        /// Returns all fields and values of the hash stored at key.
         /// </summary>
         /// <param name="key">The key of the hash to get all entries from.</param>
         /// <param name="flags">The flags to use for this operation.</param>
@@ -344,7 +344,7 @@ namespace StackExchange.Redis
         /// <returns>the length of the string at field, or 0 when key does not exist.</returns>
         /// <remarks>https://redis.io/commands/hstrlen</remarks>
         Task<long> HashStringLengthAsync(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None);
-        
+
         /// <summary>
         /// Returns all values in the hash stored at key.
         /// </summary>
@@ -412,7 +412,7 @@ namespace StackExchange.Redis
         Task HyperLogLogMergeAsync(RedisKey destination, RedisKey[] sourceKeys, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Inidicate exactly which redis server we are talking to.
+        /// Indicate exactly which redis server we are talking to.
         /// </summary>
         /// <param name="key">The key to check.</param>
         /// <param name="flags">The flags to use for this operation.</param>
@@ -518,7 +518,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Remove the existing timeout on key, turning the key from volatile (a key with an expire set) to persistent (a key that will never expire as no timeout is associated).
         /// </summary>
-        /// <param name="key">The key to presist.</param>
+        /// <param name="key">The key to persist.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>1 if the timeout was removed. 0 if key does not exist or does not have an associated timeout.</returns>
         /// <remarks>https://redis.io/commands/persist</remarks>
@@ -533,7 +533,7 @@ namespace StackExchange.Redis
         Task<RedisKey> KeyRandomAsync(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Renames key to newkey. It returns an error when the source and destination names are the same, or when key does not exist. 
+        /// Renames key to newkey. It returns an error when the source and destination names are the same, or when key does not exist.
         /// </summary>
         /// <param name="key">The key to rename.</param>
         /// <param name="newKey">The key to rename to.</param>
@@ -639,7 +639,7 @@ namespace StackExchange.Redis
         /// <remarks>https://redis.io/commands/lpush</remarks>
         /// <remarks>https://redis.io/commands/lpushx</remarks>
         Task<long> ListLeftPushAsync(RedisKey key, RedisValue[] values, When when = When.Always, CommandFlags flags = CommandFlags.None);
-        
+
         /// <summary>
         /// Insert all the specified values at the head of the list stored at key. If key does not exist, it is created as empty list before performing the push operations.
         /// Elements are inserted one after the other to the head of the list, from the leftmost element to the rightmost element. So for instance the command LPUSH mylist a b c will result into a list containing c as first element, b as second element and a as third element.
@@ -652,7 +652,7 @@ namespace StackExchange.Redis
         Task<long> ListLeftPushAsync(RedisKey key, RedisValue[] values, CommandFlags flags);
 
         /// <summary>
-        /// Returns the length of the list stored at key. If key does not exist, it is interpreted as an empty list and 0 is returned. 
+        /// Returns the length of the list stored at key. If key does not exist, it is interpreted as an empty list and 0 is returned.
         /// </summary>
         /// <param name="key">The key of the list.</param>
         /// <param name="flags">The flags to use for this operation.</param>
@@ -663,7 +663,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Returns the specified elements of the list stored at key. The offsets start and stop are zero-based indexes, with 0 being the first element of the list (the head of the list), 1 being the next element and so on.
         /// These offsets can also be negative numbers indicating offsets starting at the end of the list.For example, -1 is the last element of the list, -2 the penultimate, and so on.
-        /// Note that if you have a list of numbers from 0 to 100, LRANGE list 0 10 will return 11 elements, that is, the rightmost item is included. 
+        /// Note that if you have a list of numbers from 0 to 100, LRANGE list 0 10 will return 11 elements, that is, the rightmost item is included.
         /// </summary>
         /// <param name="key">The key of the list.</param>
         /// <param name="start">The start index of the list.</param>
@@ -731,7 +731,7 @@ namespace StackExchange.Redis
         Task<long> ListRightPushAsync(RedisKey key, RedisValue[] values, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Insert all the specified values at the tail of the list stored at key. If key does not exist, it is created as empty list before performing the push operation. 
+        /// Insert all the specified values at the tail of the list stored at key. If key does not exist, it is created as empty list before performing the push operation.
         /// Elements are inserted one after the other to the tail of the list, from the leftmost element to the rightmost element. So for instance the command RPUSH mylist a b c will result into a list containing a as first element, b as second element and c as third element.
         /// </summary>
         /// <param name="key">The key of the list.</param>
@@ -1025,7 +1025,7 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Return an array of count distinct elements if count is positive. If called with a negative count the behavior changes and the command is allowed to return the same element multiple times.
-        /// In this case the numer of returned elements is the absolute value of the specified count.
+        /// In this case the number of returned elements is the absolute value of the specified count.
         /// </summary>
         /// <param name="key">The key of the set.</param>
         /// <param name="count">The count of members to get.</param>
@@ -1138,7 +1138,7 @@ namespace StackExchange.Redis
         Task<long> SortedSetAddAsync(RedisKey key, SortedSetEntry[] values, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Computes a set operation over two sorted sets, and stores the result in destination, optionally performing 
+        /// Computes a set operation over two sorted sets, and stores the result in destination, optionally performing
         /// a specific aggregation (defaults to sum).
         /// </summary>
         /// <param name="operation">The operation to perform.</param>
@@ -1153,7 +1153,7 @@ namespace StackExchange.Redis
         Task<long> SortedSetCombineAndStoreAsync(SetOperation operation, RedisKey destination, RedisKey first, RedisKey second, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Computes a set operation over multiple sorted sets (optionally using per-set weights), and stores the result in destination, optionally performing 
+        /// Computes a set operation over multiple sorted sets (optionally using per-set weights), and stores the result in destination, optionally performing
         /// a specific aggregation (defaults to sum).
         /// </summary>
         /// <param name="operation">The operation to perform.</param>
@@ -1554,7 +1554,7 @@ namespace StackExchange.Redis
         Task<StreamConsumerInfo[]> StreamConsumerInfoAsync(RedisKey key, RedisValue groupName, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Create a consumer group for the given stream. 
+        /// Create a consumer group for the given stream.
         /// </summary>
         /// <param name="key">The key of the stream.</param>
         /// <param name="groupName">The name of the group to create.</param>
@@ -1565,7 +1565,7 @@ namespace StackExchange.Redis
         Task<bool> StreamCreateConsumerGroupAsync(RedisKey key, RedisValue groupName, RedisValue? position, CommandFlags flags);
 
         /// <summary>
-        /// Create a consumer group for the given stream. 
+        /// Create a consumer group for the given stream.
         /// </summary>
         /// <param name="key">The key of the stream.</param>
         /// <param name="groupName">The name of the group to create.</param>
@@ -1995,7 +1995,7 @@ namespace StackExchange.Redis
         Task<RedisValue> StringSetRangeAsync(RedisKey key, long offset, RedisValue value, CommandFlags flags = CommandFlags.None);
 
                 /// <summary>
-        /// Touch the specified key. 
+        /// Touch the specified key.
         /// </summary>
         /// <param name="key">The key to touch.</param>
         /// <param name="flags">The flags to use for this operation.</param>
