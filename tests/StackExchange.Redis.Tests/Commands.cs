@@ -1,10 +1,36 @@
-﻿using System.Net;
+﻿using System;
+using System.Net;
 using Xunit;
 
 namespace StackExchange.Redis.Tests
 {
     public class Commands
     {
+        [Fact]
+        public void CommandByteLength()
+        {
+            Assert.Equal(31, CommandBytes.MaxLength);
+        }
+
+        [Fact]
+        public void CheckCommandContents()
+        {
+            for (int len = 0; len <= CommandBytes.MaxLength; len++)
+            {
+                var s = new string('A', len);
+                CommandBytes b = s;
+                Assert.Equal(len, b.Length);
+
+                var t = b.ToString();
+                Assert.Equal(s, t);
+
+                CommandBytes b2 = t;
+                Assert.Equal(b, b2);
+
+                Assert.Equal(len == 0, ReferenceEquals(s, t));
+            }
+        }
+
         [Fact]
         public void Basic()
         {
