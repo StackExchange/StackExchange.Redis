@@ -136,8 +136,11 @@ namespace StackExchange.Redis
                 // you can go in the queue, but we won't be starting
                 // a worker, because the handshake has not completed
                 message.SetEnqueued(null);
-                message.SetBacklogState(_backlog.Count, null);
-                _backlog.Enqueue(message);
+                lock (_backlog)
+                {
+                    message.SetBacklogState(_backlog.Count, null);
+                    _backlog.Enqueue(message);
+                }
                 return WriteResult.Success; // we'll take it...
             }
             else
