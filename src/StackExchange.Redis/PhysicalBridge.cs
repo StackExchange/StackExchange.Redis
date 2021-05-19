@@ -755,7 +755,7 @@ namespace StackExchange.Redis
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void StartBacklogProcessor()
         {
-            if (0 == Interlocked.CompareExchange(ref _backlogProcessorIsRunning, 1, 0))
+            if (Interlocked.CompareExchange(ref _backlogProcessorIsRunning, 1, 0) == 0)
             {
                 
 #if DEBUG
@@ -922,7 +922,7 @@ namespace StackExchange.Redis
                 token.Dispose();
 
                 // Do this in finally block, so that thread aborts can't convince us the backlog processor is running forever
-                if (Interlocked.CompareExchange(ref _backlogProcessorIsRunning, 1, 0) != 1)
+                if (Interlocked.CompareExchange(ref _backlogProcessorIsRunning, 0, 1) != 1)
                 {
                     throw new Exception("Bug detection, couldn't indicate shutdown of backlog processor");
                 }
