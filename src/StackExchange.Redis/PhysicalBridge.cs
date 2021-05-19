@@ -27,6 +27,7 @@ namespace StackExchange.Redis
         private readonly long[] profileLog = new long[ProfileLogSamples];
 
         private readonly ConcurrentQueue<Message> _backlog = new ConcurrentQueue<Message>();
+        private int _backlogProcessorIsRunning = 0;
 
         private int activeWriters = 0;
         private int beating;
@@ -136,11 +137,8 @@ namespace StackExchange.Redis
                 // you can go in the queue, but we won't be starting
                 // a worker, because the handshake has not completed
                 message.SetEnqueued(null);
-                lock (_backlog)
-                {
-                    message.SetBacklogState(_backlog.Count, null);
-                    _backlog.Enqueue(message);
-                }
+                message.SetBacklogState(_backlog.Count, null);
+                _backlog.Enqueue(message);
                 return WriteResult.Success; // we'll take it...
             }
             else
@@ -743,27 +741,28 @@ namespace StackExchange.Redis
             // So strong synchronization is not required.
             if (_backlog.IsEmpty & onlyIfExists) return false;
 
-            // But for ensuring that the backlog processor sees all enqueues before exiting,
-            // we DO need strong synchronization between enqueueing and dequeueing. So we only
-            // *sometimes* get to take advantage of having non-blocking queue APIs, mainly approx count/emptiness checks :-/
-            bool wasEmpty;
-            lock (_backlog)
-            {    
-                int count = _backlog.Count;
-                wasEmpty = count == 0;
-                message.SetBacklogState(count, physical);
-                _backlog.Enqueue(message);
-            }
-            if (wasEmpty) StartBacklogProcessor();
+            
+            int count = _backlog.Count;
+            message.SetBacklogState(count, physical);
+            _backlog.Enqueue(message);
+
+            // The correct way to decide to start backlog process is not based on previously empty
+            // but based on a) not empty now (we enqueued!) and b) no backlog processor already running.
+            // Which StartBacklogProcessor will check.
+            StartBacklogProcessor();
             return true;
         }
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void StartBacklogProcessor()
         {
+            if (0 == Interlocked.CompareExchange(ref _backlogProcessorIsRunning, 1, 0))
+            {
+                
 #if DEBUG
-            _backlogProcessorRequestedTime = Environment.TickCount;
+                _backlogProcessorRequestedTime = Environment.TickCount;
 #endif
-            Task.Run(ProcessBacklogAsync);
+                Task.Run(ProcessBacklogAsync);
+            }
         }
 #if DEBUG
         private volatile int _backlogProcessorRequestedTime;
@@ -833,10 +832,7 @@ namespace StackExchange.Redis
                 while (true)
                 {
                     // check whether the backlog is empty *before* even trying to get the lock
-                    lock (_backlog)
-                    {
-                        if (_backlog.Count == 0) return; // nothing to do
-                    }
+                    if (_backlog.IsEmpty) return; // nothing to do
 
                     // try and get the lock; if unsuccessful, retry
                     token = await _singleWriterMutex.TryWaitAsync().ConfigureAwait(false);
@@ -858,10 +854,8 @@ namespace StackExchange.Redis
                 while(true)
                 {
                     _backlogStatus = BacklogStatus.CheckingForWork;
-                    // We need to lock _backlog when dequeueing today because of 
-                    // A) races with timeout processing logic
-                    // B) races with enqueue where we would quit the backlog after some saw they enqueued a message on a non-empty queue
-                    // but we think the queue was empty already because we didn't get to observe that enqueue
+                    // We need to lock _backlog when dequeueing because of 
+                    // races with timeout processing logic
                     lock (_backlog)
                     {
                         if (!_backlog.TryDequeue(out message)) break; // all done
@@ -926,6 +920,23 @@ namespace StackExchange.Redis
             finally
             {   
                 token.Dispose();
+
+                // Do this in finally block, so that thread aborts can't convince us the backlog processor is running forever
+                if (Interlocked.CompareExchange(ref _backlogProcessorIsRunning, 1, 0) != 1)
+                {
+                    throw new Exception("Bug detection, couldn't indicate shutdown of backlog processor");
+                }
+
+                // Now that nobody is processing the backlog, we should consider starting a new backlog processor
+                // in case a new message came in after we ended this loop.
+                if (!_backlog.IsEmpty)
+                {
+                    // Check for faults? To prevent unlimited tasks spawning because I keep throwing and hitting this condition? :-/
+                    if (_backlogStatus != BacklogStatus.Faulted)
+                    {
+                        StartBacklogProcessor();
+                    }
+                }
             }
         }
 
