@@ -738,12 +738,19 @@ namespace StackExchange.Redis
             // we only need care if WE are able to 
             // see the queue when its empty. Not whether anyone else sees it as empty.
             // So strong synchronization is not required.
-            int count = _backlog.Count;
-            bool wasEmpty = count == 0;
-            if (wasEmpty & onlyIfExists) return false;
+            if (_backlog.IsEmpty & onlyIfExists) return false;
 
-            message.SetBacklogState(count, physical);
-            _backlog.Enqueue(message);
+            // But for ensuring that the backlog processor sees all enqueues before exiting,
+            // we DO need strong synchronization between enqueueing and dequeueing. So we only
+            // *sometimes* get to take advantage of having non-blocking queue APIs, mainly approx count/emptiness checks :-/
+            bool wasEmpty;
+            lock (_backlog)
+            {    
+                int count = _backlog.Count;
+                wasEmpty = count == 0;
+                message.SetBacklogState(count, physical);
+                _backlog.Enqueue(message);
+            }
             if (wasEmpty) StartBacklogProcessor();
             return true;
         }
@@ -848,7 +855,10 @@ namespace StackExchange.Redis
                 while(true)
                 {
                     _backlogStatus = BacklogStatus.CheckingForWork;
-                    // We need to lock _backlog when dequeueing today because of races with timeout processing logic
+                    // We need to lock _backlog when dequeueing today because of 
+                    // A) races with timeout processing logic
+                    // B) races with enqueue where we would quit the backlog after some saw they enqueued a message on a non-empty queue
+                    // but we think the queue was empty already because we didn't get to observe that enqueue
                     lock (_backlog)
                     {
                         if (!_backlog.TryDequeue(out message)) break; // all done
