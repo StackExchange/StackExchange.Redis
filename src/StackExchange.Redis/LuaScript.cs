@@ -103,7 +103,7 @@ namespace StackExchange.Redis
 
                 var psType = ps.GetType();
                 var mapper = (Func<object, RedisKey?, ScriptParameterMapper.ScriptParameters>)ParameterMappers[psType];
-                if (ps != null && mapper == null)
+                if (mapper == null)
                 {
                     lock (ParameterMappers)
                     {
@@ -114,10 +114,10 @@ namespace StackExchange.Redis
                             {
                                 if (missingMember != null)
                                 {
-                                    throw new ArgumentException("ps", "Expected [" + missingMember + "] to be a field or gettable property on [" + psType.FullName + "]");
+                                    throw new ArgumentException("Expected [" + missingMember + "] to be a field or gettable property on [" + psType.FullName + "]", nameof(ps));
                                 }
 
-                                throw new ArgumentException("ps", "Expected [" + badMemberType + "] on [" + psType.FullName + "] to be convertable to a RedisValue");
+                                throw new ArgumentException("Expected [" + badMemberType + "] on [" + psType.FullName + "] to be convertible to a RedisValue", nameof(ps));
                             }
 
                             ParameterMappers[psType] = mapper = ScriptParameterMapper.GetParameterExtractor(psType, this);

@@ -576,8 +576,64 @@ return timeTaken
                     var val = prepared.Evaluate(db, new { ident = new byte[] { 4, 5, 6 } });
                     Assert.True(new byte[] { 4, 5, 6 }.SequenceEqual((byte[])val));
                 }
+
+                {
+                    var val = prepared.Evaluate(db, new { ident = new ReadOnlyMemory<byte>(new byte[] { 4, 5, 6 }) });
+                    Assert.True(new byte[] { 4, 5, 6 }.SequenceEqual((byte[])val));
+                }
             }
         }
+
+        [Fact]
+        public void SimpleRawScriptEvaluate()
+        {
+            const string Script = "return ARGV[1]";
+
+            using (var conn = Create(allowAdmin: true))
+            {
+                Skip.IfMissingFeature(conn, nameof(RedisFeatures.Scripting), f => f.Scripting);
+                var server = conn.GetServer(TestConfig.Current.MasterServerAndPort);
+                server.ScriptFlush();
+
+                var db = conn.GetDatabase();
+
+                {
+                    var val = db.ScriptEvaluate(Script, values: new RedisValue[] { "hello" });
+                    Assert.Equal("hello", (string)val);
+                }
+
+                {
+                    var val = db.ScriptEvaluate(Script, values: new RedisValue[] { 123 });
+                    Assert.Equal(123, (int)val);
+                }
+
+                {
+                    var val = db.ScriptEvaluate(Script, values: new RedisValue[] { 123L });
+                    Assert.Equal(123L, (long)val);
+                }
+
+                {
+                    var val = db.ScriptEvaluate(Script, values: new RedisValue[] { 1.1 });
+                    Assert.Equal(1.1, (double)val);
+                }
+
+                {
+                    var val = db.ScriptEvaluate(Script, values: new RedisValue[] { true });
+                    Assert.True((bool)val);
+                }
+
+                {
+                    var val = db.ScriptEvaluate(Script, values: new RedisValue[] { new byte[] { 4, 5, 6 } });
+                    Assert.True(new byte[] { 4, 5, 6 }.SequenceEqual((byte[])val));
+                }
+
+                {
+                    var val = db.ScriptEvaluate(Script, values: new RedisValue[] { new ReadOnlyMemory<byte>(new byte[] { 4, 5, 6 }) });
+                    Assert.True(new byte[] { 4, 5, 6 }.SequenceEqual((byte[])val));
+                }
+            }
+        }
+
 
         [Fact]
         public void LuaScriptWithKeys()
@@ -688,6 +744,11 @@ return timeTaken
 
                 {
                     var val = loaded.Evaluate(db, new { ident = new byte[] { 4, 5, 6 } });
+                    Assert.True(new byte[] { 4, 5, 6 }.SequenceEqual((byte[])val));
+                }
+
+                {
+                    var val = loaded.Evaluate(db, new { ident = new ReadOnlyMemory<byte>(new byte[] { 4, 5, 6 }) });
                     Assert.True(new byte[] { 4, 5, 6 }.SequenceEqual((byte[])val));
                 }
             }

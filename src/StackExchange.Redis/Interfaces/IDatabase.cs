@@ -177,7 +177,7 @@ namespace StackExchange.Redis
         GeoRadiusResult[] GeoRadius(RedisKey key, double longitude, double latitude, double radius, GeoUnit unit = GeoUnit.Meters, int count = -1, Order? order = null, GeoRadiusOptions options = GeoRadiusOptions.Default, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Decrements the number stored at field in the hash stored at key by decrement. If key does not exist, a new key holding a hash is created. If field does not exist or holds a string that cannot be interpreted as integer, the value is set to 0 before the operation is performed.
+        /// Decrements the number stored at field in the hash stored at key by decrement. If key does not exist, a new key holding a hash is created. If field does not exist the value is set to 0 before the operation is performed.
         /// </summary>
         /// <param name="key">The key of the hash.</param>
         /// <param name="hashField">The field in the hash to decrement.</param>
@@ -262,7 +262,7 @@ namespace StackExchange.Redis
         RedisValue[] HashGet(RedisKey key, RedisValue[] hashFields, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Returns all fields and values of the hash stored at key. 
+        /// Returns all fields and values of the hash stored at key.
         /// </summary>
         /// <param name="key">The key of the hash to get all entries from.</param>
         /// <param name="flags">The flags to use for this operation.</param>
@@ -271,7 +271,7 @@ namespace StackExchange.Redis
         HashEntry[] HashGetAll(RedisKey key, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Increments the number stored at field in the hash stored at key by increment. If key does not exist, a new key holding a hash is created. If field does not exist or holds a string that cannot be interpreted as integer, the value is set to 0 before the operation is performed.
+        /// Increments the number stored at field in the hash stored at key by increment. If key does not exist, a new key holding a hash is created. If field does not exist the value is set to 0 before the operation is performed.
         /// </summary>
         /// <param name="key">The key of the hash.</param>
         /// <param name="hashField">The field in the hash to increment.</param>
@@ -367,7 +367,7 @@ namespace StackExchange.Redis
         /// <returns>the length of the string at field, or 0 when key does not exist.</returns>
         /// <remarks>https://redis.io/commands/hstrlen</remarks>
         long HashStringLength(RedisKey key, RedisValue hashField, CommandFlags flags = CommandFlags.None);
-        
+
         /// <summary>
         /// Returns all values in the hash stored at key.
         /// </summary>
@@ -435,7 +435,7 @@ namespace StackExchange.Redis
         void HyperLogLogMerge(RedisKey destination, RedisKey[] sourceKeys, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Inidicate exactly which redis server we are talking to.
+        /// Indicate exactly which redis server we are talking to.
         /// </summary>
         /// <param name="key">The key to check.</param>
         /// <param name="flags">The flags to use for this operation.</param>
@@ -541,7 +541,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Remove the existing timeout on key, turning the key from volatile (a key with an expire set) to persistent (a key that will never expire as no timeout is associated).
         /// </summary>
-        /// <param name="key">The key to presist.</param>
+        /// <param name="key">The key to persist.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>1 if the timeout was removed. 0 if key does not exist or does not have an associated timeout.</returns>
         /// <remarks>https://redis.io/commands/persist</remarks>
@@ -556,7 +556,7 @@ namespace StackExchange.Redis
         RedisKey KeyRandom(CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Renames key to newkey. It returns an error when the source and destination names are the same, or when key does not exist. 
+        /// Renames key to newkey. It returns an error when the source and destination names are the same, or when key does not exist.
         /// </summary>
         /// <param name="key">The key to rename.</param>
         /// <param name="newKey">The key to rename to.</param>
@@ -675,7 +675,7 @@ namespace StackExchange.Redis
         long ListLeftPush(RedisKey key, RedisValue[] values, CommandFlags flags);
 
         /// <summary>
-        /// Returns the length of the list stored at key. If key does not exist, it is interpreted as an empty list and 0 is returned. 
+        /// Returns the length of the list stored at key. If key does not exist, it is interpreted as an empty list and 0 is returned.
         /// </summary>
         /// <param name="key">The key of the list.</param>
         /// <param name="flags">The flags to use for this operation.</param>
@@ -686,7 +686,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Returns the specified elements of the list stored at key. The offsets start and stop are zero-based indexes, with 0 being the first element of the list (the head of the list), 1 being the next element and so on.
         /// These offsets can also be negative numbers indicating offsets starting at the end of the list.For example, -1 is the last element of the list, -2 the penultimate, and so on.
-        /// Note that if you have a list of numbers from 0 to 100, LRANGE list 0 10 will return 11 elements, that is, the rightmost item is included. 
+        /// Note that if you have a list of numbers from 0 to 100, LRANGE list 0 10 will return 11 elements, that is, the rightmost item is included.
         /// </summary>
         /// <param name="key">The key of the list.</param>
         /// <param name="start">The start index of the list.</param>
@@ -754,7 +754,7 @@ namespace StackExchange.Redis
         long ListRightPush(RedisKey key, RedisValue[] values, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Insert all the specified values at the tail of the list stored at key. If key does not exist, it is created as empty list before performing the push operation. 
+        /// Insert all the specified values at the tail of the list stored at key. If key does not exist, it is created as empty list before performing the push operation.
         /// Elements are inserted one after the other to the tail of the list, from the leftmost element to the rightmost element. So for instance the command RPUSH mylist a b c will result into a list containing a as first element, b as second element and c as third element.
         /// </summary>
         /// <param name="key">The key of the list.</param>
@@ -1048,7 +1048,7 @@ namespace StackExchange.Redis
 
         /// <summary>
         /// Return an array of count distinct elements if count is positive. If called with a negative count the behavior changes and the command is allowed to return the same element multiple times.
-        /// In this case the numer of returned elements is the absolute value of the specified count.
+        /// In this case the number of returned elements is the absolute value of the specified count.
         /// </summary>
         /// <param name="key">The key of the set.</param>
         /// <param name="count">The count of members to get.</param>
@@ -1167,7 +1167,7 @@ namespace StackExchange.Redis
         /// Adds all the specified members with the specified scores to the sorted set stored at key. If a specified member is already a member of the sorted set, the score is updated and the element reinserted at the right position to ensure the correct ordering.
         /// </summary>
         /// <param name="key">The key of the sorted set.</param>
-        /// <param name="values">The members and vlues to add to the sorted set.</param>
+        /// <param name="values">The members and values to add to the sorted set.</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of elements added to the sorted sets, not including elements already existing for which the score was updated.</returns>
         /// <remarks>https://redis.io/commands/zadd</remarks>
@@ -1177,7 +1177,7 @@ namespace StackExchange.Redis
         /// Adds all the specified members with the specified scores to the sorted set stored at key. If a specified member is already a member of the sorted set, the score is updated and the element reinserted at the right position to ensure the correct ordering.
         /// </summary>
         /// <param name="key">The key of the sorted set.</param>
-        /// <param name="values">The members and vlues to add to the sorted set.</param>
+        /// <param name="values">The members and values to add to the sorted set.</param>
         /// <param name="when">What conditions to add the element under (defaults to always).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>The number of elements added to the sorted sets, not including elements already existing for which the score was updated.</returns>
@@ -1185,7 +1185,7 @@ namespace StackExchange.Redis
         long SortedSetAdd(RedisKey key, SortedSetEntry[] values, When when = When.Always, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Computes a set operation over two sorted sets, and stores the result in destination, optionally performing 
+        /// Computes a set operation over two sorted sets, and stores the result in destination, optionally performing
         /// a specific aggregation (defaults to sum).
         /// </summary>
         /// <param name="operation">The operation to perform.</param>
@@ -1200,7 +1200,7 @@ namespace StackExchange.Redis
         long SortedSetCombineAndStore(SetOperation operation, RedisKey destination, RedisKey first, RedisKey second, Aggregate aggregate = Aggregate.Sum, CommandFlags flags = CommandFlags.None);
 
         /// <summary>
-        /// Computes a set operation over multiple sorted sets (optionally using per-set weights), and stores the result in destination, optionally performing 
+        /// Computes a set operation over multiple sorted sets (optionally using per-set weights), and stores the result in destination, optionally performing
         /// a specific aggregation (defaults to sum).
         /// </summary>
         /// <param name="operation">The operation to perform.</param>
@@ -2004,7 +2004,7 @@ namespace StackExchange.Redis
         /// <param name="key">The key of the string.</param>
         /// <param name="value">The value to set.</param>
         /// <param name="expiry">The expiry to set.</param>
-        /// <param name="when">Which condition to set the value under (detaults to always).</param>
+        /// <param name="when">Which condition to set the value under (defaults to always).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>True if the string was set, false otherwise.</returns>
         /// <remarks>https://redis.io/commands/set</remarks>
@@ -2014,7 +2014,7 @@ namespace StackExchange.Redis
         /// Sets the given keys to their respective values. If "not exists" is specified, this will not perform any operation at all even if just a single key already exists.
         /// </summary>
         /// <param name="values">The keys and values to set.</param>
-        /// <param name="when">Which condition to set the value under (detaults to always).</param>
+        /// <param name="when">Which condition to set the value under (defaults to always).</param>
         /// <param name="flags">The flags to use for this operation.</param>
         /// <returns>True if the keys were set, else False</returns>
         /// <remarks>https://redis.io/commands/mset</remarks>
