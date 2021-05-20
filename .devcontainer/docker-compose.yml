@@ -1,0 +1,27 @@
+version: '3.7'
+
+services:
+  devcontainer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ..:/workspace:cached
+      # Mount the TestConfig.json file as readonly, so that tests talk to services in the internal docker network
+      # This leaves the original TestsConfig.json outside the devcontainer untouched
+      - ./TestConfig.json:/workspace/tests/StackExchange.Redis.Tests/TestConfig.json:ro
+    depends_on:
+      - redis
+      - redisearch
+    links:
+      - "redis:redis"
+      - "redisearch:redisearch"
+    command: /bin/sh -c "while sleep 1000; do :; done"
+  redis:
+    build:
+      context: ../tests/RedisConfigs
+      dockerfile: Dockerfile
+    sysctls :
+      net.core.somaxconn: '511'
+  redisearch:
+    image: redislabs/redisearch:latest
