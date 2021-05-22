@@ -1,0 +1,17 @@
+{
+    "name": "StackExchange.Redis",
+    "dockerComposeFile": [    
+      "docker-compose.yml"
+    ],
+    "service": "devcontainer",
+    "workspaceFolder": "/workspace",
+    "postCreateCommand": "dotnet restore Build.csproj",
+
+    "settings": {
+        "terminal.integrated.shell.linux": "/bin/bash"
+    },
+    "extensions": [
+        "ms-dotnettools.csharp",
+        "ms-azuretools.vscode-docker"
+    ],
+}

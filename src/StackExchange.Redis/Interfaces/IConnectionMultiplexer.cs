@@ -220,13 +220,13 @@ namespace StackExchange.Redis
         /// <summary>
         /// Close all connections and release all resources associated with this object
         /// </summary>
-        /// <param name="allowCommandsToComplete">Whether to allow in-queue commadns to complete first.</param>
+        /// <param name="allowCommandsToComplete">Whether to allow in-queue commands to complete first.</param>
         void Close(bool allowCommandsToComplete = true);
 
         /// <summary>
         /// Close all connections and release all resources associated with this object
         /// </summary>
-        /// <param name="allowCommandsToComplete">Whether to allow in-queue commadns to complete first.</param>
+        /// <param name="allowCommandsToComplete">Whether to allow in-queue commands to complete first.</param>
         Task CloseAsync(bool allowCommandsToComplete = true);
 
         /// <summary>

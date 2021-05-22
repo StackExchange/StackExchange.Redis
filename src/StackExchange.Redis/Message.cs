@@ -97,8 +97,8 @@ namespace StackExchange.Redis
 
         // All for profiling purposes
         private ProfiledCommand performance;
-        internal DateTime createdDateTime;
-        internal long createdTimestamp;
+        internal DateTime CreatedDateTime;
+        internal long CreatedTimestamp;
 
         protected Message(int db, CommandFlags flags, RedisCommand command)
         {
@@ -128,8 +128,8 @@ namespace StackExchange.Redis
             Flags = flags & UserSelectableFlags;
             if (masterOnly) SetMasterOnly();
 
-            createdDateTime = DateTime.UtcNow;
-            createdTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+            CreatedDateTime = DateTime.UtcNow;
+            CreatedTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
             Status = CommandStatus.WaitingToBeSent;
         }
 
@@ -165,8 +165,8 @@ namespace StackExchange.Redis
             oldPerformance.SetCompleted();
             performance = null;
 
-            createdDateTime = DateTime.UtcNow;
-            createdTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+            CreatedDateTime = DateTime.UtcNow;
+            CreatedTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
             performance = ProfiledCommand.NewAttachedToSameContext(oldPerformance, resendTo, isMoved);
             performance.SetMessage(this);
             Status = CommandStatus.WaitingToBeSent;
