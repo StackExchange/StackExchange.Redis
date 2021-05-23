@@ -56,7 +56,7 @@ namespace StackExchange.Redis
             databases = 0;
             writeEverySeconds = config.KeepAlive > 0 ? config.KeepAlive : 60;
             serverType = ServerType.Standalone;
-
+            ConfigCheckSeconds = Multiplexer.RawConfig.ConfigCheckSeconds;
             // overrides for twemproxy
             if (multiplexer.RawConfig.Proxy == Proxy.Twemproxy)
             {
@@ -540,7 +540,7 @@ namespace StackExchange.Redis
         internal bool CheckInfoReplication()
         {
             lastInfoReplicationCheckTicks = Environment.TickCount;
-            ForceReplicationCheck = false;
+            ResetExponentiallyReplicationCheck();
             PhysicalBridge bridge;
             if (version >= RedisFeatures.v2_8_0 && Multiplexer.CommandMap.IsAvailable(RedisCommand.INFO)
                 && (bridge = GetBridge(ConnectionType.Interactive, false)) != null)
@@ -556,7 +556,27 @@ namespace StackExchange.Redis
         }
 
         private int lastInfoReplicationCheckTicks;
-        internal volatile bool ForceReplicationCheck;
+        internal volatile int ConfigCheckSeconds;
+        [ThreadStatic]
+        private static Random r;
+
+
+        // Forces frequent replication check starting from 1 second upto max ConfigCheckSeconds with an exponential increment
+        internal void ForceExponentiallyReplicationCheck()
+        {
+            ConfigCheckSeconds = 1;  // start checking info replication more frequently
+        }
+
+        private void ResetExponentiallyReplicationCheck()
+        {
+            if (ConfigCheckSeconds < Multiplexer.RawConfig.ConfigCheckSeconds)
+            {
+                r = r ?? new Random();
+                var newExponentialConfigCheck = ConfigCheckSeconds * 2;
+                var jitter = r.Next(ConfigCheckSeconds + 1, newExponentialConfigCheck);
+                ConfigCheckSeconds = Math.Min(jitter, Multiplexer.RawConfig.ConfigCheckSeconds);
+            }
+        }
 
         private int _heartBeatActive;
         internal void OnHeartbeat()

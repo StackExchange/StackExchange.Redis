@@ -424,11 +424,18 @@ namespace StackExchange.Redis
             oldState = default(State); // only defined when isCurrent = true
             if (isCurrent = (physical == connection))
             {
-                Multiplexer.MarkServerEndpointsForReplicationRoleRefresh();
-
                 Trace("Bridge noting disconnect from active connection" + (isDisposed ? " (disposed)" : ""));
                 oldState = ChangeState(State.Disconnected);
                 physical = null;
+                if (oldState == State.ConnectedEstablished && !ServerEndPoint.IsReplica)
+                {
+                    // if the disconnected endpoint was a master endpoint run info replication
+                    // more frequently on it's replica with exponential increments
+                    foreach (var r in ServerEndPoint.Replicas)
+                    {
+                        r.ForceExponentiallyReplicationCheck();
+                    }
+                }
 
                 if (!isDisposed && Interlocked.Increment(ref failConnectCount) == 1)
                 {
@@ -534,10 +541,10 @@ namespace StackExchange.Redis
                             }
                             tmp.OnBridgeHeartbeat();
                             int writeEverySeconds = ServerEndPoint.WriteEverySeconds,
-                                checkConfigSeconds = Multiplexer.RawConfig.ConfigCheckSeconds;
+                                checkConfigSeconds = ServerEndPoint.ConfigCheckSeconds;
 
                             if (state == (int)State.ConnectedEstablished && ConnectionType == ConnectionType.Interactive
-                                && ((checkConfigSeconds > 0 && ServerEndPoint.LastInfoReplicationCheckSecondsAgo >= checkConfigSeconds) || ServerEndPoint.ForceReplicationCheck)
+                                && checkConfigSeconds > 0 && ServerEndPoint.LastInfoReplicationCheckSecondsAgo >= checkConfigSeconds
                                 && ServerEndPoint.CheckInfoReplication())
                             {
                                 // that serves as a keep-alive, if it is accepted
