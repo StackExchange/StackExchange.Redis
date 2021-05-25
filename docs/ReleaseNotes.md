@@ -1,5 +1,9 @@
 # Release Notes
 
+## Unreleased
+
+- performance optimization for PING accuracy (#1714 via eduardobr)
+
 ## 2.2.4
 
 - fix ambiguous signature of the new `RPUSHX`/`LPUSHX` methods (#1620)
