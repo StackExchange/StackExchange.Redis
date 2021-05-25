@@ -329,6 +329,8 @@ namespace StackExchange.Redis
 
         public sealed class TimingProcessor : ResultProcessor<TimeSpan>
         {
+            private static readonly double TimestampToTicks = TimeSpan.TicksPerSecond / (double)Stopwatch.Frequency;
+
             public static TimerMessage CreateMessage(int db, CommandFlags flags, RedisCommand command, RedisValue value = default(RedisValue))
             {
                 return new TimerMessage(db, flags, command, value);
@@ -346,9 +348,9 @@ namespace StackExchange.Redis
                     TimeSpan duration;
                     if (message is TimerMessage timingMessage)
                     {
-                        var watch = timingMessage.Watch;
-                        watch.Stop();
-                        duration = watch.Elapsed;
+                        var timestampDelta = Stopwatch.GetTimestamp() - timingMessage.StartedWritingTimestamp;
+                        var ticks = (long)(TimestampToTicks * timestampDelta);
+                        duration = new TimeSpan(ticks);
                     }
                     else
                     {
@@ -361,17 +363,17 @@ namespace StackExchange.Redis
 
             internal sealed class TimerMessage : Message
             {
-                public readonly Stopwatch Watch;
+                public long StartedWritingTimestamp;
                 private readonly RedisValue value;
                 public TimerMessage(int db, CommandFlags flags, RedisCommand command, RedisValue value)
                     : base(db, flags, command)
                 {
-                    Watch = Stopwatch.StartNew();
                     this.value = value;
                 }
 
                 protected override void WriteImpl(PhysicalConnection physical)
                 {
+                    StartedWritingTimestamp = Stopwatch.GetTimestamp();
                     if (value.IsNull)
                     {
                         physical.WriteHeader(command, 0);
