@@ -562,7 +562,7 @@ namespace StackExchange.Redis
 
 
         // Forces frequent replication check starting from 1 second upto max ConfigCheckSeconds with an exponential increment
-        internal void ForceExponentiallyReplicationCheck()
+        internal void ForceExponentialBackoffReplicationCheck()
         {
             ConfigCheckSeconds = 1;  // start checking info replication more frequently
         }

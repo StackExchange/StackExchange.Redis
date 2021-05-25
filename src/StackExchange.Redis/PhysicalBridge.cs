@@ -433,7 +433,7 @@ namespace StackExchange.Redis
                     // more frequently on it's replica with exponential increments
                     foreach (var r in ServerEndPoint.Replicas)
                     {
-                        r.ForceExponentiallyReplicationCheck();
+                        r.ForceExponentialBackoffReplicationCheck();
                     }
                 }
 
