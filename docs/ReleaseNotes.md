@@ -3,6 +3,7 @@
 ## Unreleased
 
 - performance optimization for PING accuracy (#1714 via eduardobr)
+- improvement to reconnect logic (exponential backoff) (#1735 via deepakverma)
 
 ## 2.2.4
 
