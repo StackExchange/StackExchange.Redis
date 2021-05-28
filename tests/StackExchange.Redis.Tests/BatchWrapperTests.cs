@@ -1,9 +1,11 @@
 ﻿using Moq;
 using StackExchange.Redis.KeyspaceIsolation;
 using System.Text;
+using Xunit;
 
 namespace StackExchange.Redis.Tests
 {
+    [Collection(nameof(MoqDependentCollection))]
     public sealed class BatchWrapperTests
     {
         private readonly Mock<IBatch> mock;
