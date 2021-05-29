@@ -775,7 +775,7 @@ namespace StackExchange.Redis
 
             // Because peeking at the backlog, checking message and then dequeueing, is not thread-safe, we do have to use
             // a lock here, for mutual exclusion of backlog DEQUEUERS. Unfortunately.
-            // But we can optimize to reduce contention by only locking if we see something that looks timed out.
+            // But we reduce contention by only locking if we see something that looks timed out.
             Message message;
             while (_backlog.TryPeek(out message))
             {
@@ -793,12 +793,12 @@ namespace StackExchange.Redis
                     {
                         throw new RedisException("Thread safety bug detected! A queue message disappeared while we had the backlog lock");
                     }
-
-                    // TODO: PERF, consider doing this outside the lock, or just taking the lock once and looping
-                    // tell the message that it failed
-                    var ex = Multiplexer.GetException(WriteResult.TimeoutBeforeWrite, message, ServerEndPoint);
-                    message.SetExceptionAndComplete(ex, this);
                 }
+
+                // Tell the message it has failed
+                // Note: Attempting to *avoid* reentrancy/deadlock issues by not holding the lock while completing messages.
+                var ex = Multiplexer.GetException(WriteResult.TimeoutBeforeWrite, message, ServerEndPoint);
+                message.SetExceptionAndComplete(ex, this);
             }
         }
         internal enum BacklogStatus : byte
