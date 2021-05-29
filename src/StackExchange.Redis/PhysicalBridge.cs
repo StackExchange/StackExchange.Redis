@@ -784,7 +784,7 @@ namespace StackExchange.Redis
                 lock (_backlog)
                 {
                     // peek again since we didn't have lock before...
-                    // and rerun the exact same checks as above
+                    // and rerun the exact same checks as above, note that it may be a different message now
                     if (!_backlog.TryPeek(out message)) break;
                     if (message.IsInternalCall) break;
                     if (!message.HasAsyncTimedOut(now, timeout, out var _)) break;
@@ -931,7 +931,8 @@ namespace StackExchange.Redis
                 // in case a new message came in after we ended this loop.
                 if (!_backlog.IsEmpty)
                 {
-                    // Check for faults? To prevent unlimited tasks spawning because I keep throwing and hitting this condition? :-/
+                    // Check for faults mainly to prevent unlimited tasks spawning in a fault scenario
+                    // - it isn't StackOverflowException due to the Task.Run()
                     if (_backlogStatus != BacklogStatus.Faulted)
                     {
                         StartBacklogProcessor();
