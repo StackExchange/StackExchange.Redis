@@ -791,7 +791,7 @@ namespace StackExchange.Redis
 
                     if (!_backlog.TryDequeue(out var message2) || (message != message2)) // consume it for real
                     {
-                        throw new Exception("Thread safety bug detected! A queue message disappeared while we had the backlog lock");
+                        throw new RedisException("Thread safety bug detected! A queue message disappeared while we had the backlog lock");
                     }
 
                     // TODO: PERF, consider doing this outside the lock, or just taking the lock once and looping
@@ -924,7 +924,7 @@ namespace StackExchange.Redis
                 // Do this in finally block, so that thread aborts can't convince us the backlog processor is running forever
                 if (Interlocked.CompareExchange(ref _backlogProcessorIsRunning, 0, 1) != 1)
                 {
-                    throw new Exception("Bug detection, couldn't indicate shutdown of backlog processor");
+                    throw new RedisException("Bug detection, couldn't indicate shutdown of backlog processor");
                 }
 
                 // Now that nobody is processing the backlog, we should consider starting a new backlog processor
