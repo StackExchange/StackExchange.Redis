@@ -1797,6 +1797,23 @@ namespace StackExchange.Redis
                                         // and try to connect to these other nodes in the next iteration
                                         encounteredConnectedClusterServer = true;
                                         updatedClusterEndpointCollection = await GetEndpointsFromClusterNodes(server, log).ForAwait();
+
+                                        if (first && updatedClusterEndpointCollection?.Count > 0 && server.EndPoint != null)
+                                        {
+                                            // close the initial cluster discovery connection as it's no longer needed
+                                            Task[] closeTask = new Task[2];
+                                            closeTask[0] = server.Close(ConnectionType.Interactive);
+                                            closeTask[1] = server.Close(ConnectionType.Subscription);
+                                            await Task.WhenAll(closeTask);
+
+                                            // server cleanup
+                                            lock (this.servers)
+                                            {
+                                                this.servers.Remove(server.EndPoint);
+                                            }
+                                            server.Dispose();
+                                            continue;
+                                        }
                                     }
 
                                     // set the server UnselectableFlags and update masters list
