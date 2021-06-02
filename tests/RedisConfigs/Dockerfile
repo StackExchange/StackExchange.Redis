@@ -1,4 +1,4 @@
-FROM redis:5
+FROM redis:6.2
 
 COPY Basic /data/Basic/
 COPY Failover /data/Failover/
