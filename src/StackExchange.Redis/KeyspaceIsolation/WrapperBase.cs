@@ -802,6 +802,16 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StringGetAsync(ToInner(key), flags);
         }
 
+        public Task<RedisValue> StringGetAsync(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StringGetAsync(ToInner(key), expiry, flags);
+        }
+
+        public Task<RedisValue> StringGetAsync(RedisKey key, DateTime expiry, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StringGetAsync(ToInner(key), expiry, flags);
+        }
+
         public Task<Lease<byte>> StringGetLeaseAsync(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             return Inner.StringGetLeaseAsync(ToInner(key), flags);

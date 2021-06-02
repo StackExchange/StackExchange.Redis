@@ -811,6 +811,16 @@ namespace StackExchange.Redis.KeyspaceIsolation
             return Inner.StringGet(ToInner(key), flags);
         }
 
+        public RedisValue StringGet(RedisKey key, TimeSpan? expiry, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StringGet(ToInner(key), expiry, flags);
+        }
+
+        public RedisValue StringGet(RedisKey key, DateTime expiry, CommandFlags flags = CommandFlags.None)
+        {
+            return Inner.StringGet(ToInner(key), expiry, flags);
+        }
+
         public Lease<byte>StringGetLease(RedisKey key, CommandFlags flags = CommandFlags.None)
         {
             return Inner.StringGetLease(ToInner(key), flags);

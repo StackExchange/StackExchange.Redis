@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -65,6 +66,77 @@ namespace StackExchange.Redis.Tests
                 Assert.Equal("abc", await v1);
                 Assert.Equal("def", Decode(await v2));
             }
+        }
+
+        [Fact]
+        public async Task GetEx_NoValue()
+        {
+            using var muxer = Create();
+            Skip.IfMissingFeature(muxer, nameof(RedisFeatures.GetEx), r => r.GetEx);
+
+            var conn = muxer.GetDatabase();
+            var key = Me();
+            conn.KeyDelete(key, CommandFlags.FireAndForget);
+
+            var empty_val = await conn.StringGetAsync(key, TimeSpan.FromHours(1));
+
+            Assert.False(empty_val.HasValue);
+        }
+
+        [Fact]
+        public async Task GetEx_Relative()
+        {
+            using var muxer = Create();
+            Skip.IfMissingFeature(muxer, nameof(RedisFeatures.GetEx), r => r.GetEx);
+
+            var conn = muxer.GetDatabase();
+            var key = Me();
+            conn.KeyDelete(key, CommandFlags.FireAndForget);
+
+            conn.StringSet(key, "abc", TimeSpan.FromHours(1));
+            var relative_sec = conn.StringGetAsync(key, TimeSpan.FromMinutes(30));
+            var relative_sec_ttl = conn.KeyTimeToLiveAsync(key);
+
+            Assert.Equal("abc", await relative_sec);
+            var time = await relative_sec_ttl;
+            Assert.True(time > TimeSpan.FromMinutes(29.9) && time <= TimeSpan.FromMinutes(30));
+        }
+
+        [Fact]
+        public async Task GetEx_Absolute()
+        {
+            using var muxer = Create();
+            Skip.IfMissingFeature(muxer, nameof(RedisFeatures.GetEx), r => r.GetEx);
+
+            var conn = muxer.GetDatabase();
+            var key = Me();
+            conn.KeyDelete(key, CommandFlags.FireAndForget);
+
+            conn.StringSet(key, "abc", TimeSpan.FromHours(1));
+            var val = conn.StringGetAsync(key, DateTime.UtcNow.AddMinutes(30));
+            var val_ttl = conn.KeyTimeToLiveAsync(key);
+
+            Assert.Equal("abc", await val);
+            var time = await val_ttl;
+            Assert.True(time > TimeSpan.FromMinutes(29.9) && time <= TimeSpan.FromMinutes(30));
+        }
+
+        [Fact]
+        public async Task GetEx_Persist()
+        {
+            using var muxer = Create();
+            Skip.IfMissingFeature(muxer, nameof(RedisFeatures.GetEx), r => r.GetEx);
+
+            var conn = muxer.GetDatabase();
+            var key = Me();
+            conn.KeyDelete(key, CommandFlags.FireAndForget);
+
+            conn.StringSet(key, "abc", TimeSpan.FromHours(1));
+            var val = conn.StringGetAsync(key, null);
+            var val_ttl = conn.KeyTimeToLiveAsync(key);
+
+            Assert.Equal("abc", await val);
+            Assert.Null(await val_ttl);
         }
 
         [Fact]
