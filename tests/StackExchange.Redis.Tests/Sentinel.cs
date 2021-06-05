@@ -11,17 +11,17 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    public class Sentinel : TestBase
+    public class Sentinel : TestBase, IAsyncLifetime
     {
         private string ServiceName => TestConfig.Current.SentinelSeviceName;
         private ConfigurationOptions ServiceOptions => new ConfigurationOptions { ServiceName = ServiceName, AllowAdmin = true };
 
-        private ConnectionMultiplexer Conn { get; }
-        private IServer SentinelServerA { get; }
-        private IServer SentinelServerB { get; }
-        private IServer SentinelServerC { get; }
-        public IServer[] SentinelsServers { get; }
-        protected StringWriter ConnectionLog { get; }
+        private ConnectionMultiplexer Conn { get; set; }
+        private IServer SentinelServerA { get; set; }
+        private IServer SentinelServerB { get; set; }
+        private IServer SentinelServerC { get; set; }
+        public IServer[] SentinelsServers { get; set; }
+        protected StringWriter ConnectionLog { get; set; }
 
         public Sentinel(ITestOutputHelper output) : base(output)
         {
@@ -29,16 +29,21 @@ namespace StackExchange.Redis.Tests
 
             Skip.IfNoConfig(nameof(TestConfig.Config.SentinelServer), TestConfig.Current.SentinelServer);
             Skip.IfNoConfig(nameof(TestConfig.Config.SentinelSeviceName), TestConfig.Current.SentinelSeviceName);
+        }
 
+        public Task DisposeAsync() => Task.CompletedTask;
+
+        public async Task InitializeAsync()
+        {
             var options = ServiceOptions.Clone();
             options.EndPoints.Add(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortA);
             options.EndPoints.Add(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortB);
             options.EndPoints.Add(TestConfig.Current.SentinelServer, TestConfig.Current.SentinelPortC);
-
             Conn = ConnectionMultiplexer.SentinelConnect(options, ConnectionLog);
+
             for (var i = 0; i < 150; i++)
             {
-                Thread.Sleep(20);
+                await Task.Delay(20).ForAwait();
                 if (Conn.IsConnected && Conn.GetSentinelMasterConnection(options).IsConnected)
                 {
                     break;
@@ -51,11 +56,11 @@ namespace StackExchange.Redis.Tests
             SentinelsServers = new[] { SentinelServerA, SentinelServerB, SentinelServerC };
 
             // wait until we are in a state of a single master and replica
-            WaitForReady();
+            await WaitForReadyAsync();
         }
 
         [Fact]
-        public void MasterConnectTest()
+        public async Task MasterConnectTest()
         {
             var connectionString = $"{TestConfig.Current.SentinelServer},serviceName={ServiceOptions.ServiceName},allowAdmin=true";
             var conn = ConnectionMultiplexer.Connect(connectionString);
@@ -85,7 +90,7 @@ namespace StackExchange.Redis.Tests
             Assert.Equal(expected, value);
 
             // force read from replica, replication has some lag
-            WaitForReplication(servers.First());
+            await WaitForReplicationAsync(servers.First()).ForAwait();
             value = db.StringGet(key, CommandFlags.DemandReplica);
             Assert.Equal(expected, value);
         }
@@ -121,7 +126,7 @@ namespace StackExchange.Redis.Tests
             Assert.Equal(expected, value);
 
             // force read from replica, replication has some lag
-            WaitForReplication(servers.First());
+            await WaitForReplicationAsync(servers.First()).ForAwait();
             value = await db.StringGetAsync(key, CommandFlags.DemandReplica);
             Assert.Equal(expected, value);
         }
@@ -161,12 +166,12 @@ namespace StackExchange.Redis.Tests
             Assert.Equal(expected, value);
 
             // force read from replica, replication has some lag
-            WaitForReplication(servers.First());
+            await WaitForReplicationAsync(servers.First()).ForAwait();
             value = await db.StringGetAsync(key, CommandFlags.DemandReplica);
             Assert.Equal(expected, value);
 
             // forces and verifies failover
-            DoFailover();
+            await DoFailoverAsync();
 
             endpoints = conn.GetEndPoints();
             Assert.Equal(2, endpoints.Length);
@@ -186,7 +191,7 @@ namespace StackExchange.Redis.Tests
             Assert.Equal(expected, value);
 
             // force read from replica, replication has some lag
-            WaitForReplication(newMaster);
+            await WaitForReplicationAsync(newMaster).ForAwait();
             value = await db.StringGetAsync(key, CommandFlags.DemandReplica);
             Assert.Equal(expected, value);
         }
@@ -545,9 +550,9 @@ namespace StackExchange.Redis.Tests
             //Assert.StartsWith("No connection is available to service this operation", ex.Message);
         }
 
-        private void DoFailover()
+        private async Task DoFailoverAsync()
         {
-            WaitForReady();
+            await WaitForReadyAsync();
 
             // capture current replica
             var replicas = SentinelServerA.SentinelGetReplicaAddresses(ServiceName);
@@ -557,11 +562,11 @@ namespace StackExchange.Redis.Tests
             SentinelServerA.SentinelFailover(ServiceName);
 
             // wait until the replica becomes the master
-            WaitForReady(expectedMaster: replicas[0]);
+            await WaitForReadyAsync(expectedMaster: replicas[0]);
             Log($"Time to failover: {sw.Elapsed}");
         }
 
-        private void WaitForReady(EndPoint expectedMaster = null, bool waitForReplication = false, TimeSpan? duration = null)
+        private async Task WaitForReadyAsync(EndPoint expectedMaster = null, bool waitForReplication = false, TimeSpan? duration = null)
         {
             duration ??= TimeSpan.FromSeconds(30);
 
@@ -573,7 +578,7 @@ namespace StackExchange.Redis.Tests
             {
                 while (sw.Elapsed < duration.Value)
                 {
-                    Thread.Sleep(1000);
+                    await Task.Delay(1000).ForAwait();
                     try
                     {
                         master = SentinelServerA.SentinelGetMasterAddressByName(ServiceName);
@@ -593,19 +598,19 @@ namespace StackExchange.Redis.Tests
             var replicas = SentinelServerA.SentinelGetReplicaAddresses(ServiceName);
             var checkConn = Conn.GetSentinelMasterConnection(ServiceOptions);
 
-            WaitForRole(checkConn.GetServer(master), "master", duration.Value.Subtract(sw.Elapsed));
+            await WaitForRoleAsync(checkConn.GetServer(master), "master", duration.Value.Subtract(sw.Elapsed)).ForAwait();
             if (replicas.Length > 0)
             {
-                WaitForRole(checkConn.GetServer(replicas[0]), "slave", duration.Value.Subtract(sw.Elapsed));
+                await WaitForRoleAsync(checkConn.GetServer(replicas[0]), "slave", duration.Value.Subtract(sw.Elapsed)).ForAwait();
             }
 
             if (waitForReplication)
             {
-                WaitForReplication(checkConn.GetServer(master), duration.Value.Subtract(sw.Elapsed));
+                await WaitForReplicationAsync(checkConn.GetServer(master), duration.Value.Subtract(sw.Elapsed)).ForAwait();
             }
         }
 
-        private void WaitForRole(IServer server, string role, TimeSpan? duration = null)
+        private async Task WaitForRoleAsync(IServer server, string role, TimeSpan? duration = null)
         {
             duration ??= TimeSpan.FromSeconds(30);
 
@@ -626,13 +631,13 @@ namespace StackExchange.Redis.Tests
                     // ignore
                 }
 
-                Thread.Sleep(1000);
+                await Task.Delay(1000).ForAwait();
             }
 
             throw new RedisException("Timeout waiting for server to have expected role assigned");
         }
 
-        private void WaitForReplication(IServer master, TimeSpan? duration = null)
+        private async Task WaitForReplicationAsync(IServer master, TimeSpan? duration = null)
         {
             duration ??= TimeSpan.FromSeconds(10);
 
@@ -654,7 +659,7 @@ namespace StackExchange.Redis.Tests
 
                 Log($"Waiting for master ({masterOffset}) / replica ({replicaOffset}) replication to be in sync...");
 
-                Thread.Sleep(250);
+                await Task.Delay(250).ForAwait();
             }
 
             throw new RedisException("Timeout waiting for test servers master/replica replication to be in sync.");
