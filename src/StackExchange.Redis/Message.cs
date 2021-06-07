@@ -81,10 +81,10 @@ namespace StackExchange.Redis
             this.message = message;
         }
 
-        internal int GetWriteTime() => throw new NotImplementedException();
-        internal void SetEnqueued(object p) => throw new NotImplementedException();
-        internal void ResetStatusToWaitingToBeSent() => throw new NotImplementedException();
-        internal void SetExceptionAndComplete(RedisConnectionException inner, object p) => throw new NotImplementedException();
+        internal int GetWriteTime() => message.GetWriteTime();
+        internal void SetEnqueued(PhysicalConnection connection) => message.SetEnqueued(connection);
+        internal void ResetStatusToWaitingToBeSent() => message.ResetStatusToWaitingToBeSent();
+        internal void SetExceptionAndComplete(Exception exception, PhysicalBridge bridge) => message.SetExceptionAndComplete(exception, bridge);
     }
 
 
@@ -669,9 +669,9 @@ namespace StackExchange.Redis
 
         internal virtual void SetExceptionAndComplete(Exception exception, PhysicalBridge bridge)
         {
-            if(bridge != null)
+            if(bridge != null && bridge.Multiplexer.TryRequestFailedHandler(this))
             {
-               bridge.Multiplexer.OnRequestFailedHandler(new Request(this));
+                return;
             }
 
             resultBox?.SetException(exception);
@@ -749,11 +749,9 @@ namespace StackExchange.Redis
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal void SetWriteTime()
         {
-            if ((Flags & NeedsAsyncTimeoutCheckFlag) != 0)
-            {
-                _writeTickCount = Environment.TickCount; // note this might be reset if we resend a message, cluster-moved etc; I'm OK with that
-            }
+            _writeTickCount = Environment.TickCount; // note this might be reset if we resend a message, cluster-moved etc; I'm OK with that
         }
+
         private int _writeTickCount;
         public int GetWriteTime() => Volatile.Read(ref _writeTickCount);
 
