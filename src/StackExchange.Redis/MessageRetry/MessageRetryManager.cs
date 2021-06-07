@@ -35,23 +35,23 @@ namespace StackExchange.Redis
     public class ConnectionFailureRequestRetry
     {
         private MessageRetryManager retry;
-        private CommandFlags retryFlag;
+        private MessageRetry retryFlag;
         /// <summary>
         /// Default to always retry 
         /// </summary>
         /// <param name="mux"></param>
-        public ConnectionFailureRequestRetry(ConnectionMultiplexer mux) : this(mux, CommandFlags.OnConnectionRestoreAlwaysRetry)
+        public ConnectionFailureRequestRetry(ConnectionMultiplexer mux) : this(mux, MessageRetry.AlwaysRetry)
         {
             
         }
 
         
         /// <summary>
-        /// 
+        /// Queues and then retry requests on connection restore
         /// </summary>
         /// <param name="mux"></param>
         /// <param name="retryFlag"></param>
-        public ConnectionFailureRequestRetry(ConnectionMultiplexer mux, CommandFlags retryFlag)
+        public ConnectionFailureRequestRetry(ConnectionMultiplexer mux, MessageRetry retryFlag)
         {
             retry = new MessageRetryManager(mux);
             this.retryFlag = retryFlag;
@@ -66,7 +66,7 @@ namespace StackExchange.Redis
 
         private void Mux_RequestFailed(object sender, Request e)
         {
-            if((retryFlag & CommandFlags.OnConnectionRestoreAlwaysRetry) != 0)
+            if((retryFlag & MessageRetry.AlwaysRetry) != 0)
                 retry.PushMessageForRetry(e);
         }
     }
@@ -115,86 +115,59 @@ namespace StackExchange.Redis
 
         private async Task ProcessRetryQueueAsync()
         {
-                Request message = null;
-                var timeout = multiplexer.AsyncTimeoutMilliseconds;
-                long messageProcessedCount = 0;
-                string telemetryOperationName = $"{nameof(MessageRetryManager)}.{nameof(ProcessRetryQueueAsync)}";
-                    while (true)
-                    {
-                        message = null;
+            Request message = null;
+            var timeout = multiplexer.AsyncTimeoutMilliseconds;
+            long messageProcessedCount = 0;
+            while (true)
+            {
+                message = null;
 
-                        ServerEndPoint server = null;
-                        lock (queue)
+                ServerEndPoint server = null;
+                lock (queue)
+                {
+                    if (queue.Count == 0) break; // all done
+                    message = queue.Peek();
+                    server = multiplexer.SelectServer(message);
+                    if (server == null)
+                    {
+                        //break;
+                    }
+                    message = queue.Dequeue();
+                }
+                try
+                {
+                    if (HasTimedOut(Environment.TickCount,
+                                    message.ResultBoxIsAsync ? multiplexer.AsyncTimeoutMilliseconds : multiplexer.TimeoutMilliseconds,
+                                    message.GetWriteTime()))
+                    {
+                        var ex = GetTimeoutException(message);
+                        HandleException(message, ex);
+                    }
+                    else if(server != null)
+                    {
+                        // reset the noredirect flag in order for retry to follow moved exception
+                        message.Flags &= ~CommandFlags.NoRedirect;
+                        var result = await server.TryWriteAsync(message).ForAwait();
+                        if (result != WriteResult.Success)
                         {
-                            if (queue.Count == 0) break; // all done
-                            message = queue.Peek();
-                            server = multiplexer.SelectServer(message);
-                            if (server == null)
-                            {
-                                break;
-                            }
-                            message = queue.Dequeue();
-                        }
-                        try
-                        {
-                            if (HasTimedOut(Environment.TickCount,
-                                            message.ResultBoxIsAsync ? multiplexer.AsyncTimeoutMilliseconds : multiplexer.TimeoutMilliseconds,
-                                            message.GetWriteTime()))
-                            {
-                                var ex = GetTimeoutException(message);
-                                HandleException(message, ex);
-                            }
-                            else
-                            {
-                                // reset the noredirect flag in order for retry to follow moved exception
-                                message.Flags &= ~CommandFlags.NoRedirect;
-                                var result = await server.TryWriteAsync(message).ForAwait();
-                                if (result != WriteResult.Success)
-                                {
-                                    var ex = multiplexer.GetException(result, message, server);
-                                    HandleException(message, ex);
-                                }
-                            }
-                        }
-                        catch (Exception ex)
-                        {
+                            var ex = multiplexer.GetException(result, message, server);
                             HandleException(message, ex);
                         }
-                        messageProcessedCount++;
                     }
+                }
+                catch (Exception ex)
+                {
+                    HandleException(message, ex);
+                }
+                await Task.Delay(ConnectionMultiplexer.MillisecondsPerHeartbeat);
+                messageProcessedCount++;
+            }
         }
 
         private void HandleException(Request message, Exception ex)
         {
             var inner = new RedisConnectionException(ConnectionFailureType.UnableToConnect, "Failed while retrying on connection restore", ex);
             message.SetExceptionAndComplete(inner, null);
-        }
-
-        internal void CheckRetryQueueForTimeouts() // check the head of the backlog queue, consuming anything that looks dead
-        {
-            try
-            {
-                lock (queue)
-                {
-                    var now = Environment.TickCount;
-                    while (queue.Count != 0)
-                    {
-                        var message = queue.Peek();
-                        if (!HasTimedOut(now,
-                            message.ResultBoxIsAsync ? multiplexer.AsyncTimeoutMilliseconds : multiplexer.TimeoutMilliseconds,
-                            message.GetWriteTime()))
-                        {
-                            break; // not a timeout - we can stop looking
-                        }
-                        queue.Dequeue();
-                        RedisTimeoutException ex = GetTimeoutException(message);
-                        HandleException(message, ex);
-                    }
-                }
-            }
-            catch (Exception)
-            {
-            }
         }
 
         // I am not using ExceptionFactory.Timeout as it can cause deadlock while trying to lock writtenawaiting response queue for GetHeadMessages
