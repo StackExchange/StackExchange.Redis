@@ -201,12 +201,14 @@ namespace StackExchange.Redis
         /// </summary>
         public string Configuration => RawConfig.ToString();
 
-        internal void OnRequestFailedHandler(Request request)
+        internal bool TryRequestFailedHandler(Message message)
         {
             if(RequestFailed != null)
             {
-                RequestFailed(this, request);
+                RequestFailed(this, new Request(message));
+                return true;
             }
+            return false;
         }
 
         internal void OnConnectionFailed(EndPoint endpoint, ConnectionType connectionType, ConnectionFailureType failureType, Exception exception, bool reconfigure, string physicalName)
@@ -2743,7 +2745,10 @@ namespace StackExchange.Redis
                 if (result != WriteResult.Success)
                 {
                     var ex = GetException(result, message, server);
-                    ThrowFailed(tcs, ex);
+                    if (!ShouldRetryOnConnectionRestore(message, result, ex))
+                    {
+                        ThrowFailed(tcs, ex);
+                    }
                 }
                 return tcs.Task;
             }
@@ -2755,7 +2760,10 @@ namespace StackExchange.Redis
             if (result != WriteResult.Success)
             {
                 var ex = @this.GetException(result, message, server);
-                ThrowFailed(tcs, ex);
+                if (!@this.ShouldRetryOnConnectionRestore(message, result, ex))
+                {
+                    ThrowFailed(tcs, ex);
+                }
             }
             return tcs == null ? default(T) : await tcs.Task.ForAwait();
         }
@@ -2794,6 +2802,8 @@ namespace StackExchange.Redis
             }
         }
 
+        internal bool ShouldRetryOnConnectionRestore(Message message, WriteResult writeresult, Exception ex) => writeresult == WriteResult.NoConnectionAvailable && ex is RedisConnectionException && TryRequestFailedHandler(message);
+
         internal T ExecuteSyncImpl<T>(Message message, ResultProcessor<T> processor, ServerEndPoint server)
         {
             if (_isDisposed) throw new ObjectDisposedException(ToString());
@@ -2822,7 +2832,11 @@ namespace StackExchange.Redis
 #pragma warning restore CS0618
                     if (result != WriteResult.Success)
                     {
-                        throw GetException(result, message, server);
+                        var exResult = GetException(result, message, server);
+                        if (!ShouldRetryOnConnectionRestore(message, result, exResult))
+                        {
+                            throw exResult;
+                        }
                     }
 
                     if (Monitor.Wait(source, TimeoutMilliseconds))
