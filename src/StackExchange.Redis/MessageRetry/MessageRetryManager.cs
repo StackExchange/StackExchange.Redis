@@ -40,10 +40,7 @@ namespace StackExchange.Redis
         /// Default to always retry 
         /// </summary>
         /// <param name="mux"></param>
-        public ConnectionFailureRequestRetry(ConnectionMultiplexer mux) : this(mux, MessageRetry.AlwaysRetry)
-        {
-            
-        }
+        public ConnectionFailureRequestRetry(ConnectionMultiplexer mux) : this(mux, MessageRetry.AlwaysRetry) {}
 
         
         /// <summary>
@@ -118,11 +115,17 @@ namespace StackExchange.Redis
             Request message = null;
             var timeout = multiplexer.AsyncTimeoutMilliseconds;
             long messageProcessedCount = 0;
+            bool isDelayProcessingRequired = false;
             while (true)
             {
                 message = null;
 
                 ServerEndPoint server = null;
+                CheckRetryQueueForTimeouts();
+                if(isDelayProcessingRequired)
+                {
+                    await Task.Delay(ConnectionMultiplexer.MillisecondsPerHeartbeat); // 1 second
+                }
                 lock (queue)
                 {
                     if (queue.Count == 0) break; // all done
@@ -130,7 +133,8 @@ namespace StackExchange.Redis
                     server = multiplexer.SelectServer(message);
                     if (server == null)
                     {
-                        //break;
+                        isDelayProcessingRequired = true;
+                        continue;
                     }
                     message = queue.Dequeue();
                 }
@@ -145,9 +149,11 @@ namespace StackExchange.Redis
                     }
                     else if(server != null)
                     {
+                        isDelayProcessingRequired = false;
                         // reset the noredirect flag in order for retry to follow moved exception
                         message.Flags &= ~CommandFlags.NoRedirect;
                         var result = await server.TryWriteAsync(message).ForAwait();
+                        messageProcessedCount++;
                         if (result != WriteResult.Success)
                         {
                             var ex = multiplexer.GetException(result, message, server);
@@ -159,8 +165,6 @@ namespace StackExchange.Redis
                 {
                     HandleException(message, ex);
                 }
-                await Task.Delay(ConnectionMultiplexer.MillisecondsPerHeartbeat);
-                messageProcessedCount++;
             }
         }
 
@@ -168,6 +172,27 @@ namespace StackExchange.Redis
         {
             var inner = new RedisConnectionException(ConnectionFailureType.UnableToConnect, "Failed while retrying on connection restore", ex);
             message.SetExceptionAndComplete(inner, null);
+        }
+
+        internal void CheckRetryQueueForTimeouts() // check the head of the backlog queue, consuming anything that looks dead
+        {
+            lock (queue)
+            {
+                var now = Environment.TickCount;
+                while (queue.Count != 0)
+                {
+                    var message = queue.Peek();
+                    if (!HasTimedOut(now,
+                        message.ResultBoxIsAsync ? multiplexer.AsyncTimeoutMilliseconds : multiplexer.TimeoutMilliseconds,
+                        message.GetWriteTime()))
+                    {
+                        break; // not a timeout - we can stop looking
+                    }
+                    queue.Dequeue();
+                    RedisTimeoutException ex = GetTimeoutException(message);
+                    HandleException(message, ex);
+                }
+            }
         }
 
         // I am not using ExceptionFactory.Timeout as it can cause deadlock while trying to lock writtenawaiting response queue for GetHeadMessages
