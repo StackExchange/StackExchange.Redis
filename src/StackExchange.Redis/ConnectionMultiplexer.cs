@@ -559,7 +559,7 @@ namespace StackExchange.Redis
         /// <summary>
         /// Raised when a message fails due to a connection exception
         /// </summary>
-        public event EventHandler<Request> RequestFailed;
+        internal event EventHandler<Request> RequestFailed;
 
 
         /// <summary>
