@@ -1,4 +1,5 @@
 ﻿using System.Threading;
+using System.Threading.Tasks;
 using NRediSearch.Aggregation;
 using NRediSearch.Aggregation.Reducers;
 using StackExchange.Redis;
@@ -113,7 +114,7 @@ namespace NRediSearch.Test.ClientTests
         }
 
         [Fact]
-        public void TestCursor()
+        public async Task TestCursor()
         {
             /*
                  127.0.0.1:6379> FT.CREATE test_index SCHEMA name TEXT SORTABLE count NUMERIC SORTABLE
@@ -172,7 +173,7 @@ namespace NRediSearch.Test.ClientTests
                 .SortBy(10, SortedField.Descending("@sum"))
                 .Cursor(1, 1000);
 
-            Thread.Sleep(1000);
+            await Task.Delay(1000).ForAwait();
 
             try
             {
