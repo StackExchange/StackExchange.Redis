@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 
 namespace StackExchange.Redis.Tests
 {
+    [Collection(nameof(MoqDependentCollection))]
     public sealed class WrapperBaseTests
     {
         private readonly Mock<IDatabaseAsync> mock;

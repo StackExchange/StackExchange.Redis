@@ -1,10 +1,12 @@
 ﻿using System.Text;
 using Moq;
 using StackExchange.Redis.KeyspaceIsolation;
+using Xunit;
 
 namespace StackExchange.Redis.Tests
 {
-#pragma warning disable RCS1047 // Non-asynchronous method name should not end with 'Async'.
+#pragma warning disable RCS1047 // Non-asynchronous method name should not end with 'Async'. 
+    [Collection(nameof(MoqDependentCollection))]
     public sealed class TransactionWrapperTests
     {
         private readonly Mock<ITransaction> mock;
