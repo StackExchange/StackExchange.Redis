@@ -7,11 +7,17 @@ using Xunit.Abstractions;
 
 namespace StackExchange.Redis.Tests
 {
-    public class Failover : TestBase
+    public class Failover : TestBase, IAsyncLifetime
     {
         protected override string GetConfiguration() => GetMasterReplicaConfig().ToString();
 
         public Failover(ITestOutputHelper output) : base(output)
+        {
+        }
+
+        public Task DisposeAsync() => Task.CompletedTask;
+
+        public async Task InitializeAsync()
         {
             using (var mutex = Create())
             {
@@ -27,7 +33,7 @@ namespace StackExchange.Redis.Tests
                 {
                     Log(shouldBeReplica.EndPoint + " should be a replica, fixing...");
                     shouldBeReplica.ReplicaOf(shouldBeMaster.EndPoint);
-                    Thread.Sleep(2000);
+                    await Task.Delay(2000).ForAwait();
                 }
             }
         }
