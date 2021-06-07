@@ -16,20 +16,26 @@ namespace StackExchange.Redis.Tests
             using (var conn = Create(allowAdmin: true))
             {
                 var server = conn.GetServer(conn.GetEndPoints()[0]);
-                conn.ConnectionFailed += (s, a) =>
-                    Log("Disconnected: " + EndPointCollection.ToString(a.EndPoint));
-                conn.ConnectionRestored += (s, a) =>
-                    Log("Reconnected: " + EndPointCollection.ToString(a.EndPoint));
 
-                // No need to delay, we're going to try a disconnected connection immediately so it'll fail...
-                conn.IgnoreConnect = true;
-                Log("simulating failure");
-                server.SimulateConnectionFailure();
-                Log("simulated failure");
-                conn.IgnoreConnect = false;
-                Log("pinging - expect failure");
-                Assert.Throws<RedisConnectionException>(() => server.Ping());
-                Log("pinged");
+                await RunBlockingSynchronousWithExtraThreadAsync(innerScenario).ForAwait();
+                void innerScenario()
+                {
+                    conn.ConnectionFailed += (s, a) =>
+                        Log("Disconnected: " + EndPointCollection.ToString(a.EndPoint));
+                    conn.ConnectionRestored += (s, a) =>
+                        Log("Reconnected: " + EndPointCollection.ToString(a.EndPoint));
+
+                    // No need to delay, we're going to try a disconnected connection immediately so it'll fail...
+                    conn.IgnoreConnect = true;
+                    Log("simulating failure");
+                    server.SimulateConnectionFailure();
+                    Log("simulated failure");
+                    conn.IgnoreConnect = false;
+                    Log("pinging - expect failure");
+                    Assert.Throws<RedisConnectionException>(() => server.Ping());
+                    Log("pinged");
+                }
+
                 // Heartbeat should reconnect by now
                 await UntilCondition(TimeSpan.FromSeconds(10), () => server.IsConnected);
 
